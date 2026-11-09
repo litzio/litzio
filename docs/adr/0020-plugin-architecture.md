@@ -7,13 +7,21 @@
 - Scope: 재개 시 사용할 저장소·Host·기여·UI·저장 구조의 결정. Accepted는 구현 완료가 아니다. 별도 개시된 OneDrive 구현과 후속 비서 제작 로드맵을 구분한다.
 - Amends: [ADR-0019](0019-plugin-tiers.md)의 계층·공통 SDK·Host·번들 UI 경계를 구체화한다. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)·[ADR-0015](0015-shared-host-operations.md)·[ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 실행·UI·비서 관리 경계는 아래 관계 절을 따른다.
 
+## 2026-11-09 신뢰 단위 개정 (#1379)
+
+[소유자 결정 #1379](https://github.com/litzio/litzio/issues/1379)에 따라 아래의 digest 단위 신뢰·업데이트 재확인 서술은 등록된 플러그인(ID와 그 등록) 단위 신뢰로 대체한다. 처음 켤 때 한 번 확인하고 업데이트 뒤에는 다시 확인하지 않는다. 제거 후 재추가·등록 교체는 다시 신뢰해야 한다. 컨셉 검증 단계의 제한이며, 공식 번들 공급 목록과 digest 검증은 유지한다. UI·CLI·비서는 같은 Host 작업을 사용한다. 현재 세부 계약은 [플러그인 1단계](../design/plugin-stage1-v1.md)를 따른다. 이전 결정의 경위는 아래에 보존한다.
+
 ## 배경과 근거
 
 2026-11-06 동적 뷰의 새 정의와 두 데이터 종류에 관한 소유자 결정은 아래 [개정안](#동적-뷰-재정의-개정안-2026-11-06)에 정리했다. 해당 절은 Proposed이며 기존 구현 완료를 뜻하지 않는다.
 
-네 사례(OneDrive, GitHub/GitLab, Docling, Jira)를 같은 제작·실행·표시·저장 계약으로 설명한다. 특정 기능을 먼저 제품에 심고 나중에 플러그인으로 일반화하지 않는다. 문서 의미는 Core, 실행·연결·자격 증명은 대상 Host, 렌더러는 앱이 소유한다.
+네 사례(OneDrive, GitHub/GitLab, Docling, Jira)를 같은 제작·실행·표시·저장 계약으로 설명한다. 문서 의미는 Core, 실행·연결·자격 증명은 대상 Host, 렌더러는 앱이 소유한다.
 
 입력은 2026-11-05의 `<local-research>/plugin-architecture-proposal.md` 및 같은 폴더의 `plugin-arch-a-structure.md`, `plugin-arch-b-genui.md`다. 제안·정적 조사이며 실행 증명이 아니다. 보관 소스 기준은 `archive/plugins-docling-2026-11`의 `ce90560aacaee2482d37c4b25e36e93060ed156c`다. 제안서의 비서 관리 금지 추천과 저장 설명은 아래 소유자 정정으로 대체한다. 외부 프레임워크의 기능·안전성·직접 호환을 이 ADR로 보증하지 않는다.
+
+## 본체 확장 원칙 (2026-11-09 개정)
+
+소유자 승인 [#1365](https://github.com/litzio/litzio/issues/1365): 특정 플러그인만을 위한 Core·Host 기능은 만들지 않는다. 단, 여러 플러그인이 함께 쓸 수 있고 가치 있는 기능은 Core·Host에 넣을 수 있다. 판단은 PR 리뷰에서 사람과 오케스트레이터가 하며 자동 검사로 강제하지 않는다.
 
 ## 결정
 

@@ -55,7 +55,8 @@ export function sectionReferenceText(title: string, number?: string): string {
  * Core and interfaces use this rule for both parsed and newly inserted blocks, independently
  * of caption or label content.
  */
-export function blockTargets(block: { block: string; enumerator?: string; label?: string; caption?: unknown }): NumberedTargets {
+export function blockTargets(block: { block: string; enumerator?: string; enumerated?: boolean; label?: string; caption?: unknown }): NumberedTargets {
+  if ((block.block === "figure" || block.block === "table") && block.enumerated === false) return {};
   if (block.block === "equation") return { equation: block.enumerator ?? 1 };
   if (block.block === "figure") return { figure: block.enumerator ?? 1 };
   if (block.block === "table") return { table: block.enumerator ?? 1 };
@@ -89,7 +90,7 @@ export type NumberingDiagnostic = {
 
 /** Fixed mode is inferred from authored targets, never stored as document metadata.
  * Missing numbers retain MyST's automatic fallback until authored; diagnostics never gate writes. */
-export function numberingReport(blocks: readonly { block: string; path: readonly number[]; enumerator?: string }[]) {
+export function numberingReport(blocks: readonly { block: string; path: readonly number[]; enumerator?: string; enumerated?: boolean }[]) {
   const numbers = targetNumbers(blocks.map(blockTargets));
   const targets = blocks.flatMap((block, index) => NUMBERED_KINDS.flatMap(kind => numbers[index][kind] === undefined ? [] : [{
     kind, path: block.path, number: numbers[index][kind]!, ...(block.enumerator !== undefined ? { enumerator: block.enumerator } : {}),

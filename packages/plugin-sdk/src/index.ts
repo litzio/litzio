@@ -1,4 +1,3 @@
-export * from "./document-review.ts";
 import { reviewBundleSchema, reviewPageSchema, reviewMappingSchema, type ReviewBundle } from "@litzio/core/views-v2";
 import { queryViewSchema, reviewContributionSchema, validateCatalogView, compileViewInputSchema } from "@litzio/core/views-v2";
 export * from "@litzio/core/views-v2";
@@ -7,6 +6,7 @@ import { rowSchema, type ViewOperation } from "@litzio/core/views";
 export { rowSchema, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
 import { z } from "zod";
+import { documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS } from "@litzio/core";
 import semver from "semver";
 export const SDK_VERSION = "0.3.0";
 // Actual SDK contracts still implemented by this Host, not hypothetical versions
@@ -23,7 +23,7 @@ const operation = z.strictObject({ id, version: z.number().int().positive(), eff
 const extension = z.string().regex(/^\.[a-z0-9]+$/);
 const jobFields = { id, title: z.string().min(1), accept: z.array(extension).min(1), start: id, status: id, stop: id };
 const jobContributionSchema = z.discriminatedUnion("resultKind", [
-  z.strictObject({ ...jobFields, resultKind: z.literal("native-document"), documentReview: id.optional() }),
+  z.strictObject({ ...jobFields, resultKind: z.literal("native-document") }),
   z.strictObject({ ...jobFields, resultKind: z.literal("file"), resultExtension: extension }),
 ]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
@@ -63,10 +63,6 @@ export function validateManifest(input: unknown): PluginManifest {
   if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
   if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.secretUses.length) throw new Error("Unsupported contribution: dataViews, generatedUi and secretUses");
   for (const job of m.contributes.jobs) {
-    if (job.resultKind === "native-document" && job.documentReview) {
-      const build = m.contributes.operations.find(op => op.id === job.documentReview);
-      if (!build || build.effect !== "read" || build.scope !== "host") throw new Error("Document review requires a host read operation");
-    }
     if (job.resultKind === "file" && !supportedSdkVersions.some(version => semver.gte(version, "0.2.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("File job results require SDK 0.2.0 or later in requiresSdk");
     for (const binding of [job.start, job.status, job.stop]) if (!m.contributes.operations.some(op => op.id === binding)) throw new Error("Undeclared job operation");
     if (new Set([job.start, job.status, job.stop]).size !== 3) throw new Error("Job bindings must be distinct");
@@ -118,7 +114,8 @@ export function validateManifest(input: unknown): PluginManifest {
   return m;
 }
 export type FolderSource = { id: string; path: string; label: string; defaultCandidate: boolean };
-export type FolderDecoration = { id: string; path: string; icon: "onedrive" };
+/** Decorate the exact folder with the owning plugin manifest icon. */
+export type FolderDecoration = { id: string; path: string; icon: "plugin" };
 export type AccountStatus = { id: string; label: string; source: string };
 export type PluginStatus = { available: boolean; message: string; folders: FolderSource[]; decorations: FolderDecoration[]; accounts: AccountStatus[] };
 export type PluginContext = { secrets?: Readonly<Record<string, string>>; settings: Readonly<Record<string, unknown>>; platform: string; env: Readonly<Record<string, string | undefined>>; isDirectory(path: string): boolean };
@@ -128,8 +125,9 @@ export type OperationReceipt = { requestId: string; operation: string; version: 
 export { compileSchema } from "./schema.ts";
 export const statusSchema = z.strictObject({ available: z.boolean(), message: z.string(),
   folders: z.array(z.strictObject({ id, path: z.string().min(1), label: z.string().min(1), defaultCandidate: z.boolean() })),
-  decorations: z.array(z.strictObject({ id, path: z.string().min(1), icon: z.literal("onedrive") })),
+  decorations: z.array(z.strictObject({ id, path: z.string().min(1), icon: z.literal("plugin") })),
   accounts: z.array(z.strictObject({ id, label: z.string().min(1), source: z.string().min(1) })) });
+export const PLUGIN_REGISTRATION_CHANGED = "Plugin registration changed. Review the plugin and confirm again.";
 export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("secret-status"), id }),
   z.strictObject({ action: z.literal("secret-delete"), id, name: id }),
@@ -137,9 +135,9 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1), id }),
   z.strictObject({ action: z.literal("validate"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("register"), directory: z.string().min(1) }),
-  z.strictObject({ action: z.literal("trust"), id, digest: z.string().regex(/^[a-f0-9]{64}$/) }),
+  z.strictObject({ action: z.literal("trust"), id, registrationId: z.uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/).optional() }),
   z.strictObject({ action: z.literal("unregister"), id }),
-  z.strictObject({ action: z.literal("reload"), id }), z.strictObject({ action: z.literal("enable"), id }), z.strictObject({ action: z.literal("disable"), id }),
+  z.strictObject({ action: z.literal("reload"), id }), z.strictObject({ action: z.literal("enable"), id, registrationId: z.uuid().optional(), trust: z.boolean().optional() }), z.strictObject({ action: z.literal("disable"), id }),
   z.strictObject({ action: z.literal("settings"), id, settings: z.record(z.string(), z.unknown()).optional() }),
 ]);
 export type PluginManagementInput = z.infer<typeof pluginManagementSchema>;
@@ -168,14 +166,24 @@ export const completedReviewSchema = z.strictObject({ review: z.string().min(1).
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "Duplicate region across review pages" });
   });
 export type CompletedReview = z.infer<typeof completedReviewSchema>;
+/** Text stays bounded separately from base64 images. Completed payload only; not a job lifetime limit. */
+export const JOB_DOCUMENT_MAX_BYTES = 32 * 1024 * 1024;
+export const documentImageSchema = z.strictObject({ key: z.string().min(1).max(512), mime: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+  base64: z.string().min(1).max(4 * Math.ceil(10 * 1024 * 1024 / 3)) });
+export const authoredDocumentRequestSchema = z.strictObject({ authoring: documentAuthoringSchema, images: z.array(documentImageSchema).max(256).default([]) }).superRefine((value, ctx) => {
+  if (new Set(value.images.map(image => image.key)).size !== value.images.length) ctx.addIssue({ code: "custom", message: "Duplicate image key" });
+  if (new TextEncoder().encode(JSON.stringify(value)).length > JOB_DOCUMENT_MAX_BYTES) ctx.addIssue({ code: "custom", message: "Document payload exceeds 32 MiB" });
+});
+export type AuthoredDocumentRequest = z.infer<typeof authoredDocumentRequestSchema>;
+export const jobDocumentSchema = z.union([z.strictObject({ source: z.string().refine(value => new TextEncoder().encode(value).length <= DOCUMENT_AUTHORING_LIMITS.bytes, "Document source exceeds 4 MiB") }), authoredDocumentRequestSchema]);
 export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
   progress: z.strictObject({ done: z.number().nonnegative(), total: z.number().positive() }).refine(p => p.done <= p.total).optional(),
-  errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(), review: completedReviewSchema.optional(),
+  errorKind: z.unknown().transform(pluginErrorKind).optional(), document: jobDocumentSchema.optional(), review: completedReviewSchema.optional(),
   file: z.strictObject({ path: z.string().min(1) }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; inputs?: import("@litzio/core").AuthoredDocument["inputs"]; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
 export const JOB_BATCH_MAX_FILES = 50;
 export type BatchJobResult = { file: string; requestId?: string; job?: JobSnapshot; error?: string };
 export const jobRequestSchema = z.discriminatedUnion("action", [

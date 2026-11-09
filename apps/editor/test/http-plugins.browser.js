@@ -23,10 +23,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.route("**/api/plugins", async route => {
     if (route.request().method() === "GET") ++listRequests;
     const delayed = holdEnabled && route.request().method() === "GET";
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const value = await response.json();
     for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
-      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
+      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "plugin" })), accounts: [] };
     }
     if (delayed && value.plugins.some(plugin => plugin.id === "litzio.onedrive" && plugin.enabled)) {
       delayedResponses.push(value);
@@ -38,24 +38,41 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const official = page.getByRole("switch", { name: "Enable OneDrive", exact: true });
   await expect(official).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "litzio.onedrive").official).toBe(true);
-  if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "docs/design/assets/bundled-plugins-1279/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
+  if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "tmp/plugin-stage1/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
   const beforeEnableLists = listRequests;
   await official.click(); await expect(official).toBeChecked();
   expect(listRequests).toBe(beforeEnableLists);
+  if (screenshots) {
+    await expect(page.locator(".plugin-heading .plugin-icon")).toBeVisible();
+    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
+    await page.screenshot({ path: "tmp/folder-1366/settings-1440.png", mask: [page.locator(".sidebar-host-account")] });
+  }
   await page.keyboard.press("Escape");
   if (screenshots) {
     await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
     await page.waitForLoadState("networkidle");
     await page.screenshot({ path: "tmp/onedrive-1287/enabled-1440.png", mask: [page.locator(".sidebar-host-account")] });
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
     await page.setViewportSize({ width: 640, height: 900 });
     await page.reload(); await page.waitForLoadState("networkidle");
+    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
     await page.screenshot({ path: "tmp/onedrive-1287/enabled-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByRole("button", { name: "플러그인", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
+    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+    await page.screenshot({ path: "tmp/folder-1366/settings-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.keyboard.press("Escape");
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
     await page.reload();
   }
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
-  await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(2);
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).toBeChecked();
   // Hold a completed Host GET in transport, then finish a later user disable first.
@@ -74,7 +91,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(official).not.toBeChecked();
   await page.keyboard.press("Escape");
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
-  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`);
+  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`, { headers: { Connection: "close" } });
   expect(listing.ok()).toBe(true);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).not.toBeChecked();
@@ -105,7 +122,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.getByTestId("folder-path").fill(pluginFixture.directory);
   await page.getByTestId("folder-open").click();
   await expect(page.getByTestId("folder-path")).not.toBeVisible();
-  await expect(page.getByText("Trust required", { exact: false })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).toBeEnabled();
   const registered = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
   expect(registered.running).toBe(false);
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
@@ -145,10 +162,42 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(page.getByRole("button", { name: "Save secret", exact: true })).toBeDisabled();
   }
   await page.keyboard.press("Escape");
-  pluginFixture.cli(["plugins", "trust", "fixture.drive", "--digest", registered.digest]);
-  await page.reload(); await openSettings();
-  await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
+  const toggle = page.getByRole("switch", { name: "Enable Drive fixture", exact: true });
+  await toggle.click();
+  const confirmation = page.getByRole("dialog", { name: "Trust and enable Drive fixture?", exact: true });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(toggle).not.toBeChecked();
+  const cancelled = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
+  expect(cancelled.trusted).toBe(false); expect(cancelled.enabled).toBe(false);
+  await toggle.click();
+  await expect(confirmation).toBeVisible();
+  if (screenshots) for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.keyboard.press("Escape");
+    await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+    await page.reload();
+    await page.getByRole("button", { name: width === 640 ? "설정" : "Settings", exact: true }).click();
+    await page.getByRole("button", { name: width === 640 ? "플러그인" : "Plugins", exact: true }).click();
+    await page.screenshot({ path: `tmp/plugin-list-1379/list-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+    await page.getByRole("button", { name: width === 640 ? "Drive fixture 설정" : "Drive fixture settings", exact: true }).click();
+    await page.getByText(width === 640 ? "상세 정보" : "Details", { exact: true }).click();
+    await page.screenshot({ path: `tmp/plugin-list-1379/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+    await page.keyboard.press("Escape");
+    await page.getByRole("switch", { name: width === 640 ? "Drive fixture 활성화" : "Enable Drive fixture", exact: true }).click();
+    await page.screenshot({ path: `tmp/plugin-list-1379/confirmation-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+  }
+  if (screenshots) {
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload(); await openSettings(); await toggle.click();
+  }
+  const approved = page.waitForRequest(request => request.url().endsWith("/api/plugins") && request.method() === "POST" && request.postDataJSON()?.action === "enable" && request.postDataJSON()?.trust === true);
+  await confirmation.getByRole("button", { name: "Trust and enable", exact: true }).click();
+  expect((await approved).postDataJSON().registrationId).toBe(registered.registrationId);
+  await expect(confirmation).not.toBeVisible();
+  await expect(toggle).toBeChecked();
+  await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toHaveCount(0);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(true);
   const reloaded = pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
   expect(reloaded.receipt.operation).toBe("plugins.reload");
@@ -187,22 +236,26 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   // Escape exits Settings after the nested dialog has finished closing.
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
+  // Any running folder source opens automatically, before a manual folder action.
+  await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
+  await expect(page.locator(`[data-testid="folder"][data-root=${JSON.stringify(pluginFixture.otherFolder)}]`)).toBeVisible();
   await openFolderPicker(page);
   await page.getByTestId("folder-path").fill(pluginFixture.folder);
   await page.getByTestId("folder-open").click();
   await expect(page.getByTestId("folder-path")).not.toBeVisible();
-  await expect(page.getByLabel("OneDrive", { exact: true })).toBeVisible();
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toBeVisible();
+  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });
     if (screenshots) await page.screenshot({ path: `tmp/plugin-stage1/decoration-${width}.png` });
   }
   await openSettings();
   await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Drive fixture", exact: true }).getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(false);
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".sidebar-folder-name")).toContainText("fixture");
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(0);
+  await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
   // Actual detachable community artifact, same Host and CLI, one fake service.
@@ -228,8 +281,58 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const registered = (await docling.cli(["plugins", "list"])).plugins.find(p => p.id === id);
     expect(registered.official).toBe(false); expect(registered.running).toBe(false);
     await docling.cli(["plugins", "settings", id, "--file", docling.settings]);
-    await docling.cli(["plugins", "trust", id, "--digest", registered.digest]);
+    await docling.cli(["plugins", "trust", id, "--registration", registered.registrationId]);
     await docling.cli(["plugins", "enable", id]);
+    // Manual real-service evidence uses an already converted archive. Never put
+    // external model latency inside the 180s automatic fake-service regression.
+    if (screenshots && docling.realFile) {
+      await openFolderPicker(page);
+      await page.getByTestId("folder-path").fill(pluginFixture.folder);
+      await page.getByTestId("folder-open").click();
+      await expect(page.getByTestId("folder-path")).not.toBeVisible();
+      docling.setRealInput();
+      const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
+      await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
+      const report = await docling.report(started.job.requestId);
+      await docling.repeatReal();
+      expect(report.summary).not.toContain("그림 이미지 미포함");
+      expect(report.summary).toContain("캡션 번호 미보존 1");
+      for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 1100 });
+        await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+        await page.reload();
+        if (docling.beforeFile) {
+          await page.locator('[role="treeitem"][data-path$="docling-before.md"]').click();
+          await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-before\.md$/);
+          await page.screenshot({ path: `tmp/docling-1382/before-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        }
+        await page.locator('[role="treeitem"][data-path$="docling-real.md"]').click();
+        await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-real\.md$/);
+        const document = page.locator(".tiptap").filter({ visible: true });
+        await expect(document.locator("table")).toContainText("Revenue");
+        await expect(document).toContainText("Two connected stages");
+        await expect(document).toContainText("Figure IV: Unreadable source number");
+        await expect(document.locator('figure img')).toHaveCount(2);
+        await expect.poll(() => document.locator('figure img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
+        await expect(document.locator('figure').filter({hasText:'Two connected stages'}).locator('figcaption')).toHaveAttribute('data-caption-prefix', /Figure 6/);
+        await expect(document.locator('figure').filter({hasText:'Figure IV:'}).locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+        await expect(document.getByTestId('table-caption')).toHaveAttribute('data-caption-prefix', /Table 2-1/);
+        await page.screenshot({ path: `tmp/docling-1382/after-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await document.locator('figure').last().scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `tmp/docling-1382/figures-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+        const panel = page.getByTestId("plugin-job-panel");
+        const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "real.docling", exact: true }) }).first();
+        await expect(row).toContainText(report.summary);
+        const masks = [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })];
+        await page.screenshot({ path: `tmp/docling-1382/losses-${width}.png`, mask: masks, maskColor: "#a1a1aa" });
+        if (width === 640) {
+          await panel.locator(".view-table-scroll").evaluate(element => element.scrollTo({ left: element.scrollWidth }));
+          await page.screenshot({ path: "tmp/docling-1382/losses-640-end.png", mask: masks, maskColor: "#a1a1aa" });
+        }
+      }
+      return { realDocling: true, report };
+    }
     const invoke = () => docling.cli(["operation", "invoke", id + ".connection", "--input", docling.input]);
     const connected = await invoke();
     expect(connected.result.ok).toBe(true);
@@ -329,6 +432,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(started.job.state).toBe("running");
     await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
     expect((await docling.cli(["plugins", "result", started.job.requestId])).job.result.path).toContain("docling-cli.md");
+    const conversionReport = await docling.report(started.job.requestId);
+    expect(conversionReport.documentRevision).toBe((await docling.cli(["plugins", "result", started.job.requestId])).job.result.revision);
+    expect(conversionReport.items.find(item => item.self_ref === "#/pictures/0").targets).toEqual(conversionReport.items.find(item => item.self_ref === "#/texts/7").targets);
     await page.keyboard.press("Control+Slash");
     await page.getByRole("combobox").fill("> Plugin jobs");
     await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
@@ -338,7 +444,19 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const editor = page.locator(".tiptap").filter({ visible: true });
     await expect(editor).toContainText("Converted PDF");
     await expect(editor).toContainText("PDF body *literal*.");
-    await expect(editor).toContainText("Cell one | Cell two");
+    await expect(editor.locator("table")).toContainText("Cell one");
+    await expect(editor.locator("ol").filter({ hasText: "First item" })).toContainText("First item");
+    await expect(editor.locator("pre")).toContainText("print(1)");
+    await expect(editor).toContainText("Original caption.");
+    const figure = editor.locator('figure').filter({ hasText: 'Original caption.' });
+    await expect.poll(() => figure.locator('img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(figure.locator('figcaption')).toHaveAttribute('data-caption-prefix', /Figure 1/);
+    await expect(figure).not.toContainText('Figure 1:');
+    const unnumbered = editor.locator('figure').filter({ hasText: 'Figure IV: Unreadable number' });
+    await expect(unnumbered.locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+    expect(conversionReport.summary).toContain('캡션 번호 미보존 1');
+    expect(conversionReport.losses.filter(loss => loss.kind === 'picture-image')).toHaveLength(1);
+    await expect(editor).not.toContainText("RUNNING HEADER");
     await expect(editor).not.toContainText("Docling conversion:");
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     // Re-selecting the current Root must preserve its loaded files.
@@ -350,6 +468,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await panel.getByRole("button", { name: "Start job", exact: true }).click();
     const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first();
     await expect(nativeRow.getByRole("status")).toHaveText("Completed");
+    await expect(nativeRow).toContainText("병합 칸 반복 1");
     await nativeRow.getByRole("button", { name: "Open result: sample.docling", exact: true }).click();
     await expect(editor).toContainText("PDF body *literal*.");
     docling.setDocumentInput(true);
@@ -394,8 +513,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.getByLabel("pat: Not configured", { exact: true }).fill("mock-jira-token");
       await saveSecret();
       await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
-      await jira.cli(["plugins", "trust", "community.jira", "--digest", registered.digest]);
-      await jira.cli(["plugins", "enable", "community.jira"]);
+      await jira.cli(["plugins", "enable", "community.jira", "--trust", "--registration", registered.registrationId]);
       await page.reload(); await openSettings();
       await page.getByRole("button", { name: "Jira settings", exact: true }).click();
       const health = page.getByRole("button", { name: "Check connection", exact: true });

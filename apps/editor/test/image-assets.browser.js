@@ -5,7 +5,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'image-assets', 'fresh', 'images.md'].join(separator);
@@ -59,7 +59,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await figures.first().waitFor(); await waitIdle(); await loaded();
   const pasted = (await documentJSON()).content.find(node => node.type === 'figure').attrs.imageUrl;
   assert(/^\.\/assets\/images-1\.png$/.test(pasted), 'PNG path must be portable and generated');
-  assert((await page.request.get(media(pasted))).headers()['content-type'] === 'image/png', 'Host serves the saved PNG');
+  assert((await page.request.get(media(pasted), { headers: { Connection: "close" } })).headers()['content-type'] === 'image/png', 'Host serves the saved PNG');
   await page.keyboard.press('Control+z');
   assert(await figures.count() === 0 && (await documentJSON()).content.some(node => node.content?.[0]?.text === 'typed Alpha.'), 'One Undo removes Figure only');
   await page.keyboard.press('Control+Shift+z'); await figures.first().waitFor();
@@ -80,7 +80,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await page.keyboard.press('ControlOrMeta+z');
   assert(JSON.stringify(await documentJSON()) === beforeDelete, 'One Undo restores the entire document including the unsaved PNG Figure');
   await loaded();
-  assert((await page.request.get(media(pasted))).status() === 200, 'Deletion/Undo retains the local asset');
+  assert((await page.request.get(media(pasted), { headers: { Connection: "close" } })).status() === 200, 'Deletion/Undo retains the local asset');
 
   // Real File drop uses the pointer's block rather than the unrelated current selection.
   // A dropped photo is a JPEG; the Host keeps its format and serves it as one.
@@ -100,7 +100,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await imageSection.getByRole('treeitem', {name:droppedFigure.attrs.imageUrl.split('/').pop(), exact:true}).waitFor();
   assert(await assetsRow.getAttribute('aria-expanded') === 'true', 'Asset creation refreshes loaded assets without changing expansion');
   result.dropRefreshesLoadedAssets = true;
-  assert((await page.request.get(media(droppedFigure.attrs.imageUrl))).headers()['content-type'] === 'image/jpeg', 'Host serves the saved JPEG');
+  assert((await page.request.get(media(droppedFigure.attrs.imageUrl), { headers: { Connection: "close" } })).headers()['content-type'] === 'image/jpeg', 'Host serves the saved JPEG');
   result.fileDrop = true;
 
   await select('typed Alpha.');
@@ -119,7 +119,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await loaded();
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
-  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   const paths = disk.document.blocks.filter(block => block.block === 'figure').map(block => block.imageUrl);
   assert(paths.length === 3 && paths.every(path => path.startsWith('./assets/')), 'Save retains all Figure paths');
   await page.getByRole('button', {name:'File actions', exact:true}).click();
@@ -151,7 +151,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await syntheticPaste('');
   const receipt = await (await responsePromise).json();
   await page.getByText('Image could not be inserted: The Figure insertion was rejected; your document is unchanged.', {exact:true}).filter({visible:true}).waitFor(); await waitIdle();
-  assert((await page.request.get(media(receipt.path))).status() === 404, 'Rejected insertion must rollback the exact created asset');
+  assert((await page.request.get(media(receipt.path), { headers: { Connection: "close" } })).status() === 404, 'Rejected insertion must rollback the exact created asset');
   assert(JSON.stringify(await documentJSON()) === beforeFailure, 'Rejected insertion retains document');
   await restoreInsertion(); await dismiss();
   result.rollback = true;
@@ -164,10 +164,10 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   const failedReceipt = await (await failedResponse).json();
   await page.getByText(new RegExp(`Rollback failed; asset remains at`)).filter({visible:true}).waitFor(); await waitIdle();
   assert((await page.locator('body').innerText()).includes(failedReceipt.path), 'Rollback failure exposes remaining path');
-  assert((await page.request.get(media(failedReceipt.path))).status() === 200, 'Failure fixture still exists before cleanup');
+  assert((await page.request.get(media(failedReceipt.path), { headers: { Connection: "close" } })).status() === 200, 'Failure fixture still exists before cleanup');
   assert(JSON.stringify(await documentJSON()) === beforeFailure, 'Rollback failure does not insert a Figure');
   await restoreInsertion(); await page.unroute('**/api/asset');
-  const cleaned = await page.request.delete(`${origin}/api/asset`, {data:{documentPath:file, ...failedReceipt}});
+  const cleaned = await page.request.delete(`${origin}/api/asset`, { headers: { Connection: "close" },data:{documentPath:file, ...failedReceipt}});
   assert(cleaned.status() === 204, 'Clean up only the failed request asset with its receipt');
   result.rollbackFailureVisible = true;
   await dismiss(); await page.unrouteAll();
@@ -213,19 +213,19 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await editFigure(1);
   const cancelled = await chooseOutside();
   assert(cancelled === './assets/photo.png', 'An image elsewhere is copied into assets/');
-  assert((await page.request.get(media(cancelled))).status() === 200, 'The copy exists while the form holds it');
+  assert((await page.request.get(media(cancelled), { headers: { Connection: "close" } })).status() === 200, 'The copy exists while the form holds it');
   const removed = page.waitForResponse(response => response.url().endsWith('/api/asset') && response.request().method() === 'DELETE');
   await page.getByTestId('figure-alt').press('Escape');
-  assert((await removed).status() === 204 && (await page.request.get(media(cancelled))).status() === 404, 'Cancel removes the unused copy');
+  assert((await removed).status() === 204 && (await page.request.get(media(cancelled), { headers: { Connection: "close" } })).status() === 404, 'Cancel removes the unused copy');
   await editFigure(1);
   const copied = await chooseOutside();
   await page.getByTestId('figure-apply').click(); await imageField.waitFor({state:'detached'});
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
-  const chosen = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json())
+  const chosen = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json())
     .document.blocks.filter(block => block.block === 'figure').map(block => block.imageUrl);
   assert(chosen[0] === './figures/diagram.svg' && chosen[1] === copied, 'Save writes the chosen paths');
-  assert((await page.request.get(media(copied))).status() === 200, 'An applied copy is kept');
+  assert((await page.request.get(media(copied), { headers: { Connection: "close" } })).status() === 200, 'An applied copy is kept');
   result.chooseCopiesOtherImage = true;
 
   // An unapplied copy is removed when its form goes away without Cancel: Reload, Figure deletion.
@@ -234,7 +234,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
     const copy = await chooseOutside();
     const deleted = page.waitForResponse(response => response.url().endsWith('/api/asset') && response.request().method() === 'DELETE');
     await leave();
-    assert((await deleted).status() === 204 && (await page.request.get(media(copy))).status() === 404, 'The unapplied copy is removed');
+    assert((await deleted).status() === 204 && (await page.request.get(media(copy), { headers: { Connection: "close" } })).status() === 404, 'The unapplied copy is removed');
   };
   await discarded(async () => {
     await page.getByRole('button', {name:'File actions', exact:true}).focus(); await page.keyboard.press('Enter');
@@ -257,7 +257,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   const choiceCreated = new Promise(resolve => { copiedChoice = resolve; });
   await page.route('**/api/asset', async route => {
     if (route.request().method() !== 'POST') return route.continue();
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     copiedChoice(await response.json());
     await choiceGate;
     await route.fulfill({response});
@@ -277,7 +277,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
     await page.getByTestId('figure-editor').waitFor({state:'detached'});
     const rollback = page.waitForResponse(response => response.url().endsWith('/api/asset') && response.request().method() === 'DELETE');
     releaseChoice();
-    assert((await rollback).status() === 204 && (await page.request.get(media(receipt.path))).status() === 404,
+    assert((await rollback).status() === 204 && (await page.request.get(media(receipt.path), { headers: { Connection: "close" } })).status() === 404,
       'A choice delivered after Figure deletion must roll back its unused copy');
     result.lateChoiceRemoved = true;
   } finally {
@@ -381,7 +381,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
     await historyKey('Control+z');
     await page.getByRole('button', {name:'Save', exact:true}).click();
     await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
-    const saved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).document.blocks;
+    const saved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).document.blocks;
     const savedFigure = saved[index];
     assert(savedFigure?.block === 'figure' && savedFigure.imageUrl === filled.content[index].attrs.imageUrl &&
       savedFigure.label === beforeFill.content[index].attrs.label && savedFigure.caption.text === (gesture === 'paste' ? 'Reserved caption' : ''),
@@ -441,7 +441,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await page.unroute('**/api/folder-version?*', pauseChecks);
   const renamed = (await documentJSON()).content.find(node => node.type === 'figure').attrs;
   assert(renamed.imageUrl === './assets/회로도-final.png' && renamed.imageAlt === 'Renamed alt' && renamed.label === 'renamed-652', 'Rename and properties Apply succeed');
-  assert((await page.request.get(media(renamed.imageUrl))).status() === 200 && (await page.request.get(media(oldUrl))).status() === 404, 'Only renamed file exists');
+  assert((await page.request.get(media(renamed.imageUrl), { headers: { Connection: "close" } })).status() === 200 && (await page.request.get(media(oldUrl), { headers: { Connection: "close" } })).status() === 404, 'Only renamed file exists');
   await historyKey('Control+z');
   const undone = (await documentJSON()).content.find(node => node.type === 'figure').attrs;
   assert(undone.imageUrl === renamed.imageUrl && undone.imageAlt === beforeAlt && undone.label === beforeLabel, 'Undo restores only Alt/Label and retains new path immediately');
@@ -474,7 +474,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   assert(await figures.count() === figureCountBeforeRename, 'Filename-only rename adds no Undo event');
   await historyKey('Control+Shift+z');
   assert(JSON.stringify(await documentJSON()) === pastedRename, 'Redo of the earlier insertion restores the renamed URL');
-  assert((await page.request.get(media('./assets/just-pasted.png'))).status() === 200, 'Redo points at an existing image');
+  assert((await page.request.get(media('./assets/just-pasted.png'), { headers: { Connection: "close" } })).status() === 200, 'Redo points at an existing image');
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
   result.imageRenameHistoryAndCheckpoint = true;
@@ -498,7 +498,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   const spellingRenamed = await firstImage();
   await historyKey('Control+z');
   assert(await firstImage() === spellingRenamed, 'Undo of a saved equivalent spelling retains the renamed path immediately');
-  assert((await page.request.get(media(await firstImage()))).status() === 200, 'Historical spelling Undo points to an existing image');
+  assert((await page.request.get(media(await firstImage()), { headers: { Connection: "close" } })).status() === 200, 'Historical spelling Undo points to an existing image');
   await historyKey('Control+Shift+z');
   assert(await firstImage() === spellingRenamed, 'Redo of a saved equivalent spelling retains the renamed path immediately');
   await saveCurrent();
@@ -532,7 +532,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   let currentFigures = (await documentJSON()).content.filter(node => node.type === 'figure');
   assert(currentFigures.slice(0, 2).every(node => node.attrs.imageUrl === './assets/shared-renamed.png') &&
     currentFigures[1].attrs.imageAlt === 'Shared B draft', 'Other form Apply never reintroduces the old path');
-  assert((await page.request.get(media(currentFigures[1].attrs.imageUrl))).status() === 200, 'Shared form Apply points at an existing image');
+  assert((await page.request.get(media(currentFigures[1].attrs.imageUrl), { headers: { Connection: "close" } })).status() === 200, 'Shared form Apply points at an existing image');
   await saveCurrent();
 
   // An explicitly edited Image is the user's independent draft and is not retargeted.
@@ -573,7 +573,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await page.getByTestId('recovery-prompt').waitFor({state:'detached'});
   assert(semanticJSON(await documentJSON()) === beforeRestore, 'Rename recovery restores applied content and image paths');
   for (const node of (await documentJSON()).content.filter(node => node.type === 'figure')) {
-    assert((await page.request.get(media(node.attrs.imageUrl))).status() === 200, 'Restored Figure points to an existing image');
+    assert((await page.request.get(media(node.attrs.imageUrl), { headers: { Connection: "close" } })).status() === 200, 'Restored Figure points to an existing image');
   }
   await saveCurrent();
   await page.getByRole('button', {name:'File actions', exact:true}).click();
@@ -609,7 +609,7 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
   const expectedPaths = ['./assets/diagram.svg', 'assets/diagram.svg', 'assets/missing.png'];
-  const savedPaths = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(pathsFile)}`)).json())
+  const savedPaths = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(pathsFile)}`, { headers: { Connection: "close" } })).json())
     .document.blocks.filter(block => block.block === 'figure').map(block => block.imageUrl);
   assert(JSON.stringify(savedPaths) === JSON.stringify(expectedPaths), 'Save retains typed image paths even when loading fails');
   await page.getByRole('button', {name:'File actions', exact:true}).click();

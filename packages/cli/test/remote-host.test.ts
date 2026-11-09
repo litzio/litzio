@@ -190,7 +190,7 @@ test("a locked previous summary and EPERM updating this run cannot bypass CLI re
 });
 
 
-test("plugin authoring CLI forwards Host directory/id and preserves validation failure", async t => {
+test("plugin CLI forwards authoring and registration consent without implicit approval", async t => {
   const bodies: unknown[] = [];
   t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
     if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
@@ -200,6 +200,14 @@ test("plugin authoring CLI forwards Host directory/id and preserves validation f
   assert.equal(await runCliAsync(["plugins", "scaffold", "C:/host/greeting", "--id", "local.greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.equal(await runCliAsync(["plugins", "validate", "C:/host/greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.deepEqual(bodies, [{ action: "scaffold", directory: "C:/host/greeting", id: "local.greeting" }, { action: "validate", directory: "C:/host/greeting" }]);
+  const registrationId = "62fbf782-043e-4c03-8b20-60aaaf34b6da";
+  for (const args of [["trust", "local.greeting", "--registration", registrationId], ["enable", "local.greeting", "--trust", "--registration", registrationId]]) {
+    assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  }
+  assert.deepEqual(bodies.slice(2), [{ action: "trust", id: "local.greeting", registrationId }, { action: "enable", id: "local.greeting", trust: true, registrationId }]);
+  const sent = bodies.length;
+  for (const args of [["trust", "local.greeting"], ["enable", "local.greeting", "--trust"]]) assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.equal(bodies.length, sent, "missing registration cannot dispatch consent");
 });
 
 

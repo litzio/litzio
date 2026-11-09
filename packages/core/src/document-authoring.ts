@@ -7,16 +7,16 @@ import * as operations from "./operations.ts";
 import { getEditableDocument } from "./editable.ts";
 import type { DocumentTargetRef } from "./views-v2.ts";
 
-export const DOCUMENT_AUTHORING_LIMITS = { bytes: 262144, inputs: 200, blocks: 500, string: 16384, tableRows: 100, tableColumns: 32 } as const;
+export const DOCUMENT_AUTHORING_LIMITS = { bytes: 4 * 1024 * 1024, inputs: 5000, blocks: 5000, string: 16384, tableRows: 100, tableColumns: 32 } as const;
 const text = z.string().max(DOCUMENT_AUTHORING_LIMITS.string).refine(value => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value));
 const block = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("paragraph"), text }),
   z.strictObject({ kind: z.literal("heading"), level: z.number().int().min(1).max(6), text }),
   z.strictObject({ kind: z.literal("list"), ordered: z.boolean(), start: z.number().int().positive().optional(), items: z.array(text).min(1).max(100) }),
-  z.strictObject({ kind: z.literal("table"), rows: z.array(z.array(text).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableColumns)).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableRows) }),
-  z.strictObject({ kind: z.literal("figure"), imageUrl: text, imageAlt: text, caption: text }),
+  z.strictObject({ kind: z.literal("table"), rows: z.array(z.array(text).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableColumns)).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableRows), enumerator: text.optional(), enumerated: z.boolean().optional() }),
+  z.strictObject({ kind: z.literal("figure"), imageUrl: text.optional(), imageAsset: text.min(1).max(512).optional(), imageAlt: text, caption: text, enumerator: text.optional(), enumerated: z.boolean().optional() }).refine(value => (value.imageUrl !== undefined) !== (value.imageAsset !== undefined), "Expected imageUrl or imageAsset"),
   z.strictObject({ kind: z.literal("code"), language: text, code: text }),
-  z.strictObject({ kind: z.literal("equation"), latex: text }),
+  z.strictObject({ kind: z.literal("equation"), latex: text, enumerator: text.optional() }),
   z.strictObject({ kind: z.literal("divider") }),
 ]);
 export const documentAuthoringSchema = z.strictObject({ title: text.optional(), inputs: z.array(z.strictObject({
@@ -32,7 +32,7 @@ export class DocumentAuthoringError extends Error {
 }
 
 /** Pure document construction, never file IO. Targets address only the returned canonical snapshot. */
-export async function authorDocument(raw: unknown): Promise<AuthoredDocument> {
+export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<string, string>> = {}): Promise<AuthoredDocument> {
   let json: string | undefined;
   try { json = JSON.stringify(raw); } catch { throw new DocumentAuthoringError("invalid-input"); }
   if (json === undefined) throw new DocumentAuthoringError("invalid-input");
@@ -46,19 +46,29 @@ export async function authorDocument(raw: unknown): Promise<AuthoredDocument> {
   let paths: (readonly number[])[];
   try {
     let document = createDocument();
+    const empty = createDocument();
     if (input.title !== undefined) document = updateDocumentTitle(document, input.title);
     for (const item of input.inputs) for (const block of item.blocks) {
-      const index = document.children.length;
+      // Reuse semantic operations without repeatedly cloning the growing import.
+      let part = empty;
+      const index = part.children.length;
       switch (block.kind) {
-        case "paragraph": document = operations.insertParagraph(document, index, block.text); break;
-        case "heading": document = operations.insertHeading(document, index, block.level, block.text); break;
-        case "list": document = operations.insertList(document, index, { ordered: block.ordered, start: block.start, items: block.items.map(text => ({ content: [{ kind: "text", text }] })) }); break;
-        case "table": document = operations.insertTable(document, index, block.rows); break;
-        case "figure": document = operations.insertFigure(document, index, block); break;
-        case "code": document = operations.insertCodeBlock(document, index, block); break;
-        case "equation": document = operations.insertEquation(document, index, block.latex); break;
-        case "divider": document = operations.insertDivider(document, index); break;
+        case "paragraph": part = operations.insertParagraph(part, index, block.text); break;
+        case "heading": part = operations.insertHeading(part, index, block.level, block.text); break;
+        case "list": part = operations.insertList(part, index, { ordered: block.ordered, start: block.start, items: block.items.map(text => ({ content: [{ kind: "text", text }] })) }); break;
+        case "table": part = operations.insertTable(part, index, block.rows); break;
+        case "figure": {
+          const imageUrl = block.imageAsset === undefined ? block.imageUrl! : Object.hasOwn(imageAssets, block.imageAsset) ? imageAssets[block.imageAsset] : undefined;
+          if (typeof imageUrl !== "string" || block.imageAsset !== undefined && !imageUrl) throw new Error("Unbound image asset");
+          part = operations.insertFigure(part, index, { imageUrl, imageAlt: block.imageAlt, caption: block.caption }); break;
+        }
+        case "code": part = operations.insertCodeBlock(part, index, block); break;
+        case "equation": part = operations.insertEquation(part, index, block.latex); break;
+        case "divider": part = operations.insertDivider(part, index); break;
       }
+      if ("enumerated" in block && block.enumerated !== undefined) part = operations.updateEnumeration(part, [index], block.enumerated);
+      if ("enumerator" in block && block.enumerator !== undefined) part = operations.updateEnumerator(part, [index], block.enumerator);
+      document.children.push(...part.children.slice(index));
     }
     source = serializeNativeDocument(document);
     const snapshot = parseNativeDocument(source);

@@ -1,6 +1,3 @@
-import { Notice } from "./ui/primitives.tsx";
-import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
-import { GENERATED_DOCUMENT_WARNING, GENERATED_DOCUMENT_LABEL } from "../shared/document-review.ts";
 import type { HostClient } from "./host-client.ts";
 import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID } from "./host-locator.ts";
@@ -78,10 +75,6 @@ const NativeDocumentTab = memo(function NativeDocumentTab({ settingsDisabled, id
       style={{ "--editor-group-index": groupIndex } as CSSProperties}
       onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
       <div className="document-column">
-        {session.generatedReview ? <Notice tone="warning" className="generated-review-notice" data-testid="generated-review-warning">
-          <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{i18n.t(GENERATED_DOCUMENT_LABEL)}</TooltipTrigger>
-            <TooltipContent>{i18n.t(GENERATED_DOCUMENT_WARNING)}</TooltipContent></Tooltip>
-        </Notice> : null}
         {session.view === "source" ? (
           <article className="document source-view" data-testid="source-view" aria-label={i18n.t("Markdown source")}>
             <pre className="source-view-text"><SourceLines markdown={session.sourceMarkdown} /></pre>

@@ -4,7 +4,9 @@ import { PLUGIN_VERSION, DOCLING_FORMAT_VERSION } from "./versions.js";
 
 // Plugin-owned .docling: ZIP32, stored entries only. No filesystem extraction.
 // Node has no ZIP API; this deliberately supports our small fixed envelope, not general ZIP.
-const validName = name => name === "manifest.json" || name === "document.json" || name === "source.pdf";
+// Reserved opaque review entry: future review state is independent of immutable
+// source hashes. This converter does not interpret, create or edit review records.
+const validName = name => name === "manifest.json" || name === "document.json" || name === "source.pdf" || name === "review.json";
 const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 const hashPattern = /^[a-f0-9]{64}$/;
@@ -52,13 +54,14 @@ function validateEntries(entries) {
   if (images.some(image => image.path.startsWith("pages/"))) throw new Error("Page images must not be generated");
   if (JSON.stringify(manifest.images) !== JSON.stringify(images.map(({ data, ...record }) => record))) throw new Error("Image record mismatch");
   for (const name of entries.keys()) if (!validName(name)) throw new Error("Unsupported .docling entry");
-  return { manifest, documentJson, document, sourcePdf };
+  return { manifest, documentJson, document, sourcePdf, ...(entries.has("review.json") ? { reviewBytes: entries.get("review.json") } : {}) };
 
 }
 
 /** Return bytes only; the generic K1 Host result will own storage. */
-export function createDoclingArchive({ manifest, documentJson, sourceBytes }) {
+export function createDoclingArchive({ manifest, documentJson, sourceBytes, reviewBytes }) {
   const entries = new Map([["manifest.json", Buffer.from(JSON.stringify(manifest, null, 2))], ["document.json", Buffer.from(documentJson)], ["source.pdf", Buffer.from(sourceBytes)]]);
+  if (reviewBytes !== undefined) entries.set("review.json", Buffer.from(reviewBytes));
   validateEntries(entries);
   if (entries.size >= 65535) throw new Error("ZIP64 is unsupported");
   const locals = [], directory = [];

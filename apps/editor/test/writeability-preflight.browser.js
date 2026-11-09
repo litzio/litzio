@@ -5,11 +5,11 @@ async (page, { openDocument }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const rejectedPath = [...initial.path.split(sep).slice(0,-4), 'tmp', 'writeability-preflight', 'blocked-markdown.md'].join(sep);
   const assert = (ok, message) => { if (!ok) throw Error(message); };
-  const rejected = await page.request.get(`${origin}/api/document?path=${encodeURIComponent(rejectedPath)}`);
+  const rejected = await page.request.get(`${origin}/api/document?path=${encodeURIComponent(rejectedPath)}`, { headers: { Connection: "close" } });
   const textFile = await rejected.json();
   assert(rejected.status() === 200 && textFile.kind === 'text' && !textFile.document, 'Unsupported Markdown was not classified as text');
   const refusal = { code:'native-marker', error:'Host admission failed', issue:{ reason:'Host admission failed', action:'Review the file.' } };

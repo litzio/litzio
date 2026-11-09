@@ -1,4 +1,3 @@
-import { activeDocumentReview } from "./document-review-state.ts";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { decodeUtf8, textRevision } from "@litzio/file-commit";
@@ -17,7 +16,7 @@ export const documentRevision = textRevision;
 export function loadDocumentFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): DocumentFileResponse {
   const filePath = resolveDocumentPath(requestedPath, access);
   const source = decodeUtf8(readFileSync(filePath));
-  return { kind: "native", path: filePath, source, ...readModel(source), revision: documentRevision(source), generatedReview: activeDocumentReview(filePath, access) };
+  return { kind: "native", path: filePath, source, ...readModel(source), revision: documentRevision(source) };
 }
 
 export function editorFile(filePath: string, source: string): EditorFileResponse {
@@ -31,5 +30,5 @@ export function editorFile(filePath: string, source: string): EditorFileResponse
 
 export function loadEditorFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): EditorFileResponse {
   const filePath = resolveEditorPath(requestedPath, access);
-  return { ...editorFile(filePath, decodeUtf8(readFileSync(filePath))), generatedReview: activeDocumentReview(filePath, access) };
+  return editorFile(filePath, decodeUtf8(readFileSync(filePath)));
 }

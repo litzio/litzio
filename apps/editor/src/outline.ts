@@ -39,9 +39,10 @@ export function documentTargets(doc: ProseMirrorNode, kind: "table" | "figure"):
   const items: OutlineItem[] = [];
   doc.forEach((node, pos, index) => {
     if (node.type.name !== kind) return;
-    const number = captionNumberText(kind, numbers[index][kind]!, doc.attrs.referenceTemplates);
+    const value = numbers[index][kind];
+    const number = value === undefined ? undefined : captionNumberText(kind, value, doc.attrs.referenceTemplates);
     const caption = kind === "figure" ? node.textContent : node.lastChild?.textContent ?? "";
-    items.push({ kind, index, pos, level: 1, number, text: caption ? `${captionPrefixText(number)}${caption}` : number });
+    items.push({ kind, index, pos, level: 1, number, text: caption ? `${number === undefined ? "" : captionPrefixText(number)}${caption}` : number ?? "" });
   });
   return items;
 }

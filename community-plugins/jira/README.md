@@ -14,12 +14,12 @@ Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다
 2. `litzio plugins register <artifact> --host <origin> --json`
 3. `litzio plugins settings community.jira --file <settings.json> --host <origin> --json`
 4. Plugins 설정에서 `pat` secret을 저장합니다.
-5. `litzio plugins list --host <origin> --json`으로 현재 digest를 확인합니다.
-6. `litzio plugins trust community.jira --digest <digest> --host <origin> --json`
+5. `litzio plugins list --host <origin> --json`으로 현재 registrationId와 digest를 확인합니다.
+6. `litzio plugins trust community.jira --registration <registrationId> --digest <digest> --host <origin> --json`
 7. `litzio plugins enable community.jira --host <origin> --json`
 8. `litzio operation invoke community.jira.jql --input <input.json> --host <origin> --json`
 
-설정 예: `{"baseUrl":"https://jira.example.com/jira","apiUrl":""}`. artifact 수정 시 validate → 현재 digest 신뢰 → reload → 실제 조회를 반복합니다. 설정·secret 변경에는 Host 자동 재적용을 사용합니다.
+설정 예: `{"baseUrl":"https://jira.example.com/jira","apiUrl":""}`. artifact 수정 시 validate → reload → 실제 조회를 반복합니다. 같은 등록의 신뢰는 업데이트 뒤에도 유지하며, 재등록했다면 새 registrationId로 다시 신뢰합니다. 설정·secret 변경에는 Host 자동 재적용을 사용합니다.
 
 설정의 연결 확인과 CLI `community.jira.connection`은 입력 `{}`로 GET /myself를 호출합니다. 5초 제한 안에서 사용자 이름 형식을 확인하고 고정 `{ok,message}`만 반환합니다. 사용자 정보·원문·PAT는 표시하지 않습니다. 이 성공은 개별 이슈 권한을 보증하지 않습니다.
 

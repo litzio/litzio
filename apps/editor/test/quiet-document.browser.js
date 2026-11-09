@@ -5,7 +5,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
   const themeReview = screenshots ? await (async (page, { openPath, screenshots }) => {
   if (!screenshots) throw Error('Use --screenshots for the manual theme review');
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const file = [...loaded.path.split(sep).slice(0, -4), 'tmp', 'quiet-document', 'quiet-document.md'].join(sep);
   const open = async path => {
@@ -90,7 +90,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
   }
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const scratch = name => [root, 'tmp', 'quiet-document', name].join(sep);

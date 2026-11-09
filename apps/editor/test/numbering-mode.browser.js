@@ -1,6 +1,6 @@
 async (page, { openPath, reloadDocument, expect, screenshots }) => {
   const origin = page.url().split('/').slice(0,3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const file = [...initial.path.split(sep).slice(0, -4), 'tmp', 'reference-save-reload', 'fixed.md'].join(sep);
   const settings = page.getByRole('button', {name:'Document settings',exact:true});

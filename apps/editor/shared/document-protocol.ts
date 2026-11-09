@@ -115,8 +115,8 @@ export type InsertEdit =
   | { block: "footnote"; label: string; content: InlineContent[] }
   | { block: "divider" }
   | { block: "equation"; latex: string; label?: string; enumerator?: string }
-  | ({ block: "figure"; label?: string; enumerator?: string } & FigureContent)
-  | { block: "table"; rows: InlineContent[][][]; align?: ("left" | "center" | "right" | null)[]; caption?: InlineContent[]; label?: string; enumerator?: string }
+  | ({ block: "figure"; label?: string; enumerated?: boolean; enumerator?: string } & FigureContent)
+  | { block: "table"; rows: InlineContent[][][]; align?: ("left" | "center" | "right" | null)[]; caption?: InlineContent[]; label?: string; enumerated?: boolean; enumerator?: string }
   | { block: "list"; list: ListContent }
   | ({ block: "code" } & CodeBlockContent)
   /** A `(label)=` target, labeling the block after it (a section heading in the Editor). */
@@ -168,7 +168,6 @@ export type SampleDocuments = { ko: string; en: string };
 export type SampleAvailability = { samples?: SampleDocuments; sampleProblem?: "unavailable" };
 
 export type DocumentFileResponse = SampleAvailability & {
-  generatedReview?: boolean;
   kind?: "native";
   /** Per-open dependency context; changing the Sidebar never changes this value. */
   bibliographyRoot?: string;
@@ -185,7 +184,6 @@ export type DocumentFileResponse = SampleAvailability & {
 
 /** Plain text has no Core read model or semantic edits. */
 export type TextFileResponse = SampleAvailability & {
-  generatedReview?: boolean;
   kind: "text";
   path: string;
   source: string;

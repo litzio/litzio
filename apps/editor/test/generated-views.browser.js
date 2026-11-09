@@ -1,7 +1,7 @@
 async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots }) => {
   pluginFixture.cli(['plugins', 'register', pluginFixture.directory]);
   const registered = pluginFixture.cli(['plugins', 'list']).plugins.find(p => p.id === 'fixture.issues');
-  pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--digest', registered.digest]);
+  pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--registration', registered.registrationId, '--digest', registered.digest]);
   pluginFixture.cli(['plugins', 'enable', 'fixture.issues']);
   expect(pluginFixture.cli(['plugins', 'reload', 'fixture.issues']).receipt.operation).toBe('plugins.reload');
   const invoked = pluginFixture.cli(['operation', 'invoke', 'fixture.issues.read', '--input', `${pluginFixture.directory}/input.json`]);
@@ -203,7 +203,7 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   const openGate = new Promise(resolve => { releaseOpen = resolve; });
   await page.route('**/api/views', async route => {
     if (route.request().postDataJSON().action !== 'open' || route.request().postDataJSON().name !== favorite) return route.fallback();
-    const response = await route.fetch(); openStarted = true; await openGate;
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); openStarted = true; await openGate;
     try { await route.fulfill({ response }); } finally { openDelivered = true; }
   });
   await hub.getByRole('button', { name: favorite, exact: true }).click();
@@ -381,7 +381,7 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   const lateFavoriteGate=new Promise(resolve=>{releaseLateFavorite=resolve;});
   await page.route('**/api/views',async route=>{
     const body=route.request().postDataJSON();if(body.action!=='open'||body.name!=='Saved inputs')return route.fallback();
-    const response=await route.fetch();lateFavoriteStarted=true;await lateFavoriteGate;
+    const response=await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });lateFavoriteStarted=true;await lateFavoriteGate;
     try{await route.fulfill({response});}finally{lateFavoriteDelivered=true;}
   });
   await statistics.getByRole('button',{name:'Saved inputs',exact:true}).click();
@@ -413,7 +413,7 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   delayPoll = false;
   // Host metadata ties the card's document source to the already-opened Root.
   const origin = page.url().split('/').slice(0,3).join('/');
-  const rootMetadata = await (await page.request.get(`${origin}/api/folder?root=${encodeURIComponent(root)}`)).json();
+  const rootMetadata = await (await page.request.get(`${origin}/api/folder?root=${encodeURIComponent(root)}`, { headers: { Connection: "close" } })).json();
 
   proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'litzio.assistant', title: '예시: 두 문서 합계', refresh: 'assistant',
     sources: { stats: { kind: 'assistant', generatedAt: '2026-11-06T00:00:00.000Z', rowSchema: { month: { type: 'string', label: '월' }, total: { type: 'number', label: '합계' } }, rows: Array.from({ length: 51 }, (_, i) => ({ month: `row-${i + 1}`, total: i + 100 })), provenance: [{ kind: 'reference', label: '예시: 매출 A', refId: 'reference-a' }, { kind: 'reference', label: '예시: 매출 B', refId: 'reference-b' }, {kind:'document',label:'예시: Mapped source',hostId:'local',rootId:rootMetadata.rootId,path:'a.md',revision:'fixture-revision'}], method: '두 문서의 같은 월 매출을 합산했습니다.' } },

@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { convertPdfToArchive } from "./conversion.js";
 import { readDoclingArchive } from "./archive.js";
-import { authorDocument } from "@litzio/plugin-sdk";
+import { convertDocument } from "./document.js";
 
-import { reviewDocument } from "./review.js";
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
   const requests = new Set();
@@ -60,7 +61,10 @@ export function activate(context) {
       work = runPdf(control, input, previous).finally(() => release());
     } else work = run(control, input);
     control.done = work.catch(error => {
-      if (!control.controller.signal.aborted) control.job = { state: "failed", phase: "실패", errorKind: error.name === "TimeoutError" ? "timeout" : error.kind ?? "failed" };
+      if (!control.controller.signal.aborted) {
+        control.report = { failure: { reason: error.conversionReason ?? "Archive or conversion failed", ...(error.sourceRef ? { self_ref: error.sourceRef } : {}) } };
+        control.job = { state: "failed", phase: "실패", errorKind: error.name === "TimeoutError" ? "timeout" : error.kind ?? "failed" };
+      }
     });
     return structuredClone(control.job);
   }
@@ -91,18 +95,28 @@ export function activate(context) {
     signal.throwIfAborted();
     const archive = readDoclingArchive(bytes);
     control.job.phase = "문서 생성 중";
-    const authored = await authorDocument(reviewDocument(archive.document, []).input);
+    const authored = await convertDocument(archive.document, archive.manifest.document.sha256);
     signal.throwIfAborted();
-    control.job = { state: "completed", phase: "완료", document: { source: authored.source } };
+    control.report = authored.report;
+    control.authored = authored;
+    control.output = input.output;
+    control.job = { state: "completed", phase: authored.report.summary, document: authored.document };
   }
   return {
     operations: {
       connection: async () => checkConnection(),
-      async "review-document"(input) {
-        const archive = readDoclingArchive(await readFile(input.file));
-        const reviewed = reviewDocument(archive.document, input.patches);
-        if (input.mode === "validate") return { items: reviewed.items };
-        return { source: (await authorDocument(reviewed.input)).source };
+      async "conversion-report"(input) {
+        const control = jobs.get(input.requestId);
+        if (!control?.report) throw new Error();
+        if (control.report.failure) return structuredClone(control.report);
+        if (input.result) {
+          if (resolve(input.result.path) !== resolve(control.output)) throw new Error("Host result path does not match this job");
+          const bytes = await readFile(control.output);
+          if (createHash("sha256").update(bytes).digest("hex") !== input.result.revision) throw new Error("Host result revision is stale");
+          control.finalReport = control.authored.bindReport(input.result);
+        }
+        if (!control.finalReport) throw new Error("Supply the completed Host job result to bind final targets");
+        return structuredClone(control.finalReport);
       },
       start(input) { return accept(input, false); },
       "convert-pdf"(input) { return accept(input, true); },

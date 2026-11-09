@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1366: 2026-11-09 — SDK/OneDrive/Host·folder-tree tests, typecheck, CLI/Editor production build and HTTP folder/icon regressions; 1440px and Korean dark 640px before/after review. Real account synchronization is unverified.
 - Verification #1346: 2026-11-09 — SDK/Host icon validation and digest-trust tests, Editor typecheck, production CLI/Editor build, HTTP browser fixture with SVG script non-execution; 1440px and Korean dark 640px visual inspection. External plugin artwork/service adoption is unverified.
 - Verification #1334: 2026-11-09 — SDK 선언·기능 버전 거부, Host 고정 결과 검증, Vite 설정 성공/오류·비활성·정보 진입, production HTTP 사이드바·secret·복구 fixture, typecheck와 CLI build 확인. 외부 서비스 연결은 미검증.
 - Verification #1326: 2026-11-09 — K1 file 결과·공개 SDK·Host/CLI/browser fixture와 native/review 회귀, typecheck/build 확인. 실제 Docling 산출물 크기·변환 품질은 미검증.
@@ -19,17 +20,17 @@
 
 확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose?,approve?,reject?,undo?}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK v2 계약](generated-views-v1.md#catalog-v2-contract-layer-v1)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
 
-공용 작업은 id/version/effect/scope와 입력·결과 schema를 선언하고 같은 id의 handler를 연결한다. 1단계 기능 작업은 host scope만 지원하며 folder scope 선언은 미지원으로 거부한다. `activate(context)`는 operations/status/dispose를 반환한다. 미선언·누락 작업 handler는 활성화 실패다. 폴더 소스와 장식·계정은 선언한 기여의 상태 결과이며 앱 번들 아이콘만 표시한다. 폴더 열기는 기존 파일 Host가 검증한다. 문서 의미·공식 쓰기 경계는 변경하지 않는다.
+공용 작업은 id/version/effect/scope와 입력·결과 schema를 선언하고 같은 id의 handler를 연결한다. 1단계 기능 작업은 host scope만 지원하며 folder scope 선언은 미지원으로 거부한다. `activate(context)`는 operations/status/dispose를 반환한다. 미선언·누락 작업 handler는 활성화 실패다. 폴더 소스와 장식·계정은 선언한 기여의 상태 결과다. SDK 0.3.0의 `FolderDecoration.icon: "plugin"`은 해당 플러그인의 manifest `icon`을 사용하며 이미지가 없으면 장식을 생략한다. 폴더 열기는 기존 파일 Host가 검증한다. 문서 의미·공식 쓰기 경계는 변경하지 않는다.
 
 ## Host 상태와 호출
 
 대상 daemon의 Host 설정 루트에 별도 plugins.json을 기록한다. `LITZIO_DATA_DIR` 또는 `LITZIO_PLUGINS_SETTINGS_FILE`로 격리할 수 있다. 임의 디렉터리 자동 탐색, SQLite, migration과 자동 파일 감시 reload는 없다. 로컬 artifact 안의 파일을 digest로 묶고 패키지 밖 참조를 거부한다. 공식 공급 목록은 id·publisher와 제품이 검토한 artifact digest를 대조한다. 자칭 official 또는 변경 artifact는 공식 신뢰를 얻지 않는다.
 
-공식 번들 플러그인은 목록에 자동 표시되고 기본 상태는 공급 항목의 `defaultEnabled`(현재 `false`)를 따르며, 사용자의 명시적 선택이 우선한다. 외부 플러그인은 명시적으로 등록하고 list에서 확인한 digest를 trust한 뒤 enable한다. 사용자와 비서 모두 digest 신뢰 작업을 실행할 수 있다. 외부 artifact가 달라지면 새 digest를 trust한 뒤 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 보존한다. 단, 아래 OneDrive 자동 표시 폴더는 탐색기 목록에서 제거하며 원본 파일과 열린 탭은 보존한다. OS 권한 격리는 보장하지 않는다.
+공식 번들 플러그인은 목록에 자동 표시되고 기본 상태는 공급 항목의 `defaultEnabled`(현재 `false`)를 따르며, 사용자의 명시적 선택이 우선한다. 외부 플러그인은 명시적으로 등록하고 처음 켤 때 등록된 플러그인을 신뢰한다. 신뢰는 ID와 그 등록에 저장하며 artifact digest에 묶지 않는다. UI는 스위치를 처음 켤 때 공통 Dialog로 확인하고 확인 시 같은 enable 작업에서 신뢰 기록과 켜기를 함께 처리한다. 취소하면 요청을 보내지 않아 신뢰·활성 상태가 바뀌지 않는다. Host는 등록마다 새 `registrationId`를 발급하고 목록으로 반환한다. 이 값은 artifact 업데이트·reload·Host 재시작 동안 유지되며 제거 후 재추가·등록 교체 때 바뀐다. 신뢰 작업과 신뢰를 함께 기록하는 enable은 사용자가 확인한 `registrationId`를 반드시 보내야 한다. Host는 관리 직렬화 안에서 현재 값과 대조하고, 없거나 다르면 `Plugin registration changed. Review the plugin and confirm again.` 사유로 상태 변경 전에 거부한다. UI는 창을 열 때의 값을 보내며 거부 시 창을 닫고 목록을 다시 확인하도록 안내한다. 새 등록으로 승인을 자동 전환하지 않는다. CLI는 list에서 확인한 값으로 `trust <id> --registration <registrationId>` 후 `enable <id>` 또는 `enable <id> --trust --registration <registrationId>`를 쓴다. CLI는 누락된 값을 자동 조회하여 승인하지 않는다. 선택적인 `trust --digest`는 현재 파일 지문 대조용이며 신뢰의 수명은 바꾸지 않는다. 사용자와 비서는 같은 Host 작업을 쓴다. 업데이트 뒤 다시 확인하지 않는다. 이는 컨셉 검증 단계의 제한이다. 제거 후 재추가 또는 등록 교체는 다시 신뢰해야 한다. 외부 artifact가 달라지면 검증 후 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 보존한다. 단, 아래 플러그인 자동 표시 폴더는 탐색기 목록에서 제거하며 원본 파일과 열린 탭은 보존한다. OS 권한 격리는 보장하지 않는다.
 
 플러그인마다 daemon의 Node 하위 프로세스 하나를 사용한다. Node IPC 채널의 요청 ID로 activate·invoke·status·dispose와 응답을 연결하며 stdout/stderr와 플러그인 예외 원문은 전달하지 않는다. 별도 bootstrap 파일 없이 번들 안의 고정 코드로 시작하므로 설치된 CLI도 같은 경로를 쓴다. 각 RPC 응답은 10초 후 실패하며 프로세스를 종료한다. 접수된 K1 백그라운드 작업 수명에는 이 제한이 적용되지 않는다. 읽기 실패는 failure, 쓰기 실패는 기존 uncertain receipt를 유지하고 자동 재전송하지 않는다.
 
-`reload`는 신규 요청 차단 → 접수한 상태·기능 요청 drain → dispose → 프로세스 종료 확인 → 현재 artifact 재검증 → digest 신뢰 확인 → 새 프로세스 시작 순서다. daemon 재시작 없이 같은 ID의 수정 artifact를 반영한다. ID 변경과 작업 이름 충돌은 거부한다. 실패하면 비활성·오류 상태로 남고 수정·신뢰 후 다시 reload하면 회복한다. dispose 실패도 프로세스를 종료한 뒤 보고하며 다음 reload가 가능하다. 예기치 않은 하위 프로세스 종료는 실행 실패로 표시하고 자동 재시작하지 않는다.
+`reload`는 신규 요청 차단 → 접수한 상태·기능 요청 drain → dispose → 프로세스 종료 확인 → 현재 artifact 재검증 → 등록 신뢰 확인(공식 번들은 공급 digest 검증 유지) → 새 프로세스 시작 순서다. daemon 재시작 없이 같은 ID의 수정 artifact를 반영한다. ID 변경과 작업 이름 충돌은 거부한다. 실패하면 비활성·오류 상태로 남고 수정 후 다시 reload하면 회복한다. dispose 실패도 프로세스를 종료한 뒤 보고하며 다음 reload가 가능하다. 예기치 않은 하위 프로세스 종료는 실행 실패로 표시하고 자동 재시작하지 않는다.
 
 `GET /api/plugins`는 목록, `POST /api/plugins`는 action과 해당 입력을 받는다. 관리 결과에는 목록과 requestId·operation·version·scope·outcome receipt가 있다. 기능 호출은 `action: invoke`, operation 완전 이름과 input을 받아 입력/출력 schema를 검사한다. Host 연결 실패 뒤 다른 Host나 로컬 실행으로 전환하거나 재전송하지 않는다.
 
@@ -41,13 +42,13 @@ plugins validate <artifact-directory> --host <origin> --json
 plugins list --host <origin> --json
 plugins unregister <id> --host <origin> --json
 plugins register <artifact-directory> --host <origin> --json
-plugins trust <id> --digest <digest> --host <origin> --json
+plugins trust <id> --registration <registrationId> [--digest <digest>] --host <origin> --json
 plugins enable|disable|reload <id> --host <origin> --json
 plugins settings <id> [--file <json>] --host <origin> --json
 operation invoke <pluginId.operationId> --input <json> --host <origin> --json
 ```
 
-settings는 --file 없이 현재 일반 설정을 조회한다. 일반 설정과 secret 저장·삭제는 활성 상태에서도 받으며, 저장 후 기존 reload 경로로 새 값을 적용한다. 해당 플러그인의 K1 작업이 running 또는 uncertain이면 변경 전에 이유를 반환하고 기존 값을 보존한다(비활성 상태도 동일). 검사부터 저장·reload까지 신규 작업 접수를 차단하며 기존 drain·uncertain/no-replay 수명은 바꾸지 않는다. reload 실패 시 저장된 새 값은 유지하고 기존 reload 오류·비활성 상태로 남는다. 디스크 artifact 변경으로 신뢰 오류가 발생했다면, 현재 digest를 명시적으로 신뢰한 뒤 기존 켜기로 회복할 수 있다. 켜기는 신뢰된 현재 digest가 등록 digest와 다를 때 기존 reload의 ID·작업 이름 충돌·신뢰 검증을 거쳐 새 설정으로 실행한다. 새 digest를 자동 신뢰하지 않으며 공식 번들 artifact 검증은 그대로 유지한다. 설정 UI는 기존 Settings 콘텐츠·Button·Input·SettingsSwitch·Dialog를 재사용한다. 목록은 Hosts 설정의 host-summary 행, 공통 settings-switch·Notice·Tooltip·Dialog와 HostStatus의 점/톤 스타일을 재사용한다. 이름·공급자/계층/신뢰 배지·설명을 왼쪽에 묶고 활성 토글은 같은 행 오른쪽 끝에 둔다. 상태는 지역화된 실행/감지 이름으로 표시하며 계정은 `계정: 라벨 (출처)`로 표시한다. 상단은 한 줄 경고와 상세 Tooltip이다. 목록은 공급 책임·신뢰·활성·실행과 오류를 구별하고 설명 창은 version·artifact digest를 표시한다. 비서는 별도 `manage_plugins` 도구로 같은 Host 함수를 호출한다. Codex dynamic tools에 연결하며 관리별 승인 질문 없이 실행한다. 작업·대상 ID·성공/실패를 기존 대화 도구 활동 항목과 도구 결과에 남긴다. 도구 결과는 Codex 대화 이력에서도 확인할 수 있다. 활동 기록에는 설정값·secret·artifact 예외 원문을 넣지 않는다. display 도구의 범위는 확대하지 않는다. 기존 Copilot adapter에는 새 도구 공급을 추가하지 않는다.
+settings는 --file 없이 현재 일반 설정을 조회한다. 일반 설정과 secret 저장·삭제는 활성 상태에서도 받으며, 저장 후 기존 reload 경로로 새 값을 적용한다. 해당 플러그인의 K1 작업이 running 또는 uncertain이면 변경 전에 이유를 반환하고 기존 값을 보존한다(비활성 상태도 동일). 검사부터 저장·reload까지 신규 작업 접수를 차단하며 기존 drain·uncertain/no-replay 수명은 바꾸지 않는다. reload 실패 시 저장된 새 값은 유지하고 기존 reload 오류·비활성 상태로 남는다. 디스크 artifact 변경 뒤에는 기존 켜기 또는 reload의 ID·작업 이름 충돌·등록 신뢰 검증을 거쳐 새 설정으로 실행한다. 등록 신뢰는 유지하며 공식 번들 artifact 검증은 그대로 유지한다. 설정 UI는 기존 Settings 콘텐츠·Button·Input·SettingsSwitch·Dialog를 재사용한다. 목록은 Hosts 설정의 host-summary 행, 공통 settings-switch·Notice·Tooltip·Dialog와 HostStatus의 점/톤 스타일을 재사용한다. 이름·공식/커뮤니티 배지 하나·설명을 왼쪽에 묶고 활성 토글은 같은 행 오른쪽 끝에 둔다. 플러그인 상태는 오류·사용할 수 없음 등 문제만 표시하고 정상 실행·꺼짐은 스위치로 표현한다. 폴더 감지 상태는 folderSources를 선언한 플러그인만 표시하며 계정은 `계정: 라벨 (출처)`로 표시한다. 상단은 한 줄 경고와 상세 Tooltip이다. 목록은 공급 책임·활성과 오류를 구별하고 설정 창 상세 정보는 만든 곳·신뢰 여부·현재 artifact digest를 표시한다. 비서는 별도 `manage_plugins` 도구로 같은 Host 함수를 호출한다. Codex dynamic tools에 연결하며 관리별 승인 질문 없이 실행한다. 작업·대상 ID·성공/실패를 기존 대화 도구 활동 항목과 도구 결과에 남긴다. 도구 결과는 Codex 대화 이력에서도 확인할 수 있다. 활동 기록에는 설정값·secret·artifact 예외 원문을 넣지 않는다. display 도구의 범위는 확대하지 않는다. 기존 Copilot adapter에는 새 도구 공급을 추가하지 않는다.
 
 #1320 화면 확인: 기존 설정 Dialog·Input·SettingsSwitch·Button·Notice를 재사용하며 공통 패턴 예외는 없다. 활성 상태 입력을 같은 fixture로 수정 전·후 확인했다. [1440px 이전](assets/plugin-settings-1320/before-1440.png) / [이후](assets/plugin-settings-1320/after-1440.png), [한국어 Dark 640px 이전](assets/plugin-settings-1320/before-640.png) / [이후](assets/plugin-settings-1320/after-640.png). 행 정렬·여백·잘림·한국어 줄바꿈을 수동 확인했다. Host 검사에서 running·uncertain 변경 거부와 원본 보존, 기존 secret 비노출을 검증하며 HTTP 브라우저 검사는 활성 일반 설정 UI/CLI와 secret UI 저장·CLI 삭제 후 새 실행값을 확인한다. 실제 외부 서비스 연결 성공의 증거는 아니다.
 
@@ -57,17 +58,30 @@ settings는 --file 없이 현재 일반 설정을 조회한다. 일반 설정과
 
 Windows 환경 변수 OneDrive/OneDriveConsumer/OneDriveCommercial과 실재 폴더를 우선한다. HKCU Software/Microsoft/OneDrive/Accounts 직하위 계정의 UserFolder를 best-effort로 보완하며 중복 경로를 합친다. 조회 실패·불완전/없는 경로 수와 출처를 보존한다. UserEmail/DisplayName이 실제 조회된 경우만 표시하고, 그 밖에는 경로 기반 중립 라벨을 쓴다. raw 레지스트리 출력은 로그에 쓰지 않는다. SyncEngines, ini, WinRT, Graph/OAuth와 동기화 엔진은 사용하지 않는다. Linux 등 다른 OS에서는 지원하지 않음을 표시한다.
 
-폴더 감지는 로그인이나 동기화 상태의 증거가 아니다. 활성화된 OneDrive가 감지한 모든 폴더를 로컬 Explorer에 자동 표시한다. 기존 파일 Host의 폴더 검증·FolderTree를 재사용하고 기존 폴더·탭을 덮지 않는다. 자동 표시의 소유자는 앱의 폴더 상태이며 일반 열린 폴더 기억 목록에 저장하지 않는다. 비활성화하면 자동 표시한 폴더를 탐색기 목록에서 제거하며 디스크의 원본 폴더·문서와 열린 탭은 보존한다. 자동 상위 루트가 기존 수동 하위 폴더를 화면에서 합쳐 표시해도 수동 루트의 소유권·기억 목록·접힘/펼침 상태는 보존하고, 자동 루트 제거 시 수동 트리를 복원한다. 활성 상태에서 새로고침해도 일반 폴더 기억 목록으로 같은 수동 루트를 먼저 복원한다. 감지 루트 자체를 일반 폴더로 직접 추가한 뒤 비활성화하는 예외는 #1287 범위 밖이다. 앱의 플러그인 상태 조회는 가장 최근 시작한 요청의 결과·오류만 반영하고 관리 시작·구독 해제 시 이전 요청을 무효화한다. Host가 활성 상태로 생성한 응답의 전달이 비활성화 완료 뒤로 늦어져도 이전 폴더·토글을 복원하지 않는다. 수동 전후 캡처: [1440px Before](assets/onedrive-explorer-1287/before-1440.png) / [After](assets/onedrive-explorer-1287/after-1440.png), [640px 한국어 Dark Before](assets/onedrive-explorer-1287/before-640-ko-dark.png) / [After](assets/onedrive-explorer-1287/after-640-ko-dark.png). 같은 활성 상태와 격리된 두 후보를 수정 전·후 코드에서 촬영했다. 기존 FolderTree와 OneDrive 아이콘을 재사용하며 새 표면·공통 패턴 예외는 없다. 행 정렬·여백·패널 잘림과 한국어 줄바꿈을 확인했다.
+폴더 감지는 로그인이나 동기화 상태의 증거가 아니다. 활성화되어 실행 중인 플러그인이 status.folders로 알린 모든 폴더를 ID와 무관하게 로컬 Explorer에 자동 표시한다. OneDrive도 같은 경로를 사용한다. defaultCandidate는 기존처럼 빈 탐색기에서 단일 후보를 제안할 때만 쓰며 자동 표시는 모든 폴더에 적용한다. 기존 파일 Host의 폴더 검증·FolderTree를 재사용하고 기존 폴더·탭을 덮지 않는다. 자동 표시의 소유자는 앱의 폴더 상태이며 일반 열린 폴더 기억 목록에 저장하지 않는다. 비활성화하면 자동 표시한 폴더를 탐색기 목록에서 제거하며 디스크의 원본 폴더·문서와 열린 탭은 보존한다. 자동 상위 루트가 기존 수동 하위 폴더를 화면에서 합쳐 표시해도 수동 루트의 소유권·기억 목록·접힘/펼침 상태는 보존하고, 자동 루트 제거 시 수동 트리를 복원한다. 활성 상태에서 새로고침해도 일반 폴더 기억 목록으로 같은 수동 루트를 먼저 복원한다. 감지 루트 자체를 일반 폴더로 직접 추가한 뒤 비활성화하는 예외는 #1287 범위 밖이다. 앱의 플러그인 상태 조회는 가장 최근 시작한 요청의 결과·오류만 반영하고 관리 시작·구독 해제 시 이전 요청을 무효화한다. Host가 활성 상태로 생성한 응답의 전달이 비활성화 완료 뒤로 늦어져도 이전 폴더·토글을 복원하지 않는다. 수동 전후 캡처: [1440px Before](assets/onedrive-explorer-1287/before-1440.png) / [After](assets/onedrive-explorer-1287/after-1440.png), [640px 한국어 Dark Before](assets/onedrive-explorer-1287/before-640-ko-dark.png) / [After](assets/onedrive-explorer-1287/after-640-ko-dark.png). 같은 활성 상태와 격리된 두 후보를 수정 전·후 코드에서 촬영했다. 당시 기존 FolderTree와 내장 OneDrive 아이콘을 재사용했으며 새 표면·공통 패턴 예외는 없다. 행 정렬·여백·패널 잘림과 한국어 줄바꿈을 확인했다.
 
-장식은 정확한 루트에 번들 Microsoft Fluent UI OneDrive 로고을 사용하고 자식에게 전파하지 않는다.
+장식은 정확한 루트에 제공 플러그인의 manifest 아이콘을 사용하고(같은 루트에 여러 제공자가 있으면 목록의 첫 이미지 제공자), 자식에게 전파하지 않는다. OneDrive 0.1.1은 기존 Microsoft Fluent UI OneDriveLogoIcon 실루엣을 파란색(#0078D4) SVG로 제공한다. MIT 라이선스 고지를 플러그인 소스와 빌드 artifact에 포함하며 Editor 내장 OneDrive 아이콘은 없다. build가 manifest·아이콘·고지를 artifact에 복사하고 digest를 재생성한다.
+
+### 공통 폴더 기여와 아이콘 검증 (#1366)
+
+기존 `http-plugins`의 커뮤니티 fixture가 수동 폴더와 다른 폴더를 알리도록 보완했다. 변경 전 production 빌드는 두 루트 기대에 한 루트만 표시해 실패했고, 변경 후에는 자동 표시·장식 이미지 로드·비활성화 후 수동 폴더 보존을 검사한다. OneDrive 단위 검사는 일반화된 장식 값을 확인한다. 기존 `plugin-jobs`는 해당 플러그인의 탭·사이드바·설정 이미지 연결을 확인하며, 공식 OneDrive 이미지가 추가되어도 다른 플러그인 이미지와 혼동하지 않도록 행 범위를 명시한다. 새 시나리오·subprocess·전수 조합은 추가하지 않았다. 실제 계정 로그인·동기화 검증은 아니다.
+
+수동 전후 비교는 같은 두 격리 후보·활성 상태, Windows 설치형 Chrome의 checkout별 persistent profile, DPR 1·zoom 100%, 900px 높이에서 촬영했다. Before는 `2325f358`의 production 빌드이며 After는 #1366 구현이다. 목록과 이미지 로드를 기다린 뒤 촬영했고 Host 계정은 가렸다. 기존 FolderTree의 아이콘 칸과 설정 plugin-heading, 공통 PluginIcon을 재사용하며 예외는 없다. 1440px 영어 라이트와 640px 한국어 다크에서 세로 중심·여백·잘림·배지 줄바꿈과 파란 아이콘의 식별을 확인했다. 소유자의 최종 시각 승인을 대신하지 않는다.
+
+| 화면 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| Explorer 1440px | [Before](assets/folder-plugins-1366/before-explorer-1440.png) | [After](assets/folder-plugins-1366/after-explorer-1440.png) |
+| Explorer 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-explorer-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-explorer-640-ko-dark.png) |
+| Settings 1440px | [Before](assets/folder-plugins-1366/before-settings-1440.png) | [After](assets/folder-plugins-1366/after-settings-1440.png) |
+| Settings 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-settings-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-settings-640-ko-dark.png) |
 
 ## 검증 경계
 
-SDK 검사는 manifest와 미지원 확장·외부 schema를, Host 검사는 digest 신뢰·disable drain·설정 보존·하위 프로세스 수명·reload 회복과 비서 활동 기록을 소유한다. OneDrive 검사는 주입한 환경·디렉터리·레지스트리로 단일/복수/없음/잔존을 검증하며 실제 계정에 의존하지 않는다. `pnpm browser:test http-plugins`는 격리된 production HTTP Host와 CLI·설정 UI 일치 및 OneDrive 활성화·새로고침 후 복수 폴더 자동 표시, 비활성화 후 목록 제거와 원본 폴더 보존을 확인한다. OneDrive 상태는 격리된 후보로 대체하고 실제 폴더 목록은 HTTP Host로 검증하므로 실제 계정 동기화의 증거는 아니다. 커뮤니티 fixture의 수동 폴더 보존 검사도 유지한다. `--screenshots`는 수동 검토용 1440px·640px 설정·장식 캡처를 tmp/plugin-stage1에 남긴다. 필수 CI는 기존 전체 제품 판정을 유지한다.
+SDK 검사는 manifest와 미지원 확장·외부 schema를, Host 검사는 등록 신뢰·disable drain·설정 보존·하위 프로세스 수명·reload 회복과 비서 활동 기록을 소유한다. OneDrive 검사는 주입한 환경·디렉터리·레지스트리로 단일/복수/없음/잔존을 검증하며 실제 계정에 의존하지 않는다. `pnpm browser:test http-plugins`는 격리된 production HTTP Host와 CLI·설정 UI 일치 및 OneDrive 활성화·새로고침 후 복수 폴더 자동 표시, 비활성화 후 목록 제거와 원본 폴더 보존을 확인한다. OneDrive 상태는 격리된 후보로 대체하고 실제 폴더 목록은 HTTP Host로 검증하므로 실제 계정 동기화의 증거는 아니다. 커뮤니티 fixture의 수동 폴더 보존 검사도 유지한다. `--screenshots`는 수동 검토용 1440px·640px 설정·장식 캡처를 tmp/plugin-stage1에 남긴다. 필수 CI는 기존 전체 제품 판정을 유지한다.
 
 1단계 UI는 로컬 Host만 지원한다. 원격 HostExplorer의 폴더 후보·장식 및 원격 Plugins 설정 UI는 이번 범위에 포함하지 않는다. CLI의 명시 대상 Host 계약과 구별한다. 누락된 artifact는 해당 플러그인만 artifact 없음으로 표시하며 다른 등록은 차단하지 않는다. unregister는 신규 요청 차단·진행 상태 조회/기능 작업 drain·dispose 뒤 등록과 일반 설정을 해제하고 artifact 파일은 삭제하지 않는다. 비서 unregister도 승인 질문 없이 실행하고 활동 기록을 남긴다. 상태 조회도 drain에 포함하며 비활성화 후 늦은 조회는 이전 폴더/장식을 반환하지 않는다.
 
-목록 성능(#1348): Host는 실제 디렉터리별 최신 content digest에 manifest·entry 검증과 스키마 컴파일 성공 결과를 캐시한다. digest 변경은 전체 검증을 다시 수행하며 실패 결과는 캐시하지 않는다. 반환값은 복제하여 캐시 오염을 막는다. 신뢰 판정은 매번 파일 내용을 해시한다. mtime·크기 기반 digest 캐시는 같은 크기와 timestamp 복원/해상도에 따른 변경 누락 가능성이 있어 사용하지 않는다. 기존 동시 파일 변경과 검증/실행 사이의 경합 한계는 바뀌지 않는다. 관리 응답의 목록은 같은 Host의 화면 구독자에게 전달하여 불필요한 재조회를 없애고, 목록 없는 변경 이벤트는 기존처럼 새로 조회한다.
+목록 성능(#1348): Host는 실제 디렉터리별 최신 content digest에 manifest·entry 검증과 스키마 컴파일 성공 결과를 캐시한다. digest 변경은 전체 검증을 다시 수행하며 실패 결과는 캐시하지 않는다. 반환값은 복제하여 캐시 오염을 막는다. artifact 변경 판정과 공식 공급 검증은 매번 파일 내용을 해시한다. mtime·크기 기반 digest 캐시는 같은 크기와 timestamp 복원/해상도에 따른 변경 누락 가능성이 있어 사용하지 않는다. 기존 동시 파일 변경과 검증/실행 사이의 경합 한계는 바뀌지 않는다. 관리 응답의 목록은 같은 Host의 화면 구독자에게 전달하여 불필요한 재조회를 없애고, 목록 없는 변경 이벤트는 기존처럼 새로 조회한다.
 
 ## Secret 저장과 실행 전달 (로드맵 1c)
 
@@ -160,7 +174,7 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 
 `validate`는 artifact 경계·manifest/SDK 범위·버전·JSON Schema 컴파일과 entry 구문, 선언 작업과 literal handler 일치를 검사한다. 결과는 `valid`, 원문 없는 `errors`(고정 파일 역할, 1-based 줄/열 또는 위치 불명 null, 고정 오류 종류), 검사 한계와 Host receipt다. 실패는 failure receipt와 CLI 종료 코드 1로 반환한다. 코드를 import/실행하지 않으며 등록 상태도 바꾸지 않는다. JSON/JavaScript/schema/parser/fs 예외 원문·stack·파일 내용·사용자 정의 handler 이름을 진단에 복사하지 않는다. 같은 정리된 결과를 비서 도구와 CLI가 반환하고, 활동에는 결과 요약만 남긴다. 정적 검사를 위해 entry는 named `export function activate`의 직접 return 객체 안에 하나의 literal `operations` 객체와 literal 함수 handler를 둔다. 동적 등록은 검증 불가 오류다. 정적으로 알려진 JSON 반환값은 출력 schema와 비교하지만, 계산된 반환값·activation·dispose 동작은 실제 enable/invoke/reload에서만 검증된다. validate 통과는 실행 성공의 보증이 아니다.
 
-`manage_plugins`도 scaffold/validate를 같은 정의로 호출한다. register 활동에는 인자로 받지 않는 실제 manifest ID를 결과에서 가져와 남긴다. validation 오류는 결과에서 읽되 활동 요약에는 원문을 쓰지 않는다. Codex의 각 대화 turn에 앱 번들의 제한된 제작 스킬을 문맥으로 제공한다(전역 Codex 스킬 설치 없음). 스킬은 SDK·manifest·공용 작업/schema 예시, 파일 수정 권한·secret 비노출, validate/register/trust/enable/invoke 및 수정 후 validate/trust/reload/invoke 절차와 금지 항목을 설명한다. master에 병합된 secret 선언과 사용자 설정 UI 입력·읽기 전용 context.secrets, 읽기 작업 rowSchema, K1 jobs 바인딩·상태·결과 열기를 안내한다. generatedUi/views/dataViews/secretUses 확장은 계속 예시로 제공하지 않는다. Copilot 도구 공급 범위는 그대로다.
+`manage_plugins`도 scaffold/validate를 같은 정의로 호출한다. register 활동에는 인자로 받지 않는 실제 manifest ID를 결과에서 가져와 남긴다. validation 오류는 결과에서 읽되 활동 요약에는 원문을 쓰지 않는다. Codex의 각 대화 turn에 앱 번들의 제한된 제작 스킬을 문맥으로 제공한다(전역 Codex 스킬 설치 없음). 스킬은 SDK·manifest·공용 작업/schema 예시, 파일 수정 권한·secret 비노출, validate/register/trust/enable/invoke 및 수정 후 validate/reload/invoke 절차와 금지 항목을 설명한다. master에 병합된 secret 선언과 사용자 설정 UI 입력·읽기 전용 context.secrets, 읽기 작업 rowSchema, K1 jobs 바인딩·상태·결과 열기를 안내한다. generatedUi/views/dataViews/secretUses 확장은 계속 예시로 제공하지 않는다. Copilot 도구 공급 범위는 그대로다.
 
 자동 검사는 기존 Host 플러그인 테스트에서 생성→정적 검증→등록→신뢰→활성→호출→수정→재검증→신뢰→reload→결과 변경을 같은 Host로 확인한다. 이 subprocess 사례는 실제 캐시 교체·daemon 무재시작을 보호한다. handler 누락·미선언 handler·잘못된 schema·literal 출력 불일치와 비실행·덮어쓰기 거부도 확인한다.
 
@@ -262,22 +276,41 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 | paragraph | text | literal 본문 |
 | heading | level(1–6), text | 제목 |
 | list | ordered, start?, items(string[]) | 중첩 없는 bullet/번호 목록, 최대 100항목 |
-| table | rows(string[][]) | 첫 행 header, 직사각형 표 |
-| figure | imageUrl, imageAlt, caption | 기존 Core Figure, 빈 URL은 pending |
+| table | rows(string[][]), enumerator?, enumerated? | 첫 행 header, 직사각형 표 |
+| figure | imageUrl 또는 imageAsset, imageAlt, caption, enumerator?, enumerated? | 기존 Core Figure, 빈 URL은 pending |
 | code | language, code | 코드 블록 |
-| equation | latex | display 수식 |
+| equation | latex, enumerator? | display 수식 |
 | divider | 없음 | 구분선 |
 
-모든 텍스트는 기존 Core literal text 연산을 통과한다. Markdown 문자열을 의미로 파싱하지 않는다. 기존 연산의 공백·개행 정규화와 native write 거부 규칙을 그대로 따른다. rich inline, 중첩 목록, 임의 HTML/AST/원본 Markdown, 외부 형식 변환과 이미지 복사·생성은 이 최소 API의 입력이 아니다. title도 기존 Core 단일 행 title 제약을 따른다. 지원하지 않는 의미를 자동으로 평탄화하거나 일부만 성공으로 반환하지 않는다.
+모든 텍스트는 기존 Core literal text 연산을 통과한다. Markdown 문자열을 의미로 파싱하지 않는다. 기존 연산의 공백·개행 정규화와 native write 거부 규칙을 그대로 따른다. rich inline, 중첩 목록, 임의 HTML/AST/원본 Markdown, 외부 형식 변환은 이 API의 입력이 아니다. imageAsset은 함께 넘긴 이미지의 key이며 `authorDocument(input, imageAssets)`의 두 번째 인자 `{[key]: relativePath}`로 해석한다. imageUrl과 imageAsset은 정확히 하나만 지정한다. 경로가 없는 asset은 거부한다. Core는 바이트 검사·파일 IO를 하지 않는다. Figure·Table·Equation의 선택적 enumerator는 기존 updateEnumerator와 직렬화·번호 계산을 사용한다. Figure·Table의 선택 `enumerated:false`는 표준 MyST 번호 없음으로 직렬화하며 자동 카운터에서 제외한다(#1383). false와 비어 있지 않은 enumerator를 함께 지정하면 거부한다. 번호를 캡션에서 추측하거나 제거하지 않는다. title도 기존 Core 단일 행 title 제약을 따른다. 지원하지 않는 의미를 자동으로 평탄화하거나 일부만 성공으로 반환하지 않는다.
 
-`DOCUMENT_AUTHORING_LIMITS`는 입력 JSON과 출력 canonical source 각각 UTF-8 262144 bytes, 입력 200개, 전체 블록 500개, 문자열 16384 UTF-16 code units, 표 100행×32열이다. unknown 필드·중복 key·잘못된 요소/Unicode·schema 상한 위반은 `DocumentAuthoringError.code="invalid-input"`, byte 상한 초과는 `limit`, Core의 의미·round-trip 거부는 `unsupported-content`로 Promise가 reject된다. 오류에는 입력 원문을 포함하지 않으며 부분 결과를 반환하지 않는다. `documentAuthoringSchema`는 구조 검증용이고 byte·Core 검증은 함수 실행에서 추가한다.
+`DOCUMENT_AUTHORING_LIMITS`는 입력 JSON과 출력 canonical source 각각 UTF-8 4 MiB (4,194,304 bytes), 입력 5,000개, 전체 블록 5,000개, 문자열 16384 UTF-16 code units, 표 100행×32열이다. unknown 필드·중복 key·잘못된 요소/Unicode·schema 상한 위반은 `DocumentAuthoringError.code="invalid-input"`, byte 상한 초과는 `limit`, Core의 의미·round-trip 거부는 `unsupported-content`로 Promise가 reject된다. 오류에는 입력 원문을 포함하지 않으며 부분 결과를 반환하지 않는다. `documentAuthoringSchema`는 구조 검증용이고 byte·Core 검증은 함수 실행에서 추가한다.
 
 반환 source는 canonical serialize→parse→serialize가 안정적인 native 문서다. 각 target은 `{path,documentRevision,documentHash}`이며 최종 재파싱 snapshot의 Core read-model 최상위 블록을 가리킨다. revision과 hash는 동일한 canonical source UTF-8 SHA-256(hex)으로 Host `textRevision`과 같다. 해시는 순수 JS 라이브러리로 계산하며 Node 전용 API나 secure context의 `crypto.subtle`에 의존하지 않는다. key는 원본 입력의 식별자이고 path는 persistent identity가 아니다. 저장 뒤 같은 source/revision에서만 참조가 유효하며 편집 후 새 revision에 자동 재연결하지 않는다. 참조 없는 입력도 `{key,targets:[]}`로 반환한다. 원본 영역·mapping 자료는 플러그인이 이 target을 사용해 별도로 구성하고 #1317의 전역 유일 영역 ID·bundle 범위 검증을 따른다.
 
-저장은 기존 K1 status 완료의 `document:{source: authored.source}`를 사용한다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
+기존 K1 status 완료의 `document:{source: authored.source}`는 유지한다. 이미지가 있는 결과는 `document:{authoring: DocumentAuthoringInput, images:[{key,mime,base64}]}`로 반환한다. Host가 이미지 경로를 바인딩한 뒤 같은 Core 함수를 호출하고 공식 새 파일 생성으로 저장한다. 이 분기의 최종 문서 revision은 K1 저장 receipt를 따른다. K1 result.inputs는 이미지 경로를 바인딩한 최종 문서의 key별 targets(각 path/revision/hash)를 호출자에게 반환한다(#1383). 원본 source 결과에는 inputs를 추측해 추가하지 않는다. 플러그인의 원본→블록 해석은 바뀌지 않으며 Core/Host가 특정 외부 형식을 알지 않는다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
 
 검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. master의 #1318과 #1317 최종 결합은 기존 `reviews.test.ts`의 읽기 전용 K1 완료 경로에서 공개 SDK 생성→공식 저장→입력 key별 target으로 대조 발행→Host·실제 CLI snapshot 재조회와 revision/path 일치를 확인한다. 같은 SDK 생성 문서를 외부 변경한 뒤 원래 byte로 복원해도 stale을 유지하는 통합 경계를 함께 보호한다. 새 subprocess를 추가하지 않고 기존 완료·CLI 읽기를 보완하며 삭제·일시적 오류 분류는 Host 단위 검사가 소유한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
 
+
+## 공용 문서 이미지·긴 문서 확장 (#1371)
+
+미릴리스 SDK `0.3.0`에 포함한다(마지막 공개 제품 v0.0.2-beta.8의 SDK는 0.1.0). Word/HTML 가져오기, CLI 및 비서의 구조화 문서 작성이 같은 의미·저장 작업을 사용할 수 있다. 기존 K1 start/running·status/completed·Root·원본 보존·새 파일 충돌 거부 계약은 유지한다. 원문 source 완료도 UTF-8 4 MiB로 제한한다.
+
+- `images`는 key가 유일한 최대 256개다. Figure의 imageAsset 참조와 정확히 일치해야 한다. MIME은 PNG/JPEG/GIF/WebP이며 정규 base64, 디코딩 후 이미지당 10 MiB와 기존 complete-container 검증을 사용한다. SVG는 이 저장 경로로 받지 않는다.
+- 전체 완료 document JSON은 `JOB_DOCUMENT_MAX_BYTES` 32 MiB다. child가 IPC 전 검사하고 Host가 다시 검사한다. 문서 authoring JSON과 canonical source는 별도로 각각 4 MiB다. K1 HTTP 요청은 기존 작은 요청이며 응답에는 문서 바이트가 아닌 작업 snapshot/저장 receipt만 싣는다. 기존 10초 RPC는 접수·관찰 한 번의 예산이고 문서 작성은 계속 start에서 접수한 background 작업에서 해야 한다.
+- Host는 문서 폴더의 실제 `assets/`에 기존 이미지 검증·exclusive hard-link 게시·충돌 처리·미게시 임시 파일 정리를 재사용한다. 이름은 정리된 문서 stem(최대 8 Unicode code points), 전체 문서 파일명 SHA-256, 이미지 SHA-256·MIME 확장자다. 같은 이름 앞부분을 가진 서로 다른 문서는 파일명이 겹치지 않으며, 같은 문서·동일 bytes의 재생성은 같은 경로를 재사용한다. 다른 내용과 충돌하면 기존 suffix 규칙을 쓰고, 같은 bytes가 있으면 그 경로를 재사용한다. 문서에는 `./assets/...`를 쓴다. 같은 문서 이름으로 다시 만들 때 이미지가 늘지 않는다. 기존 문서는 덮어쓰지 않으므로 다시 만들려면 결과 문서를 삭제한 뒤 명시적으로 새 요청을 한다.
+- 완전히 게시한 작성 이미지는 다른 CLI/Host process가 즉시 재사용할 수 있는 폴더 파일이며 실패 요청의 독점 소유가 아니다. 문서 생성·게시 검증에 실패해도 게시 이미지를 삭제하지 않고 rollback receipt도 발급하지 않는다. 따라서 실패 뒤 미참조 이미지가 assets/에 남을 수 있다. 미게시 임시 파일만 소유권 검사 후 정리하며 자동 고아 이미지 삭제·process 간 lock·작업 복원은 추가하지 않는다. 편집기 붙여넣기/드롭의 기존 서명 receipt와 rollback 삭제는 그대로다.
+
+CLI는 기존 `plugins start/status/result --host <origin> --json`으로 같은 K1 경로를 사용한다. 플러그인 없는 작성은 `litzio create report.md --input request.json --format json`으로 같은 Host 생성 함수를 호출한다. request.json은 `{authoring,images}`이며 바이트가 담긴 입력 파일은 artifact 밖에 둔다. template/language와 input은 함께 지정할 수 없다. 결과 receipt의 inputs는 최종 경로·revision에 맞는 Core targets다. 문서 의미와 Markdown 조립은 CLI에 없다.
+
+### 상한 근거와 검증 범위
+
+2026-11-09 로컬 IEEE 1547-2018의 138쪽 추출 자료를 읽기 전용으로 측정했다. texts 2,937·tables 71·pictures 29·groups 73, 총 3,110항목이며 텍스트 UTF-8 336,522 bytes다. 최대 텍스트 4,236 UTF-16 units, 표 44행·9열이므로 문자열 16,384와 표 100행·32열은 올리지 않았다. 입력/블록 5,000과 JSON/source 4 MiB는 이 자료의 항목 수와 JSON overhead를 수용하는 유한 상한이다. 10,000개 단순 문단 경계 시험은 약 24초라 채택하지 않았다.
+
+Core가 개별 문단으로 보존할 수 있는 2,934개 텍스트의 용량 probe는 입력 JSON 502,654 bytes·canonical source 342,568 bytes로 성공했다. 개별 사전 검증·작성·재파싱 전체 약 21초였으며 다른 로컬 검사와 동시 실행한 값이다. 이는 실제 자료의 용량 근거이며 전체 변환·성능 보증이 아니다. 나머지 3개 텍스트는 기존 literal round-trip 제약으로 거부됐고 원본 변환기는 표 56의 겹친 셀을 거부했다. 원본/변환기나 거부 기준을 고치지 않았으며 원문·대용량 재생성 자료는 커밋하지 않는다.
+
+기존 Core native suite는 번호·이미지 바인딩·정확한 입력/블록·문자열·표·byte 경계를 소유한다. 기존 K1 외부 artifact subprocess를 보완해 실제 SDK→이미지 저장/재사용→문서 실패 시 게시 이미지 보존·잘못된 이미지 거부를 확인한다. 별도 module instance 두 개가 독립 CLI/Host의 process-local 상태를 모델링하는 낮은 계층 검사는 같은 24자 접두어의 다른 문서와 같은 문서 경로 양쪽에서 실패/성공 조합을 고정한다. 수정 전 성공 문서의 이미지 ENOENT를 재현했고, 수정 후 보존을 확인한다. 실제 subprocess·긴 문서 지연 없이 공유 filesystem의 재사용·삭제 경계를 보호한다. CLI executable 대표 사례는 JSON 입력·같은 공용 경로의 실제 파일·충돌 보존을 검증한다. 기존 plugin-jobs 브라우저는 결과 Figure의 실제 image load와 고정 번호를 확인하고 production http-host는 Save/Reload·충돌을 확인한다. UI 구현은 바뀌지 않으며 새 subprocess fixture·suite·timeout·retry는 추가하지 않는다. 실제 가져오기 서비스·원본 충실도는 별도 수락이다.
 
 ## screens·views의 내용 우선 표시 (#1329)
 
@@ -285,7 +318,7 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 
 ## 플러그인 설정과 연결 확인 (#1334)
 
-표시 이름은 manifest `name` 하나다. `screens[].title`은 사이드바·탭에만 사용한다. 설정 `title`은 라벨, `description`은 Tooltip 도움말이다. 목록은 제목·게시자/계층/신뢰 배지·설명과 오른쪽 톱니·스위치, 아래 상태·계정으로 고정한다. 설정 창은 이름·버전·설명 → 일반 설정(manifest properties 순서) → secret → 연결 확인 → 상세(digest) 순서다. 화면 이동 버튼이나 “동작 · 이름” 합성 라벨은 설정 화면에 두지 않는다.
+표시 이름은 manifest `name` 하나다. `screens[].title`은 사이드바·탭에만 사용한다. 설정 `title`은 라벨, `description`은 Tooltip 도움말이다. 목록은 제목·공식/커뮤니티 배지 하나·설명과 오른쪽 톱니·스위치, 아래 상태·계정으로 고정한다. 설정 창은 이름·버전·설명 → 일반 설정(manifest properties 순서) → secret → 연결 확인 → 상세(만든 곳·신뢰 여부·digest) 순서다. 화면 이동 버튼이나 “동작 · 이름” 합성 라벨은 설정 화면에 두지 않는다.
 
 외부 서비스 플러그인은 `contributes.healthCheck`에 같은 manifest의 operation ID를 선언한다. SDK 0.3.0 이상을 요구해야 한다. 예: `requiresSdk: ">=0.3.0 <1.0.0", contributes: { healthCheck: "connection", operations: [...] }`. 해당 작업은 `{}` 입력을 받는 독립적인 host 범위 read이며 job/review 바인딩으로 겸용하지 않는다. outputSchema에는 SDK `HEALTH_CHECK_OUTPUT_SCHEMA`를 사용하고 `HealthCheckResult` (`{ ok: boolean, message: string }`, 추가 필드 없음, 안내 1~300자)를 반환한다. message는 작성자가 만든 고정된 안전 안내이며 원문 응답·secret을 담지 않는다. Host는 secret 정리와 operation outputSchema 검증 후 SDK 고정 형식도 검사한다.
 
@@ -331,9 +364,9 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 
 Optional manifest `icon` (SDK 0.3.0) names one artifact-relative PNG or SVG file, using slash-separated filename segments. URLs, absolute/traversal paths, links and other formats are refused at validation/registration. The icon is limited to 64 KiB and positive dimensions at most 256 x 256 pixels; SVG requires explicit numeric pixel width/height and the SVG namespace (no DTD). These bounds allow small high-density icons for the existing 16px controls without accepting document-sized assets. Existing PNG container validation and an XML parser validate the format; SVG is never inserted as markup.
 
-The entire artifact, including the icon, is digest-bound. GET `/api/plugins/icon?id=<plugin>&digest=<digest>` serves only the declared file of a registered artifact whose current digest is trusted (including official supply verification). It returns fixed image/png or image/svg+xml, nosniff and no-store; Content-Disposition attachment prevents standalone SVG document navigation. No arbitrary file path is accepted. Changes require trust of the new digest; no icon bytes are served on stale trust.
+The entire artifact, including the icon, contributes to its content digest. GET `/api/plugins/icon?id=<plugin>&digest=<digest>` serves only the declared file of a registered artifact whose registration is trusted (including unchanged digest verification for official supply). It returns fixed image/png or image/svg+xml, nosniff and no-store; Content-Disposition attachment prevents standalone SVG document navigation. No arbitrary file path is accepted. An icon request must match the current artifact digest. Community updates retain registration trust; removed or replaced registrations require trust again. Invalid images and stale digest requests remain rejected.
 
-Sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
+Explorer folder decorations, default folder suggestions, sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
 
 Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settings 1440](assets/plugin-icon-1346/settings-1440.png), [screen Korean dark 640](assets/plugin-icon-1346/screen-640-ko-dark.png), [settings Korean dark 640](assets/plugin-icon-1346/settings-640-ko-dark.png). Host identity is masked; no real external service is involved.
 

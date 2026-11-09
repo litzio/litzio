@@ -1,7 +1,7 @@
 // Native triple clicks outside textblock contentDOM must not select a neighbor (#724, #735).
 async (page, { openPath, expect, reloadDocument }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const separator = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'caption-selection', 'selection.md'].join(separator);
@@ -211,7 +211,7 @@ async (page, { openPath, expect, reloadDocument }) => {
     const response = page.waitForResponse(r => r.request().method() === 'POST' && /\/api\/document(?:\?|$)/.test(r.url()));
     await page.getByTestId('save').click();
     expect((await response).status()).toBe(200);
-    const disk = await page.request.get(`${origin}/document/selection.md?path=${encodeURIComponent(file)}`);
+    const disk = await page.request.get(`${origin}/document/selection.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
     expect(disk.status()).toBe(200);
     const source = await disk.text();
     if (result.expected) expect(source).toContain(result.expected);

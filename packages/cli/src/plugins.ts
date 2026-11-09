@@ -10,10 +10,7 @@ export async function pluginCli(args: string[]): Promise<number> {
     const tokens = args.filter((_, i) => i !== index && i !== index + 1 && args[i] !== "--json");
     const [command, action, id] = tokens;
     let body: Record<string, unknown>;
-    if (command === "review" && tokens[2] === "--input") {
-      if (!["open", "read", "patch", "regenerate", "status"].includes(action!) || tokens.length !== 4) throw new Error("review open|read|patch|regenerate|status --input <json-file> --host <origin> --json");
-      body = { ...JSON.parse(readFileSync(tokens[3]!, "utf8")), action: `generated-${action}` };
-    } else if (command === "review") {
+    if (command === "review") {
       if (!["read", "propose", "approve", "reject", "undo", "status"].includes(action!) || tokens.length !== 8 || tokens[4] !== "--input" || tokens[6] !== "--root") throw new Error("review <action> <pluginId> <reviewId> --input <file> --root <root> --host <origin> --json");
       body = { ...JSON.parse(readFileSync(tokens[5]!, "utf8")), action, plugin: id, review: tokens[3], root: tokens[7] };
     } else if (command === "operation" && action === "invoke") {
@@ -44,13 +41,25 @@ export async function pluginCli(args: string[]): Promise<number> {
     } else if (command === "plugins" && action === "list" && tokens.length === 2) body = { action };
     else if (command === "plugins" && ["register", "validate"].includes(action!) && tokens.length === 3) body = { action, directory: id };
     else if (command === "plugins" && action === "scaffold" && tokens.length === 5 && tokens[3] === "--id") body = { action, directory: id, id: tokens[4] };
+    else if (command === "plugins" && (action === "trust" || action === "enable" && tokens.length > 3)) {
+      body = { action, id };
+      for (let i = 3; i < tokens.length; i++) {
+        const option = tokens[i];
+        if (action === "enable" && option === "--trust" && body.trust === undefined) body.trust = true;
+        else if ((option === "--registration" || action === "trust" && option === "--digest") && tokens[i + 1] && !tokens[i + 1]!.startsWith("--")) {
+          const key = option === "--registration" ? "registrationId" : "digest";
+          if (body[key] !== undefined) throw new Error("Duplicate plugin trust option");
+          body[key] = tokens[++i];
+        } else throw new Error("Invalid plugin trust option");
+      }
+      if ((action === "trust" || body.trust) && !body.registrationId) throw new Error("Read plugins list and supply --registration <registrationId> to confirm that registration");
+    }
     else if (command === "plugins" && ["enable", "disable", "reload", "unregister"].includes(action!) && tokens.length === 3) body = { action, id };
     else if (command === "plugins" && action === "secret-status" && tokens.length === 3) body = { action, id };
     else if (command === "plugins" && action === "secret-delete" && tokens.length === 4) body = { action, id, name: tokens[3] };
-    else if (command === "plugins" && action === "trust" && tokens.length === 5 && tokens[3] === "--digest") body = { action, id, digest: tokens[4] };
     else if (command === "plugins" && action === "settings" && tokens.length === 3) body = { action, id };
     else if (command === "plugins" && action === "settings" && tokens.length === 5 && tokens[3] === "--file") body = { action, id, settings: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
-    else throw new Error("plugins list|scaffold <directory> --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --digest <digest>|enable|disable|reload <id>|settings <id> --file <json-file> --host <origin> --json");
+    else throw new Error("plugins list|scaffold <directory> --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|settings <id> --file <json-file> --host <origin> --json");
     const health = await fetch(new URL("/daemon/health", origin), { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
     if (!health.ok || (await health.json()).protocolVersion !== DAEMON_PROTOCOL) throw new Error("Host protocol check failed");
     dispatched = true;
