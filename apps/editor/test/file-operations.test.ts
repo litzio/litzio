@@ -151,9 +151,10 @@ test("image rename checks admitted Figure read models recursively plus applied u
   assert.equal(fs.readFileSync(result.path, "utf8"), "<svg/>");
 });
 
+// Fault hooks receive canonical commit targets, including when TEMP is an 8.3 alias.
 for (const cleanupFailure of ["once", "rollback", "external", "twice"] as const) {
   test(`post-replacement cleanup failure (${cleanupFailure}) rolls back or reports the changed document`, t => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-rename-cleanup-"));
+    const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "litzio-rename-cleanup-")));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     const image = path.join(root, "old.svg"), destination = path.join(root, "new.svg");
     const a = path.join(root, "a.md"), b = path.join(root, "b.md");
@@ -198,7 +199,7 @@ for (const cleanupFailure of ["once", "rollback", "external", "twice"] as const)
 
 for (const failure of ["preflight", "publication", "document", "unlink", "rollback", "conflict", "case-only"] as const) {
   test(`image rename ${failure} failure preserves originals or reports incomplete rollback`, t => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-rename-failure-"));
+    const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "litzio-rename-failure-")));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     const name = failure === "case-only" ? "OLD" : "new";
     const image = path.join(root, "old.svg"), destination = path.join(root, name + ".svg");

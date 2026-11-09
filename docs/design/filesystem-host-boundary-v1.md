@@ -635,3 +635,7 @@ Existing `GET /api/folder` responses include an opaque `rootId` computed from th
 ## PDF byte preview (#1337)
 
 `GET/HEAD /api/file-preview?root=…&path=…` also serves `application/pdf`. The existing opened/allowed Root, realpath, no-symlink and bounded descriptor-read checks apply unchanged. PDF bytes are limited to 25 MiB (images remain 10 MiB), including files that grow during reading. This limits the full-buffer allocation on both Host and client; it is not a limit on decompressed PDF complexity. The Host checks the PDF signature; pdf.js diagnoses malformed structure and passwords in the client. Responses remain no-store/nosniff/sandboxed. No write path is added. Local and remote Hosts use the same HostClient request; the worker and font assets always come from the app origin.
+
+## Plugin-managed generated documents (#1364)
+
+Host app data holds canonical-path connections for generated documents; the document folder and Markdown carry no management metadata. GET document/editor-file exposes managedGenerated for the shared Editor/CLI warning. Moving/renaming may disconnect that warning. Opaque source revision replacement, source-first corrections, explicit same-path document regeneration and receipts use the [plugin contract](plugin-stage1-v1.md#generated-document-correction-and-regeneration-1364).

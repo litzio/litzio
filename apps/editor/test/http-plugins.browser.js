@@ -1,4 +1,4 @@
-async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
+async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument }) => {
   const secretSaves = [];
   let listRequests = 0;
   const saveSecret = async () => {
@@ -459,6 +459,30 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(conversionReport.losses.filter(loss => loss.kind === 'picture-image')).toHaveLength(1);
     await expect(editor).not.toContainText("RUNNING HEADER");
     await expect(editor).not.toContainText("Docling conversion:");
+    const generatedWarning = page.getByTestId("generated-document-warning").filter({ visible: true });
+    await expect(generatedWarning).toBeVisible();
+    await generatedWarning.locator('span[tabindex="0"]').hover();
+    await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
+    await expect(page.locator("[data-slot=tooltip-content]")).toContainText("Direct edits will be overwritten");
+    await page.mouse.move(0, 0);
+    // The warning must allow the ordinary editor's Save, then regeneration can replace
+    // the explicitly reread revision. Patch semantics are covered below the UI layer.
+    await page.getByTestId("view-visual").click();
+    await editor.getByText("PDF body *literal*.", { exact: true }).click();
+    await page.keyboard.press("End"); await page.keyboard.type(" Direct edit.");
+    await page.getByTestId("save").click();
+    await expect(page.getByTestId("status")).toHaveAttribute("data-operation", "saved");
+    const reviewInput = { root: pluginFixture.folder, document: "docling-cli.md" };
+    const review = await docling.review("read", reviewInput);
+    expect(review.state).toBe("externally-modified");
+    const corrected = await docling.review("patch", { ...reviewInput, baseline: review.baseline, requestId: "6cf96dcb-0c9c-41c5-b14c-c9d6736bb3e7", patches: [
+      { type: "text", self_ref: "#/texts/4", text: "Reviewed PDF body." },
+    ] });
+    expect(corrected.correctionsSaved).toBe(true); expect(corrected.documentRegenerated).toBe(true);
+    await reloadDocument(page);
+    await expect(editor).toContainText("Reviewed PDF body.");
+    await expect(editor).not.toContainText("Direct edit.");
+    await expect(generatedWarning).toBeVisible();
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     // Re-selecting the current Root must preserve its loaded files.
     await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
@@ -547,8 +571,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.keyboard.press("Escape");
       const invoke = () => jira.cli(["operation", "invoke", "community.jira.issues", "--input", jira.input]);
       const connected = await invoke();
-      expect(connected.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
-      expect(connected.result[0].assignee).toBe("—");
+      expect(connected.result.rows.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
+      expect(connected.result.rows[0].assignee).toBe("—");
       await page.reload(); await openSettings();
       await page.keyboard.press("Escape");
       await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
@@ -565,13 +589,37 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await expect(page.getByText("View operation failed.", { exact: false })).toBeVisible();
       jira.setFault(0);
       await page.getByRole("button", { name: "간편 검색", exact: true }).click();
+      const accountInput = page.locator('[data-view-field="account"]');
+      const projectInput = page.locator('[data-view-field="project"]');
+      const more = page.getByRole("button", { name: /Additional conditions/ });
+      await expect(accountInput).toHaveAttribute("placeholder", "Fixture PAT user");
+      await expect(accountInput).toHaveValue("");
+      await expect(page.locator('[data-view-field="reporter"]')).toHaveCount(0);
+      // Candidates insert Jira identifiers, never display names. Guidance alone never queries.
+      const beforeCandidates = jira.searches().length;
+      await accountInput.fill("mo");
+      await page.getByRole("option", { name: "Fixture PAT user (mock-user)", exact: true }).click();
+      await expect(accountInput).toHaveValue("mock-user");
+      await accountInput.fill("");
+      await projectInput.fill("Fi");
+      await page.getByRole("option", { name: "Fixture project (MOCK)", exact: true }).click();
+      await expect(projectInput).toHaveValue("MOCK");
+      await projectInput.fill("");
+      expect(jira.searches().length).toBe(beforeCandidates);
+      await more.click();
+      const reporterInput = page.locator('[data-view-field="reporter"]');
+      await reporterInput.fill("mo");
+      await page.getByRole("option", { name: "Fixture PAT user (mock-user)", exact: true }).click();
+      await expect(reporterInput).toHaveValue("mock-user");
+      await reporterInput.fill("");
+      await more.click();
       const assignedStart = Date.now();
       const queryButton = page.getByRole("button", { name: "조회", exact: true });
       const queryRows = async value => {
         jira.setQuery(value);
         const cli = await invoke();
         expect(cli.receipt.outcome).toBe("success");
-        return cli.result;
+        return cli.result.rows;
       };
       const mine = await queryRows({});
       expect(mine.map(row => row.key)).toEqual(["MOCK-1", "MOCK-8"]);
@@ -583,7 +631,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       expect(all.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
       expect(jira.searches().map(v => v.startAt)).toEqual([0, 2]);
       expect(jira.searches()[0].jql).toBe('assignee = "someone\\"\\\\else" ORDER BY updated DESC');
-      await page.getByRole("textbox", { name: "계정", exact: false }).fill(account);
+      await page.locator('[data-view-field="account"]').fill(account);
       await page.getByRole("combobox", { name: "해결 여부", exact: false }).selectOption("전체");
       await queryButton.click();
       await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
@@ -591,12 +639,18 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       const filters = { project: "MOCK", reporter: account, dateField: "생성일", dateFrom: "2026-11-01", dateTo: "2026-11-09" };
       await queryRows(filters);
       expect(jira.searches()[0].jql).toBe('assignee = currentUser() AND resolution = Unresolved AND project = "MOCK" AND reporter = "someone\\\"\\\\else" AND created >= "2026-11-01" AND created < "2026-11-10" ORDER BY updated DESC');
-      for (const [field, value] of Object.entries(filters).filter(([field]) => field !== "dateField")) await page.getByRole("textbox", { name: ({ project: "프로젝트 키", reporter: "보고자", dateFrom: "시작일", dateTo: "종료일" })[field], exact: false }).fill(value);
+      await more.click();
+      for (const [field, value] of Object.entries(filters).filter(([field]) => field !== "dateField")) await page.locator(`[data-view-field="${field}"]`).fill(value);
       await page.getByRole("combobox", { name: "기간 기준", exact: false }).selectOption("생성일");
+      await more.click();
+      await expect(page.locator(".view-query-summary")).toContainText("2026-11-01");
+      await expect(page.locator(".view-query-summary")).toContainText(account);
       await queryButton.click();
       await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
+      await more.click();
+      await expect(page.locator('[data-view-field="reporter"]')).toHaveValue(account);
       await queryRows({ dateFrom: "2026-02-30" }).then(() => { throw new Error("Invalid date accepted"); }, () => {});
-      for (const label of ["프로젝트 키", "보고자", "시작일", "종료일"]) await page.getByRole("textbox", { name: label, exact: false }).fill("");
+      for (const label of ["프로젝트 키", "보고자", "시작일", "종료일"]) await page.getByLabel(label, { exact: true }).fill("");
       jira.setQuery({ key: "MOCK-1" });
       const detail = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
       expect(detail.receipt.outcome).toBe("success");
@@ -616,7 +670,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       expect(capped.at(-1).key).toBe("MOCK-500");
       expect(jira.searches().map(v => v.startAt)).toEqual([0, 100, 200, 300, 400]);
       await queryButton.click();
-      await expect(page.getByText("500 / 500", { exact: true })).toBeVisible();
+      await expect(page.getByText("500 / 500 · Total: 501", { exact: true })).toBeVisible();
       if (screenshots) {
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.getByRole("table").scrollIntoViewIfNeeded();
@@ -628,37 +682,60 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
       const search = page.getByRole("button", { name: "조회", exact: true });
       await search.click();
-      for (const row of connected.result) {
+      for (const row of connected.result.rows) {
         const tr = page.getByRole("row").filter({ has: page.getByRole("cell", { name: row.key, exact: true }) });
         expect(row.issueUrl).toBe(jira.baseUrl + "/browse/" + row.key);
         await expect(tr.getByRole("cell")).toHaveText([row.key, row.summary, row.status, row.assignee, row.reporter, row.created, row.updated]);
       }
+      await page.getByRole("button", { name: "Columns", exact: true }).click();
+      await page.getByRole("menuitemcheckbox", { name: "우선순위", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("columnheader", { name: "우선순위", exact: false })).toBeVisible();
+      await page.getByRole("button", { name: "Columns", exact: true }).click();
+      await page.getByRole("menuitemcheckbox", { name: "우선순위", exact: true }).click();
+      await page.keyboard.press("Escape");
       const issueLink = page.getByRole("link", { name: "MOCK-1", exact: true });
       await expect(issueLink).toBeVisible();
       await expect(issueLink).toHaveAttribute("href", jira.baseUrl + "/browse/MOCK-1");
       if (screenshots) {
         for (const width of [1440, 640]) {
-          if (width === 640) {
-            await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
-            await page.reload();
-            await page.getByRole("button", { name: "설정", exact: true }).click();
-            await page.getByRole("button", { name: "플러그인", exact: true }).click();
-            await page.keyboard.press("Escape");
-            await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
-            await page.getByRole("button", { name: "간편 검색", exact: true }).click();
-            await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
-            await search.click();
-            await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
-          }
+          await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
           await page.setViewportSize({ width, height: 900 });
-          await page.getByRole("table").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `tmp/jira-1350/issues-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+          await page.reload();
+          await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+          await page.getByRole("button", { name: "간편 검색", exact: true }).click();
+          const disclosure = page.getByRole("button", { name: width === 640 ? /추가 조건/ : /Additional conditions/ });
+          await expect(page.locator('[data-view-field="account"]')).toHaveAttribute("placeholder", "Fixture PAT user");
+          const capture = async state => {
+            await page.mouse.move(0, 0);
+            await page.screenshot({ path: `docs/design/assets/search-form-1370/${state}-${width}${width===640?"-ko-dark":""}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+          };
+          await capture("default");
+          await disclosure.click();
+          await page.locator('[data-view-field="project"]').fill("MOCK");
+          await page.locator('[data-view-field="reporter"]').fill("mock-user");
+          await page.locator('[data-view-field="dateFrom"]').fill("2026-11-01");
+          await page.locator('[data-view-field="dateTo"]').fill("2026-11-09");
+          await disclosure.click();
+          await search.click();
+          await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
+          await capture("collapsed");
+          await page.getByRole("button", { name: width === 640 ? "열 선택" : "Columns", exact: true }).click();
+          await capture("columns");
+          await page.keyboard.press("Escape");
+          await disclosure.click();
+          await page.keyboard.press("Escape");
+          await capture("expanded");
+          if (width === 640) {
+            await page.locator('[data-view-field="keys"]').scrollIntoViewIfNeeded();
+            await capture("expanded-bottom");
+          }
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
-        await page.reload(); await openSettings();
-        await page.keyboard.press("Escape");
-      await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+        await page.reload();
+        await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
         await page.getByRole("button", { name: "간편 검색", exact: true }).click();
+        await page.getByRole("button", { name: /Additional conditions/ }).click();
         await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
         await search.click();
         await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
@@ -685,8 +762,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
       jira.setInput("MOCK-2, MOCK-1, MOCK-2");
       const overridden = (await invoke()).result;
-      expect(overridden.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
-      expect(overridden.map(row => row.issueUrl)).toEqual(["https://jira.example.com/context/browse/MOCK-1", "https://jira.example.com/context/browse/MOCK-2"]);
+      expect(overridden.rows.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
+      expect(overridden.rows.map(row => row.issueUrl)).toEqual(["https://jira.example.com/context/browse/MOCK-1", "https://jira.example.com/context/browse/MOCK-2"]);
       for (const baseUrl of ["https://user:password@example.com", "https://example.com?query=1", "https://example.com#fragment"]) {
         jira.setSettings({ baseUrl });
         await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);

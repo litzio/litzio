@@ -1,6 +1,7 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Additional conditions": "Additional conditions",
   "Columns": "Columns",
   "Column selection could not be saved.": "Column selection could not be saved.",
   "Choose columns to display.": "Choose columns to display.",
@@ -12,6 +13,8 @@ export const en = {
   "The plugin is disabled or not running.": "The plugin is disabled or not running.",
   "The plugin could not acknowledge the start request.": "The plugin could not acknowledge the start request.",
   "Cannot start this file. Check the input and result path.": "Cannot start this file. Check the input and result path.",
+  "Plugin-managed document": "Plugin-managed document",
+  "This document is managed by a plugin. Direct edits will be overwritten when it is regenerated.": "This document is managed by a plugin. Direct edits will be overwritten when it is regenerated.",
   "Open result: {{file}}": "Open result: {{file}}",
   "Job details: {{file}}": "Job details: {{file}}",
   "Jobs": "Jobs",
@@ -1232,6 +1235,7 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Additional conditions": "추가 조건",
   "Columns": "열 선택",
   "Column selection could not be saved.": "열 선택을 저장하지 못했습니다.",
   "Choose columns to display.": "표시할 열을 선택하세요.",
@@ -1243,6 +1247,8 @@ export const ko: Record<keyof typeof en, string> = {
   "The plugin is disabled or not running.": "플러그인이 꺼져 있거나 실행 중이 아닙니다.",
   "The plugin could not acknowledge the start request.": "플러그인이 작업 시작을 확인하지 못했습니다.",
   "Cannot start this file. Check the input and result path.": "파일을 시작할 수 없습니다. 입력 파일과 결과 경로를 확인하세요.",
+  "Plugin-managed document": "플러그인이 관리하는 생성 문서",
+  "This document is managed by a plugin. Direct edits will be overwritten when it is regenerated.": "직접 수정한 내용은 다시 만들 때 덮어씁니다.",
   "Open result: {{file}}": "결과 열기: {{file}}",
   "Job details: {{file}}": "작업 상세: {{file}}",
   "Jobs": "작업",

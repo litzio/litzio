@@ -1,4 +1,4 @@
-# Jira community plugin 0.0.4
+# Jira community plugin 0.0.5
 
 Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다. JQL 검색이 기본이며 간편 검색은 같은 검색 경로 위에서 JQL을 조립합니다. 보고서 작성에 활용할 목록·설명·최근 댓글을 조회합니다. Jira 쓰기와 저장 필터 불러오기는 제공하지 않습니다.
 
@@ -23,7 +23,7 @@ Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다
 
 설정의 연결 확인과 CLI `community.jira.connection`은 입력 `{}`로 GET /myself를 호출합니다. 5초 제한 안에서 사용자 이름 형식을 확인하고 고정 `{ok,message}`만 반환합니다. 사용자 정보·원문·PAT는 표시하지 않습니다. 이 성공은 개별 이슈 권한을 보증하지 않습니다.
 
-## 0.0.4 검색과 상세 계약
+## 0.0.5 검색과 상세 계약
 
 사이드바 Jira 화면은 **JQL**과 **간편 검색** 두 기본 뷰를 제공합니다. ViewWorkspace·InputForm·TextInput·Select·SubmitButton·Table을 재사용하며 새 CSS·공통 UI 예외는 없습니다. 열린 폴더 없이 수동 조회하고 화면 열기만으로 요청하거나 polling하지 않습니다. CLI·화면·비서는 같은 host read 작업을 사용합니다.
 
@@ -31,7 +31,7 @@ Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다
 
 `community.jira.jql` v1 입력 예: `{"jql":"assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"}`. JQL은 비어 있지 않은 최대 4000자 문자열입니다. 임의 JQL을 Jira에 그대로 전달하며 자체 parser를 구현하지 않습니다.
 
-GET /search에 startAt=0/maxResults=500부터 요청하며 남은 500행 상한에 맞춰 페이지 크기를 줄입니다. fields에는 summary, status, assignee, reporter, created, updated, priority, issuetype, resolution, duedate, components, labels만 지정합니다. 서버가 페이지 크기를 줄이거나 더 적은 이슈를 반환해도 실제 반환 건수로 offset을 늘리며 순차 요청합니다. 한 번의 검색 전체에 8초 deadline과 최대 500행 상한을 적용합니다. 500행보다 많은 전체 결과는 잘림을 별도 표시하지 않습니다. 전체 내보내기 기능이 아니며 공통 표 잘림 안내는 후속 후보입니다. 간편 검색도 이 함수의 페이지 처리·행 변환·상한·오류를 그대로 사용합니다.
+GET /search에 startAt=0/maxResults=500부터 요청하며 남은 500행 상한에 맞춰 페이지 크기를 줄입니다. fields에는 summary, status, assignee, reporter, created, updated, priority, issuetype, resolution, duedate, components, labels만 지정합니다. 서버가 페이지 크기를 줄이거나 더 적은 이슈를 반환해도 실제 반환 건수로 offset을 늘리며 순차 요청합니다. 한 번의 검색 전체에 8초 deadline과 최대 500행 상한을 적용합니다. 검색은 `{rows, truncated, total}`을 반환하며 Jira total을 사용해 500행 상한에서 잘린 결과와 전체 건수를 공통 표에 표시합니다. 간편 검색도 이 함수의 페이지 처리·행 변환·상한·오류를 그대로 사용합니다.
 
 ### 간편 검색
 
@@ -43,7 +43,7 @@ GET /search에 startAt=0/maxResults=500부터 요청하며 남은 500행 상한�
 
 ### 결과와 오류
 
-기본 열은 Key(링크)·제목·Status·Assignee·Reporter·Created·Updated 순서입니다. Priority·issueType·resolution·dueDate·components·labels도 outputSchema·rowSchema와 행 데이터에 보존하되 기본 columns에서 제외합니다. 열 추가·제거는 #1351 후속입니다. 없는 값과 해석할 수 없는 시각은 `—`입니다. Created·Updated는 Host PC 현지 시간의 `YY-MM-DD HH:mm`, 날짜만 있는 dueDate는 `YY-MM-DD`로 반환합니다. 댓글 시각과 fetchedAt도 같은 현지 시각 형식입니다. 고정 폭 문자열은 같은 세기 안에서 현지 시각 순서로 정렬됩니다. 초·원문 시간대는 보존하지 않으며 DST로 현지 시각이 반복되는 구간이나 세기 경계의 절대 시각 순서는 보장하지 않습니다. 키의 issueUrl은 BASE_URL/browse/KEY로 만들고 공개 linkField로 Jira 원본을 엽니다. 별도 상세 패널은 없습니다.
+기본 열은 Key(링크)·제목·Status·Assignee·Reporter·Created·Updated 순서입니다. Priority·issueType·resolution·dueDate·components·labels도 outputSchema·rowSchema와 행 데이터에 보존하되 기본 columns에서 제외합니다. 공통 열 선택 메뉴에서 추가·제거하며 선택은 브라우저 UI preference에 저장합니다. 없는 값과 해석할 수 없는 시각은 `—`입니다. Created·Updated는 Host PC 현지 시간의 `YY-MM-DD HH:mm`, 날짜만 있는 dueDate는 `YY-MM-DD`로 반환합니다. 댓글 시각과 fetchedAt도 같은 현지 시각 형식입니다. 고정 폭 문자열은 같은 세기 안에서 현지 시각 순서로 정렬됩니다. 초·원문 시간대는 보존하지 않으며 DST로 현지 시각이 반복되는 구간이나 세기 경계의 절대 시각 순서는 보장하지 않습니다. 키의 issueUrl은 BASE_URL/browse/KEY로 만들고 공개 linkField로 Jira 원본을 엽니다. 별도 상세 패널은 없습니다.
 
 401→auth, 403→forbidden, 404→not_found, 5xx→unavailable, 8초 초과→timeout, 400·redirect·연결 실패·비정상 응답→failed입니다. 모두 기존 Host 고정 안내를 사용하며 PAT·예외·Jira 원문(errorMessages 포함)을 노출하지 않습니다. JQL 오류의 자세한 이유는 표시하지 않음. 결과 대신 오류가 나오면 JQL 문법과 필드 이름을 확인하고, 자세한 이유는 Jira 웹의 이슈 검색에서 같은 JQL로 확인하세요. 같은 안내를 JQL 입력 툴팁에도 둡니다. 일부 페이지 성공 후 실패도 전체 실패이며 이전 표는 이전 조회 안내와 함께 보존합니다. redirect는 거부하고 disable/reload는 소유한 요청을 취소합니다.
 
@@ -55,7 +55,7 @@ GET /search에 startAt=0/maxResults=500부터 요청하며 남은 500행 상한�
 
 ## 검증 범위
 
-`pnpm browser:test http-plugins`의 기존 production Host·CLI·browser·가짜 HTTP 서버를 보완합니다. JQL 정상·400 고정 안내, 페이지·500행 상한, 간편 검색 JQL 조립, 기본 열과 링크, 상세 본문·최근 댓글 범위·잘림, 기존 안전 오류를 검사합니다. 낮은 계층의 기존 plugins.test.ts에서 날짜·escape·빈 댓글·비문자열 설명을 확인합니다. 즐겨찾기 UI에는 의존하지 않습니다.
+`pnpm browser:test http-plugins`의 기존 production Host·CLI·browser·가짜 HTTP 서버를 보완합니다. JQL 정상·400 고정 안내, 페이지·전체 501건 중 500행 잘림·전체 건수, 간편 검색 JQL 조립, 기본 7열·추가 열 선택과 링크, 상세 본문·최근 댓글 범위·잘림, 기존 안전 오류를 검사합니다. 낮은 계층의 기존 plugins.test.ts에서 날짜·escape·빈 댓글·비문자열 설명을 확인합니다. 즐겨찾기 UI에는 의존하지 않습니다.
 
 `LITZIO_JIRA_MOCK=1`은 별도 준비한 로컬 Docker Jira 8081의 연결 확인과 지원하는 현재 사용자 전체 검색만 확인합니다. 목업은 임의 JQL·key-in·댓글을 지원하지 않으며 저장소를 수정하지 않습니다. 실제 Jira 인증·사내 인증서·프록시·권한·댓글 정렬·날짜 시간대는 소유자 확인이 필요합니다. 비서 실제 요약과 시각 검토 실행 결과는 PR에 별도로 기록합니다.
 
@@ -68,3 +68,9 @@ GET /search에 startAt=0/maxResults=500부터 요청하며 남은 500행 상한�
 아이콘: [Lucide Ticket](https://lucide.dev/icons/ticket), lucide-react 1.47.0, ISC License ([고지](LICENSE-icon.txt)); 앱의 기존 아이콘 세트에서 가져와 선 색만 조정한 일반 티켓 SVG이며 Jira/Atlassian 로고를 사용하지 않습니다.
 
 아이콘 수동 검토: [설정 목록 1440px](../../docs/design/assets/jira-1350/settings-1440.png), [한국어 Dark 640px](../../docs/design/assets/jira-1350/settings-640-ko-dark.png). 위 조회 캡처의 사이드바·탭과 함께 세 진입점의 티켓 SVG를 확인했습니다. 설정 목록 촬영용 임시 body는 캡처 후 제거했으며 자동 검사에 촬영 순회를 추가하지 않습니다.
+
+## 0.0.5 검색 입력
+
+계정 → 프로젝트 → 해결 여부가 기본 표시됩니다. 보고자·기간 기준·시작일·종료일·이슈 번호는 추가 조건으로 접고 지정값을 요약합니다. 접어도 조건을 유지하며 조회는 수동입니다. 계정을 비우면 `/rest/api/2/myself`의 displayName이 안내로 보이지만 args에는 들어가지 않고 기존 currentUser() 동작을 유지합니다.
+
+계정·보고자는 `/rest/api/2/user/picker?query=…&maxResults=32`에서 name을 값, displayName과 name을 후보 이름으로 제공합니다. 프로젝트는 `/rest/api/2/project` 목록을 키·이름으로 검색하고 key를 입력합니다. 두 글자부터 공통 자동완성을 사용하며 후보는 최대 32개입니다. 실패 시 직접 입력할 수 있습니다. 같은 읽기는 CLI의 `community.jira.users`/`projects` (`{"query":"mo"}`), `community.jira.current-account` (`{}`)로 호출할 수 있습니다. PAT는 기존 연결 secret이며 8초 deadline·redirect 거부·dispose 취소를 유지합니다. 회사 Jira·인증서·권한은 별도 소유자 확인입니다.

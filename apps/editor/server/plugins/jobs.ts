@@ -1,7 +1,7 @@
 import { publicOperationError } from "./operation-result.ts";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import path from "node:path";
-import { existsSync, statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, statSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createFileFromPath } from "@litzio/file-commit";
 import { JOB_START_FAILURE_MESSAGES, JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BYTES, defaultJobOutput, jobRequestSchema, jobUpdateSchema, type JobStartFailure, type BatchJobResult, type JobInput, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
@@ -9,7 +9,7 @@ import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 import { createAuthoredDocumentFile } from "../document-authoring.ts";
 
-type Record = { effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
+type Record = { sourceRevision?: string; effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 class StartRefused extends Error {
   constructor(readonly reason: JobStartFailure) { super(JOB_START_FAILURE_MESSAGES[reason.kind] + (reason.path ? ` ${reason.path}` : "")); }
 }
@@ -18,7 +18,8 @@ export class PluginJobs {
   private records = new Map<string, Record>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
     private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string; errorKind?: PluginErrorKind }>,
-    private effect: (name: string) => "read" | "write", private publishReview?: (plugin: string, root: string, file: string, source: string, data: unknown) => NonNullable<JobSnapshot["result"]>["bundle"]) {}
+    private effect: (name: string) => "read" | "write", private publishReview?: (plugin: string, root: string, file: string, source: string, data: unknown) => NonNullable<JobSnapshot["result"]>["bundle"],
+    private registerGenerated?: (plugin: string, job: string, root: string, source: string, file: string, revision: string, sourceRevision: string) => void) {}
   private async call(record: Record, operation: string) {
     const value = await this.invoke(`${record.snapshot.plugin}.${operation}`, record.input);
     if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
@@ -46,13 +47,19 @@ export class PluginJobs {
       } else {
         if (update.file) throw new Error("Unexpected file result");
         if (!update.document) throw new Error("Completed job has no document");
+        const checkSource = () => {
+          if (record.sourceRevision && createHash("sha256").update(readFileSync(accessPath(record.input.file, this.access))).digest("hex") !== record.sourceRevision) throw new Error("Generated source changed during document creation");
+        };
+        checkSource();
         accessPath(record.input.output, this.access, true);
         const created: { path: string; revision: string; inputs?: Awaited<ReturnType<typeof createAuthoredDocumentFile>>["inputs"] } = "source" in update.document ? createDocumentSourceFile(record.input.output, update.document.source, record.access)
           : await createAuthoredDocumentFile(record.input.output, update.document, record.access, () => {
             if (record.detached) throw new Error("Document result observation lost");
+            checkSource();
             accessPath(record.input.output, this.access, true);
           });
         current.result = { path: created.path, revision: created.revision, ...(created.inputs ? { inputs: created.inputs } : {}) };
+        if (record.binding.resultKind === "native-document" && record.binding.generatedDocument) this.registerGenerated!(current.plugin, record.binding.id, current.root, record.input.file, created.path, created.revision, record.sourceRevision!);
         // Publication failure must not lose the successful document receipt or recreate it on status.
         record.finishedAt = Date.now();
         const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
@@ -136,6 +143,7 @@ export class PluginJobs {
       if (file === output) throw new Error("Output must preserve input");
       if (binding.resultKind === "file" && path.extname(output).toLowerCase() !== binding.resultExtension) throw new Error("Output extension must match resultExtension");
       const record: Record = { effects: new Map([binding.start, binding.status, binding.stop].map(operation => [operation, this.effect(`${input.plugin}.${operation}`)])), startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, file: input.file, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
+      if (binding.resultKind === "native-document" && binding.generatedDocument) record.sourceRevision = createHash("sha256").update(readFileSync(file)).digest("hex");
       if (binding.resultKind === "file") {
         record.staging = mkdtempSync(path.join(tmpdir(), "litzio-job-result-"));
         try {

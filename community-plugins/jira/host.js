@@ -69,7 +69,7 @@ export function activate(context) {
     try {
       const rows = [];
       const jql = input.jql;
-      let startAt = 0;
+      let startAt = 0, total = 0;
       while (rows.length < 500) {
         const query = new URLSearchParams({ jql, startAt: String(startAt), maxResults: String(500 - rows.length), fields: SEARCH_FIELDS });
         const response = await fetch(api + "/search?" + query, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
@@ -79,6 +79,7 @@ export function activate(context) {
         }
         const body = await response.json();
         if (!Array.isArray(body?.issues) || !Number.isSafeInteger(body.total) || body.total < 0 || body.startAt !== startAt || (!body.issues.length && startAt < body.total)) throw new PluginOperationError("failed");
+        total = body.total;
         for (const issue of body.issues.slice(0, 500 - rows.length)) {
           if (typeof issue?.key !== "string" || !/^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/.test(issue.key) || !issue.fields || typeof issue.fields !== "object" || Array.isArray(issue.fields)) throw new PluginOperationError("failed");
           const f = issue.fields;
@@ -87,15 +88,52 @@ export function activate(context) {
         startAt += body.issues.length;
         if (startAt >= body.total) break;
       }
-      return rows;
+      return { rows, truncated: rows.length < total, total };
     } catch (error) {
       if (controller.signal.aborted) throw new PluginOperationError("timeout");
       if (error instanceof PluginOperationError) throw error;
       throw new PluginOperationError("failed");
     } finally { clearTimeout(timer); requests.delete(controller); }
   }
+  async function read(suffix) {
+    const base = httpUrl(String(context.settings.baseUrl ?? ""));
+    const api = context.settings.apiUrl ? httpUrl(String(context.settings.apiUrl)) : base + "/rest/api/2";
+    const pat = context.secrets?.pat;
+    if (!pat) throw new PluginOperationError("auth");
+    const controller = new AbortController(); requests.add(controller);
+    const timer = setTimeout(() => controller.abort(), DEADLINE_MS);
+    try {
+      const response = await fetch(api + suffix, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new PluginOperationError(response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status === 404 ? "not_found" : response.status >= 500 ? "unavailable" : "failed");
+      }
+      return await response.json();
+    } catch (error) {
+      if (controller.signal.aborted) throw new PluginOperationError("timeout");
+      if (error instanceof PluginOperationError) throw error;
+      throw new PluginOperationError("failed");
+    } finally { clearTimeout(timer); requests.delete(controller); }
+  }
+  const candidates = items => [...new Map(items.map(item => [item.value, item])).values()].slice(0, 32);
   return {
     operations: {
+      async "current-account"() {
+        const user = await read("/myself");
+        if (typeof user?.displayName !== "string" || !user.displayName.trim()) throw new PluginOperationError("failed");
+        return { text: user.displayName.slice(0, 512) };
+      },
+      async users({ query }) {
+        const body = await read("/user/picker?" + new URLSearchParams({ query, maxResults: "32" }));
+        if (!Array.isArray(body?.users) || body.users.some(user => typeof user?.name !== "string" || !user.name || typeof user.displayName !== "string")) throw new PluginOperationError("failed");
+        return candidates(body.users.filter(user => user.name.length <= 254 && !/[\u0000-\u001f\u007f]/.test(user.name)).map(user => ({ value: user.name, label: `${user.displayName} (${user.name})`.slice(0, 512) })));
+      },
+      async projects({ query }) {
+        const body = await read("/project");
+        if (!Array.isArray(body) || body.some(project => typeof project?.key !== "string" || typeof project.name !== "string")) throw new PluginOperationError("failed");
+        const match = query.toLocaleLowerCase();
+        return candidates(body.filter(project => /^[A-Z][A-Z0-9_]*$/.test(project.key) && project.key.length <= 128 && `${project.key} ${project.name}`.toLocaleLowerCase().includes(match)).map(project => ({ value: project.key, label: `${project.name} (${project.key})`.slice(0, 512) })));
+      },
       async jql(input) { return search(input); },
       async issues(input = {}) {
         if (input.keys !== undefined) {

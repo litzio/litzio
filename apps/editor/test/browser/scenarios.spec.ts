@@ -177,7 +177,7 @@ for (const name of scenarios) {
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; review(action: string, data: unknown): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -258,7 +258,12 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       if (request.url === "/jira/rest/api/2/myself") {
         const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
         response.writeHead(status, { "Content-Type": "application/json" });
-        response.end(JSON.stringify(status === 200 ? { name: "mock-user" } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return;
+        response.end(JSON.stringify(status === 200 ? { name: "mock-user", displayName: "Fixture PAT user" } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return;
+      }
+      if (request.url?.startsWith("/jira/rest/api/2/user/picker?") || request.url === "/jira/rest/api/2/project") {
+        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
+        response.writeHead(status, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(status !== 200 ? {} : request.url.includes("/user/picker?") ? { users: [{ name: "mock-user", displayName: "Fixture PAT user" }] } : [{ key: "MOCK", name: "Fixture project" }])); return;
       }
       if (request.url === "/redirect-target") {
         jiraRedirects++;
@@ -336,6 +341,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         const files = readdirSync(assets).sort();
         const archive = readFileSync(path.join(pluginFolder, "real.docling"));
         rmSync(path.join(pluginFolder, "docling-real.md"));
+
         const started = await this.cli(["plugins", "start", "community.docling", "--input", this.jobInput]);
         await expect.poll(async () => (await this.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
         expect(readdirSync(assets).sort()).toEqual(files);
@@ -365,6 +371,10 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         const result = (await this.cli(["plugins", "result", requestId])).job.result;
         writeFileSync(this.input, JSON.stringify({ requestId, result }));
         return (await this.cli(["operation", "invoke", "community.docling.conversion-report", "--input", this.input])).result;
+      },
+      async review(action: string, data: unknown) {
+        writeFileSync(this.input, JSON.stringify(data));
+        return this.cli(["review", action, "--input", this.input]);
       },
       async cli(args: string[]) {
         if (args[0] === "plugins" && args[1] === "start") {
@@ -401,7 +411,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       expect(decoded.manifest.result.sha256).toBe(createHash("sha256").update(rawResult).digest("hex"));
       expect(decoded.manifest.profile).toEqual(PDF_PROFILE);
       expect(decoded.manifest.version).toBe(1);
-      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.4");
+      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.5");
       expect(decoded.manifest.images[0].sha256).toBe(createHash("sha256").update(png).digest("hex"));
       conversionState = "failure";
       await expect(convertPdfToArchive({ file: source, serverUrl })).rejects.toThrow(/task fixture-2/);

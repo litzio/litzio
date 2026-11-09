@@ -12,6 +12,11 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   const job = { id: "export", title: "Export", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "file", resultExtension: ".bin" };
   const withJob = (value: unknown, requiresSdk = ">=0.2.0 <1.0.0") => ({ ...manifest(), requiresSdk, contributes: { jobs: [value], operations: ["start", "status", "stop"].map(id => ({ id, version: 1, effect: id === "status" ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } })) } });
   const nativeJob = { id: "import", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" };
+  const generated = withJob({ ...nativeJob, generatedDocument: "prepare" }, "^0.3.0");
+  generated.contributes.operations.push({ id: "prepare", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } });
+  assert.ok(validateManifest(generated));
+  assert.throws(() => validateManifest({ ...generated, requiresSdk: "^0.1.0" }), /Generated documents require SDK/);
+  assert.throws(() => validateManifest({ ...generated, contributes: { ...generated.contributes, operations: generated.contributes.operations.slice(0, -1) } }), /host read provider/);
   for (const requiresSdk of ["0.1.0", "^0.1.0"]) {
     assert.throws(() => validateManifest(withJob(job, requiresSdk)), /File job results require SDK 0\.2\.0 or later in requiresSdk/);
     assert.ok(validateManifest(withJob(nativeJob, requiresSdk)));
@@ -115,6 +120,16 @@ test("input suggestions bind public text fields to same-plugin reads on SDK 0.3"
  assert.throws(()=>validateManifest({...input,contributes:{operations:[source,{...people,effect:"write"}]}}),/standalone host read/);
  assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSuggestions:{missing:"people"}},people]}}),/public free-text/);
  assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:{type:"string",secret:true}}}},people]}}),/public free-text/);
+});
+
+test("input hints require public text and standalone empty-input reads", () => {
+ const source = {id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputHints:{person:"hint"}};
+ const hint = {id:"hint",version:1,effect:"read",scope:"host",inputSchema:{type:"object",additionalProperties:false},outputSchema:{type:"object"}};
+ const input = {...manifest(),requiresSdk:"^0.3.0",contributes:{operations:[source,hint]}};
+ assert.deepEqual(validateManifest(input).contributes.operations[0]?.inputHints,{person:"hint"});
+ assert.throws(()=>validateManifest({...input,requiresSdk:"^0.2.0"}),/SDK 0.3/);
+ for (const property of [{type:"string",secret:true},{type:"string",writeOnly:true},{type:"string",enum:["x"]},{type:"number"}]) assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:property}}},hint]}}),/public free-text/);
+ for (const target of [{...hint,effect:"write"},{...hint,rowSchema:{name:{type:"string",label:"Name"}}},{...hint,inputSchema:{type:"object",required:["query"],properties:{query:{type:"string"}}}}]) assert.throws(()=>validateManifest({...input,contributes:{operations:[source,target]}}),/standalone host read/);
 });
 
 test("default-hidden row columns use the unreleased SDK 0.3 contract", () => {

@@ -116,18 +116,19 @@ async (page, { expect, screenshots }) => {
   await examples.getByRole('group', { name: 'View profile', exact: true }).getByRole('button', { name: 'query', exact: true }).click();
 
   await page.goto(await page.evaluate(()=>location.origin+'/test/fixtures/input-suggestions/index.html'));
-  const field = page.getByLabel('담당자', { exact: true });
+  const field = page.locator('[data-view-field="person"]');
   if (screenshots) for (const width of [1440,640]) {
     await page.setViewportSize({width,height:1000});
     await page.evaluate(dark=>document.documentElement.setAttribute('data-theme',dark?'dark':'light'),width===640);
     await page.screenshot({path:`tmp/input-suggestions/before-${width}.png`});
   }
   const requests = [];
-  let release;
+  let release, releaseBlur;
   await page.route('**/api/plugins', async route => {
     const body = route.request().postDataJSON();
     requests.push(body.input.query);
     if(body.input.query==='old') await new Promise(resolve=>release=resolve);
+    if(body.input.query==='blur') await new Promise(resolve=>releaseBlur=resolve);
     const result = [{value:body.input.query+'-id',label:'예시: '+body.input.query+' 담당자'}];
     await route.fulfill({json:{result,receipt:{outcome:body.input.query==='fail'?'failure':'success'}}}).catch(()=>{});
   });
@@ -148,6 +149,16 @@ async (page, { expect, screenshots }) => {
   await expect.poll(()=>requests.includes('fail')).toBe(true);
   await expect(page.getByRole('option')).toHaveCount(0);
   await expect(field).toHaveValue('fail');
+  // A late candidate must not reopen a popup over the next control after field exit.
+  await field.fill('blur');
+  await expect.poll(()=>requests.includes('blur')).toBe(true);
+  await page.getByRole('button',{name:'후보 사용'}).click();
+  const blurredResponse = page.waitForResponse(response => response.url().endsWith('/api/plugins') && response.request().postDataJSON()?.input?.query === 'blur');
+  releaseBlur();
+  await (await blurredResponse).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await expect(field).toHaveValue('blur');
   // Composition events deliberately model an IME; ordinary fill cannot start composition.
   await page.clock.install();
   await field.dispatchEvent('compositionstart');
@@ -165,5 +176,23 @@ async (page, { expect, screenshots }) => {
     await field.click();
     await page.screenshot({path:`tmp/input-suggestions/after-${width}.png`});
   }
+
+  await page.clock.resume();
+  await field.press('Escape');
+  const more = page.getByRole('button',{name:/Additional conditions/});
+  const summary = page.locator('.view-query-summary');
+  await expect(summary).toContainText('Zero: 0');
+  await expect(summary).toContainText('Flag: false');
+  await expect(summary).toContainText('Nullable: No value');
+  await expect(summary).toContainText('Empty: ""');
+  await expect(page.getByLabel('Note',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Check hidden error'}).click();
+  await expect(more).toHaveAttribute('aria-expanded','true');
+  await expect(page.getByLabel('Note',{exact:true})).toBeFocused();
+  await page.getByLabel('Note',{exact:true}).fill('Retained condition');
+  await more.click();
+  await expect(summary).toContainText('Retained condition');
+  await more.press('Space');
+  await expect(page.getByLabel('Note',{exact:true})).toHaveValue('Retained condition');
 
 }

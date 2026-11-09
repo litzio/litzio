@@ -38,7 +38,9 @@ function assertRevision(filePath: string, target: string, revision: string): voi
 export function preflightFileCommit(filePath: string, text: string, revision: string): { target: string; mode: number } {
   assertUnicode(text);
   // Preserve a symlink itself by replacing its resolved target.
-  const target = fs.realpathSync(filePath);
+  // On Windows the JS resolver can retain a case alias. Renaming over that alias
+  // would change the stored leaf spelling on Save, so preserve the native name.
+  const target = process.platform === "win32" ? fs.realpathSync.native(filePath) : fs.realpathSync(filePath);
   assertRevision(filePath, target, revision);
   // A rename needs only directory permission; still refuse a file that cannot be written.
   fs.accessSync(target, fs.constants.W_OK);
@@ -98,10 +100,20 @@ export function createFile(filePath: string, text: string): void {
  * beforePublish lets the owner recheck its Root and cancellation/lifetime boundary.
  */
 export async function createFileFromPath(filePath: string, source: string, maxBytes: number, beforePublish: (target: string) => void = () => {}): Promise<string> {
+  return publishFileFromPath(filePath, source, maxBytes, beforePublish);
+}
+
+/** Replace plugin-owned opaque bytes with revision checks and a completed temporary sibling. */
+export async function commitFileFromPath(filePath: string, source: string, revision: string, maxBytes: number, beforePublish: (target: string) => void = () => {}): Promise<string> {
+  return publishFileFromPath(filePath, source, maxBytes, beforePublish, revision);
+}
+
+async function publishFileFromPath(filePath: string, source: string, maxBytes: number, beforePublish: (target: string) => void, revision?: string): Promise<string> {
   assertUnicode(filePath);
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new Error("Invalid file size limit");
   if (!fs.lstatSync(source).isFile()) throw new Error("Expected a regular staging file");
-  const target = path.join(fs.realpathSync(path.dirname(filePath)), path.basename(filePath));
+  const replacement = revision === undefined ? undefined : preflightFileCommit(filePath, "", revision);
+  const target = replacement?.target ?? path.join(fs.realpathSync(path.dirname(filePath)), path.basename(filePath));
   const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.tmp`);
   const input = await fs.promises.open(source, "r");
   let created = false;
@@ -117,7 +129,11 @@ export async function createFileFromPath(filePath: string, source: string, maxBy
       hash.update(chunk); callback(null, chunk);
     } }), output);
     beforePublish(target);
-    fs.linkSync(temporary, target);
+    if (replacement) {
+      fs.chmodSync(temporary, replacement.mode & 0o7777);
+      assertRevision(filePath, target, revision!);
+      fs.renameSync(temporary, target);
+    } else fs.linkSync(temporary, target);
     return hash.digest("hex");
   } finally {
     await input.close();
