@@ -2,6 +2,8 @@
 
 ## 0.0.3
 
+- 일반 Lucide Ticket SVG를 manifest icon으로 선언해 사이드바·탭·설정 목록에서 재사용. ISC 라이선스 고지 포함.
+
 - JQL 검색 v1이 기본이며 간편 검색 issues v4는 같은 경로 위에서 JQL만 조립. 두 기본 뷰 제공, 키별 404 자리 행은 검색 결과로 전환. 400은 기존 failed 고정 안내, 자세한 오류는 Jira 웹에서 확인.
 - 기본 표시를 Key·제목·Status·Assignee·Reporter·Created·Updated 7열로 정리. 추가 후보 필드는 행 스키마와 데이터에 보존.
 - 프로젝트 키·보고자·생성/수정 기간 AND 검색, JQL escape·날짜 유효성 검사. 500건·8초와 실제 페이지 offset 유지.

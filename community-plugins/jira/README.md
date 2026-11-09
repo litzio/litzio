@@ -62,3 +62,7 @@ GET /search에 startAt=0/maxResults=100부터 요청하며 실제 반환 건수�
 `--screenshots`의 Jira 수동 검토 이미지는 tmp/jira-1350에 생성합니다. 0.0.2 이전 근거는 [1440px](../../docs/design/assets/jira-1345/issues-1440.png)와 [640px 한국어 Dark](../../docs/design/assets/jira-1345/issues-640-ko-dark.png)에 보존하며 이번 버전의 근거로 간주하지 않습니다.
 
 0.0.3 수동 검토: [1440px](../../docs/design/assets/jira-1350/issues-1440.png), [640px 한국어 Dark](../../docs/design/assets/jira-1350/issues-640-ko-dark.png). 합성 데이터·마스킹된 Host 정보로 폼 정렬, 한국어 줄바꿈, 기본 7열, 키 링크와 표 가로 스크롤을 확인했습니다.
+
+아이콘: [Lucide Ticket](https://lucide.dev/icons/ticket), lucide-react 1.47.0, ISC License ([고지](LICENSE-icon.txt)); 앱의 기존 아이콘 세트에서 가져와 선 색만 조정한 일반 티켓 SVG이며 Jira/Atlassian 로고를 사용하지 않습니다.
+
+아이콘 수동 검토: [설정 목록 1440px](../../docs/design/assets/jira-1350/settings-1440.png), [한국어 Dark 640px](../../docs/design/assets/jira-1350/settings-640-ko-dark.png). 위 조회 캡처의 사이드바·탭과 함께 세 진입점의 티켓 SVG를 확인했습니다. 설정 목록 촬영용 임시 body는 캡처 후 제거했으며 자동 검사에 촬영 순회를 추가하지 않습니다.

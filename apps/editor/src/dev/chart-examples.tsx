@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { operationQueryViewSchema } from "@litzio/core/views-v2";
-import { ViewRenderer } from "../views/Views.tsx";
+import { ViewRenderer } from "../views/ViewRenderer.tsx";
 import { ChoiceGroup } from "../components/ui/choice-group.tsx";
 
 const leaf = (type: "line" | "scatter") => ({ component: "Chart", type, title: type === "line" ? "예시: 월별 추이 · null 단절" : "예시: 좌표 · 중복과 null", source: "stats", data: "/rows", x: "x", y: "y" });

@@ -5,8 +5,43 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const plugin = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.jobs");
   pluginFixture.cli(["plugins", "trust", plugin.id, "--digest", plugin.digest]);
   pluginFixture.cli(["plugins", "enable", plugin.id]);
+  const scriptDialogs = [];
+  page.on("dialog", dialog => { scriptDialogs.push(dialog.message()); void dialog.dismiss(); });
   // CLI setup happens outside the app; reload to discover the contributed sidebar screen.
   await page.reload();
+  await page.setViewportSize({width:1440,height:900});
+  const sidebarIcon = page.getByRole('button', {name:'Job fixture',exact:true}).locator('img');
+  await expect(sidebarIcon).toBeVisible();
+  // A real registered/trusted fixture icon, fetched from the owning HTTP Host.
+  const iconResponse = await page.request.get(page.url().split("/").slice(0,3).join("/") + `/api/plugins/icon?id=${plugin.id}&digest=${plugin.digest}`);
+  expect(iconResponse.headers()["content-type"]).toBe("image/svg+xml");
+  expect(iconResponse.headers()["x-content-type-options"]).toBe("nosniff");
+  await page.getByRole("button", { name: "Job fixture", exact: true }).click();
+  await expect(page.locator('.document-tabs img.plugin-icon')).toHaveCount(1);
+  await expect.poll(() => page.locator('img.plugin-icon').evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 32))).toBe(true);
+  if (screenshots) await page.screenshot({path:"tmp/1346/screen-1440.png", mask:[page.locator(".sidebar-host-account")]});
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Plugins", exact: true }).click();
+  await expect(page.locator('.plugin-heading img.plugin-icon')).toHaveCount(1);
+  if (screenshots) {
+    await page.screenshot({path:"tmp/1346/settings-1440.png", mask:[page.locator(".sidebar-host-account")]});
+    await page.getByRole("button", {name:"Appearance & language",exact:true}).click();
+    await page.getByTestId("theme").selectOption("dark");
+    await page.getByTestId("ui-language").selectOption("ko");
+    await page.getByRole("button", {name:"플러그인",exact:true}).click();
+    await page.setViewportSize({width:640,height:900});
+    await expect(page.locator('.plugin-heading img.plugin-icon')).toBeVisible();
+    await page.screenshot({path:"tmp/1346/settings-640-ko-dark.png", mask:[page.locator(".sidebar-host-account")]});
+    await page.getByRole("tab", {name:"Job fixture",exact:true}).click();
+    await expect(page.locator('.document-tabs img.plugin-icon')).toBeVisible();
+    await page.screenshot({path:"tmp/1346/screen-640-ko-dark.png", mask:[page.locator(".sidebar-host-account")]});
+    await page.setViewportSize({width:1440,height:900});
+    await page.getByRole("button", {name:"설정",exact:true}).click();
+    await page.getByRole("button", {name:"표시·언어",exact:true}).click();
+    await page.getByTestId("theme").selectOption("light");
+    await page.getByTestId("ui-language").selectOption("en");
+  }
+  expect(scriptDialogs).toEqual([]);
   const other = pluginFixture.cli(["plugins", "start", plugin.id, "--input", pluginFixture.otherJobInput]);
   await expect.poll(() => pluginFixture.cli(["plugins", "status", other.job.requestId]).job.state).toBe("completed");
   await openFolderPicker(page);

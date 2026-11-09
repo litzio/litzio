@@ -277,6 +277,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: 3.31.3
         version: 3.31.3
+      '@xmldom/xmldom':
+        specifier: 0.8.15
+        version: 0.8.15
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

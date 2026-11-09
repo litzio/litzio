@@ -1,3 +1,4 @@
+import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
 import { OFFICIAL_PLUGINS, type OfficialPlugin } from "./official-plugins.ts";
 import { publicOperationError, publicOperationResult, safePluginValue } from "./operation-result.ts";
@@ -75,6 +76,7 @@ export class PluginHost {
     this.artifacts.delete(directory);
     inspecting("litzio-plugin.json");
     const manifest = validateManifest(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")));
+    if (manifest.icon) { inspecting(manifest.icon); readPluginIcon(directory, manifest.icon); }
     inspecting("package.json");
     if (JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8")).version !== manifest.version) throw new Error("Package and manifest versions differ");
     inspecting("host entry");
@@ -119,6 +121,11 @@ export class PluginHost {
     }
     return result;
   }
+  icon(id: string, digest: string) {
+    const record = this.record(id), artifact = this.artifact(record.directory);
+    if (artifact.manifest.id !== id || artifact.digest !== digest || !artifact.manifest.icon || (!this.official(artifact.manifest, digest) && record.trustedDigest !== digest)) throw new Error("Plugin icon unavailable");
+    return readPluginIcon(record.directory, artifact.manifest.icon);
+  }
   async list() {
     return Promise.all(Object.entries(this.installed).map(async ([id, r]) => {
       try {
@@ -126,7 +133,7 @@ export class PluginHost {
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
         return { id, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, bundled: !!r.bundled, official: this.official(m, digest), trusted: this.official(m, digest) || r.trustedDigest === digest, enabled: r.enabled, running: !!current,
-          healthCheck: m.contributes.healthCheck, jobs: m.contributes.jobs, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
+          iconDigest: m.icon && (this.official(m, digest) || r.trustedDigest === digest) ? digest : undefined, healthCheck: m.contributes.healthCheck, jobs: m.contributes.jobs, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
       } catch (e) { return { id, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
     }));
   }
@@ -243,7 +250,7 @@ export class PluginHost {
     return [...this.loaded.values()].flatMap(live => live.manifest.contributes.views.map(view => ({ plugin: live.manifest.id, ...view })));
   }
   viewScreens() {
-    return [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, ...screen })));
+    return [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined, ...screen })));
   }
   /** Registered namespaces remain valid even while a plugin is disabled. */
   hasViewOwner(id: string): boolean { return Object.hasOwn(this.installed, id); }

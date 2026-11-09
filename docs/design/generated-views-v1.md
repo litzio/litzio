@@ -74,7 +74,7 @@ Verification extends the existing Host/CLI test: one existing real Host/plugin c
 
 ## V2 query Host and CLI
 
-Implemented 2026-11-06: `server/views.ts` accepts catalog v2 query definitions through Core `views-v2`. No v1 reader or migration is provided; rejected files remain intact. This section supersedes the v1 Host/storage/CLI behavior below. Earlier renderer/assistant evidence describes v1. V2 also updates existing call sites to emit/parse v2 query definitions so this PR works independently; V3/V6 own the new forms/states and proposal tools/cards.
+Implemented 2026-11-06: `server/views.ts` dispatches catalog v2 requests; `server/view-validation.ts` owns query admission, `server/view-query.ts` runs connected queries, `server/view-statistics.ts` owns the built-in statistics source, and `server/view-favorites.ts` reads favorite definitions. These module boundaries preserve the existing behavior. The dispatcher accepts catalog v2 query definitions through Core `views-v2`. No v1 reader or migration is provided; rejected files remain intact. This section supersedes the v1 Host/storage/CLI behavior below. Earlier renderer/assistant evidence describes v1. V2 also updates existing call sites to emit/parse v2 query definitions so this PR works independently; V3/V6 own the new forms/states and proposal tools/cards.
 
 `POST /api/views` adds `catalog` (public Core schema, limits, current operations with their Host-owned `plugin` identity and `{plugin,id,title,definition}` contributed views) and `propose` (same validated definition, canonical JSON, inputState and receipt as validate; no query/save/UI action). SDK validates contributed query definitions against the same plugin's operations before executing its entry. PluginHost owns loaded declarations and operation identity; view-service has no state or independent lifetime. Disabling removes contributed views from catalog. Open/validate/run recheck current operations and versions. Base UI can consume catalog operations independently of explicit views; fallback forms and unsupported-input presentation belong to V3.
 
@@ -225,7 +225,7 @@ Existing Core views tests cover v2 canonical round trips, missing versus executa
 
 ## V3 query renderer (catalog v2)
 
-공통 진입점은 `@litzio/core/views-v2`의 CatalogView를 받고 query/review를 분기한다. QueryViews만 stats args를 읽으며 review는 V5 ReviewRenderer로 전달한다. v1 reader나 migration은 없다.
+공통 진입점은 `@litzio/core/views-v2`의 CatalogView를 받고 query/review를 분기한다. `src/views/Views.tsx`는 분기만 소유한다. `src/views/QueryViewPage.tsx`만 stats args와 조회·입력 상태를 읽고, 공통 Table·Chart·Panel 렌더링은 `src/views/ViewRenderer.tsx`가 소유한다. review는 `src/review/ReviewViewPage.tsx`를 거쳐 V5 ReviewRenderer로 전달한다. 비서 데이터 표시는 `src/views/AssistantView.tsx`, 조회 페이지의 즐겨찾기 UI는 `src/views/QueryViewFavorites.tsx`에 분리되어 있다. v1 reader나 migration은 없다.
 폼 8입력·표 12열을 Core 계약대로 소비하고 자료 가공은 Host/Core 결과만 표시한다.
 동작은 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3), 조합은 [UI 결정표](ui-decision-table-v1.md#catalog-query-renderer-v3-1241-a안)를 따른다.
 
