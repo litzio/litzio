@@ -647,6 +647,37 @@ test("folder notifications distinguish identities that collide as numbers", t =>
   assert.equal(closed, 2, "the replacement watch expires too");
 });
 
+test("folder notifications replace a dead watch when an inode is reused", t => {
+  const root = fs.mkdtempSync(path.join(tmpdir(), "litzio-watch-reused-"));
+  t.after(() => { fs.rmSync(root, { recursive: true, force: true }); fs.rmSync(root + "-old", { recursive: true, force: true }); });
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const original = fs.statSync(root, { bigint: true });
+  // Inode reuse depends on the filesystem allocator. Pin dev/ino and creation
+  // time to model Linux reuse deterministically, including nanosecond precision.
+  let birthtimeNs = 2n ** 54n;
+  t.mock.method(fs, "statSync", () => ({ ...original, birthtimeNs, isDirectory: () => true }));
+  const watches: { notify(): void; closed: boolean }[] = [];
+  t.mock.method(fs, "watch", (_root: string, _options: fs.WatchOptions, notify: () => void) => {
+    const watch = { notify, closed: false };
+    watches.push(watch);
+    return Object.assign(new EventEmitter(), { close() { watch.closed = true; } });
+  });
+  const first = folderVersion(root, null).version;
+  fs.renameSync(root, root + "-old"); fs.mkdirSync(root);
+  birthtimeNs++;
+  const replacement = folderVersion(root, null).version;
+  assert.notEqual(replacement, first, "a new creation with reused dev/ino must replace the dead watch");
+  assert.equal(watches[0]!.closed, true);
+  fs.writeFileSync(path.join(root, "external.txt"), "external");
+  watches[1]!.notify(); t.mock.timers.tick(150);
+  assert.notEqual(folderVersion(root, null).version, replacement, "the replacement watch observes subsequent writes");
+  birthtimeNs = 0n;
+  const unsupported = folderVersion(root, null).version;
+  assert.equal(folderVersion(root, null).version, unsupported, "missing creation time retains dev/ino fallback");
+  t.mock.timers.tick(15_000);
+  assert.ok(watches.every(watch => watch.closed));
+});
+
 test("folder notifications debounce versions, renew leases and release watchers", t => {
   const root = fs.mkdtempSync(path.join(tmpdir(), "litzio-watch-"));
   t.after(() => { fs.rmSync(root, { recursive: true, force: true }); fs.rmSync(root + "-old", { recursive: true, force: true }); });

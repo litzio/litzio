@@ -5,7 +5,7 @@ import { accessPath, type FileAccess } from "./file-access.ts";
 // Short-lived notification leases only: no document, listing or browser session is retained.
 const LEASE_MS = 15_000;
 const DEBOUNCE_MS = 150;
-const watches = new Map<string, { version: string; dev: bigint; ino: bigint; dispose(): void; renew(): void }>();
+const watches = new Map<string, { version: string; dev: bigint; ino: bigint; birthtimeNs: bigint; dispose(): void; renew(): void }>();
 
 export function folderVersion(requestedRoot: string | undefined, access: FileAccess): { version: string } {
   if (!requestedRoot?.trim()) throw new Error("folder path is required");
@@ -13,7 +13,10 @@ export function folderVersion(requestedRoot: string | undefined, access: FileAcc
   const stat = fs.statSync(root, { bigint: true });
   if (!stat.isDirectory()) throw new Error("folder path must point to a directory");
   let entry = watches.get(root);
-  if (entry && (entry.dev !== stat.dev || entry.ino !== stat.ino)) { entry.dispose(); entry = undefined; }
+  // Linux can reuse an inode after deletion while its old watch lease is alive.
+  // Creation time distinguishes that replacement; zero means unsupported.
+  if (entry && (entry.dev !== stat.dev || entry.ino !== stat.ino ||
+    (entry.birthtimeNs !== 0n && stat.birthtimeNs !== 0n && entry.birthtimeNs !== stat.birthtimeNs))) { entry.dispose(); entry = undefined; }
   if (!entry) {
     let watcher: fs.FSWatcher | undefined;
     let debounce: ReturnType<typeof setTimeout> | undefined;
@@ -24,7 +27,7 @@ export function folderVersion(requestedRoot: string | undefined, access: FileAcc
       clearTimeout(debounce);
       watches.delete(root);
     };
-    const current = { version: randomUUID(), dev: stat.dev, ino: stat.ino, dispose, renew() {
+    const current = { version: randomUUID(), dev: stat.dev, ino: stat.ino, birthtimeNs: stat.birthtimeNs, dispose, renew() {
       clearTimeout(expiry);
       expiry = setTimeout(dispose, LEASE_MS);
       expiry.unref();

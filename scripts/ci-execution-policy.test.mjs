@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { load } from 'js-yaml';
 import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-policy.mjs';
+import { HTTP_SCENARIOS } from '../apps/editor/test/browser/scenarios.ts';
 const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
@@ -99,11 +100,28 @@ test('HTTP selection always retains Windows unit coverage in Desktop', () => {
     assert.ok(!jobs.http || jobs.desktop, `${event}: mixed diff`);
   }
   const { jobs } = workflow();
-  assert.ok(jobs['desktop-unit'].steps.some(step => step.run === 'pnpm test' && !step.if));
+  const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const unit = jobs['desktop-unit'];
+  const command = unit.steps.find(step => step.run?.startsWith('pnpm test:unit:'));
+  assert.equal(command.if, undefined);
+  const partitions = unit.strategy.matrix.group.map(group => command.run.replace('${{ matrix.group }}', group));
+  assert.equal(root.scripts.test, partitions.join(' && '));
+  const commands = partitions.flatMap(run => root.scripts[run.slice('pnpm '.length)].split(' && '));
+  assert.equal(new Set(commands).size, commands.length, 'no repeated unit owner');
+  for (const owner of ['plugin-sdk', 'onedrive', 'core', 'file-commit', 'cli', 'editor', 'desktop']) {
+    assert.ok(commands.includes(`pnpm --filter @litzio/${owner} test`), owner);
+  }
+  assert.ok(commands.includes('pnpm boundaries:check'));
   for (const run of ['pnpm --filter @litzio/cli package', 'pnpm --filter @litzio/cli test:packaged']) {
     assert.ok(jobs.http.steps.some(step => step.run === run && !step.if));
   }
-  assert.ok(jobs.http.steps.some(step => step.run?.startsWith('pnpm browser:test http-host') && !step.if));
+  assert.ok(jobs.http.steps.some(step => step.run === 'pnpm browser:test ${{ matrix.scenarios }}' && !step.if));
+  for (const os of ['ubuntu-latest', 'windows-latest']) {
+    const groups = jobs.http.strategy.matrix.include.filter(entry => entry.os === os);
+    assert.deepEqual(groups.flatMap(entry => entry.scenarios.split(' ')).sort(), [...HTTP_SCENARIOS].sort(),
+      `${os}: every official HTTP scenario must be assigned exactly once`);
+    assert.equal(new Set(groups.map(entry => entry.group)).size, groups.length);
+  }
   assert.ok(!jobs.http.steps.some(step => /tsx --test|@litzio\/editor .*test/.test(step.run ?? '')),
     'HTTP owns packaged/production checks; Desktop owns Windows unit/integration checks');
   const editor = JSON.parse(readFileSync(new URL('../apps/editor/package.json', import.meta.url), 'utf8'));
@@ -224,8 +242,8 @@ test('cache-only master runs preserve pnpm OS stores and the exact Linux browser
   const { jobs } = workflow();
   const warm = jobs['cache-warm'];
   assert.equal(warm.if, "needs.changes.outputs.reused == 'true'");
-  assert.deepEqual(warm.strategy.matrix.os, jobs.http.strategy.matrix.os);
-  assert.deepEqual(warm.strategy.matrix.include, jobs.http.strategy.matrix.include);
+  assert.deepEqual(warm.strategy.matrix.os, [...new Set(jobs.http.strategy.matrix.include.map(entry => entry.os))].reverse());
+  assert.deepEqual(warm.strategy.matrix.include[0].container, jobs.http.strategy.matrix.include.find(entry => entry.os === 'ubuntu-latest').container);
   const setup = warm.steps.find(step => step.uses?.startsWith('pnpm/action-setup@'));
   assert.deepEqual(setup, jobs.http.steps.find(step => step.uses?.startsWith('pnpm/action-setup@')));
   for (const name of ['Cache Playwright browsers', 'Install pinned Chromium']) {

@@ -128,7 +128,7 @@ Browser Editor는 Host를 통해 다음을 요청한다.
 
 Explorer notifications use read-only `GET /api/folder-version?root=…` (#927), with the same
 path/Root checks as folder access. The Host retains only a transient recursive watcher and opaque
-change version per real folder, leased for 15 seconds after the last check. Version checks and
+change version per real folder, leased for 15 seconds after the last check. Folder identity uses bigint device/inode and, when nonzero, creation time (`birthtimeNs`) so replacing a folder at the same path also replaces a dead watcher even if its inode is reused; filesystems without creation time retain device/inode comparison. Version checks and
 `GET /api/folder?background=1` report a folder disappearing during refresh as a successful
 `{ unavailable: true }` availability result (listings also carry `error`); the browser keeps its
 cached listing. Manual errors and Root denials retain their error status. Timers/watchers do not
