@@ -482,7 +482,7 @@ secret 선언은 `{id,title,description?,scope:"connection",required}`다. `titl
 
 일반 설정은 포커스 이탈 자동 저장, boolean은 변경 즉시 저장하며 칸 가까이에 저장 중·저장됨·실패를 표시한다.
 Dialog가 초안·칸별 상태를 소유하고 Host가 저장값을 소유한다. 기존 SDK schema validator와 Host 저장 작업을
-사용하며 FieldError·aria-invalid·aria-describedby로 오류를 연결한다. 실패 시 입력을 보존한다.
+사용하며 FieldError·aria-invalid·aria-describedby로 오류를 연결한다. 실패 시 입력을 보존한다. 저장값을 재조회하면 편집하지 않은 칸은 갱신하되 편집 중·저장 실패 초안은 유지한다.
 같은 Dialog의 저장은 순차 처리해 앞선 저장값을 포함한다. 연결 확인은 진행 중 저장을 기다리며
 저장 실패가 남아 있으면 실행하지 않는다. 저장된 설정을 쓴다는 안내는 hover·keyboard focus Tooltip으로 제공한다.
 secret 명시 저장은 유지한다. UI·CLI plugins settings·비서 manage_plugins는 기존 공용 Host 상태를 공유한다.

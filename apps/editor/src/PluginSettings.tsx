@@ -82,11 +82,25 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
   const [states, setStates] = useState<Record<string, { status?: "Saving…" | "Saved"; error?: string }>>({});
   const edits = useRef<Record<string, number>>({});
   const saved = useRef(plugin.settings ?? {});
+  const dirty = useRef(new Set<string>());
+  const pendingSaves = useRef(0);
+  useEffect(() => {
+    const settings = plugin.settings ?? {};
+    if (!pendingSaves.current) saved.current = settings;
+    setDraft(d => {
+      const next = { ...d };
+      for (const key of new Set([...Object.keys(d), ...Object.keys(settings)])) {
+        if (!dirty.current.has(key)) next[key] = settings[key];
+      }
+      return next;
+    });
+  }, [plugin.settings]);
   const errors = useRef<Record<string, string>>({});
   const queue = useRef(Promise.resolve());
   const validate = useMemo(() => compileSchema(plugin.settingsSchema ?? { type: "object" }), [plugin.settingsSchema]);
   const save = (key: string, value: unknown) => {
     const edit = edits.current[key];
+    ++pendingSaves.current;
     setStates(s => ({ ...s, [key]: { status: "Saving…" } }));
     queue.current = queue.current.then(async () => {
       const settings = { ...saved.current, [key]: value };
@@ -95,12 +109,13 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
         await change("settings", { id: plugin.id, settings });
         saved.current = settings;
         delete errors.current[key];
+        if (edits.current[key] === edit) dirty.current.delete(key);
         if (edits.current[key] === edit) setStates(s => ({ ...s, [key]: { status: "Saved" } }));
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
         errors.current[key] = error;
         if (edits.current[key] === edit) setStates(s => ({ ...s, [key]: { error } }));
-      }
+      } finally { --pendingSaves.current; }
     });
   };
   const ready = async () => { let pending; do { pending = queue.current; await pending; } while (pending !== queue.current); return Object.keys(errors.current).length ? false : JSON.stringify(saved.current); };
@@ -110,11 +125,12 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
       const common = { id, "aria-invalid": !!state?.error, "aria-describedby": state?.error ? `${id}-error` : state?.status ? `${id}-status` : undefined };
       return <div key={key}>
         {field.type === "boolean" ? <SettingsSwitch label={<SettingLabel title={field.title ?? key} description={field.description} />} disabled={busy} checked={draft[key] === true}
-          invalid={!!state?.error} describedBy={common["aria-describedby"]} onChange={value => { edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); save(key, value); }} /> :
+          invalid={!!state?.error} describedBy={common["aria-describedby"]} onChange={value => { dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); save(key, value); }} /> :
           ["string", "number", "integer"].includes(field.type ?? "") ? <><label htmlFor={id}><SettingLabel title={field.title ?? key} description={field.description} /></label>
-            <Input {...common} disabled={busy} type={field.type === "string" ? "text" : "number"} value={String(draft[key] ?? "")} onChange={event => { const value = event.target.value; edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); setStates(s => ({ ...s, [key]: {} })); }} onBlur={event => {
+            <Input {...common} disabled={busy} type={field.type === "string" ? "text" : "number"} value={String(draft[key] ?? "")} onChange={event => { const value = event.target.value; dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); setStates(s => ({ ...s, [key]: {} })); }} onBlur={event => {
               const value = field.type === "string" ? event.target.value : Number(event.target.value);
               if (saved.current[key] !== value || errors.current[key]) save(key, value);
+              else dirty.current.delete(key);
             }} /></> : null}
         {state?.error ? <FieldError id={`${id}-error`}>{i18n.t("Save failed")}: {state.error}</FieldError> : state?.status ? <p id={`${id}-status`} className="settings-status" role="status">{i18n.t(state.status)}</p> : null}
       </div>;

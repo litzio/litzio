@@ -81,6 +81,13 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await page.unroute("**/api/plugins");
   await dialog.getByText("Simulate failure", { exact: true }).hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Simulates service availability");
+  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://docling.example.test/updated" } } });
+  expect(externalSave.ok()).toBe(true);
+  await check.click();
+  await expect(serviceUrl).toHaveValue("https://docling.example.test/updated");
+  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.press("Tab");
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByRole("switch", { name: "Simulate failure", exact: true }).click();
   await expect(check).toBeEnabled();
   await check.click();
