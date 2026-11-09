@@ -137,7 +137,7 @@ export class PluginJobs {
     return this.response(record, input.action);
   }
   private snapshot(record: Record) {
-    return { ...structuredClone(record.snapshot), elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
+    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
   }
   list(plugin?: string) {
     jobRequestSchema.parse({ action: "job-list", ...(plugin ? { plugin } : {}) });

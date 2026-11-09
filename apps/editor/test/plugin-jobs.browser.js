@@ -183,6 +183,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
         await page.keyboard.press("Escape");
       }
       await page.setViewportSize({ width, height: 900 });
+      await expect(panel.getByRole("row").nth(1).getByRole("cell").first()).toHaveText("input.txt");
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
       if (width === 640) expect(await panel.locator(".view-table-scroll").evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
       await page.screenshot({ path: `tmp/plugin-jobs/panel-${width}.png`, maskColor: "#a1a1aa", mask: [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })] });

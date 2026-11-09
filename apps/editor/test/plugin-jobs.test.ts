@@ -72,6 +72,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     const listing = host.jobs.list("fixture.jobs");
     assert.equal(listing.jobs.filter(job => job.requestId === input.requestId).length, 1);
     assert.ok(listing.jobs[0]!.elapsedMs >= 0);
+    assert.ok(listing.jobs[0]!.startedAt! > 0);
     assert.equal(host.jobs.list("fixture.other").jobs.length, 0);
     await assert.rejects(host.jobs.execute({ action: "job-result", requestId: input.requestId }), /before completion/);
     assert.equal(existsSync(path.join(root, input.output)), false);

@@ -301,8 +301,8 @@ CLI는 같은 Host 작업을 호출한다.
 litzio plugins start example.plugin --job convert --root <root> --file a.pdf --file b.pdf --host <origin> --json
 ```
 
-앱 패널은 여러 작업의 공통 선택 control, 열린 폴더 선택, accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
+앱 패널은 여러 작업의 공통 선택 control, 열린 폴더 선택, accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. Host snapshot의 startedAt(접수 시각)으로 정렬해 외부 CLI 작업을 나중에 발견해도 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
 
 검증은 기존 job-plugin fixture의 SDK/Host 검사 및 `plugin-jobs` 브라우저 시나리오에 집중한다. 실제 Docling manifest 변경·변환 품질은 범위 밖이다. 수동 캡처는 `pnpm browser:test plugin-jobs --screenshots`의 `tmp/plugin-jobs/panel-1440.png`, `panel-640.png`다.
 
-2026-11-09 수동 검토: [1440px](assets/plugin-job-panel-1340/panel-1440.png), [한국어 다크 640px](assets/plugin-job-panel-1340/panel-640.png). 기존 #1330 화면의 간소화된 구조를 유지하며 패널·표 정렬, 여백, 한국어·다크, 640px 내부 가로 스크롤을 확인했다. 계정·폴더 경로는 촬영 시 마스킹했다. 기존 plugin-jobs에 다중 시작·부분 충돌·CLI·행 중단·결과 열기를 보완했으며 최종 로컬 실행은 약 1.4분(HTTP 복구 포함 2개)이다. SDK/K1 19개·조회 뷰 Host/CLI 5개, 관련 typecheck/build·문서·경계 검사를 통과했다. fixture 성공은 실제 Docling 수락이 아니다.
+2026-11-09 수동 검토: [1440px](assets/plugin-job-panel-1340/panel-1440.png), [한국어 다크 640px](assets/plugin-job-panel-1340/panel-640.png). 기존 #1330 화면의 간소화된 구조를 유지하며 패널·표 정렬, 여백, 한국어·다크, 640px 내부 가로 스크롤을 확인했다. 계정·폴더 경로는 촬영 시 마스킹했다. 기존 plugin-jobs에 다중 시작·부분 충돌·CLI·행 중단·결과 열기를 보완했으며 최종 로컬 실행은 약 1.5분(HTTP 복구 포함 2개)이다. SDK/K1 19개·조회 뷰 Host/CLI 5개, 관련 typecheck/build·문서·경계 검사를 통과했다. fixture 성공은 실제 Docling 수락이 아니다.
