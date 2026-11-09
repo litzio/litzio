@@ -275,17 +275,22 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
+        id: downloads
         shell: pwsh
         run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
+          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
+          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
+          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
           "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
       - name: Published beta.6 first-update regression
         if: needs.changes.outputs.update == 'true'
@@ -341,17 +346,22 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
+        id: downloads
         shell: pwsh
         run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
+          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
+          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
+          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
           "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
       - name: Stable install/update regression before the final package
         if: needs.changes.outputs.fullLifecycle == 'true'
@@ -404,17 +414,22 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
+        id: downloads
         shell: pwsh
         run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
+          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
+          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
+          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
           "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
       - name: Beta install/update regression before the final package
         if: needs.changes.outputs.update == 'true'
@@ -469,17 +484,22 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
+        id: downloads
         shell: pwsh
         run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
+          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
+          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
+          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
           "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/desktop typecheck
       - name: Build a clean package from the actual app version
@@ -563,7 +583,29 @@ jobs:
           version: 12.5.1
           cache: true
           run_install: false
+      - name: Configure download cache paths
+        if: runner.os == 'Windows'
+        id: downloads
+        shell: pwsh
+        run: |
+          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
+          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
+          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
+          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+      - name: Cache Electron and installer tool downloads
+        if: runner.os == 'Windows'
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.downloads.outputs.electron-cache }}
+            ${{ runner.temp }}/electron-builder-cache
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
+      - name: Warm Desktop downloads without packaging
+        if: runner.os == 'Windows'
+        run: node apps/desktop/scripts/warm-download-cache.mjs
       - name: Cache Playwright browsers
         if: runner.os == 'Linux'
         uses: actions/cache@v6
