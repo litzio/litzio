@@ -1,3 +1,4 @@
+import { JobObservations } from "./job-observations.ts";
 import { randomUuid } from "./uuid.ts";
 import { i18n } from "./i18n.ts";
 import { useEffect, useRef, useState } from "react";
@@ -28,6 +29,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
   const requestId = job?.requestId;
   const [recent, setRecent] = useState<JobSnapshot[]>([]);
   useEffect(() => { if (job) setRecent(previous => [job, ...previous.filter(item => item.requestId !== job.requestId)]); }, [job]);
+  const observations = useRef(new JobObservations());
   const lifetime = useRef<AbortController | null>(null);
   useEffect(() => { const controller = new AbortController(); lifetime.current = controller; return () => controller.abort(); }, []);
   const request = async (body?: unknown) => {
@@ -36,6 +38,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
     const value = await response.json(); signal.throwIfAborted();
     if (!response.ok) { const message = value.error ?? "Job request failed"; throw response.status >= 400 && response.status < 500 ? new JobRefused(message) : new Error(message); } return value;
   };
+  const observe = (action: "job-status" | "job-stop", id: string) => observations.current.observe(id, "action", () => request({ action, requestId: id }), value => setJob(value.job), error => { throw error; });
   useEffect(() => {
     void Promise.all([request(), request({ action: "job-list" })]).then(([catalog, history]) => {
       setPlugins(catalog.plugins); setRecent(history.jobs);
@@ -54,13 +57,22 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
   const locked = busy || !!job && ["running", "uncertain"].includes(job.state);
   useEffect(() => {
     const controller = new AbortController();
-    if (root && active && !locked) void client.request(`/api/folder?${new URLSearchParams({ root, path: folder ? `${root.replace(/[\\/]$/, "")}/${folder}` : root })}`, { signal: controller.signal }).then(async response => { if (!response.ok) throw new Error("Cannot list Host folder"); return response.json(); }).then(value => { if (!controller.signal.aborted) setEntries(value.entries); }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
+    if (root && active && !locked) void listJobFolder(client, root, folder, controller.signal).then(value => { if (!controller.signal.aborted) setEntries(value); }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
     return () => controller.abort();
   }, [client, root, folder, active, locked]);
   useEffect(() => {
     if (!active || !requestId || job?.state !== "running" || busy) return;
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => { try { const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "job-status", requestId }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) }); if (!response.ok) throw new Error(); const value = await response.json(); if (!controller.signal.aborted) { setJob(value.job); if (value.job.state === "running") timer = setTimeout(poll, 1000); } } catch { if (!controller.signal.aborted) setJob(previous => previous ? { ...previous, state: "uncertain", result: undefined } : previous); } };
+    const poll = async () => {
+      await observations.current.observe(requestId, "poll", async () => {
+        const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "job-status", requestId }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) });
+        if (!response.ok) throw new Error();
+        return response.json();
+      }, value => { if (!controller.signal.aborted) setJob(value.job); }, () => {
+        if (!controller.signal.aborted) setJob(previous => previous?.requestId === requestId ? { ...previous, state: "uncertain", result: undefined } : previous);
+      });
+      if (!controller.signal.aborted) timer = setTimeout(poll, 1000);
+    };
     timer = setTimeout(poll, 1000); return () => { controller.abort(); clearTimeout(timer); };
   }, [active, requestId, job?.state, busy, client]);
   const run = async (action: () => Promise<void>) => { setBusy(true); setProblem(""); try { await action(); } catch (error) { if (!lifetime.current?.signal.aborted) { setProblem(String(error)); setJob(previous => previous?.state === "running" ? { ...previous, state: "uncertain", result: undefined } : previous); } } finally { if (!lifetime.current?.signal.aborted) setBusy(false); } };
@@ -75,7 +87,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
         const relativePath = folder ? `${folder}/${entry.name}` : entry.name;
         if (entry.kind === "folder") { setFolder(relativePath); setFile(undefined); setEntries([]); }
         else setFile({ root, relativePath });
-      }} options={[{ value: "", label: "—" }, ...entries.filter(entry => entry.kind === "folder" || choice?.binding.accept.some(extension => entry.name.toLowerCase().endsWith(extension))).map(entry => ({ value: entry.name, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
+      }} options={[{ value: "", label: "—" }, ...jobEntries(entries, choice?.binding).map(entry => ({ value: entry.name, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
       {folder ? <Button size="sm" variant="secondary" disabled={locked} onClick={() => { setFolder(""); setFile(undefined); setEntries([]); }}>{i18n.t("Return to opened folder")}</Button> : null}
       <SettingsInput label={i18n.t("Result path in Root")} value={output} disabled={locked} onChange={setOutput} />
     </div>
@@ -92,23 +104,39 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
     })}>{i18n.t("Start job")}</Button></div>
     {job ? <section className="view-panel plugin-job-status" aria-live="polite">
       <div className="view-controls plugin-job-summary">
-        <span className="host-status" role="status" aria-label={i18n.t("Job status")} data-tone={job.state === "failed" ? "danger" : job.state === "uncertain" ? "warning" : job.state === "stopped" ? "muted" : "connected"}>
-          <span className="agent-dot" aria-hidden="true" />
-          {i18n.t(job.state === "running" && job.stopRequested ? "Cancellation requested" : stateLabels[job.state])}
-        </span>
+        <JobState job={job} />
         {job.state === "running" && job.phase ? <p>{job.phase}</p> : null}
         <p>{i18n.t("Elapsed: {{seconds}} s", { seconds: Math.floor(job.elapsedMs / 1000) })}</p>
       </div>
       {job.progress ? <div className="plugin-job-progress"><Progress aria-label={i18n.t("Job progress")} max={job.progress.total} value={job.progress.done} /><span>{job.progress.done}/{job.progress.total}</span></div> : null}
       {job.state === "uncertain" ? <Notice tone="warning">{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</Notice> : null}
       {job.error ? <Notice tone="error">{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error}</Notice> : null}
-      <div className="view-controls">
-        {job.state === "uncertain" ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-status", requestId }); setJob(value.job); })}>{i18n.t("Recheck status")}</Button> : null}
-        {job.state === "running" && !job.stopRequested ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-stop", requestId }); setJob(value.job); })}>{i18n.t("Request cancellation")}</Button> : null}
-        {job.state === "completed" && job.result?.kind !== "file" ? <Button disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}
-      </div>
-      {job.state === "completed" && job.result?.kind === "file" ? <div className="view-controls plugin-job-file-result"><p>{job.result.path}</p><CopyButton text={job.result.path} label={i18n.t("Copy result path")} /></div> : null}
+      <JobActions job={job} busy={busy} request={request} observe={observe} run={run} onOpen={onOpen} />
     </section> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
   </div>;
+}
+
+export function JobState({ job }: { job: JobSnapshot }) {
+  return <span className="host-status" role="status" aria-label={i18n.t("Job status")} data-tone={job.state === "failed" ? "danger" : job.state === "uncertain" ? "warning" : job.state === "stopped" ? "muted" : "connected"}>
+          <span className="agent-dot" aria-hidden="true" />
+          {i18n.t(job.state === "running" && job.stopRequested ? "Cancellation requested" : stateLabels[job.state])}
+        </span>;
+}
+export function JobActions({ job, busy, request, observe, run, onOpen, compact = false }: { compact?: boolean; job: JobSnapshot; busy: boolean; request(body: unknown): Promise<any>; observe(action: "job-status" | "job-stop", id: string): Promise<void>; run(action: () => Promise<void>): Promise<void>; onOpen(path: string): Promise<unknown> }) {
+  const requestId = job.requestId;
+  return <>      <div className="view-controls">
+        {job.state === "uncertain" ? <Button variant={compact ? "ghost" : "secondary"} size={compact ? "sm" : "default"} disabled={busy} onClick={() => void run(() => observe("job-status", requestId))}>{i18n.t("Recheck status")}</Button> : null}
+        {job.state === "running" && !job.stopRequested ? <Button variant={compact ? "ghost" : "secondary"} size={compact ? "sm" : "default"} disabled={busy} onClick={() => void run(() => observe("job-stop", requestId))}>{i18n.t("Request cancellation")}</Button> : null}
+        {job.state === "completed" && job.result?.kind !== "file" ? <Button variant={compact ? "ghost" : "default"} size={compact ? "sm" : "default"} aria-label={compact ? i18n.t("Open result: {{file}}", { file: job.file ?? job.requestId }) : undefined} disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t(compact ? "Open" : "Open result document")}</Button> : null}
+      </div>
+      {job.state === "completed" && job.result?.kind === "file" ? <div className="view-controls plugin-job-file-result">{compact ? null : <p>{job.result.path}</p>}<CopyButton text={job.result.path} label={i18n.t("Copy result path")} /></div> : null}</>;
+}
+export function jobEntries(entries: { name: string; path: string; kind: string }[], choice?: JobContribution) {
+  return entries.filter(entry => entry.kind === "folder" || choice?.accept.some(extension => entry.name.toLowerCase().endsWith(extension)));
+}
+export async function listJobFolder(client: HostClient, root: string, folder: string, signal: AbortSignal) {
+  const response = await client.request(`/api/folder?${new URLSearchParams({ root, path: folder ? `${root.replace(/[\\/]$/, "")}/${folder}` : root })}`, { signal });
+  if (!response.ok) throw new Error("Cannot list Host folder");
+  return (await response.json()).entries as { name: string; path: string; kind: string }[];
 }

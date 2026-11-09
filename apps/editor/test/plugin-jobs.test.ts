@@ -1,3 +1,4 @@
+import { JobObservations } from "../src/job-observations.ts";
 import { randomUuid } from "../src/uuid.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -48,6 +49,14 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
       }
       throw new Error(`Job did not reach ${state}: ${JSON.stringify(await host.jobs.execute({ action: "job-status", requestId }))}`);
     };
+    writeFileSync(path.join(root, "batch-a.txt"), "# A"); writeFileSync(path.join(root, "batch-b.txt"), "# B");
+    writeFileSync(path.join(root, "batch-a.bin"), "preserved");
+    const batchIds = [randomUUID(), randomUUID()];
+    const batch = await host.jobs.execute({ requestIds: batchIds, action: "job-start-many", plugin: "fixture.jobs", job: "file", root, files: ["batch-a.txt", "batch-b.txt"] });
+    assert.ok("files" in batch); assert.ok(batch.files[0]!.error); assert.equal(batch.files[1]!.requestId, batchIds[1]);
+    await wait(batch.files[1]!.requestId!, "completed");
+    assert.equal(readFileSync(path.join(root, "batch-a.bin"), "utf8"), "preserved");
+    await assert.rejects(host.jobs.execute({ action: "job-start-many", plugin: "fixture.jobs", job: "file", root, files: Array.from({ length: 51 }, (_, i) => `${i}.txt`) }));
     const input = await start("# Imported\n\nOriginal text.\n");
     const sameId = { ...input, requestId: randomUUID(), output: "concurrent.md" };
     const simultaneous = await Promise.allSettled([host.invoke("job-start", sameId), host.invoke("job-start", sameId)]);
@@ -64,6 +73,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     const listing = host.jobs.list("fixture.jobs");
     assert.equal(listing.jobs.filter(job => job.requestId === input.requestId).length, 1);
     assert.ok(listing.jobs[0]!.elapsedMs >= 0);
+    assert.ok(listing.jobs[0]!.startedAt! > 0);
     assert.equal(host.jobs.list("fixture.other").jobs.length, 0);
     await assert.rejects(host.jobs.execute({ action: "job-result", requestId: input.requestId }), /before completion/);
     assert.equal(existsSync(path.join(root, input.output)), false);
@@ -410,4 +420,28 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     }
 
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("K1 observations retain a stop acknowledgement after an older poll succeeds or fails", async () => {
+  for (const lost of [false, true]) {
+    const observations = new JobObservations();
+    let snapshot = { state: "running", stopRequested: false };
+    const pending = Promise.withResolvers<typeof snapshot>();
+    const older = observations.observe("job-a", "poll", () => pending.promise,
+      value => { snapshot = value; }, () => { snapshot = { ...snapshot, state: "uncertain" }; });
+    const stop = Promise.withResolvers<typeof snapshot>();
+    const action = observations.observe("job-a", "action", () => stop.promise,
+      value => { snapshot = value; }, error => { throw error; });
+    let polled = false;
+    await observations.observe("job-a", "poll", async () => { polled = true; return snapshot; }, value => { snapshot = value; }, error => { throw error; });
+    assert.equal(polled, false, "a poll cannot supersede an in-flight stop");
+    stop.resolve({ state: "running", stopRequested: true }); await action;
+    assert.equal(snapshot.stopRequested, true);
+    if (lost) pending.reject(new Error("older observation lost"));
+    else pending.resolve({ state: "running", stopRequested: false });
+    await older;
+    assert.deepEqual(snapshot, { state: "running", stopRequested: true });
+    await observations.observe("job-a", "poll", async () => ({ state: "stopped", stopRequested: true }), value => { snapshot = value; }, error => { throw error; });
+    assert.equal(snapshot.state, "stopped", "fresh observations resume after the acknowledgement");
+  }
 });

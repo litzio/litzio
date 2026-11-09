@@ -24,9 +24,9 @@ export async function executePluginTool(host: PluginHost, input: unknown, activi
 export const pluginJobTools = [{ type: "function", name: "plugin_jobs", description: "Start, observe, stop, read the result or list plugin jobs on this conversation's Host. Use the declared job bindings. Files and output are relative to the named Host Root. Generate one UUID for start; on uncertainty query that same requestId, never resend start. No per-call approval. Calls appear in conversation activity.", inputSchema: PLUGIN_JOBS.inputSchema }];
 export async function executePluginJobTool(host: PluginHost, input: unknown, scope: import("./assistant-document-tools.ts").DocumentToolScope) {
   const parsed = jobRequestSchema.parse(input);
-  if (parsed.action === "job-start" || parsed.action === "job-stop") {
+  if (parsed.action === "job-start" || parsed.action === "job-start-many" || parsed.action === "job-stop") {
     if (!["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("Plugin job writes are read-only for this turn.");
-    const root = parsed.action === "job-start" ? parsed.root : host.jobs.list().jobs.find(job => job.requestId === parsed.requestId)?.root;
+    const root = "root" in parsed ? parsed.root : host.jobs.list().jobs.find(job => job.requestId === parsed.requestId)?.root;
     if (!root || !scope.folders) throw new Error("No opened folder for this job.");
     scope.folders.resolve(root);
   }

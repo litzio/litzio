@@ -20,8 +20,20 @@ export async function pluginCli(args: string[]): Promise<number> {
       body = { action: "job-list", ...(id ? { plugin: id } : {}) };
     } else if (command === "plugins" && ["start", "status", "stop", "result"].includes(action!) && id) {
       if (action === "start") {
-        if (tokens.length !== 5 || tokens[3] !== "--input") throw new Error("plugins start <pluginId> --input <json-file>");
-        body = { ...JSON.parse(readFileSync(tokens[4]!, "utf8")), action: "job-start", plugin: id };
+        if (tokens[3] === "--job") {
+          const files: string[] = []; let root: string | undefined;
+          for (let i = 5; i < tokens.length; i += 2) {
+            if (!tokens[i + 1]) throw new Error("Missing option value");
+            if (tokens[i] === "--root" && !root) root = tokens[i + 1];
+            else if (tokens[i] === "--file") files.push(tokens[i + 1]!);
+            else throw new Error("Unexpected batch option");
+          }
+          if (!tokens[4] || !root || !files.length) throw new Error("plugins start <pluginId> --job <job> --root <root> --file <file> [--file <file>]");
+          body = { action: "job-start-many", plugin: id, job: tokens[4], root, files };
+        } else {
+          if (tokens.length !== 5 || tokens[3] !== "--input") throw new Error("plugins start <pluginId> --input <json-file>");
+          body = { ...JSON.parse(readFileSync(tokens[4]!, "utf8")), action: "job-start", plugin: id };
+        }
       } else {
         if (tokens.length !== 3) throw new Error("plugins status|stop|result <requestId>");
         body = { action: `job-${action}`, requestId: id };

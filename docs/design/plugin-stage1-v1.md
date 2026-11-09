@@ -291,3 +291,31 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 ## 링크 열 SDK 0.3.0 (#1332)
 
 현재 SDK_VERSION과 패키지 버전은 `0.3.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](generated-views-v1.md#table-link-columns-1332)을 따른다.
+
+## 플러그인 화면 작업 패널 (#1340)
+
+SDK의 미릴리스 `0.3.0`에 `screens[].jobs`를 함께 제공한다. SDK 기능 추가는 릴리스 사이 한 번 버전을 올리고 같은 미릴리스 버전에 합친다. 이 기능은 `requiresSdk`가 0.3.0 이상 구현 계약을 허용해야 한다.
+
+```json
+{"id":"dashboard","title":"Dashboard","icon":"LayoutDashboard","jobs":["convert","document"],"defaultViewIds":["status"],"primary":true}
+```
+
+jobs는 같은 플러그인의 K1 ID만 참조하며 중복·미선언 ID를 거부한다. 작업만 있는 화면도 허용한다. 실행 자체가 독립된 화면 목적이므로 불필요한 조회 뷰를 강제하지 않는다. jobs/defaultViewIds 중 하나는 비어 있지 않아야 한다. 앱의 공통 작업 패널을 기존 조회 뷰 위에 세로로 배치한다. 비서 생성·즐겨찾기 없이 플러그인, Host, 열린 폴더만으로 동작한다.
+
+Host `plugins.job-start-many` v1 입력은 `{action:"job-start-many",plugin,job,root,files}`다. files는 중복 없는 Root 상대 경로 1–50개다. 선택적 requestIds는 파일과 같은 순서·수의 고유 UUID이며 전송 전 생성하면 응답 유실 때도 같은 ID를 조회할 수 있다. 결과는 `{files:[{file,requestId,job}|{file,error}],receipt}`다. 파일마다 기존 K1 요청을 독립 실행하며 접수 실패가 다른 파일을 막지 않는다. 접수한 snapshot 중 uncertain이 있으면 receipt uncertain, 그 외 하나라도 거부하면 failure, 모두 접수하면 success다. 파일별 running/uncertain은 각 snapshot으로 확인하며 start를 자동 재전송하지 않는다. 큐·스케줄러·재시작 복원은 없다. 이미 존재하거나 running/uncertain 작업이 사용 중인 결과 경로는 해당 파일만 거부한다. 기본 결과는 `defaultJobOutput`: file은 입력 확장자를 결과 확장자로 교체하고 상대 부모를 보존, native-document는 기존 `result.md`다. 후자는 같은 Root에서 여러 입력의 기본 결과 경로가 충돌할 수 있다. 기존 단일 시작·명시적 output 계약은 유지한다.
+
+CLI는 같은 Host 작업을 호출한다.
+
+```sh
+litzio plugins start example.plugin --job convert --root <root> --file a.pdf --file b.pdf --host <origin> --json
+```
+
+앱 패널은 여러 작업의 공통 선택 control, 열린 폴더 선택, accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. Host snapshot의 startedAt(접수 시각)으로 정렬해 외부 CLI 작업을 나중에 발견해도 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
+
+검증은 기존 job-plugin fixture의 SDK/Host 검사 및 `plugin-jobs` 브라우저 시나리오에 집중한다. 실제 Docling manifest 변경·변환 품질은 범위 밖이다. 수동 캡처는 `pnpm browser:test plugin-jobs --screenshots`의 `tmp/plugin-jobs/panel-1440.png`, `panel-640.png`다.
+
+2026-11-09 수동 검토: [1440px](assets/plugin-job-panel-1340/panel-1440.png), [한국어 다크 640px](assets/plugin-job-panel-1340/panel-640.png), [640px 표 오른쪽 끝](assets/plugin-job-panel-1340/panel-640-end.png). 기존 #1330 화면의 간소화된 구조를 유지하며 패널·표 정렬, 여백, 한국어·다크, 640px 내부 가로 스크롤을 확인했다. 계정·폴더 경로는 촬영 시 마스킹했다. 기존 plugin-jobs에 다중 시작·부분 충돌·CLI·행 중단·결과 열기를 보완했으며 재검토 로컬 실행은 약 1.3분(HTTP 복구 포함 2개)이다. K1 15개(응답 역전 회귀 포함), 관련 typecheck/build·문서 검사를 통과했다. 브라우저에서는 실패/완료 행 높이 일치, 중첩 세로 스크롤 없음과 Tab focus Tooltip의 실제 표시도 확인했다. fixture 성공은 실제 Docling 수락이 아니다.
+
+#1342 재검토 보완: 앱의 행별 `JobObservations` 세대가 사용자 상태 재확인·중단보다 오래된 polling 성공/오류를 모두 무시한다. 사용자 작업 응답 대기 중에는 같은 행의 polling을 보류하고 이후 다시 관찰한다. Host 작업은 직렬화하지 않으며 기존 공용 Plugin jobs에도 같은 보호를 적용한다. 제어 Promise 단위 회귀에서 관찰 보류 → 중단 접수 반영 → 오래된 성공/오류 도착 → 중단 상태 유지와 새 관찰 재개를 검증한다. 고정 대기나 브라우저 fault 시나리오는 추가하지 않는다.
+
+작업 섹션 제목은 ‘작업’이며 실패·불확실 안내는 행의 Info 아이콘 Tooltip으로 표시한다. 키보드 focus로 같은 안내를 연다. 결과 열기는 ghost/sm ‘열기’와 파일 이름을 포함한 접근성 이름을 쓴다. 파일 선택과 표는 내용 높이대로 펼쳐 페이지가 세로 스크롤을 소유하고 표에는 내부 가로 스크롤만 둔다. 기존 즐겨찾기 영역은 이번 변경에서 유지한다.

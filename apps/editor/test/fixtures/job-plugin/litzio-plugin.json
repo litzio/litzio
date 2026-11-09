@@ -8,7 +8,7 @@
   },
   "name": "Job fixture",
   "version": "0.1.0",
-  "requiresSdk": ">=0.2.0 <1.0.0",
+  "requiresSdk": "^0.3.0",
   "entry": "host.js",
   "contributes": {
     "jobs": [
@@ -72,6 +72,18 @@
         "outputSchema": {
           "type": "object"
         }
+      }
+    ],
+    "screens": [
+      {
+        "id": "jobs",
+        "title": "Job fixture",
+        "icon": "LayoutDashboard",
+        "jobs": [
+          "file",
+          "text"
+        ],
+        "primary": true
       }
     ]
   }

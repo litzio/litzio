@@ -226,6 +226,11 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       writeFileSync(otherJobInput, JSON.stringify({ job: "text", requestId: randomUUID(), root: otherPluginFolder, file: "input.txt", output: "recent-result.md" }));
       writeFileSync(path.join(pluginFolder, "input.txt"), "# Imported\n\nJob result.\n");
       for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md", "reopened-running.md", "input.bin", "nested/input.bin"]) rmSync(path.join(pluginFolder, name), { force: true });
+      for (const name of ["batch-a", "batch-b", "cli-a", "cli-b"]) {
+        writeFileSync(path.join(pluginFolder, `${name}.txt`), "# Batch result");
+        rmSync(path.join(pluginFolder, `${name}.bin`), { force: true });
+      }
+      rmSync(path.join(pluginFolder, "result.md"), { force: true });
       writeFileSync(fileJobInput, JSON.stringify({ job: "file", requestId: randomUUID(), root: pluginFolder, file: "nested/input.txt" }));
       writeFileSync(path.join(pluginFolder, "slow.txt"), "SLOW\n# Resume observation\n");
       writeFileSync(path.join(pluginFolder, "fail.txt"), "FAIL");

@@ -1,6 +1,16 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Open result: {{file}}": "Open result: {{file}}",
+  "Job details: {{file}}": "Job details: {{file}}",
+  "Jobs": "Jobs",
+  "Cannot list Host folder": "Cannot list Host folder",
+  "Cannot start this file. Check the input, result path and plugin availability.": "Cannot start this file. Check the input, result path and plugin availability.",
+  "Status": "Status",
+  "File": "File",
+  "Elapsed": "Elapsed",
+  "Phase": "Phase",
+
   "PDF controls": "PDF controls",
   "Zoom out": "Zoom out",
   "Zoom in": "Zoom in",
@@ -1252,6 +1262,16 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Open result: {{file}}": "결과 열기: {{file}}",
+  "Job details: {{file}}": "작업 상세: {{file}}",
+  "Jobs": "작업",
+  "Cannot list Host folder": "Host 폴더를 표시할 수 없습니다.",
+  "Cannot start this file. Check the input, result path and plugin availability.": "이 파일을 시작할 수 없습니다. 입력 파일, 결과 경로와 플러그인 상태를 확인하세요.",
+  "Status": "상태",
+  "File": "파일",
+  "Elapsed": "경과",
+  "Phase": "단계",
+
   "PDF controls": "PDF 도구",
   "Zoom out": "축소",
   "Zoom in": "확대",

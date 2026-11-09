@@ -40,4 +40,4 @@ export async function readViewCatalog(client: HostClient, signal?: AbortSignal):
   return result.catalog;
 }
 
-export type ViewScreen = {plugin:string;id:string;title:string;icon:string;defaultViewIds:string[];primary:boolean};
+export type ViewScreen = {plugin:string;id:string;title:string;icon:string;defaultViewIds:string[];jobs?:string[];primary:boolean};

@@ -1,10 +1,10 @@
 import { publicOperationError } from "./operation-result.ts";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createFileFromPath } from "@litzio/file-commit";
-import { JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BYTES, defaultJobOutput, jobRequestSchema, jobUpdateSchema, type JobInput, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
+import { JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BYTES, defaultJobOutput, jobRequestSchema, jobUpdateSchema, type BatchJobResult, type JobInput, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 
@@ -84,8 +84,20 @@ export class PluginJobs {
       Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...failure });
     }
   }
-  async execute(raw: unknown) {
+  private async startMany(input: { plugin: string; job: string; root: string; files: string[]; requestIds?: string[] }): Promise<{ files: BatchJobResult[]; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string } }> {
+    if (input.requestIds && (input.requestIds.length !== input.files.length || new Set(input.requestIds).size !== input.requestIds.length)) throw new Error("Expected one unique requestId per file");
+    const files = await Promise.all(input.files.map(async (file, index) => {
+      const requestId = input.requestIds?.[index] ?? randomUUID();
+      try {
+        const value = await this.execute({ action: "job-start", plugin: input.plugin, job: input.job, root: input.root, file, requestId }, true);
+        return { file, requestId, job: "job" in value ? value.job : undefined };
+      } catch { return { file, error: "Cannot start this file. Check the input, result path and plugin availability." }; }
+    }));
+    return { files, receipt: { requestId: randomUUID(), operation: "plugins.job-start-many", version: 1, scope: input.root, outcome: files.some(file => file.job?.state === "uncertain") ? "uncertain" : files.some(file => file.error) ? "failure" : "success" } };
+  }
+  async execute(raw: unknown, batch = false) {
     const input = jobRequestSchema.parse(raw);
+    if (input.action === "job-start-many") return this.startMany(input);
     if (input.action === "job-list") return this.list(input.plugin);
     if (input.action === "job-start") {
       if (this.records.has(input.requestId)) throw new Error("Duplicate requestId; query status instead");
@@ -98,9 +110,10 @@ export class PluginJobs {
       };
       const file = accessPath(relative(input.file), this.access), output = accessPath(relative(input.output ?? defaultJobOutput(binding, input.file), true), this.access, true);
       if (!statSync(file).isFile() || !binding.accept.includes(path.extname(file).toLowerCase())) throw new Error("Unsupported input file");
+      if (batch && (existsSync(output) || [...this.records.values()].some(record => record.input.output === output && ["running", "uncertain"].includes(record.snapshot.state)))) throw new Error("Result path already exists or is in use");
       if (file === output) throw new Error("Output must preserve input");
       if (binding.resultKind === "file" && path.extname(output).toLowerCase() !== binding.resultExtension) throw new Error("Output extension must match resultExtension");
-      const record: Record = { effects: new Map([binding.start, binding.status, binding.stop].map(operation => [operation, this.effect(`${input.plugin}.${operation}`)])), startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
+      const record: Record = { effects: new Map([binding.start, binding.status, binding.stop].map(operation => [operation, this.effect(`${input.plugin}.${operation}`)])), startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, file: input.file, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
       if (binding.resultKind === "file") {
         record.staging = mkdtempSync(path.join(tmpdir(), "litzio-job-result-"));
         try {
@@ -124,7 +137,7 @@ export class PluginJobs {
     return this.response(record, input.action);
   }
   private snapshot(record: Record) {
-    return { ...structuredClone(record.snapshot), elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
+    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
   }
   list(plugin?: string) {
     jobRequestSchema.parse({ action: "job-list", ...(plugin ? { plugin } : {}) });

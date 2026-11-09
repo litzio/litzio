@@ -26,7 +26,8 @@ const jobContributionSchema = z.discriminatedUnion("resultKind", [
 ]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
 export const screenContributionSchema = z.strictObject({ id, title: queryViewSchema.options[0].shape.title, icon: z.enum(SCREEN_ICONS),
-  defaultViewIds: z.array(id).min(1).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate default view"), primary: z.boolean().default(false) });
+  jobs: z.array(id).max(16).refine(ids => new Set(ids).size === ids.length, "Duplicate screen job").default([]),
+  defaultViewIds: z.array(id).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate default view").default([]), primary: z.boolean().default(false) });
 export const manifestSchema = z.strictObject({
   schemaVersion: z.literal(1), id, tier: z.enum(["official", "community"]),
   publisher: z.strictObject({ id, name: z.string().min(1) }), name: z.string().min(1), description: z.string().default(""),
@@ -82,6 +83,11 @@ export function validateManifest(input: unknown): PluginManifest {
     validateCatalogView(view.definition, viewOperations);
   }
   if (m.contributes.screens.filter(screen => screen.primary).length > 1) throw new Error("Only one primary screen is allowed");
+  for (const screen of m.contributes.screens) {
+    if (!screen.jobs.length && !screen.defaultViewIds.length) throw new Error("Screen needs views or jobs");
+    if (screen.jobs.length && !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Screen jobs require SDK 0.3.0 or later in requiresSdk");
+    for (const job of screen.jobs) if (!m.contributes.jobs.some(j => j.id === job)) throw new Error("Undeclared screen job");
+  }
   for (const screen of m.contributes.screens) for (const viewId of screen.defaultViewIds) if (!m.contributes.views.some(v => v.id === viewId)) throw new Error("Undeclared screen view");
   for (const review of m.contributes.reviews) {
     for (const action of ["read", "propose", "approve", "reject", "undo"] as const) {
@@ -151,8 +157,11 @@ export const jobUpdateSchema = z.strictObject({
   file: z.strictObject({ path: z.string().min(1) }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
+export const JOB_BATCH_MAX_FILES = 50;
+export type BatchJobResult = { file: string; requestId?: string; job?: JobSnapshot; error?: string };
 export const jobRequestSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("job-start-many"), plugin: id, job: id, root: z.string().min(1), requestIds: z.array(z.string().uuid()).max(JOB_BATCH_MAX_FILES).optional(), files: z.array(z.string().min(1)).min(1).max(JOB_BATCH_MAX_FILES).refine(files => new Set(files).size === files.length, "Duplicate input file") }),
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
   z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1).optional() }),
   ...(["job-status", "job-stop", "job-result"] as const).map(action => z.strictObject({ action: z.literal(action), requestId: z.string().uuid() })),

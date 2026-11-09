@@ -16,6 +16,12 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
     assert.throws(() => validateManifest(withJob(job, requiresSdk)), /File job results require SDK 0\.2\.0 or later in requiresSdk/);
     assert.ok(validateManifest(withJob(nativeJob, requiresSdk)));
   }
+  const screen = { id: "jobs", title: "Jobs", icon: "LayoutDashboard", jobs: ["export"] };
+  const withScreen = (requiresSdk: string, value = screen) => { const m = withJob(job, requiresSdk); return { ...m, contributes: { ...m.contributes, screens: [value] } }; };
+  assert.equal(validateManifest(withScreen("^0.3.0")).contributes.screens[0]!.defaultViewIds.length, 0);
+  assert.throws(() => validateManifest(withScreen("^0.2.0")), /Screen jobs require SDK/);
+  assert.throws(() => validateManifest(withScreen("^0.3.0", { ...screen, jobs: ["missing"] })), /Undeclared screen job/);
+  assert.throws(() => validateManifest(withScreen("^0.3.0", { ...screen, jobs: [] })), /Screen needs views or jobs/);
   const binding = validateManifest(withJob(job)).contributes.jobs[0];
   assert.equal(defaultJobOutput(binding, "nested/a.txt"), "nested/a.bin");
   assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "a.txt"), "result.md");
