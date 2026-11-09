@@ -81,7 +81,7 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
       setFiles([]);
       try {
         const value = await request({ action: "job-start-many", plugin, job: selected, root, files: selectedFiles, requestIds });
-        const additions = (value.files as BatchJobResult[]).map(item => item.job ?? { requestId: randomUuid(), plugin, job: selected, root, file: item.file, startedAt: Date.now(), state: "failed" as const, phase: "", elapsedMs: 0, stopRequested: false, error: i18n.t("Cannot start this file. Check the input, result path and plugin availability.") });
+        const additions = (value.files as BatchJobResult[]).map(item => item.job ?? { requestId: randomUuid(), plugin, job: selected, root, file: item.file, startedAt: Date.now(), state: "failed" as const, phase: "", elapsedMs: 0, stopRequested: false, error: "Cannot start this file. Check the input, result path and plugin availability." });
         setJobs(previous => [...additions.reverse(), ...previous]);
       } catch {
         if (signal.aborted) return;
@@ -93,7 +93,7 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
       <thead><tr>{(["File", "Job", "Status", "Phase", "Elapsed", "Actions"] as const).map(label => <th key={label}>{i18n.t(label)}</th>)}</tr></thead>
       <tbody>{[...jobs].sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0)).map(job => <tr key={job.requestId}>
         <td>{job.file ?? "—"}</td><td>{bindings.find(binding => binding.id === job.job)?.title ?? job.job}</td>
-        <td><JobState job={job} />{job.state === "uncertain" ? <Notice tone="warning">{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</Notice> : null}{job.error ? <Notice tone="error">{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error}</Notice> : null}</td>
+        <td><JobState job={job} />{job.state === "uncertain" ? <Notice tone="warning">{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</Notice> : null}{job.error ? <Notice tone="error">{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error === "Cannot start this file. Check the input, result path and plugin availability." ? i18n.t("Cannot start this file. Check the input, result path and plugin availability.") : job.error}</Notice> : null}</td>
         <td>{job.phase}</td><td>{Math.floor(job.elapsedMs / 1000)} s</td><td><JobActions compact job={job} busy={busy || !active} request={request} update={update} run={run} onOpen={onOpen} /></td>
       </tr>)}</tbody>
     </table></div>
