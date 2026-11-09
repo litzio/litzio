@@ -42,9 +42,19 @@ test("filesystem-distinct Unicode document names keep separate connections and a
     assert.equal(generatedDocumentIdentity(managed), identity);
     assert.equal(isManagedGeneratedDocument(managed), true);
     assert.equal((await read("\u212a.md")).state, "externally-modified");
-    if (process.platform === "win32") {
-      assert.equal(generatedDocumentIdentity(path.join(root, "\u212a.MD")), identity);
-      assert.equal(isManagedGeneratedDocument(path.join(root, "\u212a.MD")), true);
+    if (process.platform === "win32") for (const [file, name] of [[managed, "\u212a.MD"], [ordinary, "K.MD"]]) {
+      const alias = path.join(root, name!), expected = generatedDocumentIdentity(file!);
+      assert.equal(generatedDocumentIdentity(alias), expected);
+      assert.equal(isManagedGeneratedDocument(alias), true);
+      const current = readFileSync(alias, "utf8");
+      commitFile(alias, current + "\nSaved through a case alias.\n", textRevision(current));
+      assert.equal(generatedDocumentIdentity(alias), expected);
+      assert.equal(isManagedGeneratedDocument(alias), true);
+      assert.equal(loadDocumentFile(alias, new RootAccess([root])).managedGenerated, true);
+      const reloaded = await read(name!);
+      assert.equal(reloaded.state, "externally-modified");
+      assert.equal((await host.execute({ action: "generated-regenerate", root, document: name, baseline: reloaded.baseline, requestId: randomUUID() })).state, "generated");
+      assert.equal(isManagedGeneratedDocument(alias), true);
     }
     hold = true;
     const pending = read("\u212a.md");

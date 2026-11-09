@@ -38,7 +38,9 @@ function assertRevision(filePath: string, target: string, revision: string): voi
 export function preflightFileCommit(filePath: string, text: string, revision: string): { target: string; mode: number } {
   assertUnicode(text);
   // Preserve a symlink itself by replacing its resolved target.
-  const target = fs.realpathSync(filePath);
+  // On Windows the JS resolver can retain a case alias. Renaming over that alias
+  // would change the stored leaf spelling on Save, so preserve the native name.
+  const target = process.platform === "win32" ? fs.realpathSync.native(filePath) : fs.realpathSync(filePath);
   assertRevision(filePath, target, revision);
   // A rename needs only directory permission; still refuse a file that cannot be written.
   fs.accessSync(target, fs.constants.W_OK);
