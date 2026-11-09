@@ -110,6 +110,12 @@ export class PluginHost {
   private verifiedBundle(m: PluginManifest, digest: string) {
     return this.official(m, digest) || m.tier === "community" && this.designated.some(p => p.id === m.id);
   }
+  private assertOperationNamesAvailable(id: string, names: string[]) {
+    const requested = new Set(names);
+    for (const [otherId, other] of Object.entries(this.installed)) {
+      if (otherId !== id && other.operationNames.some(name => requested.has(name))) throw new Error("Plugin operation ID collision");
+    }
+  }
   async start() {
     for (const item of this.supply) {
       const previous = this.installed[item.id];
@@ -131,8 +137,12 @@ export class PluginHost {
         const artifact = this.artifact(item.directory);
         if (artifact.manifest.id !== item.id || artifact.manifest.tier !== "community") throw new Error();
         record.digest = artifact.digest;
-        record.operationNames = artifact.manifest.contributes.operations.map(op => `${item.id}.${op.id}`);
-      } catch { this.errors.set(item.id, "Bundled plugin artifact verification failed"); }
+        const names = artifact.manifest.contributes.operations.map(op => `${item.id}.${op.id}`);
+        this.assertOperationNamesAvailable(item.id, names);
+        record.operationNames = names;
+      } catch (error) {
+        this.errors.set(item.id, error instanceof Error && error.message === "Plugin operation ID collision" ? error.message : "Bundled plugin artifact verification failed");
+      }
     }
     this.save();
     for (const [id, record] of Object.entries(this.installed)) if (record.enabled && !this.errors.has(id)) {
@@ -177,6 +187,7 @@ export class PluginHost {
     const r = this.record(id), a = this.artifact(r.directory);
     if (a.manifest.id !== id) throw new Error("Artifact ID changed");
     if (r.bundled && !this.verifiedBundle(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
+    this.assertOperationNamesAvailable(id, a.manifest.contributes.operations.map(op => `${id}.${op.id}`));
     if (a.digest !== r.digest) {
       if (!r.trusted) throw new Error("Plugin trust is required");
       await this.reload(id);
@@ -256,7 +267,7 @@ export class PluginHost {
       if (r.bundled && !this.verifiedBundle(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
       if (!this.official(a.manifest, a.digest) && !r.trusted) throw new Error("Explicit plugin trust is required");
       const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
-      for (const [otherId, other] of Object.entries(this.installed)) if (otherId !== id && other.operationNames.some(name => names.includes(name))) throw new Error("Plugin operation ID collision");
+      this.assertOperationNamesAvailable(id, names);
       r.digest = a.digest; r.operationNames = names;
       await this.enable(id); r.enabled = true; r.enabledChoice = true;
     } catch (error) { this.errors.set(id, String(error)); this.save(); throw error; }
@@ -359,9 +370,7 @@ export class PluginHost {
         id = a.manifest.id;
         if (this.supply.some(p => p.id === id)) throw new Error("Official plugins update with the app only");
         const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
-        for (const [otherId, other] of Object.entries(this.installed)) {
-          if (otherId !== a.manifest.id && (other.operationNames ?? []).some(name => names.has(name))) throw new Error("Plugin operation ID collision");
-        }
+        this.assertOperationNamesAvailable(id, [...names]);
         const previous = Object.hasOwn(this.installed, a.manifest.id) ? this.installed[a.manifest.id] : undefined;
         if (previous?.enabled) throw new Error("Disable the plugin before replacing its registration");
         this.installed[a.manifest.id] = { registrationId: randomUUID(), directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {}, operationNames: [...names] };

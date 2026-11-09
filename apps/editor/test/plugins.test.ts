@@ -1119,11 +1119,12 @@ test("designated community supply requires trust, persists across updates and yi
   const directory = lifecycleFixture(root, "fixture.designated");
   const manifestFile = path.join(directory, "litzio-plugin.json");
   const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+  manifest.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "string" } }];
   manifest.settingsSchema = { type: "object", properties: { label: { type: "string" } }, additionalProperties: false };
   writeFileSync(manifestFile, JSON.stringify(manifest));
   const marker = path.join(root, "imported.txt");
   const entry = path.join(directory, "host.js");
-  writeFileSync(entry, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'imported');\n` + readFileSync(entry, "utf8"));
+  writeFileSync(entry, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'imported');\n` + readFileSync(entry, "utf8").replace("operations:{}", "operations:{read:()=>'designated'}"));
   const designatedPlugins = [{ id: "fixture.designated", directory }];
   const state = path.join(root, "state.json");
   const options = { officialPlugins: [], designatedPlugins };
@@ -1165,6 +1166,29 @@ test("designated community supply requires trust, persists across updates and yi
     assert.equal((await item()).bundled, true);
     assert.equal((await item()).trusted, false);
     assert.equal((await item()).enabled, false);
+    // Remove an override, then admit a different plugin whose dotted operation
+    // occupies the returning supply's full name before the next Host start.
+    await host.invoke("register", { directory });
+    await host.invoke("unregister", { id: "fixture.designated" });
+    const rivalDirectory = lifecycleFixture(root, "fixture", "export function activate(){return {operations:{'designated.read':()=> 'rival'},status:()=>({available:true,message:'rival',folders:[],decorations:[],accounts:[]}),dispose(){}}}");
+    const rivalFile = path.join(rivalDirectory, "litzio-plugin.json");
+    const rivalManifest = JSON.parse(readFileSync(rivalFile, "utf8"));
+    rivalManifest.contributes.operations = [{ ...manifest.contributes.operations[0], id: "designated.read" }];
+    writeFileSync(rivalFile, JSON.stringify(rivalManifest));
+    await host.invoke("register", { directory: rivalDirectory });
+    const rival = (await host.list()).find(p => p.id === "fixture")!;
+    await host.invoke("enable", { id: rival.id, registrationId: rival.registrationId, trust: true });
+    await host.close();
+    const { unlinkSync } = await import("node:fs"); unlinkSync(marker);
+    host = new PluginHost(state, options); await host.start();
+    assert.equal((await item()).error, "Plugin operation ID collision");
+    assert.equal((await item()).running, false);
+    assert.equal(existsSync(marker), false, "conflicting supply is not imported on startup");
+    assert.equal((await host.list()).find(p => p.id === rival.id)!.running, true);
+    await assert.rejects(host.invoke("enable", { id: "fixture.designated", registrationId: (await item()).registrationId, trust: true }), /Plugin operation ID collision/);
+    assert.equal((await item()).running, false);
+    assert.equal(existsSync(marker), false, "rejected enable cannot import the conflicting entry");
+    assert.equal((await host.invokeOperation("fixture.designated.read", {})).result, "rival");
   } finally { await host.close(); }
 });
 
