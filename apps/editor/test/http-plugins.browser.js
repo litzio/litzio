@@ -372,17 +372,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect.poll(() => icon.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
     const panel = page.getByTestId("plugin-job-panel");
     await expect(panel).toBeVisible();
-    await expect(panel.getByRole("button", { name: "Start job", exact: true })).toBeDisabled();
+    await expect(panel.locator(".plugin-job-start").getByRole("button")).toBeDisabled();
     // Connection reads need no folder; file jobs explicitly select an opened Root.
     await openFolderPicker(page);
     await page.getByTestId("folder-path").fill(pluginFixture.folder);
     await page.getByTestId("folder-open").click();
     await expect(page.getByTestId("folder-path")).not.toBeVisible();
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
-    await panel.getByLabel("Job", { exact: true }).selectOption("convert-pdf");
+    await panel.getByRole("group", { name: "Task", exact: true }).getByRole("button", { name: /PDF 변환/ }).click();
     await panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true }).check();
     await panel.getByRole("checkbox", { name: "dashboard-b.pdf", exact: true }).check();
-    await panel.getByRole("button", { name: "Start job", exact: true }).click();
+    await panel.locator(".plugin-job-start").getByRole("button").click();
     for (const name of ["dashboard-a", "dashboard-b"]) {
       const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: name + ".pdf", exact: true }) }).first();
       await expect(row.getByRole("status")).toHaveText("Completed");
@@ -403,7 +403,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(filePane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
     await expect(filePane.getByText(pdfResult.path, { exact: true })).toBeVisible();
     await filePane.getByLabel("Input file").selectOption("source.pdf");
-    await expect(filePane.getByLabel("Result path in Root")).toHaveValue("source.docling");
+    await expect(filePane.getByLabel("Result file")).toHaveValue("source.docling");
     if (screenshots) {
       for (const width of [1440, 640]) {
         await page.setViewportSize({ width, height: 900 });
@@ -498,9 +498,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
     await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
-    await panel.getByLabel("Job", { exact: true }).selectOption("create-document");
+    await panel.getByRole("group", { name: "Task", exact: true }).getByRole("button", { name: /문서 만들기/ }).click();
     await panel.getByRole("checkbox", { name: "sample.docling", exact: true }).check();
-    await panel.getByRole("button", { name: "Start job", exact: true }).click();
+    await panel.locator(".plugin-job-start").getByRole("button").click();
     const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first();
     await expect(nativeRow.getByRole("status")).toHaveText("Completed");
     await expect(nativeRow).toContainText("병합 칸 반복 1");

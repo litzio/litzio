@@ -63,7 +63,7 @@
 .plugin-job-panel .view-table-scroll { overflow-x: auto; }
 .plugin-job-state { display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 
-.plugin-job-panel tbody tr { height: calc(var(--space-6) * 2); }
+.plugin-job-panel tbody tr { height: calc(var(--space-4) * 4); }
 
 .view-query-inputs { display: contents; }
 .view-query-summary, .view-query-advanced { grid-column: 1 / -1; }
@@ -72,3 +72,18 @@
 @container (min-width: 800px) { .view-query-form:has(.view-query-more) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .view-query-more { margin-inline-end: auto; }
 .view-panel-container { min-width: 0; width: 100%; }
+
+/* File job input and full-width results share the existing surface hierarchy. */
+.plugin-job-input { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); background: var(--id-color-surface-subtle); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); min-width: 0; }
+.plugin-job-input .settings-row { margin: 0; padding: 0; border: 0; }
+.plugin-job-choices { flex-wrap: wrap; width: fit-content; max-width: 100%; }
+.plugin-job-choices.view-toggle .view-toggle-option { height: auto; min-height: var(--size-control); white-space: normal; text-align: start; }
+.plugin-job-choices .view-toggle-label { white-space: normal; overflow-wrap: anywhere; }
+.plugin-job-start { align-items: center; font-size: var(--font-size-sm); color: var(--id-color-text-muted); }
+.plugin-job-start > button { max-width: 100%; height: auto; min-height: var(--size-control); white-space: normal; overflow-wrap: anywhere; }
+.plugin-job-hint { margin: 0; font-size: var(--font-size-sm); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
+.plugin-job-hint:empty { display: none; }
+.plugin-job-files label { min-height: var(--size-control-compact); }
+.plugin-job-phase-label { display: flex; align-items: center; gap: var(--space-2); }
+.plugin-job-phase-label svg { flex-shrink: 0; }
+.plugin-job-badge { padding: var(--space-1) var(--space-2); border: 1px solid currentColor; border-radius: var(--id-radius-md); background: var(--id-color-surface); }

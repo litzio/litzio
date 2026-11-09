@@ -360,7 +360,9 @@ CLI는 같은 Host 작업을 호출한다.
 litzio plugins start example.plugin --job convert --root <root> --file a.pdf --file b.pdf --host <origin> --json
 ```
 
-앱 패널은 여러 작업의 공통 선택 control, 열린 폴더 선택(현재 폴더 재선택은 읽어 둔 파일 목록을 유지), accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. Host snapshot의 startedAt(접수 시각)으로 정렬해 외부 CLI 작업을 나중에 발견해도 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
+앱 패널은 여러 작업을 나란히 고르는 공통 ChoiceGroup(이름·accept → resultExtension 또는 native-document의 .md 표시, 여러 줄 허용, 단일 작업은 선택 숨김), 열린 폴더 선택(현재 폴더 재선택은 읽어 둔 파일 목록을 유지), accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. Host snapshot의 startedAt(접수 시각)으로 정렬해 외부 CLI 작업을 나중에 발견해도 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
+
+#1395: 폴더·입력 파일·시작 버튼을 기존 surface-subtle 입력 영역으로 묶고 결과 표는 전체 폭 내부 가로 스크롤을 유지한다. 폴더 이름은 짧게 표시하며 전체 경로는 hover·keyboard focus Tooltip과 접근 가능한 이름에 남긴다. 시작 버튼은 선택 작업 이름, 옆에는 선택 파일 수를 표시한다. 폴더 없음·지원 파일 없음(accept 안내)·미선택은 다음 행동 안내 하나를 제공하고 버튼의 설명과 연결하며 키보드로 접근할 수 있다. 작업이 없으면 빈 표 머리글을 숨긴다. 상태 배지는 공통 Host semantic tone과 상태 글자를 사용한다. 실제 done/total만 Progress로 표시하고 진행량 없는 실행은 단계·불확정 표시만 쓴다. 결과 열은 ‘결과 파일’이며 native 결과 열기와 opaque 경로·복사는 유지한다. 작업 연결·새 SDK/Host 계약은 없다.
 
 검증은 기존 job-plugin fixture의 SDK/Host 검사 및 `plugin-jobs` 브라우저 시나리오에 집중한다. 공통 패널 자체의 fixture는 실제 Docling 변환 품질을 검증하지 않는다. [Docling 0.0.2](../../community-plugins/docling/README.md)는 같은 패널에 PDF 변환·문서 만들기를 선언하고 설정 healthCheck를 사용한다. 중복 연결 표는 제거하며 API 키 서버는 지원하지 않는다. Docling은 서버 동시 처리 실패를 피하도록 플러그인 프로세스 안에서 PDF 서버 요청을 한 건씩 처리하며 대기 중 중단을 지원한다. Host 큐는 추가하지 않는다. 자동 http-plugins는 가짜 서버만 사용하며 실제 컨테이너 두 PDF 수락은 화면 또는 CLI로 별도 확인한다. Docling 적용의 [1440px](assets/docling-002/dashboard-1440.png)·[한국어 다크 640px](assets/docling-002/dashboard-640.png)는 경로·계정 표기를 마스킹한 수동 시각 근거다. 수동 캡처는 `pnpm browser:test plugin-jobs --screenshots`의 `tmp/plugin-jobs/panel-1440.png`, `panel-640.png`다.
 
@@ -373,6 +375,9 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 ### Jira 커뮤니티 0.0.4 읽기 사례 (#1350, #1362)
 
 저장소의 community-plugins/jira는 독립 배포 전 임시 커뮤니티 artifact다. JQL 검색 v1과 같은 경로 위의 간편 검색 issues v4(프로젝트·보고자·기간 기준·시작/종료일) 두 기본 뷰와 기본 7열은 기존 InputForm/Table 계약을 사용한다. 추가 후보 필드는 공개 행 스키마·데이터로 유지하고 표시 columns에서 제외한다. detail v1은 host read·assistant 작업으로 설명과 최근 생성 댓글 최대 10개, 키·URL·조회 시각·댓글 전체 수/반환 범위·본문 잘림을 반환한다. CLI operation invoke와 비서는 같은 operation을 사용하며 별도 상세 화면·Jira 쓰기·SDK 확장은 없다. 검색은 필요한 fields만 페이지당 최대 500건씩 순차 요청하고 서버의 실제 반환 건수로 진행한다. 전체 8초·최대 500행·Host 10초 RPC 예산은 유지한다. Created·Updated·댓글·조회 시각은 Host PC 현지 `YY-MM-DD HH:mm`, dueDate는 `YY-MM-DD`다. 상한·오류·정렬 한계·검증 경계의 상세 계약은 [Jira README](../../community-plugins/jira/README.md#005-검색과-상세-계약)를 따른다.
+
+#1395 수동 시각 검토: [1440px 변경 전](assets/plugin-file-jobs-1395/before-1440.png) / [변경 후](assets/plugin-file-jobs-1395/after-1440.png), [한국어 다크 640px 변경 전](assets/plugin-file-jobs-1395/before-640.png) / [변경 후](assets/plugin-file-jobs-1395/after-640.png). 같은 fixture·완료/중단/불확실 상태의 화면에서 입력 면 구분·정렬·줄바꿈·표 내부 스크롤을 확인했다. 경로와 계정은 마스킹했다. K1 16개, plugin-jobs와 HTTP 복구 2개(약 1.6분), 대표 layout-rules/quiet-document 2개, typecheck·CLI/Editor build·문서 검사를 통과했다. 추가 UI 단언은 기존 시나리오의 빈 상태·키보드 안내·형식 선택지·파일 수·시작 이름을 보호하며 별도 subprocess나 전수 조합을 추가하지 않았다. 실제 Docling 변환 품질은 미검증이다.
+
 
 ## Plugin image icon (#1346)
 

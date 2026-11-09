@@ -86,7 +86,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
         else setFile({ root, relativePath });
       }} options={[{ value: "", label: "—" }, ...jobEntries(entries, choice?.binding).map(entry => ({ value: entry.name, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
       {folder ? <Button size="sm" variant="secondary" disabled={locked} onClick={() => { setFolder(""); setFile(undefined); setEntries([]); }}>{i18n.t("Return to opened folder")}</Button> : null}
-      <SettingsInput label={i18n.t("Result path in Root")} value={output} disabled={locked} onChange={setOutput} />
+      <SettingsInput label={i18n.t("Result file")} value={output} disabled={locked} onChange={setOutput} />
     </div>
     <div className="view-controls">
     <Button disabled={locked || !choice || !file || file.root !== root || !output} onClick={() => void run(async () => {
@@ -115,7 +115,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
 }
 
 export function JobState({ job }: { job: JobSnapshot }) {
-  return <span className="host-status" role="status" aria-label={i18n.t("Job status")} data-tone={job.state === "failed" ? "danger" : job.state === "uncertain" ? "warning" : job.state === "stopped" ? "muted" : "connected"}>
+  return <span className="host-status plugin-job-badge" role="status" aria-label={i18n.t("Job status")} data-tone={job.state === "failed" ? "danger" : job.state === "uncertain" ? "warning" : job.state === "completed" ? "connected" : "muted"}>
           <span className="agent-dot" aria-hidden="true" />
           {i18n.t(job.state === "running" && job.stopRequested ? "Cancellation requested" : stateLabels[job.state])}
         </span>;
