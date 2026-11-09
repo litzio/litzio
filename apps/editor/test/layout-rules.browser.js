@@ -3,7 +3,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   page.setDefaultTimeout(15000);
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0,-4).join(sep);
   const file = [root, 'tmp', 'quiet-document', 'quiet-document.md'].join(sep);

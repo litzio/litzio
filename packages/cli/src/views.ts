@@ -4,9 +4,9 @@ import { DAEMON_PROTOCOL } from "../../../apps/editor/shared/daemon-version.ts";
 import { VIEW_LIMITS, catalogViewByteLimit, type CatalogView } from "@litzio/core/views-v2";
 import { VIEW_TRANSPORT_LIMITS } from "../../../apps/editor/shared/view-limits.ts";
 function readJson(file: string) {
-  if (statSync(file).size > VIEW_LIMITS.assistantBytes) throw new Error("View input exceeds byte limit");
+  if (statSync(file).size > VIEW_LIMITS.bytes) throw new Error("View input exceeds byte limit");
   const bytes = readFileSync(file);
-  if (bytes.length > VIEW_LIMITS.assistantBytes) throw new Error("View input exceeds byte limit");
+  if (bytes.length > VIEW_LIMITS.bytes) throw new Error("View input exceeds byte limit");
   const value = JSON.parse(bytes.toString("utf8"));
   if (value?.kind === "litzio-view" && bytes.length > catalogViewByteLimit(value as CatalogView)) throw new Error("View input exceeds byte limit");
   return value;
@@ -17,30 +17,17 @@ export async function viewCli(args: string[]): Promise<number> {
   try {
     const tokens = [...args];
     const take = (flag: string) => { const i = tokens.indexOf(flag); if (i < 0) return undefined; const value = tokens[i + 1]; if (!value || value.startsWith("--")) throw new Error(`Missing ${flag} value`); tokens.splice(i, 2); return value; };
-    const target = take("--host"), root = take("--root"), name = take("--name"), plugin = take("--plugin"), inputFile = take("--input");
+    const target = take("--host"), plugin = take("--plugin"), inputFile = take("--input");
     const replacement = inputFile === undefined ? undefined : readJson(inputFile);
     const json = tokens.indexOf("--json"); if (json >= 0) tokens.splice(json, 1);
     if (!target) throw new Error("Explicit --host <origin> required");
     const origin = new URL(target);
     if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("Expected Host origin");
     const [action, file] = tokens;
-    let input: Record<string, unknown>;
-    if (action === "catalog" && tokens.length === 1 && !root && !name && !plugin && !inputFile) input = { action };
-    else if (action === "list" && tokens.length === 1 && !root && !name) input = { action, plugin: plugin ?? "litzio.statistics" };
-    else if (action === "open" && tokens.length === 2 && !root && !name) input = { action, plugin: plugin ?? "litzio.statistics", name: file };
-    else if (action === "run" && tokens.length === 1 && name) input = { action, name, root, plugin: plugin ?? "litzio.statistics" };
-    else if (["validate", "propose", "save", "run"].includes(action!) && tokens.length === 2) {
-      const view = readJson(file!);
-      if (["validate", "propose"].includes(action!) && !root && !name) input = { action, view, ...(plugin ? { plugin } : {}) };
-      else if (action === "save" && name && !root) input = { action, view, ...(plugin ? { plugin } : {}), name };
-      else if (action === "run" && !name) input = { action, view, root };
-      else throw new Error("save requires --name; run requires --root");
-    } else throw new Error("view validate|propose|save|run <file> | catalog | list | open <name> --host <origin> --json");
-    if (inputFile && action !== "run" && action !== "save") throw new Error("--input requires run or save");
-    if (plugin && !["list", "open", "save", "run", "validate", "propose"].includes(action!)) throw new Error("--plugin requires list, open, save or named run");
-    if (plugin && action === "run" && file) throw new Error("--plugin requires named run");
-    if (inputFile !== undefined) input.input = replacement;
-    if (action === "save" && !plugin) throw new Error("save requires explicit --plugin <owner>");
+    if (tokens.length !== 2 || !["validate", "run"].includes(action!)) throw new Error("view validate|run <file> --host <origin> --json");
+    if (inputFile && action !== "run") throw new Error("--input requires run");
+    if (plugin && action !== "validate") throw new Error("--plugin requires validate");
+    const input = { action, view: readJson(file!), ...(plugin ? { plugin } : {}), ...(inputFile ? { input: replacement } : {}) };
     const body = JSON.stringify(input);
     if (Buffer.byteLength(body) > VIEW_TRANSPORT_LIMITS.requestBytes) throw new Error("View request exceeds byte limit");
     const health = await fetch(new URL("/daemon/health", origin), { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });

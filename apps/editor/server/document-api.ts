@@ -4,6 +4,7 @@ import { catalogViewByteLimit, type CatalogView } from "@litzio/core/views-v2";
 import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
 export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
+import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
 import { executeViewOperation } from "./views.ts";
 import { hostIdentity } from "./host-identity.ts";
@@ -416,9 +417,9 @@ export async function handleDocumentRequest(
       if (route) {
         const operation = route[req.method ?? ""];
         if (!operation) { res.statusCode = 405; res.end(); return; }
-        const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(url.startsWith("/api/assistant/") ? decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, VIEW_TRANSPORT_LIMITS.requestBytes))) : await readBody(req));
+        const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(url.startsWith("/api/assistant/") ? decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, ASSISTANT_TRANSPORT_LIMITS.requestBytes))) : await readBody(req));
         const result = await service!.invoke(operation, args);
-        sendJson(res, url.startsWith("/api/assistant/") && args.action === "propose-view-generation" && result?.receipt?.outcome === "failure" ? 400 : 200, result);
+        sendJson(res, 200, result);
         return;
       }
     } catch (error) { failure(error); return; }

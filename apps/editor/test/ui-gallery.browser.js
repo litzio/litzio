@@ -36,9 +36,9 @@ async (page, { expect, screenshots }) => {
   await expect(automatic).toBeDisabled();
   await expect(fixed).toBeDisabled();
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
-  await navigation.getByRole('button', {name:'View lifetime',exact:true}).click();
+  await navigation.getByRole('button', {name:'Query lifetime',exact:true}).click();
   const lifecycle=page.getByRole('region',{name:'예시: View lifecycle',exact:true});
-  const replacement=lifecycle.getByTestId('generated-view').first();
+  const replacement=lifecycle.getByTestId('plugin-query-view').first();
   await expect(replacement.getByLabel('Text',{exact:true})).toHaveValue('alpha');
   await replacement.getByRole('button',{name:'Search',exact:true}).click();
   await expect(replacement.getByText('Loading data…',{exact:true})).toBeVisible();
@@ -52,13 +52,8 @@ async (page, { expect, screenshots }) => {
   await expect(replacement.getByRole('button',{name:'Search',exact:true})).toBeDisabled();
   await expect(replacement.getByRole('cell',{name:'beta',exact:true})).toBeVisible();
   await expect(replacement).toContainText('Previous query result');
-  const workspace=lifecycle.getByTestId('view-workspace');
-  await workspace.getByRole('button',{name:'예시: Default query',exact:true}).click();
-  await expect(workspace.getByLabel('Text',{exact:true})).toHaveValue('alpha');
-  await workspace.getByRole('button',{name:'Current generated view',exact:true}).click();
-  await expect(workspace.getByRole('cell',{name:'예시: Retained generation',exact:true})).toBeVisible();
   await navigation.getByRole('button',{name:'Tables',exact:true}).click();
-  const examples = page.getByRole('region', { name: 'Generated views examples' });
+  const examples = page.getByRole('region', { name: 'Plugin views examples' });
   const table = page.getByRole('region', {name:'Table — 예시: 열별 정렬·필터',exact:true}).first();
   await page.getByRole('group',{name:'Theme',exact:true}).getByRole('button',{name:'Dark',exact:true}).click();
   await page.evaluate(() => { window.__openedLinks = []; window.open = (...args) => { window.__openedLinks.push(args); return null; }; });
@@ -105,7 +100,7 @@ async (page, { expect, screenshots }) => {
   await expect(table.locator('tbody tr')).toHaveCount(50);
   await expect(table.locator('tbody tr').first()).toContainText('100');
 
-  await navigation.getByRole('button',{name:'Generated views',exact:true}).click();
+  await navigation.getByRole('button',{name:'Plugin views',exact:true}).click();
   await expect(examples.getByRole('table')).toHaveCount(2);
   const states = examples.getByRole('group', { name: 'Generated view state', exact: true });
   await states.getByRole('button', { name: 'Authentication required', exact: true }).click();
@@ -119,29 +114,56 @@ async (page, { expect, screenshots }) => {
   await states.getByRole('button', { name: 'Cannot verify request', exact: true }).click();
   await expect(examples.getByText('Status checks cannot resolve this outcome. Do not repeat this change.', { exact: false })).toBeVisible();
   await examples.getByRole('group', { name: 'View profile', exact: true }).getByRole('button', { name: 'query', exact: true }).click();
-  const charts = page.getByRole('region', { name: '예시: Chart와 Panel', exact: true });
-  const host = charts.getByTestId('chart-example-width');
-  const line = host.getByRole('region', { name: '예시: 월별 추이 · null 단절', exact: true });
-  await expect(line.locator('circle')).toHaveCount(4);
-  // Two segments, with no line over the missing middle y.
-  await expect(line.locator('path')).toHaveAttribute('d', /^M[^M]+M[^M]+$/);
-  const scatter = charts.getByRole('region', { name: '예시: 좌표 · 중복과 null', exact: true }).last();
-  await expect(scatter.locator('circle')).toHaveCount(2);
-  await expect(scatter.locator('path')).toHaveCount(0);
-  // Excluded coordinates must not change the plotted domain.
-  await expect(scatter.locator('circle').first()).toHaveAttribute('cx', '300');
-  await scatter.getByText('Source values', { exact: true }).click();
-  await expect(scatter.getByRole('listitem')).toHaveText(['x: —; y: 1', 'x: 1; y: —', 'x: 2; y: 2', 'x: 2; y: 2']);
-  await expect(scatter.getByText('Rows with null coordinates excluded: 2', { exact: true })).toBeVisible();
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  const width = charts.getByRole('group', { name: '예시: 실제 배치 폭' });
-  await width.getByRole('button', { name: '960px', exact: true }).click();
-  const children = host.locator('section');
-  await expect.poll(async () => { const a = await children.nth(0).boundingBox(), b = await children.nth(1).boundingBox(); return Math.abs(a.y - b.y) < 1 && b.x > a.x; }).toBe(true);
-  await width.getByRole('button', { name: '959px', exact: true }).click();
-  await expect.poll(async () => { const a = await children.nth(0).boundingBox(), b = await children.nth(1).boundingBox(); return Math.abs(a.x - b.x) < 1 && b.y > a.y; }).toBe(true);
-  // Same window; narrow actual renderer width is what folds the Panel.
-  await page.setViewportSize({ width: 640, height: 1000 });
-  await expect.poll(async () => { const a = await children.nth(0).boundingBox(), b = await children.nth(1).boundingBox(); return Math.abs(a.x - b.x) < 1 && b.y > a.y; }).toBe(true);
+
+  await page.goto(await page.evaluate(()=>location.origin+'/test/fixtures/input-suggestions/index.html'));
+  const field = page.getByLabel('담당자', { exact: true });
+  if (screenshots) for (const width of [1440,640]) {
+    await page.setViewportSize({width,height:1000});
+    await page.evaluate(dark=>document.documentElement.setAttribute('data-theme',dark?'dark':'light'),width===640);
+    await page.screenshot({path:`tmp/input-suggestions/before-${width}.png`});
+  }
+  const requests = [];
+  let release;
+  await page.route('**/api/plugins', async route => {
+    const body = route.request().postDataJSON();
+    requests.push(body.input.query);
+    if(body.input.query==='old') await new Promise(resolve=>release=resolve);
+    const result = [{value:body.input.query+'-id',label:'예시: '+body.input.query+' 담당자'}];
+    await route.fulfill({json:{result,receipt:{outcome:body.input.query==='fail'?'failure':'success'}}}).catch(()=>{});
+  });
+  await page.getByRole('button',{name:'후보 사용'}).click();
+  await field.fill('old');
+  await expect.poll(()=>requests.includes('old')).toBe(true);
+  await field.fill('new');
+  await expect(page.getByRole('option',{name:'예시: new 담당자'})).toBeVisible();
+  release();
+  await expect(page.getByRole('option',{name:'예시: old 담당자'})).toHaveCount(0);
+  await field.press('ArrowDown');
+  await field.press('Enter');
+  await expect(field).toHaveValue('new-id');
+  await field.fill('mouse');
+  await page.getByRole('option',{name:'예시: mouse 담당자'}).click();
+  await expect(field).toHaveValue('mouse-id');
+  await field.fill('fail');
+  await expect.poll(()=>requests.includes('fail')).toBe(true);
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await expect(field).toHaveValue('fail');
+  // Composition events deliberately model an IME; ordinary fill cannot start composition.
+  await page.clock.install();
+  await field.dispatchEvent('compositionstart');
+  await field.fill('ㅎ');
+  await page.clock.runFor(500);
+  expect(requests.includes('ㅎ')).toBe(false);
+  await field.fill('한글');
+  await field.dispatchEvent('compositionend',{data:'한글'});
+  await page.clock.runFor(300);
+  await expect(page.getByRole('option',{name:'예시: 한글 담당자'})).toBeVisible();
+  expect(requests.filter(query=>query==='한글')).toHaveLength(1);
+  if (screenshots) for (const width of [1440,640]) {
+    await page.setViewportSize({width,height:1000});
+    await page.evaluate(dark=>document.documentElement.setAttribute('data-theme',dark?'dark':'light'),width===640);
+    await field.click();
+    await page.screenshot({path:`tmp/input-suggestions/after-${width}.png`});
+  }
 
 }

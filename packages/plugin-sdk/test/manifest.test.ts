@@ -24,7 +24,7 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   assert.throws(() => validateManifest(withScreen("^0.3.0", { ...screen, jobs: [] })), /Screen needs views or jobs/);
   const binding = validateManifest(withJob(job)).contributes.jobs[0];
   assert.equal(defaultJobOutput(binding, "nested/a.txt"), "nested/a.bin");
-  assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "a.txt"), "result.md");
+  assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "docs/\uBCF4\uACE0\uC11C.docling"), "docs/\uBCF4\uACE0\uC11C.md");
   for (const resultExtension of [undefined, "bin", ".BIN", "../bin", ".tar.gz"]) assert.throws(() => validateManifest(withJob({ ...job, resultExtension })));
   assert.throws(() => validateManifest(withJob({ ...job, resultKind: "native-document" })));
 });
@@ -64,7 +64,7 @@ test("v2 view and review contributions validate local bindings before entry exec
   const snapshot = structuredClone(screened) as any;
   snapshot.contributes.views[0].definition.refresh = "assistant";
   snapshot.contributes.views[0].definition.sources.stats = { kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z", rowSchema: { title: { type: "string", label: "Title" } }, rows: [{ title: "Saved result" }], provenance: [{ kind: "reference", label: "Source", refId: "ref-1" }] };
-  assert.equal(validateManifest(snapshot).contributes.screens.length, 1);
+  assert.throws(() => validateManifest(snapshot));
 
   for (const change of [
     (v: any) => v.contributes.screens.push(screen),
@@ -104,6 +104,17 @@ test("plugin image paths require the feature SDK and remain artifact-relative", 
   for (const icon of ["icon.png", "assets/icon.svg"]) assert.equal(validateManifest({ ...manifest(), requiresSdk: "^0.3.0", icon }).icon, icon);
   assert.throws(() => validateManifest({ ...manifest(), icon: "icon.png" }), /SDK 0.3.0/);
   for (const icon of ["../icon.png", "/icon.png", "C:/icon.png", "https://example.test/icon.png", "a/../icon.svg", "icon.gif", "icon.svg?x", "a\\icon.png"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.3.0", icon }));
+});
+
+test("input suggestions bind public text fields to same-plugin reads on SDK 0.3", () => {
+ const source = {id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"}};
+ const people = {id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}};
+ const input = { ...manifest(), requiresSdk:"^0.3.0", contributes:{operations:[source,people]} };
+ assert.deepEqual(validateManifest(input).contributes.operations[0]?.inputSuggestions,{person:"people"});
+ assert.throws(()=>validateManifest({...input,requiresSdk:"^0.2.0"}),/SDK 0.3/);
+ assert.throws(()=>validateManifest({...input,contributes:{operations:[source,{...people,effect:"write"}]}}),/standalone host read/);
+ assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSuggestions:{missing:"people"}},people]}}),/public free-text/);
+ assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:{type:"string",secret:true}}}},people]}}),/public free-text/);
 });
 
 test("default-hidden row columns use the unreleased SDK 0.3 contract", () => {

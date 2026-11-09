@@ -5,14 +5,14 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const separator = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'save-session', 'session.md'].join(separator);
   const technical = [root, 'tmp', 'save-session', 'technical-document.md'].join(separator);
   const result = {};
   const check = (name, value) => { if (!value) throw new Error(name); result[name] = true; };
-  const read = async path => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`)).json());
+  const read = async path => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } })).json());
   const save = async () => {
     await page.getByTestId('save').click();
     await page.locator('[data-testid="status"][data-operation^="saved"]').waitFor({state:'attached'});
@@ -201,7 +201,7 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   const received = new Promise(resolve => { arrived = resolve; });
   await page.route('**/api/document', async route => {
     if (route.request().method() !== 'POST') return route.continue();
-    const response = await route.fetch(); arrived(); await gate; await route.fulfill({response});
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); arrived(); await gate; await route.fulfill({response});
   });
   await page.getByTestId('save').click(); await received;
   await paragraph().click();
@@ -279,7 +279,7 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   await paragraph().click(); await page.keyboard.press('End'); await page.keyboard.type(' Local');
   const external = await read(file);
   const target = external.document.blocks.find(block => block.block === 'paragraph');
-  const response = await page.request.post(`${origin}/api/document`, {data:{path:file, revision:external.revision, base:{source:external.source},
+  const response = await page.request.post(`${origin}/api/document`, { headers: { Connection: "close" },data:{path:file, revision:external.revision, base:{source:external.source},
     paragraphs:[{path:target.path, content:[{kind:'text', text:'External.'}]}]}});
   check('externalWrite', response.ok());
   await page.getByTestId('save').click(); await page.getByText('Save conflict', {exact:true}).filter({visible:true}).waitFor();
@@ -434,7 +434,7 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   const replayRoute = async route => {
     if (route.request().method() !== 'POST') return route.continue();
     const request = route.request().postDataJSON();
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     saves.push({request, status: response.status(), response: await response.json()});
     if (hold) { hold.arrived(); await hold.gate; }
     await route.fulfill({response});

@@ -13,7 +13,7 @@ async (page, { openPath }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached', timeout:10000});
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'focus-caret', 'focus.md'].join(sep);

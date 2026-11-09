@@ -4,7 +4,7 @@ export { rowSchema, parseOperationRows, parseOperationRowResult, operationRowRes
 
 export const VIEW_LIMITS = { bytes: 32768, panels: 8, rows: OPERATION_ROW_LIMIT } as const;
 const label = z.string().min(1).max(160).refine(v => !/[<>\u0000-\u001f]|(?:https?:|javascript:|data:)/i.test(v), "Plain label required");
-export type ViewOperation = { operation: string; version: number; rowSchema: RowSchema; inputSchema: Record<string, unknown>; validateArgs(args: unknown): boolean };
+export type ViewOperation = { inputSuggestions?: Record<string, { operation: string; version: number }>; operation: string; version: number; rowSchema: RowSchema; inputSchema: Record<string, unknown>; validateArgs(args: unknown): boolean };
 const field = z.string().min(1).max(80);
 const scalar = z.union([z.string().max(512), z.number().finite(), z.boolean(), z.null()]);
 const filter = z.discriminatedUnion("op", [
@@ -18,13 +18,6 @@ const aggregate = z.discriminatedUnion("op", [
 ]);
 const groupBy = z.strictObject({ field, interval: z.enum(["day", "week", "month"]).optional() });
 const outputField = field;
-const folderArgs = z.strictObject({ folder: z.string().min(1).max(512).refine(v => v === "." || (!/[:\\\u0000-\u001f]/.test(v) && !v.startsWith("/") && v.split("/").every(p => p && p !== "." && p !== "..")), "Relative folder required").optional() });
-export const statisticsOperation: ViewOperation = {
-  operation: "folder.statistics", version: 1,
-  inputSchema: z.toJSONSchema(folderArgs), validateArgs: args => folderArgs.safeParse(args).success,
-  rowSchema: rowSchema.parse({ folder: { type: "string", label: "folder" }, documents: { type: "number", label: "documents" }, headings: { type: "number", label: "headings" }, modified: { type: "string", date: true, nullable: true, label: "modified" } }),
-};
-export const builtinViewOperations = [statisticsOperation];
 export const operationSourceSchema = z.strictObject({ kind: z.literal("operation"),
   operation: z.string().min(1).max(160), version: z.number().int().positive(), args: z.record(z.string(), z.unknown()),
   filters: z.array(filter).max(8).default([]), groupBy: groupBy.optional(), aggregate: aggregate.optional(),
@@ -33,13 +26,9 @@ export const operationSourceSchema = z.strictObject({ kind: z.literal("operation
 });
 const binding = { title: label, source: z.literal("stats"), data: z.literal("/rows") };
 export const tableSchema = z.strictObject({ component: z.literal("Table"), ...binding, columns: z.array(outputField).min(1).refine(v => new Set(v).size === v.length, "Duplicate columns") });
-const chart = <T extends "bar" | "line" | "scatter">(type: T) => z.strictObject({ component: z.literal("Chart"), type: z.literal(type), ...binding, x: outputField, y: outputField, options: z.strictObject({}).optional() });
-export const chartSchema = z.discriminatedUnion("type", [chart("bar"), chart("line"), chart("scatter")]);
-export const queryLeafSchema = z.union([tableSchema, chartSchema]);
-export const horizontalPanelSchema = z.strictObject({ component: z.literal("Panel"), direction: z.literal("horizontal"), children: z.array(queryLeafSchema).length(2) });
-const verticalPanelSchema = z.strictObject({ component: z.literal("Panel"), direction: z.literal("vertical"), children: z.array(z.union([queryLeafSchema, horizontalPanelSchema])).min(1).max(VIEW_LIMITS.panels) }).refine(p => queryLeaves(p).length <= VIEW_LIMITS.panels, "Too many leaves");
-export const queryLayoutSchema = z.union([verticalPanelSchema, horizontalPanelSchema]);
-export function queryLeaves(layout: { children: (z.infer<typeof queryLeafSchema> | z.infer<typeof horizontalPanelSchema>)[] }) { return layout.children.flatMap(p => p.component === "Panel" ? p.children : [p]); }
+export const queryLeafSchema = tableSchema;
+export const queryLayoutSchema = z.strictObject({ component: z.literal("Panel"), direction: z.literal("vertical"), children: z.array(tableSchema).min(1).max(VIEW_LIMITS.panels) });
+export function queryLeaves(layout: z.infer<typeof queryLayoutSchema>) { return layout.children; }
 export const viewSchema = z.strictObject({
   kind: z.literal("litzio-view"), schemaVersion: z.literal(1), catalog: z.literal("litzio-v1"),
   title: label, refresh: z.literal("manual"),
@@ -66,39 +55,30 @@ export function validateQueryBindings(view: Pick<View, "sources" | "layout">, op
   }
   const output: RowSchema = s.groupBy ? { group: { ...get(s.groupBy.field) }, value: { type: "number", label: "value", date: false, nullable: false, secret: false } } : fields;
   const outputField = (name: string) => { if (!Object.hasOwn(output, name)) throw new Error("Binding outside operation output schema"); return output[name]!; };
-  for (const p of queryLeaves(view.layout)) {
-    for (const name of p.component === "Table" ? p.columns : [p.x, p.y]) outputField(name);
-    if (p.component === "Chart" && outputField(p.y).type !== "number") throw new Error("Chart y must be numeric");
-  }
-  for (const p of queryLeaves(view.layout)) if (p.component === "Chart" && p.type !== "bar") {
-    const x = outputField(p.x);
-    if (p.type === "scatter" ? x.type !== "number" : x.type !== "number" && !x.date) throw new Error("Chart x type mismatch");
-  }
+  for (const p of queryLeaves(view.layout)) for (const name of p.columns) outputField(name);
   if (s.sort) outputField(s.sort.field);
   return fields;
 }
 export type View = z.infer<typeof viewSchema>;
 const isoDate = z.iso.datetime({ precision: 3 });
-export const statisticsRowsSchema = z.array(z.strictObject({ folder: z.string().max(512), documents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), headings: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), modified: isoDate.nullable() })).max(VIEW_LIMITS.rows);
-export type StatisticsRow = z.infer<typeof statisticsRowsSchema>[number];
 export type ViewRow = Record<string, string | number | boolean | null>;
 
 function size(text: string): void {
   if (new TextEncoder().encode(text).length > VIEW_LIMITS.bytes) throw new Error("View exceeds byte limit");
 }
-export function validateView(value: unknown, operations: readonly ViewOperation[] = builtinViewOperations): View {
+export function validateView(value: unknown, operations: readonly ViewOperation[] = []): View {
   const text = JSON.stringify(value);
   if (text === undefined) throw new Error("View must be JSON");
   size(text);
   const view = viewSchema.parse(value); validateQueryBindings(view, operations); return view;
 }
-export function parseView(text: string, operations: readonly ViewOperation[] = builtinViewOperations): View { size(text); return validateView(JSON.parse(text), operations); }
+export function parseView(text: string, operations: readonly ViewOperation[] = []): View { size(text); return validateView(JSON.parse(text), operations); }
 function ordered(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(ordered);
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([a], [b]) => compare(a, b)).map(([k, v]) => [k, ordered(v)]));
   return value;
 }
-export function serializeView(value: unknown, operations: readonly ViewOperation[] = builtinViewOperations): string {
+export function serializeView(value: unknown, operations: readonly ViewOperation[] = []): string {
   const text = JSON.stringify(ordered(validateView(value, operations)), null, 2) + "\n";
   size(text);
   return text;
@@ -116,7 +96,7 @@ function dateGroup(value: string, interval: "day" | "week" | "month"): string {
   return interval === "month" ? date.slice(0, -3) : date;
 }
 /** Sole evaluation path for Host, CLI and app. No I/O and no expressions. */
-export function evaluateView(input: unknown, data: unknown, operations: readonly ViewOperation[] = builtinViewOperations): { rows: ViewRow[] } {
+export function evaluateView(input: unknown, data: unknown, operations: readonly ViewOperation[] = []): { rows: ViewRow[] } {
   return evaluateQueryRows(validateView(input, operations), data, operations);
 }
 /** Shared processing; callers must validate their envelope and execution args first. */
@@ -156,23 +136,10 @@ export function evaluateQueryRows(view: Pick<View, "sources" | "layout">, data: 
   }
   if (s.sort) { const sort = s.sort; rows.sort((a, b) => compare(a[sort.field], b[sort.field]) * (sort.direction === "desc" ? -1 : 1)); }
   rows = rows.slice(0, s.limit);
-  validateChartRows(view.layout, rows);
   return { rows };
 }
 
-export function createViewCatalog(operations: readonly ViewOperation[] = builtinViewOperations) {
+export function createViewCatalog(operations: readonly ViewOperation[] = []) {
   return { schema: z.toJSONSchema(viewSchema), operations: operations.map(op => ({ operation: op.operation, version: op.version, inputSchema: op.inputSchema, rowSchema: Object.fromEntries(Object.entries(op.rowSchema).filter(([, f]) => !f.secret)) })), limits: VIEW_LIMITS, effect: "read", scope: "target Host" };
 }
 export const viewCatalog = createViewCatalog();
-
-/** line retains null y as a gap; scatter retains null coordinates for the value list. */
-export function validateChartRows(layout: z.infer<typeof queryLayoutSchema>, rows: ViewRow[]): void {
-  for (const chart of queryLeaves(layout)) if (chart.component === "Chart" && chart.type === "line") {
-    let previous: string | number | undefined;
-    for (const row of rows) {
-      const x = row[chart.x];
-      if (x === null || typeof x !== "string" && typeof x !== "number" || previous !== undefined && x <= previous) throw new Error("Line x must be non-null, unique and ascending");
-      previous = x;
-    }
-  }
-}

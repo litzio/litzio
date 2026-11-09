@@ -30,6 +30,37 @@ const JPEG = Buffer.from(`ffd8ffdb004300${"01".repeat(64)}ffc0000b08000100010101
 const GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
 const WEBP = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
 const key = randomBytes(32);
+
+test("independent authoring owners retain the successful document image when the other creator fails", async t => {
+  const { root } = fixture(t);
+  // Independent module instances model the process-local state of two CLI/Host
+  // owners over one filesystem. No subprocess startup or long-document delay.
+  const first = await import(new URL("../server/document-authoring.ts?owner=first", import.meta.url).href);
+  const second = await import(new URL("../server/document-authoring.ts?owner=second", import.meta.url).href);
+  const prefix = "abcdefghijklmnopqrstuvwx";
+  const existing = path.join(root, `${prefix}-existing.md`), successful = path.join(root, `${prefix}-ok.md`);
+  const original = nativeSource("# Keep existing document\n");
+  fs.writeFileSync(existing, original);
+  const input = { authoring: { inputs: [{ key: "picture", blocks: [{ kind: "figure", imageAsset: "picture", imageAlt: "", caption: "Imported" }] }] },
+    images: [{ key: "picture", mime: "image/png", base64: PNG.toString("base64") }] };
+  const outcomes = await Promise.allSettled([first.createAuthoredDocumentFile(existing, input), second.createAuthoredDocumentFile(successful, input)]);
+  assert.equal(outcomes[0].status, "rejected"); assert.equal(outcomes[1].status, "fulfilled");
+  assert.equal(fs.readFileSync(existing, "utf8"), original);
+  const source = fs.readFileSync(successful, "utf8");
+  const relative = /\.\/assets\/[^\s]+\.png/.exec(source)![0];
+  assert.deepEqual(fs.readFileSync(path.join(root, relative)), PNG);
+  assert.equal(fs.readdirSync(path.join(root, "assets")).length, 2); // Full names distinguish the equal 24-character prefix.
+
+  // The same destination can still be shared by independent creators. A semantic
+  // failure must retain bytes already reused by the successful creator.
+  const same = path.join(root, "same.md");
+  const invalid = structuredClone(input) as any;
+  invalid.authoring.inputs[0].blocks[0].enumerator = "bad\nnumber";
+  const shared = await Promise.allSettled([first.createAuthoredDocumentFile(same, invalid), second.createAuthoredDocumentFile(same, input)]);
+  assert.equal(shared[0].status, "rejected"); assert.equal(shared[1].status, "fulfilled");
+  const sharedPath = /\.\/assets\/[^\s]+\.png/.exec(fs.readFileSync(same, "utf8"))![0];
+  assert.deepEqual(fs.readFileSync(path.join(root, sharedPath)), PNG);
+});
 function fixture(t: test.TestContext) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-asset-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

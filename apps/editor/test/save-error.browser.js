@@ -3,7 +3,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'en'));
   await page.reload();
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const file = [...loaded.path.split(sep).slice(0,-4), 'tmp', 'table-authoring', 'tables.md'].join(sep);
   await openPath(page, file);
@@ -27,7 +27,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
     captures.push({ path, ...metadata });
     await page.screenshot({path});
   };
-  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source;
+  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source;
   const language = async language => {
     if (await page.locator('html').getAttribute('lang') === language) return;
     await page.getByRole('button', {name:/^(Settings|설정)$/}).click();
@@ -199,7 +199,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   const received = new Promise(resolve => { arrived=resolve; });
   const delayed = async route => {
     if (route.request().method() !== 'POST') return route.continue();
-    const response = await route.fetch(); arrived(); await gate; await route.fulfill({response});
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); arrived(); await gate; await route.fulfill({response});
   };
   await page.route('**/api/document',delayed);
   try {

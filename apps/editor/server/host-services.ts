@@ -1,4 +1,3 @@
-import path from "node:path";
 import { hostPaths } from "./host-paths.ts";
 import { createAssistantHost } from "./assistant-host.ts";
 import { createPluginService } from "./plugin-service.ts";
@@ -16,7 +15,7 @@ export type HostServices = {
 export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS) {
   const paths = hostPaths(undefined, { ...process.env });
   const plugins = createPluginService(access, paths.settingsFile("plugins"));
-  const views = createViewService(access, plugins, path.join(path.dirname(paths.settingsFile("plugins")), "plugins"));
+  const views = createViewService(access, plugins);
   let assistant: ReturnType<typeof createAssistantHost> | undefined;
   let closed = false;
   let closing: Promise<void> | undefined;

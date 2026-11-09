@@ -176,7 +176,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }, assistantFixture.document);
   await page.getByTestId('save').click();
   await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
-  const savedDocument = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(assistantFixture.document))).json();
+  const savedDocument = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(assistantFixture.document), { headers: { Connection: "close" } })).json();
   expect(savedDocument.source).toContain('still editable');
   await page.reload();
   await expect(editor).toContainText('still editable');

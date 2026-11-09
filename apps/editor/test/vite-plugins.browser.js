@@ -12,9 +12,9 @@ async (page, { expect, pluginFixture, screenshots }) => {
   const officialEnabled = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "POST" && response.request().postDataJSON()?.action === "enable");
   await officialToggle.click();
   expect((await officialEnabled).ok()).toBe(true);
-  await expect(official.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
+  await expect(official.getByRole("switch")).toBeChecked();
   await officialToggle.click();
-  await expect(official.getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
+  await expect(official.getByRole("switch")).not.toBeChecked();
 
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   const input = page.getByTestId("folder-path");
@@ -38,12 +38,11 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await expect(page.getByRole("alert")).toHaveCount(0);
   const external = page.getByRole("region", { name: "Vite fixture", exact: true });
   const toggle = external.getByRole("switch", { name: "Enable Vite fixture", exact: true });
-  await expect(toggle).toBeDisabled();
-  await external.getByRole("button", { name: "Trust this artifact", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Trust this artifact", exact: true }).click();
   await expect(toggle).toBeEnabled();
-  await toggle.click();
-  await expect(external.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
+  await external.getByRole("switch").click();
+  await page.getByRole("dialog").getByRole("button", { name: "Trust and enable", exact: true }).click();
+  await expect(toggle).toBeEnabled();
+  await expect(external.getByRole("switch")).toBeChecked();
   await expect(external.getByRole("button", { name: "Vite fixture", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Open view ·/ })).toHaveCount(0);
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
@@ -69,8 +68,8 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Plugin disabled");
   await page.keyboard.press("Escape");
   await toggle.click();
-  await expect(external.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
-  const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"))).json();
+  await expect(external.getByRole("switch")).toBeChecked();
+  const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" } })).json();
   expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.3.0");
   if (screenshots) {
     for (const width of [1440, 640]) {
@@ -96,6 +95,6 @@ async (page, { expect, pluginFixture, screenshots }) => {
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   }
   await toggle.click();
-  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { data: { action: "unregister", id: "fixture.vite" } });
+  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" }, data: { action: "unregister", id: "fixture.vite" } });
   expect(removed.ok()).toBe(true);
 }

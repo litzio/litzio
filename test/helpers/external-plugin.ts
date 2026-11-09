@@ -18,7 +18,7 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
   await manage({ action: "register", directory });
   try {
     const plugins = (await (await fetch(url + "/api/plugins")).json()).plugins;
-    await manage({ action: "trust", id, digest: plugins.find((p: any) => p.id === id).digest });
+    await manage({ action: "trust", id, registrationId: plugins.find((p: any) => p.id === id).registrationId, digest: plugins.find((p: any) => p.id === id).digest });
     await manage({ action: "enable", id });
     const invoked = await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "External" } });
     assert.deepEqual(invoked.result, { greeting: "Hello, External!" });
@@ -36,7 +36,7 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
     ]) {
       writeFileSync(entry, prefix + "\n" + source);
       const current = (await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id);
-      await manage({ action: "trust", id, digest: current.digest });
+      await manage({ action: "trust", id, registrationId: current.registrationId, digest: current.digest });
       const refused = await fetch(url + "/api/plugins", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reload", id }) });
       assert.equal(refused.status, 400, await refused.text());

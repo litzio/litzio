@@ -226,7 +226,7 @@ jobs:
         run: |
           pnpm exec playwright install chromium
           fc-match :lang=ko
-      - run: pnpm browser:test http-host http-plugins plugin-jobs generated-views
+      - run: pnpm browser:test http-host http-plugins plugin-jobs plugin-views
       - name: Upload HTTP browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v6
@@ -275,18 +275,21 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
-        shell: pwsh
-        run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        id: downloads
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
+      # Exercise the same download-only path used by master cache-warm; the package consumes it.
+      - name: Warm Desktop downloads without packaging
+        run: node scripts/desktop-download-cache.mjs warm
       - name: Published beta.6 first-update regression
         if: needs.changes.outputs.update == 'true'
         env:
@@ -341,17 +344,17 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
-        shell: pwsh
-        run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        id: downloads
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
       - name: Stable install/update regression before the final package
         if: needs.changes.outputs.fullLifecycle == 'true'
@@ -404,17 +407,17 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
-        shell: pwsh
-        run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        id: downloads
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
       - name: Beta install/update regression before the final package
         if: needs.changes.outputs.update == 'true'
@@ -469,17 +472,17 @@ jobs:
           cache: true
           run_install: false
       - name: Configure download cache paths
-        shell: pwsh
-        run: |
-          "ELECTRON_CACHE=$env:RUNNER_TEMP/electron-cache" >> $env:GITHUB_ENV
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        id: downloads
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
           path: |
-            ${{ runner.temp }}/electron-cache
+            ${{ steps.downloads.outputs.electron-cache }}
             ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/desktop typecheck
       - name: Build a clean package from the actual app version
@@ -563,7 +566,24 @@ jobs:
           version: 12.5.1
           cache: true
           run_install: false
+      - name: Configure download cache paths
+        if: runner.os == 'Windows'
+        id: downloads
+        run: node scripts/desktop-download-cache.mjs configure
+      - name: Cache Electron and installer tool downloads
+        if: runner.os == 'Windows'
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.downloads.outputs.electron-cache }}
+            ${{ runner.temp }}/electron-builder-cache
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
+      - name: Warm Desktop downloads without packaging
+        if: runner.os == 'Windows'
+        run: node scripts/desktop-download-cache.mjs warm
       - name: Cache Playwright browsers
         if: runner.os == 'Linux'
         uses: actions/cache@v6

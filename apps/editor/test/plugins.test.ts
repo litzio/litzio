@@ -8,6 +8,139 @@ import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
+import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from "@litzio/core";
+
+// Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
+// SDK runtime admission, official K1 storage and the browser result boundary.
+async function doclingConverter() {
+  const source = readFileSync(new URL("../../../community-plugins/docling/document.js", import.meta.url), "utf8");
+  return import("data:text/javascript;base64," + Buffer.from(source.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
+}
+const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
+
+test("Docling converter preserves source identity, native blocks, shared targets and item losses without mutating original", async () => {
+  const { convertDocument } = await doclingConverter();
+  const doc = doclingFixture(), before = JSON.stringify(doc);
+  const { source, report } = await convertDocument(doc, "a".repeat(64));
+  assert.equal(JSON.stringify(doc), before);
+  const blocks = getEditableDocument(parse(source)).blocks;
+  assert.ok(source.includes("{table}"));
+  assert.ok(source.includes("{figure}"));
+  assert.ok(source.includes("print(1)"));
+  assert.ok(source.includes("E = mc^2"));
+  assert.ok(!source.includes("RUNNING HEADER"));
+  const item = (ref: string) => report.items.find((item: any) => item.self_ref === ref);
+  assert.equal(report.sourceHash, "a".repeat(64));
+  assert.equal(item("#/texts/0").status, "furniture");
+  assert.equal(item("#/texts/0").targets.length, 0);
+  assert.deepEqual(item("#/pictures/0").targets, item("#/texts/7").targets);
+  assert.deepEqual(item("#/tables/0").cells[0].positions, [{ row: 0, column: 0 }, { row: 0, column: 1 }]);
+  assert.deepEqual(item("#/tables/0").cells[0].targets, [item("#/tables/0").targets[0]]);
+  assert.deepEqual(item("#/texts/9").targets, item("#/tables/0").targets);
+  for (const entry of report.items) for (const target of entry.targets) {
+    assert.equal(target.documentRevision, report.documentRevision);
+    assert.equal(target.documentHash, report.documentHash);
+    assert.ok(blocks.some(block => JSON.stringify(block.path) === JSON.stringify(target.path)));
+  }
+  for (const kind of ["merged-cell", "multi-row-header", "nested-list", "picture-image", "unsupported"]) assert.ok(report.losses.some((loss: any) => loss.kind === kind));
+  assert.match(report.summary, /병합 칸 반복 1/);
+  assert.match(report.summary, /다단 헤더 계층 소실 1/);
+  assert.doesNotMatch(report.summary, /(?:^| · )표 \d|(?:^| · )[^·]+ 0(?: · |$)/);
+  const plain = { schema_name: "DoclingDocument", body: { children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", text: "Plain paragraph" }] };
+  assert.equal((await convertDocument(plain, "a".repeat(64))).report.summary, "");
+  const roles = doclingFixture();
+  roles.tables[0].data.table_cells[0].row_header = true;
+  roles.texts[2].marker = "a)";
+  const roleSummary = (await convertDocument(roles, "a".repeat(64))).report.summary;
+  assert.match(roleSummary, /표 셀 역할 소실 1/);
+  assert.match(roleSummary, /목록 표식 미보존 1/);
+  // Adjacent list items intentionally share the first item's native list target.
+  doc.groups[1].children = [{ $ref: "#/texts/2" }, { $ref: "#/texts/3" }]; doc.groups.splice(2);
+  doc.texts[3].marker = "4.";
+  const combined = await convertDocument(doc, "a".repeat(64));
+  assert.deepEqual(combined.report.items.find((i: any) => i.self_ref === "#/texts/2").targets, combined.report.items.find((i: any) => i.self_ref === "#/texts/3").targets);
+  assert.equal((await convertDocument(doc, "a".repeat(64))).source, combined.source);
+});
+
+test("Docling caption numbers are conservative, kind-specific and duplicate-safe", async () => {
+  const { readCaptionNumber, convertDocument } = await doclingConverter();
+  for (const [text, kind, number, caption] of [
+    ["Figure 6: Source caption", "figure", "6", "Source caption"], ["Fig. 2 Example", "figure", "2", "Example"],
+    ["그림 3", "figure", "3", ""], ["Table 2-1. Values", "table", "2-1", "Values"], ["표 4: 값", "table", "4", "값"],
+  ]) assert.deepEqual(readCaptionNumber(text, kind), { enumerator: number, caption });
+  for (const text of ["Figure IV: Roman", "Figure A: Letter", "Table 2: Wrong kind", "Figure 2.1a: Suffix", "Figure 2/3: Ambiguous", "Figure 2 - 1: Ambiguous", "Figure 2 . 1: Ambiguous", "No source number"] ) {
+    const value = readCaptionNumber(text, "figure");
+    assert.equal(value.caption, text); assert.equal(value.enumerator, undefined); assert.ok(value.reason);
+  }
+  const doc = doclingFixture();
+  const ref = `#/texts/${doc.texts.length}`;
+  doc.texts.push({ self_ref: ref, label: "caption", text: "Figure 1: Duplicate" });
+  doc.pictures.push({ self_ref: "#/pictures/1", label: "picture", captions: [{ $ref: ref }], children: [{ $ref: ref }] });
+  doc.body.children.push({ $ref: "#/pictures/1" });
+  const converted = await convertDocument(doc, "a".repeat(64));
+  const figures = getEditableDocument(parse(converted.source)).blocks.filter((b: any) => b.block === "figure");
+  assert.ok(figures.every((b: any) => b.enumerator === undefined && b.enumerated === false));
+  assert.equal(converted.report.losses.filter((l: any) => l.kind === "caption-number").length, 2);
+  assert.match(converted.source, /Figure 1: Original caption/);
+});
+
+test("Docling images use shared authoring and reports bind only to final Host targets", async () => {
+  const { convertDocument } = await doclingConverter();
+  const doc = doclingFixture(), png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=";
+  doc.pictures[0].image = { uri: "data:image/png;base64," + png, mimetype: "image/png", dpi: 72, size: { width: 1, height: 1 } };
+  const before = JSON.stringify(doc), value = await convertDocument(doc, "a".repeat(64));
+  assert.equal(JSON.stringify(doc), before);
+  assert.deepEqual(value.document.images, [{ key: "#/pictures/0", mime: "image/png", base64: png }]);
+  assert.ok(!value.report.losses.some((l: any) => l.kind === "picture-image"));
+  const { authorDocument } = await import("@litzio/core");
+  const final = await authorDocument(value.document.authoring, { "#/pictures/0": "./assets/final.png" });
+  const report = value.bindReport({ inputs: final.inputs, revision: final.documentRevision });
+  assert.equal(report.documentRevision, final.documentRevision);
+  assert.ok(report.items.flatMap((i: any) => i.targets).every((t: any) => t.documentRevision === final.documentRevision));
+  assert.throws(() => value.bindReport({ inputs: [], revision: final.documentRevision }), /Final Host/);
+  const wrong = structuredClone(final.inputs); wrong[0].key = "wrong";
+  assert.throws(() => value.bindReport({ inputs: wrong, revision: final.documentRevision }), /Final Host/);
+});
+
+test("Docling converter refuses whole input on limits and invalid graph/grid instead of truncating", async () => {
+  const { convertDocument } = await doclingConverter();
+  const rejects = async (change: (doc: any) => void, reason: RegExp) => {
+    const doc = doclingFixture(); change(doc);
+    await assert.rejects(convertDocument(doc, "a".repeat(64)), (error: any) => reason.test(error.conversionReason));
+  };
+  await rejects(d => { d.tables[0].data.num_rows = 101; }, /100 rows/);
+  await rejects(d => { d.tables[0].data.num_cols = 33; }, /32 columns/);
+  await rejects(d => { d.tables[0].data.table_cells.push(d.tables[0].data.table_cells[0]); }, /Overlapping/);
+  await rejects(d => { d.tables[0].data.table_cells[0].col_span = 1; }, /span/);
+  await rejects(d => { d.body.children.push(d.body.children[0]); }, /Duplicate or cyclic/);
+  await rejects(d => { d.body.children[0].$ref = "#/texts/999"; }, /Invalid source reference/);
+  await rejects(d => { d.texts[4].text = "x".repeat(16385); }, /16384/);
+  await rejects(d => {
+    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
+  }, new RegExp(`input limit.*${limits.inputs}`));
+  await rejects(d => {
+    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
+  }, new RegExp(`byte limit.*${limits.bytes}`));
+});
+test("Docling envelope keeps original PDF/JSON hashes independent of the reserved opaque review entry", async () => {
+  const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);
+  const { PDF_PROFILE } = await import(new URL("../../../community-plugins/docling/conversion.js", import.meta.url).href);
+  const sourceBytes = Buffer.from("%PDF-1.4 synthetic fixture");
+  const bytes = archive.createDoclingArchiveFromResult({ sourceName: "fixture.pdf", sourceBytes, serverVersions: { "docling-serve": "1.32.0" }, openapiBytes: Buffer.from("{}"), profile: PDF_PROFILE,
+    task: { id: "fixture", startedAt: "2026-11-09T00:00:00Z", completedAt: "2026-11-09T00:01:00Z" }, resultBody: Buffer.from(JSON.stringify({ status: "success", errors: [], document: { json_content: doclingFixture() } })) });
+  const original = archive.readDoclingArchive(bytes);
+  assert.ok(original.sourcePdf.equals(sourceBytes));
+  assert.ok(!bytes.includes(Buffer.from("pages/1.png")));
+  const reviewBytes = Buffer.from('{"opaque":"future review shape"}');
+  const withReservedEntry = archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes, reviewBytes });
+  const reread = archive.readDoclingArchive(withReservedEntry);
+  assert.deepEqual(reread.manifest, original.manifest);
+  assert.equal(reread.documentJson, original.documentJson);
+  assert.ok(reread.reviewBytes.equals(reviewBytes));
+  assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes: Buffer.from("%PDF-tampered"), reviewBytes }), /Original PDF mismatch/);
+  assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson + " ", sourceBytes, reviewBytes }), /Invalid DoclingDocument/);
+});
+
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
@@ -26,7 +159,7 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     const registered = (await host.list())[0]!;
     assert.equal(registered.running, false); assert.equal(registered.official, false);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /trust/);
-    await host.invoke("trust", { id: manifest.id, digest: registered.digest });
+    await host.invoke("trust", { id: manifest.id, registrationId: registered.registrationId });
     await host.invoke("enable", { id: manifest.id });
     const admitted = host.invokeOperation("litzio.onedrive.read", {});
     const disabling = host.invoke("disable", { id: manifest.id });
@@ -42,13 +175,8 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     await executePluginTool(host, { action: "settings", id: manifest.id, settings: { label: "live" } }, () => {});
     assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "live");
     writeFileSync(path.join(directory, "extra.js"), "// updated artifact");
-    await assert.rejects(host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } }), /Explicit digest-bound trust/);
-    const failedReload = (await host.list())[0]!;
-    assert.equal(failedReload.enabled, false); assert.equal(failedReload.running, false); assert.equal(failedReload.trusted, false);
-    assert.deepEqual(failedReload.settings, { label: "recovered" });
-    await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
-    await host.invoke("trust", { id: manifest.id, digest: failedReload.digest });
-    await host.invoke("enable", { id: manifest.id });
+    await host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } });
+    assert.equal((await host.list())[0]!.trusted, true);
     assert.equal((await host.list())[0]?.running, true);
     assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "recovered");
     await host.invoke("disable", { id: manifest.id });
@@ -56,9 +184,9 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     const entry = path.join(directory, "host.js"), metadata = statSync(entry);
     writeFileSync(entry, readFileSync(entry, "utf8").replace('"done"', '"edit"'));
     utimesSync(entry, metadata.atime, metadata.mtime);
-    assert.equal((await host.list())[0]!.trusted, false);
+    assert.equal((await host.list())[0]!.trusted, true);
     writeFileSync(path.join(directory, "extra.js"), "changed");
-    await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
+    await host.invoke("enable", { id: manifest.id });
     assert.equal(new PluginHost(path.join(root, "state.json")) instanceof PluginHost, true);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -113,7 +241,7 @@ test("disable drains admitted status observations and their late results cannot 
     const marker = path.join(root, "started"), release = path.join(root, "release"), disposed = path.join(root, "disposed");
     const directory = lifecycleFixture(root, "fixture.slow", `import {existsSync,writeFileSync} from 'node:fs'; let calls=0; export function activate(){return {operations:{},async status(){if(calls++>0){writeFileSync(${JSON.stringify(marker)},'');while(!existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,10))}return {available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}},dispose(){writeFileSync(${JSON.stringify(disposed)},'')}}}`);
     await host.invoke("register", { directory });
-    await host.invoke("trust", { id: "fixture.slow", digest: (await host.list())[0]!.digest });
+    await host.invoke("trust", { id: "fixture.slow", registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id: "fixture.slow" });
     const observation = host.list();
     while (!existsSync(marker)) await new Promise(r => setTimeout(r, 10));
@@ -215,7 +343,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
       await assert.rejects(host.setSecret(id, "undeclared", value), /Undeclared/);
       await host.setSecret(id, "pat", id === "example.first" ? value : "second-private-PAT");
       const plugin = (await host.list()).find(p => p.id === id)!;
-      await host.invoke("trust", { id, digest: plugin.digest }); await host.invoke("enable", { id });
+      await host.invoke("trust", { id, registrationId: plugin.registrationId }); await host.invoke("enable", { id });
       assert.equal(JSON.stringify(await host.invokeOperation(`${id}.read`, {})).includes(id === "example.first" ? value : "second-private-PAT"), false);
     }
     assert.equal(JSON.stringify(await host.invokeOperation("example.first.read", { fail: true })).includes(value), false);
@@ -248,7 +376,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     try {
       await unsupportedHost.invoke("register", { directory: path.join(root, "example.first") });
       const p = (await unsupportedHost.list())[0]!;
-      await unsupportedHost.invoke("trust", { id: p.id, digest: p.digest });
+      await unsupportedHost.invoke("trust", { id: p.id, registrationId: p.registrationId });
       await assert.rejects(unsupportedHost.setSecret(p.id, "pat", value), /unsupported/);
       await assert.rejects(unsupportedHost.invoke("enable", { id: p.id }), /unsupported/);
       assert.equal((await unsupportedHost.list())[0]!.secrets?.supported, false);
@@ -281,7 +409,7 @@ test("operation invoke publishes declared public rows and refuses row-type misma
   const host = new PluginHost(path.join(root, "plugins.json"), { secrets: { supported: true, async read() { return knownSecret; }, async set() {}, async status() { return true; }, async delete() {} } });
   try {
     await host.invoke("register", { directory }); const record = (await host.list())[0]!;
-    await host.invoke("trust", { id: record.id, digest: record.digest }); await host.invoke("enable", { id: record.id });
+    await host.invoke("trust", { id: record.id, registrationId: record.registrationId }); await host.invoke("enable", { id: record.id });
     const invoke = (mode?: string) => host.invoke("invoke", { operation: "fixture.rows.read", input: mode ? { mode } : {} }) as Promise<any>;
     const valid = await invoke(); assert.equal(valid.receipt.outcome, "success"); assert.deepEqual(valid.result, [{ points: -3, caption: "[secret]", url: "https://example.test/issue/1" }]);
     await host.invoke("reload", { id: record.id });
@@ -297,9 +425,9 @@ test("operation invoke publishes declared public rows and refuses row-type misma
       assert.ok(!JSON.stringify(failure).includes("raw-response"));
     }
     const { executeViewOperation } = await import("../server/views.ts");
-    const { statisticsView, viewRequest } = await import("../src/views/view-api.ts");
-    const view = { ...statisticsView, schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "fixture.rows", sources: { stats: { kind: "operation", operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
-    const failedView = await executeViewOperation({ action: "run", root, view }, { access: new RootAccess([root]), plugins: host });
+    const { viewRequest } = await import("../src/views/view-api.ts");
+    const view = { kind: "litzio-view", title: "Rows", refresh: "manual", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "fixture.rows", sources: { stats: { kind: "operation", operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
+    const failedView = await executeViewOperation({ action: "run", view }, { access: new RootAccess([root]), plugins: host });
     assert.equal(failedView.errorKind, "auth", failedView.error); assert.equal(failedView.error, PLUGIN_ERROR_MESSAGES.auth);
     const client = { request: async () => new Response(JSON.stringify(failedView)) } as unknown as import("../src/host-client.ts").HostClient;
     await assert.rejects(viewRequest(client, {}), error => error instanceof Error && "kind" in error && error.kind === "auth" && !error.message.includes("private"));
@@ -332,15 +460,15 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
   try {
     const directory = lifecycleFixture(root, "fixture.reload", code("first"));
     await host.invoke("register", { directory });
-    const trust = async () => host.invoke("trust", { id: "fixture.reload", digest: (await host.list())[0]!.digest });
+    const trust = async () => host.invoke("trust", { id: "fixture.reload", registrationId: (await host.list())[0]!.registrationId });
     await trust(); await host.invoke("enable", { id: "fixture.reload" });
     const first = (await host.list())[0]!.status!.message;
     assert.notEqual(first.split(':')[1], String(process.pid));
     writeFileSync(path.join(directory, "host.js"), code("second"));
-    await assert.rejects(host.invoke("reload", { id: "fixture.reload" }), /trust/);
+    await host.invoke("reload", { id: "fixture.reload" });
     assert.equal(readFileSync(marker, "utf8"), "disposed");
-    assert.equal((await host.list())[0]!.running, false);
-    await trust(); await host.invoke("reload", { id: "fixture.reload" });
+    assert.equal((await host.list())[0]!.running, true);
+    await host.invoke("reload", { id: "fixture.reload" });
     const second = (await host.list())[0]!.status!.message;
     assert.match(second, /^second:/); assert.notEqual(first.split(':')[1], second.split(':')[1]);
     writeFileSync(path.join(directory, "host.js"), "throw new Error('private error')");
@@ -375,7 +503,7 @@ test("a stalled write times out as uncertain; failed disposal can recover on the
     manifest.contributes.operations = [{id:'write',version:1,effect:'write',scope:'host',inputSchema:{type:'object'},outputSchema:{type:'object'}}];
     writeFileSync(file, JSON.stringify(manifest));
     await host.invoke("register", {directory});
-    await host.invoke("trust", {id:'fixture.timeout',digest:(await host.list())[0]!.digest});
+    await host.invoke("trust", {id:'fixture.timeout',registrationId:(await host.list())[0]!.registrationId});
     await host.invoke("enable", {id:'fixture.timeout'});
     await assert.rejects(host.invoke("reload", {id:'fixture.timeout'}), /disposal failed/);
     assert.equal((await host.list())[0]!.running, false);
@@ -397,7 +525,7 @@ test("Host shutdown closes every child even when one dispose fails", async () =>
     for (const [id, dispose] of [['fixture.bad', "throw new Error('private')"], ['fixture.good', `writeFileSync(${JSON.stringify(marker)},'done')`]]) {
       const directory = lifecycleFixture(root, id!, `import {writeFileSync} from 'node:fs'; export function activate(){return {operations:{},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){${dispose}}}}`);
       await host.invoke('register', {directory});
-      await host.invoke('trust', {id, digest:(await host.list()).find(p=>p.id===id)!.digest});
+      await host.invoke('trust', {id, registrationId:(await host.list()).find(p=>p.id===id)!.registrationId});
       await host.invoke('enable', {id});
     }
     await assert.rejects(host.close(), /cleanup failed/);
@@ -425,7 +553,7 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
     writeFileSync(file,JSON.stringify(manifest));
     await host.invoke('register',{directory});
     await assert.rejects(host.invoke('enable',{id:'fixture.secret'}),/trust/);
-    await host.invoke('trust',{id:'fixture.secret',digest:(await host.list())[0]!.digest});
+    await host.invoke('trust',{id:'fixture.secret',registrationId:(await host.list())[0]!.registrationId});
     assert.deepEqual(reads, []);
     await host.invoke('enable',{id:'fixture.secret'});
     assert.deepEqual((await host.invokeOperation('fixture.secret.read',{})).result,{version:1});
@@ -486,7 +614,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "0.1.0"')); writeFileSync(entry, source);
     await executePluginTool(host, { action: "register", directory }, e => activity.push(e));
     assert.deepEqual(activity.at(-1), { action: "register", id, outcome: "success" });
-    const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
+    const trust = async () => host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
     await trust(); await host.invoke("enable", { id });
     assert.deepEqual((await host.invokeOperation(`${id}.greet`, { name: "World" })).result, { greeting: "Hello, World!" });
     writeFileSync(entry, source.replace('Hello, ', 'Welcome, '));
@@ -544,7 +672,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
     writeFileSync(path.join(dependency, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
     writeFileSync(path.join(dependency, "index.js"), "export const value = 'dependency';");
     await host.invoke("register", { directory });
-    const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
+    const trust = async () => host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
     await trust(); await host.invoke("enable", { id });
     assert.match((await host.list())[0]!.status!.message, /okay\/local\/dependency$/);
     // Keep the link outside the artifact: artifact admission independently rejects links.
@@ -654,7 +782,7 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
       m.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "object", required: ["id", "defaultCandidate"], additionalProperties: false, properties: { id: { type: "string" }, defaultCandidate: { type: "boolean" } } } }];
       writeFileSync(file, JSON.stringify(m));
       await host.invoke("register", { directory });
-      await host.invoke("trust", { id, digest: (await host.list()).find(p => p.id === id)!.digest });
+      await host.invoke("trust", { id, registrationId: (await host.list()).find(p => p.id === id)!.registrationId });
     }
     await host.setSecret("fixture.a", "pat", "id"); await host.setSecret("fixture.a", "other", "raw-log-private");
     await host.invoke("enable", { id: "fixture.a" }); await host.invoke("enable", { id: "fixture.b" });
@@ -672,7 +800,7 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
     await host.invoke("disable", { id: "fixture.a" }); await host.invoke("secret-delete", { id: "fixture.a", name: "pat" }); await host.invoke("enable", { id: "fixture.a" });
     await check("fixture.a", "replacement", "replacement");
     await host.invoke("unregister", { id: "fixture.a" });
-    await host.invoke("register", { directory: dirs[0] }); await host.invoke("trust", { id: "fixture.a", digest: (await host.list()).find(p => p.id === "fixture.a")!.digest }); await host.invoke("enable", { id: "fixture.a" });
+    await host.invoke("register", { directory: dirs[0] }); await host.invoke("trust", { id: "fixture.a", registrationId: (await host.list()).find(p => p.id === "fixture.a")!.registrationId }); await host.invoke("enable", { id: "fixture.a" });
     await check("fixture.a", "raw-log-private", "raw-log-private");
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -707,8 +835,9 @@ test("bundled defaults follow supply until an explicit choice; update verificati
     host = new PluginHost(state, { officialPlugins: supply }); await host.start();
     const status = (await host.list())[0]!;
     assert.equal(status.official, false); assert.equal(status.running, false); assert.match(status.error!, /verification/);
-    await assert.rejects(host.invoke("trust", { id: manifest.id, digest: status.digest }), /disabled/);
+    await assert.rejects(host.invoke("trust", { id: manifest.id, registrationId: status.registrationId }), /disabled/);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /verification/);
+    await assert.rejects(host.invoke("enable", { id: manifest.id, trust: true }), /disabled/);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -721,7 +850,7 @@ test("plugin service shutdown waits for startup and confirms the started child e
   const seed = new PluginHost(file, { officialPlugins: [] });
   try {
     await seed.invoke("register", { directory });
-    await seed.invoke("trust", { id: "fixture.start", digest: (await seed.list())[0]!.digest });
+    await seed.invoke("trust", { id: "fixture.start", registrationId: (await seed.list())[0]!.registrationId });
     await seed.invoke("enable", { id: "fixture.start" });
   } finally { await seed.close(); }
   const service = createPluginService(null, file);
@@ -760,7 +889,7 @@ test("health check publication enforces the SDK result even with a permissive pl
     manifest.contributes = { healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }] };
     writeFileSync(file, JSON.stringify(manifest));
     await host.invoke("register", { directory });
-    await host.invoke("trust", { id: manifest.id, digest: (await host.list())[0]!.digest });
+    await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id: manifest.id });
     const valid = await host.invokeOperation("fixture.health.connection", {});
     assert.deepEqual(valid.result, { ok: false, message: "Service unavailable" });
@@ -792,17 +921,33 @@ test("Jira artifact filters reject malformed dates/JQL controls and detail prese
   t.mock.method(globalThis, "fetch", async (url: string) => {
     const query = new URL(url).searchParams;
     assert.equal(query.get("jql"), "project = MOCK ORDER BY updated DESC");
+    assert.equal(query.get("fields"), "summary,status,assignee,reporter,created,updated,priority,issuetype,resolution,duedate,components,labels");
+    assert.equal(query.get("maxResults"), String(500 - Number(query.get("startAt"))));
     const startAt = Number(query.get("startAt")); offsets.push(startAt);
-    return new Response(JSON.stringify({ startAt, total: 3, issues: Array.from({length: startAt === 0 ? 2 : 1}, (_, i) => ({key: `MOCK-${startAt+i+1}`, fields:{summary:"Fixture"}})) }));
+    return new Response(JSON.stringify({ startAt, maxResults: 2, total: 4, issues: Array.from({length: startAt === 0 ? 2 : 1}, (_, i) => ({key: `MOCK-${startAt+i+1}`, fields:{summary:"Fixture", created:"2025-12-31T23:30:00.000+0000", updated:"2026-01-01T01:30:00.000+0000", duedate:"2026-01-02"}})) }));
   });
-  assert.deepEqual((await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"})).map((r: any) => r.key), ["MOCK-1", "MOCK-2", "MOCK-3"]);
-  assert.deepEqual(offsets, [0, 2]);
+  const rows = await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"});
+  assert.deepEqual(rows.map((r: any) => r.key), ["MOCK-1", "MOCK-2", "MOCK-3", "MOCK-4"]);
+  const localTime = (value: string) => {
+    const d = new Date(value), pad = (v: number) => String(v).padStart(2, "0");
+    return `${pad(d.getFullYear() % 100)}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  assert.equal(rows[0].created, localTime("2025-12-31T23:30:00Z"));
+  assert.equal(rows[0].updated, localTime("2026-01-01T01:30:00Z"));
+  assert.ok(rows[0].created < rows[0].updated);
+  assert.equal(rows[0].dueDate, "26-01-02");
+  assert.equal(rows[0].assignee, "—");
+  assert.deepEqual(offsets, [0, 2, 3]);
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({errorMessages:["RAW-JIRA-SENTINEL"]}), {status:400}));
   await assert.rejects(plugin.operations.jql({jql:"project ="}), (e: any) => e.kind === "failed" && !e.message.includes("SENTINEL"));
   body = { key: "MOCK-1", fields: { description: null } };
   t.mock.method(globalThis, "fetch", async (url: string) => new Response(JSON.stringify(url.includes("/comment?") ? { startAt: 0, total: 0, comments: [] } : body)));
   const detail = await plugin.operations.detail({ key: "MOCK-1" });
   assert.equal(detail.description, ""); assert.equal(detail.commentsTotal, 0); assert.equal(detail.commentsReturned, 0);
+  t.mock.method(globalThis, "fetch", async (url: string) => new Response(JSON.stringify(url.includes("/comment?") ? { startAt: 0, total: 1, comments: [{ id: "1", body: "Comment", created: "2026-01-01T01:30:00.000+0000", updated: "2026-01-01T02:30:00.000+0000" }] } : body)));
+  const withComment = await plugin.operations.detail({ key: "MOCK-1" });
+  assert.equal(withComment.comments[0].created, localTime("2026-01-01T01:30:00Z"));
+  assert.equal(withComment.comments[0].updated, localTime("2026-01-01T02:30:00Z"));
   body.fields.description = {};
   await assert.rejects(plugin.operations.detail({ key: "MOCK-1" }));
 });
@@ -822,12 +967,14 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
     await host.invoke("register", { directory });
     const digest = (await host.list())[0]!.digest!;
     assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
-    await host.invoke("trust", { id: manifest.id, digest });
+    await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId, digest });
     assert.equal(host.icon(manifest.id, digest).mime, "image/svg+xml");
     assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
     writeFileSync(icon, svg.replace('blue', 'red'));
     assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
-    assert.equal((await host.list())[0]!.iconDigest, undefined);
+    const updatedDigest = (await host.list())[0]!.digest!;
+    assert.equal((await host.list())[0]!.iconDigest, updatedDigest);
+    assert.equal(host.icon(manifest.id, updatedDigest).mime, "image/svg+xml");
     rmSync(icon); const linked = path.join(directory, "linked");
     symlinkSync(directory, linked, "junction");
     await assert.rejects(host.invoke("register", { directory }), /linked/);
@@ -838,6 +985,81 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
     png.writeUInt32BE(257, 16); writeFileSync(path.join(directory, "icon.png"), png);
     await assert.rejects(host.invoke("register", { directory }), /dimensions/);
     writeFileSync(path.join(directory, "icon.png"), "not png"); await assert.rejects(host.invoke("register", { directory }), /PNG/);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("suggestion admission and generic CLI invocation share validated results", async () => {
+ const root=mkdtempSync(path.join(os.tmpdir(),"litzio-suggestions-"));
+ const host=new PluginHost(path.join(root,"state.json"),{officialPlugins:[]});
+ const directory=path.join(root,"artifact");mkdirSync(directory);
+ const operations=[{id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"}},{id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}}];
+ writeFileSync(path.join(directory,"litzio-plugin.json"),JSON.stringify({schemaVersion:1,id:"fixture.people",tier:"community",publisher:{id:"fixture",name:"Fixture"},name:"Fixture",version:"0.1.0",requiresSdk:"^0.3.0",entry:"host.js",contributes:{operations}}));
+ writeFileSync(path.join(directory,"package.json"),JSON.stringify({type:"module",version:"0.1.0"}));
+ writeFileSync(path.join(directory,"host.js"),`export function activate(){return {operations:{search:()=>[],people:({query})=>query==='bad'?[{value:'missing label'}]:[{value:'id',label:'Example person'}]},status:()=>({available:true,message:'',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+ try {
+  await host.invoke("register",{directory});
+  await host.invoke("trust",{id:"fixture.people",registrationId:(await host.list())[0]!.registrationId});
+  await host.invoke("enable",{id:"fixture.people"});
+  assert.deepEqual(host.viewOperations().find(op=>op.operation==='fixture.people.search')?.inputSuggestions,{person:{operation:'fixture.people.people',version:1}});
+  const input={operation:"fixture.people.people",version:1,input:{query:"ex"}};
+  for(const action of ["invoke","suggest"]) assert.deepEqual((await host.invoke(action,input) as any).result,[{value:"id",label:"Example person"}]);
+  await assert.rejects(host.invoke("suggest",{...input,version:2}),/unavailable/);
+  assert.equal((await host.invoke("invoke",{...input,input:{query:"bad"}}) as any).receipt.outcome,"failure");
+  await assert.rejects(host.invoke("suggest",{operation:"fixture.people.search",input:{}}),/unavailable/);
+ } finally { await host.close();rmSync(root,{recursive:true,force:true}); }
+});
+
+
+test("registration trust survives updates and restart, but not removal", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-registration-trust-"));
+  const file = path.join(root, "state.json");
+  let host = new PluginHost(file, { officialPlugins: [] });
+  try {
+    const directory = lifecycleFixture(root, "fixture.trust"), id = "fixture.trust";
+    await host.invoke("register", { directory });
+    const originalRegistration = (await host.list())[0]!.registrationId;
+    assert.equal((await host.list())[0]!.trusted, false);
+    await assert.rejects(host.invoke("enable", { id }), /trust/);
+    assert.equal((await host.list())[0]!.trusted, false);
+    await host.invoke("enable", { id, registrationId: (await host.list())[0]!.registrationId, trust: true });
+    assert.equal((await host.list())[0]!.trusted, true);
+    assert.equal((await host.list())[0]!.running, true);
+    writeFileSync(path.join(directory, "update.txt"), "updated");
+    assert.equal((await host.list())[0]!.trusted, true);
+    await host.invoke("reload", { id });
+    await host.close(); host = new PluginHost(file, { officialPlugins: [] });
+    await host.start();
+    assert.equal((await host.list())[0]!.running, true);
+    assert.equal((await host.list())[0]!.registrationId, originalRegistration);
+    await host.invoke("unregister", { id });
+    await host.invoke("register", { directory });
+    const approval = (await host.list())[0]!;
+    assert.equal(approval.trusted, false);
+    await host.invoke("unregister", { id });
+    await host.invoke("register", { directory });
+    assert.equal((await host.list())[0]!.trusted, false);
+    await assert.rejects(host.invoke("enable", { id }), /trust/);
+    const replacement = (await host.list())[0]!;
+    assert.notEqual(replacement.registrationId, approval.registrationId);
+    assert.equal(replacement.digest, approval.digest, "identical bytes still belong to a new registration");
+    const unchanged = readFileSync(file, "utf8");
+    for (const action of ["trust", "enable"]) {
+      await assert.rejects(host.invoke(action, { id, registrationId: approval.registrationId, ...(action === "enable" ? { trust: true } : {}) }), /registration changed/i);
+      assert.equal(readFileSync(file, "utf8"), unchanged);
+    }
+    await assert.rejects(host.invoke("enable", { id, trust: true }), /registration changed/i);
+    assert.equal((await host.list())[0]!.trusted, false);
+    assert.equal((await host.list())[0]!.running, false);
+    await host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
+    const beforeReplacement = (await host.list())[0]!;
+    const other = path.join(root, "other"); mkdirSync(other);
+    const replacementDirectory = lifecycleFixture(other, id);
+    await host.invoke("register", { directory: replacementDirectory });
+    await assert.rejects(host.invoke("enable", { id, registrationId: beforeReplacement.registrationId, trust: true }), /registration changed/i);
+    assert.equal((await host.list())[0]!.trusted, false);
+    const fresh = (await host.list())[0]!;
+    await host.invoke("enable", { id, registrationId: fresh.registrationId, trust: true });
+    assert.equal((await host.list())[0]!.running, true);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

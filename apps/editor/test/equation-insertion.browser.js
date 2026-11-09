@@ -3,7 +3,7 @@
 async (page, { expect }) => {
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const saved = clone(loaded);
   const baselineEquationCount = saved.document.blocks.filter(block => block.block === 'equation').length;
   const baselineParagraphCount = saved.document.blocks.filter(block => block.block === 'paragraph' && block.editable).length;
