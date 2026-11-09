@@ -9,7 +9,7 @@
 
 ## 배경과 근거
 
-2026-11-06 동적 뷰의 새 정의와 두 데이터 종류에 관한 소유자 결정은 아래 [개정안](#동적-뷰-재정의-개정안-2026-11-06)에 정리했다. 해당 절은 Proposed이며 기존 구현 완료를 뜻하지 않는다.
+2026-11-06 동적 뷰의 새 정의와 두 데이터 종류에 관한 소유자 결정은 아래 [개정안](#동적-뷰-재정의-개정안-2026-11-06)에 정리했다. 당시 Proposed였던 이 절은 #1341에서 종료한 Historical 기록이다. 현재 플러그인 화면·조회·표 계약은 [플러그인 화면 계약](../design/plugin-screens-v1.md)을 따른다.
 
 네 사례(OneDrive, GitHub/GitLab, Docling, Jira)를 같은 제작·실행·표시·저장 계약으로 설명한다. 특정 기능을 먼저 제품에 심고 나중에 플러그인으로 일반화하지 않는다. 문서 의미는 Core, 실행·연결·자격 증명은 대상 Host, 렌더러는 앱이 소유한다.
 
@@ -34,7 +34,7 @@ packages/plugin-sdk/           # manifest·공용 작업·기여 타입/검증�
 packages/core/src/views/       # 공통 UI 명세·뷰 의미/검증/canonical JSON (뷰 단계)
 apps/editor/server/plugins/    # 설치·신뢰·상태·로딩·작업 연결
 apps/editor/src/plugins/       # 앱 번들 설정·계정·폴더 기여 표시
-apps/editor/src/views/         # 생성 UI와 저장 뷰의 공통 앱 렌더러 (뷰 단계)
+apps/editor/src/views/         # 플러그인 기본 화면·공통 렌더러 (당시 생성·저장 뷰 단계는 #1341에서 종료)
 plugins/onedrive/              # 공식; 공개 SDK만 사용
 community repository/         # manifest, package.json, src/host.ts, test/, dist/host.js
 ```
@@ -75,7 +75,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 
 **2026-11-05 개정:** 최초 in-process 결정은 daemon 하위 프로세스의 trusted Node 코드로 대체한다. 아래 비서 제작 로드맵의 reload 계약을 따른다. 설치 목록·상태·일반 설정은 그 Host가 소유하며 임의 폴더 자동 탐색은 하지 않는다. installed/trusted/enabled/available/running을 구분한다. 커뮤니티는 설치 직후 실행 차단하고 **명시적 신뢰와 활성화가 모두 있어야** entry를 import한다. 신뢰는 설치 산출물 digest에 연결하고 변경된 산출물은 다시 확인한다.
 
-활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 일반 operation은 drain하며, K1 파일 작업은 [1단계 계약](../design/plugin-stage1-v1.md#k1-파일-작업)에 따라 중단을 요청하고 미확정 상태는 uncertain으로 남긴다. 설정·secret·저장 뷰·열린 문서는 보존하고 해당 source만 사용 불가로 표시한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon은 재시작하지 않는다. 실패하면 오류를 표시하고 실패 상태로 남긴다. 안전한 폭주 정지는 보장하지 않는다.
+활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 일반 operation은 drain하며, K1 파일 작업은 [1단계 계약](../design/plugin-stage1-v1.md#k1-파일-작업)에 따라 중단을 요청하고 미확정 상태는 uncertain으로 남긴다. 설정·secret·열린 문서는 보존하고 해당 source만 사용 불가로 표시한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon은 재시작하지 않는다. 실패하면 오류를 표시하고 실패 상태로 남긴다. 안전한 폭주 정지는 보장하지 않는다.
 
 요청·결과·receipt는 [ADR-0018](0018-desktop-remote-hosts.md)의 대상 Host 고정을 따른다. 원격 폴더·계정은 원격 Host OS 계정의 것이다. 제품 버전 차이 경고·프로토콜 불일치 거부도 유지한다.
 
@@ -102,7 +102,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 | 폴더 장식 | 정확한 폴더 identity와 번들 icon key | 자식 전체 자동 장식·원격 실행 자산 없음 |
 | 설정·계정 | JSON Schema form·설명·상태 작업 | 신뢰/활성/가용성·라벨·secret 설정 여부; 임의 React 코드 없음 |
 | 기본 UI | 모든 플러그인에 항상 제공하는 앱 번들 컴포넌트의 선언형 검색 폼·결과 표 등 | 동적 UI로 영구 교체하거나 저장 뷰로 덮어쓰지 않음 |
-| 데이터 뷰 | 읽기 작업 결과 schema와 공통 UI 명세 | 앱 카탈로그의 Table·BarChart·세로 패널부터 |
+| 데이터 뷰 | 읽기 작업 결과 schema와 공통 UI 명세 | 현재 Table·세로 패널; 당시 BarChart 계획은 #1341에서 종료 |
 | 기본 화면 조회 | 공통 `view.validate/run`, manifest의 기본 정의 | 저장 뷰 파일·별도 dashboard DB 없음 |
 
 `plugins list/register/trust/enable/disable/settings`, `operation invoke <id> --input <file> --host <target> --json`을 같은 정의로 연결한다. 비서는 **설치·신뢰·활성화·비활성화·설정**을 제어할 수 있어야 한다. 관리 작업은 `assistant` opt-in 여부를 이유로 모두 감추지 않고 공용 정의에서 비서 도구를 제공한다. **2026-11-05 개정:** 건마다 받던 명시 승인은 제거하며, 대상 Host·플러그인·변경 내용과 결과를 사용자에게 보이는 활동 기록으로 남긴다. 비서는 digest 신뢰 단계를 실행할 수 있지만 제품에 고정된 공식 공급 목록은 바꾸지 못한다. secret 값 변경은 사용자 직접 설정 UI 경로를 따른다.
@@ -132,7 +132,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 | 단계 | 최소 범위 | 완료 근거·제한 |
 | --- | --- | --- |
 | 1: OneDrive | 최소 manifest/SDK, 로컬 등록·Host 켜기/끄기, 폴더·아이콘·상태·설정·CLI·승인받는 관리 도구 | 실제 Windows 단일/복수/없는 폴더, CLI/UI 일치·기존 폴더 보존, 커뮤니티 신뢰 차단·관리별 승인 검증. secret·생성 UI·범용 job system은 만들지 않음 |
-| 2: Jira 한 조회 | Windows secret, 읽기 작업, 공통 Table·BarChart·생성 UI와 저장/재실행 | 실제 PAT/API·비서 adapter, CLI/UI 데이터 일치, 같은 렌더러·LLM 없는 재열기, Host 혼선 거부·secret 비노출·오류·저장 이름 충돌. 스냅샷 export는 실제 요구 시 추가 |
+| 2: Jira 한 조회 (과거 계획; 생성·저장·Chart 범위는 #1341에서 종료) | Windows secret, 읽기 작업, 공통 Table·BarChart·생성 UI와 저장/재실행 | 실제 PAT/API·비서 adapter, CLI/UI 데이터 일치, 같은 렌더러·LLM 없는 재열기, Host 혼선 거부·secret 비노출·오류·저장 이름 충돌. 스냅샷 export는 실제 요구 시 추가 |
 | 3: 외부 제작·사례 확장 | 독립 checkout의 SDK build/register, Docling 최소 변환·검수, GitHub/GitLab 한 조회씩 | 내부 import 없는 설치·실행, valid write·원본 보존, 장기 작업 실패/uncertain·실제 변환 품질. 부족 계약만 그때 추가 |
 
 **그래서 무엇이 안 되는가:** Accepted·#1075 참조를 구현 재개·보류 해제·릴리스 승인으로 해석하지 않는다. OneDrive 성공으로 전체 SDK·저장 뷰·외부 제작 가능성을 완료 선언하지 않는다. CopilotKit/AG-UI/A2UI 전체 채택도 이번에 결정하지 않는다.
@@ -186,7 +186,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 
 ### 하위 프로세스 reload와 제작 키트
 
-플러그인은 daemon의 하위 프로세스에서 실행한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon을 재시작하지 않는다. reload 실패는 실패 상태와 오류로 남기고 성공으로 숨기지 않는다. 진행 작업의 drain·uncertain/no-replay, 설정·secret·저장 뷰·문서 보존은 유지한다.
+플러그인은 daemon의 하위 프로세스에서 실행한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon을 재시작하지 않는다. reload 실패는 실패 상태와 오류로 남기고 성공으로 숨기지 않는다. 진행 작업의 drain·uncertain/no-replay, 설정·secret·문서 보존은 유지한다. 저장 뷰 보존 서술은 #1341 이전의 기록이다.
 
 제작 키트는 **비서용 플러그인 제작 스킬과 `plugins scaffold/validate/reload` 공용 작업**이다. 스킬은 공개 SDK·manifest·기여·검증·기본 UI·오류 확인 절차를 안내하고 세 작업은 ADR-0015의 입력·결과·범위·receipt 및 CLI를 함께 제공한다. validate는 실행 전 선언·패키지·schema 경계를 확인하며 코드 안전성을 증명하지 않는다.
 

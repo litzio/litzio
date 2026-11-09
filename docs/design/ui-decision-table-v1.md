@@ -257,3 +257,13 @@ Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내
 ## PDF reading choice (#1337)
 
 Explorer PDF activation uses the existing task tab rather than the transient image dialog: multiple pages require sustained reading and navigation. DocumentTabs, Button, Tooltip, Input and Notice are reused. The source paper remains white in dark mode; only the surrounding surface follows theme. The fixed `--id-color-pdf-paper` role expresses this approved source-color exception and adds no common interaction. Behavior and limits: [shell contract](editor-ux-shell-v1.md#read-only-pdf-tabs-1337), [Host boundary](filesystem-host-boundary-v1.md#pdf-byte-preview-1337).
+
+
+## 플러그인 입력 후보 (#1352)
+
+자유 입력 + 서버 후보는 Base UI Autocomplete를 사용한다. QueryInputs의 기존 Input
+render와 label·FieldError·지우기 버튼을 재사용한다. popup은 Popover와 같은 token·portal·
+경계 충돌 배치를 사용하며 목록과 키보드 동작은 Base UI가 소유한다. 자체 키보드 처리는 없다.
+상태 안내나 설명 표면을 추가하지 않으며 후보 실패는 입력을 막지 않는다. 기존 Settings의
+고정 선택과 조회 Select는 유지한다. 새 공통 상호작용의 예외는 없고 소유자 승인 범위의
+Autocomplete adapter만 추가한다. 동작은 [입력 후보 계약](plugin-stage1-v1.md#입력-후보-1352-sdk-030)을 따른다.

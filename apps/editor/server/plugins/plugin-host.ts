@@ -1,3 +1,4 @@
+import { inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
 import { OFFICIAL_PLUGINS, type OfficialPlugin } from "./official-plugins.ts";
@@ -239,7 +240,7 @@ export class PluginHost {
   viewOperations(): ViewOperation[] {
     return [...[...this.loaded.values()].flatMap(live => live.manifest.contributes.operations
       .filter(op => op.effect === "read" && op.rowSchema)
-      .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
+      .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, ...(op.inputSuggestions ? { inputSuggestions: Object.fromEntries(Object.entries(op.inputSuggestions).map(([field, target]) => [field, { operation: `${live.manifest.id}.${target}`, version: live.manifest.contributes.operations.find(candidate => candidate.id === target)!.version }])) } : {}), validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
   }
   /** The loaded manifest owns identity; never infer plugin IDs by splitting operation names. */
   viewOperationOwner(operation: string): string | undefined {
@@ -269,15 +270,22 @@ export class PluginHost {
     const run = Promise.resolve().then(() => live.instance.operations[op.id]!(input)); live.pending.add(run);
     try {
       const result = publicOperationResult(op, await run, this.secretValues(live.manifest.id));
+      if (live.manifest.contributes.operations.some(source => Object.values(source.inputSuggestions ?? {}).includes(op.id))) inputSuggestionResultsSchema.parse(result);
       if (live.manifest.contributes.healthCheck === op.id) healthCheckResultSchema.parse(result);
       return { result, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "success" } };
     } catch (error) {
       return { ...publicOperationError(error, op.effect), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
+  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action.startsWith("job-")) return this.jobs.execute({ action, ...args });
+    if (action === "suggest") {
+      const live = [...this.loaded.values()].find(live => live.manifest.contributes.operations.some(source => Object.values(source.inputSuggestions ?? {}).some(target => `${live.manifest.id}.${target}` === args.operation)));
+      const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === args.operation);
+      if (!op || op.effect !== "read" || args.version !== op.version) return Promise.reject(new Error("Suggestion operation unavailable"));
+      return this.invokeOperation(args.operation!, args.input, undefined, false, op.version);
+    }
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));

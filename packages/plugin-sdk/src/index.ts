@@ -13,11 +13,12 @@ export const SDK_VERSION = "0.3.0";
 // The current Host retains earlier contracts.
 const supportedSdkVersions = ["0.1.0", "0.2.0", SDK_VERSION];
 export const healthCheckResultSchema = z.strictObject({ ok: z.boolean(), message: z.string().min(1).max(300) });
+export const inputSuggestionResultsSchema = z.array(z.strictObject({ value: z.string().min(1).max(512).regex(/^[^\r\n]+$/), label: z.string().min(1).max(512) })).max(32).refine(items => new Set(items.map(item => item.value)).size === items.length, "Duplicate suggestion value");
 export type HealthCheckResult = z.infer<typeof healthCheckResultSchema>;
 export const HEALTH_CHECK_OUTPUT_SCHEMA = { type: "object", properties: { ok: { type: "boolean" }, message: { type: "string", minLength: 1, maxLength: 300 } }, required: ["ok", "message"], additionalProperties: false } as const;
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
-const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional() });
+const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional(), inputSuggestions: z.record(z.string(), id).optional() });
 const extension = z.string().regex(/^\.[a-z0-9]+$/);
 const jobFields = { id, title: z.string().min(1), accept: z.array(extension).min(1), start: id, status: id, stop: id };
 const jobContributionSchema = z.discriminatedUnion("resultKind", [
@@ -78,6 +79,14 @@ export function validateManifest(input: unknown): PluginManifest {
       !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Link columns require SDK 0.3.0 or later in requiresSdk");
   compileSchema(m.settingsSchema);
   for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileViewInputSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
+  for (const source of m.contributes.operations) for (const [field, target] of Object.entries(source.inputSuggestions ?? {})) {
+    if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Input suggestions require SDK 0.3.0");
+    const properties = source.inputSchema.properties as Record<string, any> | undefined;
+    const property = properties?.[field];
+    const candidate = m.contributes.operations.find(op => op.id === target);
+    if (source.effect !== "read" || !source.rowSchema || !property || property.type !== "string" || property.secret || property.writeOnly || property.format || property.enum || property.const !== undefined) throw new Error("Suggestions require a public free-text query field");
+    if (!candidate || candidate.effect !== "read" || candidate.scope !== "host" || !compileSchema(candidate.inputSchema)({ query: "example" }) || m.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(target)) || m.contributes.reviews.some(review => Object.values(review).some(binding => typeof binding === "object" && binding.operation === `${m.id}.${target}`))) throw new Error("Suggestions require a standalone host read operation accepting query");
+  }
   const viewOperations: ViewOperation[] = m.contributes.operations.filter(op => op.effect === "read" && op.rowSchema).map(op => ({
     operation: `${m.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: compileViewInputSchema(op.inputSchema),
   }));

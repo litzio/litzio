@@ -29,6 +29,14 @@ Core `validateViewInputs`의 static 검증은 폼에 선언한 필수 입력의 
 
 화면을 열 때는 조회하지 않는다. 사용자의 새로고침·Submit만 Host 실행을 요청한다. idle/loading/success/empty/needs-input/failure/uncertain/unavailable을 구분한다. 이전 결과가 있을 때 오류·입력 변경·재조회 중에는 이전 결과임을 시각과 함께 표시한다. field 오류는 고정 조언을 쓰며 원문·입력 값·secret을 노출하지 않는다. Source 오류 분류는 [공용 작업 실패](plugin-stage1-v1.md#작업-실패-공개-분류-1233)를 따른다. 취소·교체 뒤 늦은 응답은 결과를 되살리지 못한다.
 
+## Plugin input suggestions (#1352)
+
+TextInput optionally consumes its source operation's catalog `inputSuggestions` metadata.
+Bindings are owned and validated by the plugin manifest, not persisted in form definitions.
+The shared Host operation/CLI contract and request lifetime are defined in
+[plugin input suggestions](plugin-stage1-v1.md#입력-후보-1352-sdk-030).
+Other scalar controls and the manual query action retain their behavior.
+
 ## 공통 Table과 링크
 
 DataTable은 읽기 전용이며 열별 정렬·필터·pagination과 입력 순서의 안정성을 소유한다. null은 빈 값, 0·false는 값이다. 표 내부 가로 스크롤로 모든 열을 유지하고 최소 640px 창에서 페이지 자체의 가로 넘침을 만들지 않는다. 화면의 정렬·필터는 operation args 또는 문서 의미를 바꾸지 않는다. [Table 패턴](ui-patterns-v1.md#데이터-표-정렬필터-제안)을 따른다.
@@ -55,4 +63,4 @@ Core·SDK는 schema와 입력·행·링크 의미, Host/CLI 검사는 같은 arg
 
 [1440px 제거 표면](assets/plugin-screens-1341/removed-surfaces-1440.png)에서 왼쪽 문서 통계와 오른쪽 Views 탭이 없고 기존 문서 탐색만 남음을 확인했다. [1440px 플러그인 진입](assets/plugin-screens-1341/plugin-screen-1440.png)과 [640px 한국어 다크](assets/plugin-screens-1341/plugin-screen-640-ko-dark.png)는 기본 입력 폼·수동 조회 진입을 유지한다. 정렬·간격·한 열 전환과 페이지 가로 넘침을 확인했다. manifest 제공 영문 label은 그대로 표시된다. 합성 카탈로그·문서와 기존 persistent Chrome을 사용한 로컬 화면이며 실제 Jira/Docling 서비스나 AI 응답의 수락 증거는 아니다. Host 계정은 촬영 시 mask했다.
 
-실제 커뮤니티 artifact와 합성 서비스의 [Docling 1440px](assets/plugin-screens-1341/docling-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/docling-640-ko-dark.png), [Jira 0.0.3 표·링크 1440px](assets/plugin-screens-1341/jira-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/jira-640-ko-dark.png)도 확인했다. 열린 폴더 없는 수동 연결 조회와 Jira 입력·표·링크가 유지된다. Host 계정/경로는 mask했고 화면의 계정·이슈 값은 합성 fixture다. 실제 외부 서비스 연결·문서 변환 품질의 근거로 사용하지 않는다.
+실제 커뮤니티 artifact와 합성 서비스의 [Docling 0.0.2 작업 패널 1440px](assets/plugin-screens-1341/docling-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/docling-640-ko-dark.png), [Jira 0.0.3 표·링크 1440px](assets/plugin-screens-1341/jira-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/jira-640-ko-dark.png)도 확인했다. Docling은 설정 healthCheck로 폴더 없이 연결을 확인하며, 화면에는 작업 패널·파일별 결과·아이콘을 제공한다. 같은 Root를 다시 선택해도 파일 목록을 유지한다. Jira 입력·표·링크도 유지된다. Host 계정/경로는 mask했고 화면의 계정·이슈 값은 합성 fixture다. 실제 외부 서비스 연결·문서 변환 품질의 근거로 사용하지 않는다.
