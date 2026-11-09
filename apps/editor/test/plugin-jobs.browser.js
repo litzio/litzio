@@ -18,11 +18,11 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   expect(iconResponse.headers()["x-content-type-options"]).toBe("nosniff");
   await page.getByRole("button", { name: "Job fixture", exact: true }).click();
   await expect(page.locator('.document-tabs img.plugin-icon')).toHaveCount(1);
-  await expect.poll(() => page.locator('img.plugin-icon').evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 32))).toBe(true);
+  await expect.poll(() => page.locator('.sidebar img.plugin-icon, .document-tabs img.plugin-icon').evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 32))).toBe(true);
   if (screenshots) await page.screenshot({path:"tmp/1346/screen-1440.png", mask:[page.locator(".sidebar-host-account")]});
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
-  await expect(page.locator('.plugin-heading img.plugin-icon')).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'Job fixture', exact: true }).locator('.plugin-heading img.plugin-icon')).toHaveCount(1);
   if (screenshots) {
     await page.screenshot({path:"tmp/1346/settings-1440.png", mask:[page.locator(".sidebar-host-account")]});
     await page.getByRole("button", {name:"Appearance & language",exact:true}).click();
@@ -30,7 +30,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await page.getByTestId("ui-language").selectOption("ko");
     await page.getByRole("button", {name:"플러그인",exact:true}).click();
     await page.setViewportSize({width:640,height:900});
-    await expect(page.locator('.plugin-heading img.plugin-icon')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Job fixture', exact: true }).locator('.plugin-heading img.plugin-icon')).toBeVisible();
     await page.screenshot({path:"tmp/1346/settings-640-ko-dark.png", mask:[page.locator(".sidebar-host-account")]});
     await page.getByRole("tab", {name:"Job fixture",exact:true}).click();
     await expect(page.locator('.document-tabs img.plugin-icon')).toBeVisible();

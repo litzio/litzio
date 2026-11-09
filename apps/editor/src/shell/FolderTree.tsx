@@ -3,14 +3,13 @@ import { FileActionDialog, type FileAction, type FileActionHandler } from "./Fil
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent } from "react";
 import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
 import { fileDeletion } from "../host-capabilities.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "./folder-tree.ts";
-import { OneDriveIcon } from "../PluginSettings.tsx";
 
 type FolderTreeProps = {
   onCopyPath?(path: string): void;
@@ -18,7 +17,7 @@ type FolderTreeProps = {
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
-  decoration?: boolean;
+  decoration?: ReactNode;
   tree: FolderTreeState;
   focusFolder?: string | null;
   onFolderFocused?(): void;
@@ -124,7 +123,7 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
               aria-label={toggleName} title={toggleName} aria-expanded={tree.sectionExpanded} aria-controls={treeId}
               onClick={onToggleSection}><ChevronRight aria-hidden="true" /></Button>
           </span>
-          {decoration ? <OneDriveIcon /> : null}
+          {decoration}
           <span className="sidebar-tree-name" onClick={event => {
             // A double-click must not immediately undo its first toggle.
             if (event.detail <= 1) onToggleSection();

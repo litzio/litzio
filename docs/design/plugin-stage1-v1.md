@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1366: 2026-11-09 — SDK/OneDrive/Host·folder-tree tests, typecheck, CLI/Editor production build and HTTP folder/icon regressions; 1440px and Korean dark 640px before/after review. Real account synchronization is unverified.
 - Verification #1346: 2026-11-09 — SDK/Host icon validation and digest-trust tests, Editor typecheck, production CLI/Editor build, HTTP browser fixture with SVG script non-execution; 1440px and Korean dark 640px visual inspection. External plugin artwork/service adoption is unverified.
 - Verification #1334: 2026-11-09 — SDK 선언·기능 버전 거부, Host 고정 결과 검증, Vite 설정 성공/오류·비활성·정보 진입, production HTTP 사이드바·secret·복구 fixture, typecheck와 CLI build 확인. 외부 서비스 연결은 미검증.
 - Verification #1326: 2026-11-09 — K1 file 결과·공개 SDK·Host/CLI/browser fixture와 native/review 회귀, typecheck/build 확인. 실제 Docling 산출물 크기·변환 품질은 미검증.
@@ -19,13 +20,13 @@
 
 확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose?,approve?,reject?,undo?}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK v2 계약](generated-views-v1.md#catalog-v2-contract-layer-v1)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
 
-공용 작업은 id/version/effect/scope와 입력·결과 schema를 선언하고 같은 id의 handler를 연결한다. 1단계 기능 작업은 host scope만 지원하며 folder scope 선언은 미지원으로 거부한다. `activate(context)`는 operations/status/dispose를 반환한다. 미선언·누락 작업 handler는 활성화 실패다. 폴더 소스와 장식·계정은 선언한 기여의 상태 결과이며 앱 번들 아이콘만 표시한다. 폴더 열기는 기존 파일 Host가 검증한다. 문서 의미·공식 쓰기 경계는 변경하지 않는다.
+공용 작업은 id/version/effect/scope와 입력·결과 schema를 선언하고 같은 id의 handler를 연결한다. 1단계 기능 작업은 host scope만 지원하며 folder scope 선언은 미지원으로 거부한다. `activate(context)`는 operations/status/dispose를 반환한다. 미선언·누락 작업 handler는 활성화 실패다. 폴더 소스와 장식·계정은 선언한 기여의 상태 결과다. SDK 0.3.0의 `FolderDecoration.icon: "plugin"`은 해당 플러그인의 manifest `icon`을 사용하며 이미지가 없으면 장식을 생략한다. 폴더 열기는 기존 파일 Host가 검증한다. 문서 의미·공식 쓰기 경계는 변경하지 않는다.
 
 ## Host 상태와 호출
 
 대상 daemon의 Host 설정 루트에 별도 plugins.json을 기록한다. `LITZIO_DATA_DIR` 또는 `LITZIO_PLUGINS_SETTINGS_FILE`로 격리할 수 있다. 임의 디렉터리 자동 탐색, SQLite, migration과 자동 파일 감시 reload는 없다. 로컬 artifact 안의 파일을 digest로 묶고 패키지 밖 참조를 거부한다. 공식 공급 목록은 id·publisher와 제품이 검토한 artifact digest를 대조한다. 자칭 official 또는 변경 artifact는 공식 신뢰를 얻지 않는다.
 
-공식 번들 플러그인은 목록에 자동 표시되고 기본 상태는 공급 항목의 `defaultEnabled`(현재 `false`)를 따르며, 사용자의 명시적 선택이 우선한다. 외부 플러그인은 명시적으로 등록하고 list에서 확인한 digest를 trust한 뒤 enable한다. 사용자와 비서 모두 digest 신뢰 작업을 실행할 수 있다. 외부 artifact가 달라지면 새 digest를 trust한 뒤 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 보존한다. 단, 아래 OneDrive 자동 표시 폴더는 탐색기 목록에서 제거하며 원본 파일과 열린 탭은 보존한다. OS 권한 격리는 보장하지 않는다.
+공식 번들 플러그인은 목록에 자동 표시되고 기본 상태는 공급 항목의 `defaultEnabled`(현재 `false`)를 따르며, 사용자의 명시적 선택이 우선한다. 외부 플러그인은 명시적으로 등록하고 list에서 확인한 digest를 trust한 뒤 enable한다. 사용자와 비서 모두 digest 신뢰 작업을 실행할 수 있다. 외부 artifact가 달라지면 새 digest를 trust한 뒤 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 보존한다. 단, 아래 플러그인 자동 표시 폴더는 탐색기 목록에서 제거하며 원본 파일과 열린 탭은 보존한다. OS 권한 격리는 보장하지 않는다.
 
 플러그인마다 daemon의 Node 하위 프로세스 하나를 사용한다. Node IPC 채널의 요청 ID로 activate·invoke·status·dispose와 응답을 연결하며 stdout/stderr와 플러그인 예외 원문은 전달하지 않는다. 별도 bootstrap 파일 없이 번들 안의 고정 코드로 시작하므로 설치된 CLI도 같은 경로를 쓴다. 각 RPC 응답은 10초 후 실패하며 프로세스를 종료한다. 접수된 K1 백그라운드 작업 수명에는 이 제한이 적용되지 않는다. 읽기 실패는 failure, 쓰기 실패는 기존 uncertain receipt를 유지하고 자동 재전송하지 않는다.
 
@@ -57,9 +58,22 @@ settings는 --file 없이 현재 일반 설정을 조회한다. 일반 설정과
 
 Windows 환경 변수 OneDrive/OneDriveConsumer/OneDriveCommercial과 실재 폴더를 우선한다. HKCU Software/Microsoft/OneDrive/Accounts 직하위 계정의 UserFolder를 best-effort로 보완하며 중복 경로를 합친다. 조회 실패·불완전/없는 경로 수와 출처를 보존한다. UserEmail/DisplayName이 실제 조회된 경우만 표시하고, 그 밖에는 경로 기반 중립 라벨을 쓴다. raw 레지스트리 출력은 로그에 쓰지 않는다. SyncEngines, ini, WinRT, Graph/OAuth와 동기화 엔진은 사용하지 않는다. Linux 등 다른 OS에서는 지원하지 않음을 표시한다.
 
-폴더 감지는 로그인이나 동기화 상태의 증거가 아니다. 활성화된 OneDrive가 감지한 모든 폴더를 로컬 Explorer에 자동 표시한다. 기존 파일 Host의 폴더 검증·FolderTree를 재사용하고 기존 폴더·탭을 덮지 않는다. 자동 표시의 소유자는 앱의 폴더 상태이며 일반 열린 폴더 기억 목록에 저장하지 않는다. 비활성화하면 자동 표시한 폴더를 탐색기 목록에서 제거하며 디스크의 원본 폴더·문서와 열린 탭은 보존한다. 자동 상위 루트가 기존 수동 하위 폴더를 화면에서 합쳐 표시해도 수동 루트의 소유권·기억 목록·접힘/펼침 상태는 보존하고, 자동 루트 제거 시 수동 트리를 복원한다. 활성 상태에서 새로고침해도 일반 폴더 기억 목록으로 같은 수동 루트를 먼저 복원한다. 감지 루트 자체를 일반 폴더로 직접 추가한 뒤 비활성화하는 예외는 #1287 범위 밖이다. 앱의 플러그인 상태 조회는 가장 최근 시작한 요청의 결과·오류만 반영하고 관리 시작·구독 해제 시 이전 요청을 무효화한다. Host가 활성 상태로 생성한 응답의 전달이 비활성화 완료 뒤로 늦어져도 이전 폴더·토글을 복원하지 않는다. 수동 전후 캡처: [1440px Before](assets/onedrive-explorer-1287/before-1440.png) / [After](assets/onedrive-explorer-1287/after-1440.png), [640px 한국어 Dark Before](assets/onedrive-explorer-1287/before-640-ko-dark.png) / [After](assets/onedrive-explorer-1287/after-640-ko-dark.png). 같은 활성 상태와 격리된 두 후보를 수정 전·후 코드에서 촬영했다. 기존 FolderTree와 OneDrive 아이콘을 재사용하며 새 표면·공통 패턴 예외는 없다. 행 정렬·여백·패널 잘림과 한국어 줄바꿈을 확인했다.
+폴더 감지는 로그인이나 동기화 상태의 증거가 아니다. 활성화되어 실행 중인 플러그인이 status.folders로 알린 모든 폴더를 ID와 무관하게 로컬 Explorer에 자동 표시한다. OneDrive도 같은 경로를 사용한다. defaultCandidate는 기존처럼 빈 탐색기에서 단일 후보를 제안할 때만 쓰며 자동 표시는 모든 폴더에 적용한다. 기존 파일 Host의 폴더 검증·FolderTree를 재사용하고 기존 폴더·탭을 덮지 않는다. 자동 표시의 소유자는 앱의 폴더 상태이며 일반 열린 폴더 기억 목록에 저장하지 않는다. 비활성화하면 자동 표시한 폴더를 탐색기 목록에서 제거하며 디스크의 원본 폴더·문서와 열린 탭은 보존한다. 자동 상위 루트가 기존 수동 하위 폴더를 화면에서 합쳐 표시해도 수동 루트의 소유권·기억 목록·접힘/펼침 상태는 보존하고, 자동 루트 제거 시 수동 트리를 복원한다. 활성 상태에서 새로고침해도 일반 폴더 기억 목록으로 같은 수동 루트를 먼저 복원한다. 감지 루트 자체를 일반 폴더로 직접 추가한 뒤 비활성화하는 예외는 #1287 범위 밖이다. 앱의 플러그인 상태 조회는 가장 최근 시작한 요청의 결과·오류만 반영하고 관리 시작·구독 해제 시 이전 요청을 무효화한다. Host가 활성 상태로 생성한 응답의 전달이 비활성화 완료 뒤로 늦어져도 이전 폴더·토글을 복원하지 않는다. 수동 전후 캡처: [1440px Before](assets/onedrive-explorer-1287/before-1440.png) / [After](assets/onedrive-explorer-1287/after-1440.png), [640px 한국어 Dark Before](assets/onedrive-explorer-1287/before-640-ko-dark.png) / [After](assets/onedrive-explorer-1287/after-640-ko-dark.png). 같은 활성 상태와 격리된 두 후보를 수정 전·후 코드에서 촬영했다. 당시 기존 FolderTree와 내장 OneDrive 아이콘을 재사용했으며 새 표면·공통 패턴 예외는 없다. 행 정렬·여백·패널 잘림과 한국어 줄바꿈을 확인했다.
 
-장식은 정확한 루트에 번들 Microsoft Fluent UI OneDrive 로고을 사용하고 자식에게 전파하지 않는다.
+장식은 정확한 루트에 제공 플러그인의 manifest 아이콘을 사용하고(같은 루트에 여러 제공자가 있으면 목록의 첫 이미지 제공자), 자식에게 전파하지 않는다. OneDrive 0.1.1은 기존 Microsoft Fluent UI OneDriveLogoIcon 실루엣을 파란색(#0078D4) SVG로 제공한다. MIT 라이선스 고지를 플러그인 소스와 빌드 artifact에 포함하며 Editor 내장 OneDrive 아이콘은 없다. build가 manifest·아이콘·고지를 artifact에 복사하고 digest를 재생성한다.
+
+### 공통 폴더 기여와 아이콘 검증 (#1366)
+
+기존 `http-plugins`의 커뮤니티 fixture가 수동 폴더와 다른 폴더를 알리도록 보완했다. 변경 전 production 빌드는 두 루트 기대에 한 루트만 표시해 실패했고, 변경 후에는 자동 표시·장식 이미지 로드·비활성화 후 수동 폴더 보존을 검사한다. OneDrive 단위 검사는 일반화된 장식 값을 확인한다. 기존 `plugin-jobs`는 해당 플러그인의 탭·사이드바·설정 이미지 연결을 확인하며, 공식 OneDrive 이미지가 추가되어도 다른 플러그인 이미지와 혼동하지 않도록 행 범위를 명시한다. 새 시나리오·subprocess·전수 조합은 추가하지 않았다. 실제 계정 로그인·동기화 검증은 아니다.
+
+수동 전후 비교는 같은 두 격리 후보·활성 상태, Windows 설치형 Chrome의 checkout별 persistent profile, DPR 1·zoom 100%, 900px 높이에서 촬영했다. Before는 `2325f358`의 production 빌드이며 After는 #1366 구현이다. 목록과 이미지 로드를 기다린 뒤 촬영했고 Host 계정은 가렸다. 기존 FolderTree의 아이콘 칸과 설정 plugin-heading, 공통 PluginIcon을 재사용하며 예외는 없다. 1440px 영어 라이트와 640px 한국어 다크에서 세로 중심·여백·잘림·배지 줄바꿈과 파란 아이콘의 식별을 확인했다. 소유자의 최종 시각 승인을 대신하지 않는다.
+
+| 화면 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| Explorer 1440px | [Before](assets/folder-plugins-1366/before-explorer-1440.png) | [After](assets/folder-plugins-1366/after-explorer-1440.png) |
+| Explorer 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-explorer-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-explorer-640-ko-dark.png) |
+| Settings 1440px | [Before](assets/folder-plugins-1366/before-settings-1440.png) | [After](assets/folder-plugins-1366/after-settings-1440.png) |
+| Settings 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-settings-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-settings-640-ko-dark.png) |
 
 ## 검증 경계
 
@@ -352,7 +366,7 @@ Optional manifest `icon` (SDK 0.3.0) names one artifact-relative PNG or SVG file
 
 The entire artifact, including the icon, is digest-bound. GET `/api/plugins/icon?id=<plugin>&digest=<digest>` serves only the declared file of a registered artifact whose current digest is trusted (including official supply verification). It returns fixed image/png or image/svg+xml, nosniff and no-store; Content-Disposition attachment prevents standalone SVG document navigation. No arbitrary file path is accepted. Changes require trust of the new digest; no icon bytes are served on stale trust.
 
-Sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
+Explorer folder decorations, default folder suggestions, sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
 
 Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settings 1440](assets/plugin-icon-1346/settings-1440.png), [screen Korean dark 640](assets/plugin-icon-1346/screen-640-ko-dark.png), [settings Korean dark 640](assets/plugin-icon-1346/settings-640-ko-dark.png). Host identity is masked; no real external service is involved.
 

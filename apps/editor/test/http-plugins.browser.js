@@ -26,7 +26,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const response = await route.fetch();
     const value = await response.json();
     for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
-      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
+      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "plugin" })), accounts: [] };
     }
     if (delayed && value.plugins.some(plugin => plugin.id === "litzio.onedrive" && plugin.enabled)) {
       delayedResponses.push(value);
@@ -42,20 +42,37 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const beforeEnableLists = listRequests;
   await official.click(); await expect(official).toBeChecked();
   expect(listRequests).toBe(beforeEnableLists);
+  if (screenshots) {
+    await expect(page.locator(".plugin-heading .plugin-icon")).toBeVisible();
+    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
+    await page.screenshot({ path: "tmp/folder-1366/settings-1440.png", mask: [page.locator(".sidebar-host-account")] });
+  }
   await page.keyboard.press("Escape");
   if (screenshots) {
     await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
     await page.waitForLoadState("networkidle");
     await page.screenshot({ path: "tmp/onedrive-1287/enabled-1440.png", mask: [page.locator(".sidebar-host-account")] });
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
     await page.setViewportSize({ width: 640, height: 900 });
     await page.reload(); await page.waitForLoadState("networkidle");
+    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
     await page.screenshot({ path: "tmp/onedrive-1287/enabled-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByRole("button", { name: "플러그인", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
+    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+    await page.screenshot({ path: "tmp/folder-1366/settings-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.keyboard.press("Escape");
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
     await page.reload();
   }
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
-  await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(2);
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).toBeChecked();
   // Hold a completed Host GET in transport, then finish a later user disable first.
@@ -187,11 +204,15 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   // Escape exits Settings after the nested dialog has finished closing.
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
+  // Any running folder source opens automatically, before a manual folder action.
+  await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
+  await expect(page.locator(`[data-testid="folder"][data-root=${JSON.stringify(pluginFixture.otherFolder)}]`)).toBeVisible();
   await openFolderPicker(page);
   await page.getByTestId("folder-path").fill(pluginFixture.folder);
   await page.getByTestId("folder-open").click();
   await expect(page.getByTestId("folder-path")).not.toBeVisible();
-  await expect(page.getByLabel("OneDrive", { exact: true })).toBeVisible();
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toBeVisible();
+  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });
     if (screenshots) await page.screenshot({ path: `tmp/plugin-stage1/decoration-${width}.png` });
@@ -201,8 +222,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByRole("region", { name: "Drive fixture", exact: true }).getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(false);
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".sidebar-folder-name")).toContainText("fixture");
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(0);
+  await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
   // Actual detachable community artifact, same Host and CLI, one fake service.
