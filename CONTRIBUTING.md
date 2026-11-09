@@ -23,7 +23,7 @@ pnpm test
 pnpm --filter @litzio/editor build
 ```
 
-`pnpm editor`로 개발용 Visual Editor를 시작하고 `http://127.0.0.1:5173`을 연다. 별도 터미널의 `pnpm browser:test`가 실행 중인 dev server에 접속한다. 선택 실행과 수동 확인은 [검증 안내](docs/test/README.md), Windows의 profile/session 규칙은 [Windows browser automation](docs/contributing/windows-browser-automation.md)을 따른다. 작업 후 직접 시작한 서버와 세션을 정리한다.
+`pnpm editor`로 개발용 Visual Editor를 시작하고 `http://127.0.0.1:5173`을 연다. `pnpm browser:test`는 매번 빈 포트로 자기 서버를 시작한다. 기존 dev server에 붙이는 디버깅은 `LITZIO_BROWSER_URL`을 명시한다. 선택 실행과 수동 확인은 [검증 안내](docs/test/README.md), Windows의 profile/session 규칙은 [Windows browser automation](docs/contributing/windows-browser-automation.md)을 따른다. 작업 후 직접 시작한 서버와 세션을 정리한다.
 
 ## Before changing code
 

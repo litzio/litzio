@@ -29,7 +29,7 @@ CI quality는 문서 전용 PR과 merge group에서 문서·checker tests, diff/
 
 ```bash
 pnpm editor                          # 별도 터미널, 개발 서버
-pnpm browser:test                    # stable 전체
+pnpm browser:test                    # stable 전체, 실행별 빈 포트의 소유 서버
 pnpm browser:test save-session       # 관련 시나리오만 선택
 pnpm browser:test --shard=1/8         # CI의 8개 shard 중 하나
 ```

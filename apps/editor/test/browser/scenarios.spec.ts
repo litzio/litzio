@@ -21,7 +21,8 @@ import { recoveryRecords } from "./recovery-records.ts";
 import { inputEventScript } from "./input-event-script.ts";
 import { verifyBuiltAppearance } from "./desktop-appearance.ts";
 
-const url = process.env.LITZIO_BROWSER_URL ?? (process.env.LITZIO_BROWSER_HOST === "http" ? "http://127.0.0.1:5181" : "http://127.0.0.1:5173");
+const url = process.env.LITZIO_BROWSER_URL ?? process.env.LITZIO_BROWSER_SERVER_URL;
+if (!url) throw new Error("Run scenarios through pnpm browser:test to start an owned server.");
 const scenarios: string[] = process.env.LITZIO_BROWSER_SCENARIOS ? JSON.parse(process.env.LITZIO_BROWSER_SCENARIOS) : [...STABLE_SCENARIOS];
 const screenshots = process.env.LITZIO_BROWSER_SCREENSHOTS === "true";
 const channel = process.env.LITZIO_BROWSER_CHANNEL ?? (process.platform === "win32" ? "chrome" : undefined);

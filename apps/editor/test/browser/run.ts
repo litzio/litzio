@@ -21,7 +21,7 @@ try {
     }
     prepareBrowserFixtures();
   }
-  if (scenarios.includes("vite-plugins")) execFileSync(process.execPath, ["build.mjs"], { cwd: path.join(REPOSITORY_ROOT, "plugins/onedrive"), stdio: "inherit", windowsHide: true });
+  if ((!process.env.LITZIO_BROWSER_URL && process.env.LITZIO_BROWSER_HOST !== "http") || scenarios.includes("vite-plugins")) execFileSync(process.execPath, ["build.mjs"], { cwd: path.join(REPOSITORY_ROOT, "plugins/onedrive"), stdio: "inherit", windowsHide: true });
   const unknown = scenarios.filter(name => !existsSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`)));
   if (unknown.length) throw new Error(`Unknown scenario: ${unknown.join(", ")}\nStable: ${STABLE_SCENARIOS.join(", ")}`);
   if (shard) console.log(`Browser shard ${shard}: ${scenarios.length} scenarios\n${scenarios.join(", ")}`);
