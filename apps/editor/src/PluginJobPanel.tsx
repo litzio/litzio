@@ -79,7 +79,7 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
   return <section className="view-panel plugin-job-panel" data-testid="plugin-job-panel" aria-label={i18n.t("Plugin jobs")}>
     <div className="plugin-job-input">
     {jobIds.length > 1 ? <ChoiceGroup className="plugin-job-choices" aria-label={i18n.t("Job")} value={selected} disabled={!active || busy} onValueChange={value => { setSelected(value); setFiles([]); }} options={bindings.filter(job => jobIds.includes(job.id)).map(job => ({ value: job.id, label: `${job.title} · ${job.accept.join(", ")} → ${job.resultKind === "file" ? job.resultExtension : ".md"}` }))} /> : null}
-    <Tooltip><TooltipTrigger render={<div role="group" tabIndex={0} aria-label={root || i18n.t("Opened folder")} />}>
+    <Tooltip><TooltipTrigger render={<div role="group" tabIndex={0} aria-label={root || i18n.t("Open a folder to select input files.")} />}>
       <SettingsSelect label={i18n.t("Opened folder")} value={enabled ? root : ""} disabled={!active || busy} onChange={value => { if (value !== root) { setRoot(value); resetFolder(""); } }} options={[{ value: "", label: "—" }, ...roots.map(value => ({ value, label: value.replace(/[\\/]$/, "").split(/[\\/]/).at(-1) || value }))]} />
     </TooltipTrigger><TooltipContent>{root || i18n.t("Open a folder to select input files.")}</TooltipContent></Tooltip>
     {folder ? <div className="view-controls"><span>{folder}</span><Button variant="secondary" size="sm" disabled={busy} onClick={() => resetFolder("")}>{i18n.t("Return to opened folder")}</Button></div> : null}
