@@ -339,6 +339,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     // Settings health check needs no opened Root and exposes no API key field.
     await page.evaluate(() => { localStorage.removeItem(JSON.stringify(["local", "litzio.openFolders"])); });
     await page.reload(); await openSettings();
+    await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
     await page.getByRole("button", { name: "Docling settings", exact: true }).click();
     const detail = page.getByRole("dialog");
     await expect(detail.locator('input[type="password"]')).toHaveCount(0);

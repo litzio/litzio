@@ -695,7 +695,7 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     const sample = startup.samples.en, pristineSample = readFileSync(sample, "utf8");
     writeFileSync(sample, pristineSample + "\nUser sample edits\n");
     for (const file of [path.join(userData, "owned-canary"), path.join(data, "templates", "custom.md"),
-      path.join(data, "plugins", "builtin", "views", "custom.view.json"), path.join(assistant, ".agents", "skills", "custom", "SKILL.md"),
+      path.join(assistant, ".agents", "skills", "custom", "SKILL.md"),
       path.join(assistant, "conversations.json"), path.join(data, "plugins.json.secrets", "synthetic-secret"),
       path.join(environment.LOCALAPPDATA, `${brand.appName}-updater`, "cached-update")]) {
       mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, "isolated user data");

@@ -1,7 +1,10 @@
 # 동적 뷰 재정의 v1
 
-- Status: Draft
-- Last verified: 2026-11-06 — 소유자 정정(열 상한 제거·Chart/Panel·예시 분리·열별 정렬/필터) 반영. `b49c5d51`의 Core views-v2, shared/view-generation, Views·V6 계약과 #1241 결정, #1254를 정적 대조. 외부 공식 문서 조사. 제품 실행·AI 수락 시험 없음.
+> #1341(2026-11-09)에서 비서 생성·즐겨찾기·snapshot·통계·차트 기능을 제거했다. 아래는 당시 구현/제안과 검증 기록이며 현재 요구사항이 아니다. 남는 플러그인 화면·조회·표는 [현재 계약](plugin-screens-v1.md), review는 [플러그인 1단계](plugin-stage1-v1.md)를 따른다. 상태·후속 링크를 확인했으며 과거 실험을 다시 실행했다는 뜻이 아니다.
+
+- Status: Historical
+- Last verified: 2026-11-09 — Historical 상태·후속 계약 링크 대조. 과거 시험 재실행 아님.
+- Previous verification: 2026-11-06 — 소유자 정정(열 상한 제거·Chart/Panel·예시 분리·열별 정렬/필터) 반영. `b49c5d51`의 Core views-v2, shared/view-generation, Views·V6 계약과 #1241 결정, #1254를 정적 대조. 외부 공식 문서 조사. 제품 실행·AI 수락 시험 없음.
 - Authority: [ADR-0020 개정안](../adr/0020-plugin-architecture.md#동적-뷰-재정의-개정안-2026-11-06), 2026-11-06 소유자 확정 결정. 세부 API·한도·수명은 이 설계의 제안이다.
 - Scope: 연결 데이터·비서 데이터, 표시 위치, 플러그인 화면, 비서 경로와 구현 분할. 현재 구현은 [Generated views](generated-views-v1.md), 공용 review는 [catalog v2](catalog-v2.md). 본 문서의 v1은 설계 첫 판이며 wire schemaVersion 1로의 복귀가 아니다.
 

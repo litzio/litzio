@@ -7,7 +7,7 @@
 
 ## 목표와 제거기의 경계
 
-처음 설치한 것처럼 깨끗한 상태로 되돌리며 Litzio 소유 저장소의 사용자 데이터도 남기지 않는다. 템플릿·즐겨찾기·스킬·편집된 샘플·로컬 대화·설정·secret·복구는 모두 삭제 대상이다.
+처음 설치한 것처럼 깨끗한 상태로 되돌리며 Litzio 소유 저장소의 사용자 데이터도 남기지 않는다. 템플릿·스킬·편집된 샘플·로컬 대화·설정·secret·복구는 모두 삭제 대상이다.
 
 현재 [packageConfiguration](../../apps/desktop/scripts/package.ts)은 `deleteAppDataOnUninstall: false`이며 [NSIS helper](../../apps/desktop/installer/cli.nsh)는 앱 데이터·updater cache를 보존한다. 따라서 현재 제거·재설치만으로 이 목표를 충족한다고 주장하지 않는다. 초기화는 설치물과 CLI 통합을 유지하면서 앱 소유 데이터를 비우는 별도 작업이다. 설치·제거 정책은 바꾸지 않는다.
 
@@ -43,13 +43,12 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 | AI 설정 | `<Host base>/assistant.json` 또는 `LITZIO_ASSISTANT_SETTINGS_FILE` | 파일과 UUID 임시 sibling 제거 |
 | 플러그인 등록·신뢰·설정 | `<Host base>/plugins.json` 또는 `LITZIO_PLUGINS_SETTINGS_FILE` | 파일과 UUID 임시 sibling 제거 |
 | secret | 실제 plugins 설정 파일 경로 + `.secrets` | DPAPI 암호문 전체 제거; 복호화/값 출력 없음 |
-| 저장 뷰·snapshot | 실제 plugins 설정 파일 부모 아래 `plugins/<owner>/views` | Host 소유 `plugins` 데이터 전체 제거 |
 | 비서 cwd | 기본 `%APPDATA%/litzio/assistant`, `LITZIO_ASSISTANT_CWD` 우선 | 로컬 대화 목록·파일·instructions·사용자 스킬 전체 제거; 기본 가이드는 정상 환경 생성 시 다시 제공 |
 | 원격 등록·작업 요약 | `<LITZIO_DATA_DIR 또는 ~/.litzio>/desktop` | 로컬 등록·요약·중단된 쓰기 제거. 원격 서비스·파일은 그대로 유지 |
 | daemon 데이터 | `<LITZIO_DAEMON_DIR 또는 ~/.litzio/daemon>` | 모든 채널의 discovery·lock·log 포함 전체 내용; 살아 있는 owner가 있으면 삭제 전에 거부 |
 | updater cache | `%LOCALAPPDATA%/litzio-updater` | 내려받은 업데이트·cache 제거. Desktop은 잠긴 electron-updater의 cache base resolver를 재사용 |
 
-설정 파일을 개별 override한 경우 그 부모의 임의 사용자 파일까지 제거하지 않는다. 해당 파일·제품이 만든 UUID 임시 sibling·secret·Host 저장 뷰를 정확히 포함한다. 등록 파일에 들어 있는 외부 artifact `directory`를 따라 삭제하지 않는다. 외부 문서·별도로 저장한 `.view.json`·plugin scaffold/artifact·계정과 공급자 서버 데이터·설치물은 유지한다. 앱 소유 저장소 안에 보관한 데이터는 별도 보존 예외를 만들지 않는다.
+설정 파일을 개별 override한 경우 그 부모의 임의 사용자 파일까지 제거하지 않는다. 해당 파일·제품이 만든 UUID 임시 sibling·secret을 정확히 포함한다. 등록 파일에 들어 있는 외부 artifact `directory`를 따라 삭제하지 않는다. 외부 문서·별도로 저장한 파일·plugin scaffold/artifact·계정과 공급자 서버 데이터·설치물은 유지한다. 앱 소유 저장소 안에 보관한 데이터는 별도 보존 예외를 만들지 않는다. #1341에서 저장 뷰·snapshot 기능과 전용 초기화 항목을 제거했으며, Host 전체 저장소의 삭제 범위는 그대로다.
 
 ## 선택적 폴더 제거
 
