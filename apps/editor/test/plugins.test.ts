@@ -12,9 +12,40 @@ import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from 
 // SDK runtime admission, official K1 storage and the browser result boundary.
 async function doclingConverter() {
   const source = readFileSync(new URL("../../../community-plugins/docling/document.js", import.meta.url), "utf8");
-  return import("data:text/javascript;base64," + Buffer.from(source.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
+  const review = readFileSync(new URL("../../../community-plugins/docling/review.js", import.meta.url), "utf8");
+  const reviewUrl = "data:text/javascript;base64," + Buffer.from(review.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64");
+  return import("data:text/javascript;base64," + Buffer.from(source.replace('"./review.js"', JSON.stringify(reviewUrl)).replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
 }
 const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
+
+test("Docling corrections replay by self_ref with last assignment winning before the existing converter", async () => {
+  const { convertDocument } = await doclingConverter();
+  const original = doclingFixture(), before = JSON.stringify(original);
+  const result = await convertDocument(original, "a".repeat(64), [
+    { type: "text", self_ref: "#/texts/4", text: "superseded" },
+    { type: "text", self_ref: "#/texts/4", text: "Corrected text" },
+    { type: "kind", self_ref: "#/texts/4", kind: "heading", level: 6 },
+    { type: "kind", self_ref: "#/texts/1", kind: "paragraph" },
+    { type: "exclude", self_ref: "#/groups/0", excluded: true },
+    { type: "exclude", self_ref: "#/texts/1", excluded: false },
+    { type: "cell", self_ref: "#/tables/0", cell: 0, text: "Corrected merged cell" },
+  ]);
+  assert.equal(JSON.stringify(original), before);
+  assert.match(result.source, /###### Corrected text/);
+  assert.doesNotMatch(result.source, /First item|Nested item|superseded|## Converted PDF/);
+  assert.match(result.source, /Converted PDF/);
+  assert.match(result.source, /Corrected merged cell/);
+  const roles = doclingFixture(); roles.pictures[0].children = [];
+  const reclassified = await convertDocument(roles, "a".repeat(64), [
+    { type: "kind", self_ref: "#/texts/0", kind: "heading", level: 1 },
+    { type: "kind", self_ref: "#/texts/7", kind: "heading", level: 3 },
+  ]);
+  assert.match(reclassified.source, /# RUNNING HEADER/);
+  assert.match(reclassified.source, /### Figure 1: Original caption/);
+  for (const patch of [{ type: "kind", self_ref: "#/texts/4", kind: "heading", level: 7 }, { type: "cell", self_ref: "#/tables/0", cell: 9, text: "bad" }, { type: "text", self_ref: "#/texts/999", text: "bad" }]) {
+    await assert.rejects(convertDocument(original, "a".repeat(64), [patch]));
+  }
+});
 
 test("Docling converter preserves source identity, native blocks, shared targets and item losses without mutating original", async () => {
   const { convertDocument } = await doclingConverter();

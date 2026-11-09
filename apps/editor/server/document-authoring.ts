@@ -1,6 +1,7 @@
 import path from "node:path";
 import { authorDocument } from "@litzio/core";
 import { authoredDocumentRequestSchema } from "@litzio/plugin-sdk";
+import { commitFile } from "@litzio/file-commit";
 import { createDocumentSourceFile } from "./document-create.ts";
 import { createDocumentImageAsset } from "./asset-api.ts";
 import { validateImage } from "./image-validation.ts";
@@ -8,6 +9,15 @@ import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts
 
 /** Shared K1/CLI document construction and exclusive publication, never plugin file IO. */
 export async function createAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess = LOCAL_FILE_ACCESS, beforePublish: () => void = () => {}) {
+  return publishAuthoredDocumentFile(file, raw, access, beforePublish);
+}
+
+/** Regeneration uses identical authoring/image semantics with revision-checked replacement. */
+export async function regenerateAuthoredDocumentFile(file: string, raw: unknown, revision: string, access: FileAccess = LOCAL_FILE_ACCESS, beforePublish: () => void = () => {}) {
+  return publishAuthoredDocumentFile(file, raw, access, beforePublish, revision);
+}
+
+async function publishAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess, beforePublish: () => void, revision?: string) {
   file = path.resolve(accessPath(file, access, true));
   if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
   accessPath(path.dirname(file), access);
@@ -29,5 +39,9 @@ export async function createAuthoredDocumentFile(file: string, raw: unknown, acc
   }
   const authored = await authorDocument(input.authoring, bindings);
   beforePublish();
+  if (revision !== undefined) {
+    commitFile(accessPath(file, access), authored.source, revision);
+    return { path: file, revision: authored.documentRevision, inputs: authored.inputs };
+  }
   return { ...createDocumentSourceFile(file, authored.source, access), inputs: authored.inputs };
 }

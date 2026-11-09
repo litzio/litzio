@@ -1,4 +1,4 @@
-async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
+async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument }) => {
   const secretSaves = [];
   let listRequests = 0;
   const saveSecret = async () => {
@@ -458,6 +458,30 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(conversionReport.losses.filter(loss => loss.kind === 'picture-image')).toHaveLength(1);
     await expect(editor).not.toContainText("RUNNING HEADER");
     await expect(editor).not.toContainText("Docling conversion:");
+    const generatedWarning = page.getByTestId("generated-document-warning").filter({ visible: true });
+    await expect(generatedWarning).toBeVisible();
+    await generatedWarning.locator('span[tabindex="0"]').hover();
+    await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
+    await expect(page.locator("[data-slot=tooltip-content]")).toContainText("Direct edits will be overwritten");
+    await page.mouse.move(0, 0);
+    // The warning must allow the ordinary editor's Save, then regeneration can replace
+    // the explicitly reread revision. Patch semantics are covered below the UI layer.
+    await page.getByTestId("view-visual").click();
+    await editor.getByText("PDF body *literal*.", { exact: true }).click();
+    await page.keyboard.press("End"); await page.keyboard.type(" Direct edit.");
+    await page.getByTestId("save").click();
+    await expect(page.getByTestId("status")).toHaveAttribute("data-operation", "saved");
+    const reviewInput = { root: pluginFixture.folder, document: "docling-cli.md" };
+    const review = await docling.review("read", reviewInput);
+    expect(review.state).toBe("externally-modified");
+    const corrected = await docling.review("patch", { ...reviewInput, baseline: review.baseline, requestId: "6cf96dcb-0c9c-41c5-b14c-c9d6736bb3e7", patches: [
+      { type: "text", self_ref: "#/texts/4", text: "Reviewed PDF body." },
+    ] });
+    expect(corrected.correctionsSaved).toBe(true); expect(corrected.documentRegenerated).toBe(true);
+    await reloadDocument(page);
+    await expect(editor).toContainText("Reviewed PDF body.");
+    await expect(editor).not.toContainText("Direct edit.");
+    await expect(generatedWarning).toBeVisible();
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     // Re-selecting the current Root must preserve its loaded files.
     await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
