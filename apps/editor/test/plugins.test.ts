@@ -773,6 +773,40 @@ test("health check publication enforces the SDK result even with a permissive pl
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("Jira artifact filters reject malformed dates/JQL controls and detail preserves bounded text and comment range", async t => {
+  const source = readFileSync(new URL("../../../community-plugins/jira/host.js", import.meta.url), "utf8");
+  const { activate } = await import("data:text/javascript;base64," + Buffer.from(source.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
+  let calls: URL[] = [], body: any = { startAt: 0, total: 0, issues: [] };
+  t.mock.method(globalThis, "fetch", async (url: string) => { calls.push(new URL(url)); return new Response(JSON.stringify(body)); });
+  const plugin = activate({ settings: { baseUrl: "https://jira.example.com/jira" }, secrets: { pat: "synthetic" } });
+  t.after(() => plugin.dispose());
+  for (const input of [{ dateFrom: "2026-02-29" }, { dateTo: "2026-13-01" }, { dateFrom: "2026-11-09", dateTo: "2026-11-01" }, { project: 'X" OR true' }, { reporter: "user\nOR true" }]) {
+    await assert.rejects(plugin.operations.issues(input));
+  }
+  assert.equal(calls.length, 0);
+  await plugin.operations.issues({ dateField: "생성일", reporter: 'name"\\x', project: "MOCK", dateFrom: "2024-02-29", dateTo: "2024-02-29" });
+  assert.equal(calls[0]!.searchParams.get("jql"), 'assignee = currentUser() AND resolution = Unresolved AND project = "MOCK" AND reporter = "name\\"\\\\x" AND created >= "2024-02-29" AND created < "2024-03-01" ORDER BY updated DESC');
+  await assert.rejects(plugin.operations.jql({ jql: " " }));
+  await assert.rejects(plugin.operations.jql({ jql: "x".repeat(4001) }));
+  const offsets: number[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    const query = new URL(url).searchParams;
+    assert.equal(query.get("jql"), "project = MOCK ORDER BY updated DESC");
+    const startAt = Number(query.get("startAt")); offsets.push(startAt);
+    return new Response(JSON.stringify({ startAt, total: 3, issues: Array.from({length: startAt === 0 ? 2 : 1}, (_, i) => ({key: `MOCK-${startAt+i+1}`, fields:{summary:"Fixture"}})) }));
+  });
+  assert.deepEqual((await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"})).map((r: any) => r.key), ["MOCK-1", "MOCK-2", "MOCK-3"]);
+  assert.deepEqual(offsets, [0, 2]);
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({errorMessages:["RAW-JIRA-SENTINEL"]}), {status:400}));
+  await assert.rejects(plugin.operations.jql({jql:"project ="}), (e: any) => e.kind === "failed" && !e.message.includes("SENTINEL"));
+  body = { key: "MOCK-1", fields: { description: null } };
+  t.mock.method(globalThis, "fetch", async (url: string) => new Response(JSON.stringify(url.includes("/comment?") ? { startAt: 0, total: 0, comments: [] } : body)));
+  const detail = await plugin.operations.detail({ key: "MOCK-1" });
+  assert.equal(detail.description, ""); assert.equal(detail.commentsTotal, 0); assert.equal(detail.commentsReturned, 0);
+  body.fields.description = {};
+  await assert.rejects(plugin.operations.detail({ key: "MOCK-1" }));
+});
+
 test("registered icons enforce image bounds, artifact links and digest trust", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-icons-")), host = new PluginHost(path.join(root, "state.json"));
   try {
