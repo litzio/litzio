@@ -1,7 +1,7 @@
 async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots }) => {
   pluginFixture.cli(['plugins', 'register', pluginFixture.directory]);
   const registered = pluginFixture.cli(['plugins', 'list']).plugins.find(p => p.id === 'fixture.issues');
-  pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--digest', registered.digest]);
+  pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--registration', registered.registrationId, '--digest', registered.digest]);
   pluginFixture.cli(['plugins', 'enable', 'fixture.issues']);
   expect(pluginFixture.cli(['plugins', 'reload', 'fixture.issues']).receipt.operation).toBe('plugins.reload');
   const invoked = pluginFixture.cli(['operation', 'invoke', 'fixture.issues.read', '--input', `${pluginFixture.directory}/input.json`]);

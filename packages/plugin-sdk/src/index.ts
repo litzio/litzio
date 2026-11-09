@@ -127,6 +127,7 @@ export const statusSchema = z.strictObject({ available: z.boolean(), message: z.
   folders: z.array(z.strictObject({ id, path: z.string().min(1), label: z.string().min(1), defaultCandidate: z.boolean() })),
   decorations: z.array(z.strictObject({ id, path: z.string().min(1), icon: z.literal("plugin") })),
   accounts: z.array(z.strictObject({ id, label: z.string().min(1), source: z.string().min(1) })) });
+export const PLUGIN_REGISTRATION_CHANGED = "Plugin registration changed. Review the plugin and confirm again.";
 export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("secret-status"), id }),
   z.strictObject({ action: z.literal("secret-delete"), id, name: id }),
@@ -134,9 +135,9 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1), id }),
   z.strictObject({ action: z.literal("validate"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("register"), directory: z.string().min(1) }),
-  z.strictObject({ action: z.literal("trust"), id, digest: z.string().regex(/^[a-f0-9]{64}$/) }),
+  z.strictObject({ action: z.literal("trust"), id, registrationId: z.uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/).optional() }),
   z.strictObject({ action: z.literal("unregister"), id }),
-  z.strictObject({ action: z.literal("reload"), id }), z.strictObject({ action: z.literal("enable"), id }), z.strictObject({ action: z.literal("disable"), id }),
+  z.strictObject({ action: z.literal("reload"), id }), z.strictObject({ action: z.literal("enable"), id, registrationId: z.uuid().optional(), trust: z.boolean().optional() }), z.strictObject({ action: z.literal("disable"), id }),
   z.strictObject({ action: z.literal("settings"), id, settings: z.record(z.string(), z.unknown()).optional() }),
 ]);
 export type PluginManagementInput = z.infer<typeof pluginManagementSchema>;

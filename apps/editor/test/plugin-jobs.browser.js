@@ -3,7 +3,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST") { const body = request.postDataJSON(); if (body.action === "job-start") latestRequestId = body.requestId; } });
   pluginFixture.cli(["plugins", "register", pluginFixture.directory]);
   const plugin = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.jobs");
-  pluginFixture.cli(["plugins", "trust", plugin.id, "--digest", plugin.digest]);
+  pluginFixture.cli(["plugins", "trust", plugin.id, "--registration", plugin.registrationId, "--digest", plugin.digest]);
   pluginFixture.cli(["plugins", "enable", plugin.id]);
   const scriptDialogs = [];
   page.on("dialog", dialog => { scriptDialogs.push(dialog.message()); void dialog.dismiss(); });
