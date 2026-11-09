@@ -1,4 +1,3 @@
-import path from "node:path";
 import { hostPaths } from "./host-paths.ts";
 import { createAssistantHost } from "./assistant-host.ts";
 import { createPluginService } from "./plugin-service.ts";

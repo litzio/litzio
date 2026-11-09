@@ -26,11 +26,12 @@ async (page, { expect, screenshots, openFolderPicker, openPath }) => {
   });
   await page.reload();
   await page.setViewportSize({width:1440,height:1000});
-  const initial = await (await page.request.get(new URL('/api/document',page.url()).href)).json();
+  const initial = await (await page.request.get(page.url().split('/').slice(0,3).join('/') + '/api/document')).json();
   const root = initial.allowedRoots[0];
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root); await page.getByTestId('folder-open').click();
   await page.getByRole('dialog', {name:'Open folder',exact:true}).waitFor({state:'detached'});
-  await openPath(page, root + '/fixture/a.md');
+  const sep = root.includes('\\') ? '\\' : '/';
+  await openPath(page, [root, 'fixture', 'a.md'].join(sep));
   const outline = page.getByRole('button',{name:'Outline',exact:true});
   if(await outline.getAttribute('aria-pressed') !== 'true') await outline.click();
   await expect(page.getByRole('tab',{name:'Views',exact:true})).toHaveCount(0);

@@ -11,7 +11,7 @@ manifest `contributes.screens`는 id/title/icon, `defaultViewIds`, 선택적 `jo
 
 앱은 연결된 Host별 카탈로그에서 화면을 찾고 사이드바·명령 센터로 진입한다. 단일 Host와 단일 기본 뷰의 선택 control은 숨긴다. 여러 기본 뷰는 명시적으로 선택하며, 이미 열린 기본 조회의 입력·행은 화면을 오가는 동안 보존한다. 정의 또는 Host 교체는 이전 조회를 취소하고 새 인스턴스로 시작한다. 연결 해제·기여 비활성화는 새 실행을 막는다.
 
-`ViewWorkspace`는 화면 선택과 작업 패널, `Views`는 query/review 분기, `QueryViewPage`는 입력·조회 상태, `ViewRenderer`·`ViewPanels`는 세로 배치와 공통 `DataTable`을 소유한다. review는 `ReviewViewPage`·`ReviewRenderer`와 `/api/reviews`를 사용하며 [review Host·CLI 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)을 따른다. `screens[].jobs`는 [공통 작업 패널](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)을 따른다.
+`ViewWorkspace`는 화면 선택과 작업 패널, `Views`는 query/review 분기, `QueryViewPage`는 입력·조회 상태, `ViewRenderer`·`ViewPanels`는 세로 배치와 공통 `DataTable`을 소유한다. review renderer는 `ReviewViewPage`·`ReviewRenderer`와 `/api/reviews`를 사용하며 [review Host·CLI 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)을 따른다. `screens[].jobs`는 [공통 작업 패널](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)을 따른다.
 
 ## Core 명세와 조회
 
@@ -41,8 +41,16 @@ DataTable은 읽기 전용이며 열별 정렬·필터·pagination과 입력 순
 
 CLI는 얇은 `view validate <file> --host <origin> --json`와 `view run <file> [--input <args.json>] --host <origin> --json`만 제공한다. validate의 선택적 `--plugin`은 owner를 추가 확인한다. JSON 파일은 사용자가 검증·실행할 정의 입력이며 앱 저장 뷰 파일 열기 기능이 아니다. 저장·목록·재열기·명세 제안·CLI catalog는 없다.
 
+## 남은 제한
+
+앱 안 review 진입은 현재 없음(CLI·API로만 열림), Docling 대조 화면 작업에서 추가. 이 제거 PR은 제품 진입 버튼을 추가하지 않는다. 기존 V5 fixture·review renderer/API/CLI를 유지한다.
+
 ## 제거와 검증 경계
 
 #1341에서 비서 뷰 생성·결과 카드·교정·자료/출처, 즐겨찾기·snapshot, 우측 Views 탭·문서 통계·folder.statistics, Chart·가로 Panel과 관련 예제를 제거했다. requestUserInput·일반 대화·문서 도구·플러그인 연결 확인·작업 패널·review는 유지한다. 제거 직전 소스는 [archive/dynamic-ui-2026-11](https://github.com/litzio/litzio/tree/archive/dynamic-ui-2026-11)에 보관되어 있다. [소유자의 재구축 기준](https://github.com/litzio/litzio/discussions/767#discussioncomment-19481395)은 향후 별도 작업의 출발점이며 새 DSL·workflow engine 구현을 승인하지 않는다.
 
 Core·SDK는 schema와 입력·행·링크 의미, Host/CLI 검사는 같은 args·오류·receipt, 브라우저는 플러그인 진입·입력 focus·조회/늦은 응답·표·V5 대조를 보호한다. 합성 fixture·localhost 통과는 실제 외부 Jira/Docling 서비스·실제 AI 응답·배포 수락의 증거가 아니다.
+
+## 화면 확인 (#1341)
+
+[1440px 제거 표면](assets/plugin-screens-1341/removed-surfaces-1440.png)에서 왼쪽 문서 통계와 오른쪽 Views 탭이 없고 기존 문서 탐색만 남음을 확인했다. [1440px 플러그인 진입](assets/plugin-screens-1341/plugin-screen-1440.png)과 [640px 한국어 다크](assets/plugin-screens-1341/plugin-screen-640-ko-dark.png)는 기본 입력 폼·수동 조회 진입을 유지한다. 정렬·간격·한 열 전환과 페이지 가로 넘침을 확인했다. manifest 제공 영문 label은 그대로 표시된다. 합성 카탈로그·문서와 기존 persistent Chrome을 사용한 로컬 화면이며 실제 Jira/Docling 서비스나 AI 응답의 수락 증거는 아니다. Host 계정은 촬영 시 mask했다.

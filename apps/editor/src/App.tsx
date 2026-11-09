@@ -1,4 +1,3 @@
-import type { AssistantConversationInput } from "../shared/assistant.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
@@ -7,7 +6,6 @@ import type { ViewScreen } from "./views/view-api.ts";
 import { PluginJobs } from "./PluginJobs.tsx";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import { Views, type ViewTab } from "./views/Views.tsx";
-import type { CatalogView as View } from "@litzio/core/views-v2";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
 import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
