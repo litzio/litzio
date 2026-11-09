@@ -795,6 +795,7 @@ test("bundled defaults follow supply until an explicit choice; update verificati
     assert.equal(status.official, false); assert.equal(status.running, false); assert.match(status.error!, /verification/);
     await assert.rejects(host.invoke("trust", { id: manifest.id, digest: status.digest }), /disabled/);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /verification/);
+    await assert.rejects(host.invoke("enable", { id: manifest.id, trust: true }), /disabled/);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
