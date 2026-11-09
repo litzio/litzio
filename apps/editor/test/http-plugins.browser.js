@@ -402,7 +402,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await panel.getByRole("button", { name: "Start job", exact: true }).click();
     const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first();
     await expect(nativeRow.getByRole("status")).toHaveText("Completed");
-    await expect(nativeRow).toContainText("병합 칸 1");
+    await expect(nativeRow).toContainText("병합 칸 반복 1");
     await nativeRow.getByRole("button", { name: "Open result: sample.docling", exact: true }).click();
     await expect(editor).toContainText("PDF body *literal*.");
     docling.setDocumentInput(true);

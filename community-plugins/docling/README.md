@@ -154,7 +154,7 @@ docker stop docling-serve
 | table captions | 표 뒤의 literal 문단. SDK에 표 caption 속성이 없어 대응으로 연결 |
 | footnote / unknown / unreachable | 각주는 call site 추측 없이 문단; 알 수 있는 text는 문단으로 보존. 알 수 없는 내용·group·미도달 항목·inline 서식/링크 의미 손실을 self_ref별 기록 |
 
-0인 손실 종류는 생략하고 완료 phase에 `표 3 · 병합 칸 5 · … · 그림 이미지 미포함 2 · 미지원 1` 형태로 요약합니다. 기존 PluginJobPanel의 단계 칸을 그대로 쓰며 새 화면·공통 interaction 예외는 없습니다. 머리글/바닥글 제외는 report.items의 furniture 상태에 남습니다. 기타 손실은 표 역할·목록 marker 변경이며 전체 근거는 losses에 있습니다. 추출 품질과 원본에 없는 의미는 복구하지 않습니다.
+0인 손실 종류는 생략하고 완료 phase에 `병합 칸 반복 5 · 다단 헤더 계층 소실 1 · 중첩 목록 평탄화 1 · 그림 이미지 미포함 2 · 미지원 1` 형태로 요약합니다. 기존 PluginJobPanel의 단계 칸을 그대로 쓰며 새 화면·공통 interaction 예외는 없습니다. 머리글/바닥글 제외는 report.items의 furniture 상태에 남습니다. 표 개수 같은 정상 변환 통계는 손실 요약에 넣지 않으며 표 셀 역할 소실·목록 표식 미보존도 각각 구분합니다. 손실 기록이 없으면 요약은 비어 있습니다. 전체 근거와 짧은 항목별 설명은 report.losses에 있습니다. 추출 품질과 원본에 없는 의미는 복구하지 않습니다.
 
 ### 원본 항목과 출력 대응
 

@@ -41,7 +41,17 @@ test("Docling converter preserves source identity, native blocks, shared targets
     assert.ok(blocks.some(block => JSON.stringify(block.path) === JSON.stringify(target.path)));
   }
   for (const kind of ["merged-cell", "multi-row-header", "nested-list", "picture-image", "unsupported"]) assert.ok(report.losses.some((loss: any) => loss.kind === kind));
-  assert.match(report.summary, /병합 칸 1/);
+  assert.match(report.summary, /병합 칸 반복 1/);
+  assert.match(report.summary, /다단 헤더 계층 소실 1/);
+  assert.doesNotMatch(report.summary, /(?:^| · )표 \d|(?:^| · )[^·]+ 0(?: · |$)/);
+  const plain = { schema_name: "DoclingDocument", body: { children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", text: "Plain paragraph" }] };
+  assert.equal((await convertDocument(plain, "a".repeat(64))).report.summary, "");
+  const roles = doclingFixture();
+  roles.tables[0].data.table_cells[0].row_header = true;
+  roles.texts[2].marker = "a)";
+  const roleSummary = (await convertDocument(roles, "a".repeat(64))).report.summary;
+  assert.match(roleSummary, /표 셀 역할 소실 1/);
+  assert.match(roleSummary, /목록 표식 미보존 1/);
   // Adjacent list items intentionally share the first item's native list target.
   doc.groups[1].children = [{ $ref: "#/texts/2" }, { $ref: "#/texts/3" }]; doc.groups.splice(2);
   doc.texts[3].marker = "4.";

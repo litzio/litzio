@@ -178,9 +178,9 @@ export async function convertDocument(original, sourceHash) {
     return { ...item, targets, ...(cells.length ? { cells: cells.map(cell => ({ ...cell, targets: targets.slice(0, 1) })) } : {}) };
   });
   const count = kind => losses.filter(loss => loss.kind === kind).length;
-  const summary = [["표", inputs.flatMap(input => input.blocks).filter(block => block.kind === "table").length],
-    ["병합 칸", count("merged-cell")], ["다단 헤더", count("multi-row-header")], ["중첩 목록 평탄화", count("nested-list")],
-    ["그림 이미지 미포함", count("picture-image")], ["미지원", count("unsupported")], ["기타 손실", count("table-role") + count("list-marker")]]
-    .filter(([, value], index) => index === 0 || value > 0).map(([label, value]) => `${label} ${value}`).join(" · ");
+  const summary = [["병합 칸 반복", count("merged-cell")], ["다단 헤더 계층 소실", count("multi-row-header")],
+    ["중첩 목록 평탄화", count("nested-list")], ["그림 이미지 미포함", count("picture-image")], ["미지원", count("unsupported")],
+    ["표 셀 역할 소실", count("table-role")], ["목록 표식 미보존", count("list-marker")]]
+    .filter(([, value]) => value > 0).map(([label, value]) => `${label} ${value}`).join(" · ");
   return { source: authored.source, report: { sourceHash, documentRevision: authored.documentRevision, documentHash: authored.documentHash, items, losses, summary } };
 }
