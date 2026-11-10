@@ -302,6 +302,11 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 
 ## P10 메뉴와 선택 도구
 
+#1435의 공용 원본 대조는 기존 PageSurface의 Button과 BlockHandles의 제목 수준
+표시를 재사용한다. 연속 배치의 페이지 이동은 공통 number Input과 Enter 제출을 사용하고 이전/다음 버튼은 두지 않는다. ‘스크롤 동기화’와 페이지 머리의 확인 상태는 각각 독립적인 공통 Button의
+`aria-pressed` 토글이며 필수 단일 선택 ChoiceGroup으로 바꾸지 않는다. 확인 버튼은 원본 이미지
+바깥에 두고 저장 중·실패는 기존 review status/Notice를 쓴다. 배율은 공통 Input의 native 목록을 쓰는 한 칸에서 preset/직접 입력을 함께 제공하며 별도 popup·키보드 엔진을 만들지 않는다. 열린 화면의 임시 배율과 원본 Ctrl+wheel 조작은 [대조 계약](plugin-stage1-v1.md#연속-원본-대조-1435)을 따른다. [현재 대조 계약](plugin-stage1-v1.md#연속-원본-대조-1435)을 따른다.
+
 #1401의 하위 폴더 삭제는 기존 ContextMenu·DropdownMenu의 같은 대상별 행동 목록과
 danger 항목을 공유한다. 휴지통 미지원 항목은 실행을 막고 hover·focus Tooltip으로 이유를
 설명한다. 트리의 단일 Tab 정지점을 유지하며 키보드는 기존 Shift+F10/Menu 경로를 쓴다.
@@ -773,7 +778,7 @@ description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장�
 
 ## 생성 문서의 PDF 대조 (#1408)
 
-기존 review 작업 탭·SourceDocumentCompare·DocumentEditor readOnly preview와 PageSurface 이미지 표시를 재사용한다. 완료 작업의 공통 JobActions에서 선언된 comparison 참조를 열며, 상단에는 대상·문서 열기·다시 읽기·페이지 확인 상태만 둔다. PDF 영역의 종류/상태는 hover·keyboard focus로 표시하며 기존 PNG 대조의 상시 label은 유지한다. 새 공통 부품이나 플러그인별 화면은 없다. 기존 K4의 1024px 안내와 달리 이번 생성 문서 대조는 640px 이상에서 패널 내부 스크롤로 두 열을 유지한다. Read는 기존 두 Editor 그룹의 최소 440px 폭·좁은 문서 여백을 재사용해 글자 단위 줄바꿈을 피한다. 확인 기록은 순서대로 저장하며 페이지 이동은 저장 완료를 기다리지 않는다. 저장 중에는 상태를 표시하고 대응 선택을 막으며, 실패나 외부 변경 후 대응·확인을 잠근다. 수정/승인/완료 동작은 표시하지 않는다. Host·CLI·저장 경계는 [공용 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다.
+기존 review 작업 탭·SourceDocumentCompare·DocumentEditor readOnly preview와 PageSurface 이미지 표시를 재사용한다. 완료 작업의 공통 JobActions에서 선언된 comparison 참조를 열며, 상단에는 대상·문서 열기·다시 읽기·페이지 확인 상태만 둔다. PDF 영역의 종류/상태는 hover·keyboard focus로 표시하며 기존 PNG 대조의 상시 label은 유지한다. 새 공통 부품이나 플러그인별 화면은 없다. 기존 K4의 1024px 안내와 달리 이번 생성 문서 대조는 640px 이상에서 패널 내부 스크롤로 두 열을 유지한다. 현재 #1435 대조는 문서 패널 폭으로 본문을 줄바꿈하고 넓은 표·코드·수식만 각 블록 안에서 가로 스크롤한다. 대조 콘텐츠 폭 640px 이하에서는 원본:문서를 1:3으로 두고 기존 14px 본문·18/16/15/14px 제목 토큰으로 compact 읽기를 제공한다. 일반 단어는 통째로 유지하고 긴 단일 토큰만 비상 줄바꿈하며 넓은 대조는 유지한다. [#1455 결정](https://github.com/litzio/litzio/issues/1455)에 따라 640px은 깨지지 않는 기본 동작과 공통 Tooltip의 짧은 ‘넓은 창 권장’을 보장하며 탐색기 오버레이는 별도 범위다. 파일명·확인 개수·페이지 이동·확대·동기화·문서 열기·새로고침은 한 도구 막대(640px 최대 두 줄)에 합친다. 확인 개수와 페이지 이동 분수를 구별하며 아이콘의 Tooltip과 접근성 이름을 사용한다. 확인 기록은 순서대로 저장하며 페이지 이동은 저장 완료를 기다리지 않는다. 저장 중에는 상태를 표시하고 대응 선택을 막으며, 실패나 외부 변경 후 대응·확인을 잠근다. 수정/승인/완료 동작은 표시하지 않는다. Host·CLI·저장 경계는 [공용 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다.
 
 ## 플러그인 공통 화면과 제작 기준 (#1397)
 

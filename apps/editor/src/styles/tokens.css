@@ -211,12 +211,18 @@
   /* Adjustable accent values: Plum is the default. The preset scopes below override only
    * these four values. Actions, focus, selection, links and generated numbers share them;
    * informational states stay neutral; danger and warning keep their separate meanings. */
-  --id-color-accent-blue: #315fd4;
-  --id-color-accent-violet: #7041bd;
-  --id-color-accent-plum: #8a3f85;
-  --id-color-accent-teal: #076f65;
-  --id-color-accent-green: #346d38;
-  --id-color-accent-graphite: #52616b;
+  --id-color-accent-blue-paper: #315fd4;
+  --id-color-accent-blue: var(--id-color-accent-blue-paper);
+  --id-color-accent-violet-paper: #7041bd;
+  --id-color-accent-violet: var(--id-color-accent-violet-paper);
+  --id-color-accent-plum-paper: #8a3f85;
+  --id-color-accent-plum: var(--id-color-accent-plum-paper);
+  --id-color-accent-teal-paper: #076f65;
+  --id-color-accent-teal: var(--id-color-accent-teal-paper);
+  --id-color-accent-green-paper: #346d38;
+  --id-color-accent-green: var(--id-color-accent-green-paper);
+  --id-color-accent-graphite-paper: #52616b;
+  --id-color-accent-graphite: var(--id-color-accent-graphite-paper);
   --id-color-interaction: var(--id-color-accent-plum);
   --id-color-accent: var(--id-color-interaction);
   --id-color-accent-hover: #6d2c69;
@@ -229,7 +235,31 @@
   --id-color-border-focus: var(--id-color-interaction);
   --id-color-danger: #a12b32;
   --id-color-info: var(--id-color-text-muted);
-  --id-color-warning: #875717;
+  --id-color-warning-paper: #875717;
+  --id-color-warning: var(--id-color-warning-paper);
+
+  --size-review-wire: 1.25px;
+  --size-review-wire-selected: 3px;
+  --opacity-review-wire: .8;
+  /* Adjustable comparison roles: source PNGs stay white in both themes; wires follow the UI. */
+  --id-color-review-heading: var(--id-color-accent-blue);
+  --id-color-review-source-heading: var(--id-color-accent-blue-paper);
+  --id-color-review-text: var(--id-color-accent-teal);
+  --id-color-review-source-text: var(--id-color-accent-teal-paper);
+  --id-color-review-list: var(--id-color-accent-green);
+  --id-color-review-source-list: var(--id-color-accent-green-paper);
+  --id-color-review-table: var(--id-color-accent-violet);
+  --id-color-review-source-table: var(--id-color-accent-violet-paper);
+  --id-color-review-formula: var(--id-color-accent-plum);
+  --id-color-review-source-formula: var(--id-color-accent-plum-paper);
+  --id-color-review-picture: var(--id-color-warning);
+  --id-color-review-source-picture: var(--id-color-warning-paper);
+  --id-color-review-unmapped: var(--id-color-text-muted);
+  --id-color-review-source-unmapped: var(--id-color-accent-graphite-paper);
+  --id-color-review-footnote: color-mix(in srgb, var(--id-color-accent-blue) 50%, var(--id-color-accent-teal));
+  --id-color-review-source-footnote: color-mix(in srgb, var(--id-color-accent-blue-paper) 50%, var(--id-color-accent-teal-paper));
+  --id-color-review-code: color-mix(in srgb, var(--id-color-accent-plum) 50%, var(--id-color-warning));
+  --id-color-review-source-code: color-mix(in srgb, var(--id-color-accent-plum-paper) 50%, var(--id-color-warning-paper));
 
   --font-family-sans: "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   --font-family-mono: Consolas, "Courier New", monospace;

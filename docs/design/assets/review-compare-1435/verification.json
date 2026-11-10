@@ -1,0 +1,908 @@
+{
+  "status": "verified; narrow reading correction captures before commit",
+  "date": "2026-11-10",
+  "browser": "Chrome 157.0.8103.40, persistent profile",
+  "viewports": [
+    [
+      1440,
+      1000
+    ],
+    [
+      640,
+      1000
+    ]
+  ],
+  "zoomPercent": 100,
+  "dpr": 1,
+  "themes": {
+    "1440": "English Light",
+    "640": "Korean Dark"
+  },
+  "identity": "Host account masked at capture; no absolute paths in public artifacts",
+  "conversion": {
+    "doclingServe": "1.32.0",
+    "docling": "2.124.0",
+    "doclingCore": "2.93.0"
+  },
+  "inputs": {
+    "synthetic-1page": "81a76cd7270a637517000122c3e69331cd53233e5896f38822252f2db4666563",
+    "synthetic-8page": "188740c68b77c534ce0a6e14aff25fb9ed9fb17f7f21e556cb18ef5a22584024"
+  },
+  "notVerified": [
+    "200-page real document performance",
+    "complex PDF conversion fidelity",
+    "packaged Desktop"
+  ],
+  "files": {
+    "after-1440-dark.png": "e8861c7c6bf8929ee06faecb6802791b7d218a5a2f8c3f9d0e6f73de3588b182",
+    "after-1440.png": "ba8a1647b1d281a224100de599ed4bfa22e05a43cf57230be5251812f65c80ec",
+    "after-640-light.png": "21202fbe7a78a308b1e5a7a33eb37743f3c58fa3a229cc25dab1a340183d9d3e",
+    "after-640.png": "96b1ff9dc14e9642cf85a3014620d1833dee4c35d1765a429daa8c33a34e40e0",
+    "before-1440.png": "77a953fcc02ff13000c6ff0dce9e583d429069146ef2adbf41d623b8da60dbda",
+    "before-640.png": "7edc677e5f61cb2b5d97adc9214f49ae9fb947a922f7e0d6ce0614a1fe898d15",
+    "boundary-1440-dark.png": "33216bed0d7a1d947104fc2463eb119eb0f0f83144d252bd88d13fa5c2831d8a",
+    "boundary-1440.png": "326172e46ce0c6ccb47263e77fccc05ba33d74f5e95ece6c9e09b9fdfe911e7d",
+    "boundary-640-light.png": "a315f7a96501e4502d19ee62a462f047abdc9e3a75895461178478633e52d980",
+    "boundary-640.png": "660f0c35aca831deeabaafd54a151987392a8b86275b463b20f92e41a19e6bf6",
+    "long-1440-dark.png": "4e4a78f3443dd469b550f3880006411afcf024bb0f005f0f69a082e9437d3797",
+    "long-1440.png": "b612b37f3bb773ac2ba0f8311027668b211e3d313853661a72b8836180099f17",
+    "long-640-light.png": "499290544aa108a7053fbe041d4a2e490f35a21f095b95d3c810a07d4ce37a78",
+    "long-640.png": "2049bf38fe26f7685f7b465e9fd3538f13346cafc35d5d6eb0bbc33709f4fd37",
+    "sync-off-1440-dark.png": "ef6fa837aa372cb4d2ea363c3dca71efa822eb0792891f3c2b2d3dc67f7a23a8",
+    "sync-off-1440.png": "df27e0b446b5762d40d844389df8c6716ee05f72d3aac633aca8e2d3b1fcae3d",
+    "sync-off-640-light.png": "a315f7a96501e4502d19ee62a462f047abdc9e3a75895461178478633e52d980",
+    "sync-off-640.png": "660f0c35aca831deeabaafd54a151987392a8b86275b463b20f92e41a19e6bf6",
+    "unmapped-1440-dark.png": "c64b9fffeed7d211b8481736bb9f47e99df1a9c1dedd5c561c41fcaf5971e3a1",
+    "unmapped-1440-light.png": "4bb448d3a504761432072f594f535545a38bddb49440ad3a22b1a25b78fc8aff",
+    "unmapped-640-dark.png": "71bde540066e76da87673d44db0457e40347af05824eaed845836dc2772c5ba3",
+    "unmapped-640-light.png": "1144bd28704bb19d6a5f3b3570f7f37dbc707f3aa67fa9790f0c70c6321e9873",
+    "zoom-200-1440-dark.png": "85dd427661487e921fc52f628694b1f987839349f1bb519ec0e303338e11a704",
+    "zoom-200-1440-light.png": "0f14df505d9f1dee4932d3c666b1881ae19c4e0a1de3ac45f20fa7ce5fc5de05",
+    "zoom-200-640-dark.png": "37cf77915560d94d1ede3ed0241de6789bd0638fca4c2f9026c0de12467f26dc",
+    "zoom-200-640-light.png": "a9392cf3f6a6f00a6a616d4d1618861f5c9216a07944efdf47854c285ea85c70",
+    "zoom-50-1440-dark.png": "08f25d10c0d965a00be6c304955959cbbabb694dbe3ab1a839de39ed28d427f0",
+    "zoom-50-1440-light.png": "8e72f8d20cee3c043698f0f1179e671ba8c052c3e5c56acfeef8dd029ce50013",
+    "zoom-50-640-dark.png": "267e630675edbdfaccabad0731fd157f1777b02d83d9866f892dba326e8489b9",
+    "zoom-50-640-light.png": "612d78910622b8872e7a5fb41921bb5162522311551515be7723d0627ea6caac"
+  },
+  "baseHead": "9b9e8be693fe88ebaf4a49b52a75a226f45964fa",
+  "firstEntry": {
+    "before": {
+      "action": "generated-compare",
+      "status": 400,
+      "error": "Generated document operation in progress"
+    },
+    "after": "same real 1-page archive passes with only shared opening Promise fix"
+  },
+  "headingCues": {
+    "beforeMaxErrorPx": 208.996875,
+    "afterMaxErrorLessThanPx": 2,
+    "cause": "same-height React NodeView replacement needed post-commit remeasurement"
+  },
+  "singlePageMeasurements": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 10,
+      "selectedWires": 1
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 10,
+      "selectedWires": 1
+    },
+    {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 11,
+      "selectedWires": 1
+    },
+    {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 11,
+      "selectedWires": 1
+    }
+  ],
+  "longPageMeasurements": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 8,
+      "selectedWires": 1
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 8,
+      "selectedWires": 1
+    },
+    {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 7,
+      "selectedWires": 1
+    },
+    {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 7,
+      "selectedWires": 1
+    }
+  ],
+  "minimumCategoryContrast": 3.8080923057943306,
+  "sourceFiles": {
+    "apps/editor/src/review/compare-geometry.ts": "ce2510ee8d67c76c581d36dfe36dd2cf45aff4ab5c8ec3474351e4683518e273",
+    "apps/editor/src/review/ContinuousSource.tsx": "454a6347a95a5d318fde0aeb06450c9d2a86f8b182787c2210134541a43a0bd8",
+    "apps/editor/src/review/GeneratedComparison.tsx": "025c7877d064005a5c6c361b4fff7f8b3b065353561c3dc0921fcab9f2d8fe34",
+    "apps/editor/src/review/review-kinds.ts": "1a9c68866610085293a1f6f1c8e4beaa4321a49de5689ee6804f1a14fea235e9",
+    "apps/editor/src/review/review.css": "0714e55f0802569ee1509955472ef5c008fb53a435107b5413b8b78936c3aa15",
+    "apps/editor/src/review/ReviewRenderer.tsx": "53ac9a79fe12ea8fac1ea017a1f63817173f8ebb37c9f4cc63c787b9bd9a318d",
+    "apps/editor/src/review/ReviewViewPage.tsx": "7d65e8a81570c716adf07879c110a0c26855150ea7cead9096ea637f67984253",
+    "apps/editor/src/BlockHandles.tsx": "5c0f684af2c7fe026544602a1c275e324a4957221f9a8bff547fd573e5d04176",
+    "apps/editor/src/styles/tokens.css": "dd96a360d0a7a3dceaf28acccdf341fe22f35efcb43e7f9be70a9606a77d730c",
+    "apps/editor/src/locales.ts": "74ccccd84710ba4dc1dc37dea0cbef82b009ef885b8dd1d41c15b34d46136d95",
+    "apps/editor/test/fixtures/review-ui/fixture.tsx": "98025520dfaea59513bf9b0d5a6127bc9a817970c87b25791c32f73587abd650"
+  },
+  "captureReadiness": "PNGs loaded and every drawn wire start matches a visible source-region edge within 2px; no fixed delay",
+  "captureMatrix": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "language": "en"
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "language": "en"
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "language": "ko"
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "language": "ko"
+    }
+  ],
+  "followup": {
+    "toolbar": "one row at 1440; two rows at 640; shared Input/native preset list and Button/Tooltip controls",
+    "checkedCount": "check icon and count; checked/total meaning in keyboard/hover Tooltip and accessible name",
+    "documentOverflowPx": 0,
+    "zoom": {
+      "presets": [
+        "Page width",
+        50,
+        75,
+        100,
+        150,
+        200
+      ],
+      "range": [
+        25,
+        400
+      ],
+      "wheelPercentagePointStep": 10,
+      "percentBasis": "page metadata width, same as the existing PDF viewer",
+      "persistence": "mounted comparison only",
+      "page100ReadsDuringZoom": 1,
+      "sourceAnchorRatioErrorLessThan": 0.01,
+      "currentPngReloaded": false
+    },
+    "panRegression": {
+      "before": "visible source region button disappeared after high-zoom horizontal pan",
+      "cause": "nearby observer watched a pane-width sheet instead of the overflowing image layout box",
+      "after": "same regression passes; source wire endpoint error less than 2px"
+    },
+    "manualSetupCondition": "Two capture attempts stopped before comparison in the existing add-plugin picker when its draft was reset. Manual capture now scopes directly to comparison; automatic registration/OneDrive/Jira assertions and timeouts remain unchanged."
+  },
+  "narrowReadingCorrection": {
+    "previousHead": "9b9e8be693fe88ebaf4a49b52a75a226f45964fa",
+    "policy": "Owner decision #1455: basic operations without clipping or overlap; advise a wider window for side-by-side comparison. No Explorer overlay changes.",
+    "advice": "Wide window advised / 넓은 창 권장; shared Tooltip in the existing command row",
+    "contentWidthThreshold": 640,
+    "sourceDocumentRatio": [
+      1,
+      3
+    ],
+    "bodyFontPx": 14,
+    "headingFontPx": [
+      18,
+      16,
+      15,
+      14,
+      14,
+      14
+    ],
+    "paneInsetPx": 4,
+    "beforeOrdinaryWordFragmentCounts": [
+      2,
+      2
+    ],
+    "afterOrdinaryWordFragmentCounts": [
+      1,
+      1
+    ],
+    "ordinaryBodyPhraseLines": 1,
+    "longTokenWraps": true,
+    "fontsReadyBeforeMeasurement": true,
+    "kindDescription": "Shared Tooltip/Portal avoids clipping in the narrow source thumbnail.",
+    "wideCaptureHead": "9b9e8be693fe88ebaf4a49b52a75a226f45964fa",
+    "wideCapturesUnchanged": true
+  }
+}

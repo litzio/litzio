@@ -1,4 +1,43 @@
-async (page, { expect, pluginFixture, screenshots }) => {
+async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
+  if (screenshots && pluginFixture.reviewArchive) {
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+    await page.getByRole('button',{name:'Plugins',exact:true}).click();
+    const toggle=page.getByRole('switch',{name:'Enable Docling',exact:true});
+    if (!await toggle.isChecked()) {
+      await toggle.click();
+      const trust=page.getByRole('button',{name:'Trust and enable',exact:true});
+      if (await trust.isVisible()) await trust.click();
+    }
+    await page.keyboard.press('Escape');
+    await openFolderPicker(page);
+    await page.getByTestId('folder-path').fill(pluginFixture.folder);
+    await page.getByTestId('folder-open').click();
+    await page.locator('.sidebar').getByRole('button',{name:'Docling',exact:true}).click();
+    const panel=page.getByTestId('plugin-job-panel');
+    await panel.getByRole('group',{name:'Task',exact:true}).getByRole('button',{name:/문서 만들기/}).click();
+    await panel.getByRole('checkbox',{name:'real.docling',exact:true}).check();
+    await panel.locator('.plugin-job-start').getByRole('button').click();
+    const row=panel.getByRole('row').filter({has:page.getByRole('cell',{name:'real.docling',exact:true})}).first();
+    await expect(row.getByRole('status')).toHaveText('Completed');
+    const opening = page.waitForResponse(r=>r.url().endsWith('/api/reviews') && r.request().postDataJSON()?.action === 'generated-compare');
+    await row.getByRole('button',{name:'Compare source',exact:true}).click();
+    const response = await opening;
+    expect(response.ok(),(await response.json()).error).toBe(true);
+    await expect(page.locator('.review-page img').first()).toBeVisible();
+    await expect(page.getByText('Data unavailable.',{exact:true})).toBeHidden();
+    await page.getByRole('button',{name:'Page 1: Page checked',exact:true}).click();
+    await expect(page.locator('.review-renderer').getByRole('status')).toBeHidden();
+    await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+    await page.getByRole('button',{name:'table · Supported',exact:true}).first().click();
+    const audit=await page.locator('.review-read').evaluate(el=>{
+      const headings=[...el.querySelectorAll('.tiptap h1,.tiptap h2,.tiptap h3,.tiptap h4,.tiptap h5,.tiptap h6')];
+      const cues=[...el.querySelectorAll('.heading-level')];
+      return headings.map((heading,index)=>({text:heading.textContent,level:heading.tagName,cue:cues[index]?.textContent,top:heading.getBoundingClientRect().top+parseFloat(getComputedStyle(heading).lineHeight)/2,center:cues[index] ? cues[index].getBoundingClientRect().top+cues[index].getBoundingClientRect().height/2:null}));
+    });
+    expect(audit.every(value=>value.center !== null && Math.abs(value.top-value.center)<2),JSON.stringify(audit)).toBe(true);
+
+    return;
+  }
   // Match the HTTP fixture: machine OneDrive accounts are unrelated to connection settings.
   await page.route("**/api/plugins", async route => {
     const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });

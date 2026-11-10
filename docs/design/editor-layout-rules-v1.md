@@ -111,11 +111,34 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
   no space within the established gutter. In Edit they change neither text rectangles
   nor document scroll height. The row's
   visible insertion/drag handles take precedence over its cue, including keyboard focus
-  and an open block menu. The comparison reserves a constant 48px inspection gutter,
+  and an open block menu. The shared review comparison (#1435) reuses `showHeadingLevels` and reserves a constant 48px inspection gutter,
   with 20px from the cue's right edge to the text edge and 12px to the ordinary expanded
-  block outline. Its heading connectors approach above the gutter, then curve to the
-  measured block edge without crossing the cue. Source boxes are unchanged; reading
-  positions and scroll correspondence recompute from the resulting text layout.
+  block outline. Connectors leave the source horizontally to its pane edge, then use a single smooth curve.
+  Heading endpoints use the first-line top or bottom edge toward the source, clearing depth cues
+  without a large above-gutter detour. Source boxes are unchanged; reading
+  positions and scroll correspondence recompute from the resulting text layout. Continuous source pages
+  keep page-specific check controls outside the PNG. Continuous navigation uses a compact current-page
+  number Input and total, with Enter to jump, rather than previous/next buttons. All visible correspondence
+  lines remain thin; the selected correspondence is thicker and its document block is highlighted. The generated comparison fills its tab height
+  and scrolls each pane vertically rather than fixing the reading area to 520px. One command row
+  combines filename, checked count (Tooltip/accessibility description), page Input/total, one editable
+  zoom Input with native presets, sync,
+  open and refresh; it wraps to at most two rows at 640px. The repeated comparison heading is
+  accessibility-only. Prose wraps to its pane width without the two-editor-group 440px minimum;
+  wide tables, code and equations retain their own block scrolling. At comparison content widths of
+  640px or less, source/document columns use 1:3 and compact reading type reuses the existing
+  14px body and 18/16/15/14px heading tokens. Ordinary words wrap at word boundaries; only
+  overlong single tokens use emergency wrapping. The 48px inspection gutter remains fixed,
+  and no split handle is introduced. Narrow pane insets use the existing 4px spacing token;
+  source kind descriptions use the shared Tooltip/Portal outside the thumbnail clipping boundary.
+  Per [owner decision #1455](https://github.com/litzio/litzio/issues/1455), the 640px guarantee is
+  usable basic controls without overlap or clipping; a short shared Tooltip advises a wider
+  window for side-by-side comparison. Explorer overlay work remains separate. Source zoom changes only PNG
+  display width and preserves the current page position; 100% uses the page metadata width, and
+  Page width fits the pane. Ctrl+wheel changes by 10 percentage points within 25–400% without
+  browser zoom. The existing geometry hooks remeasure correspondence after zoom. BlockHandles
+  remeasures after React NodeView child commits on reread, even if the paper and editor return
+  to the same final outer height; existing cue geometry and hover/handle priority remain shared.
 
 - Frontmatter title (#786) keeps the existing H1-line-height minimum slot. The small empty
   hint's line box matches that slot and centers vertically; empty-state height is explicit

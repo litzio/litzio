@@ -80,6 +80,12 @@ The encoded native-select chevron is a deliberate literal exception: data-URL SV
 
 Document and UI share `Pretendard Variable → Pretendard → Noto Sans KR → Apple SD Gothic Neo → Malgun Gothic → Segoe UI → sans-serif`. The document stack aliases UI but has independent size/spacing tokens. Embedded controls retain UI typography. English and Korean use the same tokens.
 
+The shared comparison at content widths up to 640px uses compact reading type: the existing
+14px body token with the 1.5 body line height, and existing 18/16/15/14px tokens for H1–H6.
+This is a comparison-only reading role; ordinary document typography stays unchanged. It
+reserves more width for prose, preserves ordinary word boundaries and uses emergency wrapping
+only for overlong single tokens ([comparison contract](plugin-stage1-v1.md#연속-원본-대조-1435)).
+
 Pretendard `1.3.9` is bundled through its official variable dynamic-subset CSS; Vite serves WOFF2 assets. All upstream ranges remain available, with upstream `font-display: swap` and weight range; fallback may appear during load or for unsupported glyphs. `--font-feature-sans: "cv08"` gives capital I its serifs in document/UI. KaTeX and code fonts are unaffected. Refresh the [OFL notice](../../apps/editor/public/licenses/Pretendard-OFL.txt) from the same version when updating.
 
 | Role | Size / line height / treatment |
@@ -284,3 +290,19 @@ checks automated/reduced-motion bypasses; it passed in about 23 seconds locally.
 ## PDF source paper (#1337)
 
 `--id-color-pdf-paper` is fixed white in every theme because PDF pages preserve source colors. It is independent of the theme-aware document editor paper. The surrounding viewer uses existing theme surfaces; page-number input geometry uses existing spacing tokens. This is the source-art exception approved in the [PDF shell contract](editor-ux-shell-v1.md#read-only-pdf-tabs-1337).
+
+
+## Comparison category colors (#1435)
+
+The shared review comparison uses existing named palette colors to distinguish heading, text, list, table,
+formula, picture, footnote and code regions and their visible correspondence lines. Unmapped, excluded,
+unsupported and decorative regions use gray. Provider category/status names remain in region hover/focus
+labels and titles; color is not the only cue. Selection adds a thicker line and the existing target highlight.
+All visible correspondences are drawn, not just the selected pair.
+
+Adjustable `--id-color-review-*` roles follow the UI theme. The matching `--id-color-review-source-*`
+roles reuse fixed paper versions of the existing light accents because source PNGs retain white paper in
+Dark. Existing accent values are unchanged; light accent roles now reference those paper palette values.
+A wire switches roles at the visible PNG edge, keeping its PNG segment readable on white and its UI
+segment readable in Dark. No conversion success/error status is encoded by these category colors.
+[Contract and captures](plugin-stage1-v1.md#연속-원본-대조-1435) include source/UI contrast measurements.
