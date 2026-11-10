@@ -1,7 +1,6 @@
 # 플러그인 1단계
 
 - Status: Implemented
-- Verification #1434: 2026-11-10 — Host 기본 제작 위치의 생성·등록·실제 subprocess 호출·수정/reload, 열린 폴더 없는 turn의 sandbox 요청, 읽기 전용 거부·명시 경로 범위, hostPaths의 개발/배포/환경 override와 CLI 전달 fixture, 전체 typecheck·production build 확인. 실제 AI 제작·원격 Host 통신·설치형 앱 실행은 미검증.
 - Verification #1408: 2026-11-10 — 공용 PDF 대조·진행 저장 Host/CLI, SDK/Docling 단위 검사와 대표 HTTP 브라우저·기존 review 회귀 확인. 실제 docling-serve의 작은 합성 PDF를 변환해 1440px·한국어 Dark 640px 대조/확인 저장을 확인했으며 복잡한 PDF 품질·의미 동등성은 미검증.
 - Verification #1366: 2026-11-09 — SDK/OneDrive/Host·folder-tree tests, typecheck, CLI/Editor production build and HTTP folder/icon regressions; 1440px and Korean dark 640px before/after review. Real account synchronization is unverified.
 - Verification #1346: 2026-11-09 — SDK/Host icon validation and digest-trust tests, Editor typecheck, production CLI/Editor build, HTTP browser fixture with SVG script non-execution; 1440px and Korean dark 640px visual inspection. External plugin artwork/service adoption is unverified.
@@ -179,6 +178,8 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 개발 Host의 외부 임시 artifact 수명 테스트는 로컬 SDK보다 Host 제공본 우선, 비호환 manifest 거부, 내부 import 거부와 reload를 검증한다. CLI offline packaged 검사와 Windows Desktop packaged 검사는 외부 scaffold→validate→등록→trust→enable→invoke를 실행한다. 이는 SDK 공급 경계 fixture이며 Jira·Docling 실제 서비스 수락 완료가 아니다.
 
 ## 비서 제작 키트
+
+Verification #1434: 2026-11-10 — Host 기본 제작 위치의 생성·등록·실제 subprocess 호출·수정/reload, 열린 폴더 없는 turn의 sandbox 요청, 읽기 전용 거부·명시 경로 범위, hostPaths의 개발/배포/환경 override와 CLI 전달 fixture, 전체 typecheck·production build 확인. 실제 AI 제작·원격 Host 통신·설치형 앱 실행은 미검증. Windows 정션 경계와 폴더 없는 읽기 전용 validate 비생성 검사를 먼저 실패시킨 뒤 수정 후 통과를 확인했다. 생성 대상 정션의 이탈 거부와 sandbox 전달 전 정션 거부도 추가로 확인했다.
 
 `scaffold`는 대상 Host의 새 디렉터리에 manifest·package.json·ESM host.js와 편집기 타입 힌트를 생성한다. `directory` 생략 시 `hostPaths().plugins`(templates와 같은 사용자 데이터 base의 `plugins/`) 아래 플러그인 ID를 이름으로 새 폴더를 만든다. 필요한 기본 부모 폴더는 scaffold 쓰기 시점에만 Host가 준비하며 이름이 이미 있으면 빈 폴더도 거부하고 덮어쓰지 않는다. 원격 Host는 그 Host의 데이터 위치를 쓰며 개발 실행의 `.litzio-dev`와 `LITZIO_DATA_DIR`도 기존 hostPaths 규칙을 따른다. 문서 폴더의 기존 artifact를 옮기지는 않는다.
 
