@@ -1056,6 +1056,15 @@ function EditorApp() {
     const reason = comparisonWrites.current.size ? i18n.t("Wait for the current operation to finish.") : allTabsPendingWork(sessions.current.values(), operationRef.current);
     return reason ? { ok: false, reason } : { ok: true };
   };
+  const reportedPendingWork = useRef<boolean | null>(null);
+  useLayoutEffect(() => {
+    if (!desktop) return;
+    // Child sessions report in layout effects; include hidden tabs and unapplied drafts.
+    const pending = !restartCheck.current().ok;
+    if (reportedPendingWork.current === pending) return;
+    desktop.reportPendingWork(pending);
+    reportedPendingWork.current = pending;
+  });
   useEffect(() => {
     if (!desktop) return;
     let active = true;
@@ -1437,7 +1446,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
+              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
 
             </div>;
           })}

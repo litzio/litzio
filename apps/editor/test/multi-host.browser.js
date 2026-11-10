@@ -124,7 +124,7 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
     window.__explorerCalls = [];
     window.litzioDesktop = {
       registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: 'test' }),
-      reportHostWork: async () => {},
+      reportPendingWork: () => {}, reportHostWork: async () => {},
       hostConnection: async () => ({ url: location.origin, productVersion: 'test', desktopVersion: 'test' }),
       checkDaemon: async () => {}, setTheme: async () => false, setWindowBackground: async () => {},
       info: async () => ({ version: '0.0.2', channel: 'beta', updatesSupported: false, update: { phase: 'idle' }, postponed: null }),

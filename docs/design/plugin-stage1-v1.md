@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1435: 2026-11-10 — 실제 Docling 1쪽 결과로 Vite 첫 읽기의 중복 요청/HTTP 400을 재현하고 공유 읽기 수정만 적용해 통과. 200쪽 metadata fixture의 근처 PNG·저장 대기 중 추가 읽기·양방향 동기/해제, 확대·resize 연결선 및 per-page 확인 저장/재진입을 확인. 실제 8쪽 결과의 1440px/한국어 Dark 640px 표시를 검토. 실제 200쪽 성능·복잡한 PDF 품질·설치형 Desktop은 미검증.
 - Review corrections #1439: 2026-11-10 — 재리뷰 후 소유자가 확정한 현재 daemon running 예외·종료 이력 1,000건·종료 시각 순 정리·복원 uncertain의 무조건 안전 안내를 반영했다. 수정 전 완료 직후 결과 유실과 effect 변경 시 안내 누락으로 실패한 두 회귀, 수정 후 jobs/Host 플러그인 대상 64건과 전체 typecheck·문서 검사를 확인했다. 실제 서비스·Desktop 재시작 수락을 추가한 것은 아니다.
 - Verification #1439: 2026-11-10 — Host 작업 이력의 재시작 조회·uncertain/no-replay·필드 제한·동시 저장·손상 원본·1,000건 상한·Host별 폴더 분리 대상 검사, 전체 typecheck·문서 검사·Editor/CLI build와 production plugin-jobs/http-host 브라우저(복구·Save/Reload·충돌 포함) 확인. 실제 Docling 변환·원격 네트워크·패키지 Desktop 재시작 수락은 미검증.
 - Verification #1408: 2026-11-10 — 공용 PDF 대조·진행 저장 Host/CLI, SDK/Docling 단위 검사와 대표 HTTP 브라우저·기존 review 회귀 확인. 실제 docling-serve의 작은 합성 PDF를 변환해 1440px·한국어 Dark 640px 대조/확인 저장을 확인했으며 복잡한 PDF 품질·의미 동등성은 미검증.
@@ -302,7 +303,7 @@ K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 �
 
 #1341에서 비서 명세 생성·제안·저장 경로는 제거했다. review는 완료 작업 결과와 기존 전용 HTTP/CLI 진입점을 유지한다. 공통 view.validate는 같은 Host의 실제 완료 bundle 참조를 확인하며 조회·문서 변경을 실행하지 않는다. [현재 화면 계약](plugin-screens-v1.md)을 따른다.
 
-V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl 또는 PDF 자료를 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
+V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/pages(전체 페이지의 치수·영역 metadata, 이미지 바이트 제외)/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl 또는 PDF 자료를 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
 
 ### 화면의 변경 결과 관찰과 페이지 없는 K4
 
@@ -592,15 +593,23 @@ SDK 필수 title·기능 버전 검사는 manifest 단위 검사가 담당한다
 
 production CSP는 유지하며 설정 검증은 Host에서 수행한다. 브라우저에서 코드 생성 validator를 실행하지 않는다.
 
+## 첫 대조 읽기의 effect 수명 (#1435)
+
+개발 StrictMode의 mount effect 재구독은 같은 adapter/bundle의 최초 읽기 Promise를 공유한다.
+구독 정리는 늦게 도착한 결과의 표시만 막으며 새 Host 읽기를 시작하지 않는다. 재시도나 지연으로
+Host의 generated document admission 충돌을 숨기지 않는다. 기존 review-v5에 generated adapter를
+StrictMode로 여는 회귀를 보완했으며 수정 전 이미지 없는 오류 상태, 수정 후 첫 이미지 표시를 확인했다.
+실제 docling-serve 1.32.0의 합성 1쪽 보관 파일로 Vite 개발 서버의 첫 진입도 재현했다. 수정 전 두 번째 `generated-compare`가 HTTP 400 `Generated document operation in progress`로 실패했고, 최초 읽기 공유만 적용한 동일 파일은 새로고침 없이 표시되었다. production HTTP 첫 진입은 수정 전에도 정상이었다.
+
 ## PDF 원본 대조와 확인 기록 (#1408, SDK 0.4.0)
 
 미공개 SDK 0.4.0에 함께 포함한다. native-document job은 `generatedDocument`와 같은 플러그인의 review ID인 `comparison`을 선언할 수 있다. 둘과 review read binding 및 최소 SDK를 entry 전에 검사한다. 완료 result의 `comparison:{root,document}`만으로 앱이 공통 ‘원본 대조’ 결과 행동을 제공한다. 플러그인 이름 분기나 플러그인 UI 코드는 없다.
 
 `review compare --input <file> --host <origin> --json`과 `POST /api/reviews`의 `generated-compare`는 `{root,document,pageNo?}`를 받는다. Host 연결의 마지막 생성 revision·source revision과 현재 저장 파일이 일치할 때만 연다. Host가 보관한 최종 authoring inputs/targets를 provider의 `mode:compare`에 result(path/revision/inputs), generation, sourceRevision, pageNo와 Host 소유 PNG staging 파일로 전달한다. comparison을 선언한 provider의 모든 mode에는 Host가 전후 검증하는 sourceRevision도 전달한다(SDK 0.4.0). provider는 이를 키로 활성화 수명의 검증된 원본·대응을 재사용할 수 있다. provider는 같은 변환 경로로 원본 항목 대응을 계산하고 기존 `completedReviewSchema`의 pages/images/mapping을 반환한다. 선택한 페이지 이미지 하나를 지정 staging에 닫아 쓰며 SHA-256과 16MiB 제한을 적용한다. Host는 검증한 PNG 바이트를 메모리에 보유해 snapshot `imageUrl`로 일시 제공한다. Root 상대 이미지를 사용하는 기존 완료 review와 같은 발행·Core block path·PNG 컨테이너/픽셀 검증을 거친다. 공용 review의 PDF schema나 PDF renderer는 추가하지 않는다. Docling은 변환 시 페이지 PNG를 원본 JSON 안에 포함하고, 화면 진입은 서버 호출·PDF 재렌더링 없이 기존 이미지·bbox를 사용한다. 좌표는 Docling page.size의 pt/TOPLEFT로 정규화해 이미지 크기에 비례 배치한다.
 
-snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(checkedPages/lastPage)를 함께 반환한다. 최초 진입은 lastPage를 사용한다. 문서 블록 선택은 대응 영역이 있는 페이지로 이동한다. 없는 대응은 없는 것으로 표시한다. 오른쪽은 기존 DocumentEditor readOnly preview의 저장된 문서이며 열린 편집 탭의 draft를 참조하지 않는다. 선택 전·페이지 읽기·저장·다시 읽기에서 현재 baseline을 검사하고 불일치나 저장 실패 뒤 대응/확인 행동을 막는다. 다시 읽은 새 generation만 탐색한다. K4 제안/승인 부품은 이 대조 layout에 넣지 않는다.
+snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(checkedPages/lastPage)를 함께 반환한다. 최초 진입은 lastPage를 사용한다. 원본 페이지는 연속으로 배치하고 현재 viewport와 그 주변 페이지의 PNG만 순차적으로 읽고 보유한다. 문서 블록 선택은 대응 영역이 있는 페이지를 연속 배치 안에서 드러낸다. 없는 대응은 없는 것으로 표시한다. 오른쪽은 기존 DocumentEditor readOnly preview의 저장된 문서이며 열린 편집 탭의 draft를 참조하지 않는다. 선택 전·페이지 읽기·저장·다시 읽기에서 현재 baseline을 검사하고 불일치나 저장 실패 뒤 대응/확인 행동을 막는다. 다시 읽은 새 generation만 탐색한다. K4 제안/승인 부품은 이 대조 layout에 넣지 않는다.
 
-`review progress --input <file> --host <origin> --json`은 같은 dispatcher의 `generated-progress`다. 입력은 root/document, read/compare가 반환한 generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:number[],lastPage:number|null}`다. provider의 `mode:progress`는 기록만 변경한 전체 source를 Host staging 파일에 쓴다. Host는 source/document/link baseline을 재검사하고 공식 전체 파일 교체 후 연결의 generatedFrom만 갱신한다. 문서와 final targets를 재생성하지 않는다. 화면은 확인 저장을 접수 순서대로 처리하며 저장 완료를 기다리지 않고 다음 페이지를 읽는다. 저장 중에는 상태를 표시하고 대응 선택을 막는다. 대조 탭 닫기·창 unload·Desktop 재시작은 기존 작업 중 보호를 재사용해 대기 중 기록을 취소하지 않는다. Host는 progress 교체를 준비하는 동안 이전의 일관된 baseline으로 읽기를 허용하고, 실제 교체 전에 그 읽기가 끝날 때까지 기다린다. 교체 중 새 읽기는 새 baseline을 기다린다. 수정·재생성 등 다른 쓰기의 배타성은 유지한다. 결과는 progressSaved/baseline/receipt이고 실패는 명시적으로 반환한다. 응답 유실은 같은 generated-status를 읽고 자동 재전송하지 않는다. source 교체 후 연결 저장 실패는 progressSaved와 regeneration-required를 돌려준다. 문서 재생성은 기존 regenerate 작업이다.
+`review progress --input <file> --host <origin> --json`은 같은 dispatcher의 `generated-progress`다. 입력은 root/document, read/compare가 반환한 generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:number[],lastPage:number|null}`다. provider의 `mode:progress`는 기록만 변경한 전체 source를 Host staging 파일에 쓴다. Host는 source/document/link baseline을 재검사하고 공식 전체 파일 교체 후 연결의 generatedFrom만 갱신한다. 문서와 final targets를 재생성하지 않는다. 각 원본 페이지 머리의 공통 Button 토글이 그 페이지의 확인 상태를 표시하고 켜거나 끈다. 툴바의 단일 확인 버튼은 두지 않는다. 화면은 확인 저장을 접수 순서대로 처리하며 저장 완료를 기다리지 않고 다른 페이지로 스크롤한다. 저장 중에는 상태를 표시하고 대응 선택을 막는다. 대조 탭 닫기·창 unload·Desktop 재시작은 기존 작업 중 보호를 재사용해 대기 중 기록을 취소하지 않는다. Host는 progress 교체를 준비하는 동안 이전의 일관된 baseline으로 읽기를 허용하고, 실제 교체 전에 그 읽기가 끝날 때까지 기다린다. 교체 중 새 읽기는 새 baseline을 기다린다. 수정·재생성 등 다른 쓰기의 배타성은 유지한다. 결과는 progressSaved/baseline/receipt이고 실패는 명시적으로 반환한다. 응답 유실은 같은 generated-status를 읽고 자동 재전송하지 않는다. source 교체 후 연결 저장 실패는 progressSaved와 regeneration-required를 돌려준다. 문서 재생성은 기존 regenerate 작업이다.
 
 최종 inputs는 Host 연결 자료에 보관되며 최대 4MiB다. 검수 기록은 source 파일에만 있다. source 하나를 옮겨 기존 generated-open/새 K1 생성을 수행하면 새 연결/출력 revision과 대응을 얻고 확인 위치를 이어간다. 이전 `.docling` 파일의 호환은 지원 범위가 아니다. 이전 review의 PNG 계약과 K4 변경 경계는 유지한다.
 
@@ -612,7 +621,7 @@ snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(ch
 
 초기 보조 검토는 `fixtures/create-acceptance.py`의 한 페이지 PDF를 실제 docling-serve 1.32.0으로 변환해 수행했다. 최종 수락·표시 방식 비교는 아래의 보관 NIST 11쪽/합성 1쪽을 사용했다. 원본 대조·확인 저장과 최소 640px 페이지 가로 넘침 부재를 확인했다. 컨테이너는 중지했으며 다른 컨테이너를 조작하지 않았다. 코드/수식 인식 품질·원본과의 의미 동등성은 보증하지 않는다. 서버 지연은 자동 회귀에 넣지 않았다.
 
-`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`, `LITZIO_DOCLING_COMPARE_PAGE=5`를 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 최종 전후 캡처는 같은 NIST 입력·완료 작업을 사용한다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PageSurface와 내부 스크롤을 사용하며, 640px의 문서 최소 폭 440px는 기존 두 Editor 그룹과 같은 기준이다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
+`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`, `LITZIO_DOCLING_COMPARE_PAGE=5`를 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 최종 전후 캡처는 같은 NIST 입력·완료 작업을 사용한다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PageSurface와 내부 스크롤을 사용하며, 당시 640px 문서의 최소 폭은 440px였으며, 현재 패널 폭 줄바꿈은 아래 #1435에서 이를 대체한다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
 
 | 화면 | 변경 전 | 변경 후 |
 | --- | --- | --- |
@@ -644,3 +653,139 @@ PNG 실험은 NIST의 원본 7,943,538B→무손실 optimize 4,808,043B, 72dpi �
 [NIST 넓은 표 1440px](assets/docling-1408/after-1440.png) · [NIST 한국어 Dark 640px](assets/docling-1408/after-640.png) · [보충 합성 표 1440px](assets/docling-1408/synthetic-1440.png)
 
 비동기 기록 저장 중 대조 탭을 닫으면 아직 전송하지 않은 기록이 취소되는 경로를 대표 브라우저에서 먼저 재현했다. 기존 작업 중 닫기·beforeunload/재시작 보호를 재사용해 수정하고 같은 경로의 닫기 시도를 보완했다. CLI에는 창 수명 동작을 추가하지 않는다.
+
+
+### 연속 원본 대조 (#1435)
+
+앱 소유의 연속 페이지 배치는 기존 PNG·bbox와 Core read model의 block geometry를 쓴다.
+페이지 이미지 읽기·baseline 검증은 탭 adapter의 읽기 큐에서 순차 접수한다. 진행 저장은 기존 저장 큐를 유지하며 앞선 읽기가 끝나면 전송하고, 저장 준비 중의 추가 이미지 읽기는 Host의 기존 동시 읽기 계약으로 계속한다. 이미지 로딩은 보이는 근처의 필요 목록을 매번 확인하며 지나간
+페이지 전체를 뒤늦게 읽거나 이미지를 무제한 보관하지 않는다. 같은 revision의 페이지 치수·영역은
+공용 snapshot의 `pages` metadata로 받고 페이지 이미지는 기존 generated-compare로 하나씩 읽는다. 추가 이미지의 문서·원본 revision, 페이지 geometry와 mapping entries가 처음 읽은 자료와 일치하는지도 검사하며 혼합 자료는 탐색을 막는다.
+새 Docling 전용 Core/Host 작업·PDF renderer는 없다. CLI compare도 같은 snapshot을 받는다.
+
+기본 켜짐인 ‘스크롤 동기화’는 공통 Button의 pressed 상태로 끌 수 있다. 원본 영역 중심과 문서
+블록의 측정 위치에서 단조 증가 anchor를 만들고 양방향 보간하며, programmatic scroll의 반사를
+억제한다. 순서가 뒤바뀌거나 같은 대상인 anchor는 스크롤을 역전시키지 않는다. 양쪽 viewport에 보이는 모든 대응을 얇은 SVG 연결선으로 항상 표시하고, 선택한 대응의 선은 굵게 하며 대응 문서 블록을 강조한다. viewport 밖 endpoint는 숨긴다. 스크롤·확대·패널 resize·문서 layout
+변화에서 다시 측정하고, 연결선은 원본 패널 끝까지 수평으로 나간 뒤 단일 곡선으로 잇는다. 제목은 원본 쪽 첫 줄의 위/아래 가장자리에 연결해 H1–H6 배지를 피하며, gutter 위로 크게 돌아가지 않는다.
+문서 제목 수준은 새 표시 대신 `DocumentEditor showHeadingLevels`/`BlockHandles`를 그대로 쓴다.
+대조 화면은 남은 탭 높이를 채우며 페이지와 문서는 각각 내부에서 세로 스크롤한다.
+문서 본문은 패널 폭으로 줄바꿈하며 최소 440px 폭을 강제하지 않는다. 넓은 표·코드·수식은
+기존 블록 내부 가로 스크롤을 사용하고 문서 패널 전체를 옆으로 스크롤하지 않는다.
+대조 콘텐츠 폭이 640px 이하이면 원본:문서를 1:3으로 배치해 문서 읽기에 폭을 우선 배정한다.
+문서에는 기존 토큰의 compact 읽기 서체(본문 14px/1.5, H1 18px·H2 16px·H3 15px·H4–H6 14px)와
+기존 짧은 제목 간격을 쓴다. 제목 수준 배지는 기존 48px inspection gutter를 유지한다.
+일반 단어는 공백 경계에서 줄바꿈하고 패널에 들어가지 않는 긴 단일 토큰만 비상 줄바꿈한다.
+좁은 패널 내부 여백은 기존 4px 토큰으로 줄이고, 원본 종류 설명은 좁은 페이지에 갇히지 않도록 공통 Tooltip/Portal을 사용한다.
+새 분할 조절 UI나 저장 설정은 없으며 넓은 대조의 비율과 서체는 유지한다.
+소유자 결정 [#1455](https://github.com/litzio/litzio/issues/1455)에 따라 640px은 겹침·잘림·조작 불가가
+없는 기본 동작을 보장한다. 좁은 나란히 대조에는 공통 Tooltip으로 짧은 ‘넓은 창 권장’을 표시하며
+최적의 다중 패널 읽기 경험을 640px의 완료 조건으로 삼지 않는다. 탐색기 오버레이는 별도 범위다.
+
+파일명·확인 개수·현재 페이지 입력/전체·확대·스크롤 동기화·문서 열기·새로고침을 하나의
+공통 도구 막대에 둔다. 1440px에서는 한 줄, 640px에서는 최대 두 줄로 접는다. 확인 진행은
+Check 아이콘과 개수만 표시하고 전체 쪽수 대비 의미는 hover/keyboard Tooltip과 접근성 이름으로
+설명해 페이지 이동의 분수와 중복하지 않는다. 조작 아이콘도 같은 Button·Tooltip을 재사용한다.
+‘원본 대조’ 제목은 작업 탭과 접근성 section 이름으로 유지하고 화면 안에 반복하지 않는다.
+
+원본 배율은 열린 대조 component가 소유하며 저장하지 않는다. 공통 Input의 native datalist를
+사용한 한 칸에서 ‘페이지 너비’·50%·75%·100%·150%·200%를 선택하거나 숫자를 직접 입력한다.
+직접 숫자는 Enter/blur로 적용하고 25~400% 범위 밖은 가장 가까운 경계값으로 맞춘다.
+100%는 기존 PDF 읽기 화면처럼 페이지 metadata의 기준 폭이며 ‘페이지 너비’는 원본 패널에
+맞춘 폭이다. 기존 PNG의 CSS 표시 폭만 바꾸고 배율용 이미지/서버 요청·renderer는 추가하지 않는다.
+원본 패널의 Ctrl+wheel은 기본 브라우저 확대를 막고(passive:false, preventDefault) 10%p씩
+조절한다. 페이지 너비에서 시작하면 현재 표시 비율을 정수로 환산한 뒤 조절한다. 일반 wheel은
+기존 스크롤을 유지한다. 변경 전 현재 페이지의 좌표 비율과 화면 위치를 기억해 같은 위치를
+복원하며 연결선·동기 anchor·nearby 관찰은 새 geometry를 쓴다. 새로 근처가 된 페이지는 기존
+lazy 읽기 경로를 쓰지만 보고 있던 페이지 PNG를 배율 때문에 다시 읽지 않는다. 근처 관찰은
+확대한 이미지의 배치 상자를 대상으로 하므로 가로로 이동해도 보이는 이미지의 영역이 사라지지 않는다.
+
+
+저장 계약의 `checkedPages`/`lastPage`와 접수 순서, 저장 중 표시·닫기 보호·실패 후 새로 읽기
+경계는 유지한다. 스크롤만으로 페이지를 확인 처리하지 않는다. 각 페이지 확인 토글은
+페이지 머리에 별도로 배치해 이미지를 가리지 않는다. K4의 제안·승인과 화면 안 수정은 범위 밖이다.
+
+
+#1435 검증은 새 suite 없이 기존 review-v5, HTTP Docling 대조 경로와 reviews snapshot 검사를 보완했다.
+최초 읽기 중복과 PNG 요청 범위·스크롤 동기/해제·확대/resize 연결선은 브라우저 고유 위험이다.
+200쪽 fixture는 metadata를 늘리고 viewport에서 벗어난 PNG의 부재를 확인한다. 실제 200쪽 PDF의
+변환 시간이나 메모리 한도를 입증하지 않는다. 진행 저장을 의도적으로 보류한 동안 아직 읽지 않은
+PNG가 도착하는 검사로 기존 비차단 저장 계약도 보호한다. Host 단위 검사는 전체 페이지 metadata
+발행을 검사하고, 기존 HTTP 경로는 페이지별 토글·저장 실패·닫기 보호·확인 위치 재진입을 검사한다.
+짧은 두 페이지가 모두 들어오는 경우 재진입 단언은 마지막 페이지의 실제 viewport 포함과 확인 상태를
+검사한다(이전 한 장 표시의 단일 페이지 번호 단언을 연속 배치에 맞춤). UI의 lastPage는 확인 토글을
+사용한 페이지를 기록하며 스크롤로 checkedPages를 바꾸지 않는다.
+
+로컬 대상 21개와 실행 정책 25개, typecheck, CLI/Editor build, review-v5, layout-rules,
+quiet-document, 문서/diff 검사를 확인했다. Windows 전체 http-plugins 실행은 Docling 단언을 모두
+지나 뒤쪽 Jira 조회에서 180초 제한에 걸렸다. timeout·단언·필수 CI는 변경하지 않았으며 실제 원본
+대조만 수행하는 기존 수동 분기를 따로 실행했다. Vite 첫 진입 재현은
+`LITZIO_DOCLING_REAL_ARCHIVE=<실제 .docling>`으로 `pnpm browser:test vite-plugins --screenshots`,
+production 대조는 같은 변수와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`,
+`LITZIO_DOCLING_COMPARE_PAGE=4`로 `pnpm browser:test http-plugins --screenshots`를 쓴다.
+
+같은 실제 합성 1쪽·표 선택·확인 상태의 [1440px Before](assets/review-compare-1435/before-1440.png) /
+[After](assets/review-compare-1435/after-1440.png),
+[640px 한국어 Dark Before](assets/review-compare-1435/before-640.png) /
+[After](assets/review-compare-1435/after-640.png)를 비교한다.
+추가 8쪽 실제 결과의 제목 연결선·긴 줄바꿈은 [1440px](assets/review-compare-1435/long-1440.png) /
+[640px](assets/review-compare-1435/long-640.png), 중간 페이지 경계와 동기 위치는
+[1440px](assets/review-compare-1435/boundary-1440.png) /
+[640px](assets/review-compare-1435/boundary-640.png), 동기 해제는
+[1440px](assets/review-compare-1435/sync-off-1440.png) /
+[640px](assets/review-compare-1435/sync-off-640.png)에 남겼다.
+원본 PNG가 도착하고 모든 선의 시작점이 보이는 원본 영역 가장자리와 2px 이내로 맞는 상태를 기다린 뒤 캡처했으며, 페이지 확인 버튼·제목 배지와 연결선의 겹침, 하단의 앱 여백,
+본문 줄바꿈, dark 대비와 블록 내부 스크롤을 직접 점검했다. 소유자의 캡처 검토 후 도구 막대와
+640px 본문 폭과 원본 배율을 보완하고 두 폭 모두 Light/Dark 캡처를 갱신했다. 미지원·제외·장식 영역은 별도
+fixture의 회색 영역 [1440 Light](assets/review-compare-1435/unmapped-1440-light.png) /
+[1440 Dark](assets/review-compare-1435/unmapped-1440-dark.png) /
+[640 Light](assets/review-compare-1435/unmapped-640-light.png) /
+[640 Dark](assets/review-compare-1435/unmapped-640-dark.png)에서 확인한다. 공통 Button·Check 아이콘·Notice·Read/BlockHandles·inspection gutter와
+테마 토큰을 사용했으며 새 공통 컨트롤 예외는 없다. 계정 표시는 캡처 시 가렸고 절대 경로를 담지 않았다.
+[촬영 정보와 해시](assets/review-compare-1435/verification.json)를 함께 보존한다. 소유자 시각 승인을 대신하지 않는다.
+
+상단 정리·본문 폭 보완 후 네 조합의 실제 결과를 보존한다. `after`는 1쪽,
+`long`·`boundary`·`sync-off`는 8쪽의 중간 페이지다. 50%·200%는 같은 1쪽 결과에서
+기존 PNG의 배율만 바꾼 [1440 Light 50%](assets/review-compare-1435/zoom-50-1440-light.png) /
+[200%](assets/review-compare-1435/zoom-200-1440-light.png),
+[1440 Dark 50%](assets/review-compare-1435/zoom-50-1440-dark.png) /
+[200%](assets/review-compare-1435/zoom-200-1440-dark.png),
+[640 Light 50%](assets/review-compare-1435/zoom-50-640-light.png) /
+[200%](assets/review-compare-1435/zoom-200-640-light.png),
+[640 Dark 50%](assets/review-compare-1435/zoom-50-640-dark.png) /
+[200%](assets/review-compare-1435/zoom-200-640-dark.png)에 남겼다.
+
+| 폭 | 1쪽 Light / Dark | 긴 문서 Light / Dark | 페이지 경계 Light / Dark |
+| --- | --- | --- | --- |
+| 1440px | [Light](assets/review-compare-1435/after-1440.png) / [Dark](assets/review-compare-1435/after-1440-dark.png) | [Light](assets/review-compare-1435/long-1440.png) / [Dark](assets/review-compare-1435/long-1440-dark.png) | [Light](assets/review-compare-1435/boundary-1440.png) / [Dark](assets/review-compare-1435/boundary-1440-dark.png) |
+| 640px | [Light](assets/review-compare-1435/after-640-light.png) / [Dark](assets/review-compare-1435/after-640.png) | [Light](assets/review-compare-1435/long-640-light.png) / [Dark](assets/review-compare-1435/long-640.png) | [Light](assets/review-compare-1435/boundary-640-light.png) / [Dark](assets/review-compare-1435/boundary-640.png) |
+
+
+
+실제 1쪽 결과의 확인 저장 후 제목 배지를 추가 계측했을 때 표/코드 NodeView 아래 배지가
+최대 약 209px 위에 남는 결함도 재현했다. 같은 문서를 다시 읽을 때 React NodeView가 재생성되는
+중간 transaction에서 측정했지만 최종 paper/editor 높이는 이전과 같아 ResizeObserver가 새 측정을
+하지 않았다. 기존 BlockHandles에 editor DOM child commit 관찰과 다음 frame 재측정만 보완했다.
+같은 실제 파일의 저장/표 선택 뒤 모든 제목 첫 줄 중심과 배지 중심 차이가 2px 미만인 것을 확인하고,
+기존 review-v5에 표 뒤 제목과 reread 정렬을 보완했다. heading-levels의 기존 편집·hover 우선권도 확인한다.
+
+
+소유자 추가 결정(#1435): 연속 배치에서는 이전/다음 버튼을 제거한다. 상단의 현재 페이지 근사값/전체
+표시에서 공통 Input에 번호를 입력하고 Enter로 해당 페이지를 드러낸다. 페이지 수 범위와 정수는
+기존 number input의 min/max/step·native form 검증을 쓰며 한 글자 입력마다 이동하지 않는다.
+현재 페이지 값은 viewport의 첫 근처 페이지를 쓰고 입력 중인 초안은 덮어쓰지 않는다.
+
+영역과 연결선의 종류는 원본 category(heading/title/section_header, text/paragraph/caption,
+list/list_item, table, formula/equation, picture/figure/image, footnote/endnote, code)와 Core target 종류를
+사용한다. 실제 target 블록이 없거나 제외·미지원·장식 상태이면 회색 unmapped다. 특정 플러그인 이름
+분기나 원본 parser는 없다. 원본 category·상태 이름을 영역의 hover/keyboard focus 안내와 title에
+남겨 색만으로 뜻을 전하지 않는다. 모든 보이는 대응선은 항상 표시하며 선택된 선의 굵기와 블록
+강조로 선택을 별도로 구분한다. 전체 anchor는 layout이 바뀔 때 계산해 보관하고, 스크롤 중에는
+페이지 DOM geometry를 페이지당 한 번 읽고 보이는 페이지의 선만 만든다.
+
+색은 tokens.css의 기존 blue/teal/green/violet/plum/graphite와 warning 팔레트를 재사용한다.
+공용 Adjustable comparison role `--id-color-review-*`/`--id-color-review-source-*`를 사용한다.
+화이트 PNG는 dark UI에서도 원래 픽셀이므로 기존 light 팔레트를 paper 역할로 분리해 고정하고,
+문서/앱 쪽 선은 테마의 밝은 ink로 전환한다. 같은 선 안에서도 PNG 끝을 기준으로 두 역할을 연결해
+어두운 화면의 흰 원본 위에 너무 밝은 선을 그리지 않는다. 미대응은 source graphite와 UI muted를
+쓴다. 얇은 선의 opacity/굵기와 선택 굵기도 공용 토큰이다. 실제 캡처 실행은 각 종류의 원본 경계·
+원본 위 일반 선·UI 위 일반 선을 색상/opacity 적용 뒤 계산해 모두 3:1 이상인지 확인한다.

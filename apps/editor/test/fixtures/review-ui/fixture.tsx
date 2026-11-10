@@ -1,10 +1,11 @@
 import { REVIEW_UNAVAILABLE_GUIDANCE } from "../../../shared/review.ts";
 import { createRoot } from "react-dom/client";
-import { useMemo, useState } from "react";
+import { StrictMode, useMemo, useRef, useState } from "react";
 import { parse, getEditableDocument } from "@litzio/core";
 import type { ReviewView } from "@litzio/core/views-v2";
 import { ReviewRenderer, type ReviewSnapshot, type ReviewAdapter } from "../../../src/review/ReviewRenderer.tsx";
 import { createReviewAdapter } from "../../../src/views/review-api.ts";
+import { GeneratedComparison } from "../../../src/review/GeneratedComparison.tsx";
 import { createHostClient } from "../../../src/host-client.ts";
 import { Button } from "../../../src/components/ui/button.tsx";
 import { TooltipProvider } from "../../../src/components/ui/tooltip.tsx";
@@ -13,6 +14,8 @@ import "../../../src/styles.css";
 import "katex/dist/katex.min.css";
 const view: ReviewView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }, { component: "ReviewList", title: "Changes", source: "review" }, { component: "ReviewDetail", title: "Details", source: "review" }] } };
 function Fixture() {
+  const [generated, setGenerated] = useState(false), [page100Reads,setPage100Reads] = useState(0);
+  const progressRelease = useRef<(() => void) | undefined>(undefined);
   const [mode, setMode] = useState("normal"), [held, setHeld] = useState(false), [count, setCount] = useState(0);
   const [clientEpoch, setClientEpoch] = useState(0);
   const [checks, setChecks] = useState(0);
@@ -28,20 +31,21 @@ function Fixture() {
     let state: "pending" | "approved" | "rejected" = "pending", revision = "r1", proposalRevision = 1, hasMapping = mode !== "no-map", release: (() => void) | undefined;
     let pendingChange: NonNullable<ReviewSnapshot["unresolved"]>[number] | undefined;
     function snapshot(pageNo: number): ReviewSnapshot {
-      const document = getEditableDocument(parse(`---\nlitzio: 1\n---\n# 검토 문서\n\n${state === "approved" ? "정정된 문장입니다." : "검토할 문장입니다."}\n\n${Array.from({length: 18}, (_, i) => `추가 문단 ${i + 1}. 원본과 비교하며 읽습니다.`).join("\n\n")}\n`));
+      const document = getEditableDocument(parse(`---\nlitzio: 1\n---\n# 검토 문서\n\n${state === "approved" ? "정정된 문장입니다." : "검토할 문장입니다."}\n\n| Column | Value |\n| --- | --- |\n| Item | 1 |\n\n## After table\n\n${Array.from({length: 18}, (_, i) => `추가 문단 ${i + 1}. 원본과 비교하며 읽습니다.`).join("\n\n")}\n`));
       const target = { path: [...document.blocks[1].path], documentRevision: revision, documentHash: revision };
       const mappingRevision = hasMapping ? "m1" : undefined;
       const baseline = { documentRevision: revision, proposalRevision: `p${proposalRevision}`, sourceRevision: "s1", mappingRevision };
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="55" y="105" font-size="24">Original page ${pageNo}</text><text x="55" y="180" font-size="18">A sentence for review.</text><path d="M55 260H540M55 300H540M55 340H540" stroke="#888"/></svg>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="55" y="105" font-size="24">Original page ${pageNo}</text><text x="55" y="180" font-size="18">A sentence for review.</text><path d="M55 260H540M55 300H540M55 340H540" stroke="#888"/><text x="55" y="428" font-size="18">Unsupported content</text><text x="55" y="528" font-size="18">Excluded header</text></svg>`;
       return { bundle: { bundleRef: "bundle", generation: "g1", documentRef: "doc", documentRevision: revision, documentHash: revision, sourceRevision: "s1", mappingRevision },
         baseline, unresolved: pendingChange ? [pendingChange] : [], documentRevision: mode === "stale" ? "old" : revision, documentHash: revision, document, documentPath: "/fixture.md", pageCount: mode === "no-pages" ? 0 : 2,
         imageUrl: mode === "no-image" || mode === "no-pages" ? undefined : `data:image/svg+xml,${encodeURIComponent(svg)}`,
         page: mode === "no-pages" ? undefined : { generation: "g1", sourceRevision: "s1", pageNo, width: 600, height: 800, origin: pageNo === 1 ? "TOPLEFT" : "BOTTOMLEFT", unit: "px", imageRef: "image", regions: [
+          { id: "heading", bbox: pageNo === 1 ? [45,85,550,120]:[45,680,550,715], category: "Heading", status: "supported" },
           { id: "text", bbox: pageNo === 1 ? [45,130,550,200] : [45,600,550,670], category: "Sentence", status: "supported" },
           { id: "decoration", bbox: [45,230,550,350], category: "Divider", status: "decoration" },
           { id: "unknown", bbox: [45,400,300,450], category: "Unknown region", status: "unsupported", reason: "Unsupported content" },
           { id: "excluded", bbox: [45,500,300,550], category: "Header", status: "excluded" }] },
-        mapping: hasMapping ? { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: "s1", mappingRevision: "m1", entries: [{ sourceIds: ["text"], targets: [target] }], ...(mode === "continuation" ? { continuation: "next" } : {}) } : undefined,
+        mapping: hasMapping ? { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: "s1", mappingRevision: "m1", entries: [{ sourceIds: ["heading"], targets: [{...target,path:[...document.blocks.find(block=>block.block === "heading")!.path]}] }, { sourceIds: ["text"], targets: [target] }], ...(mode === "continuation" ? { continuation: "next" } : {}) } : undefined,
         proposals: [{ id: "p1", kind: "text.replace", targets: mode === "stale-target" ? [{ ...target, documentHash: "old" }] : [target], evidence: ["Checked against the source page."], before: mode === "typed-object" ? { type: "typed", kind: "fixture.fields", value: { title: "Original title", count: 1250, date: "2026-11-06", enabled: false } }
             : mode === "typed-array" ? { type: "typed", kind: "fixture.items", value: ["First item", 1250, true, null] }
             : mode === "typed-unsupported" ? { type: "typed", kind: "fixture.internal", value: { internal_key: { private_state: [1, 2] } } }
@@ -94,6 +98,33 @@ function Fixture() {
       release: () => { const resolve = release; release = undefined; resolve?.(); setHeld(false); },
     } as ReviewAdapter;
   }, [mode]);
-  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "host-stale", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain", "unverifiable"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && mode !== "unverifiable" && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
+  const generatedClient = useMemo(() => {
+    let busy = false, progress = {checkedPages:[] as number[],lastPage:1};
+    return {...createHostClient(location.origin), async request(_path: string, init?: RequestInit) {
+      const input = JSON.parse(String(init?.body));
+      if (input.action === "generated-progress") {
+        setHeld(true);
+        await new Promise<void>(resolve => {progressRelease.current = resolve;});
+        progress = input.progress; setHeld(false);
+        return new Response(JSON.stringify({baseline:input.baseline,progressSaved:true,receipt:{outcome:"success"}}));
+      }
+      if (input.action === "generated-read") return new Response(JSON.stringify({state:"generated",baseline:{sourceRevision:"s1",documentRevision:"r1",linkRevision:"l1"},receipt:{outcome:"success"}}));
+      if (busy) return new Response(JSON.stringify({error:"Generated document operation in progress"}), {status:400});
+      busy = true;
+      try {
+        if (input.action === "generated-compare" && input.pageNo === undefined) setCount(value=>value+1);
+        if (input.action === "generated-compare" && input.pageNo === 100) setPage100Reads(value=>value+1);
+        const snapshot = await adapter.read(1);
+        snapshot.document = getEditableDocument(parse(`---\nlitzio: 1\n---\n# Conversion acceptance\n\nConversion acceptance retains every word in the document panel, including https://example.test/verylongunbrokentokenfornarrowcomparisonpanels.\n\n| ${Array.from({length:8},(_,i)=>`Column ${i+1}`).join(" | ")} |\n| ${Array(8).fill("---").join(" | ")} |\n| ${Array(8).fill("Wide table value").join(" | ")} |\n\n## After table\n\n${Array.from({length:18},(_,i)=>`Paragraph ${i+1}. Compare the original source and document.`).join("\n\n")}\n`));
+        snapshot.pages = Array.from({length:200},(_,index)=>({...snapshot.page!,pageNo:index+1,origin:index ? "BOTTOMLEFT":"TOPLEFT",regions:index ? []:snapshot.page!.regions}));
+        snapshot.page = snapshot.pages[(input.pageNo ?? 1)-1];
+        snapshot.pageCount = 200;
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        return new Response(JSON.stringify({state:"ready",snapshot,generatedBaseline:{sourceRevision:"s1",documentRevision:"r1",linkRevision:"l1"},progress,receipt:{outcome:"success"}}));
+      } finally { busy = false; }
+    }};
+  }, [adapter]);
+  if (generated) return <TooltipProvider><div className="review-generated-fixture" style={{height:"100vh"}}><style>{`.review-generated-fixture > aside { display:none; } @media (width <= 40rem) { .review-generated-fixture { padding-left:var(--layout-sidebar-width-narrow); } .review-generated-fixture > aside { display:block; } }`}</style><aside style={{position:"fixed",inset:"0 auto 0 0",width:"var(--layout-sidebar-width-narrow)",padding:"var(--space-4)"}}>Comparison fixture</aside><span className="sr-only" data-testid="opening-reads">{count}</span><span className="sr-only" data-testid="page-100-reads">{page100Reads}</span>{held && <Button style={{position:"fixed",top:0,right:0,zIndex:100}} onClick={()=>progressRelease.current?.()}>Complete progress</Button>}<StrictMode><GeneratedComparison client={generatedClient} target={{root:"/",document:"sample.md"}} onOpen={() => {}} /></StrictMode></div></TooltipProvider>;
+  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls"><Button onClick={() => setGenerated(true)}>Generated comparison</Button>{["normal", "host-stale", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain", "unverifiable"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && mode !== "unverifiable" && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

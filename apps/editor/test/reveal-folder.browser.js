@@ -28,7 +28,7 @@ async (page, { openFolderPicker, screenshots = false, expect }) => {
     window.__explorer = { calls: [], roots: [], fail: false };
     window.litzioDesktop = {
       registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: "test" }),
-      reportHostWork: async () => {},
+      reportPendingWork: () => {}, reportHostWork: async () => {},
         hostConnection: async () => ({url:location.origin, productVersion:"test", desktopVersion:"test"}),
         checkDaemon: async () => {},
       setTheme: async () => false, setWindowBackground: async () => {},

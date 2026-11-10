@@ -21,6 +21,7 @@ import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-or
 import { bundledUiResponse } from "../src/bundled-ui.ts";
 import { daemonPort } from "../../editor/server/daemon-state.ts";
 import { ExplorerFolders } from "../src/explorer.ts";
+import { INSTALLATION_CLOSE_MESSAGE } from "../src/installation-lifecycle.ts";
 import { brand } from "../../../brand.ts";
 
 import type { UpdateState } from "../../editor/shared/desktop-bridge.ts";
@@ -30,7 +31,7 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwritable"; registryDamage?: boolean; restartAllowed?: boolean; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean; resetCloseRefused?: boolean } = {}) {
+async function start(options: { backgroundNoticeShown?: boolean; workDamage?: "corrupt" | "interrupted" | "unwritable"; registryDamage?: boolean; restartAllowed?: boolean; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean; resetCloseRefused?: boolean } = {}) {
   const registry = new RemoteHostRegistry(path.join(registryRoot, randomUUID() + ".json"));
   const workFile = registry.desktopWorkFile("/fake-user-data");
   if (options.workDamage) {
@@ -59,10 +60,22 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: {}, resourcesPath: "/fake-resources", pid: 123, execPath: "/fake-app.exe" });
   const timers = new Map<number, { run: () => void; ms: number }>();
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+  const listeners = new Map<string, (event: any, ...args: unknown[]) => void>();
   let timerId = 0, exits = 0, quits = 0;
+  const trays: Tray[] = [];
+  let menu: any[] = [];
+  class Tray extends EventEmitter {
+    tooltip = ""; balloons: any[] = []; destroyed = false;
+    constructor(readonly icon: string) { super(); trays.push(this); }
+    setToolTip(value: string) { this.tooltip = value; }
+    setContextMenu(value: any[]) { menu = value; }
+    displayBalloon(value: any) { this.balloons.push(value); }
+    destroy() { this.destroyed = true; }
+  }
   let restartAnswer: ((...args: any[]) => void) | undefined;
   class Window extends EventEmitter {
     visible = false; minimized = false; shows = 0; focused = false; destroyed = false;
+    hooks = new Map<number, () => void>();
     loaded = "";
     background = ""; overlay: unknown;
     webContents = Object.assign(new EventEmitter(), {
@@ -77,9 +90,19 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     restore() { this.minimized = false; }
     focus() { this.focused = true; }
     show() { this.visible = true; this.shows++; }
+    hide() { this.visible = false; }
+    hookWindowMessage(message: number, callback: () => void) { this.hooks.set(message, callback); }
     setEnabled(_enabled: boolean) {}
     close() {
-      if (options.resetCloseRefused) { this.webContents.emit("will-prevent-unload", { preventDefault() {} }); return; }
+      if (this.destroyed) return;
+      let prevented = false;
+      this.emit("close", { preventDefault() { prevented = true; } });
+      if (prevented) return;
+      if (options.resetCloseRefused) {
+        let leave = false;
+        this.webContents.emit("will-prevent-unload", { preventDefault() { leave = true; } });
+        if (!leave) return;
+      }
       this.destroyed = true; this.emit("closed"); app.emit("window-all-closed");
     }
     setBackgroundColor(color: string) { this.background = color; }
@@ -90,7 +113,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   const app = Object.assign(new EventEmitter(), {
     isPackaged: options.packaged ?? false, requestSingleInstanceLock: () => options.lock !== false,
     relaunch: () => daemonCalls.push("relaunch"),
-    quit: () => quits++, exit: (code: number) => { assert.equal(code, 1); exits++; },
+    quit: () => { quits++; app.emit("before-quit"); if (windows[0] && !windows[0].destroyed) windows[0].close(); }, exit: (code: number) => { assert.equal(code, 1); exits++; },
     setAppUserModelId() {}, setPath() {}, whenReady: () => Promise.resolve(), getPath: () => "/fake-user-data", getVersion: () => "0.0.2-beta.9",
   });
   const require = createRequire(import.meta.url);
@@ -98,9 +121,9 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     "./provider-session-log.ts": { openProviderSessionLog: async () => assert.fail("Provider logs must not open during startup.") },
     "../../../brand.ts": { brand },
     "electron": {
-      app, BrowserWindow: Window, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
-      ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on: (_name: string, handler: (...args: any[]) => void) => { restartAnswer = handler; } },
-      Menu: { setApplicationMenu() {} }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
+      app, BrowserWindow: Window, Tray, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
+      ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on: (name: string, handler: (...args: any[]) => void) => { listeners.set(name, handler); if (name === "desktop:restart-check-result") restartAnswer = handler; } },
+      Menu: { setApplicationMenu() {}, buildFromTemplate: (items: any[]) => items }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
       session: { defaultSession: { setPermissionRequestHandler() { if (options.startupError) throw new Error("permission setup failed"); }, setPermissionCheckHandler() {} } },
       shell: { openPath: async (directory: string) => { opened.push(directory); return options.openError ?? ""; } },
     },
@@ -136,8 +159,8 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() { return { same: true }; }, processStart: () => "fixture-parent" },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
-    "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
-    "./installation-lifecycle.ts": { installationPort() {}, checkInstallation() { if (options.installationError) throw new Error(options.installationError); } },
+    "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null, backgroundNoticeShown: options.backgroundNoticeShown ?? false }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
+    "./installation-lifecycle.ts": { INSTALLATION_CLOSE_MESSAGE, installationPort() {}, checkInstallation() { if (options.installationError) throw new Error(options.installationError); } },
     "./updates.ts": { UpdateController: class { channel = "beta"; state = options.update ?? { phase: "idle" }; start() {} stop() {}
       beginInstall() { return { version: "0.3.0-beta.1" }; }
       cancelInstall() { daemonCalls.push("cancel-install"); }
@@ -158,6 +181,12 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   });
   await setImmediate();
   const window = windows[0]!;
+  const reportPendingWork = (pending: unknown, trusted = true) => {
+    const event = { sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {}, returnValue: undefined as unknown };
+    listeners.get("desktop:pending-work")!(event, pending);
+    return event.returnValue;
+  };
+  if (window) reportPendingWork(false); // The mounted stand-in Editor has no pending work.
   const appearance = (color: unknown = "#ffffff", overlay: unknown = { color: "#f6f7f9", symbolColor: "#20242c" }, trusted = true) =>
     handlers.get("desktop:set-window-background")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, color, overlay);
   const timeout = (ms = 5_000) => {
@@ -170,7 +199,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { registry, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { reportPendingWork, trays, menu, registry, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -311,6 +340,110 @@ test("close cancels both timers; second launch reveals, restores and focuses the
   }
 });
 
+test("close hides without unloading or daemon shutdown; tray restores the same window and persists one notice", async () => {
+  const h = await start();
+  h.window.close();
+  assert.equal(h.window.destroyed, false);
+  assert.equal(h.window.visible, false);
+  assert.deepEqual(h.daemonCalls, ["connect"]);
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.trays[0].balloons.length, 1);
+  assert.equal((h.preferences[0] as any).backgroundNoticeShown, true);
+  assert.match(h.trays[0].tooltip, /백그라운드 실행 중/);
+  h.menu.find(item => item.label === "열기").click();
+  assert.equal(h.window.visible, true);
+  assert.equal(h.window.focused, true);
+  h.window.close();
+  assert.equal(h.trays[0].balloons.length, 1);
+  h.trays[0].emit("double-click");
+  assert.equal(h.window.visible, true);
+  const seen = await start({ backgroundNoticeShown: true });
+  seen.window.close();
+  assert.equal(seen.trays[0].balloons.length, 0);
+  await h.invoke("desktop:daemon-stop", []); // Cancel leaves connection untouched.
+  assert.match(h.trays[0].tooltip, /백그라운드 실행 중/);
+});
+
+test("tray quit confirms interruption, cancellation keeps running, and accepted quit cleans up", async () => {
+  const cancel = await start();
+  cancel.window.close();
+  cancel.menu.find(item => item.label === "종료").click();
+  assert.equal(cancel.window.destroyed, false);
+  assert.deepEqual(cancel.daemonCalls, ["connect"]);
+  assert.match(cancel.confirmations[0].detail, /CLI.*원격 Host/);
+  assert.equal(cancel.confirmations[0].cancelId, 0);
+  const quit = await start({ stopChoice: 1 });
+  quit.window.close();
+  quit.menu.find(item => item.label === "종료").click();
+  await setImmediate();
+  assert.equal(quit.window.destroyed, true);
+  assert.deepEqual(quit.daemonCalls, ["connect", "close"]);
+  assert.ok(quit.quits());
+  quit.app.emit("will-quit");
+  assert.equal(quit.trays[0].destroyed, true);
+});
+
+test("installation WM_CLOSE and OS session end do not hide; a refused native close clears exit intent", async () => {
+  for (const reason of ["installation", "query-session-end", "session-end", "before-quit"]) {
+    const h = await start();
+    h.window.close();
+    if (reason === "installation") h.window.hooks.get(INSTALLATION_CLOSE_MESSAGE)!();
+    else if (reason === "before-quit") h.app.emit(reason);
+    else h.window.emit(reason, { preventDefault() { assert.fail("clean work must not block Windows session end"); } });
+    h.window.close();
+    await setImmediate();
+    assert.equal(h.window.destroyed, true, reason);
+    assert.deepEqual(h.daemonCalls, ["connect", "close"], reason);
+    assert.ok(h.quits(), reason);
+  }
+  const refused = await start({ resetCloseRefused: true, stopChoice: 1 });
+  refused.window.hooks.get(INSTALLATION_CLOSE_MESSAGE)!();
+  refused.window.close();
+  assert.equal(refused.window.destroyed, false);
+  assert.equal(refused.window.visible, true, "removal's unsaved-work question is visible");
+  refused.window.close();
+  assert.equal(refused.window.visible, false, "a later ordinary close returns to tray");
+  assert.deepEqual(refused.daemonCalls, ["connect"]);
+  const cancelledSession = await start({ resetCloseRefused: true, stopChoice: 1 });
+  cancelledSession.reportPendingWork(true);
+  cancelledSession.window.close();
+  let sessionPrevented = false;
+  cancelledSession.window.emit("query-session-end", { preventDefault() { sessionPrevented = true; } });
+  assert.equal(sessionPrevented, true, "Keep editing must block the OS session, not only window close");
+  assert.equal(cancelledSession.window.destroyed, false);
+  assert.equal(cancelledSession.window.visible, true);
+  assert.equal(cancelledSession.window.focused, true);
+  assert.deepEqual(cancelledSession.daemonCalls, ["connect"], "a cancellable query does not stop work before the native guard");
+  cancelledSession.window.close();
+  assert.equal(cancelledSession.window.visible, false, "Keep editing clears actual-exit intent");
+  cancelledSession.window.emit("session-end", { preventDefault() { assert.fail("confirmed OS session end must never be blocked"); } });
+  await setImmediate();
+  assert.deepEqual(cancelledSession.daemonCalls, ["connect", "close"], "forced session end still cleans up owned work");
+});
+
+test("native session protection accepts only trusted booleans, refreshes after Save and protects an unready renderer", async () => {
+  const work = { resetCloseRefused: true, stopChoice: 1 };
+  const h = await start(work);
+  assert.equal(h.reportPendingWork(true), true);
+  assert.equal(h.reportPendingWork(false, false), false);
+  assert.equal(h.reportPendingWork("false"), false);
+  let blocked = false;
+  h.window.emit("query-session-end", { preventDefault() { blocked = true; } });
+  assert.equal(blocked, true, "invalid/untrusted reports cannot erase pending work");
+  assert.equal(h.window.destroyed, false);
+  work.resetCloseRefused = false; // The Editor saved/discarded its work.
+  assert.equal(h.reportPendingWork(false), true);
+  h.window.emit("query-session-end", { preventDefault() { assert.fail("clean work must not defer logout"); } });
+  await setImmediate();
+  assert.equal(h.window.destroyed, true);
+  assert.deepEqual(h.daemonCalls, ["connect", "close"]);
+  const unready = await start({ resetCloseRefused: true, stopChoice: 1 });
+  unready.window.webContents.emit("did-start-navigation", {}, DESKTOP_ENTRY, false, true);
+  let unknownBlocked = false;
+  unready.window.emit("query-session-end", { preventDefault() { unknownBlocked = true; } });
+  assert.equal(unknownBlocked, true, "loading state cannot reuse a previous clean report");
+});
+
 test("startup exceptions are logged, reported and exit; logging failure remains observable on stderr", async () => {
   const h = await start({ startupError: true });
   assert.match(h.logs.join(""), /starting 0.0.2-beta.9[\s\S]*startup failed: Error: permission setup failed/);
@@ -336,7 +469,7 @@ test("viewed updates persist only the current offered version from a trusted ren
     h.seen("0.4.0"); h.seen(null);
     assert.equal(h.preferences.length, 0);
     h.seen("0.3.0-beta.1");
-    assert.equal(JSON.stringify(h.preferences), JSON.stringify([{ channel: "beta", seenUpdate: "0.3.0-beta.1" }]));
+    assert.equal(JSON.stringify(h.preferences), JSON.stringify([{ channel: "beta", seenUpdate: "0.3.0-beta.1", backgroundNoticeShown: false }]));
   }
   const idle = await start();
   idle.seen("0.3.0-beta.1");
@@ -413,6 +546,7 @@ test("daemon controls require trusted bundled main frame, always confirm stop an
     assert.equal(h.confirmations[0].cancelId, 0);
     assert.match(h.confirmations[0].detail, /Connected tabs.*ongoing work/);
     assert.equal(h.daemonCalls.includes("stop"), stopChoice === 1);
+    assert.match(h.trays[0].tooltip, stopChoice === 1 ? /연결 끊김/ : /백그라운드 실행 중/);
     for (const event of ["will-navigate", "will-redirect"]) {
       let refused = false;
       h.window.webContents.emit(event, { preventDefault() { refused = true; } }, "https://foreign.invalid/");
@@ -422,6 +556,7 @@ test("daemon controls require trusted bundled main frame, always confirm stop an
     assert.throws(() => h.invoke("desktop:daemon-reconnect", []), /Untrusted/);
     h.window.webContents.mainFrame.url = DESKTOP_ENTRY;
     await h.invoke("desktop:daemon-reconnect", []);
+    assert.match(h.trays[0].tooltip, /백그라운드 실행 중/);
     assert.equal(h.daemonCalls.filter(call => call === "connect").length, 2);
     h.app.emit("window-all-closed");
     await setImmediate();
@@ -451,7 +586,11 @@ test("bundled window and IPC remain available while daemon is pending or rejecte
 test("update installation requires confirmed daemon exit; CLI refusal keeps the window open", async () => {
   for (const closeError of [undefined, "daemon still running"]) {
     const h = await start({ closeError, update: { phase: "downloaded", version: "0.3.0-beta.1", prerelease: true } });
+    h.window.close(); // A downloaded update never installs just because the app enters the tray.
+    assert.equal(h.daemonCalls.includes("close"), false);
+    assert.equal(h.daemonCalls.includes("install"), false);
     await h.invoke("desktop:install", []);
+    assert.equal(h.window.destroyed, true);
     await setImmediate();
     assert.equal(h.daemonCalls.includes("install"), !closeError);
     assert.equal(h.daemonCalls.includes("cancel-install"), Boolean(closeError));
@@ -461,6 +600,12 @@ test("update installation requires confirmed daemon exit; CLI refusal keeps the 
   assert.equal((await h.invoke("desktop:install", []) as any).reason, "Stop CLI daemon first");
   assert.equal(h.window.destroyed, false);
   assert.equal(h.daemonCalls.includes("close"), false);
+  const late = await start({ resetCloseRefused: true, update: { phase: "downloaded", version: "0.3.0-beta.1", prerelease: true } });
+  await late.invoke("desktop:install", []);
+  assert.equal(late.window.destroyed, false);
+  assert.deepEqual(late.daemonCalls, ["connect", "cancel-install"]);
+  late.window.close();
+  assert.equal(late.window.visible, false, "late work veto returns update close to ordinary tray behavior");
 });
 
 test("settings removal requires cleared work, recovery and confirmation without daemon control", async () => {
@@ -497,6 +642,12 @@ test("registration restart requires Editor protection and relaunches only after 
   assert.equal(allowed.window.destroyed, true);
   assert.ok(allowed.daemonCalls.includes("relaunch"));
   assert.ok(!allowed.daemonCalls.includes("stop"));
+  const late = await start({ resetCloseRefused: true });
+  await late.invoke("desktop:host-restart", []);
+  assert.equal(late.window.destroyed, false);
+  assert.deepEqual(late.daemonCalls, ["connect"]);
+  late.window.close();
+  assert.equal(late.window.visible, false, "late work veto clears the protected restart intent");
 });
 
 test("damaged own summaries recover without blocking window creation; interrupted writes cannot lock the next start", async () => {

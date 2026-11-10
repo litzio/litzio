@@ -34,7 +34,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     window.__cli = {state:{status:'off'}, calls:[], pending:false, fail:false};
     window.litzioDesktop = {
       registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: "test" }),
-      reportHostWork: async () => {},
+      reportPendingWork: pending => { window.__desktop.pendingWork = pending; }, reportHostWork: async () => {},
       hostConnection: async () => ({url: location.origin, productVersion: info.version, desktopVersion: info.version}),
       daemonInfo: async () => ({state: window.__desktop.connected ? 'running' : 'unreachable', url:'http://127.0.0.1:25887', launcher:'cli-start', productVersion:'0.2.0', protocolVersion:'1', pid:1234, startedAt:'2026-11-04T00:00:00Z', daemonHome:'C:/temporary/daemon/beta', executable:'C:/Litzio/Litzio.exe', roots:[], nonLoopback:false}),
       checkDaemon: async () => { if (!window.__desktop.connected) throw Error('Disconnected'); },
@@ -75,6 +75,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.unrouteAll();
   await page.reload();
   await ready();
+  await page.waitForFunction(() => window.__desktop.pendingWork === false);
   // Shared production controls; only the native boundary is a bridge stand-in.
   await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
   await page.getByRole('menuitem', {name:'Open in browser',exact:true}).click();
@@ -455,6 +456,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     return event.defaultPrevented;
   });
   check(unloadProtected, 'Hidden dirty tab did not protect browser unload');
+  check(await page.evaluate(() => window.__desktop.pendingWork) === true, 'Hidden dirty tab was not published to native session protection');
   await settings.click(); await dialog.waitFor();
   await dialog.getByRole('button',{name:'About & updates',exact:true}).click();
   await restart.click();
@@ -471,6 +473,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.getByTestId('table-label').fill('unapplied-label');
   await page.getByRole('tab', {name:'technical-document.md',exact:true}).focus();
   await page.keyboard.press('Enter');
+  check(await page.evaluate(() => window.__desktop.pendingWork) === true, 'Hidden unapplied draft was not published to native session protection');
   await settings.click();
   await dialog.waitFor();
   await dialog.getByRole('button',{name:'About & updates',exact:true}).click();
@@ -529,6 +532,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.waitForFunction(() => typeof window.__savedUnloadPrevented === 'boolean');
   const savedUnloadPrevented = await page.evaluate(() => window.__savedUnloadPrevented);
   check(savedUnloadPrevented === false, `The first completed Save commit blocks unload: ${savedUnloadPrevented}`);
+  await page.waitForFunction(() => window.__desktop.pendingWork === false);
   await page.unroute('**/api/document', holdSave);
 
   let releaseSource;

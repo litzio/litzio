@@ -9,7 +9,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { stopAgentProcess } from "../../editor/server/codex-app-server.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, Tray, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import electronUpdater from "electron-updater";
 import { getAppCacheDir } from "electron-updater/out/AppAdapter.js";
 import { load as loadYaml } from "js-yaml";
@@ -29,7 +29,7 @@ import { verifyUpdateSignature } from "./signatures.ts";
 import { IeumGitHubProvider } from "./github-provider.ts";
 import { CliIntegration } from "./cli-integration.ts";
 import { windowsEnvironment } from "./windows-environment.ts";
-import { checkInstallation, installationPort } from "./installation-lifecycle.ts";
+import { checkInstallation, installationPort, INSTALLATION_CLOSE_MESSAGE } from "./installation-lifecycle.ts";
 
 /** Set by the release build: an update must carry the publisher signature the installed app names. */
 declare const __LITZIO_REQUIRE_SIGNED_UPDATES__: boolean;
@@ -84,10 +84,59 @@ const explorerFolders = new ExplorerFolders();
 let installing = false;
 let restartingHosts = false;
 let resetting = false;
+// App-owned exit intent: ordinary window close must never destroy the editing session.
+let exiting = false;
+let tray: Tray | undefined;
+let daemonConnected = false;
+let daemonShutdown: Promise<void> | undefined;
+// The native Windows query cannot await renderer IPC. Unknown/loading work is protected.
+let pendingWindowWork = true;
 const remoteHosts = new RemoteHostRegistry();
 let allowedHostIds: string[] = [];
 let hostWork: HostWorkSummary[] | null = null;
 let cliRemovalProtectionWarning = false;
+
+function openWindow(): void {
+  if (!window || window.isDestroyed()) return;
+  if (window.isMinimized()) window.restore();
+  if (startupPending) showStartupWindow("open requested the hidden window");
+  else window.show();
+  window.focus();
+}
+
+function trayStatus(connected: boolean): void {
+  daemonConnected = connected;
+  tray?.setToolTip(`${brand.name.ko}: ${connected ? "백그라운드 실행 중" : "연결 끊김"}`);
+}
+
+async function checkDaemon(): Promise<void> {
+  try { await daemon.check(); trayStatus(true); }
+  catch (error) { trayStatus(false); throw error; }
+}
+
+function closeDaemon(): Promise<void> {
+  updates?.stop();
+  return daemonShutdown ??= daemon?.close() ?? Promise.resolve();
+}
+
+function createTray(): void {
+  tray = new Tray(path.join(appRoot, "icon.ico"));
+  trayStatus(daemonConnected);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "열기", click: openWindow },
+    { label: "종료", click: () => {
+      if (!window || installing || restartingHosts || resetting || restartAnswers.size) return;
+      openWindow();
+      if (dialog.showMessageBoxSync(window, { type: "warning", title: brand.name.ko,
+        message: `${brand.name.ko}를 종료할까요?`,
+        detail: "Desktop이 시작한 로컬 daemon과 진행 중인 비서·플러그인 작업이 종료됩니다. CLI로 시작한 daemon과 원격 Host는 계속 실행됩니다.",
+        buttons: ["취소", "종료"], defaultId: 0, cancelId: 0, noLink: true }) !== 1) return;
+      exiting = true;
+      window.close();
+    } },
+  ]));
+  tray.on("double-click", openWindow);
+}
 
 function log(message: string): void {
   try {
@@ -332,17 +381,18 @@ function registerIpc(): void {
   handle("desktop:browser", () => shell.openExternal(daemon.record.url));
   handle("desktop:daemon-info", async () => {
     await initialConnection;
-    let state: "running" | "unreachable" = "running"; try { await daemon.check(); } catch { state = "unreachable"; }
+    let state: "running" | "unreachable" = "running"; try { await checkDaemon(); } catch { state = "unreachable"; }
     return { ...daemon.health, url: daemon.record.url, state };
   });
   handle("desktop:daemon-stop", async () => {
     if (!window || dialog.showMessageBoxSync(window, { type: "warning", message: "Stop daemon?", detail: "Connected tabs will disconnect and ongoing work will stop.", buttons: ["Cancel", "Stop"], defaultId: 0, cancelId: 0, noLink: true }) !== 1) return false;
-    await daemon.stopExplicitly(); return true;
+    await daemon.stopExplicitly(); trayStatus(false); return true;
   });
-  handle("desktop:daemon-check", () => daemon.check());
+  handle("desktop:daemon-check", () => checkDaemon());
   handle("desktop:daemon-reconnect", async () => {
     initialConnection = daemon.connect();
-    return hostConnection();
+    try { const connection = await hostConnection(); trayStatus(true); return connection; }
+    catch (error) { trayStatus(false); throw error; }
   });
   handle("desktop:provider-session-log", async (hostId, id, provider, action) => {
     await daemon.check();
@@ -400,6 +450,12 @@ function registerIpc(): void {
     writePreferences(preferencesFile(), preferences);
   });
   handle("desktop:release-notes", (version) => openExternal(releaseNotesUrl(typeof version === "string" ? version : undefined)));
+  ipcMain.on("desktop:pending-work", (event, pending: unknown) => {
+    event.returnValue = false;
+    if (!trusted(event) || typeof pending !== "boolean") return;
+    pendingWindowWork = pending;
+    event.returnValue = true;
+  });
   ipcMain.on("desktop:restart-check-result", (event, id: unknown, check: unknown) => {
     if (!trusted(event) || typeof id !== "number") return;
     const record = typeof check === "object" && check !== null ? check as Record<string, unknown> : {};
@@ -426,6 +482,43 @@ function createWindow(): void {
     },
   });
   window = created;
+  created.on("close", event => {
+    if (exiting || installing || restartingHosts || resetting) {
+      // A native unsaved-work dialog must be visible even when removal starts in the tray.
+      openWindow();
+      return;
+    }
+    event.preventDefault();
+    startupPending = false;
+    clearTimeout(appearanceTimer);
+    clearTimeout(startupTimer);
+    created.hide();
+    if (!preferences.backgroundNoticeShown) {
+      tray?.displayBalloon({ iconType: "info", title: `${brand.name.ko}가 백그라운드에서 실행 중입니다.`,
+        content: "창을 닫아도 작업은 계속됩니다. 트레이의 '열기'로 돌아오고, '종료'로 앱과 Desktop이 시작한 daemon을 종료할 수 있습니다." });
+      const next = { ...preferences, backgroundNoticeShown: true };
+      preferences = next;
+      try { writePreferences(preferencesFile(), next); }
+      catch (error) { log(`Could not save background notice preference: ${String(error)}`); }
+    }
+  });
+  if (process.platform === "win32") {
+    // The installation helper sends this intent before WM_CLOSE, including to hidden windows.
+    created.hookWindowMessage(INSTALLATION_CLOSE_MESSAGE, () => { exiting = true; });
+    created.on("query-session-end", event => {
+      // Cancel the OS query synchronously, before the asynchronous renderer unload guard.
+      // Keep editing can then preserve both the window and the daemon, even from the tray.
+      if (pendingWindowWork) event.preventDefault();
+      exiting = true;
+      created.close();
+    });
+    // Confirmed Windows shutdown may omit normal quit events. Use the same cleanup;
+    // do not disconnect during the cancellable query before the unsaved-work guard.
+    created.on("session-end", () => {
+      exiting = true;
+      void closeDaemon().catch(error => log(`session daemon shutdown failed: ${String(error)}`));
+    });
+  }
   startupTimer = setTimeout(() => showStartupWindow("startup timed out after 15000ms"), STARTUP_TIMEOUT_MS);
   created.once("ready-to-show", () => {
     readyToShow = true;
@@ -440,7 +533,11 @@ function createWindow(): void {
   created.webContents.on("did-fail-load", (_event, code, description, _url, isMainFrame) => {
     if (isMainFrame) failed(`renderer load failed (${code}): ${description}`);
   });
+  created.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) pendingWindowWork = true;
+  });
   created.webContents.on("render-process-gone", (_event, details) => {
+    pendingWindowWork = true;
     const reason = `renderer exited: ${details.reason} (${details.exitCode})`;
     log(reason);
     failed(reason);
@@ -469,6 +566,7 @@ function createWindow(): void {
       title: brand.name.en, message: "Open documents have unsaved changes or work in progress.", detail: "Close without saving the original files. Local recovery keeps only the last successfully recorded applied edits; unapplied drafts and later changes may be lost. Keep editing to finish and save each document first.",
     }) === 0;
     if (leave) event.preventDefault();
+    else exiting = false;
   });
   created.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url);
@@ -493,15 +591,9 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   // No application menu: its Reload and DevTools shortcuts are not part of the Editor.
   Menu.setApplicationMenu(null);
-  app.on("second-instance", () => {
-    if (!window) return;
-    if (window.isMinimized()) window.restore();
-    if (!window.isVisible()) {
-      if (startupPending) showStartupWindow("second instance requested the hidden window");
-      else window.show();
-    }
-    window.focus();
-  });
+  app.on("second-instance", openWindow);
+  app.on("before-quit", () => { exiting = true; });
+  app.on("will-quit", () => { tray?.destroy(); tray = undefined; });
   app.on("web-contents-created", (_event, contents) => {
     contents.on("will-attach-webview", (event) => event.preventDefault());
   });
@@ -571,9 +663,10 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     log(`started ${app.getVersion()} (${preferences.channel}); ${unsupported ?? "updates on"}`);
     createWindow();
+    createTray();
     initialConnection = daemon.connect();
     // The renderer reports connection/protocol errors; the bundled window stays usable.
-    void initialConnection.catch(error => log(`daemon connection failed: ${String(error)}`));
+    void initialConnection.then(() => trayStatus(true), error => { trayStatus(false); log(`daemon connection failed: ${String(error)}`); });
     updates.start();
   }).catch(error => {
     void daemon?.close().catch(error => log(`daemon cleanup failed: ${String(error)}`));
@@ -586,8 +679,7 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.on("window-all-closed", async () => {
     if (restartingHosts) app.relaunch();
-    updates?.stop();
-    try { await daemon?.close(); } catch (error) {
+    try { await closeDaemon(); } catch (error) {
       if (resetting) new ResetGuard().blockAfterFailedShutdown();
       log(`daemon shutdown failed: ${String(error)}`);
       dialog.showErrorBox(brand.name.en, String(error));

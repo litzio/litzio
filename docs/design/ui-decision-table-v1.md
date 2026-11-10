@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| Desktop 창을 숨기거나 완전 종료한다 (#1448) | Windows 트레이 | Electron Tray/Menu + 기존 brand icon·native dialog | 열기·종료, 최초 백그라운드 안내·설정 보존, 종료 시 작업 중단 안내와 기존 미저장 보호 | [Desktop 트레이 계약](desktop-distribution-v1.md#close-to-tray-1448) | 소유자가 승인한 OS 표면으로 renderer 공통 부품 밖이다. 창은 같은 편집 세션을 유지하며 실제 native 시각·패키지 수락은 미확인 |
 | 비서 질문에 답하고 기록을 확인한다 (#1443) | 기존 대화 본문, 과정 밖 | AssistantQuestion + native fieldset/radio + 공용 Input/Button | 선택·직접 입력, 렌더 확인 뒤 수락, 답변 후 같은 카드에 기록 | [질문 계약](main-agent-v1.md#async-questions-and-answer-history-1443) | 기존 대화·질문 소유권 유지. 현재 Copilot ACP 연결은 미지원 명시 |
 | 비서의 작업 과정과 새 내용을 읽는다 (#1436/#1440) | 기존 대화 패널 | native details/summary + outline sm Button + Lucide ArrowDown | 과정 기본 접힘·머리에 현재 단계, 위로 읽을 때 위치 유지·새 내용 알림·명시적 하단 이동 | [읽기·진행 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440) | 사용자 질문·선택·확인은 과정 밖에 표시. 화면 내부 interaction이며 Host 상태·CLI 작업 추가 없음 |
 | 닫힌 비서의 작업·완료·답변 필요를 확인한다 (#1424) | 기존 상단 비서 버튼 | ghost sm Button + Tooltip + agent-dot, 기존 text-muted/accent/warning 토큰 | 빈 원은 작업 중, 채운 원은 완료(읽지 않음), 사각형은 확인·답변 필요. 열면 완료를 확인 처리하며 열린 동안 표시는 숨김 | [비서 상태](main-agent-v1.md#assistant-button-status-1424) | 기존 대화·제출 관측을 재사용하며 새 작업 상태·OS 알림·소리 없음 |

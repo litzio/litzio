@@ -2,6 +2,7 @@ import { DAEMON_PROTOCOL } from "../../../editor/server/daemon-protocol.ts";
 import { DESKTOP_ENTRY, DESKTOP_ORIGIN } from "../../../editor/shared/desktop-origin.ts";
 import { daemonPort, processStart } from "../../../editor/server/daemon-state.ts";
 import { brand } from "../../../../brand.ts";
+import { installationPort } from "../../src/installation-lifecycle.ts";
 import { createRequire } from "node:module";
 // The packaged Windows app (release/win-unpacked, or LITZIO_DESKTOP_EXE for an installed copy)
 // under Playwright: app-owned bundled origin and a shared HTTP Host, without Vite.
@@ -401,7 +402,7 @@ test("local recovery survives a packaged app crash and normal close, with real S
       }) as typeof dialog.showMessageBoxSync;
     });
     const closed = app!.waitForEvent("close");
-    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close());
+    await app!.evaluate(({ app }) => app.quit());
     await closed;
     app = undefined;
     assert.equal(closeQuestion, 'recovery-close:["Close without saving","Keep editing"]');
@@ -484,14 +485,27 @@ test("a file changed outside the app is a Save conflict and is not overwritten",
   }
 });
 
-test("closing with unsaved changes asks; Keep editing keeps the window and the edit", async () => {
+test("close hides the same editing session; actual quit still protects unsaved work", async () => {
   const { file } = documentFolder("close");
   const { app, page } = await launch(profile("close"), [file]);
   try {
     await typeAtStart(page, "UNSAVED ");
     await answerClose(app, 1);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close());
-    await page.waitForTimeout(1000);
+    assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()), false);
+    // Same page and daemon survive hiding; reopening preserves Undo without recovery/reload.
+    const daemonBefore = await page.evaluate(() => window.litzioDesktop!.daemonInfo());
+    await app.evaluate(({ app }) => app.emit("second-instance", {}, [], ""));
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible())).toBe(true);
+    assert.deepEqual(await page.evaluate(() => window.litzioDesktop!.daemonInfo()), daemonBefore);
+    await page.locator(".ProseMirror").press("Control+z");
+    await expect(page.locator(".ProseMirror")).not.toContainText("UNSAVED ");
+    await page.locator(".ProseMirror").press("Control+y");
+    await expect(page.locator(".ProseMirror")).toContainText("UNSAVED ");
+    await app.evaluate(({ app, BrowserWindow }) => new Promise<void>(resolve => {
+      BrowserWindow.getAllWindows()[0]!.webContents.once("will-prevent-unload", () => resolve());
+      app.quit();
+    }));
     assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
     assert.match(await page.locator(".ProseMirror").innerText(), /UNSAVED /);
     assert.doesNotMatch(readFileSync(file, "utf8"), /UNSAVED /);
@@ -530,7 +544,7 @@ test("the release channel persists across restarts; an update check never blocks
     await answerClose(app, 0);
     await closeApp(app);
   }
-  assert.deepEqual(JSON.parse(readFileSync(path.join(userData, "preferences.json"), "utf8")), { channel: selectedChannel, seenUpdate: null });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(userData, "preferences.json"), "utf8")), { channel: selectedChannel, seenUpdate: null, backgroundNoticeShown: false });
   ({ app, page } = await launch(userData));
   try {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -738,10 +752,17 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
       if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== originalPid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) restarted = { pid: owner.pid, processStartedAt: owner.started };
     }
     if (restarted && processStart(restarted.pid) === restarted.processStartedAt) {
-      // Exact fixture-owned PID/creation identity; no image-name or other workspace cleanup.
-      const accepted = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted.pid}).CloseMainWindow()`], { windowsHide: true, encoding: "utf8" }).trim();
-      proof.nativeCloseAccepted = accepted;
-      try { await expect.poll(() => processStart(restarted!.pid), { timeout: 15_000 }).not.toBe(restarted.processStartedAt); }
+      try {
+        // Bare WM_CLOSE now hides to tray. Reuse the installer's explicit exit intent +
+        // WM_CLOSE, limited to this fixture's exact executable/PID/creation identity.
+        // This also exercises the bundled intent hook in the reset-relaunched process.
+        const port = installationPort(exe);
+        const owner = port.processes().find(owner => owner.pid === restarted!.pid && owner.started === restarted!.processStartedAt);
+        assert.ok(owner?.window, "The reset-relaunched Desktop window must be identifiable for explicit exit");
+        port.closeWindows([owner]);
+        proof.exitRequest = "installation-intent-and-wm-close";
+        await expect.poll(() => processStart(restarted!.pid), { timeout: 15_000 }).not.toBe(restarted.processStartedAt);
+      }
       catch (error) {
         if (processStart(restarted.pid) === restarted.processStartedAt) execFileSync("taskkill.exe", ["/PID", String(restarted.pid), "/T", "/F"], { windowsHide: true });
         throw error;

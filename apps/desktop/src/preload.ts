@@ -23,6 +23,8 @@ const bridge: DesktopBridge = {
   renameHost: (id, label) => ipcRenderer.invoke("desktop:host-rename", id, label),
   removeHost: id => ipcRenderer.invoke("desktop:host-remove", id),
   reportHostWork: summary => ipcRenderer.invoke("desktop:host-work", summary),
+  // Only on protection-state transitions; main must have the value before Windows queries it.
+  reportPendingWork: pending => { ipcRenderer.sendSync("desktop:pending-work", pending); },
   restartForHosts: () => ipcRenderer.invoke("desktop:host-restart"),
   hostConnection: () => ipcRenderer.invoke("desktop:host-connection"),
   startup: () => ipcRenderer.invoke("desktop:startup"),
