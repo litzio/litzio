@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { assertUnicode, commitFile, FileChangedError, preflightFileCommit, textRevision } from "@litzio/file-commit";
 import { parse, serialize, updateMediaReferences } from "@litzio/core";
 import { fileIdentity, type FileIdentity, validFileStem, type FileOperationRequest, type RenameFileRequest, type FileOperationResponse } from "../shared/file-operations.ts";
-import { accessPath, FileAccessError, inside, LOCAL_FILE_ACCESS, RootAccess, type FileAccess } from "./file-access.ts";
+import { accessPath, actualFolderMembership, FileAccessError, inside, LOCAL_FILE_ACCESS, RootAccess, type FileAccess } from "./file-access.ts";
 import { loadDocumentFile, MEDIA_TYPES } from "./document-reader.ts";
 import { resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
@@ -84,7 +84,7 @@ export async function executeFolderTrash(request: FolderTrashRequest, options: {
     if (request.checkOnly !== undefined && typeof request.checkOnly !== "boolean") throw new Error("Invalid deletion check.");
     if (request.expectedIdentity !== undefined && Object.entries(identity).some(([key, value]) => request.expectedIdentity?.[key as keyof FileIdentity] !== value)) throw new Error("The folder changed. Review it and try again.");
     if (request.openDocuments !== undefined && (!Array.isArray(request.openDocuments) || request.openDocuments.some(value => typeof value !== "string"))) throw new Error("Invalid open documents.");
-    const unsavedDocuments = (request.openDocuments ?? []).map(value => path.resolve(accessPath(value, access))).filter(value => inside(file, value)).map(value => path.relative(root, value));
+    const unsavedDocuments = (request.openDocuments ?? []).filter(value => actualFolderMembership(file, value, access) !== "outside");
     if (unsavedDocuments.length) return { path: file, unsavedDocuments, error: "Save these documents before moving the folder to Trash.", receipt };
     if (request.checkOnly) {
       // Limit entries, elapsed work, document count and bytes. Never follow child links.
@@ -137,13 +137,15 @@ export async function executeFolderTrash(request: FolderTrashRequest, options: {
     const current = scope(request, access, true);
     if (Object.entries(identity).some(([key, value]) => fileIdentity(current.owner)[key as keyof FileIdentity] !== value)) throw new Error("The folder changed. Review it and try again.");
     if (typeof request.expectedRevision !== "string" || !/^[a-f0-9]{64}$/.test(request.expectedRevision)) throw new Error("Inspect the folder again before moving it to Trash.");
+    if (request.cleanupPaths !== undefined && (!Array.isArray(request.cleanupPaths) || request.cleanupPaths.some(value => typeof value !== "string"))) throw new Error("Invalid cleanup paths.");
+    const containedPaths = [...new Set(request.cleanupPaths ?? [])].filter(value => actualFolderMembership(current.file, value, access) === "inside");
     const state = folderState(current.file, access, options.entryLimit ?? 2000);
     if (!state.revision || state.revision !== request.expectedRevision) throw new Error("The folder changed or could not be fully checked. Close this dialog and confirm again.");
     attempted = true;
     await options.remove(current.file);
     // Some OS APIs can return after partial work. A surviving source is never success.
     if (fs.lstatSync(file, { throwIfNoEntry: false })) throw new Error("The source folder still exists.");
-    return { path: file, receipt: { ...receipt, outcome: "success", source: "moved" } };
+    return { path: file, containedPaths, receipt: { ...receipt, outcome: "success", source: "moved" } };
   } catch (error) {
     const uncertain = attempted && !(error instanceof TrashPreservedError);
     return { error: uncertain ? "The Trash operation did not complete reliably. Some items may have moved. Check the source folder and OS Trash before trying again." : error instanceof Error ? error.message : String(error),

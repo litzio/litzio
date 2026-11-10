@@ -477,11 +477,20 @@ New Document v1은 Workspace를 만들지 않고 특정 file path를 Host에 전
 
 ## Child-folder Trash (#1401)
 
+폴더 휴지통의 소유권은 실제 경로·디렉터리 dev/ino로 판단하며, 보호는 내부 또는 미확인 시 이동을 거부하고 정리는 내부로 확인된 항목만 수행하며 미확인·사라진 경로의 기록은 보존한다.
+
 The stateless `folder.trash` Host operation is shared by `POST /api/folder-trash` and
 `litzio folder-trash <path> --root <folder> [--host <origin>] [--check | --revision <sha256>] --json`.
 CLI without `--host` uses the local OS adapter; with it, paths belong to the selected Host.
 No window state or assistant tool is added. Input is `{root, path, checkOnly?, expectedIdentity?, expectedRevision?,
-openDocuments?}`; `openDocuments` contains unsaved document paths from the caller's window.
+openDocuments?, cleanupPaths?}`; `openDocuments` contains every unsaved/restored document path
+from the caller's window, without a client-side path filter. Any busy Save refuses the operation
+before the request. The Host resolves candidates through the existing native realpath boundary
+and compares directory dev/ino along physical ancestors, including junction aliases; no manual
+case-folding authorizes protection or cleanup. Unknown protected paths refuse. `cleanupPaths`
+contains saved-tab and captured recovery/writer locators. A successful result's `containedPaths`
+includes only candidates verified inside before the OS move. Missing, inaccessible or unidentifiable
+cleanup candidates are excluded. No new retained Host state is introduced.
 Both lexical and real-path scope use the existing file-operation checks, including Root
 identity, symlink/junction ancestry refusal, regular directory type and strict descendant
 requirement. The operator allowlist applies in HTTP. No opened-folder registry is retained.

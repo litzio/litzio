@@ -12,6 +12,40 @@ import { nativeSource } from "./helpers/document.ts";
 import { getEditableDocument, parse } from "@litzio/core";
 import { loadDocumentFile } from "../server/document-api.ts";
 
+test("folder trash protects unsaved documents opened through a directory junction alias", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-alias-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "Child"), alias = path.join(root, "Alias"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "draft.txt"), "saved");
+  fs.symlinkSync(folder, alias, process.platform === "win32" ? "junction" : "dir");
+  const opened = path.join(alias, "draft.txt");
+  assert.equal(fs.statSync(opened, { bigint: true }).ino, fs.statSync(path.join(folder, "draft.txt"), { bigint: true }).ino);
+  let calls = 0;
+  const remove = (target: string) => { calls++; fs.renameSync(target, path.join(root, "moved")); };
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove });
+  const result = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision, openDocuments: [opened] }, { remove });
+  assert.equal(result.receipt.outcome, "refused"); assert.equal(calls, 0);
+  const missing = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision, openDocuments: [path.join(root, "missing", "draft.txt")] }, { remove });
+  assert.equal(missing.receipt.outcome, "refused", "unidentifiable protected paths refuse conservatively"); assert.equal(calls, 0);
+});
+
+test("folder trash cleanup candidates use real identities, preserving Kelvin siblings and missing paths", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-kelvin-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "k"), other = path.join(root, "K"), alias = path.join(root, "Alias");
+  fs.mkdirSync(folder); fs.mkdirSync(other);
+  const target = path.join(folder, "draft.txt"), sibling = path.join(other, "draft.txt"), missing = path.join(folder, "missing.txt");
+  fs.writeFileSync(target, "target"); fs.writeFileSync(sibling, "unrelated");
+  assert.notEqual(fs.statSync(folder, { bigint: true }).ino, fs.statSync(other, { bigint: true }).ino);
+  fs.symlinkSync(folder, alias, process.platform === "win32" ? "junction" : "dir");
+  const aliasPath = path.join(alias, "draft.txt");
+  const remove = (value: string) => fs.renameSync(value, path.join(root, "moved"));
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove });
+  const result = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision, openDocuments: [sibling], cleanupPaths: [target, aliasPath, sibling, missing] }, { remove });
+  assert.deepEqual(result.containedPaths, [target, aliasPath]);
+  assert.equal(fs.readFileSync(sibling, "utf8"), "unrelated");
+});
+
 for (const change of ["edit", "add", "remove", "rename"] as const) test(`folder confirmation refuses ${change} after inspection before invoking trash`, async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-confirm-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

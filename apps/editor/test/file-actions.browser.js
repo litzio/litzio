@@ -1,4 +1,4 @@
-async (page, { changeFolderContents, openDocument, openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument, enableFolderTrash } = {}) => {
+async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument, enableFolderTrash } = {}) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const root = fileActionsRoot;
   const sep = root.includes('\\') ? '\\' : '/';
@@ -42,17 +42,15 @@ async (page, { changeFolderContents, openDocument, openFolderPicker, screenshots
   await cancel();
   await expect(row('trash-target')).toBeVisible();
   await row('trash-target').click();
-  // A Windows Host preserves a caller's spelling; dirty protection must still match its tree path.
-  if (sep === '\\') {
-    await openDocument(page, (file('trash-target') + sep + 'inside.md').toLowerCase());
-    // Closing a folder keeps its document tab. Keep the original Root as this test's deletion context.
-    for (const section of await page.getByTestId('folder').all()) {
-      if (await section.getAttribute('data-root') !== file('trash-target').toLowerCase()) continue;
-      await section.getByRole('button',{name:'More actions',exact:true}).click();
-      await page.getByRole('menuitem',{name:'Close folder',exact:true}).click();
-      await section.waitFor({state:'hidden'});
-    }
-  } else await row('inside.md').click();
+  // The document is physically in trash-target, but its opened path passes through a junction/symlink.
+  const openedAlias = sep === '\\' ? folderAliasRoot.toLowerCase() : folderAliasRoot;
+  await openDocument(page, openedAlias + sep + 'inside.md');
+  for (const section of await page.getByTestId('folder').all()) {
+    if (await section.getAttribute('data-root') !== openedAlias) continue;
+    await section.getByRole('button',{name:'More actions',exact:true}).click();
+    await page.getByRole('menuitem',{name:'Close folder',exact:true}).click();
+    await section.waitFor({state:'hidden'});
+  }
   await expect(page.getByTestId('current-file')).toHaveText('inside.md');
   const inside = activeDocument(page).locator('.document-editor p').first();
   await inside.click(); await page.keyboard.press('End'); await page.keyboard.type(' Unsaved folder work.');

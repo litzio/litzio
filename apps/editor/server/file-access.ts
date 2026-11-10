@@ -146,6 +146,26 @@ export function accessPath(value: string, access: FileAccess, create = false): s
   return value;
 }
 
+/** Directory identity along canonical physical ancestors alone authorizes membership.
+ * realpath.native resolves junction aliases and keeps NTFS names that JS case-folding merges distinct.
+ */
+export function actualFolderMembership(folder: string, value: string, access: FileAccess): "inside" | "outside" | "unknown" {
+  try {
+    const root = canonicalFilePath(accessPath(folder, access));
+    const owner = fs.statSync(root, { bigint: true });
+    if (!owner.isDirectory() || owner.ino === 0n) return "unknown";
+    const file = canonicalFilePath(accessPath(value, access));
+    if (!fs.statSync(file).isFile()) return "unknown";
+    for (let current = path.dirname(file); ; current = path.dirname(current)) {
+      const stat = fs.statSync(current, { bigint: true });
+      if (!stat.isDirectory() || stat.ino === 0n) return "unknown";
+      if (stat.dev === owner.dev && stat.ino === owner.ino) return "inside";
+      if (path.dirname(current) === current) break;
+    }
+    return "outside";
+  } catch { return "unknown"; }
+}
+
 /** HTTP errors may describe the request, but must not reveal an out-of-bound resolved path. */
 export function fileErrorMessage(error: unknown, access: FileAccess): string {
   if (access && error && typeof error === "object" && "code" in error) {

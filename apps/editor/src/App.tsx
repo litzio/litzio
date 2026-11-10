@@ -14,7 +14,7 @@ import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
 import { getHostClient, hostRegistry, hostLabel, monitorRegisteredHosts, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
-import { creationUndoNeedsConfirmation, withinHostFolder, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
+import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { brand, productName } from "../../../brand.ts";
@@ -27,7 +27,7 @@ import { useMessageState } from "./ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "./i18n.ts";
 import { type Operation } from "./operation.ts";
-import { recoveryStorage, type RecoveryRecord } from "./recovery-storage.ts";
+import { recoveryStorage, type FolderRecoverySnapshot, type RecoveryRecord } from "./recovery-storage.ts";
 import { prepareRecovery } from "./recovery-restore.ts";
 import type { SaveComparison } from "./shell/SaveCompare.tsx";
 import { SaveDisplayError } from "./save-error.ts";
@@ -538,16 +538,16 @@ function EditorApp() {
     const isFolder = entry.kind === "folder";
     if (isFolder && (action !== "delete" || hostRegistry.get(hostId).capabilities?.fileDeletion !== "trash")) throw new Error(i18n.t("The Host trash is unavailable."));
     // Invalidate before any await: the read may already contain the pre-mutation file.
-    // Include descendants for folder operations, with a separator boundary and Host identity.
+    // Folder membership needs Host filesystem identity, so cancel all this Host's pending reads.
     for (const [group, pending] of pendingOpens.current) {
       if (pending.hostId === hostId && (pending.path === entry.path ||
-          entry.kind === "folder" && withinHostFolder(entry.path, pending.path))) cancelOpen(group);
+          entry.kind === "folder")) cancelOpen(group);
     }
     operationRef.current = true; setFileOperationPending(true);
     if (figure) setFigureRenamePending(true);
     const hostSessions = () => tabs.filter(tab => tab.hostId === hostId)
       .flatMap(tab => { const session = sessions.current.get(tab.id); return session ? [session] : []; });
-    const affected = tabs.filter(tab => tab.hostId === hostId && (tab.path === entry.path || isFolder && withinHostFolder(entry.path, tab.path)));
+    let affected = tabs.filter(tab => tab.hostId === hostId && (isFolder || tab.path === entry.path));
     const affectedSessions = affected.flatMap(tab => { const session = sessions.current.get(tab.id); return session ? [session] : []; });
     const formSession = figure && hostSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
     const tab = tabs.find(tab => sameLocator(tab, { hostId, path: entry.path }));
@@ -587,12 +587,17 @@ function EditorApp() {
         // Input stays inert through the check, modal and deletion; Host rechecks revision.
       }
       const openDocuments = [];
+      let folderRecovery: FolderRecoverySnapshot | undefined;
+      let cleanupPaths: string[] = [], protectedPaths: string[] = [];
       if (isFolder) {
+        folderRecovery = await recoveryStorage.folderTrashSnapshot(hostId);
+        if (hostSessions().some(session => session.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
         const unsaved = affected.filter(tab => {
           const session = sessions.current.get(tab.id);
           return session?.editorRef.current?.hasUnsavedChanges() || tab.restored;
         });
-        if (unsaved.length) throw new Error(i18n.t("Save these documents before moving the folder to Trash: {{documents}}", { documents: unsaved.map(tab => splitDocumentPath(tab.path).name).join(", ") }));
+        protectedPaths = unsaved.map(tab => tab.path);
+        cleanupPaths = [...new Set([...affected.map(tab => tab.path), ...folderRecovery.records.map(record => record.path), ...folderRecovery.writers.map(writer => writer.barrier.path)])];
       }
       if (action === "rename" && entry.kind === "image") {
         for (const current of hostSessions()) {
@@ -609,13 +614,14 @@ function EditorApp() {
       }
       const response = await client.request(isFolder ? "/api/folder-trash" : `/api/file`, {
         method: isFolder ? "POST" : action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root, path: entry.path, ...(isFolder ? { expectedIdentity: folderConfirmation?.identity, expectedRevision: folderConfirmation?.revision } : {}), ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
+        body: JSON.stringify({ root, path: entry.path, ...(isFolder ? { expectedIdentity: folderConfirmation?.identity, expectedRevision: folderConfirmation?.revision, openDocuments: protectedPaths, cleanupPaths } : {}), ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
           ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
             historicalSources: formSession.imageRenameSources(),
             revision: formSession.imageRenameRevision(), source: await formSession.appliedSource() } } : {}) }),
       }).catch(interrupted);
       const result = await response.json().catch(interrupted);
       if (response.ok && formSession && result.figureDocument) formSession.acceptImageRename(result.figureDocument);
+      if (isFolder && result.unsavedDocuments?.length) throw new Error(i18n.t("Save these documents before moving the folder to Trash: {{documents}}", { documents: result.unsavedDocuments.map((path: string) => splitDocumentPath(path).name).join(", ") }));
       if (Array.isArray(result.references)) throw new Error(i18n.t("Save these documents before renaming the image: {{documents}}", { documents: result.references.join(", ") }));
       // The rename dialog remains modal throughout the request and reloads. No tab can
       // accept new input between the dirty check and installing the new disk checkpoint.
@@ -630,7 +636,12 @@ function EditorApp() {
       if (result.skippedDocuments?.length) setNotice({ key: "Skipped unreadable or non-{{product}} documents: {{documents}}", values: { documents: result.skippedDocuments.join(", ") } });
       if (!response.ok || typeof result.path !== "string") { if (hostId === LOCAL_HOST_ID) folders.refreshParents(entry.path); throw new Error(result.error ? i18n.t(result.error) : `File operation failed (${response.status})`); }
       completed = true;
-      try { await recoveryStorage.changePath(entry.path, action === "rename" ? result.path : null, checkedRecovery, hostId, isFolder); }
+      const confirmedPaths: string[] = isFolder && Array.isArray(result.containedPaths) ? result.containedPaths.filter((path: unknown): path is string => typeof path === "string") : [];
+      if (isFolder) affected = affected.filter(tab => confirmedPaths.includes(tab.path));
+      try {
+        if (isFolder && folderRecovery) await recoveryStorage.discardFolderSnapshot(folderRecovery, confirmedPaths, hostId);
+        else await recoveryStorage.changePath(entry.path, action === "rename" ? result.path : null, checkedRecovery, hostId);
+      }
       catch { setError({ key: "The file changed, but local recovery could not be updated. Review local recovery in Settings." }); }
       if (action === "rename") {
         relocateTableWrap(entry.path, result.path, hostId);
@@ -651,7 +662,10 @@ function EditorApp() {
       return result.path;
     } finally {
       if (!completed) owner?.resumeRecovery();
-      if (!completed && isFolder) affectedSessions.forEach(session => session.resumeRecovery());
+      if (isFolder) {
+        const live = new Set(sessions.current.values());
+        affectedSessions.forEach(session => { if (live.has(session)) session.resumeRecovery(); });
+      }
       operationRef.current = false; setFileOperationPending(false); setFigureRenamePending(false);
     }
   };

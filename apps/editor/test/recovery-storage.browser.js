@@ -51,7 +51,7 @@ async page => {
   // A second window has acquired permission but has never persisted its first record.
   await page.evaluate(async () => {
     const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
-    const cases = [['child', '/folder/nested/a.md', 'local'], ['sibling', '/folder-other/a.md', 'local'], ['remote', '/folder/nested/a.md', 'remote']];
+    const cases = [['child', '/folder/nested/a.md', 'local'], ['sibling', '/folder-other/a.md', 'local'], ['remote', '/folder/nested/a.md', 'remote'], ['missing', '/folder/missing.md', 'local']];
     const make = (id, path, hostId) => ({id, path, hostId, version:2, recordedAt:Date.now(), recoveryText:id, snapshot:{file:{path}}});
     const tickets = [];
     for (const [id, path, hostId] of cases) {
@@ -59,9 +59,9 @@ async page => {
       await store.write(id, token, () => make(id, path, hostId));
       tickets.push(await store.ticket(id+'-pending', path, hostId));
     }
-    await store.changePath('/folder', null, undefined, 'local', true);
+    await store.discardFolderSnapshot(await store.folderTrashSnapshot(), ['/folder/nested/a.md']);
     const records = await store.list();
-    if (records.some(r => r.id === 'child') || !records.some(r => r.id === 'sibling') || !records.some(r => r.id === 'remote')) throw new Error('Folder cleanup crossed path/Host boundary');
+    if (records.some(r => r.id === 'child') || !records.some(r => r.id === 'sibling') || !records.some(r => r.id === 'remote') || !records.some(r => r.id === 'missing')) throw new Error('Folder cleanup crossed path/Host boundary');
     for (let index=0; index<cases.length; index++) {
       const [id,path,hostId] = cases[index];
       const written = await store.write(id+'-pending', tickets[index], () => make(id+'-pending',path,hostId));
@@ -71,9 +71,22 @@ async page => {
     const win = make('windows-case', 'c:/ROOT/child/draft.md', 'local');
     const sibling = make('windows-sibling', 'c:/root/child-other/draft.md', 'local');
     for (const record of [win, sibling]) await store.write(record.id, await store.ticket(record.id, record.path), () => record);
-    await store.changePath('C:/Root/Child', null, undefined, 'local', true);
+    await store.discardFolderSnapshot(await store.folderTrashSnapshot(), [win.path]);
     const kept = await store.list();
     if (kept.some(record => record.id === win.id) || !kept.some(record => record.id === sibling.id)) throw new Error('Windows folder recovery cleanup ignored case or crossed sibling boundary');
+    await store.delete();
+    const kelvin = make('kelvin-record', 'C:/Root/K/draft.txt', 'local');
+    await store.write(kelvin.id, await store.ticket(kelvin.id, kelvin.path), () => kelvin);
+    await store.discardFolderSnapshot(await store.folderTrashSnapshot(), ['C:/Root/k/draft.txt']);
+    if (!(await store.list()).some(record => record.id === kelvin.id)) throw new Error('Unrelated Kelvin-folder recovery was deleted');
+    const known = make('changed-after-snapshot', 'C:/Root/k/draft.txt', 'local');
+    await store.write(known.id, await store.ticket(known.id, known.path), () => known);
+    const snapshot = await store.folderTrashSnapshot();
+    const latest = await store.ticket(known.id, known.path);
+    await store.write(known.id, latest, () => ({...known, recoveryText:'newer work'}));
+    await store.discardFolderSnapshot(snapshot, [known.path]);
+    if (!(await store.list()).some(record => record.id === known.id && record.recoveryText === 'newer work')) throw new Error('Newer recovery work was deleted');
+    if (!await store.write(known.id, latest, () => ({...known, recoveryText:'writer survived'}))) throw new Error('Writer for newer work was revoked');
     await store.delete();
   });
   // File operations must invalidate that permission for both deletion and rename.

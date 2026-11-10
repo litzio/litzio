@@ -96,13 +96,14 @@ and rename in `packages/file-commit`; no daemon, backend state or autosave is ad
 Folder Trash refuses while any descendant tab in this window has applied unsaved changes,
 property drafts or restored work. It names those documents and asks for Save first; it does
 not offer discard. Saved descendant tabs close only after a successful Host receipt. Local
-recovery cleanup uses one IndexedDB transaction matching Host and the folder path plus a
-separator boundary, deleting descendant records and revoking their registered pending writers.
-Folder Trash uses the existing assistant locator rule for Windows drive/UNC paths (case-insensitive,
-separator-normalized), independently of the browser OS; POSIX paths remain case-sensitive.
-The same rule covers pending opens, affected dirty/saved tabs and descendant recovery cleanup.
-Prefix siblings and other Hosts remain untouched. Recorders are suspended during execution;
-on refusal or an uncertain result they resume and tabs/records remain available. Recovery
+recovery cleanup captures record/writer generations and asks the Host to verify their actual
+filesystem membership before moving. It deletes only captured unchanged records and writers
+whose exact locators are in the successful Host receipt. Native realpath plus directory dev/ino
+handles junction aliases without merging NTFS `k` and `K`. Missing/unidentifiable paths,
+other Hosts, unrelated directories and newer record/writer generations remain untouched.
+All this window's Host recorders are suspended during the request, with surviving sessions
+resumed afterwards; no lexical prefix or case-folding authorizes folder cleanup. On refusal
+or an uncertain result, tabs/records remain available. Recovery
 storage failure after disk success remains visible. The CLI cannot inspect another window's
 drafts or clear its browser-local storage. Other windows follow the existing file-deletion
 boundary. [Explorer behavior](editor-ux-shell-v1.md#child-folder-trash-1401).
