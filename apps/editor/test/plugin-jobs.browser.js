@@ -217,6 +217,8 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await expect(pane.getByRole("status", { name: "Job status" })).toHaveText(state);
     await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
   }
+  const expandExplorer=page.getByRole('button',{name:'Expand Explorer',exact:true});
+  if(await expandExplorer.isVisible()) await expandExplorer.click();
   await page.locator(".sidebar").getByRole("button", { name: "Job fixture", exact: true }).click();
   const panel = page.getByTestId("plugin-job-panel").filter({ visible: true });
   await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);

@@ -152,6 +152,7 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   await local.click();
   await expect(page.locator('.sidebar-host-account')).toContainText('Local · WORKSTATION\\local-user');
   await page.setViewportSize({ width: 640, height: 900 });
+  await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
   const accountRow = page.locator('.sidebar-host-account');
   const accountText = accountRow.locator('.sidebar-tree-name');
   await expect(accountText).toHaveCSS('text-overflow', 'ellipsis');
