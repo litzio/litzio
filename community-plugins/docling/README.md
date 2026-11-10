@@ -40,7 +40,7 @@ CI 경로 정책은 이 새 경로를 미분류(full)로 취급합니다. 기존
 
 ## 버전
 
-플러그인 버전은 **0.0.7**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 1`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
+플러그인 버전은 **0.0.10**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 3`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
 
 현재 artifact는 대조·workspace 계약을 포함하는 `requiresSdk: ">=0.4.0 <1.0.0"`을 선언합니다.
 
@@ -220,7 +220,7 @@ Before는 같은 불변 .docling을 0.0.3 변환기 소스(`e0c30727`)와 공개
 로컬 결과: plugins.test.ts 30개와 변경 후 Docling 대상 5개, typecheck·Editor/CLI build·docs/diff 검사를 통과했습니다. 가짜 서버 http-plugins는 HTTP 복구를 포함해 2개 약 2.2분, 실제 보관 파일 수동 경로는 같은 2개 약 1.2분에 통과했습니다. 두 경로는 같은 checkout의 persistent profile로 순차 실행했고 직접 시작한 격리 Host와 브라우저 세션을 종료했습니다.
 ## 검수 기록과 재생성 0.0.5 (#1364)
 
-원본 PDF·DoclingDocument 바이트는 `.docling`의 source.pdf·document.json에 유지하고 manifest hash로 검사합니다. `review.json`은 `{patches,checkedPages,lastPage,approval}`이며 초기값은 `[]`, `[]`, `null`, `null`입니다. 진행 기록은 아래 0.0.7 대조 작업으로 저장하며 완료 승인 작업은 아직 없습니다. 수정 시 확인한 페이지와 마지막 위치를 비웁니다. 별도 검수 기록 파일이나 Markdown 메타데이터를 만들지 않습니다. `.md`와 assets/는 다시 만들 수 있는 결과물입니다.
+원본 PDF·DoclingDocument 바이트는 `.docling`의 source.pdf·document.json에 유지하고 manifest hash로 검사합니다. `review.json`은 version 3이며 `{version,patches,checkedPages,lastPage,approval,ledger}`를 저장합니다. ledger는 공용 묶음·검사·필수 확인·완료 승인 기록을 소유합니다. 진행 기록은 기존 대조 작업으로 저장하며 P2 공용 CLI에서 완료 조건과 승인 기록을 처리합니다. 공식 export gate와 완료 UI는 P11 범위입니다. 수정 시 확인한 페이지와 마지막 위치를 비웁니다. 별도 검수 기록 파일이나 Markdown 메타데이터를 만들지 않습니다. `.md`와 assets/는 다시 만들 수 있는 결과물입니다.
 
 patches는 self_ref 기준 순서 있는 목록이며 마지막 지정이 이깁니다.
 
@@ -252,7 +252,7 @@ CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|reg
 
 ## 단일 작업공간 Host·CLI 기반 (#1462 P1a)
 
-새 형식은 `manifest.version:2`이며 과거 archive migration은 없습니다. 원본 PDF·JSON·manifest bytes와 hash는 작업공간 저장 전후 그대로 유지합니다. `current/document.md`는 Host의 SDK/Core가 작성한 canonical source, `current/snapshot.json`은 최종 input keys/targets·문서 hash·의미 revision·캐시 key·생성 계약·이미지 binding과 무결성 hash입니다. 원본+ordered patches가 진실이고 두 current 항목은 직접 편집하지 않는 파생 자료입니다. 이미지 바이트는 원본 Docling JSON에 한 번만 있으며 내부 source에는 `review-asset:<sha256>` identity를 바인딩합니다. 외부 파일 경로나 임시 URL이 아닙니다. 실제 이미지 자료와 화면 resolver는 P1b에서 연결합니다.
+P1a 당시 형식은 `manifest.version:2`였으며 현재 P2는 format 3을 사용합니다. 과거 archive migration은 없습니다. 원본 PDF·JSON·manifest bytes와 hash는 작업공간 저장 전후 그대로 유지합니다. `current/document.md`는 Host의 SDK/Core가 작성한 canonical source, `current/snapshot.json`은 최종 input keys/targets·문서 hash·의미 revision·캐시 key·생성 계약·이미지 binding과 무결성 hash입니다. 원본+ordered patches가 진실이고 두 current 항목은 직접 편집하지 않는 파생 자료입니다. 이미지 바이트는 원본 Docling JSON에 한 번만 있으며 내부 source에는 `review-asset:<sha256>` identity를 바인딩합니다. 외부 파일 경로나 임시 URL이 아닙니다. 실제 이미지 자료와 화면 resolver는 P1b에서 연결합니다.
 
 다음 CLI는 같은 `POST /api/reviews` 공용 Host 작업을 호출합니다. 입력 JSON은 artifact 밖에 둡니다.
 
@@ -267,7 +267,7 @@ litzio review workspace-status --input status.json --host <origin> --json
 
 공통 입력은 `{root,workspace:"a.docling",plugin:"community.docling",job:"create-document"}`입니다. read 외 쓰기는 workspace 전체 SHA-256인 `baseline`과 새 UUID `requestId`를 요구합니다. patch는 위의 기존 네 operation 목록 `patches`, progress는 `{checkedPages,lastPage}`를 추가합니다. status는 `{requestId}`만 받습니다. HTTP action 이름은 CLI의 `workspace-*`와 같습니다. 첫 baseline은 파일 SHA-256 또는 read 응답에서 얻습니다.
 
-read는 archive를 변경하지 않고 source·read model·최종 targets와 별도 `documentRevision/contentRevision/cacheState/baseline`을 반환합니다. 비서 `read_review_document`도 동일한 read를 호출하며 열린 폴더 범위를 검사합니다. 내부 archive 경로나 가짜 `.md` 경로는 반환하지 않습니다. 이 단계에는 이미지 바이트 읽기와 scoped 대조 bundle은 아직 없습니다. 완료 판정은 `completion:"not-evaluated"`이며 cacheState를 완료로 간주하지 않습니다.
+read는 archive를 변경하지 않고 source·read model·최종 targets와 별도 `documentRevision/contentRevision/cacheState/baseline`을 반환합니다. 비서 `read_review_document`도 동일한 read를 호출하며 열린 폴더 범위를 검사합니다. 내부 archive 경로나 가짜 `.md` 경로는 반환하지 않습니다. 이 단계에는 이미지 바이트 읽기와 scoped 대조 bundle은 아직 없습니다. P2의 ledger가 있는 workspace read는 완료 조건을 계산하며 cacheState를 완료로 간주하지 않습니다. 대조·중간 export의 완료 표시는 P11까지 변경하지 않습니다.
 
 open은 캐시가 없거나 손상됐을 때 준비하고 이미 무결한 캐시가 있으면 쓰지 않습니다. 생성 계약이 다른 무결한 캐시는 `created-version`으로 읽고 open이 조용히 교체하지 않습니다. 새 patch/progress 전 명시 regenerate가 필요합니다. 원본/ledger 손상은 캐시로 복구하지 않습니다. cache key는 원본 JSON hash+ordered patches hash, replay/converter 의미 버전, Core authoring/직렬화 계약 및 이미지 binding으로 계산하며 workspace 전체 hash·페이지 확인·위치는 포함하지 않습니다.
 
@@ -295,3 +295,31 @@ receipt와 status는 daemon 수명입니다. 응답 유실은 같은 requestId s
 중간 export는 현재 canonical source에 Core `updateMediaReferences`를 적용하고 기존 공식 이미지 게시·문서 검증/쓰기 경로를 사용합니다. 새 파일은 exclusive create, 덮어쓰기는 revision-checked commit입니다. 충돌은 assets를 만들기 전에 먼저 검사하며, 그 뒤 실패하면 기존 공식 이미지 게시 정책처럼 이미 게시된 assets가 남을 수 있습니다. source archive·review 기록·generated-document connection·export 이력/최신 여부는 쓰지 않습니다. 완료 표시도 추가하지 않습니다. UI는 같은 Host에 열린 출력 문서의 미저장 변경을 거부하고, 충돌 시 다시 검사한 revision에 대해 사람이 checkbox로 덮어쓰기를 확인해야 합니다. 응답 유실에는 같은 requestId status만 읽으며 자동 재전송하지 않습니다.
 
 실제 browser의 cold Host 재등록/재시작·확인 기록과 같은 source/대응, CLI·Windows 8.3 분할 및 시각 근거는 [P1b 검증 기록](../../docs/design/docling-review-stage3.md#p1b-내부-대조이미지명시-export)을 따릅니다. 큰 실제 PDF·workspace 장시간 timeout·실제 원격 PC 인계와 비서 이미지 분석은 이번 수락 범위에서 미검증입니다. 공식 완료 gate는 P11, 실제 AI 검사 연결은 P5입니다.
+
+
+## 공용 문제 묶음·확인 기록 (#1462 P2)
+
+0.0.10은 ZIP format 3과 review record version 3을 함께 사용합니다. 기존 archive migration은 없습니다.
+`review.json.ledger`에 묶음·대상별 판단/승인/Undo 이력, 렌즈 검사 coverage, 모든 그림·표의 필수 확인 inventory와
+실제 확인 기록·선택 본문 대조 범위·최종 사람 승인 기록을 저장합니다. 기존 checkedPages는 위치/진행 정보이며
+필수 확인이나 검사 성공으로 계산하지 않습니다. 원본 PDF/JSON과 과거 patches는 보존하고 Undo는 역패치를 추가합니다.
+
+```sh
+litzio review groups propose --input propose.json --host <origin> --json
+litzio review groups read --input read.json --host <origin> --json
+litzio review groups approve --input approve.json --host <origin> --json
+litzio review groups reject --input reject.json --host <origin> --json
+litzio review groups undo --input undo.json --host <origin> --json
+litzio review inspection --input inspection.json --host <origin> --json
+litzio review required-checks --input checks.json --host <origin> --json
+litzio review completion --input completion.json --host <origin> --json
+```
+
+읽기는 공통 workspace 입력만, 쓰기는 baseline/requestId와 `change`를 추가합니다. 예를 들어 승인 change는
+`{groupId,targetIds,human:{actor,reason,confirmed:true},resolvesIssue:true}`입니다. 일부만 결정하면 미처리 대상을
+옮길 새 remainderGroupId도 필요합니다. Docling target locator는 `{self_ref,cell?}`이고 patch operations는 기존 네
+source-format patch입니다. expectedBefore/after는 operations 순서의 값 배열이며 kind 값은 `{kind,level?}`입니다.
+범위·필드·완료 결과는 [공용 P2 계약](../../docs/design/plugin-stage1-v1.md#review-문제-묶음검사-기록-1462-p2)을 따릅니다.
+
+완료 판단/승인 모델과 CLI만 추가하며 화면·AI 실행·렌즈 inventory 자동 추출·공식 export gate는 후속 단계입니다.
+uncertain receipt 뒤에는 동일 requestId의 workspace-status와 workspace read를 마칠 때까지 쓰기가 차단됩니다.

@@ -80,7 +80,7 @@ test("Docling comparison uses immutable provenance, final targets and portable p
   assert.ok(material.mapping!.entries.some(e=>e.targets.length === 0));
   assert.ok(material.mapping!.entries.some(e=>e.targets.some(t=>t.documentRevision === authored.report.documentRevision)));
   setProgress(doc,record,{checkedPages:[1],lastPage:1});
-  assert.deepEqual(record,{patches:[],checkedPages:[1],lastPage:1,approval:null});
+  assert.deepEqual(record,{...emptyReview(),checkedPages:[1],lastPage:1});
   assert.throws(()=>setProgress(doc,record,{checkedPages:[2],lastPage:2}),/Invalid/);
   assert.throws(()=>setProgress(doc,record,{checkedPages:[1,1],lastPage:1}),/Invalid/);
   const correctedRecord = {...record,patches:[{type:"kind",self_ref:"#/texts/4",kind:"heading",level:2}]};
@@ -224,7 +224,7 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
 });
 
 test("Docling workspace atomically stores canonical cache and ledger, preserves progress, rejects mixed state and survives handoff", async t => {
-  const { workspaceOperation } = await doclingConverter();
+  const { workspaceOperation, emptyReview } = await doclingConverter();
   const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);
   const { PDF_PROFILE } = await import(new URL("../../../community-plugins/docling/conversion.js", import.meta.url).href);
   const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -295,6 +295,22 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     assert.deepEqual(progressed.cacheEntries,initial.cacheEntries,"progress preserves cache bytes and mapping");
     for (const entry of ["sourcePdf","documentJson","manifestBytes"]) assert.deepEqual(progressed[entry],initial[entry]);
     assert.deepEqual(progress.snapshot,snapshot);
+    const human={actor:"person",reason:"Read original text and exact proposal",confirmed:true};
+    const textBefore=document.texts[4].text;
+    const grouped=await write("workspace-review-change",{change:{kind:"groups-propose",groups:[{
+      id:"docling-text",reasonCode:"text",reason:"Text differs",provider:"community.docling",providerVersion:"0.0.10",sourceRevision:initial.manifest.document.sha256,contentRevision:progress.contentRevision,
+      createdAt:new Date().toISOString(),runId:"manual-test",representativeTargetId:"t4",representativeReason:"Exact source text",splitFrom:null,
+      targets:[{id:"t4",locator:{self_ref:"#/texts/4"},pages:[1],regions:[],before:[textBefore],evidence:[{observation:"Compared source text",materialRef:"page-1",materialHash:digest(initial.sourcePdf),inspector:"human",scope:{pages:[1],targets:["t4"]}}],
+        patch:{expectedBefore:[textBefore],expectedContentRevision:progress.contentRevision,operations:[{type:"text",self_ref:"#/texts/4",text:"P2 approved text"}],after:["P2 approved text"],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}]
+    }]}});
+    assert.equal(grouped.receipt.outcome,"success",JSON.stringify(grouped));assert.deepEqual(grouped.snapshot,snapshot);
+    const groupApproved=await write("workspace-review-change",{change:{kind:"groups-approve",groupId:"docling-text",targetIds:["t4"],human,resolvesIssue:true}});
+    assert.equal(groupApproved.receipt.outcome,"success",JSON.stringify(groupApproved));assert.match(groupApproved.snapshot.source,/P2 approved text/);
+    const groupUndone=await write("workspace-review-change",{change:{kind:"groups-undo",groupId:"docling-text",targetIds:["t4"],human}});
+    assert.equal(groupUndone.receipt.outcome,"success",JSON.stringify(groupUndone));assert.deepEqual(groupUndone.record.patches.slice(0,groupApproved.record.patches.length),groupApproved.record.patches);
+    assert.equal(groupUndone.snapshot.source,snapshot.source);assert.equal(groupUndone.ledger.groups[0].targets[0].proposal,"proposed");
+    const afterGroups=archive.readDoclingArchive(readFileSync(file));
+    for (const entry of ["sourcePdf","documentJson","manifestBytes"]) assert.deepEqual(afterGroups[entry],initial[entry]);
     const before = readFileSync(file);
     for (const mode of ["workspace-prepare","workspace-seal","mixed","seal-report"]) {
       fail=mode; const failed=await write("workspace-patch",patch); assert.equal(failed.receipt.outcome,"failure",JSON.stringify(failed));
@@ -308,7 +324,10 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     });
     try {
       const failed = await write("workspace-patch",patch);
-      assert.notEqual(failed.receipt.outcome,"success"); assert.deepEqual(readFileSync(file),before);
+      assert.equal(failed.receipt.outcome,"uncertain"); assert.deepEqual(readFileSync(file),before);
+      await assert.rejects(write("workspace-patch",patch),/Uncertain workspace request/);
+      await host.execute({action:"workspace-status",requestId:failed.receipt.requestId});
+      await read();
     } finally { commitFailure.mock.restore(); }
     const stale=await write("workspace-patch",patch,opened.baseline); assert.equal(stale.receipt.outcome,"failure");
     const requestId=randomUUID(); await write("workspace-patch",patch,digest(before),requestId); // Simulate a lost response.
@@ -349,7 +368,7 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     assert.equal((await write("workspace-patch",patch)).receipt.outcome,"failure");
     assert.equal((await write("workspace-regenerate")).cacheState,"current");
     const mixedLedger=archive.readDoclingArchive(readFileSync(file));
-    writeFileSync(file,archive.rewriteReview(mixedLedger,Buffer.from(JSON.stringify({patches:[{type:"text",self_ref:"#/texts/4",text:"different valid ledger"}],checkedPages:[],lastPage:null,approval:null}))));
+    writeFileSync(file,archive.rewriteReview(mixedLedger,Buffer.from(JSON.stringify({...emptyReview(),patches:[{type:"text",self_ref:"#/texts/4",text:"different valid ledger"}]}))));
     assert.equal((await read()).cacheState,"invalid","a valid cache from another ledger is not a current result");
     assert.equal((await write("workspace-regenerate")).cacheState,"current");
     const corrupt=archive.readDoclingArchive(readFileSync(file));
@@ -357,7 +376,7 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     writeFileSync(file,archive.rewriteReview(corrupt,corrupt.reviewBytes));
     assert.equal((await read()).cacheState,"invalid"); assert.equal((await write("workspace-regenerate")).cacheState,"current");
     const invalidLedger=archive.readDoclingArchive(readFileSync(file));
-    writeFileSync(file,archive.rewriteReview(invalidLedger,Buffer.from(JSON.stringify({patches:[{type:"text",self_ref:"#/texts/99999",text:"invalid"}],checkedPages:[],lastPage:null,approval:null}))));
+    writeFileSync(file,archive.rewriteReview(invalidLedger,Buffer.from(JSON.stringify({...emptyReview(),patches:[{type:"text",self_ref:"#/texts/99999",text:"invalid"}]}))));
     const invalidBytes=readFileSync(file);
     assert.equal((await write("workspace-regenerate")).receipt.outcome,"failure");
     assert.deepEqual(readFileSync(file),invalidBytes,"never recover source/ledger from a derived cache");

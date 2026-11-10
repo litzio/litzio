@@ -1,12 +1,44 @@
-import { DOCUMENT_AUTHORING_LIMITS } from "@litzio/plugin-sdk";
+import { DOCUMENT_AUTHORING_LIMITS, emptyReviewLedger, reviewLedgerSchema } from "@litzio/plugin-sdk";
 
-export const emptyReview = () => ({ patches: [], checkedPages: [], lastPage: null, approval: null });
+export const emptyReview = () => ({ version: 3, patches: [], checkedPages: [], lastPage: null, approval: null, ledger: emptyReviewLedger() });
 export function readReview(bytes) {
   const record = bytes === undefined ? emptyReview() : JSON.parse(Buffer.from(bytes).toString("utf8"));
-  if (!record || Object.keys(record).sort().join() !== ["patches", "checkedPages", "lastPage", "approval"].sort().join() ||
+  if (!record || record.version !== 3 || Object.keys(record).sort().join() !== ["version", "patches", "checkedPages", "lastPage", "approval", "ledger"].sort().join() ||
       !Array.isArray(record.patches) || record.patches.length > 2000 || !Array.isArray(record.checkedPages) || record.checkedPages.some(p => !Number.isInteger(p) || p < 1) ||
       record.lastPage !== null && (!Number.isInteger(record.lastPage) || record.lastPage < 1) || record.approval !== null) throw new Error("Invalid review record");
+  record.ledger = reviewLedgerSchema.parse(record.ledger);
   return record;
+}
+
+/** Exact expected values and inverse patches belong to this source format, never to Host/Core. */
+export function correctionValue(document, patch) {
+  const match = /^#\/(texts|tables|pictures|groups|key_value_items|form_items)\/(\d+)$/.exec(patch.self_ref ?? "");
+  const item = match && document[match[1]]?.[Number(match[2])];
+  if (!item) throw new Error("Unknown correction target");
+  if (patch.type === "text") return item.text;
+  if (patch.type === "cell") return item.data?.table_cells?.[patch.cell]?.text;
+  if (patch.type === "exclude") return item.__reviewExcluded === true;
+  if (patch.type === "kind") return { kind: item.label === "section_header" ? "heading" : "paragraph", ...(item.label === "section_header" ? { level: item.level } : {}) };
+  throw new Error("Unsupported correction");
+}
+export function inverseCorrection(document, patch) {
+  const before = correctionValue(document, patch);
+  if (patch.type === "kind") {
+    const [kind, index] = patch.self_ref.slice(2).split("/"), item = document[kind][Number(index)];
+    if (!["text", "section_header"].includes(item.label) || item.content_layer && item.content_layer !== "body") throw new Error("Original kind is not reversibly supported");
+    return { type: "kind", self_ref: patch.self_ref, ...before };
+  }
+  if (patch.type === "exclude") {
+    // A subtree exclusion cannot be reversed with a single flag when children had different prior states.
+    const refs = [patch.self_ref], result = [];
+    for (let i = 0; i < refs.length; i++) {
+      const self_ref = refs[i], [kind, index] = self_ref.slice(2).split("/"), item = document[kind][Number(index)];
+      result.push({ type: "exclude", self_ref, excluded: item.__reviewExcluded === true });
+      for (const child of item.children ?? []) { if (refs.includes(child.$ref)) throw new Error("Invalid correction tree"); refs.push(child.$ref); }
+    }
+    return result;
+  }
+  return { ...patch, text: before };
 }
 /** Replay against a copy. The archived PDF and JSON bytes never change. */
 export function applyCorrections(original, patches = []) {

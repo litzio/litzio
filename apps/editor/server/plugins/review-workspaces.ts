@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { authorDocument, parse, serialize, getEditableDocument } from "@litzio/core";
 import { commitFileFromPath, textRevision } from "@litzio/file-commit";
-import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
+import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, evaluateReviewCompletion, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
 import { validatedAuthoringRequest, exportReviewDocumentFile } from "../document-authoring.ts";
 import { validateImage } from "../image-validation.ts";
 import { readModel } from "../document-replay.ts";
@@ -18,6 +18,7 @@ const revision = (file: string) => { if (statSync(file).size > JOB_FILE_MAX_BYTE
 export class ReviewWorkspaces {
   private requests = new Map<string, unknown>();
   private admissions = new Map<string, {done:Promise<void>;release():void}>();
+  private unsettled = new Map<string, { requestId: string; checked: boolean }>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => Provider,
     private invoke: (operation: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string }>,
     private busy: Set<string>,
@@ -27,7 +28,10 @@ export class ReviewWorkspaces {
 
   async execute(raw: unknown): Promise<any> {
     const input = workspaceRequestSchema.parse(raw);
-    if (input.action === "workspace-status") return structuredClone(this.requests.get(input.requestId) ?? { state: "unknown", guidance: "Read the workspace; never automatically replay writes." });
+    if (input.action === "workspace-status") {
+      for (const lock of this.unsettled.values()) if (lock.requestId === input.requestId) lock.checked = true;
+      return structuredClone(this.requests.get(input.requestId) ?? { state: "unknown", guidance: "Read the workspace; never automatically replay writes." });
+    }
     const root = accessPath(input.root, this.access), boundary = new RootAccess([root]);
     if (input.action === "workspace-find") {
       const receipt={requestId:randomUUID(),operation:"review.workspace-find",version:1,scope:root,outcome:"success"};
@@ -37,8 +41,10 @@ export class ReviewWorkspaces {
     }
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
-    const writing = !["workspace-read","workspace-compare","workspace-image","workspace-export-check"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
+    const writing = !["workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
     if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
+    const unsettled = this.unsettled.get(key);
+    if (writing && unsettled) throw new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`);
     if (this.busy.has(key)) {
       const current=this.admissions.get(key);
       if(!writing&&current){await current.done;return this.execute(raw);}
@@ -67,7 +73,13 @@ export class ReviewWorkspaces {
       }
       const result = (state: typeof original, baseline: string, saved: boolean) => ({ ...state, baseline, workspace: { plugin: input.plugin, job: input.job, root, workspace: input.workspace },
         ...(state.snapshot ? { document: readModel(state.snapshot.source).document, documentRevision: state.snapshot.documentRevision, contentRevision: state.snapshot.contentRevision } : {}),
-        completion: "not-evaluated", saved, receipt: receipt("success") });
+        completion: state.ledger ? evaluateReviewCompletion(state.ledger, state.snapshot?.contentRevision ?? "", state.snapshot ? hash(Buffer.from(JSON.stringify(state.snapshot))) : null, state.cacheState === "current" && !this.unsettled.has(key)) : "not-evaluated", saved, receipt: receipt("success") });
+      if (["workspace-read", "workspace-groups-read", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action)) {
+        // Only an explicit status lookup followed by a validated file reread resolves an uncertain publication.
+        check();
+        if (unsettled?.checked) this.unsettled.delete(key);
+        return result(original, before, false);
+      }
       const image = async (ref:string) => {
         const expected=original.snapshot?.images.find(image=>image.revision===ref);
         if (!expected) throw new Error("Unknown workspace image");
@@ -116,13 +128,15 @@ export class ReviewWorkspaces {
       if (!writing || input.action === "workspace-open" && ["current", "created-version"].includes(original.cacheState)) {
         check(); const value = result(original, before, false); if (writing) this.requests.set(requestId, value); return value;
       }
-      if (["workspace-patch", "workspace-progress"].includes(input.action) && original.cacheState !== "current") throw new Error("Explicit regeneration is required before changing this workspace");
+      if (["workspace-patch", "workspace-progress", "workspace-review-change"].includes(input.action) && original.cacheState !== "current") throw new Error("Explicit regeneration is required before changing this workspace");
       staging = mkdtempSync(path.join(tmpdir(), "litzio-review-workspace-"));
       const candidate = path.join(staging, "candidate"); writeFileSync(candidate, "", { flag: "wx", mode: 0o600 });
       const resultFile = { path: candidate, maxBytes: JOB_FILE_MAX_BYTES };
-      const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}) });
+      const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
+        ...("change" in input ? { change: input.change, requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
-      if (input.action !== "workspace-progress") {
+      const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
+      if (!preserveSnapshot) {
         const { input: build, images } = validatedAuthoringRequest(plan.build);
         // An internal image identity addresses bytes supplied by the provider, never an external path/URL.
         if (build.authoring.inputs.some(item => item.blocks.some(block => block.kind === "figure" && block.imageAsset === undefined && block.imageUrl !== ""))) throw new Error("Workspace images require stable asset bindings");
@@ -145,12 +159,13 @@ export class ReviewWorkspaces {
       validateSnapshot(prepared.snapshot);
       const { cacheKey: _cacheKey, ...actual } = prepared.snapshot;
       if (expected && JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("Provider changed the Host canonical snapshot");
-      if (input.action === "workspace-progress" && JSON.stringify(prepared.snapshot) !== JSON.stringify(original.snapshot)) throw new Error("Progress changed the canonical snapshot");
+      if (preserveSnapshot && JSON.stringify(prepared.snapshot) !== JSON.stringify(original.snapshot)) throw new Error("Review metadata changed the canonical snapshot");
       check();
       const after = await commitFileFromPath(file, candidate, before, JOB_FILE_MAX_BYTES, () => { check(); publishing = true; });
       saved = true;
       const value = result(prepared, after, true); this.requests.set(requestId, value); return value;
     } catch (error) {
+      if (publishing && !saved) this.unsettled.set(key, { requestId, checked: false });
       const value = { state: publishing && !saved ? "uncertain" : "failed", saved, error: error instanceof Error ? error.message : "Workspace operation failed",
         guidance: "Read the workspace before another write. After a lost response query this requestId; never automatically resend.", receipt: receipt(publishing && !saved ? "uncertain" : "failure") };
       if (writing) this.requests.set(requestId, value); return value;

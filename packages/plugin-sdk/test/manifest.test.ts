@@ -1,5 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { emptyReviewLedger, updateReviewLedger, evaluateReviewCompletion, reviewLedgerSchema, reviewLedgerChangeSchema } from "../src/index.ts";
+
+test("portable review completion keeps inspection, required confirmation and optional comparison separate", () => {
+  const hash = "a".repeat(64), human = { actor: "person", reason: "Confirmed exact scope", confirmed: true as const };
+  const context = { contentRevision: hash, snapshotHash: hash, current: true, requestId: "dc76af39-193b-4da6-b6c4-08ff5ef8ac26", revision: "r1", at: "2026-11-11T00:00:00Z", apply: () => [], undo() {} };
+  let ledger = emptyReviewLedger();
+  assert.ok(evaluateReviewCompletion(ledger,hash,hash,true).incomplete.includes("inventory-incomplete-or-stale"));
+  const change = (value: unknown) => { ledger = updateReviewLedger(ledger, reviewLedgerChangeSchema.parse(value), {...context, revision:`r${Number(ledger.revision.slice(1)) + 1 || 1}`}); };
+  const inventory = { contentRevision: hash, pages: [1,2], targets: ["figure"], lenses: ["text","structure","reading","formula","table","picture","decoration"], complete: true,
+    requiredChecks: [{ id:"figure", kind:"picture",locator:{ref:"original"},pages:[1],regions:[],disposition:"unsupported",derivedFrom:["original"] }] };
+  change({kind:"required-checks",inventory,records:[]});
+  change({kind:"inspection",records:inventory.lenses.map(lens=>({lens,runId:`run-${lens}`,contentRevision:hash,scope:{pages:[1,2],targets:["figure"]},state:"no-issue",evidence:"Full declared input and crops inspected"})),comparisons:[]});
+  assert.deepEqual(evaluateReviewCompletion(ledger,hash,hash,true).incomplete,["required-checks-incomplete"],"viewing pages and completing lenses never confirms pictures");
+  assert.throws(()=>change({kind:"required-checks",records:[{targetIds:["figure"],contentRevision:hash,result:"no-issue",method:"approved-comparison",human,runId:"run-image",approvedRun:null,at:context.at}]}),/Completed approved/);
+  change({kind:"required-checks",records:[{targetIds:["figure"],contentRevision:hash,result:"no-issue",method:"direct",human,runId:null,approvedRun:null,at:context.at}]});
+  assert.equal(evaluateReviewCompletion(ledger,hash,hash,true).ready,true);
+  assert.deepEqual(evaluateReviewCompletion(ledger,hash,hash,true).notComparedPages,[1,2]);
+  change({kind:"completion",human});
+  assert.equal(evaluateReviewCompletion(ledger,hash,hash,true).approved,true);
+  assert.equal(evaluateReviewCompletion(ledger,"b".repeat(64),hash,true).approved,false);
+  assert.equal(evaluateReviewCompletion(ledger,hash,"b".repeat(64),true).approved,false);
+  assert.equal(evaluateReviewCompletion(ledger,hash,hash,false).ready,false);
+  change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope:{pages:[1],targets:["figure"]},state:"partial",selected:true,withdrawn:null}]});
+  assert.equal(ledger.approval,null); assert.ok(evaluateReviewCompletion(ledger,hash,hash,true).incomplete.includes("selected-comparison-incomplete"));
+  change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope:{pages:[1],targets:["figure"]},state:"compared",selected:true,withdrawn:null}]});
+  assert.equal(evaluateReviewCompletion(ledger,hash,hash,true).ready,true,"a later completed run supersedes its earlier partial status");
+  change({kind:"required-checks",records:[{targetIds:["figure"],contentRevision:hash,result:"uncertain",method:"direct",human,runId:null,approvedRun:null,at:context.at}]});
+  assert.ok(evaluateReviewCompletion(ledger,hash,hash,true).incomplete.includes("required-checks-incomplete"));
+  assert.throws(()=>change({kind:"required-checks",inventory:{...inventory,requiredChecks:[]},records:[]}),/cannot lose/);
+  assert.equal(reviewLedgerSchema.safeParse({...ledger,groups:[{id:"incomplete"}]}).success,false);
+});
 import { validateManifest, compileSchema, defaultJobOutput, HEALTH_CHECK_OUTPUT_SCHEMA, healthCheckResultSchema, reviewPageSchema } from "../src/index.ts";
 const manifest = () => ({ schemaVersion: 1, id: "example.demo", tier: "community", publisher: { id: "example", name: "Example" }, name: "Demo", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: {} });
 

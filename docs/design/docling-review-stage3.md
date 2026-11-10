@@ -573,3 +573,42 @@ P1b 통합 중 master의 #1468(공용 생성 문서 대조 진입)·#1455(좁은
 2026-11-11 최종 LSR 수락은 workspace scenario 51.8초, 기존 복구 포함 2개 검사 전체 1.4분으로 통과했다. 앱 초기 복원 완료 후 Enter로 열고 기존 준비 대기를 사용했다. 실제 테마 버튼으로 동일 상태를 촬영했다. 관찰 탭·진행 중 route를 먼저 종료하고 소유 daemon을 종료해 배경 읽기의 종료 경쟁을 제거했다. timeout·콘솔 오류 분류·기능 단언은 완화하지 않았다. seal은 prepare의 불투명 report를 최종 targets에 결합하며 converter를 다시 실행하지 않는다. 손상 report 거부와 원본 보존을 기존 workspace 검사에서 확인했다.
 
 최초 Linux HTTP CI에서는 workspace scenario의 Docling 활성 등록이 다음 K1 scenario까지 남아 기존 32px fixture 아이콘 단언이 실패했다. workspace scenario가 등록한 플러그인을 명시 disable/unregister하도록 정리했고 기존 아이콘·Root escape 단언을 유지했다. 같은 순서의 workspace-review→plugin-jobs 및 복구 3개를 Windows에서 2.0분으로 재통과했다. 화면·자료·저장 경로 변경은 없으며 기존 촬영 근거를 유지한다.
+
+
+## P2 공용 묶음·저장 경계
+
+2026-11-11: P1b feature base에서 공용 SDK 모델·provider용 ledger 전이/완료 계산과 workspace dispatcher를
+확장했다. 구현 필드·Host/provider 경계·CLI·비서 계약은 [plugin-stage1 P2](plugin-stage1-v1.md#review-문제-묶음검사-기록-1462-p2),
+Docling 입력과 버전은 [플러그인 P2 안내](../../community-plugins/docling/README.md#공용-문제-묶음확인-기록-1462-p2)를 따른다.
+이 절은 P2 구현 범위이며 나머지 Draft의 완료 선언이 아니다.
+
+공용 묶음은 개별 근거·expected-before/revision·불투명 patch·판단과 append-only 처리 이력을 가진다.
+일부 결정에는 새 나머지 묶음 ID를 요구한다. 승인/거절/Undo는 사람 근거가 필요하며 Undo는 기존 승인을
+지우지 않는다. provider는 원본 형식과 replay를 소유하고 Host는 baseline·배타 admission·공식 Core 작성·후보
+재검증·원자적 교체·receipt를 소유한다. 메모 변경은 캐시를 그대로 보존한다. 그림·표 inventory를 받고 검증·저장·조회·
+확인하는 경계까지 구현했으며 추출·렌즈 실행은 P4다. 일반 provider도 같은 모델·저장 경로를 사용한다.
+
+완료의 네 조건은 현재 revision에서 계산하여 미완료 사유 목록을 반환한다. 기본 렌즈의 페이지/항목별 최신 검사,
+필수 확인의 정확한 대상·방식·content revision·실제 결과, 선택한 본문 대조와 미대조 페이지를 별도로 남긴다.
+최종 사람 승인은 ledger/content revision·canonical snapshot hash에 고정하고 교정/Undo 뒤 coverage를 stale로
+취급한다. read가 제공하는 완료 판정과 기존 대조/중간 export의 not-evaluated 표시는 구분한다.
+공식 export gate/화면은 P11이며 비서 입력 계약만 정의하고 AI 등록/실행은 P5에 남긴다.
+
+검증은 기존 SDK manifest suite와 Host generated-documents/plugins suite를 보완한다. SDK는 완료 조건·미확인
+그림·표·오래된 검사·선택 대조·승인 무효화의 순수 상태 결함을 맡는다. 일반 workspace provider fixture는
+승인/거절/명시 분리/Undo·원본/과거 ledger 보존·후보 실패·stale/중복 requestId·재시작 unknown과 Core final targets의
+1→N/N→1 계보를 확인한다. Docling 기존 저장 검사는 source replay·원본 PDF/JSON/manifest·캐시 보존·후보/commit
+실패와 status+read 전 uncertain 잠금을 확인한다. 기존 CLI 구현을 실제 subprocess 1회+가벼운 in-process HTTP
+provider에서 실행하여 JSON을 확인한다. 이는 daemon/AI 수락이 아니며 새 무거운 E2E는 추가하지 않는다.
+
+큰 실제 문서의 비용·다른 PC 인계·실제 AI 검사/이미지 대조·후속 구조 패치/공식 완료 export는 미확인이다.
+P1b 메모의 경로 별칭·중간 export 거부 표시와 크기/성능 문제는 P6 배정을 유지하며 변경하지 않는다.
+
+
+로컬 결과: SDK 13개, 기존 plugins/generated-documents 50개(53.6초), 최종 저장 경계 대상 2개,
+SDK/CLI/Editor typecheck, CLI production build, docs/boundaries 검사가 통과했다.
+실제 CLI를 포함한 일반 provider 사례는 약 3~5초다. `pnpm browser:test http-plugins`의 Windows persistent
+Chrome HTTP 복구+플러그인 2개가 2.9분에 통과했다. 첫 실행은 이전 format/version 단언에서 멈췄고
+오류 artifact를 확인한 뒤 새 format 3 / plugin 0.0.10 단언으로 갱신했다. 기존 fault/복구 단언은 유지했다.
+UI 소스 변경·새 시각 승인·실제 AI 호출은 없다. 마지막 snapshot 전체 hash 보호는 위 저장 경계 검사에서
+본문이 같은 다른 cache binding의 승인 무효화를 직접 확인했다.

@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.0.7 — 미발행
+## 0.0.10 — 미발행
+
+- P1a/P1b의 내부 snapshot·대조·중간 export에 P2 공용 묶음·검사·필수 확인·완료 기록을 추가합니다.
+- ZIP format 3 / review record version 3. 과거 archive migration은 제공하지 않습니다.
+- README·manifest·package·versions의 현재 버전을 맞춥니다.
+
+## 0.0.7 — 과거 변경
 
 - 완료 문서의 공용 원본 대조 진입, 불변 provenance와 최종 targets의 양방향 대응을 제공합니다.
 - review.json의 확인 페이지·마지막 위치를 공식 전체 파일 교체와 revision 검사로 저장합니다. 원본 PDF/JSON/manifest와 수정 목록을 보존하며 문서를 재생성하지 않습니다.
