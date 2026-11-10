@@ -1404,6 +1404,8 @@ Owner-initiated stage 1 provides [the shared plugin management contract](plugin-
 
 K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 start/status/stop/result/list를 제공한다([계약](plugin-stage1-v1.md#k1-파일-작업)). 건별 승인은 없고 turn의 기존 tool 활동에 작업·성공/실패·결과가 남는다. 쓰기 모드와 열린 폴더 범위, 대상 Host 및 응답 상실 뒤 같은 ID 조회/no replay는 유지한다. 이 추가는 Copilot custom dynamic-tool 공급을 구현한 증거가 아니다.
 
+Codex `invoke_plugin_operation`은 현재 대화 Host의 `assistant:true` 읽기 작업과 manifest 연결 확인을 같은 공용 실행 경로로 호출한다([계약](plugin-stage1-v1.md#비서의-플러그인-읽기-호출-1425)). 쓰기·비공개 일반 작업·읽기 전용 turn은 거부한다. 출력 검증·secret 제거·고정 오류 분류와 receipt를 유지하며 활동에는 작업·시각·결과 상태·receipt만 남긴다. 입력·출력 원문은 활동이나 재개된 활동에 포함하지 않는다.
+
 ### 플러그인 제작 문맥
 
 Codex의 Host 플러그인 관리 도구는 `scaffold`와 `validate`를 포함한다. 각 turn에 번들 제작 스킬을 함께 제공하며 별도 설치 없이 제작 요청에서 사용한다. register 활동은 실제 manifest ID를 기록한다. 관리별 승인은 없으며 설정값·secret은 활동에 기록하지 않는다. 현재 SDK 규격과 정적 검증 한계·생성/수정 후 reload 절차는 [플러그인 1단계 계약](plugin-stage1-v1.md#비서-제작-키트)을 따른다.

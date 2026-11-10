@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1425: 2026-11-10 — 비서 app-server fixture와 실제 플러그인 child에서 읽기/연결 확인·권한 거부·출력/secret 경계·활동 재개 복원을 확인했다. 실제 AI 제작·외부 서비스 인증은 미검증.
 - Verification #1408: 2026-11-10 — 공용 PDF 대조·진행 저장 Host/CLI, SDK/Docling 단위 검사와 대표 HTTP 브라우저·기존 review 회귀 확인. 실제 docling-serve의 작은 합성 PDF를 변환해 1440px·한국어 Dark 640px 대조/확인 저장을 확인했으며 복잡한 PDF 품질·의미 동등성은 미검증.
 - Verification #1366: 2026-11-09 — SDK/OneDrive/Host·folder-tree tests, typecheck, CLI/Editor production build and HTTP folder/icon regressions; 1440px and Korean dark 640px before/after review. Real account synchronization is unverified.
 - Verification #1346: 2026-11-09 — SDK/Host icon validation and digest-trust tests, Editor typecheck, production CLI/Editor build, HTTP browser fixture with SVG script non-execution; 1440px and Korean dark 640px visual inspection. External plugin artwork/service adoption is unverified.
@@ -186,6 +187,18 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 `manage_plugins`도 scaffold/validate를 같은 정의로 호출한다. register 활동에는 인자로 받지 않는 실제 manifest ID를 결과에서 가져와 남긴다. validation 오류는 결과에서 읽되 활동 요약에는 원문을 쓰지 않는다. Codex의 각 대화 turn에 앱 번들의 제한된 제작 스킬을 문맥으로 제공한다(전역 Codex 스킬 설치 없음). 스킬은 SDK·manifest·공용 작업/schema 예시, 파일 수정 권한·secret 비노출, validate/register/trust/enable/invoke 및 수정 후 validate/reload/invoke 절차와 금지 항목을 설명한다. master에 병합된 secret 선언과 사용자 설정 UI 입력·읽기 전용 context.secrets, 읽기 작업 rowSchema, K1 jobs 바인딩·상태·결과 열기를 안내한다. generatedUi/views/dataViews/secretUses 확장은 계속 예시로 제공하지 않는다. Copilot 도구 공급 범위는 그대로다.
 
 자동 검사는 기존 Host 플러그인 테스트에서 생성→정적 검증→등록→신뢰→활성→호출→수정→재검증→신뢰→reload→결과 변경을 같은 Host로 확인한다. 이 subprocess 사례는 실제 캐시 교체·daemon 무재시작을 보호한다. handler 누락·미선언 handler·잘못된 schema·literal 출력 불일치와 비실행·덮어쓰기 거부도 확인한다.
+
+### 비서의 플러그인 읽기 호출 (#1425)
+
+Codex dynamic tool `invoke_plugin_operation {operation,input}`은 대화가 속한 Host의 활성 manifest를 검사한다. 일반 작업은 `assistant:true`·`effect:read`여야 한다. `contributes.healthCheck`에 연결된 읽기 작업은 `assistant:false`여도 허용한다. 쓰기·비활성·미선언 작업은 거부하며 기존 review/job 전용 dispatcher 제한도 우회하지 않는다. turn의 `opened-folders` 또는 `full-access` 권한이 필요하고 `read-only`에서는 연결 확인과 조회 모두 차단한다. Host 범위 작업이므로 열린 폴더나 Host 주소를 별도로 요구하지 않으며 다른 Host·로컬 CLI로 fallback하지 않는다. Copilot custom dynamic-tool 공급은 추가하지 않는다.
+
+실행은 기존 `PluginHost.invokeOperation`을 재사용하며 CLI `operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`도 같은 공용 실행·출력 검증·secret 제거·receipt를 사용한다. 일반 CLI 권한을 비서 호출 자격과 같게 바꾸지는 않는다. 설정 UI에 저장된 secret은 Host와 해당 플러그인 child 안에만 있고 도구 입력이나 결과에는 제공하지 않는다. 비서는 연결 확인과 실제 조회를 각각 호출하며 성공 데이터·성공한 빈 결과·`errorKind:auth`를 구분할 수 있다. 실패는 아래 고정 오류 분류를 그대로 반환한다.
+
+건별 승인은 없다. 앱의 기존 대화 활동에는 작업 이름·시각·성공/거부/실패와 실행 receipt만 남긴다. 입력·출력 원문과 secret은 활동에 복사하지 않으며 provider history에서 재구성할 때도 같은 제한을 적용한다. 결과는 응답 판단을 위해 provider에게 전달되므로 provider 자체 대화 기록의 보존 정책을 바꾸는 기능은 아니다. 등록 전·잘못된 입력 등 실행 전 거부에는 실행 receipt가 없다.
+
+번들 제작 안내는 CLI 우회 대신 이 도구를 사용하고 읽기 전용 거부를 우회하지 않도록 안내한다. 비교 대상 ID·URL·문서 쌍 등은 재사용 연결 설정이 아니라 작업 입력으로 받는다. 외부 HTTP 상태는 플러그인이 고정 오류 kind로 분류하며 원문 오류나 secret을 넣지 않는다.
+
+기존 Host/비서 app-server fixture에서 도구 노출, 연결 확인, 실제 child 조회·빈 결과·인증 실패, 비공개/쓰기/읽기 전용 거부, 입력·출력 검증과 secret 비노출, 활동의 원문 제외 및 재개 복원을 확인한다. 실제 AI 제작·외부 서비스 인증·패키지 Desktop은 이 fixture의 검증 범위가 아니다.
 
 ### 제작 템플릿 실행 확인 (#1397)
 

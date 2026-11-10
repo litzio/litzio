@@ -305,6 +305,15 @@ export class PluginHost {
   }
   /** Registered namespaces remain valid even while a plugin is disabled. */
   hasViewOwner(id: string): boolean { return Object.hasOwn(this.installed, id); }
+  /** Assistant admission is narrower than CLI invocation; execution/publication stay shared. */
+  async invokeAssistantOperation(name: string, input: unknown) {
+    const live = [...this.loaded.values()].find(live => live.manifest.contributes.operations.some(op => `${live.manifest.id}.${op.id}` === name));
+    const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);
+    if (this.closed || !live || !op) throw Object.assign(new Error("Plugin operation unavailable"), { kind: "unavailable" });
+    if (op.effect !== "read" || !op.assistant && live.manifest.contributes.healthCheck !== op.id)
+      throw Object.assign(new Error("Plugin operation is not available to the assistant"), { kind: "forbidden" });
+    return this.invokeOperation(name, input);
+  }
   async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false, version?: number) {
     const live = [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);

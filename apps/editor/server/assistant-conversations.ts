@@ -1,6 +1,6 @@
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
-import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -90,6 +90,13 @@ export class AssistantConversations {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
+      if (params.tool === "invoke_plugin_operation" && this.plugins) {
+        const result = await executePluginOperationTool(this.plugins, params.arguments, scope);
+        const success = !("error" in result && result.error);
+        active.items.push(pluginOperationItem(params.callId, !!success, result.activity));
+        this.save(this.current(params.threadId));
+        return { success: !!success, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
+      }
       if (params.tool === "plugin_jobs" && this.plugins) {
         const activity: AssistantConversationItem = { id: `plugin-job-${randomUUID()}`, kind: "tool", text: `plugin_jobs · ${String(params.arguments?.action ?? "")}`, status: "inProgress" };
         active.items.push(activity);
@@ -260,7 +267,7 @@ export class AssistantConversations {
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [
-            ...documentTools, ...displayTools, ...templateTools, ...(this.plugins ? [...pluginTools, ...pluginJobTools] : [])] });
+            ...documentTools, ...displayTools, ...templateTools, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools] : [])] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
@@ -517,11 +524,25 @@ function itemFrom(item: any, userMessageSource: AssistantConversationItem["userM
   if (item.type === "plan") return { id: item.id, kind: "plan", text: item.text };
   if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: item.status };
   if (item.type === "mcpToolCall") return { id: item.id, kind: "tool", text: `${item.server} · ${item.tool}`, status: item.status };
+  if (item.type === "dynamicToolCall" && item.tool === "invoke_plugin_operation") {
+    for (const part of item.contentItems ?? []) {
+      try {
+        if (part.type === "inputText") return pluginOperationItem(item.id, item.success, JSON.parse(part.text).activity);
+      } catch { /* In-progress calls have no activity yet. */ }
+    }
+    return { id: item.id, kind: "tool", text: "invoke_plugin_operation", status: item.status };
+  }
   if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: pluginActivityText(item) ?? [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.success === false ? "failed" : item.status,
     toolResult: { success: item.success ?? null, contentItems: item.contentItems ?? [] } };
   if (item.type === "webSearch") return { id: item.id, kind: "tool", text: item.query };
   if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status };
   return null;
+}
+/** Keep only invocation metadata in app activity, including provider history restoration. */
+function pluginOperationItem(id: string, success: boolean | null, entry: any): AssistantConversationItem {
+  const activity = { operation: entry?.operation, outcome: entry?.outcome, at: entry?.at, receipt: entry?.receipt };
+  return { id, kind: "tool", text: `invoke_plugin_operation${activity.operation ? ` (${activity.operation})` : ""}: ${activity.outcome ?? "pending"}`,
+    status: success === false ? "failed" : "completed", toolResult: { success, contentItems: [{ type: "inputText", text: JSON.stringify({ activity }) }] } };
 }
 // Reconstruct the same visible activity from CLI-owned history after resume.
 function pluginActivityText(item: any): string | null {
