@@ -99,6 +99,7 @@ export const STABLE_SCENARIOS = [
   "reveal-folder",
   "document-session",
   "app-reset",
+  "assistant-question",
 ];
 
 /** These scenarios inspect notification content, actions, history or stacking.

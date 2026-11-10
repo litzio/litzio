@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,6 +58,36 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     stdout.mock.restore(); stderr.mock.restore();
     if (previous === undefined) delete process.env.LITZIO_ASSISTANT_SETTINGS_FILE; else process.env.LITZIO_ASSISTANT_SETTINGS_FILE = previous;
   }
+});
+
+test("question metadata and answers use the same HTTP and explicit-Host CLI conversation operations", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-question-http-"));
+  const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  const host = createAssistantHost(null, path.join(root, "assistant.json"), { agent });
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
+  await listenForFetch(server);
+  const origin = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const post = async (body: unknown) => (await fetch(`${origin}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json", Connection: "close" }, body: JSON.stringify(body) })).json() as Promise<any>;
+  const c = await post({ action: "send", message: "Ask about travel", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const questions = [{ title: "예시 여행 계획에서 어떤 여행 방식을 선호하시나요?", options: ["휴식 중심", "관광 중심", "음식 탐방"] }];
+  await agent.client.request("fixture/async-question", { threadId: c.id, itemId: "http-travel-question", questions });
+  const snapshot = await (await fetch(`${origin}/api/assistant/conversations?id=${c.id}`, { headers: { Connection: "close" } })).json() as any;
+  const record = snapshot.turns[0].items.find((item: any) => item.id === "http-travel-question").question;
+  assert.deepEqual(record.sourceQuestions, questions);
+  assert.equal(snapshot.userInput.requestId, record.requestId);
+  const answerFile = path.join(root, "answer.json");
+  writeFileSync(answerFile, JSON.stringify({ turnId: record.turnId, requestId: record.requestId, answers: { "0": { answers: ["음식 탐방"] } } }));
+  const output: string[] = [];
+  const stdout = t.mock.method(process.stdout, "write", ((value: string) => { output.push(value); return true; }) as typeof process.stdout.write);
+  try {
+    assert.equal(await runCliAsync(["assistant", "answer", c.id, "--file", answerFile, "--host", origin]), 0);
+    assert.equal(JSON.parse(output.pop()!).turns[0].items.find((item: any) => item.id === "http-travel-question").question.status, "answered");
+    await agent.client.request("fixture/finish", { threadId: c.id });
+    await post({ action: "resume", id: c.id });
+    assert.equal(await runCliAsync(["assistant", "conversation", c.id, "--host", origin]), 0);
+    assert.deepEqual(JSON.parse(output.pop()!).turns[0].items.find((item: any) => item.id === "http-travel-question").question.answers, { "0": { answers: ["음식 탐방"] } });
+  } finally { stdout.mock.restore(); }
 });
 
 test("unavailable provider rejects new work with a reason; settings do not close admitted conversations", async t => {

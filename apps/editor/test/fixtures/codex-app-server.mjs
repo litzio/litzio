@@ -40,6 +40,14 @@ createInterface({ input: process.stdin }).on("line", line => {
     send({ id: params.requestId, method: "item/tool/requestUserInput", params: { threadId: params.threadId, turnId: turn.id, questions: params.questions } });
     send({ id, result: {} }); return;
   }
+  if (method === "fixture/async-question") {
+    const thread = threads[params.threadId], turn = thread.turns.at(-1);
+    const item = { type: "agentMessage", id: params.itemId, text: params.text ?? "Travel question", delivery: "async", questions: params.questions };
+    turn.items.push(item); persist();
+    notify("item/started", { threadId: thread.id, turnId: turn.id, item });
+    notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
+    send({ id, result: {} }); return;
+  }
   if (method === "fixture/resolved") {
     notify("serverRequest/resolved", params); send({ id, result: {} }); return;
   }
