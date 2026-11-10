@@ -20,7 +20,7 @@ import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { brand, productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { usePanelWidth } from "./shell/panel-width.ts";
-import { AssistantPanel, assistantWidth, rememberAssistantWidth, type AssistantLocalSubmission } from "./shell/AssistantPanel.tsx";
+import { AssistantPanel, assistantWidth, rememberAssistantWidth, type AssistantLocalSubmission, type AssistantButtonStatus } from "./shell/AssistantPanel.tsx";
 import { NotificationProvider, NotificationSource, ShellNotificationCenter } from "./components/ui/notification-center.tsx";
 import { UiError } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
@@ -107,6 +107,7 @@ function EditorApp() {
   const connectedHostIds = hostRegistry.list().filter(host => hostRegistry.get(host.hostId).state === "connected").map(host => host.hostId).join(",");
   useTranslation();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantStatus, setAssistantStatus] = useState<AssistantButtonStatus>();
   const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
   const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
   const [assistantSize, setAssistantSize] = useState(assistantWidth);
@@ -1277,7 +1278,7 @@ function EditorApp() {
         </div>
         <div className="top-bar-container">
           <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={activePdf?.pdf ?? openedPath}
-            onAssistant={assistantAvailable ? toggleAssistant : undefined} assistantOpen={assistantOpen}
+            onAssistant={assistantAvailable ? toggleAssistant : undefined} assistantOpen={assistantOpen} assistantStatus={assistantStatus}
             hostLabel={session && hostRegistry.list().length > 1 ? hostLabel(session.hostId) : undefined}
             location={documentLocation(activePdf?.pdf ?? openedPath, activePdf?.root ?? folders.rootOf(openedPath))} />
         </div>
@@ -1438,7 +1439,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {

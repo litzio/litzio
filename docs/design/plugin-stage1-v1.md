@@ -96,7 +96,7 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 
 암호문 파일 ACL은 부모 디렉터리에서 상속되며, 별도 ACL은 설정하지 않는다. 암호문은 해당 Host의 plugins 설정 파일 옆 `.secrets` 디렉터리에 플러그인 id·secret id 해시 파일로 원자 교체한다. 이 Host 저장 경로와 id/name을 추가 entropy로 묶으므로 Host 간 자동 동기화/복사는 지원하지 않는다. 현재 연결은 플러그인당 하나다. 여러 연결별 secret은 후속 계약이며 일반 설정에 값을 넣지 않는다. unregister는 artifact 유무와 무관하게 해당 플러그인 저장소를 지운 뒤 등록을 해제한다. 비활성화는 보존한다.
 
-내부 `PluginSecretStore`만 read를 가지며 실행 직전 해당 manifest 선언만 읽어 `activate(context).secrets`의 읽기 전용 map에 전달한다. 이 map은 신뢰·schema 확인 뒤 프로세스를 시작할 때 해당 플러그인에만 activate IPC로 전달한다. argv·환경 변수·등록 설정에는 넣지 않는다. reload는 값을 다시 읽으며, 자식의 context.secrets는 읽기 전용 map이다. required 값이 없으면 실행을 거부한다. 하위 프로세스의 stdout/stderr를 버리고 IPC 오류는 고정 메시지만 반환하여 값이 로그로 흐르지 않게 한다. Host로 나가는 상태·결과는 해당 Host 인스턴스·플러그인의 알려진 문자열 값만 정리하며 객체 키는 보존한다. 마스킹 값은 secret 이름별로 교체하고 삭제·unregister 시 제거한다. Host stdout/stderr는 교체하지 않으며 자식 출력 폐기와 공개 결과 경계로 비노출을 유지한다. 또한 activation/operation 오류 원문은 공개하지 않는다. 신뢰 코드의 직접 파일 쓰기·직접 OS 접근·변형된 값 유출을 막는 sandbox는 아니다.
+내부 `PluginSecretStore`만 read를 가지며 실행 직전 해당 manifest 선언만 읽어 `activate(context).secrets`의 읽기 전용 map에 전달한다. 이 map은 신뢰·schema 확인 뒤 프로세스를 시작할 때 해당 플러그인에만 activate IPC로 전달한다. argv·환경 변수·등록 설정에는 넣지 않는다. reload는 값을 다시 읽으며, 자식의 context.secrets는 읽기 전용 map이다. required 값이 없으면 실행을 거부한다. 하위 프로세스의 stdout/stderr를 버리고 IPC 오류는 고정 메시지만 반환하여 값이 로그로 흐르지 않게 한다. Host로 나가는 상태·결과는 해당 Host 인스턴스·플러그인의 알려진 문자열 값을 정리하며 객체 키는 보존한다. 비서 읽기 도구 결과는 공용 값 마스킹 뒤 키·값·중첩 객체·배열·숫자/boolean/null을 포함한 전체 JSON에서 해당 플러그인의 실제 secret 값이 남았는지 검사한다. 동적 키나 짧은 secret과 같은 고정 schema 키의 충돌을 포함해 값이 남으면 키를 바꾸지 않고 결과 전체를 거부하며, 원문 없이 고정 failed 오류와 기존 요청 ID의 failure receipt만 공개한다. 공용 상태·K1의 고정 키 보존 계약은 바꾸지 않으며 이 추가 검사는 새 비서 읽기 응답 경계에 적용한다. JSON escape 전 실제 문자열을 검사하며 키 이름이나 secret 선언 이름에 의존하지 않는다. 마스킹 값은 secret 이름별로 교체하고 삭제·unregister 시 제거한다. Host stdout/stderr는 교체하지 않으며 자식 출력 폐기와 공개 결과 경계로 비노출을 유지한다. 또한 activation/operation 오류 원문은 공개하지 않는다. 신뢰 코드의 직접 파일 쓰기·직접 OS 접근·변형된 값 유출을 막는 sandbox는 아니다.
 
 검증은 주입 저장소로 선언·범위·설정 여부·삭제·unregister·응답 비노출을 검사한다. Windows에서는 임시 디렉터리의 실제 DPAPI 암호문·재시작 조회·삭제를 검사하고 finally로 제거한다. 기존 quality/Windows Desktop unit CI의 전체 검사에 같은 Host 검사가 포함되며, HTTP CI의 양 OS는 production UI/CLI 경계를 검사한다. OS 전역 Credential Manager는 변경하지 않는다.
 
@@ -196,6 +196,20 @@ Verification #1434: 2026-11-10 — Host 기본 제작 위치의 생성·등록·
 `manage_plugins`도 scaffold/validate를 같은 정의로 호출한다. register 활동에는 인자로 받지 않는 실제 manifest ID를 결과에서 가져와 남긴다. validation 오류는 결과에서 읽되 활동 요약에는 원문을 쓰지 않는다. Codex의 각 대화 turn에 앱 번들의 제한된 제작 스킬을 문맥으로 제공한다(전역 Codex 스킬 설치 없음). 스킬은 SDK·manifest·공용 작업/schema 예시, 파일 수정 권한·secret 비노출, validate/register/trust/enable/invoke 및 수정 후 validate/reload/invoke 절차와 금지 항목을 설명한다. master에 병합된 secret 선언과 사용자 설정 UI 입력·읽기 전용 context.secrets, 읽기 작업 rowSchema, K1 jobs 바인딩·상태·결과 열기를 안내한다. generatedUi/views/dataViews/secretUses 확장은 계속 예시로 제공하지 않는다. Copilot 도구 공급 범위는 그대로다.
 
 자동 검사는 기존 Host 플러그인 테스트에서 문서 Root 밖 기본 위치·열린 폴더 없는 opened-folders turn의 생성→정적 검증→등록→신뢰→활성→호출→수정→재검증→신뢰→reload→결과 변경을 같은 Host로 확인한다. 이 subprocess 사례는 실제 캐시 교체·daemon 무재시작을 보호한다. handler 누락·미선언 handler·잘못된 schema·literal 출력 불일치와 비실행·기본 이름 충돌·읽기 전용 거부·명시 경로의 기존 권한 검사도 확인한다. Windows 정션의 초기 plugins 경계/생성 대상 이탈 거부와 읽기 전용 validate의 폴더 비생성도 보호한다. provider fixture는 열린 폴더가 없을 때 plugins 폴더만 추가되고 정션이면 plugins 경로를 제외하는 sandbox 요청을, CLI fixture는 경로를 생략해 Host에 전달하는 입력을 검증한다. 실제 AI 제작·원격 통신·설치형 앱 실행의 완료 근거는 아니다.
+
+### 비서의 플러그인 읽기 호출 (#1425)
+
+- Verification #1425: 2026-11-10 — 비서 app-server fixture와 실제 플러그인 child에서 읽기/연결 확인·권한 거부·출력/secret 경계·활동 재개 복원을 확인했다. 실제 AI 제작·외부 서비스 인증은 미검증.
+
+Codex dynamic tool `invoke_plugin_operation {operation,input}`은 대화가 속한 Host의 활성 manifest를 검사한다. 일반 작업은 `assistant:true`·`effect:read`여야 한다. `contributes.healthCheck`에 연결된 읽기 작업은 `assistant:false`여도 허용한다. 쓰기·비활성·미선언 작업은 거부하며 기존 review/job 전용 dispatcher 제한도 우회하지 않는다. turn의 `opened-folders` 또는 `full-access` 권한이 필요하고 `read-only`에서는 연결 확인과 조회 모두 차단한다. Host 범위 작업이므로 열린 폴더나 Host 주소를 별도로 요구하지 않으며 다른 Host·로컬 CLI로 fallback하지 않는다. Copilot custom dynamic-tool 공급은 추가하지 않는다.
+
+실행은 기존 `PluginHost.invokeOperation`을 재사용하며 CLI `operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`도 같은 공용 실행·출력 검증·secret 제거·receipt를 사용한다. 일반 CLI 권한을 비서 호출 자격과 같게 바꾸지는 않는다. 설정 UI에 저장된 secret은 Host와 해당 플러그인 child 안에만 있고 도구 입력이나 결과에는 제공하지 않는다. 비서는 연결 확인과 실제 조회를 각각 호출하며 성공 데이터·성공한 빈 결과·`errorKind:auth`를 구분할 수 있다. 실패는 아래 고정 오류 분류를 그대로 반환한다.
+
+건별 승인은 없다. 앱의 기존 대화 활동에는 작업 이름·시각·성공/거부/실패와 실행 receipt만 남긴다. 입력·출력 원문과 secret은 활동에 복사하지 않으며 provider history에서 재구성할 때도 같은 제한을 적용한다. 결과는 응답 판단을 위해 provider에게 전달되므로 provider 자체 대화 기록의 보존 정책을 바꾸는 기능은 아니다. 등록 전·잘못된 입력 등 실행 전 거부에는 실행 receipt가 없다.
+
+번들 제작 안내는 CLI 우회 대신 이 도구를 사용하고 읽기 전용 거부를 우회하지 않도록 안내한다. 비교 대상 ID·URL·문서 쌍 등은 재사용 연결 설정이 아니라 작업 입력으로 받는다. 외부 HTTP 상태는 플러그인이 고정 오류 kind로 분류하며 원문 오류나 secret을 넣지 않는다.
+
+기존 Host/비서 app-server fixture에서 도구 노출, 연결 확인, 실제 child 조회·빈 결과·인증 실패, 비공개/쓰기/읽기 전용 거부, 입력·출력 검증과 secret 비노출, 활동의 원문 제외 및 재개 복원을 확인한다. 동적 최상위 키와 객체/배열 안 중첩 키에 실제 secret을 반환하는 child 사례를 추가했고 수정 전 성공 응답으로 통과해 실패하는 것을 먼저 확인했다. 수정 후 provider 전달·활동·재개 대화·오류 어디에도 해당 원문이 없으며 고정 failed 오류만 반환한다. 실제 AI 제작·외부 서비스 인증·패키지 Desktop은 이 fixture의 검증 범위가 아니다.
 
 ### 제작 템플릿 실행 확인 (#1397)
 
