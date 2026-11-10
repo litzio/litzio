@@ -782,7 +782,8 @@ function EditorApp() {
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
   function openComparison(hostId: string, comparison: ComparisonTarget) {
-    const id = `comparison-${hostId}-${comparison.root}-${comparison.document}`;
+    const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && tab.comparison.document === comparison.document);
+    const id = existing?.id ?? `comparison-${++nextId.current}`;
     setViewTabs(previous => previous.some(t => t.id === id) ? previous : [...previous,{id,hostId,root:comparison.root,comparison,label:i18n.t("Source comparison")}]);
     placeTab(id);
   }
