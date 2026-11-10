@@ -138,7 +138,7 @@ jobs:
         run: pnpm test:unit:${{ matrix.group }}
 
   browser:
-    name: Editor browser regressions (${{ matrix.shard }}/8)
+    name: Editor browser regressions (${{ matrix.shard }}/${{ matrix.total }})
     needs: changes
     if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
@@ -151,10 +151,10 @@ jobs:
     timeout-minutes: 35
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+      # Keep one browser job so the required aggregate covers every event's matrix.
+      matrix: ${{ fromJSON(github.event_name == 'pull_request' && '{"shard":[1,2,3,4,5,6,7,8,9,10,11,12],"total":[12]}' || '{"shard":[1,2,3,4,5,6,7,8],"total":[8]}') }}
     env:
-      LITZIO_BROWSER_SHARD: ${{ matrix.shard }}/8
+      LITZIO_BROWSER_SHARD: ${{ matrix.shard }}/${{ matrix.total }}
 
     steps:
       - name: Check out repository

@@ -33,12 +33,12 @@ CI quality는 문서 전용 PR과 merge group에서 문서·checker tests, diff/
 pnpm editor                          # 별도 터미널, 개발 서버
 pnpm browser:test                    # stable 전체, 실행별 빈 포트의 소유 서버
 pnpm browser:test save-session       # 관련 시나리오만 선택
-pnpm browser:test --shard=1/8         # CI의 8개 shard 중 하나
+pnpm browser:test --shard=1/8         # PR은 --shard=1/12; queue·릴리스는 8분할
 ```
 
-CI의 8개 shard는 stable 목록을 순환 분배하며 각 시나리오는 전체 shard에서 정확히 한 번 실행된다. `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`가 누락·중복·빈 shard 없이 분할되는지 검사한다. CI 로그에는 각 shard의 시나리오 배정이 출력되고 실패 artifact는 `editor-browser-ci-logs-1`부터 `editor-browser-ci-logs-8`까지 구분된다. 로컬에서 전체를 분할 실행하려면 `1/8`부터 `8/8`까지 순서대로 실행한다.
+CI는 PR에서 12개, merge queue·전체 master fallback·릴리스에서 8개 shard로 stable 목록을 순환 분배하며 각 시나리오는 전체 shard에서 정확히 한 번 실행된다. `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`가 8·12분할 모두 누락·중복·빈 shard 없이 분할되는지 검사한다. 새 stable 시나리오도 같은 순환 규칙에 자동 포함된다. CI 로그에는 각 shard의 배정이 출력되고 실패 artifact는 `editor-browser-ci-logs-<shard>`로 PR 1–12, queue·전체 master 1–8을 구분한다. 로컬 전체 분할 실행은 같은 분모의 모든 shard를 순서대로 실행한다. Playwright 다운로드 캐시와 매번 Chromium 설치 검증은 유지한다.
 
-2026-11-10 8분할: 기존 순환 배치를 유지한다. 최근 [PR 실행](https://github.com/litzio/litzio/actions/runs/42705604581)과 [queue 실행](https://github.com/litzio/litzio/actions/runs/42707709775)의 동일 96개 시나리오 시간을 8분할로 계산하면 합계는 각각 206.0/244.4/289.1/245.6/281.4/197.0/292.3/206.1초와 217.2/199.7/291.7/199.5/297.7/155.7/298.3/168.6초다. 로그의 반올림과 setup·실행 변동을 제외한 예상치이며 실제 8-shard 성능 보장은 아니다. 최대 약 5분에 준비·종료 예산 60~110초를 더해 목표 6~8분 범위이므로 파일 재배치는 하지 않는다. 새 stable 시나리오도 같은 순환 규칙에 자동 포함된다. Playwright 다운로드 캐시와 매번 Chromium 설치 검증은 유지한다.
+2026-11-10 PR 12분할의 비교 기준은 [#1422](https://github.com/litzio/litzio/pull/1422)의 PR 벽시계 6분 12초, 최장 browser job 5분 39초(표본 1회)다. 실제 효과와 runner 대기는 [#1426](https://github.com/litzio/litzio/issues/1426)의 구현 PR에서 측정하며, 목표 3~4분대 도달을 보장하지 않는다.
 
 runner는 원본 fixture의 scratch 사본을 준비한다. `file-actions`의 실제 파일 삭제·이름 변경은 저장소 밖 OS 임시 폴더의 checkout별 사본에서만 실행하며, runner의 `/api/file` guard가 저장소 내부 경로를 거부하는지도 확인한다. 테스트 실행을 위해 `apps/editor/document/`나 `apps/editor/test/browser/fixtures/`의 원본을 직접 수정하지 않는다. fixture 자체를 바꾸는 작업이라면 의도한 변경으로 검토하고 관련 regression을 실행한다. Windows에서는 [persistent profile과 session 규칙](../contributing/windows-browser-automation.md)을 따른다. 작업 후 직접 시작한 서버와 세션을 종료한다.
 

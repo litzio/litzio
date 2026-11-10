@@ -112,26 +112,37 @@ test('Linux browser container tags match the locked Playwright base version', ()
   }
 });
 
-test('release browser shards match CI while preserving trusted checkout and publication gates', () => {
+test('PR uses 12 browser shards; queue and release retain 8 and publication gates', () => {
   const ci = load(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   const { browser, publish } = release.jobs;
-  assert.deepEqual(browser.strategy.matrix.shard, ci.jobs.browser.strategy.matrix.shard);
-  for (const [name, job] of [['CI', ci.jobs.browser], ['release', browser]]) {
-    const shard = /^\$\{\{ matrix\.shard \}\}\/([1-9]\d*)$/.exec(job.env.LITZIO_BROWSER_SHARD);
-    assert.ok(shard, `${name}: shard environment must declare the executed denominator`);
-    const count = Number(shard[1]);
-    assert.ok(Number.isSafeInteger(count), `${name}: shard count must be a safe integer`);
-    assert.equal(job.strategy.matrix.shard.length, count, `${name}: every executed shard must be scheduled`);
-    assert.deepEqual([...job.strategy.matrix.shard].sort((a, b) => a - b),
-      Array.from({ length: count }, (_, index) => index + 1),
-      `${name}: matrix must schedule shards 1..N exactly once`);
+  const ciBrowser = ci.jobs.browser;
+  for (const eventName of ['pull_request', 'merge_group', 'push']) {
+    const matrix = runInNewContext(ciBrowser.strategy.matrix.slice(3, -2), {
+      github: { event_name: eventName }, fromJSON: JSON.parse,
+    });
+    const count = eventName === 'pull_request' ? 12 : 8;
+    assert.deepEqual(matrix.total, [count]);
+    assert.deepEqual(matrix.shard, Array.from({ length: count }, (_, index) => index + 1),
+      `${eventName}: every shard scheduled exactly once`);
+    if (eventName !== 'pull_request') assert.deepEqual(matrix.shard, browser.strategy.matrix.shard);
+    const artifacts = matrix.shard.map(shard => ciBrowser.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'))
+      .with.name.replace('${{ matrix.shard }}', shard));
+    assert.equal(new Set(artifacts).size, count, 'no artifact name collisions');
   }
+  assert.equal(ciBrowser.env.LITZIO_BROWSER_SHARD, '${{ matrix.shard }}/${{ matrix.total }}');
+  assert.equal(ciBrowser.name, 'Editor browser regressions (${{ matrix.shard }}/${{ matrix.total }})');
+  assert.equal(browser.env.LITZIO_BROWSER_SHARD, '${{ matrix.shard }}/8');
+  assert.deepEqual(browser.strategy.matrix.shard, [1, 2, 3, 4, 5, 6, 7, 8]);
+  const aggregate = ci.jobs['quality-and-browser'];
+  assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');
+  assert.ok(aggregate.needs.includes('browser'));
+  assert.equal(ciBrowser.strategy['fail-fast'], false);
   assert.equal(browser.strategy['fail-fast'], false);
   assert.deepEqual(browser.container, ci.jobs.browser.container);
   assert.equal(browser['runs-on'], ci.jobs.browser['runs-on']);
   assert.equal(browser['timeout-minutes'], ci.jobs.browser['timeout-minutes']);
-  assert.deepEqual(browser.env, ci.jobs.browser.env);
+
   for (const name of ['Cache Playwright browsers', 'Install pinned Chromium']) {
     assert.deepEqual(browser.steps.find(step => step.name === name), ci.jobs.browser.steps.find(step => step.name === name));
   }
