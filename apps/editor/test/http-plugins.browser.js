@@ -792,7 +792,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:/^docling-additional\.md$/})})).toBeVisible();
     await sourceRow.click({button:"right"});
     await expect(page.getByRole("menuitem",{name:`Open source comparison · ${resultPath}`,exact:true})).toBeVisible();
+    // The portal can paint before focus arrives; Escape on the tree closes its overlay.
+    await expect.poll(() => page.getByRole("menu").evaluate(menu => menu.contains(document.activeElement))).toBe(true);
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toBeHidden();
+    await showExplorer();
     await sourceRow.dblclick();
     await page.getByRole("dialog",{name:"Open source comparison",exact:true}).getByRole("button",{name:resultPath,exact:true}).click();
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
