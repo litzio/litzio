@@ -1,5 +1,10 @@
 // Choose a folder, expand it as a tree in the sidebar and open its documents; unsaved work blocks switching.
 async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, screenshots = false } = {}) => {
+  const resizeViewport = async dimensions => {
+    await page.setViewportSize(dimensions);
+    // Wait for the actual responsive shell commit before deciding whether to expand.
+    await expect.poll(()=>page.locator('.app-shell').evaluate(n=>n.classList.contains('app-shell--navigation-overlay'))).toBe(dimensions.width<1100);
+  };
   await page.clock.install();
   await page.unrouteAll();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -7,6 +12,36 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await page.reload();
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
+  // #1455: entering the shared narrow navigation layout starts closed; expansion must
+  // leave the document geometry unchanged. The wide explicit choice survives round trips.
+  const explorerToggle = page.locator('.sidebar-collapse');
+  await resizeViewport({width:1440,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
+  await explorerToggle.click();
+  await resizeViewport({width:640,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  const mainBox = await page.locator('.app-main').boundingBox();
+  await explorerToggle.click();
+  await expect(page.locator('.sidebar--overlay')).toBeVisible();
+  await expect.poll(() => page.locator('.app-main').boundingBox()).toEqual(mainBox);
+  await page.keyboard.press('Escape');
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await expect(explorerToggle).toBeFocused();
+  await explorerToggle.click();
+  await page.locator('.app-brand').click();
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await resizeViewport({width:1440,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await explorerToggle.click();
+  await resizeViewport({width:1099,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await resizeViewport({width:1100,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
+  await resizeViewport({width:640,height:900});
+  await page.reload();
+  await ready();
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await resizeViewport({width:1440,height:900});
   const origin = page.url().split('/').slice(0, 3).join('/');
   const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
@@ -66,7 +101,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       await page.getByRole('dialog').getByRole('button', {name:'Cancel', exact:true}).click();
     }
     for (const width of [1440, 1024, 640]) {
-      await page.setViewportSize({width, height:812});
+      await resizeViewport({width, height:812});
       if (screenshots && width !== 1024) {
         await page.evaluate(async width => {
           const { i18n } = await import('/src/i18n.ts');
@@ -205,7 +240,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       await dialog.waitFor({state:'detached'});
       assert(await entry.evaluate(node => node === document.activeElement), `Folder picker must restore focus at ${width}px`);
     }
-    await page.setViewportSize({width:1280, height:720});
+    await resizeViewport({width:1280, height:720});
     // Each menu acts only on its own folder, and Escape returns to its surviving trigger.
     for (const more of await section.getByRole('button', {name:'More actions', exact:true}).all()) {
       await more.click();
@@ -218,7 +253,8 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       assert(await more.evaluate(node => node === document.activeElement), 'Folder menu Escape must restore focus');
     }
     if (state === 'several') for (const width of [1440, 640]) {
-      await page.setViewportSize({width, height:720});
+      await resizeViewport({width, height:720});
+      if(await explorerToggle.getAttribute('aria-expanded') === 'false') await explorerToggle.click();
       // Docking changes the TopBar's width after the media-query state update. Do not
       // cache coordinates from the preceding layout for the one-physical-click check.
       await page.getByTestId('document-panel').waitFor({state:width >= 1424 ? 'visible' : 'hidden'});
@@ -241,7 +277,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       await page.getByRole('menu').and(page.locator(':focus-within')).waitFor();
       await page.keyboard.press('Escape'); await page.getByRole('menu').waitFor({state:'hidden'});
     }
-    await page.setViewportSize({width:1280, height:720});
+    await resizeViewport({width:1280, height:720});
   };
   await checkSidebarEntry('empty');
 
@@ -394,7 +430,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   assert(JSON.stringify(await roots()) === JSON.stringify([folder, guides]), 'Reload lists the opened folders again in order');
   if (screenshots) {
     for (const width of [1440, 640]) {
-      await page.setViewportSize({width, height:812});
+      await resizeViewport({width, height:812});
       await sidebar.getByRole('button', {name:'Collapse Explorer', exact:true}).waitFor();
       const environment = await page.evaluate(async () => {
         await document.fonts.ready; document.activeElement?.blur(); document.querySelector('.document-scroll[data-active="true"]').scrollTo(0, 0);
@@ -407,7 +443,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       await page.screenshot({path:`tmp/picker-capture/sidebar-restored-collapsed-${width}.png`});
       captureMetadata.push({state:'restored-collapsed', ...environment});
     }
-    await page.setViewportSize({width:1280, height:720});
+    await resizeViewport({width:1280, height:720});
   }
   await section.nth(1).getByRole('button', {name:'More actions', exact:true}).click();
   await page.getByRole('menuitem', {name:'Close folder', exact:true}).click();
@@ -463,9 +499,9 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   result.pickerCreatesFolder = await section.count() === 0 && await option('guides').count() === 1;
 
   // The dialog remains inside both desktop and narrow viewports; Open/Cancel stay reachable.
-  await page.setViewportSize({width:1440, height:1000});
+  await resizeViewport({width:1440, height:1000});
   if (screenshots) await page.screenshot({path: 'tmp/picker-capture/04-final.png'});
-  await page.setViewportSize({width:640, height:812});
+  await resizeViewport({width:640, height:812});
   await field.fill(folder + sep + 'long-folder-name-'.repeat(12));
   const bounds = await dialog.boundingBox();
   const buttonBounds = await open.boundingBox();
@@ -473,7 +509,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   assert(buttonBounds.x >= bounds.x && buttonBounds.x + buttonBounds.width <= bounds.x + bounds.width, 'Long Open label fits the dialog');
   assert(await dialog.getByRole('button', {name:'Cancel', exact:true}).isVisible(), 'Cancel remains reachable');
   if (screenshots) await page.screenshot({path: 'tmp/picker-capture/05-narrow.png'});
-  await page.setViewportSize({width:1280, height:720});
+  await resizeViewport({width:1280, height:720});
   result.fitsViewport = true;
 
   await enterFolder([folder, 'missing'].join(sep));
@@ -502,6 +538,15 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await ready();
   result.opensDocument = await row('index.md').getAttribute('aria-current') === 'page';
 
+  await resizeViewport({width:640,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await explorerToggle.click();
+  await row('index.md').click();
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await expect(explorerToggle).toBeFocused();
+  await resizeViewport({width:1280,height:720});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
+
   // A folder expands in place and only it is listed; its entries sit one level deeper.
   const guidesPath = [folder, 'guides'].join(sep);
   folderRequests.length = 0;
@@ -519,7 +564,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
 
   // Tool switches retain the tree's expansion, scroll and last keyboard stop without listing again.
   const viewport = page.viewportSize();
-  await page.setViewportSize({width:1280, height:300});
+  await resizeViewport({width:1280, height:300});
   await row('install.md').focus();
   await page.keyboard.press('End');
   const tree = section.getByRole('tree');
@@ -554,7 +599,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await page.getByRole('button', {name:'Expand Explorer', exact:true}).click();
   assert(JSON.stringify(await treeState()) === JSON.stringify(retained) && await row('guides').getAttribute('aria-expanded') === 'true' &&
     folderRequests.length === requestsBeforeSwitch, 'Reopening Explorer reset the tree or reloaded its folder');
-  await page.setViewportSize(viewport);
+  await resizeViewport(viewport);
   result.settingsPreservesTree = true;
 
   // #494: manual refresh updates cached children without scanning unknown folders or touching tabs.
@@ -732,7 +777,8 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await row('index.md').click();
   await page.waitForFunction(() => document.querySelector('[data-testid="current-file"]')?.title.endsWith('index.md'));
   await ready();
-  await page.setViewportSize({width:640, height:812});
+  await resizeViewport({width:640, height:812});
+  if(await explorerToggle.getAttribute('aria-expanded') === 'false') await explorerToggle.click();
   await toggle.click();
   await item('New document…').click();
   const filename = page.getByTestId('new-file-name');
@@ -769,12 +815,12 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await row('added.md').waitFor();
   result.listsCreated = await row('added.md').getAttribute('aria-current') === 'page';
   assert(await page.getByTestId('current-file').getAttribute('title') === [folder, 'added.md'].join(sep), 'Omitted extension creates a Markdown file in the chosen folder');
-  await page.setViewportSize({width:1280, height:720});
+  await resizeViewport({width:1280, height:720});
 
   // A child context action must use that child even while a root document is active.
   const context = page.locator('[data-slot="context-menu-content"]');
   if (screenshots) for (const width of [1440, 640]) {
-    await page.setViewportSize({width, height:812});
+    await resizeViewport({width, height:812});
     await page.evaluate(async width => {
       const { i18n } = await import('/src/i18n.ts');
       const { applyTheme } = await import('/src/theme.ts');
@@ -792,7 +838,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     const { applyTheme } = await import('/src/theme.ts');
     await i18n.changeLanguage('en'); await applyTheme('light');
   });
-  await page.setViewportSize({width:1280, height:720});
+  await resizeViewport({width:1280, height:720});
   await row('guides').click({button:'right'});
   await context.waitFor();
   await context.getByRole('menuitem', {name:'New document…', exact:true}).click();
@@ -945,7 +991,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     await row('chapter').getAttribute('aria-expanded') === 'true', 'Parent absorbs both roots and carries expansion');
   assert(await body.innerText() === textBefore && await page.getByRole('tablist', {name:'Documents'}).innerText() === tabsBefore &&
     await current() === 'install.md', 'Absorption preserves tabs, active document and unsaved content');
-  await page.setViewportSize({width:1440, height:900});
+  await resizeViewport({width:1440, height:900});
   if (screenshots) await page.screenshot({path:'tmp/picker-capture/non-overlapping-parent-1440.png'});
   await toggle.click();
   await sidebar.getByRole('button', {name:'Collapse Explorer', exact:true}).click();
@@ -972,7 +1018,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await body.click(); await page.keyboard.press('Control+z');
   assert(!(await body.innerText()).includes('Absorption draft.'), 'Editor Undo remains available after root changes');
   await folderMenu('Close folder');
-  await page.setViewportSize({width:1280, height:720});
+  await resizeViewport({width:1280, height:720});
   result.nonOverlappingRoots = true;
 
   // Root identity uses the same compact row as child folders; long names ellipsize with the full path available.
@@ -988,7 +1034,8 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     await dialog.waitFor({state:'detached'});
     await section.getByTitle([folder, name].join(sep), {exact:true}).waitFor();
     for (const width of [1440, 1024, 640]) {
-      await page.setViewportSize({width, height:812});
+      await resizeViewport({width, height:812});
+      if(await explorerToggle.getAttribute('aria-expanded') === 'false') await explorerToggle.click();
       await page.mouse.move(width - 2, 2);
       const geometry = await section.evaluate(async (element, name) => {
         await document.fonts.ready;
@@ -1053,7 +1100,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await option(browseEntries[0].name).waitFor();
   await dialog.getByTitle(folder, {exact:true}).first().waitFor();
   for (const width of [1440, 640]) {
-    await page.setViewportSize({width, height:667});
+    await resizeViewport({width, height:667});
     // A same-value fill does not dispatch a user edit, so explicitly reset the active entry.
     await field.fill('');
     await field.fill(folder + sep);

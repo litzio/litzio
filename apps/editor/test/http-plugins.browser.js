@@ -1,7 +1,9 @@
-async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument }) => {
+async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument, waitForExplorerLayout }) => {
+  const captureEntries = screenshots;
+  if (pluginFixture.docling?.entryCaptureOnly) screenshots = false;
   // Manual visual review only; automatic assertions do not depend on these images.
   const captureEntry = async (name, widths = [1440]) => {
-    if (!screenshots) return;
+    if (!captureEntries) return;
     const viewport = page.viewportSize();
     const originalTheme = await page.evaluate(() => document.documentElement.dataset.theme);
     for (const width of widths) for (const theme of ["light", "dark"]) {
@@ -29,6 +31,15 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   const openSettings = async () => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
+  };
+  const expandExplorer=page.getByRole('button',{name:/^(Expand Explorer|탐색기 펼치기)$/});
+  const showExplorer = async () => {
+    await waitForExplorerLayout(page);
+    if (await expandExplorer.isVisible()) await expandExplorer.click();
+  };
+  const openScreen = async name => {
+    await showExplorer();
+    await page.locator('.sidebar').getByRole('button',{name,exact:true}).click();
   };
   // Manual comparison evidence exercises only comparison; automatic HTTP still runs
   // the entire registration/OneDrive/Jira contract below.
@@ -279,6 +290,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
   // Any running folder source opens automatically, before a manual folder action.
+  if(await expandExplorer.isVisible()) await expandExplorer.click();
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
   await expect(page.locator(`[data-testid="folder"][data-root=${JSON.stringify(pluginFixture.otherFolder)}]`)).toBeVisible();
   await openFolderPicker(page);
@@ -369,7 +381,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
         await page.setViewportSize({width,height:1000});
         await page.evaluate(({width,theme}) => {localStorage.setItem("litzio.uiLanguage",width === 640 ? "ko":"en");localStorage.setItem("litzio.theme",theme);},{width,theme});
         await page.reload();
-        await page.locator(".sidebar").getByRole("button",{name:"Docling",exact:true}).click();
+        await openScreen('Docling');
         const panel = page.getByTestId("plugin-job-panel");
         const row = panel.getByRole("row").filter({has:page.getByRole("cell",{name:"real.docling",exact:true})}).first();
         await expect(row.getByRole("status")).toHaveText(width === 640 ? "완료":"Completed");
@@ -506,7 +518,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
         await page.screenshot({ path: `tmp/docling-1382/after-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
         await document.locator('figure').last().scrollIntoViewIfNeeded();
         await page.screenshot({ path: `tmp/docling-1382/figures-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
-        await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+        await openScreen('Docling');
         const panel = page.getByTestId("plugin-job-panel");
         const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "real.docling", exact: true }) }).first();
         await expect(row).toContainText(report.summary);
@@ -542,10 +554,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(detail.getByText(connected.result.message, { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
-    await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+    if(await expandExplorer.isVisible()) await expandExplorer.click();
     const icon = page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).locator("img.plugin-icon");
     await expect(icon).toBeVisible();
     await expect.poll(() => icon.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+    await openScreen('Docling');
     const panel = page.getByTestId("plugin-job-panel");
     await expect(panel).toBeVisible();
     await expect(panel.locator(".plugin-job-start").getByRole("button")).toBeDisabled();
@@ -554,6 +567,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await page.getByTestId("folder-path").fill(pluginFixture.folder);
     await page.getByTestId("folder-open").click();
     await expect(page.getByTestId("folder-path")).not.toBeVisible();
+    await openScreen('Docling');
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
     await panel.getByRole("group", { name: "Task", exact: true }).getByRole("button", { name: /PDF 변환/ }).click();
     await panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true }).check();
@@ -678,7 +692,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(editor).toContainText("Reviewed PDF body.");
     await expect(editor).not.toContainText("Direct edit.");
     await expect(generatedWarning).toBeVisible();
-    await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+    await openScreen('Docling');
     // Re-selecting the current Root must preserve its loaded files.
     await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
@@ -691,7 +705,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(nativeRow).toContainText("병합 칸 반복 1");
     await nativeRow.getByRole("button", { name: "Open result: sample.docling", exact: true }).click();
     await expect(editor).toContainText("PDF body *literal*.");
-    await page.locator(".sidebar").getByRole("button", {name:"Docling",exact:true}).click();
+    await openScreen('Docling');
     await nativeRow.getByRole("button",{name:"Compare source",exact:true}).click();
     const comparison = page.locator(".review-renderer").filter({visible:true});
     const pageCheck = n => comparison.getByRole("button",{name:`Page ${n}: Page checked`,exact:true});
@@ -745,13 +759,15 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     const progress = await docling.review("compare",{root:pluginFixture.folder,document:resultPath});
     expect(progress.progress).toEqual({checkedPages:[1,2],lastPage:2});
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
-    await page.locator(".sidebar").getByRole("button",{name:"Docling",exact:true}).click();
+    await openScreen('Docling');
     await nativeRow.getByRole("button",{name:"Compare source",exact:true}).click();
     // Both short pages fit the continuous viewport; the restored last page must be visible.
     await expect(comparison.locator('[data-page-no="2"]')).toBeInViewport();
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
     // CLI and Explorer use Host connections, independent of the source extension.
+    await page.setViewportSize({width:captureEntries ? 1440 : 640,height:1000});
+    await showExplorer();
     const found = await docling.review("find", {root:pluginFixture.folder,path:"sample.docling"});
     expect(found.documents.some(item => item.document === resultPath)).toBe(true);
     const sourceRow = page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:/^sample\.docling$/})});
@@ -763,9 +779,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await compareMenu.click();
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    await showExplorer();
     await sourceRow.focus(); await sourceRow.press("Enter");
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    if (!captureEntries) await expect(expandExplorer).toBeVisible();
+    await showExplorer();
     // A second output must offer a choice rather than silently selecting a document.
     docling.setDocumentInput(false, "docling-additional.md");
     const secondOutput = await docling.cli(["plugins","start",id,"--input",docling.jobInput]);
@@ -778,6 +797,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await page.getByRole("dialog",{name:"Open source comparison",exact:true}).getByRole("button",{name:resultPath,exact:true}).click();
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    await showExplorer();
     const documentRow = page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:resultPath})});
     await documentRow.click({button:"right"});
     await captureEntry("document-menu");
@@ -785,7 +805,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
     await page.setViewportSize({width:1280,height:720});
-    await page.locator(".sidebar").getByRole("button",{name:"Docling",exact:true}).click();
+    await openScreen('Docling');
     docling.setDocumentInput(true);
     await captureEntry("dashboard-existing-jobs");
     const failure = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
@@ -797,7 +817,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
       await page.reload();
-      await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+      await openScreen('Docling');
       await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first().getByRole("status")).toHaveText(width === 640 ? "완료" : "Completed");
       await page.mouse.move(0, 0);
       await page.screenshot({ path: `tmp/docling-002/dashboard-${width}.png`, mask: [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })], maskColor: "#a1a1aa" });
@@ -866,7 +886,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       expect(connected.result.rows[0].assignee).toBe("—");
       await page.reload(); await openSettings();
       await page.keyboard.press("Escape");
-      await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+      await openScreen('Jira');
       await page.getByRole("textbox", { name: "JQL", exact: false }).fill("project = MOCK ORDER BY updated DESC");
       await page.getByRole("button", { name: "조회", exact: true }).click();
       await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
@@ -993,7 +1013,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
           await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
           await page.setViewportSize({ width, height: 900 });
           await page.reload();
-          await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+          await openScreen('Jira');
           await page.getByRole("button", { name: "간편 검색", exact: true }).click();
           const disclosure = page.getByRole("button", { name: width === 640 ? /추가 조건/ : /Additional conditions/ });
           await expect(page.locator('[data-view-field="account"]')).toHaveAttribute("placeholder", "Fixture PAT user");
@@ -1024,7 +1044,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
         await page.reload();
-        await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+        await openScreen('Jira');
         await page.getByRole("button", { name: "간편 검색", exact: true }).click();
         await page.getByRole("button", { name: /Additional conditions/ }).click();
         await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");

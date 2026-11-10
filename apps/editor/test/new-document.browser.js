@@ -129,6 +129,7 @@ async page => {
   await page.keyboard.type('Browser-created paragraph');
 
   // New opens the name form without discarding this tab; Cancel retains input and focus.
+  await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
   await create.click();
   await page.getByTestId('new-file-name').fill('another-document');
   await page.keyboard.press('Escape');
@@ -147,6 +148,7 @@ async page => {
   check((await text()).trim() === 'Browser-created paragraph' && !await hint(), 'Reload lost the saved text or showed the hint');
 
   // A later cancelled creation must not repeat the successful creation's focus handoff.
+  await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
   await create.click();
   await page.getByTestId('new-file-name').fill('cancelled');
   await page.keyboard.press('Escape');

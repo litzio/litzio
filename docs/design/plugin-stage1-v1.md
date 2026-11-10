@@ -839,7 +839,7 @@ Host의 연결 파일에 canonical `documentPath`를 저장해 역방향 조회�
 탐색기는 같은 작업으로 찾은 생성 문서·원본에 기존 ContextMenu ‘원본 대조 열기’를 제공한다.
 연결된 원본은 클릭으로 선택하고 더블클릭·Enter로 대조를 연다. 같은 원본에 문서가 여러 개면
 메뉴에 문서별 행동을 표시하고, 원본 열기는 기존 Dialog/Button으로 문서를 선택한다.
-생성 문서 자체의 일반 열기는 문서 편집을 유지한다. 조회·문서·대조 모두 대상 Host client를
+생성 문서 자체의 일반 열기는 문서 편집을 유지한다. 좁은 창에서 대조를 열면 #1455의 기존 탐색 규칙처럼 Explorer overlay를 닫으며 선택 Dialog·Host 범위는 유지한다. 조회·문서·대조 모두 대상 Host client를
 사용하며 브라우저 PC 파일이나 로컬 Host로 fallback하지 않는다. 화면/폴더 재진입·새 목록·
 기여 변경에서 조회를 갱신하며 별도 문서 DB나 플러그인별 화면을 만들지 않는다.
 
@@ -859,8 +859,8 @@ Host의 연결 파일에 canonical `documentPath`를 저장해 역방향 조회�
 저장 후 재생성 안내를 확인한다. 기존 복구·재연결·Save/Reload·충돌 단언을 유지한다.
 새 suite 없이 기존 CLI·브라우저 harness를 사용하며, 복수 출력은 합성 작업 fixture의 출력 이름만 달리한다.
 
-수동 캡처는 `pnpm browser:test http-plugins --screenshots`의 persistent Windows Chrome,
-영어·100% zoom·합성 Docling 자료와 전용 localhost Host다. Before는 master `d25aef81`의
+수동 캡처는 `LITZIO_COMPARE_ENTRY_CAPTURE=1`을 지정한 `pnpm browser:test http-plugins --screenshots`의 persistent Windows Chrome,
+영어·100% zoom·합성 Docling 자료와 전용 localhost Host다. Before는 master `745a88db`의
 App/DocumentTab/FolderTree UI 소스만 같은 현재 Host·fixture 위에 복원해 촬영한 수동 비교다.
 Before의 새 진입점 단언은 촬영 동작으로 대체했고 최종 소스·단언은 복원했다.
 새 진입점을 포함한 최종 HTTP 검증과 Before 촬영을 구분한다.

@@ -40,7 +40,7 @@
 .assistant-warning { margin: 0 0 var(--space-2); padding: var(--space-2); color: var(--id-color-warning); background: var(--id-color-surface-warning); font-size: var(--font-size-xs); }
 .app-shell.app-shell--assistant { --shell-panel: var(--assistant-width, var(--layout-assistant-width)); }
 .app-shell--assistant .shell-tab { right: var(--shell-panel); }
-@media (width < 1100px) { .app-shell.app-shell--assistant { --shell-panel: 0px; } }
+.app-shell.app-shell--assistant.app-shell--navigation-overlay { --shell-panel: 0px; }
 @media print { .assistant-panel, .assistant-trigger { display: none; } }
 
 .assistant-choices { border-color: var(--id-color-border-control); }

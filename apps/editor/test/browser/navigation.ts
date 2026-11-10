@@ -2,9 +2,21 @@ import path from "node:path";
 import { expect, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 
+/** Resize completion may precede matchMedia delivery and the responsive React commit. */
+export async function waitForExplorerLayout(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const shell = document.querySelector('.app-shell');
+    const breakpoint = getComputedStyle(document.documentElement).getPropertyValue('--layout-navigation-overlay-breakpoint').trim();
+    return shell && breakpoint && shell.classList.contains('app-shell--navigation-overlay') === matchMedia(`(width < ${breakpoint})`).matches;
+  });
+}
+
 /** Follow the empty-state entry or an opened folder's menu, retaining its focus return target. */
 export async function openFolderPicker(page: Page, language = "en"): Promise<void> {
+  await waitForExplorerLayout(page);
   const sidebar = page.getByTestId("sidebar");
+  const expand = sidebar.getByRole("button", { name: language === "ko" ? "탐색기 펼치기" : "Expand Explorer", exact: true });
+  if (await expand.isVisible()) await expand.click();
   const name = language === "ko" ? "폴더 열기…" : "Open folder…";
   const folders = sidebar.getByTestId("folder");
   if (await folders.count()) {
@@ -17,9 +29,7 @@ export async function openFolderPicker(page: Page, language = "en"): Promise<voi
 /** Open (add) the file's folder through the picker, then choose the file in that folder's tree. An existing tab is activated without rereading its content. */
 export async function openDocument(page: Page, file: string): Promise<void> {
   const sidebar = page.getByTestId("sidebar");
-  // Expand the Sidebar through its rail when the caller has collapsed it.
-  const expand = page.getByRole("button", { name: "Expand Explorer", exact: true });
-  if (await expand.isVisible()) await expand.click();
+  // The picker helper waits for responsive layout, then expands through the rail.
   await openFolderPicker(page);
   await page.getByTestId("folder-path").fill(path.dirname(file));
   await page.getByTestId("folder-open").click();

@@ -6,7 +6,7 @@
   "zoom": "100%",
   "source": "synthetic Docling HTTP fixture; no real conversion service",
   "baseline": {
-    "uiRef": "d25aef816d8d5590d1c1b27b2e7610b2db7c8513",
+    "uiRef": "745a88db6714385f6cc4ea5c8498532e56b82c56",
     "uiFiles": [
       "apps/editor/src/App.tsx",
       "apps/editor/src/DocumentTab.tsx",
@@ -47,82 +47,85 @@
     "before-document-640-dark.png": {
       "width": 640,
       "height": 1000,
-      "sha256": "034b0463db514cfa6df2f0e58b9ef9834259fa8efee1e48b3c3f2ee20b6d487e"
+      "sha256": "7c884b27647538373cacfd4b464528efb6471905ebc3d01d3690ef641e6bef40"
     },
     "before-document-640-light.png": {
       "width": 640,
       "height": 1000,
-      "sha256": "84d6031ed023fe8906384351775ce7d3e535f408fc0b70cf5571119aeb48398b"
+      "sha256": "559901413dd7e4d0ea95bb473349fb30d9a32fe61a5bedcc5a71eadc94229168"
     },
     "before-document-menu-1440-dark.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "b2d8024b9f557334e3ef926711ef6e961bbd00ab7d480c15e52fb53ed0b9f692"
+      "sha256": "baef3657b64025fb9a4e7974f7c32196798064052c5f8720292cff8eaa05e2b1"
     },
     "before-document-menu-1440-light.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "de592e53898b0eba15c7a1ea96cd8a162b57d056dbe7831c615866595695427f"
+      "sha256": "63963caa8df8b1db11c2b1c2a965fc4317bc4a57f1c090bd5e96722b81efcb25"
     },
     "before-source-menu-1440-dark.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "421c7281f72b64627356e2449cb48e428c62fc12b0a622441be19a0442db09d1"
+      "sha256": "f0b942a26728e814e4bdcde0ebe6d17551e270ba8dab6c83a9a8ff74f49ed827"
     },
     "before-source-menu-1440-light.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "f85efe79d8fc0adc908fa18dcb8fc34bd624b574bf218a6b2545fc47dae37619"
+      "sha256": "f7edc86aebd26fbfc10434a75ffaf5d549150776aef6b1b57639d812986cfece"
     },
     "dashboard-existing-jobs-1440-dark.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "0cc27e83c2892865b071330b06aebc4f885fe59c0b11c20b97cb4eb6c3615290"
+      "sha256": "c50b3558c5e6000f5a330c5ea9b799d93b0d0619dc6e1728358429770e98345a"
     },
     "dashboard-existing-jobs-1440-light.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "2f8c1a9f193f07cbad6c91bdd969a72cdab80272b647d065fc79d1d5ca568696"
+      "sha256": "3c56df3293461d75d21f2b68680f9663fc4d15466da150ee3dd33b0ffc053773"
     },
     "document-1440-dark.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "05c8afec1541086de88e9f5473da8aa9276356050223c18032d40bc288efeff5"
+      "sha256": "90ce08017d7279b41c345b8a1b81d223d37a4d9af6e433456c9315d35d4c68e1"
     },
     "document-1440-light.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "35f8a94bdc6f71e1a60cc031d87eb1c8d66503f0b379b74094f324ed352bb748"
+      "sha256": "965791fc4501ba1073b864ff813c6432fec2e42c347369092208ddc2cc6f032a"
     },
     "document-640-dark.png": {
       "width": 640,
       "height": 1000,
-      "sha256": "46050f0e44f20015b975e0d0d42a7088992c645ca83b5263c18e9fc5c0d42259"
+      "sha256": "ad7e8b7df40dc52a90c4cdb6126e909fe89058cdbfaeed68dc66bca2e1c10a6a"
     },
     "document-640-light.png": {
       "width": 640,
       "height": 1000,
-      "sha256": "1ea9cbc0fc6528ea2aeb9f8e2f5b577d1b7edee6a0a700fd549a155505449aaa"
+      "sha256": "28b093356dbe76bcff58231618b29f5ea26e2f30265767e1a5d9cfaea7e3967e"
     },
     "document-menu-1440-dark.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "acfd30bfaf419e53c0ac7bc1d5a162638b8e027f1959735ff44bf0c6cfc09bc8"
+      "sha256": "d6ea0ee747fd9328de5f2a381ccb8254ede1b70397785ab6656da181b26b3762"
     },
     "document-menu-1440-light.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "f3936df3245b9ecb5fc1f7c415e21638f796748315b2bf8deab79198df9d13ff"
+      "sha256": "05e6325a8e72ab8554a7e9b706f5f95eb5cb9b54d15f20020bbf0a1d598cdf18"
     },
     "source-menu-1440-dark.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "9869c311328e7cd7f33b8c71e651abc5981652d72adb62a31717d0b0c71968ab"
+      "sha256": "3700985065c3b32691e9477131ebf14d5991a51696ccfcd1aa46fe99655bdbf4"
     },
     "source-menu-1440-light.png": {
       "width": 1440,
       "height": 1000,
-      "sha256": "046bfe06e1258ad1d5ccaa0850addb6c7ee1e92635eee9aa3c1089f7e18ef495"
+      "sha256": "b800119fbe60bd46e9d0bfb4057ef5dd12159f04246b53903f08dfe8856fa997"
     }
+  },
+  "environment": {
+    "LITZIO_COMPARE_ENTRY_CAPTURE": "1"
   }
 }
