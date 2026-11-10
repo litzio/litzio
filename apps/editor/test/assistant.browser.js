@@ -622,7 +622,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect.poll(() => submittedAnswers.length).toBe(1);
   releaseAnswer(); answerGate = undefined;
   await expect(questionCard).toHaveCount(0);
-  expect(submittedAnswers).toEqual([{ action: 'answer', id: selected.id, turnId: selected.turns[0].id, requestId: 'question-983', answers: { constructor: { answers: ['Summary'] }, ['__proto__']: { answers: ['private example'] } } }]);
+  expect(submittedAnswers).toEqual([{ action: 'answer', id: selected.id, turnId: selected.turns[0].id, requestId: 'question-983', answers: { constructor: { answers: ['Summary'] }, ['__proto__']: { answers: ['private example'] } }, displayClient: sent.at(-1).displayClient }]);
   selected.userInput = { requestId: 'other-983', turnId: selected.turns[0].id, questions: [{ id: 'constructor', header: 'Scope', question: 'Choose or describe.', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Main points' }] }] };
   await expect(questionCard).toBeVisible();
   await questionCard.getByRole('radio', { name: 'Write another answer' }).check();
