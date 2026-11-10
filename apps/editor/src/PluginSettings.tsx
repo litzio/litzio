@@ -1,3 +1,4 @@
+import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
@@ -16,6 +17,9 @@ import { usePlugins, type Plugin } from "./plugin-state.ts";
 export { usePlugins } from "./plugin-state.ts";
 export function PluginSettings() {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
+  const [removing, setRemoving] = useState(false);
+  const removeButton = useRef<HTMLButtonElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
   const client = useHostClient();
   const current = plugins.find(p => p.id === selected);
   const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
@@ -23,7 +27,7 @@ export function PluginSettings() {
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
     </Notice>
-    <Button size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
+    <Button ref={addButton} size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} showSidebarHint={false} initialPath="" recent={[]}
       browse={async path => { const r = await client.request(`/api/folder-browse?path=${encodeURIComponent(path)}`); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v; }}
       places={async () => { const r = await client.request("/api/folder-places"); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v.places; }}
@@ -53,8 +57,8 @@ export function PluginSettings() {
       {plugin.status?.accounts.map(account => <p key={account.id} className="settings-description plugin-account">{i18n.t("Account: {{label}} ({{source}})", { label: account.label, source: account.source })}</p>)}
     </section>)}
     <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, registrationId: trust.registrationId, trust: true }); setTrust(undefined); } catch (e) { if (e instanceof Error && e.message === PLUGIN_REGISTRATION_CHANGED) { setTrust(undefined); setProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED)); } else setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="secondary" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
-    <Dialog open={!!current} onOpenChange={open => { if (!open) setSelected(undefined); }}>
-      <DialogContent className="plugin-settings-dialog">
+    <Dialog open={!!current} onOpenChange={open => { if (!open && !busy) setSelected(undefined); }}>
+      <DialogContent className="plugin-settings-dialog" finalFocus={addButton}>
         <DialogHeader>
           <DialogTitle>{current?.name ?? current?.id}</DialogTitle>
           <p className="settings-status">{current?.version}</p>
@@ -62,9 +66,20 @@ export function PluginSettings() {
         </DialogHeader>
         {problem ? <Notice tone="error">{problem}</Notice> : null}
         {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
+        {current && !current.bundled ? <div className="settings-actions"><Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button></div> : null}
         <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t("Publisher")}: {current?.publisher?.name ?? current?.id}</p><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
       </DialogContent>
     </Dialog>
+    {removing && current ? <DangerConfirmation
+      title={i18n.t("Remove {{name}}?", { name: current.name ?? current.id })}
+      description={i18n.t("The plugin will be disabled and its settings and secrets deleted. Its folder stays on disk. Adding it again requires trust confirmation.")}
+      action={i18n.t("Remove")} pending={busy} error={problem} returnFocus={removeButton}
+      onClose={() => setRemoving(false)} onConfirm={async () => {
+        setBusy(true); setProblem("");
+        try { await change("unregister", { id: current.id }); setRemoving(false); setSelected(undefined); }
+        catch (e) { setProblem(String(e)); }
+        finally { setBusy(false); }
+      }} /> : null}
   </section>;
 }
 function PluginState({ tone, label, detail }: { tone: string; label: string; detail?: string }) {

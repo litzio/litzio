@@ -285,6 +285,8 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 
 외부 플러그인은 “플러그인 추가…”에서 기존 Host 측 `FolderDialog`로 artifact 폴더를 선택한다. Settings의 별도 절대 경로 입력란은 제거한다. 기존 Button·FolderDialog·설정 행과 토글을 재사용하며 새 공통 UI 패턴은 없다. 폴더 탐색은 현재 Host client를 통해 수행하고 로컬 PC 파일 선택 창으로 대체하지 않는다. 1단계 설정 UI의 로컬 Host 범위는 유지하며 원격 UI를 새로 개방하지 않는다. CLI `plugins register <directory>`와 비서 도구의 외부 경로·trust·enable·unregister는 기존 공용 작업을 유지한다.
 
+사용자가 추가한 플러그인의 설정 Dialog에는 기존 destructive Button의 “제거”를 제공한다(#1413). 기본 포함(`bundled`) 플러그인에는 제공하지 않는다. 기존 DangerConfirmation으로 대상 이름과 실행 중이면 먼저 끄기, 설정·비밀값 삭제, 폴더는 디스크에 보존, 재추가 시 신뢰 재확인을 알린다. 취소에 초기 초점을 두고 취소하면 설정으로 돌아간다. 확인하면 기존 Host `unregister`를 호출하고 성공 시 목록에서 제거해 추가 버튼으로 초점을 돌린다. 실패는 기존 오류 표시로 알리고 목록에 남긴다. 같은 ID의 지정 복사본은 아래 계약대로 다음 Host 시작에 복귀한다. 새 공용 작업이나 폴더 삭제는 없다. 기존 `vite-plugins`는 기본 포함의 제거 행동 부재와 사용자 추가 플러그인의 확인·취소·활성 상태 제거를 검증한다. Windows persistent Chrome의 한국어 Dark [1440px 설정](assets/remove-plugin-1413/settings-1440.png)·[확인](assets/remove-plugin-1413/confirm-1440.png), [640px 설정](assets/remove-plugin-1413/settings-640.png)·[확인](assets/remove-plugin-1413/confirm-640.png)은 같은 fixture 상태이며 실제 외부 서비스의 검증은 아니다. 공통 Button·DangerConfirmation·settings-actions를 재사용하고 새 공통 UI 예외는 없다.
+
 기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.
 
 ### 지정 커뮤니티 공급 (#1391)

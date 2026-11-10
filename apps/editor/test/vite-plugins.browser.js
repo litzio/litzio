@@ -17,7 +17,13 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await official.getByRole("button", { name: "OneDrive settings", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
   await expect(page.getByRole("dialog").getByRole("button", { name: "Check connection", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
   await page.keyboard.press("Escape");
+  for (const name of ["Docling", "Jira"]) {
+    await page.getByRole("region", { name, exact: true }).getByRole("button", { name: `${name} settings`, exact: true }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  }
   const officialEnabled = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "POST" && response.request().postDataJSON()?.action === "enable");
   await officialToggle.click();
   expect((await officialEnabled).ok()).toBe(true);
@@ -159,7 +165,35 @@ async (page, { expect, pluginFixture, screenshots }) => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   }
-  await toggle.click();
-  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "unregister", id: "fixture.vite" } });
-  expect(removed.ok()).toBe(true);
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+      await page.reload();
+      await page.getByRole("button", { name: "설정", exact: true }).click();
+      await page.getByRole("button", { name: "플러그인", exact: true }).click();
+      await page.getByRole("button", { name: "Vite fixture 설정", exact: true }).click();
+      await page.screenshot({ path: `tmp/remove-plugin-1413/settings-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+      await page.getByRole("dialog").getByRole("button", { name: "제거", exact: true }).click();
+      await page.screenshot({ path: `tmp/remove-plugin-1413/confirm-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+      await page.getByRole("button", { name: "취소", exact: true }).click();
+      await page.keyboard.press("Escape");
+    }
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); });
+    await page.reload();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Plugins", exact: true }).click();
+  }
+  await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
+  await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "Remove Vite fixture?", exact: true });
+  await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(toggle).toBeChecked();
+  await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
+  await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+  await confirmation.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(external).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add plugin…", exact: true })).toBeFocused();
 }
