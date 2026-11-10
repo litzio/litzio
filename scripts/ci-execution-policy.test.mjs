@@ -15,6 +15,36 @@ const event = { merge_group: { base_sha: base, head_sha: sha } };
 const expected = (quality, browser, http, desktop, update, smartquotes = false, fullLayout = update) =>
   ({ quality, browser, http, desktop, update, fullLifecycle: update, fullRemoval: update, fullLayout, smartquotes, reused: false });
 const full = expected(true, true, true, true, true, true);
+
+test('plugin packages retain their consumers without full lifecycle or layout coverage', async () => {
+  const { reused, ...plugin } = expected(true, true, true, true, false);
+  const files = ['packages/plugin-sdk/src/index.ts', 'plugins/onedrive/src/host.ts',
+    'community-plugins/jira/host.js', 'community-plugins/docling/fixtures/document.json',
+    ...['packages/plugin-sdk', 'plugins/onedrive', 'community-plugins/new-plugin']
+      .flatMap(root => [`${root}/package.json`, `${root}/new-input.js`])];
+  const inputs = ['apps/editor/src/App.tsx', 'apps/desktop/src/updates.ts',
+    'packages/cli/src/cli.ts', 'packages/cli/scripts/plugin-sdk.ts',
+    'apps/editor/server/plugins/designated-plugins.ts',
+    'apps/editor/server/plugins/artifact-digest.mjs', 'pnpm-lock.yaml', 'unknown/config.json'];
+  for (const eventName of ['pull_request', 'merge_group']) {
+    const payload = eventName === 'merge_group' ? event : { pull_request: { base: { sha: base }, head: { sha } } };
+    for (const root of ['packages/plugin-sdk', 'plugins/onedrive', 'community-plugins/new-plugin']) {
+      const docs = selectJobs(eventName, [`${root}/README.md`]);
+      assert.deepEqual(docs, { ...plugin, browser: false, http: false, desktop: false }, `${eventName}: plugin docs`);
+    }
+    for (const file of files) {
+      const jobs = { ...plugin, desktop: eventName !== 'pull_request' };
+      assert.deepEqual(await executionPolicy(eventName, payload, { git: () => `${file}\0` }),
+        { ...jobs, reused: false }, `${eventName}: ${file}`);
+      for (const input of inputs) {
+        const other = selectJobs(eventName, [input]);
+        const union = Object.fromEntries(Object.keys(jobs).map(key => [key, jobs[key] || other[key]]));
+        assert.deepEqual(selectJobs(eventName, [file, input]), union, `${eventName}: ${file} + ${input}`);
+      }
+    }
+    assert.deepEqual(selectJobs(eventName, files), { ...plugin, desktop: eventName !== 'pull_request' });
+  }
+});
 test('merge_group payloads apply the same path rules as PRs to the entire group diff', async () => {
   const cases = [
     [['docs/test/README.md'], expected(false, false, false, false, false)],
@@ -469,7 +499,9 @@ test('event selection and aggregate agree on PR and queue Windows checks', () =>
   }
   // Evaluate real workflow selection expressions against each event's policy outputs.
   for (const eventName of ['pull_request', 'merge_group', 'push']) {
-    for (const paths of [['docs/test/README.md'], ['apps/editor/src/App.tsx'], ['pnpm-lock.yaml'], []]) {
+    for (const paths of [['docs/test/README.md'], ['apps/editor/src/App.tsx'], ['pnpm-lock.yaml'], [],
+      ...['packages/plugin-sdk/src/index.ts', 'plugins/onedrive/src/host.ts', 'community-plugins/jira/host.js']
+        .flatMap(file => [[file], [file, 'apps/editor/src/App.tsx'], [file, 'apps/desktop/src/updates.ts']])]) {
       const outputs = Object.fromEntries(Object.entries(selectJobs(eventName, paths)).map(([key, value]) => [key, String(value)]));
       const context = { github: { event_name: eventName }, needs: { changes: { outputs } } };
       const evaluate = expression => runInNewContext(expression.replace(/^\$\{\{|\}\}$/g, '').trim(), context);
