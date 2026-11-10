@@ -45,7 +45,7 @@ export class PluginHost {
   private access: FileAccess;
   private supply: OfficialPlugin[];
   private designated: { id: string; directory: string }[];
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[] } = {}) {
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[]; jobHistoryFile?: string } = {}) {
     this.supply = options.officialPlugins ?? OFFICIAL_PLUGINS;
     this.designated = options.designatedPlugins ?? designatedPluginDirectories();
     this.access = options.access ?? LOCAL_FILE_ACCESS;
@@ -76,7 +76,7 @@ export class PluginHost {
       if (!operation) throw new Error("Job operation unavailable");
       return operation.effect;
     }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data),
-    (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs));
+    (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs), options.jobHistoryFile ?? path.join(path.dirname(file), "plugin-jobs.json"));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {
@@ -277,7 +277,7 @@ export class PluginHost {
   }
   /** Block job admission before the first asynchronous store write through reload. */
   private async changeConfiguration(id: string, change: () => Promise<void> | void) {
-    if (this.jobs.list(id).jobs.some(job => job.state === "running" || job.state === "uncertain")) {
+    if (this.jobs.hasActive(id)) {
       throw new Error("Plugin has running or uncertain jobs; settings and secrets were not changed");
     }
     const enabled = this.record(id).enabled;

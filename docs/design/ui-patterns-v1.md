@@ -109,6 +109,10 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 
 ## P07 입력 오류와 알림 센터
 
+#1439 K1 이력 손상 경고는 PluginJobs·PluginJobPanel 모두 기존 폼 문맥의
+`Notice tone="error"`와 지역화 문구를 사용한다. 원본 보존·빈 이력 시작을 알리며
+새 알림 표면·control·토큰 예외는 없다([K1 보존 계약](plugin-stage1-v1.md#host-작업-이력-보존-1439)).
+
 #1292 비서 공통 작업 환경·공급자 진단은 일반 label/값에 UI 14/20,
 경로·프로토콜에 mono metadata 12/16을 사용한다. 공급자 연결 실패와 설정 요청 실패는
 기존 `Notice tone="error"`로 표시하며 특정 입력의 오류로 재분류하지 않는다.
