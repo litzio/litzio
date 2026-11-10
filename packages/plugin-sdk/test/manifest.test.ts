@@ -50,6 +50,25 @@ test("review duplicate targets require explicit supersede within the same reason
   assert.equal(evaluateReviewCompletion(s.ledger,s.hash(),s.hash(),true).incomplete.includes("open-or-uncertain-groups"),false);
 });
 
+test("Undo refuses an open same-reason proposal before replay and succeeds after its rejection",()=>{
+  const s=reviewScenario();s.change({kind:"groups-propose",groups:[s.group("A",["t4"])]});
+  s.decide("groups-approve","A",["t4"]);
+  const next=s.group("B",["t4"]);next.targets[0]!.before=["new"];next.targets[0]!.patch.expectedBefore=["new"];
+  next.targets[0]!.patch.after=["newer"];next.targets[0]!.patch.operations[0]!.text="newer";
+  s.change({kind:"groups-propose",groups:[next]});
+  const before=structuredClone(s.ledger), contentBefore=s.hash();
+  assert.throws(()=>s.decide("groups-undo","A",["t4"]),error=>{
+    assert.match(String(error),/Duplicate open/);assert.match(String(error),/group "B"/);assert.match(String(error),/target "t4"/);return true;
+  });
+  assert.deepEqual(s.ledger,before,"refusing Undo must preserve every target and history entry");
+  assert.equal(s.hash(),contentBefore,"refusing Undo must not invoke source replay");
+  s.decide("groups-reject","B",["t4"]);
+  s.decide("groups-undo","A",["t4"]);
+  assert.equal(s.ledger.groups[0]!.targets[0]!.proposal,"proposed");
+  assert.deepEqual(s.ledger.groups[0]!.targets[0]!.history.map(event=>event.action),["approved","undone"]);
+  assert.equal(s.ledger.groups[1]!.targets[0]!.proposal,"rejected");
+});
+
 function comparedReviewScenario() {
   const s=reviewScenario(), hash=s.hash(), scope={pages:[1],targets:["figure"]};
   const lenses=["text","structure","reading","formula","table","picture","decoration"];

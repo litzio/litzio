@@ -621,6 +621,7 @@ PR #1474의 독립 리뷰 REQUEST_CHANGES에 따라 승인 revision 검사는 �
 제안이 기존 열린 proposed 대상(Undo로 다시 열린 대상 포함)을 대체한다. 기존 대상과 승인/Undo 이력은
 삭제하지 않고 새 묶음/대상 링크를 담은 superseded event를 추가하며, 완료의 열린 문제 계산에서는 제외한다.
 승인·거절된 대상의 대체와 다른 source/locator/reason으로의 대체는 거부한다. 새 묶음 승인은 별도로 사람에게 받는다.
+Undo로 다시 여는 대상도 propose와 같은 열린 중복 검사를 원본 replay 전에 수행하며, 충돌한 묶음·대상을 명시하고 원본/ledger를 보존한 채 거부한다. 충돌 제안을 먼저 처리해 중복이 없어지면 Undo할 수 있다.
 
 같은 target ID 또는 동일 provider/source의 같은 opaque locator·같은 reasonCode인 열린 제안은 대체 지정 없이
 중복 저장할 수 없다. 다른 reasonCode는 허용하되 각각 처리해야 한다. 부분 분리한 나머지도 같은 전이를

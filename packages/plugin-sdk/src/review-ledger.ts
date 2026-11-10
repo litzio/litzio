@@ -85,6 +85,13 @@ function locatorIdentity(value: unknown): string {
 function sameTarget(a: z.infer<typeof reviewGroupSchema>, target: ReviewGroupTarget, b: z.infer<typeof reviewGroupSchema>, other: ReviewGroupTarget) {
   return target.id === other.id || a.provider === b.provider && a.sourceRevision === b.sourceRevision && locatorIdentity(target.locator) === locatorIdentity(other.locator);
 }
+function assertNoOpenDuplicate(groups: readonly z.infer<typeof reviewGroupSchema>[], group: z.infer<typeof reviewGroupSchema>, target: ReviewGroupTarget) {
+  for (const otherGroup of groups) {
+    if (otherGroup.reasonCode !== group.reasonCode) continue;
+    const conflict = otherGroup.targets.find(other => other !== target && other.proposal === "proposed" && sameTarget(group,target,otherGroup,other));
+    if (conflict) throw new Error(`Duplicate open target for the same reason: group ${JSON.stringify(otherGroup.id)}, target ${JSON.stringify(conflict.id)}; process that proposal before opening another`);
+  }
+}
 
 /** Snapshot validity and unsettled requests are supplied by the common Host, not inferred from a cache's existence. */
 export function evaluateReviewCompletion(ledger: ReviewLedger, contentRevision: string, snapshotHash: string | null, current: boolean) {
@@ -144,9 +151,7 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
       }
     }
     for (const group of change.groups) {
-      for (const [index, target] of group.targets.entries()) {
-        if (group.targets.slice(0,index).some(other => sameTarget(group,target,group,other)) || ledger.groups.some(old => old.reasonCode === group.reasonCode && old.targets.some(other => other.proposal === "proposed" && sameTarget(group,target,old,other)))) throw new Error("Duplicate open target for the same reason; explicitly supersede it");
-      }
+      for (const target of group.targets) assertNoOpenDuplicate([...ledger.groups,group], group, target);
       ledger.groups.push(group);
     }
   } else if (change.kind === "inspection") {
@@ -181,6 +186,8 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
     const group = ledger.groups.find(g => g.id === change.groupId);
     if (!group || change.targetIds.some(id => !group.targets.some(t => t.id === id))) throw new Error("Unknown group targets");
     const selected = group.targets.filter(t => change.targetIds.includes(t.id)), remaining = group.targets.filter(t => !change.targetIds.includes(t.id));
+    // Preflight the entire Undo before splitting history or invoking any provider source replay.
+    if (change.kind === "groups-undo") for (const target of selected) assertNoOpenDuplicate(ledger.groups, group, target);
     if (remaining.length) {
       if (!change.remainderGroupId || ledger.groups.some(g => g.id === change.remainderGroupId)) throw new Error("Explicit new remainder group required");
       ledger.groups.push({ ...structuredClone(group), id: change.remainderGroupId, splitFrom: group.id, targets: remaining, representativeTargetId: remaining[0]!.id, representativeReason: "First remaining target after explicit partial decision" });

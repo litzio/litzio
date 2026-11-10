@@ -877,6 +877,7 @@ canonical snapshot 검증·단일 파일 교체·receipt를 소유한다. provid
 정확한 targetIds가 필요하다. 일부 대상만 처리하려면 새 `remainderGroupId`를 명시하며 남은
 대상을 그 묶음으로 옮기고 `splitFrom`과 모든 이력을 유지한다. 거절의 `resolvesIssue:false`는
 알려진 문제를 닫지 않는다. Undo는 승인 event를 지우지 않고 `undoOf`/`undone`을 추가하여 다시 연다.
+Undo도 propose와 같은 열린 중복 검사를 원본 replay 전에 수행하며, 충돌하면 묶음·대상 ID를 오류에 명시하고 원본/ledger를 보존한 채 거부한다. 충돌 제안을 자동 폐기하지 않는다.
 과거 event의 requestId는 Host receipt 조회 참조이며 daemon 재시작 뒤 실행 권한이 아니다.
 
 교정 후 stale인 제안이나 Undo로 다시 열린 제안은 승인 revision 검사를 완화하지 않는다.
