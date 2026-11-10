@@ -27,7 +27,14 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).skills();
     },
     assistantModels: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).models(provider(args)),
-    assistantDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).diagnostics(provider(args)),
+    assistantDiagnostics: async (args?: { provider?: AiProvider; summary?: string }) => {
+      const selected = provider(args);
+      const connection = agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run);
+      if (args?.summary !== "account-usage") return connection.diagnostics(selected);
+      if (selected !== "codex") return { provider: selected, checkedAt: Date.now() };
+      const value = await connection.accountUsage();
+      return { ...value, accountError: value.accountError ? "Unavailable" : undefined, rateLimitsError: value.rateLimitsError ? "Unavailable" : undefined };
+    },
     assistantEnvironment: () => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).environment(),
     assistantConversations: (args: any) => {
       if (args.submissionId) return history().submission(args.submissionId);
@@ -53,7 +60,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         // Steering and cancellation retain their admitted turn and connection.
         if (!existing?.turns.some(turn => turn.status === "inProgress")) {
           const selected = provider({ provider: existing?.provider ?? args.provider ?? currentSettings.provider });
-          const status = await assistantOperations.assistantDiagnostics({ provider: selected });
+          const status = await (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).diagnostics(selected);
           if (!status.connected || selected === "codex" && !status.account) throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
           if (closed) throw new Error("The Assistant Host is closing.");
         }

@@ -24,6 +24,11 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
   const settings = { ...await host.invoke("settings"), model: "gpt-6.1-sol", reasoningEffort: "high" };
   const put = (value: unknown) => fetch(`${url}/api/assistant/settings`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
   const saved = await put(settings);
+  const usage = await fetch(`${url}/api/assistant/diagnostics?provider=codex&summary=account-usage`).then(response => response.json());
+  assert.equal(usage.account.email, "fixture@example.invalid");
+  assert.equal(usage.rateLimits[0].windows[0].usedPercent, 28);
+  assert.equal("path" in usage || "mcp" in usage, false);
+  assert.deepEqual(await fetch(`${url}/api/assistant/diagnostics?provider=copilot&summary=account-usage`).then(response => response.json()).then(({ provider, ...value }) => ({ provider, keys: Object.keys(value) })), { provider: "copilot", keys: ["checkedAt"] });
   assert.equal(saved.status, 200, await saved.clone().text());
   assert.deepEqual(await saved.json(), settings);
   const previous = process.env.LITZIO_ASSISTANT_SETTINGS_FILE;
