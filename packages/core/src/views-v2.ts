@@ -241,10 +241,12 @@ export const reviewBaselineSchema = z.strictObject({ documentRevision: opaque, p
 export const reviewBundleSchema = z.strictObject({ bundleRef: opaque, generation: opaque, documentRef: opaque,
   documentRevision: opaque, documentHash: opaque, sourceRevision: opaque.optional(), mappingRevision: opaque.optional() });
 const bbox = z.tuple([z.number().finite(), z.number().finite(), z.number().finite(), z.number().finite()]);
+export const reviewRegionKindSchema = z.enum(["heading", "text", "list", "table", "formula", "picture", "footnote", "code"]);
+export type ReviewRegionKind = z.infer<typeof reviewRegionKindSchema>;
 export const reviewPageSchema = z.strictObject({ generation: opaque, sourceRevision: opaque, pageNo: z.number().int().positive(),
   width: z.number().positive().finite(), height: z.number().positive().finite(), imageRef: opaque.optional(),
   origin: z.enum(["TOPLEFT", "BOTTOMLEFT"]), unit: z.enum(["pt", "px"]),
-  regions: z.array(z.strictObject({ id: opaque, bbox, category: label, status: z.enum(["supported", "unsupported", "decoration", "excluded"]), reason: label.optional() })).max(2000),
+  regions: z.array(z.strictObject({ id: opaque, bbox, category: label, kind: reviewRegionKindSchema.optional(), status: z.enum(["supported", "unsupported", "decoration", "excluded"]), reason: label.optional() })).max(2000),
 }).superRefine((page, ctx) => {
   if (new Set(page.regions.map(r => r.id)).size !== page.regions.length) ctx.addIssue({ code: "custom", message: "Duplicate region" });
   for (const r of page.regions) {

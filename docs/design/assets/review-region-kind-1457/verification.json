@@ -1,0 +1,118 @@
+{
+  "issue": 1457,
+  "date": "2026-11-10",
+  "browser": "Chrome 157.0.8103.40 persistent profile",
+  "command": "pnpm browser:test http-plugins --screenshots",
+  "viewport": [
+    1440,
+    1000
+  ],
+  "theme": "Light",
+  "language": "English",
+  "dpr": 1,
+  "input": "Existing synthetic one-page archive from real docling-serve 1.32.0",
+  "inputSha256": "81a76cd7270a637517000122c3e69331cd53233e5896f38822252f2db4666563",
+  "account": "Masked during capture; no local paths",
+  "reference": "origin/master 9ca2cf35 docs/design/assets/review-compare-1435/after-1440.png",
+  "referenceGitBlob": "178fb2a7d7f3ff41df0e54ee45d85cb4086207a2",
+  "captureGitBlob": "178fb2a7d7f3ff41df0e54ee45d85cb4086207a2",
+  "captureSha256": "ba8a1647b1d281a224100de599ed4bfa22e05a43cf57230be5251812f65c80ec",
+  "result": "PNG is byte-identical to the accepted master image",
+  "measurements": {
+    "readingWidth": 576,
+    "sourceWidth": 576,
+    "bodyFontSize": 17,
+    "headingFontSize": 34,
+    "ordinaryHeadingWordMaxFragments": 1,
+    "width": 1440,
+    "height": 1000,
+    "dpr": 1,
+    "theme": "light",
+    "toolbarHeight": 32,
+    "panelTop": 133,
+    "documentOverflow": 0,
+    "kinds": [
+      {
+        "kind": "heading",
+        "source": "rgb(49, 95, 212)",
+        "wire": "rgb(49, 95, 212)",
+        "sourceContrast": 5.647939125749528,
+        "sourceWireContrast": 3.8080923057943306,
+        "uiWireContrast": 3.8080923057943306
+      },
+      {
+        "kind": "text",
+        "source": "rgb(7, 111, 101)",
+        "wire": "rgb(7, 111, 101)",
+        "sourceContrast": 6.050605476353916,
+        "sourceWireContrast": 3.9936151962020343,
+        "uiWireContrast": 3.9936151962020343
+      },
+      {
+        "kind": "list",
+        "source": "rgb(52, 109, 56)",
+        "wire": "rgb(52, 109, 56)",
+        "sourceContrast": 6.1936428264966,
+        "sourceWireContrast": 3.985025113782669,
+        "uiWireContrast": 3.985025113782669
+      },
+      {
+        "kind": "table",
+        "source": "rgb(112, 65, 189)",
+        "wire": "rgb(112, 65, 189)",
+        "sourceContrast": 6.603997399046844,
+        "sourceWireContrast": 4.263529328185769,
+        "uiWireContrast": 4.263529328185769
+      },
+      {
+        "kind": "formula",
+        "source": "rgb(138, 63, 133)",
+        "wire": "rgb(138, 63, 133)",
+        "sourceContrast": 6.7085183106481745,
+        "sourceWireContrast": 4.317656275455759,
+        "uiWireContrast": 4.317656275455759
+      },
+      {
+        "kind": "picture",
+        "source": "rgb(135, 87, 23)",
+        "wire": "rgb(135, 87, 23)",
+        "sourceContrast": 6.165898414036117,
+        "sourceWireContrast": 3.9659541753886307,
+        "uiWireContrast": 3.9659541753886307
+      },
+      {
+        "kind": "footnote",
+        "source": "color(srgb 0.109804 0.403922 0.613725)",
+        "wire": "color(srgb 0.109804 0.403922 0.613725)",
+        "sourceContrast": 6.052685283661392,
+        "sourceWireContrast": 3.9884351569842478,
+        "uiWireContrast": 3.9884351569842478
+      },
+      {
+        "kind": "code",
+        "source": "color(srgb 0.535294 0.294118 0.305882)",
+        "wire": "color(srgb 0.535294 0.294118 0.305882)",
+        "sourceContrast": 6.638656717968964,
+        "sourceWireContrast": 4.1941757271356295,
+        "uiWireContrast": 4.1941757271356295
+      },
+      {
+        "kind": "unmapped",
+        "source": "rgb(82, 97, 107)",
+        "wire": "rgb(84, 92, 104)",
+        "sourceContrast": 6.400579932523359,
+        "sourceWireContrast": 3.9941321490676134,
+        "uiWireContrast": 4.160061159395938
+      }
+    ],
+    "sourceBottom": 984,
+    "documentBottom": 984,
+    "visibleWires": 10,
+    "selectedWires": 1
+  },
+  "limitations": [
+    "No new external Docling conversion",
+    "No production or large-document acceptance test",
+    "Owner visual approval is separate"
+  ]
+}
