@@ -3,3 +3,9 @@ patches/*.patch text eol=lf -whitespace
 
 # Samples must already match Core canonical LF output on every checkout.
 apps/editor/samples/** text eol=lf
+
+# Preserve reference bytes and SHA-256 sums across checkouts.
+community-plugins/docling/sample/lsr-1.1/** -text
+
+# Retain verbatim upstream font notice whitespace.
+community-plugins/docling/sample/lsr-1.1/resources/fonts/DejaVu-LICENSE.txt -whitespace

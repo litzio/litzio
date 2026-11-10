@@ -6,11 +6,106 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "../server/file-operations.ts";
+import { executeFolderTrash, deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "../server/file-operations.ts";
 import { accessPath, RootAccess } from "../server/file-access.ts";
 import { nativeSource } from "./helpers/document.ts";
 import { getEditableDocument, parse } from "@litzio/core";
 import { loadDocumentFile } from "../server/document-api.ts";
+
+test("folder trash protects unsaved documents opened through a directory junction alias", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-alias-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "Child"), alias = path.join(root, "Alias"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "draft.txt"), "saved");
+  fs.symlinkSync(folder, alias, process.platform === "win32" ? "junction" : "dir");
+  const opened = path.join(alias, "draft.txt");
+  assert.equal(fs.statSync(opened, { bigint: true }).ino, fs.statSync(path.join(folder, "draft.txt"), { bigint: true }).ino);
+  let calls = 0;
+  const remove = (target: string) => { calls++; fs.renameSync(target, path.join(root, "moved")); };
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove });
+  const result = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision, openDocuments: [opened] }, { remove });
+  assert.equal(result.receipt.outcome, "refused"); assert.equal(calls, 0);
+  const missing = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision, openDocuments: [path.join(root, "missing", "draft.txt")] }, { remove });
+  assert.equal(missing.receipt.outcome, "refused", "unidentifiable protected paths refuse conservatively"); assert.equal(calls, 0);
+});
+
+test("folder trash cleanup candidates use real identities, preserving Kelvin siblings and missing paths", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-kelvin-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "k"), other = path.join(root, "K"), alias = path.join(root, "Alias");
+  fs.mkdirSync(folder); fs.mkdirSync(other);
+  const target = path.join(folder, "draft.txt"), sibling = path.join(other, "draft.txt"), missing = path.join(folder, "missing.txt");
+  fs.writeFileSync(target, "target"); fs.writeFileSync(sibling, "unrelated");
+  assert.notEqual(fs.statSync(folder, { bigint: true }).ino, fs.statSync(other, { bigint: true }).ino);
+  fs.symlinkSync(folder, alias, process.platform === "win32" ? "junction" : "dir");
+  const aliasPath = path.join(alias, "draft.txt");
+  const remove = (value: string) => fs.renameSync(value, path.join(root, "moved"));
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove });
+  const result = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision, openDocuments: [sibling], cleanupPaths: [target, aliasPath, sibling, missing] }, { remove });
+  assert.deepEqual(result.containedPaths, [target, aliasPath]);
+  assert.equal(fs.readFileSync(sibling, "utf8"), "unrelated");
+});
+
+for (const change of ["edit", "add", "remove", "rename"] as const) test(`folder confirmation refuses ${change} after inspection before invoking trash`, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-confirm-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "folder"), nested = path.join(folder, "nested"); fs.mkdirSync(nested, { recursive: true });
+  const file = path.join(nested, "document.txt"); fs.writeFileSync(file, "before");
+  let calls = 0;
+  const remove = (target: string) => { calls++; fs.renameSync(target, path.join(root, "moved")); };
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove });
+  if (change === "edit") { const stat = fs.statSync(file); fs.writeFileSync(file, "edited"); fs.utimesSync(file, stat.atime, stat.mtime); }
+  if (change === "add") fs.writeFileSync(path.join(nested, "new.txt"), "new");
+  if (change === "remove") fs.unlinkSync(file);
+  if (change === "rename") fs.renameSync(file, path.join(nested, "renamed.txt"));
+  const result = await executeFolderTrash({ root, path: folder, expectedIdentity: checked.identity, expectedRevision: checked.revision }, { remove });
+  assert.equal(result.receipt.outcome, "refused");
+  assert.equal(calls, 0); assert.equal(fs.existsSync(folder), true);
+});
+
+test("folder trash refuses roots, links, unavailable trash and dirty documents; moves the whole folder", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-trash-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "child"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "keep.txt"), "keep");
+  const access = new RootAccess([root]);
+  let calls = 0;
+  const remove = async (target: string) => { calls++; assert.equal(target, folder); fs.renameSync(target, path.join(root, "moved")); };
+  for (const target of [root, path.dirname(root)]) assert.equal((await executeFolderTrash({ root, path: target }, { access, remove })).receipt.outcome, "refused");
+  const link = path.join(root, "link"); fs.symlinkSync(folder, link, process.platform === "win32" ? "junction" : "dir");
+  assert.equal((await executeFolderTrash({ root, path: link }, { access, remove })).receipt.outcome, "refused");
+  assert.equal((await executeFolderTrash({ root, path: folder }, { access })).receipt.outcome, "refused");
+  assert.equal(calls, 0);
+  const check = await executeFolderTrash({ root, path: folder, checkOnly: true }, { access, remove });
+  assert.equal(check.fileCount, 1); assert.equal(check.countComplete, true);
+  assert.equal((await executeFolderTrash({ root, path: folder, openDocuments: [path.join(folder, "keep.txt")] }, { access, remove })).receipt.outcome, "refused");
+  const result = await executeFolderTrash({ root, path: folder, expectedIdentity: check.identity, expectedRevision: check.revision }, { access, remove });
+  assert.equal(result.receipt.outcome, "success"); assert.equal(calls, 1);
+});
+
+test("folder trash bounds reference inspection and never reports partial removal as success", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-trash-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "images"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "a.svg"), "<svg/>");
+  fs.writeFileSync(path.join(folder, ".hidden.txt"), "hidden files count too");
+  fs.writeFileSync(path.join(root, "ref.md"), nativeSource(":::{figure} ./images/a.svg\n\nCaption.\n:::\n"));
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove: () => {} });
+  assert.deepEqual(checked.references, ["ref.md"]); assert.equal(checked.referencesComplete, true);
+  const incomplete = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove: () => {}, entryLimit: 1 });
+  assert.equal(incomplete.fileCount, 1); assert.equal(incomplete.countComplete, false);
+  assert.equal(incomplete.revision, undefined, "an incomplete manifest never grants deletion permission");
+  const unverified = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision }, { entryLimit: 1, remove: () => { throw new Error("must not invoke trash"); } });
+  assert.equal(unverified.receipt.outcome, "refused");
+  assert.equal(incomplete.referencesComplete, false);
+  const partial = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision }, { remove: () => { fs.unlinkSync(path.join(folder, "a.svg")); } });
+  assert.equal(partial.receipt.outcome, "uncertain");
+  const afterPartial = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove: () => {} });
+  const failed = await executeFolderTrash({ root, path: folder, expectedRevision: afterPartial.revision }, { remove: () => { throw new Error("locked"); } });
+  assert.equal(failed.receipt.outcome, "uncertain");
+  fs.renameSync(folder, path.join(root, "old")); fs.mkdirSync(folder);
+  assert.equal((await executeFolderTrash({ root, path: folder, expectedIdentity: checked.identity }, { remove: () => {} })).receipt.outcome, "refused");
+});
 
 test("Figure-form rename verifies its checkpoint and reports live/saved paths without saving local properties", t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-figure-rename-"));

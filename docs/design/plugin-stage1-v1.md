@@ -40,7 +40,7 @@
 CLI는 반드시 `--host <http(s) origin>`을 명시하고 daemon 프로토콜을 먼저 확인한다. JSON 결과는 대상 origin과 동일 Host 결과를 보존한다.
 
 ```text
-plugins scaffold <new-absolute-directory> --id <plugin-id> --host <origin> --json
+plugins scaffold [new-absolute-directory] --id <plugin-id> --host <origin> --json
 plugins validate <artifact-directory> --host <origin> --json
 plugins list --host <origin> --json
 plugins unregister <id> --host <origin> --json
@@ -201,13 +201,23 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 
 ## 비서 제작 키트
 
-`scaffold`는 대상 Host의 새 절대 디렉터리에 manifest·package.json·ESM host.js와 편집기 타입 힌트를 생성한다. 생성 직전 Host RootAccess의 새 경로 검사를 적용한다. 비서 호출은 turn의 opened folders와 Host Root를 모두 검사하며 read-only turn·열린 폴더 없는 turn을 거부한다. full-access도 이 공용 생성 경로의 Root/열린 폴더 제약을 생략하지 않는다. 부모 디렉터리는 존재해야 하며, 이미 있는 디렉터리(빈 디렉터리 포함)는 거부하고 덮어쓰지 않는다. 기존 scaffold 입력에 선택적 `template: greet | query | file`을 받으며 생략 시 greet다. CLI `plugins scaffold <directory> --id <id> [--template greet|query|file]`와 비서 `manage_plugins`가 같은 공용 작업을 사용한다. greet는 화면 없는 간단한 작업 하나로 충분할 때 쓴다. query는 연결 설정·확인, 표시 이름을 가진 선택적 비밀키, 기본/추가 조건과 결과 표를 제공한다. 외부 서비스 없이 예제 데이터로 실행하며 연결 값이 없으면 고정 안내를 준다. file은 `.txt` 대문자 변환과 `.upper` 파일 결과, 시작·상태·중단, 파일별 진행을 기존 K1으로 제공한다. 두 템플릿의 주석은 데이터/변환 교체 지점을 알린다. `settingsSchema.required`는 사용하지 않고 화면 배치는 기존 공통 화면에 맡긴다. 새 화면 종류 선언이나 workflow engine은 없다. 대상 Host SDK_VERSION 요구, 패키지/manifest 버전 일치와 community 계층을 사용하며 자동 등록·신뢰·실행은 하지 않는다.
+Verification #1434: 2026-11-10 — Host 기본 제작 위치의 생성·등록·실제 subprocess 호출·수정/reload, 열린 폴더 없는 turn의 sandbox 요청, 읽기 전용 거부·명시 경로 범위, hostPaths의 개발/배포/환경 override와 CLI 전달 fixture, 전체 typecheck·production build 확인. 실제 AI 제작·원격 Host 통신·설치형 앱 실행은 미검증. Windows 정션 경계와 폴더 없는 읽기 전용 validate 비생성 검사를 먼저 실패시킨 뒤 수정 후 통과를 확인했다. 생성 대상 정션의 이탈 거부와 sandbox의 정션 경로 제외도 추가로 확인했다. 재리뷰에서는 lstat 뒤·RootAccess 채택 직전·mkdir 직후·첫 파일 쓰기 직후 정션 교체를 주입한 Windows 검사를 수정 전 실패→수정 후 통과로 확인했다. 8.3 짧은 TEMP에서 queue 실패를 로컬 재현한 뒤, native realpath 기반 기대값·교체 주입 기준과 별칭 validate 경계를 고쳤다. 같은 TEMP의 Windows Editor 단위 분할은 512개 통과·Linux 전용 1개 skip으로 종료했으며 정션 교체/파일 보존 단언은 유지했다.
+
+`scaffold`는 대상 Host의 새 디렉터리에 manifest·package.json·ESM host.js와 편집기 타입 힌트를 생성한다. `directory` 생략 시 `hostPaths().plugins`(templates와 같은 사용자 데이터 base의 `plugins/`) 아래 플러그인 ID를 이름으로 새 폴더를 만든다. 필요한 기본 부모 폴더는 scaffold 쓰기 시점에만 Host가 준비하며 이름이 이미 있으면 빈 폴더도 거부하고 덮어쓰지 않는다. 원격 Host는 그 Host의 데이터 위치를 쓰며 개발 실행의 `.litzio-dev`와 `LITZIO_DATA_DIR`도 기존 hostPaths 규칙을 따른다. 문서 폴더의 기존 artifact를 옮기지는 않는다.
+
+비서의 `opened-folders` turn은 이 기본 plugins 폴더를 추가 쓰기 위치로 받아 열린 문서 폴더 없이도 기본 scaffold·파일 수정·validate·등록·신뢰·활성·호출을 이어 갈 수 있다. Host는 plugins 폴더의 링크·정션을 거부하고, 사용자 데이터 폴더와 plugins 폴더의 실제 경로를 대조한 뒤 앱 소유 RootAccess 경계를 별도로 고정한다. 생성 대상도 같은 실제 경로 경계로 검사하며, 기본 scaffold와 이 폴더의 validate는 문서 Host Root 밖에서도 허용한다. sandbox는 plugins의 realpath를 한 번 구해 데이터 폴더 realpath 아래 기대한 plugins 경로와 플랫폼 경로 규칙으로 정확히 같을 때만 그 기대 경로 문자열을 넣는다. realpath가 반환한 다른 경로를 그대로 전달하지 않으며, 다르거나 링크·정션이면 plugins를 writableRoots에서 제외한다. 아직 없으면 기존 조상의 실제 경로 아래 새 경로만 계산한다. turn 준비·validate는 데이터 폴더나 plugins 폴더를 만들지 않는다. 문서 도구의 opened folders 범위는 넓히지 않는다. read-only turn의 scaffold와 파일 수정은 계속 거부한다. full-access sandbox와 scaffold의 기존 Root/열린 폴더 제약은 바꾸지 않는다. `directory`를 명시하면 기존 Host RootAccess의 새 경로 검사와 비서 turn의 열린 폴더 검사를 모두 적용한다. 명시 경로의 부모는 존재해야 하며 기존 디렉터리는 덮어쓰지 않는다. scaffold는 대상 폴더를 비재귀 mkdir로 만든 직후 실제 대상 경로가 기대한 경로와 같은지 확인하고, 각 파일을 wx로 배타 생성한 직후 다시 대상 realpath를 확인한다. 불일치는 오류로 보고하며 이미 만든 파일·폴더를 자동 삭제하지 않는다.
+
+데이터 폴더 위쪽의 Windows 8.3 짧은 이름·대소문자·정션 별칭은 native realpath로 정규화하여 허용한다. 기본 생성 결과와 sandbox의 추가 쓰기 경로는 데이터 폴더 realpath 아래 plugins 정규 경로를 사용하며, validate는 설정 경로와 정규 경로를 같은 제작 경계로 검사한다. plugins 자체와 하위 생성 대상의 링크·정션 거부는 유지한다.
+
+같은 사용자 계정의 로컬 프로세스가 검사와 쓰기 사이 아주 짧은 순간에 경로를 바꾸는 잔여 경쟁은 컨셉 단계 원칙에 따라 이번 범위 밖이다.
+
+선택적 `template: greet | query | file`은 생략 시 greet다. CLI `plugins scaffold [directory] --id <id> [--template greet|query|file]`와 비서 `manage_plugins`가 같은 공용 작업을 사용하고 결과의 `directory`로 실제 생성 위치를 반환한다. CLI도 경로를 생략하면 대상 Host가 기본 위치를 선택한다. greet는 화면 없는 간단한 작업 하나로 충분할 때 쓴다. query는 연결 설정·확인, 표시 이름을 가진 선택적 비밀키, 기본/추가 조건과 결과 표를 제공한다. 외부 서비스 없이 예제 데이터로 실행하며 연결 값이 없으면 고정 안내를 준다. file은 `.txt` 대문자 변환과 `.upper` 파일 결과, 시작·상태·중단, 파일별 진행을 기존 K1으로 제공한다. 두 템플릿의 주석은 데이터/변환 교체 지점을 알린다. `settingsSchema.required`는 사용하지 않고 화면 배치는 기존 공통 화면에 맡긴다. 새 화면 종류 선언이나 workflow engine은 없다. 대상 Host SDK_VERSION 요구, 패키지/manifest 버전 일치와 community 계층을 사용하며 자동 등록·신뢰·실행은 하지 않는다.
 
 `validate`는 artifact 경계·manifest/SDK 범위·버전·JSON Schema 컴파일과 entry 구문, 선언 작업과 literal handler 일치를 검사한다. 결과는 `valid`, 원문 없는 `errors`(고정 파일 역할, 1-based 줄/열 또는 위치 불명 null, 고정 오류 종류), 검사 한계와 Host receipt다. 실패는 failure receipt와 CLI 종료 코드 1로 반환한다. 코드를 import/실행하지 않으며 등록 상태도 바꾸지 않는다. JSON/JavaScript/schema/parser/fs 예외 원문·stack·파일 내용·사용자 정의 handler 이름을 진단에 복사하지 않는다. 같은 정리된 결과를 비서 도구와 CLI가 반환하고, 활동에는 결과 요약만 남긴다. 정적 검사를 위해 entry는 named `export function activate`의 직접 return 객체 안에 하나의 literal `operations` 객체와 literal 함수 handler를 둔다. 동적 등록은 검증 불가 오류다. 정적으로 알려진 JSON 반환값은 출력 schema와 비교하지만, 계산된 반환값·activation·dispose 동작은 실제 enable/invoke/reload에서만 검증된다. validate 통과는 실행 성공의 보증이 아니다.
 
 `manage_plugins`도 scaffold/validate를 같은 정의로 호출한다. register 활동에는 인자로 받지 않는 실제 manifest ID를 결과에서 가져와 남긴다. validation 오류는 결과에서 읽되 활동 요약에는 원문을 쓰지 않는다. Codex의 각 대화 turn에 앱 번들의 제한된 제작 스킬을 문맥으로 제공한다(전역 Codex 스킬 설치 없음). 스킬은 SDK·manifest·공용 작업/schema 예시, 파일 수정 권한·secret 비노출, validate/register/trust/enable/invoke 및 수정 후 validate/reload/invoke 절차와 금지 항목을 설명한다. master에 병합된 secret 선언과 사용자 설정 UI 입력·읽기 전용 context.secrets, 읽기 작업 rowSchema, K1 jobs 바인딩·상태·결과 열기를 안내한다. generatedUi/views/dataViews/secretUses 확장은 계속 예시로 제공하지 않는다. Copilot 도구 공급 범위는 그대로다.
 
-자동 검사는 기존 Host 플러그인 테스트에서 생성→정적 검증→등록→신뢰→활성→호출→수정→재검증→신뢰→reload→결과 변경을 같은 Host로 확인한다. 이 subprocess 사례는 실제 캐시 교체·daemon 무재시작을 보호한다. handler 누락·미선언 handler·잘못된 schema·literal 출력 불일치와 비실행·덮어쓰기 거부도 확인한다.
+자동 검사는 기존 Host 플러그인 테스트에서 문서 Root 밖 기본 위치·열린 폴더 없는 opened-folders turn의 생성→정적 검증→등록→신뢰→활성→호출→수정→재검증→신뢰→reload→결과 변경을 같은 Host로 확인한다. 이 subprocess 사례는 실제 캐시 교체·daemon 무재시작을 보호한다. handler 누락·미선언 handler·잘못된 schema·literal 출력 불일치와 비실행·기본 이름 충돌·읽기 전용 거부·명시 경로의 기존 권한 검사도 확인한다. Windows 정션의 초기 plugins 경계/생성 대상 이탈 거부와 읽기 전용 validate의 폴더 비생성도 보호한다. provider fixture는 열린 폴더가 없을 때 plugins 폴더만 추가되고 정션이면 plugins 경로를 제외하는 sandbox 요청을, CLI fixture는 경로를 생략해 Host에 전달하는 입력을 검증한다. 실제 AI 제작·원격 통신·설치형 앱 실행의 완료 근거는 아니다.
 
 ### 비서의 플러그인 읽기 호출 (#1425)
 
@@ -326,6 +336,8 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.
 
 ### 지정 커뮤니티 공급 (#1391)
+
+#1450: Docling 지정 공급에는 [LSR 1.1 체험용 샘플](../../community-plugins/docling/sample/lsr-1.1/README.md)을 함께 포함한다. 입력 PDF·작성자 기대 구조·라이선스 고지와 SHA-256 목록을 명시적 파일 목록으로 CLI와 Desktop에 배포한다. Docling 출력 정답·품질 합격선이나 자동 변환·채점 기능은 제공하지 않는다.
 
 제품 고정 `DESIGNATED_COMMUNITY_PLUGINS` 한 곳에서 지정 ID·폴더·실행 파일 목록을 관리한다. 초기 Docling·Jira는 개발 실행·CLI·Desktop에 포함되어 등록 없이 목록에 나타나며 계속 커뮤니티로 표시한다. 사용자·비서·설정으로 지정 목록을 바꾸지 않는다. 처음에는 꺼짐·미신뢰이며 기존 신뢰 확인을 거친 뒤에만 entry를 실행한다. 같은 등록의 신뢰·켜기/끄기·설정·secret은 재시작과 앱 업데이트에도 유지한다. 공식 공급 id·publisher·digest 검증은 별도로 유지한다.
 

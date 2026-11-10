@@ -8,9 +8,9 @@ import { publicOperationError, publicOperationResult, safePluginValue } from "./
 import { assertNoPluginSecrets } from "./secret-redaction.ts";
 import { type ViewOperation } from "@litzio/core/views";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync, lstatSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
+import { accessPath, canonicalFilePath, inside, RootAccess, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess } from "./plugin-process.ts";
 import { healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
@@ -46,7 +46,10 @@ export class PluginHost {
   private access: FileAccess;
   private supply: OfficialPlugin[];
   private designated: { id: string; directory: string }[];
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[]; jobHistoryFile?: string } = {}) {
+  readonly authoringDirectory: string;
+  private authoringRoot?: RootAccess;
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[]; jobHistoryFile?: string } = {}) {
+    this.authoringDirectory = options.authoringDirectory ?? hostPaths().plugins;
     this.supply = options.officialPlugins ?? OFFICIAL_PLUGINS;
     this.designated = options.designatedPlugins ?? designatedPluginDirectories();
     this.access = options.access ?? LOCAL_FILE_ACCESS;
@@ -79,6 +82,38 @@ export class PluginHost {
     }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data),
     (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs), options.jobHistoryFile ?? path.join(path.dirname(file), "plugin-jobs.json"));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  }
+  /** Check without creating anything, including when the data directory does not exist yet. */
+  authoringPath(): string | undefined {
+    let ancestor = path.dirname(path.resolve(this.authoringDirectory));
+    const missing: string[] = [];
+    while (!lstatSync(ancestor, { throwIfNoEntry: false })) {
+      missing.unshift(path.basename(ancestor));
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) throw new Error("Plugin data parent is unavailable");
+      ancestor = parent;
+    }
+    if (!statSync(ancestor).isDirectory()) throw new Error("Plugin data parent must be a directory");
+    // Native realpath expands Windows 8.3 names and resolves aliases above the data folder.
+    const data = path.join(canonicalFilePath(ancestor), ...missing);
+    const directory = path.join(data, path.basename(this.authoringDirectory));
+    const entry = lstatSync(directory, { throwIfNoEntry: false });
+    if (entry && (entry.isSymbolicLink() || !entry.isDirectory())) return undefined;
+    const real = entry ? canonicalFilePath(directory) : directory;
+    // Read the realpath once; never grant a different sibling returned after a junction swap.
+    if (path.relative(directory, real) !== "") return undefined;
+    return directory;
+  }
+  /** Only scaffold may prepare directories. Existing roots stay pinned for the Host lifetime. */
+  authoringAccess(create = false): RootAccess {
+    const directory = this.authoringPath();
+    if (!directory) throw new Error("Plugin authoring directory must not be a link or changed path");
+    if (create && !this.authoringRoot) mkdirSync(directory, { recursive: true });
+    // Recheck after mkdir before adopting a root, including an initially present junction.
+    if (this.authoringPath() !== directory) throw new Error("Plugin authoring directory changed");
+    this.authoringRoot ??= new RootAccess([directory]);
+    this.authoringRoot.resolve(directory);
+    return this.authoringRoot;
   }
   private save() {
     mkdirSync(path.dirname(this.file), { recursive: true });
@@ -371,12 +406,21 @@ export class PluginHost {
     const run = this.serial.then(async () => {
       let id = args.id!;
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
-      if (action === "scaffold") return { ...scaffoldPlugin(args.directory!, id, this.access, creationScope, args.template), receipt: receipt("success") };
+      if (action === "scaffold") {
+        const access = args.directory === undefined ? this.authoringAccess(true) : this.access;
+        const expected = args.directory === undefined ? path.join(access!.roots[0]!, id) : undefined;
+        const directory = args.directory ?? expected!;
+        return { ...scaffoldPlugin(directory, id, access, creationScope, args.template, expected), receipt: receipt("success") };
+      }
       if (action === "validate") {
         const errors: { file: string; line: number | null; column: number | null; kind: string }[] = []; let manifestId: string | undefined;
         let file = "artifact";
         try {
-          const a = this.artifact(accessPath(args.directory!, this.access), current => { file = current; }); manifestId = a.manifest.id;
+          const requested = path.resolve(args.directory!), expected = this.authoringPath();
+          const authored = inside(this.authoringDirectory, requested) || expected !== undefined && inside(expected, requested);
+          const access = authored ? this.authoringAccess() : this.access;
+          const directory = authored ? canonicalFilePath(requested) : requested;
+          const a = this.artifact(accessPath(directory, access), current => { file = current; }); manifestId = a.manifest.id;
           errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: "host entry", ...issue })));
         } catch (error) {
           // Read only numeric location metadata. Parser/Ajv/Zod/fs messages may contain source or secret values.

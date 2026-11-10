@@ -1,6 +1,7 @@
 # Filesystem Host Boundary v1
 
 - Status: Implemented
+- Folder Trash verification: 2026-11-10 (#1401: injected Host/HTTP/CLI regressions, bounded inspection, Windows persistent-Chrome file-actions/folder-navigation/recovery-storage/folder-memory and production HTTP Save/Reload/recovery; real Windows Trash and packaged Desktop remain merge-queue CI scope).
 - Template verification: 2026-11-04 (#936 Core/CLI and shared Host route tests; [template API](document-templates-v1.md)).
 - Non-overlapping roots verification: 2026-10-29 (#702: Editor 338 unit tests, typecheck/build; persistent Chrome folder-navigation/memory, layout-rules, quiet-document, document-tabs, editor-shell and reveal-folder; [behavior and captures](editor-ux-shell-v1.md#non-overlapping-opened-folders-702)).
 - Post-replacement cleanup verification: 2026-10-27 (PR #609 review P1: four regressions failed before the fix; Host/HTTP 26, Editor 313, shared file-commit 4 passed / 2 platform skips, dedicated-port file-actions browser passed; shared file-commit behavior unchanged).
@@ -385,7 +386,7 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 | Hierarchical tree UI | 지원. Sidebar가 펼친 folder들의 listing을 page state에 모아 tree로 그린다. |
 | Lazy one-level Host listing | 지원. folder를 펼칠 때 그 folder 하나만 위 API로 list한다. |
 | Explicit folder refresh (#494) | 기존 API로 열린 root와 도달 가능한 이미 로드된 하위 목록만 다시 읽는다. 접힌 캐시도 포함하며 미로드 폴더는 읽지 않는다. 펼침·문서·탭은 유지한다. Editor가 파일·폴더·asset을 생성하거나 asset을 rollback하면 이미 로드된 부모 목록만 다시 읽는다. 자동 반영은 #927의 일시적인 Host 변경 버전과 보이는 창의 60초 안전망으로 같은 갱신 경로를 호출한다. |
-| Recursive scan | 트리 탐색에서는 지원하지 않음. 하위 folder를 미리 읽지 않는다. 이미지 이름 변경의 요청별 참조 안전 검사는 아래 File deletion and rename의 한정된 예외다. |
+| Recursive scan | 트리 탐색에서는 지원하지 않음. 하위 folder를 미리 읽지 않는다. 이미지 이름 변경과 하위 폴더 휴지통 확인의 요청별 참조 검사는 아래 계약의 한정된 예외다. |
 | Watch service | 지원하지 않음. 외부 변경은 다시 펼치거나 문서를 열 때, 또는 폴더 새로고침으로 반영된다 (#494). |
 | Opened folder persistence | 경로만. 열어 둔 folder 목록은 시작할 때 Host에 다시 list해 복원하고, 거부되거나 없어진 folder는 조용히 제외한다. 복원 자체는 preference를 다시 쓰지 않는다. 성공한 명시적 사용자 Open/Close는 같은 목록이거나 다른 브라우저 탭이 preference를 바꿨어도 현재 탭의 열린 목록을 기억한다. 복원 중이면 모든 경로의 시도가 끝날 때까지 저장을 미룬다. 같은 Host 정규화 경로의 사용자 Open/Close는 늦은 복원 응답보다 우선한다. 하위 폴더 펼치기·접기·listing 갱신은 preference를 쓰지 않는다. 별도의 섹션 접힘 기억은 origin별 collapsed root 경로만 저장하며, 사용자 Open/Close·섹션 토글·명시적 reveal에서 현재 상태로 쓰고 복원만으로는 쓰지 않는다. Close로 지우며, 유효하지 않은 기록은 다음 사용자 쓰기에서 정리한다. 하위 펼침 상태와 Workspace 파일은 저장하지 않는다. |
 - 일반 directory와 모든 확장자의 일반 파일(확장자 없는 파일 포함)을 넣는다. `.md`는 document, 기존 MEDIA_TYPES의 PNG/JPEG/GIF/WebP/SVG는 image, 나머지는 file이다. 확장자는 대소문자를 구분하지 않는다. 폴더 먼저, 파일 종류와 무관하게 숫자를 인식한 이름순으로 정렬한다. `.`으로 시작하는 항목과 symlink(Windows junction 포함), 비정규 파일은 넣지 않는다. 재귀 scan은 하지 않는다.
@@ -416,7 +417,7 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 - `POST /api/folder`는 `{ parent, name }`을 받아 `parent` 바로 아래에 `name` folder 하나를 만들고 201 `{ path }`를 돌려준다. 오류는 다른 folder 요청처럼 400 `{ error }`다. Desktop은 같은 handler를 그대로 쓴다.
 - `parent`는 이미 있는 directory여야 한다. 중간 folder를 함께 만들지 않는다(non-recursive). 같은 이름의 file이나 folder가 있으면 덮어쓰거나 합치지 않고 거부한다.
 - `name`은 한 단계의 portable 이름이다. 빈 이름, 구분자(`/`, `\`), `.`/`..`, `.`으로 시작하는 이름(listing에 나타나지 않음), `< > : " | ? *`와 control 문자, 끝의 `.`이나 공백, Windows 예약 이름(`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, 확장자가 붙어도 같음)을 모든 플랫폼에서 거부한다. 문서 folder를 다른 OS로 옮겨도 열 수 있게 하기 위함이다.
-- Picker는 선택 전 탐색처럼 sidebar의 `root` 제한을 쓰지 않는다. Host는 요청 사이에 아무것도 기억하지 않으며, 만든 folder를 열거나 rename/delete/move하는 API는 없다.
+- Picker는 선택 전 탐색처럼 sidebar의 `root` 제한을 쓰지 않는다. Host는 요청 사이에 아무것도 기억하지 않으며, 만든 folder를 자동으로 열지 않는다. rename/move API는 없으며, 하위 폴더 휴지통 이동은 #1401 공용 작업을 따른다.
 - 문서 내용과 의미를 바꾸지 않으므로 Core operation이나 CLI command를 추가하지 않는다. headless 환경에서는 shell의 `mkdir`로 충분하다.
 
 ## Current implementation mapping
@@ -474,6 +475,72 @@ New Document v1은 Workspace를 만들지 않고 특정 file path를 Host에 전
 
 `createDocumentFile`이 Core의 canonical empty Markdown을 UTF-8로 exclusive create한다. Editor의 유일한 New 진입점은 [Folder New](folder-picker-v1.md#new-document-in-a-sidebar-folder)이며 표시 중인 folder를 destination으로 사용한다. Host API는 여전히 임의의 기존 parent directory 아래 경로를 받으며 위 정책으로 검사한다. 제품 Host나 installer의 결정은 포함하지 않는다.
 
+## Child-folder Trash (#1401)
+
+폴더 휴지통의 소유권은 실제 경로·디렉터리 dev/ino로 판단하며, 보호는 내부 또는 미확인 시 이동을 거부하고 정리는 내부로 확인된 항목만 수행하며 미확인·사라진 경로의 기록은 보존한다.
+
+The stateless `folder.trash` Host operation is shared by `POST /api/folder-trash` and
+`litzio folder-trash <path> --root <folder> [--host <origin>] [--check | --revision <sha256>] --json`.
+CLI without `--host` uses the local OS adapter; with it, paths belong to the selected Host.
+No window state or assistant tool is added. Input is `{root, path, checkOnly?, expectedIdentity?, expectedRevision?,
+openDocuments?, cleanupPaths?}`; `openDocuments` contains every unsaved/restored document path
+from the caller's window, without a client-side path filter. Any busy Save refuses the operation
+before the request. The Host resolves candidates through the existing native realpath boundary
+and compares directory dev/ino along physical ancestors, including junction aliases; no manual
+case-folding authorizes protection or cleanup. Unknown protected paths refuse. `cleanupPaths`
+contains saved-tab and captured recovery/writer locators. A successful result's `containedPaths`
+includes only candidates verified inside before the OS move. Missing, inaccessible or unidentifiable
+cleanup candidates are excluded. No new retained Host state is introduced.
+Both lexical and real-path scope use the existing file-operation checks, including Root
+identity, symlink/junction ancestry refusal, regular directory type and strict descendant
+requirement. The operator allowlist applies in HTTP. No opened-folder registry is retained.
+
+`checkOnly` returns `{path, identity, revision?, fileCount, countComplete, references,
+referencesComplete, receipt}`. Inspection never follows descendant links, includes hidden
+entries in counts, and bounds each count/reference scan to 2,000 entries with a shared 250ms work deadline per request; one
+in-progress filesystem read/Core parse can finish beyond that deadline. Reference inspection
+loads at most 200 native Markdown documents of at most 1 MiB each beneath the chosen Root,
+using the existing Core read model, Figure media decoding and Host media resolver. It warns
+about references from outside the target. Unreadable/non-native documents, oversized files or
+an exhausted limit make the reference check incomplete, never “no references”. Reference
+warnings do not block execution; complete folder-state verification below is required.
+Counts and references are a snapshot, not a filesystem lock.
+
+A complete metadata manifest supplies the confirmation revision: relative names, item kinds,
+file identities, sizes and nanosecond modification/change timestamps, including hidden files,
+subfolders and link metadata without following links. Execution requires that revision and
+recomputes the complete manifest immediately before calling the adapter. Editing (even at the
+same size with restored mtime), adding, removing or renaming an item refuses and requires a
+new confirmation. A missing revision or a scan exceeding the 2,000-entry/250ms safety bound
+never grants permission: the dialog shows the incomplete count and disables moving. CLI
+without `--revision` inspects immediately before execution; `--check` plus `--revision` also
+supports a separate review step. This is a metadata precondition, not a filesystem lock or
+protection against a hostile privileged writer changing files between validation and OS use.
+
+Execution rechecks scope and optional folder identity, rejects any supplied unsaved descendant,
+and sends the whole folder once to the injected OS adapter. It never recursively deletes,
+copies or unlinks contents. Windows uses a thin IFileOperation COM bridge with
+FOFX_RECYCLEONDELETE, FOFX_EARLYFAILURE and no error/confirmation UI. No VisualBasic
+DeleteDirectory, recursive Directory.Delete, legacy Shell delete or permanent fallback exists.
+Windows 8+ and Environment.UserInteractive are required; both capability reporting and the
+native call refuse unsupported/noninteractive sessions. HRESULT and aborted-operation results
+are checked; lack of a usable Recycle Bin or failure cannot select a permanent-delete branch.
+See [Microsoft's operation flags](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-setoperationflags).
+Linux uses the existing single rename plus freedesktop metadata;
+cross-device and permission errors refuse without a permanent fallback. macOS remains
+unsupported and reports trash unavailable; capabilities do not advertise it as trash.
+Desktop uses the shared HTTP daemon, not a separate Electron shell.trashItem connection.
+
+Every result includes `receipt: {operation: "folder.trash", outcome, source, checkOnly}`.
+Pre-mutation refusal and Linux atomic-rename failure return `refused`/`unchanged`; completed
+execution requires the source to be absent and returns `success`/`moved`. An OS exception
+without a preservation guarantee, surviving source after adapter success (including partial
+movement), or verification failure returns `uncertain`/`unknown`. No automatic replay or
+rollback is attempted. HTTP returns 200 only for success; CLI exits nonzero otherwise.
+An interrupted response is uncertain at the client. Failed execution preserves local tabs
+and recovery records, even if disk state changed. The existing watcher and explicit loaded
+parent refresh reflect filesystem changes without writing opened-folder memory.
+
 ## File deletion and rename (#505 / #504 PR A)
 
 `DELETE /api/file` accepts `{root, path}`; `PATCH /api/file` additionally accepts a filename
@@ -495,7 +562,7 @@ distinct existing entries (including hard links to the same inode) remain confli
 Ownership checks bound accidental replacement; as with existing file commit, validation/use
 steps are separate and do not sandbox a hostile concurrent filesystem administrator.
 
-Explorer Vite deletion is permanent, after the Editor names the file and confirms. HTTP daemon deletion uses the OS trash adapter (Windows recycle bin, Linux freedesktop home trash); failure preserves the file. Desktop uses the same daemon adapter; failure never falls back to permanent deletion.
+Explorer Vite deletion is permanent, after the Editor names the file and confirms. HTTP daemon deletion uses the OS trash adapter (Windows recycle bin, Linux freedesktop home trash). Windows failures can be partial; no preservation guarantee is inferred from an OS exception. Desktop uses the same daemon adapter; failure never falls back to permanent deletion.
 Successful operations return `{path, updatedDocuments?, skippedDocuments?}` and the Editor
 refreshes already-loaded parent listings. Updated document locators are absolute; skipped
 unreadable/non-native `.md` names are relative to the requested root and shown in a notice.

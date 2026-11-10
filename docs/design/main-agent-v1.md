@@ -426,7 +426,8 @@ Same-state source captures: 1440px English Light [Before](assets/reasoning-976/b
 The composer opens individual conversation choices directly through the shared
 DropdownMenu/DropdownMenuItem controls. The context ring below the input uses the latest token-usage
 notification and model context window, exposes numbers on hover/focus, and
-recommends a new conversation at 80%. Codex owns automatic compaction. Replies
+recommends a new conversation at 80%. Its Codex account/quota supplement follows
+[Context account and usage](#context-account-and-usage-1446). Codex owns automatic compaction. Replies
 remain text; existing-document changes are suggestions with no Apply action.
 
 The browser scenario uses fake metadata/conversation responses to check settings
@@ -1898,3 +1899,73 @@ the question content is the same, while the transport is explicitly different.
 | 1440 Dark | [Image](assets/assistant-question-1443/before-1440-dark.png) | [Image](assets/assistant-question-1443/pending-1440-dark.png) | [Image](assets/assistant-question-1443/reopened-1440-dark.png) |
 | 640 Light | [Image](assets/assistant-question-1443/before-640-light.png) | [Image](assets/assistant-question-1443/pending-640-light.png) | [Image](assets/assistant-question-1443/reopened-640-light.png) |
 | 640 Dark | [Image](assets/assistant-question-1443/before-640-dark.png) | [Image](assets/assistant-question-1443/pending-640-dark.png) | [Image](assets/assistant-question-1443/reopened-640-dark.png) |
+
+## Context account and usage (#1446)
+
+The Context ring keeps the conversation's token usage first. On hover or keyboard
+focus, Codex adds **Account** (login type, email and plan) and **Usage and limits**
+(bucket name, each window's duration, percent used and reset time). Settings and the
+ring share `AssistantAccount` / `AssistantRateLimits`, their translations and local
+date formatting. Login methods use localized ChatGPT login / API key login labels,
+not provider enum values. Durations split into localized days, hours and minutes
+(300 minutes → 5 hours; 10080 minutes → 7 days). Reset times use local 24-hour
+hours/minutes, adding the locale's numeric month/day only when not today; year and
+seconds are omitted. Each quota window remains one unbroken line and the existing
+Tooltip uses the standard max-w-md width limit. A logged-out account shows the
+existing Host login notice; API-key login shows only its label. Neither state shows
+quota rows. Copilot ACP provides no
+account/quota diagnostic in the current integration, so its ring retains context only.
+
+The existing target-Host diagnostics operation accepts
+`summary=account-usage&provider=codex`. This hover-only projection reads just
+`account/read` (`refreshToken:false`) and `account/rateLimits/read` through the
+Host's existing daemon-lifetime app-server connection, without executable-version,
+model or MCP discovery. Account and quota display fields are explicitly projected;
+provider account IDs, tokens and other fields are not forwarded. No authentication
+file or ChatGPT website usage API is read. Full Settings diagnostics still refreshes
+and exposes its existing individual errors; the tooltip projection returns only
+short Unavailable errors and never changes conversation state.
+
+`ProviderConnections` owns a 60-second in-memory cache, including partial failures,
+and shares concurrent reads. Official `account/rateLimits/updated` and
+`account/updated` notifications invalidate it; disconnect also invalidates it. A
+notification contains one rate-limit bucket, so the next read refetches the complete
+multi-bucket snapshot rather than replacing the whole display with that bucket.
+An account change during a read discards the old result. The tooltip reads when
+opened and checks every five seconds only while visible, reusing the Host cache;
+closing/hiding it or switching provider aborts the UI read and stops polling.
+This is an Editor hover interaction over the existing diagnostics operation, not a
+new document semantic operation or assistant tool.
+
+Public references: [Paseo account usage CLI](https://github.com/getpaseo/paseo/blob/main/public-docs/cli.md#account-usage)
+separates account quota windows/reset times from an agent's token use and caches
+Host reads. Litzio reuses that distinction with a shorter 60-second cache and keeps
+its existing Settings wording. Codex's [account protocol source](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs)
+defines the rate-limit read and update payloads; the current Copilot ACP connection
+only supplies models/modes/effort and session events, not account quota diagnostics.
+
+Common implementation: the existing ring, shared Base UI Tooltip and current
+foreground/background, border and spacing tokens. No new surface, persistent chrome,
+control dimensions or common interaction exception. The same pattern in AI Settings
+was checked and now shares the two display components.
+
+Verification uses fake provider stdio/HTTP responses only: the existing connection
+checks cover caching/expiry, concurrent reads, notification invalidation, multi-bucket
+preservation and field projection; the assistant browser scenario covers pointer and
+keyboard display, both windows, failure without disabling chat, logged-out/API-key
+states and Copilot omission. No real AI request, real account quota, remote Host
+connection or owner visual approval is claimed.
+
+Manual native crops (1440/640px, English, 100% zoom, light/dark, synthetic account):
+[1440 light Before](assets/assistant-usage-1446/before-1440-light.png) /
+[After](assets/assistant-usage-1446/after-1440-light.png),
+[1440 dark Before](assets/assistant-usage-1446/before-1440-dark.png) /
+[After](assets/assistant-usage-1446/after-1440-dark.png),
+[640 light Before](assets/assistant-usage-1446/before-640-light.png) /
+[After](assets/assistant-usage-1446/after-640-light.png),
+[640 dark Before](assets/assistant-usage-1446/before-640-dark.png) /
+[After](assets/assistant-usage-1446/after-640-dark.png).
+[Capture procedure](assets/assistant-usage-1446/capture.browser.js) excludes unrelated
+Host labels and paths; all account values use `example.invalid` fixtures.
+[Capture metadata and image hashes](assets/assistant-usage-1446/capture-metadata.json)
+record the baseline and fixture conditions.

@@ -53,6 +53,8 @@ export type AssistantDiagnostics = {
   rateLimits?: { name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[] }[];
   mcp?: { name: string; status: string; authStatus: string }[];
 };
+/** Display-only subset of provider diagnostics; owned and cached by the target Host. */
+export type AssistantAccountUsage = Pick<AssistantDiagnostics, "provider" | "checkedAt" | "account" | "accountError" | "rateLimits" | "rateLimitsError">;
 
 export type ProviderLogFailure = { available: false; reason: "unknown" | "missing" | "denied" | "unverified" | "launch" };
 

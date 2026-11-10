@@ -1,4 +1,6 @@
 import { executeCompareOperation } from "../../../apps/editor/server/document-compare.ts";
+import { executeFolderTrash } from "../../../apps/editor/server/file-operations.ts";
+import { osTrashAvailable, trashFile } from "../../../apps/editor/server/os-trash.ts";
 import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
 import { executeTemplateOperation, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
 import { brand } from "../../../brand.ts";
@@ -187,13 +189,14 @@ const COMMANDS: CommandSpec[] = [
   { name: "app-reset", group: "Serve", summary: "Inspect or reset local app and Host data after closing every client",
     usage: `${brand.cliCommand} app-reset inspect|apply [--profile <directory>] [--updater-cache <directory>] [--remove-folders] [--confirm --revision <plan-sha>]`,
     details: ["inspect lists deleted and retained data. apply requires the reviewed revision and confirmation; live Desktop/Host/CLI writers refuse reset. External browser profiles and provider accounts remain untouched."] },
+  { name: "folder-trash", group: "Create and inspect", summary: "Move a child folder to OS Trash", usage: `${brand.cliCommand} folder-trash <path> --root <folder> [--host <origin>] [--check | --revision <sha256>] --json`, details: ["Only descendants of root are eligible. No permanent deletion. --check inspects file count and external image references without moving. Receipts distinguish refusal before mutation from uncertain OS results. Window drafts are not visible to CLI."] },
   { name: "compare", group: "Create and inspect", summary: "Compare native document block meaning (read-only)", usage: `${brand.cliCommand} compare <before> <after> --json`, details: ["Read-only native source snapshots; block paths are snapshot-local. Moves are removed + added. Returns source revision receipts; does not contact a live daemon."] },
   { name: "templates", group: "Create and inspect", summary: "List, read or save document templates",
     usage: `${brand.cliCommand} templates list [--json] [--language <ko|en>]`,
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
-  { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|scaffold <directory> --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community plugins require explicit registration trust before enable; enable --trust --registration <registrationId> records trust and enables only that inspected registration. Read registrationId from plugins list; a replaced registration requires fresh confirmation. Updates retain trust until registration is removed or replaced. All plugins start disabled."] },
+  { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|scaffold [directory] --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community plugins require explicit registration trust before enable; enable --trust --registration <registrationId> records trust and enables only that inspected registration. Read registrationId from plugins list; a replaced registration requires fresh confirmation. Updates retain trust until registration is removed or replaced. All plugins start disabled."] },
   { name: "view", group: "Serve", summary: "Validate or run a plugin query on an explicit Host", usage: `${brand.cliCommand} view validate|run <file> --host <origin> [--input <args.json>] --json`, details: ["Definitions bind registered plugin reads. --input replaces all source args. Opening a plugin screen does not query; run is explicit."] },
 
   { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
@@ -1937,6 +1940,44 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "folder-trash" && !isCommandHelpRequest(args.slice(1))) {
+    try {
+      const processArgs = args.slice(1);
+      const [target, ...tokens] = processArgs;
+      const seen = new Set<string>();
+      for (let i = 0; i < tokens.length; i++) {
+        const flag = tokens[i];
+        if (!["--root", "--host", "--check", "--revision", "--json"].includes(flag) || seen.has(flag)) throw new Error(commandHelp("folder-trash"));
+        seen.add(flag);
+        if (["--root", "--host", "--revision"].includes(flag) && (!tokens[++i] || tokens[i].startsWith("--"))) throw new Error(commandHelp("folder-trash"));
+      }
+      if (!target || target.startsWith("--") || !seen.has("--root") || !seen.has("--json")) throw new Error(commandHelp("folder-trash"));
+      const input = { root: flag(tokens, "--root"), path: target, checkOnly: seen.has("--check") };
+      const origin = optionalFlag(tokens, "--host");
+      type Result = import("../../../apps/editor/shared/file-operations.ts").FolderTrashResult;
+      type Request = import("../../../apps/editor/shared/file-operations.ts").FolderTrashRequest;
+      const invoke = async (request: Request): Promise<Result> => {
+        if (!origin) return executeFolderTrash(request, { remove: await osTrashAvailable() ? trashFile : undefined });
+        const url = new URL("/api/folder-trash", origin);
+        try {
+          return await (await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) })).json();
+        } catch {
+          return { error: "The Host response was interrupted. Check the source folder and OS Trash before trying again.",
+            receipt: { operation: "folder.trash", outcome: request.checkOnly ? "refused" : "uncertain", source: request.checkOnly ? "unchanged" : "unknown", checkOnly: request.checkOnly === true } };
+        }
+      };
+      const revision = optionalFlag(tokens, "--revision");
+      if (revision && input.checkOnly) throw new Error("--check cannot be combined with --revision");
+      let result = await invoke(revision ? { ...input, expectedRevision: revision } : { ...input, checkOnly: true });
+      if (!input.checkOnly && !revision && result.receipt.outcome === "success") {
+        result = result.revision ? await invoke({ ...input, expectedIdentity: result.identity, expectedRevision: result.revision })
+          : { error: "Folder contents could not be fully checked. Moving to Trash is unavailable.", receipt: { operation: "folder.trash", outcome: "refused", source: "unchanged", checkOnly: false } };
+      }
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return result.receipt.outcome === "success" ? 0 : 1;
+    } catch (error) { return reportError(args, error); }
+  }
+
   if (args[0] === "create" && args.includes("--input") && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
     try {
       const { file, flags, format } = parseCommandArgs("create", args.slice(1));

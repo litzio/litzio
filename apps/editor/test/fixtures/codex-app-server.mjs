@@ -13,6 +13,7 @@ const persist = () => writeFileSync(threadFile, JSON.stringify(threads));
 const notify = (method, params) => send({ method, params });
 const model = (name, efforts) => ({ id: name, model: name, displayName: name, description: "한국어 모델", defaultReasoningEffort: efforts[0], supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) });
 const toolPending = new Map();
+let usageOverride;
 createInterface({ input: process.stdin }).on("line", line => {
   const message = JSON.parse(line); record(message);
   const { id, method, params } = message;
@@ -52,6 +53,13 @@ createInterface({ input: process.stdin }).on("line", line => {
     notify("serverRequest/resolved", params); send({ id, result: {} }); return;
   }
   if (!method) return;
+  if (method === "fixture/usage") {
+    usageOverride = params;
+    notify(params.notification ?? "account/rateLimits/updated", { rateLimits: params.limits?.rateLimits });
+    send({ id, result: {} }); return;
+  }
+  if (usageOverride && method === "account/read") { send({ id, result: { account: usageOverride.account } }); return; }
+  if (usageOverride && method === "account/rateLimits/read") { send({ id, result: usageOverride.limits }); return; }
   if (method === "hang") return;
   if (method === "exit") process.exit(3);
   if (method === "malformed") { process.stdout.write("not json\n"); return; }

@@ -1,3 +1,4 @@
+import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
@@ -12,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
 import { ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
-import { RootAccess, fileErrorMessage } from "../server/file-access.ts";
+import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
@@ -219,7 +220,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] });
-  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  const plugins = new PluginHost(path.join(root, "plugins.json"), { authoringDirectory: path.join(root, "data", "plugins") });
+  t.after(() => plugins.close());
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), plugins);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
@@ -264,7 +267,25 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(start.input[2], { type: "localImage", path: path.join(root, "image.png") });
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
   assert.deepEqual(JSON.parse(rpc.find(item => item.method === "turn/steer").params.input[1].text.split("(JSON):\n")[1]), { ...JSON.parse(start.input[1].text.split("(JSON):\n")[1]), userMessage: "Only summarize." });
-  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  const canonicalPlugins = path.join(canonicalFilePath(root), "data", "plugins");
+  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root, canonicalPlugins], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  const noFolders = await conversations.send({ message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  const noFolderStart = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start").at(-1).params;
+  assert.deepEqual(noFolderStart.sandboxPolicy.writableRoots, [canonicalPlugins]);
+  assert.deepEqual(noFolders.folders, []);
+  await conversations.interrupt(noFolders.id);
+  assert.equal(existsSync(plugins.authoringDirectory), false, "sandbox path checks must not create the plugins folder");
+  mkdirSync(path.dirname(plugins.authoringDirectory));
+  symlinkSync(root, plugins.authoringDirectory, process.platform === "win32" ? "junction" : "dir");
+  try {
+    const startsBefore = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    await conversations.send({ id: noFolders.id, message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+    const starts = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    assert.equal(starts.length, startsBefore.length + 1);
+    assert.deepEqual(starts.at(-1).params.sandboxPolicy.writableRoots, [], "an unsafe plugins directory is omitted from writableRoots");
+    await conversations.interrupt(noFolders.id);
+  } finally { rmSync(plugins.authoringDirectory); }
+
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
@@ -387,6 +408,49 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.throws(() => process.kill(lines[0].pid, 0));
   await assert.rejects(connection.client.request("model/list"), /closed/);
 });
+test("account usage shares the lazy connection, caches concurrent reads for 60s and refetches notifications without leaking provider fields", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "usage-connection-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  let now = Date.now(); t.mock.method(Date, "now", () => now);
+  const count = () => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(line => line.method === "account/rateLimits/read").length;
+  const [first, concurrent] = await Promise.all([connection.accountUsage(), connection.accountUsage()]);
+  assert.deepEqual(first, concurrent); assert.equal(count(), 1);
+  now += 59_999; await connection.accountUsage(); assert.equal(count(), 1);
+  now++; await connection.accountUsage(); assert.equal(count(), 2);
+  const bucket = (name: string, usedPercent: number) => ({ limitName: name, primary: { usedPercent, windowDurationMins: 300, resetsAt: 1900000000, secret: "hidden" }, secondary: null });
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt", email: "fixture@example.invalid", planType: "plus", id: "hidden-id", accessToken: "hidden-token" },
+    limits: { rateLimitsByLimitId: { codex: bucket("Codex", 45), review: bucket("Review", 12) } } });
+  const updated = await connection.accountUsage();
+  assert.equal(count(), 3);
+  assert.deepEqual(updated.account, { type: "chatgpt", email: "fixture@example.invalid", planType: "plus" });
+  assert.deepEqual(updated.rateLimits?.map(bucket => bucket.windows[0].usedPercent), [45, 12]);
+  assert.doesNotMatch(JSON.stringify(updated), /hidden/);
+  await connection.client.request("fixture/usage", { notification: "account/updated", account: { type: "apiKey", email: "hidden", planType: "hidden" }, limits: {} });
+  assert.deepEqual((await connection.accountUsage()).account, { type: "apiKey" });
+  await connection.client.request("fixture/usage", { notification: "account/updated", account: null, limits: {} });
+  assert.equal((await connection.accountUsage()).account, null);
+  // Account changes while a read is pending must discard that older account.
+  now += 60_000;
+  const originalRequest = connection.client.request.bind(connection.client);
+  let release!: () => void, observed!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const reading = new Promise<void>(resolve => { observed = resolve; });
+  let hold = true;
+  const request = t.mock.method(connection.client, "request", async (method: string, params?: unknown) => {
+    const result = await originalRequest(method, params);
+    if (method === "account/read" && hold) { hold = false; observed(); await held; }
+    return result;
+  });
+  const pending = connection.accountUsage(); await reading;
+  await originalRequest("fixture/usage", { notification: "account/updated", account: { type: "apiKey" }, limits: {} });
+  release(); assert.deepEqual((await pending).account, { type: "apiKey" });
+  request.mock.restore();
+  const lines = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(lines.filter(line => line.method === "initialize").length, 1);
+  assert.equal(lines.some(line => ["model/list", "mcpServerStatus/list"].includes(line.method)), false, "hover reads only account and usage");
+});
+
 test("malformed output, process loss and request timeout reject without replay", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-transport-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));

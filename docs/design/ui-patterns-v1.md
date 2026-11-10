@@ -302,6 +302,12 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 
 ## P10 메뉴와 선택 도구
 
+#1401의 하위 폴더 삭제는 기존 ContextMenu·DropdownMenu의 같은 대상별 행동 목록과
+danger 항목을 공유한다. 휴지통 미지원 항목은 실행을 막고 hover·focus Tooltip으로 이유를
+설명한다. 트리의 단일 Tab 정지점을 유지하며 키보드는 기존 Shift+F10/Menu 경로를 쓴다.
+U23 폴더 메뉴와 U24 파일 삭제를 함께 대조했고, 다른 메뉴를 위한 새 registry나 interaction은
+추가하지 않았다. [현재 계약·검증](editor-ux-shell-v1.md#child-folder-trash-1401).
+
 비서 입력창의 `@` 파일 후보와 `/` Codex 스킬 후보는 같은 inline listbox,
 Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시하고 선택하면
 `$name`과 경로 칩을 추가한다. 설치·활성화 메뉴는 없다.
@@ -365,6 +371,14 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 기존 버튼으로 시작한다([계약·전후 캡처](main-agent-v1.md#last-conversation-and-history-list-974)).
 
 ## P12 모달·파일·복구·설정 범위
+
+#1401은 U23의 폴더 메뉴에서 U24의 기존 DangerConfirmation을 연다. 일반 파일 삭제,
+생성 Undo와 Settings의 복구 삭제·Host 제거에서 쓰는 Cancel 초기 focus·pending 방지·
+살아남는 항목으로 복귀를 유지한다. 폴더는 미저장 문서를 버리는 선택 없이 저장을 요구한다.
+저장된 탭·복구 정리는 성공 receipt 뒤에만 수행하고 실패·불확실 결과는 보존한다.
+한국어 다크 1440/640px 캡처를 수동 검토했고, `file-actions`·`recovery-storage`에서
+취소·미저장 거부·저장 후 닫기와 Host/폴더 경계의 복구 정리를 확인했다.
+[현재 계약·캡처](editor-ux-shell-v1.md#child-folder-trash-1401).
 
 - **#1285 현재 구현·검증:** 설정 → 저장·복구의 [앱 초기화](app-reset-v1.md)는 기존 Settings·`DangerConfirmation`을 재사용한다. U16의 복구 삭제 및 Host 제거와 같은 Cancel 초기 focus·복귀를 유지하며, 삭제/유지 범위와 실제 경로·빈 폴더 옵션은 확인 모달 안에 둔다. 기존 일반 파일 삭제/복구의 의미는 바꾸지 않는다. 로컬 browser의 native bridge stand-in으로 확인/취소·실제 Editor pending-work 거부 연결을 검사하고 1440px Light·640px 한국어 Dark 캡처를 검토했다. 실제 파일 삭제/종료는 별도 fixture/helper 계층, 실제 Electron 경로는 Windows CI에 둔다.
 
@@ -800,3 +814,21 @@ description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장�
 U22의 기존 비서 질문 및 #1370 공용 조회 입력의 오류·필수 입력 노출과 비교했으며
 새 공통 컨트롤·모달·시각 토큰 예외는 없다. Copilot 연결의 미지원은 입력창 가까이에
 명시한다. [현재 계약·검증·캡처](main-agent-v1.md#async-questions-and-answer-history-1443).
+
+## Assistant Context account and usage (#1446, P07 / P12)
+
+The existing Context ring keeps its shared hover/keyboard-focus Tooltip. Account
+and quota details appear only during interaction, using current Tooltip colors,
+spacing and borders; no shell/control geometry changes. AI Settings (U22) and the
+assistant panel share `AssistantAccount` / `AssistantRateLimits`, including login
+state, email/plan and localized day/hour/minute durations, percent-used and compact
+reset wording (today: time only; otherwise numeric month/day and time; no year or
+seconds). Login method labels are localized. Quota rows stay on one line in the
+standard max-w-md Tooltip. Failure stays as a short
+Unavailable in this tooltip and does not enter chat errors or disable sending.
+Copilot keeps context only because its current ACP integration has no account
+quota diagnostic. No common interaction exception was introduced.
+
+The [current contract and four same-state Before/After pairs](main-agent-v1.md#context-account-and-usage-1446)
+record Host cache/notification ownership and fixture-only verification limits.
+Captures are manual review evidence, not owner visual approval.
