@@ -89,6 +89,8 @@ let exiting = false;
 let tray: Tray | undefined;
 let daemonConnected = false;
 let daemonShutdown: Promise<void> | undefined;
+// The native Windows query cannot await renderer IPC. Unknown/loading work is protected.
+let pendingWindowWork = true;
 const remoteHosts = new RemoteHostRegistry();
 let allowedHostIds: string[] = [];
 let hostWork: HostWorkSummary[] | null = null;
@@ -448,6 +450,12 @@ function registerIpc(): void {
     writePreferences(preferencesFile(), preferences);
   });
   handle("desktop:release-notes", (version) => openExternal(releaseNotesUrl(typeof version === "string" ? version : undefined)));
+  ipcMain.on("desktop:pending-work", (event, pending: unknown) => {
+    event.returnValue = false;
+    if (!trusted(event) || typeof pending !== "boolean") return;
+    pendingWindowWork = pending;
+    event.returnValue = true;
+  });
   ipcMain.on("desktop:restart-check-result", (event, id: unknown, check: unknown) => {
     if (!trusted(event) || typeof id !== "number") return;
     const record = typeof check === "object" && check !== null ? check as Record<string, unknown> : {};
@@ -497,7 +505,10 @@ function createWindow(): void {
   if (process.platform === "win32") {
     // The installation helper sends this intent before WM_CLOSE, including to hidden windows.
     created.hookWindowMessage(INSTALLATION_CLOSE_MESSAGE, () => { exiting = true; });
-    created.on("query-session-end", () => {
+    created.on("query-session-end", event => {
+      // Cancel the OS query synchronously, before the asynchronous renderer unload guard.
+      // Keep editing can then preserve both the window and the daemon, even from the tray.
+      if (pendingWindowWork) event.preventDefault();
       exiting = true;
       created.close();
     });
@@ -522,7 +533,11 @@ function createWindow(): void {
   created.webContents.on("did-fail-load", (_event, code, description, _url, isMainFrame) => {
     if (isMainFrame) failed(`renderer load failed (${code}): ${description}`);
   });
+  created.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) pendingWindowWork = true;
+  });
   created.webContents.on("render-process-gone", (_event, details) => {
+    pendingWindowWork = true;
     const reason = `renderer exited: ${details.reason} (${details.exitCode})`;
     log(reason);
     failed(reason);

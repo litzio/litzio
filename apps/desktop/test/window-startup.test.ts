@@ -60,6 +60,7 @@ async function start(options: { backgroundNoticeShown?: boolean; workDamage?: "c
   const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: {}, resourcesPath: "/fake-resources", pid: 123, execPath: "/fake-app.exe" });
   const timers = new Map<number, { run: () => void; ms: number }>();
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+  const listeners = new Map<string, (event: any, ...args: unknown[]) => void>();
   let timerId = 0, exits = 0, quits = 0;
   const trays: Tray[] = [];
   let menu: any[] = [];
@@ -121,7 +122,7 @@ async function start(options: { backgroundNoticeShown?: boolean; workDamage?: "c
     "../../../brand.ts": { brand },
     "electron": {
       app, BrowserWindow: Window, Tray, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
-      ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on: (_name: string, handler: (...args: any[]) => void) => { restartAnswer = handler; } },
+      ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on: (name: string, handler: (...args: any[]) => void) => { listeners.set(name, handler); if (name === "desktop:restart-check-result") restartAnswer = handler; } },
       Menu: { setApplicationMenu() {}, buildFromTemplate: (items: any[]) => items }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
       session: { defaultSession: { setPermissionRequestHandler() { if (options.startupError) throw new Error("permission setup failed"); }, setPermissionCheckHandler() {} } },
       shell: { openPath: async (directory: string) => { opened.push(directory); return options.openError ?? ""; } },
@@ -180,6 +181,12 @@ async function start(options: { backgroundNoticeShown?: boolean; workDamage?: "c
   });
   await setImmediate();
   const window = windows[0]!;
+  const reportPendingWork = (pending: unknown, trusted = true) => {
+    const event = { sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {}, returnValue: undefined as unknown };
+    listeners.get("desktop:pending-work")!(event, pending);
+    return event.returnValue;
+  };
+  if (window) reportPendingWork(false); // The mounted stand-in Editor has no pending work.
   const appearance = (color: unknown = "#ffffff", overlay: unknown = { color: "#f6f7f9", symbolColor: "#20242c" }, trusted = true) =>
     handlers.get("desktop:set-window-background")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, color, overlay);
   const timeout = (ms = 5_000) => {
@@ -192,7 +199,7 @@ async function start(options: { backgroundNoticeShown?: boolean; workDamage?: "c
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { trays, menu, registry, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { reportPendingWork, trays, menu, registry, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -382,7 +389,7 @@ test("installation WM_CLOSE and OS session end do not hide; a refused native clo
     h.window.close();
     if (reason === "installation") h.window.hooks.get(INSTALLATION_CLOSE_MESSAGE)!();
     else if (reason === "before-quit") h.app.emit(reason);
-    else h.window.emit(reason);
+    else h.window.emit(reason, { preventDefault() { assert.fail("clean work must not block Windows session end"); } });
     h.window.close();
     await setImmediate();
     assert.equal(h.window.destroyed, true, reason);
@@ -398,9 +405,43 @@ test("installation WM_CLOSE and OS session end do not hide; a refused native clo
   assert.equal(refused.window.visible, false, "a later ordinary close returns to tray");
   assert.deepEqual(refused.daemonCalls, ["connect"]);
   const cancelledSession = await start({ resetCloseRefused: true, stopChoice: 1 });
-  cancelledSession.window.emit("query-session-end");
+  cancelledSession.reportPendingWork(true);
+  cancelledSession.window.close();
+  let sessionPrevented = false;
+  cancelledSession.window.emit("query-session-end", { preventDefault() { sessionPrevented = true; } });
+  assert.equal(sessionPrevented, true, "Keep editing must block the OS session, not only window close");
   assert.equal(cancelledSession.window.destroyed, false);
+  assert.equal(cancelledSession.window.visible, true);
+  assert.equal(cancelledSession.window.focused, true);
   assert.deepEqual(cancelledSession.daemonCalls, ["connect"], "a cancellable query does not stop work before the native guard");
+  cancelledSession.window.close();
+  assert.equal(cancelledSession.window.visible, false, "Keep editing clears actual-exit intent");
+  cancelledSession.window.emit("session-end", { preventDefault() { assert.fail("confirmed OS session end must never be blocked"); } });
+  await setImmediate();
+  assert.deepEqual(cancelledSession.daemonCalls, ["connect", "close"], "forced session end still cleans up owned work");
+});
+
+test("native session protection accepts only trusted booleans, refreshes after Save and protects an unready renderer", async () => {
+  const work = { resetCloseRefused: true, stopChoice: 1 };
+  const h = await start(work);
+  assert.equal(h.reportPendingWork(true), true);
+  assert.equal(h.reportPendingWork(false, false), false);
+  assert.equal(h.reportPendingWork("false"), false);
+  let blocked = false;
+  h.window.emit("query-session-end", { preventDefault() { blocked = true; } });
+  assert.equal(blocked, true, "invalid/untrusted reports cannot erase pending work");
+  assert.equal(h.window.destroyed, false);
+  work.resetCloseRefused = false; // The Editor saved/discarded its work.
+  assert.equal(h.reportPendingWork(false), true);
+  h.window.emit("query-session-end", { preventDefault() { assert.fail("clean work must not defer logout"); } });
+  await setImmediate();
+  assert.equal(h.window.destroyed, true);
+  assert.deepEqual(h.daemonCalls, ["connect", "close"]);
+  const unready = await start({ resetCloseRefused: true, stopChoice: 1 });
+  unready.window.webContents.emit("did-start-navigation", {}, DESKTOP_ENTRY, false, true);
+  let unknownBlocked = false;
+  unready.window.emit("query-session-end", { preventDefault() { unknownBlocked = true; } });
+  assert.equal(unknownBlocked, true, "loading state cannot reuse a previous clean report");
 });
 
 test("startup exceptions are logged, reported and exit; logging failure remains observable on stderr", async () => {

@@ -6,7 +6,7 @@
 
 - Status: Implemented
 - Public release verification: 2026-11-09 — beta.9 tag, successful first unsigned-beta workflow, Korean Release body and asset API metadata checked; orchestrator anonymous download/hash evidence recorded in the [release record](../releases/v0.0.2-beta.9.md). Actual GitHub beta.8 → beta.9 installation/update remains unverified.
-- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
+- Last verified: 2026-11-10 — #1448 main 회귀 검사와 Windows query의 미저장 작업 보류 계약 대조. 실제 트레이·Electron/NSIS·OS 로그아웃 수락은 미확인.
 - Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
 - PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
 - PR3 verification: 2026-11-04 — CLI 90, Editor 433, Desktop 76 tests; ownership/crash/stale subprocess cases; typecheck and dev build; persistent Chrome Desktop/HTTP scenarios. Windows packaged checks remain CI-only.
@@ -70,9 +70,24 @@ The installation helper enumerates top-level Electron windows by process identit
 hidden windows. It sends the private installation-exit intent (WM_APP 0x8148), then WM_CLOSE;
 main lets that close through and reveals the window for any unsaved-work question. Pre-tray
 builds ignore the new intent and still handle WM_CLOSE normally. A cancelled close blocks
-removal without forcing a process exit. Windows query-session-end/session-end mark real exit
-and begin the same owned-daemon cleanup even if Windows omits normal app quit events; parent
-IPC loss remains the crash/forced-session fallback. No remote stop is sent.
+removal without forcing a process exit. Windows query-session-end synchronously prevents the
+OS query when the existing all-tab guard reports unsaved edits, unapplied drafts or pending
+operations. Main then restores/focuses the hidden window and runs the native unsaved-work
+confirmation. Keep editing preserves both the window and daemon and clears exit intent.
+Close without saving can exit Desktop, but the already-cancelled OS query is not automatically
+replayed; Windows may require the user to request logout again. Clean work does not defer the
+query and closes through existing cleanup. Windows may show its blocking-app screen and users
+may force termination. Actual session-end never prevents OS termination; it only attempts the
+same owned-daemon cleanup even if Windows omits normal quit events. Parent IPC loss remains
+the crash/forced-session fallback. No remote stop is sent.
+
+The renderer reuses its existing restart/all-tab protection predicate and synchronizes only
+the pending boolean on state transitions through trusted main-frame IPC before returning from
+its layout commit. Main owns this in-memory observation, not document content. It defaults to
+protected until the renderer is ready, and resets to protected during main-frame navigation or
+renderer loss. Comparison writes also publish their pending transitions. Main can therefore
+answer the native OS query synchronously without waiting for a renderer round trip. The real
+beforeunload guard remains the second check; no document meaning or save behavior changes.
 
 Verification: the existing in-memory main lifecycle tests cover hide/restore, one-time notice,
 tray cancellation/exit, installation intent + close, session end, update failure and protected

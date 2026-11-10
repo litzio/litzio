@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-05 — #1174·ADR-0018 결정과 문서 대조. 제품 실행 검증 없음.
+- Last verified: 2026-11-10 — #1448 소유자 종료 정책·미저장 Windows query 보류 결정과 main 회귀 검사 대조. 실제 로그아웃·패키지 수락은 미확인.
 - Previous verification: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
 - Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 수동 원격 접근은 ③의 추가 승인을 따른다. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
@@ -38,6 +38,8 @@ Desktop daemon은 loopback 전용이고 자동 탐색·연결도 같은 PC 범�
 [소유자 결정](https://github.com/litzio/litzio/discussions/834#discussioncomment-19509710)에 따라 **창 닫기는 트레이 유지**, 트레이 **종료**는 Desktop과 Desktop이 직접 띄운 daemon의 완전 종료로 정한다. 창은 파괴하지 않고 숨겨 미저장 편집·Undo와 같은 편집 세션 및 진행 중인 비서·플러그인 작업을 유지한다. 기존 단일 인스턴스 복원과 트레이 **열기**는 같은 창을 다시 보여 준다. 처음 닫을 때 한 번 백그라운드 실행을 안내하고 표시 여부를 앱 설정 파일에 저장한다. 트레이 상태는 백그라운드 실행 중/연결 끊김만 표시하며 통합 작업 수는 집계하지 않는다.
 
 트레이 종료는 작업 중단 안내 뒤 기존 미저장 작업 확인을 거친다. 업데이트 설치, Host 설정 재시작, 초기화, 제거기의 종료 요청, Windows 로그아웃·종료는 트레이로 숨기지 않고 실제 종료·정리 절차를 탄다. 트레이 유지 자체는 업데이트 설치나 daemon 자동 교체를 허용하지 않으며, 소유 daemon 종료를 확인하지 못하면 설치하지 않는다.
+
+Windows `query-session-end`에서는 미저장 편집·미적용 초안 등 기존 전체 탭 보호 대상 작업이 있으면 OS 이벤트를 동기적으로 취소해 종료를 보류한다. 숨긴 창은 복원·포커스하고 기존 미저장 확인을 보여 준다. **Keep editing**은 창과 소유 daemon을 유지하며, 작업을 저장·정리한 뒤 다음 종료 요청에서는 보류하지 않는다. Windows의 차단 앱 안내와 사용자 강제 종료는 허용한다. 작업이 없으면 query를 취소하지 않고 기존 정리로 종료하며, 실제 `session-end`는 취소하지 않고 정상 정리만 시도한다.
 
 Desktop이 직접 띄운 인스턴스는 Desktop의 실제 종료와 함께 종료한다. spawn 시 연결한 IPC pipe가 끊기면 daemon도 종료하므로 Desktop 비정상 종료에도 고아로 남지 않는다. Desktop은 자기가 spawn한 인스턴스 ID만 소유하며 다른 클라이언트 수나 진행 작업을 추적·판별하지 않는다. CLI `daemon start` 또는 `daemon run`으로 띄운 daemon은 Desktop 종료 뒤에도 유지한다. 원격 Host는 Desktop 종료로 중단하지 않는다. 항상 유지 설정·유휴 자동 종료·로그인 자동 시작·다중 창은 제공하지 않는다. Desktop 완전 종료 뒤에도 로컬 작업을 계속 실행하려면 CLI로 시작한다.
 

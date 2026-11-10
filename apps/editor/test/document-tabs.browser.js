@@ -246,7 +246,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     await desktopPage.addInitScript(() => {
       window.litzioDesktop = {
       registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: "test" }),
-      reportHostWork: async () => {},
+      reportPendingWork: () => {}, reportHostWork: async () => {},
         hostConnection: async () => ({url:location.origin, productVersion:"test", desktopVersion:"test"}),
         checkDaemon: async () => {},
         setTheme: async theme => theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches),

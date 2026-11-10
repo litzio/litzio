@@ -68,6 +68,8 @@ export type DesktopBridge = {
   renameHost(hostId: string, label: string): Promise<void>;
   removeHost(hostId: string): Promise<void>;
   reportHostWork(summary: HostWorkSummary[] | null): Promise<void>;
+  /** Synchronize all-tab close protection with the native Windows session-end query. No content. */
+  reportPendingWork(pending: boolean): void;
   restartForHosts(): Promise<RestartCheck>;
   hostConnection(): Promise<HostConnection>;
   startup(): Promise<{ document?: string; samples?: { ko: string; en: string }; sampleProblem?: "unavailable" }>;
