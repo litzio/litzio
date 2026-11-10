@@ -9,7 +9,7 @@ import { type ViewOperation } from "@litzio/core/views";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
+import { accessPath, inside, RootAccess, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess } from "./plugin-process.ts";
 import { healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
@@ -45,7 +45,10 @@ export class PluginHost {
   private access: FileAccess;
   private supply: OfficialPlugin[];
   private designated: { id: string; directory: string }[];
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[] } = {}) {
+  readonly authoringDirectory: string;
+  private authoringRoot?: RootAccess;
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[] } = {}) {
+    this.authoringDirectory = options.authoringDirectory ?? hostPaths().plugins;
     this.supply = options.officialPlugins ?? OFFICIAL_PLUGINS;
     this.designated = options.designatedPlugins ?? designatedPluginDirectories();
     this.access = options.access ?? LOCAL_FILE_ACCESS;
@@ -78,6 +81,15 @@ export class PluginHost {
     }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data),
     (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  }
+  /** App-owned artifacts are separate from document Roots. Pin the same boundary for the Host lifetime. */
+  authoringAccess(): RootAccess {
+    if (!this.authoringRoot) {
+      mkdirSync(this.authoringDirectory, { recursive: true });
+      this.authoringRoot = new RootAccess([this.authoringDirectory]);
+    }
+    this.authoringRoot.resolve(this.authoringDirectory);
+    return this.authoringRoot;
   }
   private save() {
     mkdirSync(path.dirname(this.file), { recursive: true });
@@ -351,12 +363,17 @@ export class PluginHost {
     const run = this.serial.then(async () => {
       let id = args.id!;
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
-      if (action === "scaffold") return { ...scaffoldPlugin(args.directory!, id, this.access, creationScope, args.template), receipt: receipt("success") };
+      if (action === "scaffold") {
+        const access = args.directory === undefined ? this.authoringAccess() : this.access;
+        const directory = args.directory ?? path.join(this.authoringDirectory, id);
+        return { ...scaffoldPlugin(directory, id, access, creationScope, args.template), receipt: receipt("success") };
+      }
       if (action === "validate") {
         const errors: { file: string; line: number | null; column: number | null; kind: string }[] = []; let manifestId: string | undefined;
         let file = "artifact";
         try {
-          const a = this.artifact(accessPath(args.directory!, this.access), current => { file = current; }); manifestId = a.manifest.id;
+          const access = inside(this.authoringDirectory, path.resolve(args.directory!)) ? this.authoringAccess() : this.access;
+          const a = this.artifact(accessPath(args.directory!, access), current => { file = current; }); manifestId = a.manifest.id;
           errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: "host entry", ...issue })));
         } catch (error) {
           // Read only numeric location metadata. Parser/Ajv/Zod/fs messages may contain source or secret values.

@@ -646,11 +646,18 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
 
 test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh reload", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-"));
-  const host = new PluginHost(path.join(root, "state.json")), directory = path.join(root, "greeting"), id = "local.greeting";
+  const documents = path.join(root, "documents"); mkdirSync(documents);
+  const authoringDirectory = path.join(root, "data", "plugins"), id = "local.greeting", directory = path.join(authoringDirectory, id);
+  const access = new RootAccess([documents]);
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory });
   const activity: any[] = [];
-  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
+  const scope = { folders: null, access, permissionMode: "opened-folders" };
   try {
-    await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
+    const created = await executePluginTool(host, { action: "scaffold", id }, e => activity.push(e), scope);
+    assert.equal(created.activity.outcome, "success");
+    assert.ok("result" in created);
+    assert.equal((created.result as any).directory, directory);
+    await assert.rejects(host.invoke("scaffold", { id }), /EEXIST/);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
     assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.4.0 <1.0.0");
     assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
@@ -777,7 +784,8 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
   mkdirSync(allowed); mkdirSync(opened);
   const access = new RootAccess([allowed]);
   const assistant = createPluginService(access, path.join(root, "plugins.json"));
-  const host = new PluginHost(path.join(root, "turn-plugins.json"), { access });
+  const authoringDirectory = path.join(root, "data", "plugins");
+  const host = new PluginHost(path.join(root, "turn-plugins.json"), { access, authoringDirectory });
   const scope = { access, folders: new RootAccess([opened]), permissionMode: "opened-folders" };
   const activities: unknown[] = [];
   try {
@@ -792,6 +800,17 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
     await attempt(path.join(opened, "readonly"), { ...scope, permissionMode: "read-only" });
     await attempt(path.join(opened, "no-scope"), undefined);
     await attempt(outside, { ...scope, permissionMode: "full-access" });
+    for (const turnScope of [undefined, { ...scope, folders: null, permissionMode: "read-only" }, { ...scope, folders: null, permissionMode: "full-access" }]) {
+      const denied = await executePluginTool(host, { action: "scaffold", id: "local.denied" }, () => {}, turnScope);
+      assert.equal(denied.activity.outcome, "failure");
+      assert.equal(existsSync(path.join(authoringDirectory, "local.denied")), false);
+    }
+    const defaultResult = await executePluginTool(host, { action: "scaffold", id: "local.default" }, () => {}, scope);
+    assert.equal(defaultResult.activity.outcome, "success");
+    assert.ok("result" in defaultResult);
+    assert.equal((defaultResult.result as any).directory, path.join(authoringDirectory, "local.default"));
+    await assert.rejects(host.invoke("scaffold", { directory: path.join(authoringDirectory, "explicit"), id: "local.explicit" }), /outside/);
+
     const directory = path.join(opened, "valid");
     const result = await executePluginTool(host, { action: "scaffold", directory, id: "local.valid" }, e => activities.push(e), scope);
     assert.equal(result.activity.outcome, "success"); assert.equal(existsSync(path.join(directory, "host.js")), true);

@@ -9,11 +9,14 @@ export async function executePluginTool(host: PluginHost, input: unknown, activi
   const { action, ...args } = input as Record<string, any>;
   if (!["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"].includes(action) || Object.keys(args).some(key => !["template", "id", "directory", "digest", "registrationId", "trust", "settings"].includes(key))) throw new Error("Invalid plugin management action");
   try {
+    let creationScope = scope?.folders;
     if (action === "scaffold") {
-      if (!scope?.folders || !["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("Plugin creation is read-only for this turn.");
-      args.directory = scope.folders.resolve(accessPath(args.directory, scope.access, true), true);
+      if (!scope || !["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("Plugin creation is read-only for this turn.");
+      if (scope.permissionMode === "opened-folders" && args.directory === undefined) creationScope = host.authoringAccess();
+      if (!creationScope) throw new Error("No writable folder for this turn.");
+      if (args.directory !== undefined) args.directory = creationScope.resolve(accessPath(args.directory, scope.access, true), true);
     }
-    const result = await host.invoke(action, args, action === "scaffold" ? scope!.folders : undefined);
+    const result = await host.invoke(action, args, action === "scaffold" ? creationScope : undefined);
     const value = result as { id?: string; receipt?: { outcome: string } };
     const entry = { action, id: value.id ?? args.id, outcome: value.receipt?.outcome === "failure" ? "failure" as const : "success" as const };
     activity(entry);

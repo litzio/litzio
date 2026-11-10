@@ -279,9 +279,14 @@ export class AssistantConversations {
       } else {
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
         this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient });
+        const writableRoots = [...folders];
+        if (settings.permissionMode === "opened-folders" && this.plugins) {
+          this.plugins.authoringAccess();
+          writableRoots.push(this.plugins.authoringDirectory);
+        }
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
-          sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
+          sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots,
             networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));

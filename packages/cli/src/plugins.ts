@@ -43,7 +43,12 @@ export async function pluginCli(args: string[]): Promise<number> {
       }
     } else if (command === "plugins" && action === "list" && tokens.length === 2) body = { action };
     else if (command === "plugins" && ["register", "validate"].includes(action!) && tokens.length === 3) body = { action, directory: id };
-    else if (command === "plugins" && action === "scaffold" && (tokens.length === 5 || tokens.length === 7 && tokens[5] === "--template" && ["greet", "query", "file"].includes(tokens[6]!)) && tokens[3] === "--id") body = { action, directory: id, id: tokens[4], ...(tokens.length === 7 ? { template: tokens[6] } : {}) };
+    else if (command === "plugins" && action === "scaffold") {
+      const offset = tokens[2] === "--id" ? 2 : 3;
+      if (tokens[offset] !== "--id" || !tokens[offset + 1] ||
+        !(tokens.length === offset + 2 || tokens.length === offset + 4 && tokens[offset + 2] === "--template" && ["greet", "query", "file"].includes(tokens[offset + 3]!))) throw new Error("plugins scaffold [directory] --id <id> [--template greet|query|file]");
+      body = { action, ...(offset === 3 ? { directory: id } : {}), id: tokens[offset + 1], ...(tokens.length === offset + 4 ? { template: tokens[offset + 3] } : {}) };
+    }
     else if (command === "plugins" && (action === "trust" || action === "enable" && tokens.length > 3)) {
       body = { action, id };
       for (let i = 3; i < tokens.length; i++) {
@@ -62,7 +67,7 @@ export async function pluginCli(args: string[]): Promise<number> {
     else if (command === "plugins" && action === "secret-delete" && tokens.length === 4) body = { action, id, name: tokens[3] };
     else if (command === "plugins" && action === "settings" && tokens.length === 3) body = { action, id };
     else if (command === "plugins" && action === "settings" && tokens.length === 5 && tokens[3] === "--file") body = { action, id, settings: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
-    else throw new Error("plugins list|scaffold <directory> --id <id> [--template greet|query|file]|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|settings <id> --file <json-file> --host <origin> --json");
+    else throw new Error("plugins list|scaffold [directory] --id <id> [--template greet|query|file]|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|settings <id> --file <json-file> --host <origin> --json");
     const health = await fetch(new URL("/daemon/health", origin), { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
     if (!health.ok || (await health.json()).protocolVersion !== DAEMON_PROTOCOL) throw new Error("Host protocol check failed");
     dispatched = true;
