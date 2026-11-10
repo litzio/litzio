@@ -264,14 +264,64 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ProviderConnections } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
-test("Codex management runs without approval and exposes activity in the existing tool result", async () => {
+test("Codex plugin tools share Host reads, enforce turn permission and restore metadata-only activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-activity-"));
-  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
-  const host = new PluginHost(path.join(root, "plugins.json"));
+  const log = path.join(root, "provider.jsonl"), secret = "synthetic-plugin-tool-PAT-private";
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] }, undefined, { packaged: false, checkoutRoot: root });
+  const host = new PluginHost(path.join(root, "plugins.json"), { secrets: { supported: true, async read() { return secret; }, async set() {}, async status() { return true; }, async delete() {} } });
   const conversations = new AssistantConversations(connection, new RootAccess([root]), host);
   try {
     const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+    const directory = lifecycleFixture(root, "fixture.lookup", `export function activate(c){return {operations:{
+      read:({mode})=>{if(mode==='auth')throw Object.assign(Error(c.secrets.pat),{kind:'auth'});if(mode==='invalid')return 7;return mode==='empty'?[]:['output-only-marker',c.secrets.pat]},
+      echo:()=>({[c.secrets.pat]:'echoed as key',value:c.secrets.pat}),
+      nested:()=>[{safe:{['prefix-'+c.secrets.pat+'-suffix']:[{value:c.secrets.pat}]}}],
+      connection:()=>({ok:true,message:'Connected'}), hidden:()=>{throw Error('must not run')}, write:()=>{throw Error('must not run')}
+    },status:()=>({available:true,message:'Ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+    const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+    const operation = { version: 1, scope: "host", effect: "read", inputSchema: { type: "object" }, outputSchema: {} };
+    manifest.requiresSdk = ">=0.4.0 <1.0.0";
+    manifest.secrets = [{ id: "pat", title: "Access token", scope: "connection", required: true }];
+    manifest.contributes = { healthCheck: "connection", operations: [
+      { ...operation, id: "read", assistant: true, inputSchema: { type: "object", properties: { mode: { type: "string" }, query: { type: "string" } }, required: ["mode"], additionalProperties: false }, outputSchema: { type: "array", items: { type: "string" } } },
+      { ...operation, id: "connection", outputSchema: { type: "object" } }, { ...operation, id: "hidden" }, { ...operation, id: "write", effect: "write", assistant: true },
+      { ...operation, id: "echo", assistant: true, outputSchema: { type: "object", additionalProperties: { type: "string" } } },
+      { ...operation, id: "nested", assistant: true, outputSchema: { type: "array", items: { type: "object" } } },
+    ] };
+    writeFileSync(manifestFile, JSON.stringify(manifest));
+    await host.invoke("register", { directory });
+    await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId });
+    await host.invoke("enable", { id: manifest.id });
     const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
+    const start = readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).find(entry => entry.method === "thread/start");
+    assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "invoke_plugin_operation"));
+    const invoke = async (operation: string, input: unknown, id = conversation.id) => {
+      const response: any = await connection.client.request("fixture/tool", { threadId: id, tool: "invoke_plugin_operation", arguments: { operation, input } });
+      return { success: response.result.success, ...JSON.parse(response.result.contentItems[0].text) };
+    };
+    const health = await invoke("fixture.lookup.connection", {});
+    assert.equal(health.success, true); assert.deepEqual(health.result, { ok: true, message: "Connected" });
+    const read = await invoke("fixture.lookup.read", { mode: "success", query: "input-only-marker" });
+    assert.equal(read.success, true); assert.deepEqual(read.result, ["output-only-marker", "[secret]"]);
+    assert.equal(read.receipt.scope, "host"); assert.equal(read.receipt.outcome, "success");
+    const empty = await invoke("fixture.lookup.read", { mode: "empty" });
+    assert.equal(empty.success, true); assert.deepEqual(empty.result, []);
+    const auth = await invoke("fixture.lookup.read", { mode: "auth" });
+    assert.equal(auth.success, false); assert.equal(auth.errorKind, "auth"); assert.equal(auth.receipt.outcome, "failure");
+    for (const name of ["echo", "nested"]) {
+      const refused = await invoke(`fixture.lookup.${name}`, {});
+      assert.equal(refused.success, false, "Secret-bearing dynamic keys must not reach the provider");
+      assert.equal(refused.errorKind, "failed"); assert.equal(refused.receipt.outcome, "failure");
+      assert.ok(!("result" in refused)); assert.equal(JSON.stringify(refused).includes(secret), false);
+    }
+    for (const name of ["hidden", "write"]) {
+      const denied = await invoke(`fixture.lookup.${name}`, {});
+      assert.equal(denied.success, false); assert.equal(denied.errorKind, "forbidden"); assert.equal(denied.activity.outcome, "refused");
+    }
+    for (const input of [{ mode: "invalid" }, { mode: 1 }]) {
+      const invalid = await invoke("fixture.lookup.read", input);
+      assert.equal(invalid.success, false); assert.equal(invalid.errorKind, "failed"); assert.ok(!("result" in invalid));
+    }
     for (const action of ["list", "scaffold", "reload"]) {
       const response: any = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: action === "list" ? { action } : action === "scaffold" ? { action, directory: path.join(root, "scaffolded"), id: "local.fixture" } : { action, id: "missing.plugin" } });
       assert.equal(conversations.current(conversation.id).userInput, undefined);
@@ -282,6 +332,22 @@ test("Codex management runs without approval and exposes activity in the existin
     await connection.client.request("fixture/finish", { threadId: conversation.id });
     const restored = await conversations.resume(conversation.id, settings);
     assert.ok(restored.turns.flatMap(t => t.items).some(item => item.text === "plugins.reload (missing.plugin): failure"));
+    const activity = restored.turns.flatMap(t => t.items).filter(item => item.text.startsWith("invoke_plugin_operation"));
+    assert.ok(activity.some(item => item.text.includes("fixture.lookup.read") && item.status === "failed"));
+    const recorded = JSON.stringify(activity);
+    assert.match(recorded, /requestId/);
+    assert.ok(activity.every(item => Number.isFinite(JSON.parse(item.toolResult!.contentItems[0]!.text!).activity.at)));
+    assert.doesNotMatch(recorded, /input-only-marker|output-only-marker|synthetic-plugin-tool-PAT-private/);
+    assert.equal(readFileSync(log, "utf8").includes(secret), false);
+    const readOnly = { ...settings, permissionMode: "read-only" as const };
+    const restricted = await conversations.send({ message: "Inspect only", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, readOnly, "window-a");
+    for (const name of ["read", "connection"]) {
+      const denied = await invoke(`fixture.lookup.${name}`, { mode: "success" }, restricted.id);
+      assert.equal(denied.success, false); assert.equal(denied.errorKind, "forbidden"); assert.equal(denied.activity.outcome, "refused");
+    }
+    await connection.client.request("fixture/finish", { threadId: restricted.id });
+    await host.invoke("disable", { id: manifest.id });
+    await assert.rejects(host.invokeAssistantOperation("fixture.lookup.read", { mode: "success" }), (error: any) => error.kind === "unavailable");
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -838,8 +904,12 @@ test("validation diagnostics never expose source values through Host, assistant,
 
 
 test("short secrets preserve keys and leave the plugin scope on replacement, deletion and unregister", async () => {
-  const { safePluginValue } = await import("../server/plugins/secret-redaction.ts");
+  const { assertNoPluginSecrets, safePluginValue } = await import("../server/plugins/secret-redaction.ts");
   assert.deepEqual(safePluginValue({ id: "id", defaultCandidate: ["secret-long", "a.b"] }, ["id", "secret", "secret-long", "a.b"]), { id: "[secret]", defaultCandidate: ["[secret]", "[secret]"] });
+  // Keep key names intact, but refuse publication if a key or non-string scalar
+  // still contains an actual secret, including characters escaped in JSON text.
+  for (const [value, secret] of [[{ id: "safe" }, "id"], [{ outer: [{ 'quoted"key': "safe" }] }, 'quoted"key'], [[123], "123"], [true, "true"], [null, "null"]] as const)
+    assert.throws(() => assertNoPluginSecrets(safePluginValue(value, [secret]), [secret]), /Plugin result contains a secret/);
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-redaction-scope-")), values = new Map<string, string>();
   const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) values.delete(key); } };
   const host = new PluginHost(path.join(root, "state.json"), { secrets: store });

@@ -85,6 +85,12 @@ timeouts take precedence. Fixed `waitForTimeout` delays and arbitrary JavaScript
 are not bounded by the action default; the scenario limit remains their backstop. Retries stay at 0;
 shard assignment and CI job limits are unchanged.
 
+The `multi-host` assistant fixture holds the first send until its submission-status GET occurs.
+Both endpoints return the shared submission receipt shape, with pending followed by rejection;
+settings JSON is never a fallback for conversation requests. The scenario checks that the same ID
+is observed only on the selected remote Host, the POST is not replayed, and rejected text/references
+can be restored. Existing panel, reference, and unexpected-console-error assertions remain in place.
+
 Measurement basis for [#549](https://github.com/litzio/litzio/issues/549), 2026-10-26:
 
 - The five most recent successful master CI runs were read with `gh run view --log`:
