@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { load } from 'js-yaml';
 import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-policy.mjs';
 import { removalScenarios } from '../apps/desktop/test/packaged/uninstall-scenarios.ts';
@@ -45,7 +46,7 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
       return paths.join('\0') + '\0';
     };
     assert.deepEqual(await executionPolicy('merge_group', event, { git }), jobs);
-    assert.deepEqual(selectJobs('pull_request', paths), selectJobs('merge_group', paths));
+    assert.deepEqual(selectJobs('pull_request', paths), { ...selectJobs('merge_group', paths), desktop: false });
   }
   assert.deepEqual(await executionPolicy('merge_group', event, { git: () => { throw new Error('missing history'); } }), full);
   assert.deepEqual(await executionPolicy('merge_group', { merge_group: { base_sha: '--bad', head_sha: sha } }), full);
@@ -81,24 +82,24 @@ test('only audited policy tooling skips product jobs, with mixed changes taking 
       const { reused, ...jobs } = full;
       // smartquotes has its own narrower dependency rule.
       assert.deepEqual(selectJobs(eventName, [...policyPaths, file]),
-        { ...jobs, smartquotes: selectJobs(eventName, [file]).smartquotes }, file);
+        { ...jobs, desktop: eventName !== 'pull_request', smartquotes: selectJobs(eventName, [file]).smartquotes }, file);
     }
     assert.equal(selectJobs(eventName, [...policyPaths, 'test/fixture.md']).quality, true,
       'test Markdown retains product quality');
-    assert.deepEqual(selectJobs(eventName, []), selectJobs('push', policyPaths));
+    assert.deepEqual(selectJobs(eventName, []), { ...selectJobs('push', policyPaths), desktop: eventName !== 'pull_request' });
   }
   assert.deepEqual(selectJobs('push', policyPaths), selectJobs('workflow_dispatch', policyPaths));
 });
-test('HTTP selection always retains Windows unit coverage in Desktop', () => {
+test('HTTP retains Linux package coverage and defers Windows coverage to the queue', () => {
   // Every tracked path exercises the current classifications, including unknown fallback.
   const paths = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
   for (const event of ['pull_request', 'merge_group', 'push']) {
     for (const file of [...paths, 'unknown/new-file']) {
       const jobs = selectJobs(event, [file]);
-      assert.ok(!jobs.http || jobs.desktop, `${event}: ${file}`);
+      assert.ok(event === 'pull_request' ? !jobs.desktop : (!jobs.http || jobs.desktop), `${event}: ${file}`);
     }
     const jobs = selectJobs(event, paths);
-    assert.ok(!jobs.http || jobs.desktop, `${event}: mixed diff`);
+    assert.ok(event === 'pull_request' ? !jobs.desktop : (!jobs.http || jobs.desktop), `${event}: mixed diff`);
   }
   const { jobs } = workflow();
   const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -118,7 +119,7 @@ test('HTTP selection always retains Windows unit coverage in Desktop', () => {
   }
   assert.ok(jobs.http.steps.some(step => step.run === 'pnpm browser:test ${{ matrix.scenarios }}' && !step.if));
   for (const os of ['ubuntu-latest', 'windows-latest']) {
-    const groups = jobs.http.strategy.matrix.include.filter(entry => entry.os === os);
+    const groups = (os === 'ubuntu-latest' ? jobs.http : jobs['http-windows']).strategy.matrix.include.filter(entry => entry.os === os);
     assert.deepEqual(groups.flatMap(entry => entry.scenarios.split(' ')).sort(), [...HTTP_SCENARIOS].sort(),
       `${os}: every official HTTP scenario must be assigned exactly once`);
     assert.equal(new Set(groups.map(entry => entry.group)).size, groups.length);
@@ -136,7 +137,7 @@ test('Core changes select Editor browser consumers without broadening other jobs
   for (const event of ['pull_request', 'merge_group']) {
     for (const file of paths) {
       assert.deepEqual(selectJobs(event, [file]),
-        jobs, `${event}: ${file}`);
+        { ...jobs, desktop: event !== 'pull_request' }, `${event}: ${file}`);
     }
   }
 });
@@ -243,7 +244,7 @@ test('cache-only master runs preserve pnpm OS stores and the exact Linux browser
   const { jobs } = workflow();
   const warm = jobs['cache-warm'];
   assert.equal(warm.if, "needs.changes.outputs.reused == 'true'");
-  assert.deepEqual(warm.strategy.matrix.os, [...new Set(jobs.http.strategy.matrix.include.map(entry => entry.os))].reverse());
+  assert.deepEqual(warm.strategy.matrix.os, ['ubuntu-latest', 'windows-latest']);
   assert.deepEqual(warm.strategy.matrix.include[0].container, jobs.http.strategy.matrix.include.find(entry => entry.os === 'ubuntu-latest').container);
   const setup = warm.steps.find(step => step.uses?.startsWith('pnpm/action-setup@'));
   assert.deepEqual(setup, jobs.http.steps.find(step => step.uses?.startsWith('pnpm/action-setup@')));
@@ -260,13 +261,14 @@ test('aggregate accepts unselected skips but rejects failed, cancelled or skippe
   const defaults = { CHANGES_RESULT: 'success', QUALITY_RESULT: 'success', BROWSER_SELECTED: 'false', BROWSER_RESULT: 'skipped',
     HTTP_SELECTED: 'false', HTTP_RESULT: 'skipped', DESKTOP_SELECTED: 'false', DESKTOP_RESULT: 'skipped',
     CACHE_SELECTED: 'false', CACHE_RESULT: 'skipped',
+    HTTP_WINDOWS_SELECTED: 'false', HTTP_WINDOWS_RESULT: 'skipped', QUALITY_UNIT_SELECTED: 'false', QUALITY_UNIT_RESULT: 'skipped',
     ...Object.fromEntries(['UNIT', 'STABLE', 'BETA'].flatMap(name => [[`DESKTOP_${name}_SELECTED`, 'false'], [`DESKTOP_${name}_RESULT`, 'skipped']])) };
   const run = env => spawnSync(bash, ['-c', script], { env: { ...process.env, ...defaults, ...env }, encoding: 'utf8' });
   assert.equal(run({}).status, 0, 'docs group');
   assert.equal(run({ CACHE_SELECTED: 'true', CACHE_RESULT: 'success' }).status, 0, 'reused push');
-  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'DESKTOP_UNIT', 'DESKTOP_STABLE', 'DESKTOP_BETA', 'CACHE']) {
+  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'DESKTOP_UNIT', 'DESKTOP_STABLE', 'DESKTOP_BETA', 'CACHE', 'HTTP_WINDOWS', 'QUALITY_UNIT']) {
     assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: 'success' }).status, 0);
-    for (const result of ['failure', 'cancelled', 'skipped']) {
+    for (const result of ['failure', 'cancelled', 'skipped', '']) {
       assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: result }).status, 1, `${name}: ${result}`);
     }
     assert.equal(run({ [`${name}_RESULT`]: 'failure' }).status, 1);
@@ -451,4 +453,47 @@ test('removal combinations default to full and all remain mandatory in release v
   // The actual E2E iterates this full list; new combinations automatically run in release.
   const source = readFileSync(new URL('../apps/desktop/test/packaged/uninstall.e2e.ts', import.meta.url), 'utf8');
   assert.ok(source.includes('of removalScenarios(process.env.LITZIO_TEST_LIFECYCLE_SCOPE)'));
+});
+
+test('event selection and aggregate agree on PR and queue Windows checks', () => {
+  const { jobs } = workflow();
+  const env = jobs['quality-and-browser'].steps[0].env;
+  assert.equal(jobs['http-windows'].if, "github.event_name != 'pull_request' && needs.changes.outputs.http == 'true'");
+  assert.equal(env.HTTP_WINDOWS_SELECTED, "${{ " + jobs['http-windows'].if + " }}");
+  assert.equal(env.QUALITY_UNIT_SELECTED, '${{ needs.changes.outputs.quality }}');
+  assert.equal(jobs['quality-unit'].if, "needs.changes.outputs.quality == 'true'");
+  assert.deepEqual(jobs['quality-unit'].strategy.matrix, jobs['desktop-unit'].strategy.matrix);
+  assert.equal(jobs['quality-unit'].steps.at(-1).run, jobs['desktop-unit'].steps.at(-1).run);
+  for (const id of ['desktop', 'desktop-unit', 'desktop-stable', 'desktop-beta', 'http-windows', 'quality-unit']) {
+    assert.ok(jobs['quality-and-browser'].needs.includes(id), id);
+  }
+  // Evaluate real workflow selection expressions against each event's policy outputs.
+  for (const eventName of ['pull_request', 'merge_group', 'push']) {
+    for (const paths of [['docs/test/README.md'], ['apps/editor/src/App.tsx'], ['pnpm-lock.yaml'], []]) {
+      const outputs = Object.fromEntries(Object.entries(selectJobs(eventName, paths)).map(([key, value]) => [key, String(value)]));
+      const context = { github: { event_name: eventName }, needs: { changes: { outputs } } };
+      const evaluate = expression => runInNewContext(expression.replace(/^\$\{\{|\}\}$/g, '').trim(), context);
+      for (const [id, selected] of [['desktop', 'DESKTOP'], ['desktop-unit', 'DESKTOP_UNIT'],
+        ['desktop-stable', 'DESKTOP_STABLE'], ['desktop-beta', 'DESKTOP_BETA'],
+        ['http-windows', 'HTTP_WINDOWS'], ['http', 'HTTP'], ['browser', 'BROWSER'], ['quality-unit', 'QUALITY_UNIT']]) {
+        assert.equal(String(evaluate(jobs[id].if)), String(evaluate(env[`${selected}_SELECTED`])), `${eventName}: ${id}`);
+      }
+    }
+  }
+  for (const paths of [undefined, [], ['unknown/new-input'], ['apps/desktop/src/main.ts'], ['apps/editor/src/App.tsx']]) {
+    assert.equal(selectJobs('pull_request', paths).desktop, false);
+    assert.equal(selectJobs('merge_group', paths).desktop, true);
+  }
+});
+
+test('PR gate requires successful aggregate and rejects pending or failed checks', async () => {
+  const { ciProblems } = await import('../.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs');
+  const aggregate = { name: 'Core, CLI, Editor, and browser regressions', conclusion: 'SUCCESS' };
+  const windows = { name: 'Windows Desktop unit', conclusion: 'SKIPPED' };
+  assert.deepEqual(ciProblems([aggregate, windows]), []);
+  for (const checks of [[], [windows], [{ ...aggregate, conclusion: 'SKIPPED' }],
+    [{ ...aggregate, conclusion: 'NEUTRAL' }], [aggregate, { name: 'Linux unit', status: 'IN_PROGRESS' }],
+    [aggregate, { name: 'Linux unit', conclusion: 'CANCELLED' }], [aggregate, { name: 'Linux unit', conclusion: 'FAILURE' }]]) {
+    assert.ok(ciProblems(checks).length, JSON.stringify(checks));
+  }
 });

@@ -84,7 +84,7 @@ const layoutFullPaths = path => !path.startsWith('apps/editor/src/dev/') && (
     'apps/editor/test/layout-rules.browser.js'].includes(path) ||
   (path.startsWith('apps/editor/') && /\.(css|scss)$/.test(path)));
 
-export function selectJobs(eventName, paths) {
+function selectPathJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
   const full = paths.some(path => !policyOnly(path) && (shared(path) || !known(path)));
   // Editor scenarios consume UI assets and Host operations.
@@ -108,6 +108,12 @@ export function selectJobs(eventName, paths) {
       'pnpm-workspace.yaml', 'packages/core/test/smartquotes-patch.test.ts'].includes(path) ||
       path.startsWith('patches/') || parserSettings.includes(path)),
   };
+}
+
+// Preserve path scopes for the queue; Windows execution is deferred on PRs.
+export function selectJobs(eventName, paths) {
+  const jobs = selectPathJobs(eventName, paths);
+  return eventName === 'pull_request' ? { ...jobs, desktop: false } : jobs;
 }
 
 export async function successfulQueueRun({ repository, sha, token, apiUrl = 'https://api.github.com', fetchRuns = fetch }) {

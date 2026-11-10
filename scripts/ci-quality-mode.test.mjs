@@ -82,7 +82,7 @@ test('CI keeps policy checks in both modes and gates only product quality steps'
   const mode = steps.find(step => step.id === 'mode');
   assert.match(mode.run, /node scripts\/ci-quality-mode.mjs "\$GITHUB_EVENT_NAME" "\$GITHUB_EVENT_PATH"/);
   assert.equal(mode.if, undefined);
-  for (const run of ['pnpm typecheck', 'pnpm test', 'pnpm --filter @litzio/editor build']) {
+  for (const run of ['pnpm typecheck', 'pnpm --filter @litzio/editor build']) {
     assert.equal(steps.find(step => step.run === run).if, "needs.changes.outputs.quality == 'true'");
   }
   for (const name of ['Documentation checks', 'Issue forms and registration checks',
@@ -210,12 +210,12 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   assert.equal(desktop['runs-on'], release.jobs.build['runs-on']);
   const unitTests = workflow.jobs['desktop-unit'].steps.find(step => step.run === 'pnpm test:unit:${{ matrix.group }}');
-  assert.ok(unitTests, 'Windows PR and merge queue CI must run every unit partition');
+  assert.ok(unitTests, 'Windows merge queue CI must run every unit partition');
   assert.equal(unitTests.if, undefined);
   assert.ok(release.jobs.build.steps.some(step => step.run === 'pnpm test'));
-  assert.deepEqual(new Set(http.strategy.matrix.include.map(entry => entry.os)), new Set(['ubuntu-latest', 'windows-latest']));
+  assert.deepEqual(new Set([...http.strategy.matrix.include, ...workflow.jobs['http-windows'].strategy.matrix.include].map(entry => entry.os)), new Set(['ubuntu-latest', 'windows-latest']));
   assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');
-  assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'desktop-unit', 'desktop-stable', 'desktop-beta', 'cache-warm']));
+  assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'desktop-unit', 'desktop-stable', 'desktop-beta', 'http-windows', 'quality-unit', 'cache-warm']));
   assert.equal(aggregate.if, '${{ always() }}');
 });
 
