@@ -1792,7 +1792,9 @@ answers }` validates exact own keys and one nonempty answer per question. It
 consumes the pending interaction before dispatch, preventing duplicate delivery.
 A blocking answer uses its exact RPC id. An async answer uses the existing
 `turn/steer` with the active turn's expected ID; if work has completed, the explicit
-answer starts a continuation in the same conversation. Its user message carries
+answer starts a continuation in the same conversation. The answering window's
+display client is retained for subsequent Host-tool questions (CLI answers have
+no rendering client). Its user message carries
 `Litzio question answers (JSON)` with origin IDs, question text and answers. Host
 retains that relation rather than displaying an unlabelled answer or raw JSON.
 A failed/unknown async send is not automatically replayed. Explicit history resume

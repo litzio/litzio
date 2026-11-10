@@ -379,12 +379,12 @@ export class AssistantConversations {
     this.answers.delete(conversation.id); this.refreshQuestion(conversation);
     if (includeAsync) for (const pending of this.questionDisplays.values()) if (pending.conversation === conversation.id) pending.reject?.(new Error("Question display was cancelled."));
   }
-  answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers) {
+  answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers, displayClient?: string) {
     const conversation = this.current(id), question = conversation.turns.find(turn => turn.id === turnId)?.items.find(item => item.question?.requestId === requestId)?.question;
     const respond = this.answers.get(id);
     if (!question || question.status !== "pending" || question.requiresDisplayAck && !question.displayed || question.delivery === "blocking" && (!respond || !conversation.turns.some(turn => turn.id === turnId && turn.status === "inProgress"))) throw new Error("Question expired.");
     if (!validQuestionAnswers(question, answers)) throw new Error("Invalid question answers.");
-    if (question.delivery === "async") return this.answerAsync(conversation, question, answers);
+    if (question.delivery === "async") return this.answerAsync(conversation, question, answers, displayClient);
     question.status = "answered";
     question.answers = recordedAnswers(question, answers);
     this.answers.delete(id); this.refreshQuestion(conversation);
@@ -392,13 +392,13 @@ export class AssistantConversations {
     catch (error) { question.status = "unknown"; question.error = (error as Error).message; throw error; }
     return conversation;
   }
-  private async answerAsync(conversation: AssistantConversation, question: AssistantQuestionRecord, answers: AssistantUserInputAnswers) {
+  private async answerAsync(conversation: AssistantConversation, question: AssistantQuestionRecord, answers: AssistantUserInputAnswers, displayClient?: string) {
     question.status = "sending"; question.answers = recordedAnswers(question, answers); this.refreshQuestion(conversation);
     try {
       this.save(conversation);
       const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
       await this.send({ id: conversation.id, message, folders: conversation.folders, model: conversation.model, reasoningEffort: conversation.reasoningEffort },
-        { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort });
+        { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort }, displayClient);
       question.status = "answered"; this.save(conversation);
       return conversation;
     } catch (error) {

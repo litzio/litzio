@@ -397,7 +397,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
   };
   const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
   const submitAnswer = (question: AssistantUserInput, answers: import("../../shared/assistant.ts").AssistantUserInputAnswers) => run(async isCurrent => {
-    const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers });
+    const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers, displayClient });
     if (isCurrent()) setConversation(next);
   });
   const submissionActions = (value: AssistantLocalSubmission, failure?: string) => {

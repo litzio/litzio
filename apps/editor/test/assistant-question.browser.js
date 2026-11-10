@@ -22,6 +22,7 @@ async (page, { expect, brand }) => {
         return r.fulfill({ json: { acknowledged: true } });
       }
       if (body.action === 'answer') {
+        expect(body.displayClient).toBeTruthy();
         const q = conversation.turns.flatMap(t => t.items).find(i => i.question?.requestId === body.requestId).question;
         q.status = 'answered'; q.answers = body.answers; refreshInput();
       }

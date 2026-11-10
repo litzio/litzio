@@ -662,6 +662,13 @@ test("Host question tool accepts a confirmed conversation renderer and reports h
   assert.equal(failed.result.success, false);
   assert.equal(JSON.parse(failed.result.contentItems[0].text).accepted, false);
   assert.match(JSON.parse(failed.result.contentItems[0].text).error, /No Litzio window confirmed/);
+  await connection.client.request("fixture/finish", { threadId: c.id });
+  await conversations.answer(c.id, q.turnId, q.requestId, { "0": { answers: ["A"] } }, "answer-window");
+  const followupReply = ask("Follow-up after a completed turn");
+  for (let attempt = 0; !c.userInput && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(c.userInput, "an answer continuation retains its rendering client for follow-up questions");
+  conversations.questionVisible(c.id, c.userInput.turnId, c.userInput.requestId, "answer-window");
+  assert.equal((await followupReply).result.success, true);
 });
 
 test("skills use only assistant cwd, enabled catalog, explicit input and context history", async t => {
