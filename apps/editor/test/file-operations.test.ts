@@ -6,11 +6,51 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "../server/file-operations.ts";
+import { executeFolderTrash, deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "../server/file-operations.ts";
 import { accessPath, RootAccess } from "../server/file-access.ts";
 import { nativeSource } from "./helpers/document.ts";
 import { getEditableDocument, parse } from "@litzio/core";
 import { loadDocumentFile } from "../server/document-api.ts";
+
+test("folder trash refuses roots, links, unavailable trash and dirty documents; moves the whole folder", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-trash-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "child"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "keep.txt"), "keep");
+  const access = new RootAccess([root]);
+  let calls = 0;
+  const remove = async (target: string) => { calls++; assert.equal(target, folder); fs.renameSync(target, path.join(root, "moved")); };
+  for (const target of [root, path.dirname(root)]) assert.equal((await executeFolderTrash({ root, path: target }, { access, remove })).receipt.outcome, "refused");
+  const link = path.join(root, "link"); fs.symlinkSync(folder, link, process.platform === "win32" ? "junction" : "dir");
+  assert.equal((await executeFolderTrash({ root, path: link }, { access, remove })).receipt.outcome, "refused");
+  assert.equal((await executeFolderTrash({ root, path: folder }, { access })).receipt.outcome, "refused");
+  assert.equal(calls, 0);
+  const check = await executeFolderTrash({ root, path: folder, checkOnly: true }, { access, remove });
+  assert.equal(check.fileCount, 1); assert.equal(check.countComplete, true);
+  assert.equal((await executeFolderTrash({ root, path: folder, openDocuments: [path.join(folder, "keep.txt")] }, { access, remove })).receipt.outcome, "refused");
+  const result = await executeFolderTrash({ root, path: folder, expectedIdentity: check.identity }, { access, remove });
+  assert.equal(result.receipt.outcome, "success"); assert.equal(calls, 1);
+});
+
+test("folder trash bounds reference inspection and never reports partial removal as success", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-trash-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "images"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "a.svg"), "<svg/>");
+  fs.writeFileSync(path.join(folder, ".hidden.txt"), "hidden files count too");
+  fs.writeFileSync(path.join(root, "ref.md"), nativeSource(":::{figure} ./images/a.svg\n\nCaption.\n:::\n"));
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove: () => {} });
+  assert.deepEqual(checked.references, ["ref.md"]); assert.equal(checked.referencesComplete, true);
+  const incomplete = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove: () => {}, entryLimit: 1 });
+  assert.equal(incomplete.fileCount, 1); assert.equal(incomplete.countComplete, false);
+  assert.equal(incomplete.referencesComplete, false);
+  const partial = await executeFolderTrash({ root, path: folder }, { remove: () => { fs.unlinkSync(path.join(folder, "a.svg")); } });
+  assert.equal(partial.receipt.outcome, "uncertain");
+  const failed = await executeFolderTrash({ root, path: folder }, { remove: () => { throw new Error("locked"); } });
+  assert.equal(failed.receipt.outcome, "uncertain");
+  fs.renameSync(folder, path.join(root, "old")); fs.mkdirSync(folder);
+  assert.equal((await executeFolderTrash({ root, path: folder, expectedIdentity: checked.identity }, { remove: () => {} })).receipt.outcome, "refused");
+});
 
 test("Figure-form rename verifies its checkpoint and reports live/saved paths without saving local properties", t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-figure-rename-"));

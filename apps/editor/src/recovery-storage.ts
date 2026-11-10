@@ -88,7 +88,9 @@ function ticket(barriers: IDBObjectStore, id: string, hostId: string, done: (val
  * IndexedDB transactions order deletion with writes across windows, without relying on messages. */
 export const recoveryStorage = {
   /** File operations invalidate queued writes and move/discard matching records atomically. */
-  changePath(previous: string, next: string | null, expected?: RecoveryRecord[], hostId = LOCAL_HOST_ID): Promise<void> {
+  changePath(previous: string, next: string | null, expected?: RecoveryRecord[], hostId = LOCAL_HOST_ID, descendants = false): Promise<void> {
+    const matches = (locator: { hostId: string; path: string }) => sameLocator(locator, { hostId, path: previous }) ||
+      descendants && locator.hostId === hostId && (locator.path.startsWith(previous + "/") || locator.path.startsWith(previous + "\\"));
     return transaction((records, barriers, done, fail) => {
       const apply = () => {
         // Permission exists before the first record. Revoke all sessions registered to this
@@ -98,7 +100,7 @@ export const recoveryStorage = {
           const entry = pending.result;
           if (!entry) return;
           try {
-            if (Array.isArray(entry.key) && entry.key[0] === "session" && sameLocator(entry.value as Barrier, { hostId, path: previous })) entry.delete();
+            if (Array.isArray(entry.key) && entry.key[0] === "session" && matches(entry.value as Barrier)) entry.delete();
             entry.continue();
           } catch (error) { fail(error); }
         };
@@ -108,7 +110,7 @@ export const recoveryStorage = {
           if (!entry) { done(undefined); return; }
           try {
             const record = entry.value as RecoveryRecord;
-            if (sameLocator(record, { hostId, path: previous })) {
+            if (matches(record)) {
               barriers.delete(["session", record.id]);
               if (next === null) entry.delete();
               else entry.update({ ...record, path: next, snapshot: { ...record.snapshot, file: { ...record.snapshot.file, path: next } } });

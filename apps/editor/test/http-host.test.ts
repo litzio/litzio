@@ -126,6 +126,18 @@ test("HTTP file mutations reuse shared validation, strict bodies and allowlisted
   assert.equal(fs.existsSync(renamed), false);
   assert.deepEqual(trashed, [renamed]);
   assert.deepEqual(fs.readFileSync(path.join(base, "trashed-renamed.md")), original);
+  const folder = path.join(a, "child"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "saved.txt"), "saved");
+  assert.equal((await send("/api/folder-trash", "GET")).status, 405);
+  assert.equal((await send("/api/folder-trash", "POST", { root: a, path: a })).status, 400);
+  const preview = await send("/api/folder-trash", "POST", { root: a, path: folder, checkOnly: true });
+  assert.equal(preview.status, 200);
+  const checked = await preview.json();
+  assert.equal(checked.fileCount, 1);
+  const deleted = await send("/api/folder-trash", "POST", { root: a, path: folder, expectedIdentity: checked.identity });
+  assert.equal(deleted.status, 200);
+  assert.equal((await deleted.json()).receipt.source, "moved");
+  assert.equal(fs.readFileSync(path.join(base, "trashed-child", "saved.txt"), "utf8"), "saved");
   const source = nativeSource(":::{figure} ./image.png\n\nCaption.\n:::\n");
   fs.writeFileSync(file, source); fs.writeFileSync(path.join(b, "document.md"), source);
   fs.unlinkSync(path.join(b, "image.png")); fs.linkSync(path.join(a, "image.png"), path.join(b, "image.png"));

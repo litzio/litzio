@@ -1,4 +1,6 @@
 import { executeCompareOperation } from "../../../apps/editor/server/document-compare.ts";
+import { executeFolderTrash } from "../../../apps/editor/server/file-operations.ts";
+import { osTrashAvailable, trashFile } from "../../../apps/editor/server/os-trash.ts";
 import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
 import { executeTemplateOperation, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
 import { brand } from "../../../brand.ts";
@@ -187,6 +189,7 @@ const COMMANDS: CommandSpec[] = [
   { name: "app-reset", group: "Serve", summary: "Inspect or reset local app and Host data after closing every client",
     usage: `${brand.cliCommand} app-reset inspect|apply [--profile <directory>] [--updater-cache <directory>] [--remove-folders] [--confirm --revision <plan-sha>]`,
     details: ["inspect lists deleted and retained data. apply requires the reviewed revision and confirmation; live Desktop/Host/CLI writers refuse reset. External browser profiles and provider accounts remain untouched."] },
+  { name: "folder-trash", group: "Create and inspect", summary: "Move a child folder to OS Trash", usage: `${brand.cliCommand} folder-trash <path> --root <folder> [--host <origin>] [--check] --json`, details: ["Only descendants of root are eligible. No permanent deletion. --check inspects file count and external image references without moving. Receipts distinguish refusal before mutation from uncertain OS results. Window drafts are not visible to CLI."] },
   { name: "compare", group: "Create and inspect", summary: "Compare native document block meaning (read-only)", usage: `${brand.cliCommand} compare <before> <after> --json`, details: ["Read-only native source snapshots; block paths are snapshot-local. Moves are removed + added. Returns source revision receipts; does not contact a live daemon."] },
   { name: "templates", group: "Create and inspect", summary: "List, read or save document templates",
     usage: `${brand.cliCommand} templates list [--json] [--language <ko|en>]`,
@@ -1937,6 +1940,35 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "folder-trash" && !isCommandHelpRequest(args.slice(1))) {
+    try {
+      const processArgs = args.slice(1);
+      const [target, ...tokens] = processArgs;
+      const seen = new Set<string>();
+      for (let i = 0; i < tokens.length; i++) {
+        const flag = tokens[i];
+        if (!["--root", "--host", "--check", "--json"].includes(flag) || seen.has(flag)) throw new Error(commandHelp("folder-trash"));
+        seen.add(flag);
+        if (["--root", "--host"].includes(flag) && (!tokens[++i] || tokens[i].startsWith("--"))) throw new Error(commandHelp("folder-trash"));
+      }
+      if (!target || target.startsWith("--") || !seen.has("--root") || !seen.has("--json")) throw new Error(commandHelp("folder-trash"));
+      const input = { root: flag(tokens, "--root"), path: target, checkOnly: seen.has("--check") };
+      const origin = optionalFlag(tokens, "--host");
+      let result: import("../../../apps/editor/shared/file-operations.ts").FolderTrashResult;
+      if (origin) {
+        const url = new URL("/api/folder-trash", origin);
+        try {
+          result = await (await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json();
+        } catch {
+          result = { error: "The Host response was interrupted. Check the source folder and OS Trash before trying again.",
+            receipt: { operation: "folder.trash", outcome: input.checkOnly ? "refused" : "uncertain", source: input.checkOnly ? "unchanged" : "unknown", checkOnly: input.checkOnly } };
+        }
+      } else result = await executeFolderTrash(input, { remove: osTrashAvailable() ? trashFile : undefined });
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return result.receipt.outcome === "success" ? 0 : 1;
+    } catch (error) { return reportError(args, error); }
+  }
+
   if (args[0] === "create" && args.includes("--input") && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
     try {
       const { file, flags, format } = parseCommandArgs("create", args.slice(1));

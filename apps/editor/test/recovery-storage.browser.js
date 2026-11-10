@@ -49,6 +49,26 @@ async page => {
     await store.delete(undefined, 'remote');
   });
   // A second window has acquired permission but has never persisted its first record.
+  await page.evaluate(async () => {
+    const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
+    const cases = [['child', '/folder/nested/a.md', 'local'], ['sibling', '/folder-other/a.md', 'local'], ['remote', '/folder/nested/a.md', 'remote']];
+    const make = (id, path, hostId) => ({id, path, hostId, version:2, recordedAt:Date.now(), recoveryText:id, snapshot:{file:{path}}});
+    const tickets = [];
+    for (const [id, path, hostId] of cases) {
+      const token = await store.ticket(id, path, hostId);
+      await store.write(id, token, () => make(id, path, hostId));
+      tickets.push(await store.ticket(id+'-pending', path, hostId));
+    }
+    await store.changePath('/folder', null, undefined, 'local', true);
+    const records = await store.list();
+    if (records.some(r => r.id === 'child') || !records.some(r => r.id === 'sibling') || !records.some(r => r.id === 'remote')) throw new Error('Folder cleanup crossed path/Host boundary');
+    for (let index=0; index<cases.length; index++) {
+      const [id,path,hostId] = cases[index];
+      const written = await store.write(id+'-pending', tickets[index], () => make(id+'-pending',path,hostId));
+      if (written !== (index > 0)) throw new Error('Folder cleanup did not revoke only descendant writers');
+    }
+    await store.delete(); await store.delete(undefined,'remote');
+  });
   // File operations must invalidate that permission for both deletion and rename.
   await page.evaluate(async () => {
     const { recoveryStorage: store } = await import('/src/recovery-storage.ts');

@@ -27,7 +27,8 @@ import { assertUnicode, commitFile, decodeUtf8, FileChangedError } from "@litzio
 import { rootIdentity, accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { readRequestBody, RequestBodyError } from "./request-body.ts";
 import { requestQuery } from "./request-query.ts";
-import { deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "./file-operations.ts";
+import { executeFolderTrash, deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "./file-operations.ts";
+import { osTrashAvailable, trashFile } from "./os-trash.ts";
 import type { FileOperationRequest, RenameFileRequest } from "../shared/file-operations.ts";
 import { resolveDocumentPath, resolveEditorPath, resolveMediaPath } from "./document-path.ts";
 export { DOCUMENT_DIR, resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
@@ -255,7 +256,8 @@ export async function handleDocumentRequest(
     } catch (error) { failure(error); }
     return;
   }
-  if (url === "/api/host-capabilities" && req.method === "GET") { sendJson(res, 200, { fileDeletion: removeFile ? "trash" : "permanent", identity: hostIdentity() }); return; }
+  const folderTrash = removeFile === trashFile && !osTrashAvailable() ? undefined : removeFile;
+  if (url === "/api/host-capabilities" && req.method === "GET") { sendJson(res, 200, { fileDeletion: folderTrash ? "trash" : "permanent", identity: hostIdentity() }); return; }
   if (url === "/api/templates" || url === "/api/template") {
     try {
       if (req.method === "GET") {
@@ -278,6 +280,14 @@ export async function handleDocumentRequest(
       else if (error instanceof ImageRenameError) sendJson(res, 400, { error: error.message, updatedDocuments: error.updatedDocuments, skippedDocuments: error.skippedDocuments });
       else failure(error);
     }
+    return;
+  }
+  if (url === "/api/folder-trash") {
+    if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
+    try {
+      const result = await executeFolderTrash(JSON.parse(await readBody(req)), { access, remove: folderTrash });
+      sendJson(res, result.receipt.outcome === "success" ? 200 : 400, result);
+    } catch (error) { failure(error); }
     return;
   }
   if (url === "/api/file-preview") {

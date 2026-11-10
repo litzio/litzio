@@ -32,6 +32,28 @@ test("Linux home trash preserves bytes and encoded original path with local dele
   assert.ok(new Date(match[2]).getTime() <= Date.now());
 });
 
+test("Linux moves a nonempty folder as one rename; unsupported platforms preserve it", async t => {
+  const { root, trash, options } = fixture(t);
+  const folder = path.join(root, "folder"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "child.txt"), "keep");
+  await assert.rejects(trashFile(folder, { platform: "darwin" }), /unavailable/);
+  assert.equal(fs.readFileSync(path.join(folder, "child.txt"), "utf8"), "keep");
+  await trashFile(folder, options);
+  assert.equal(fs.existsSync(folder), false);
+  assert.equal(fs.readFileSync(path.join(trash, "files", "folder", "child.txt"), "utf8"), "keep");
+});
+
+test("Windows CI recycles one nonempty folder through the daemon adapter", { skip: process.platform !== "win32" || !process.env.CI }, async t => {
+  // Real local trash probes must stay in the worktree; CI follows the same boundary.
+  const parent = path.resolve(import.meta.dirname, "../../../tmp"); fs.mkdirSync(parent, { recursive: true });
+  const root = fs.mkdtempSync(path.join(parent, "folder-trash-ci-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "recycle-me"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "child.txt"), "keep");
+  await trashFile(folder);
+  assert.equal(fs.existsSync(folder), false);
+});
+
 test("Linux collisions preserve both metadata and orphaned trash files, including concurrent deletes", async t => {
   const { root, trash, options } = fixture(t);
   fs.mkdirSync(path.join(trash, "files"), { recursive: true });

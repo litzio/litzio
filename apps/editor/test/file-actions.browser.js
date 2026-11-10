@@ -1,4 +1,4 @@
-async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument } = {}) => {
+async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument, enableFolderTrash } = {}) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const root = fileActionsRoot;
   const sep = root.includes('\\') ? '\\' : '/';
@@ -16,6 +16,63 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await openFolderPicker(page);
   await page.getByTestId('folder-path').fill(root + sep);
   await page.getByTestId('folder-open').click(); await row('a.md').waitFor();
+  // Folder deletion has no permanent fallback on a Vite Host.
+  await row('trash-target').click({button:'right'});
+  const folderDelete = page.getByRole('menuitem', {name:'Delete folder…',exact:true});
+  await expect(folderDelete).toHaveAttribute('aria-disabled','true');
+  await folderDelete.hover();
+  await expect(page.getByText('Folder deletion requires OS Trash. This Host does not provide it.',{exact:true})).toContainText('requires OS Trash');
+  await folderDelete.focus();
+  await expect(page.getByText('Folder deletion requires OS Trash. This Host does not provide it.',{exact:true})).toContainText('requires OS Trash');
+  await page.keyboard.press('Escape');
+  await expect(page.getByText('Folder deletion requires OS Trash. This Host does not provide it.',{exact:true})).toBeHidden();
+  await page.keyboard.press('Escape'); await menu.waitFor({state:'hidden'});
+  await enableFolderTrash();
+  await row('trash-target').getByRole('button', {name:'More actions for trash-target',exact:true}).click();
+  await page.getByRole('menuitem', {name:'Delete folder…',exact:true}).click();
+  await expect(dialog).toContainText('Files: 2');
+  await expect(dialog).toContainText('trash-reference.md');
+  await expect(dialog.getByRole('button',{name:'Cancel',exact:true})).toBeFocused();
+  await cancel();
+  await row('trash-target').click();
+  await row('inside.md').click(); await expect(page.getByTestId('current-file')).toHaveText('inside.md');
+  const inside = activeDocument(page).locator('.document-editor p').first();
+  await inside.click(); await page.keyboard.press('End'); await page.keyboard.type(' Unsaved folder work.');
+  await expect(page.getByRole('tab',{name:'inside.md, Unsaved changes',exact:true})).toBeVisible();
+  await expect.poll(async () => (await recoveryRecords(page)).some(record => record.path.endsWith(sep+'inside.md'))).toBe(true);
+  await context('trash-target','Delete folder…');
+  await dialog.getByRole('button',{name:'Move to Trash',exact:true}).click();
+  await expect(dialog.getByRole('alert')).toContainText('inside.md');
+  await expect(dialog.getByRole('alert')).toContainText('Save these documents');
+  await cancel();
+  await page.keyboard.press('Control+s');
+  await expect(page.getByRole('tab',{name:'inside.md',exact:true})).toBeVisible();
+  if (screenshots) {
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+    await page.getByRole('button',{name:'Appearance & language',exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('ko');
+    for (const width of [1440,640]) {
+      await page.setViewportSize({width,height:900});
+      if (await page.locator('html').getAttribute('data-theme') !== 'dark') await page.getByRole('button',{name:/^색상 모드:/}).click();
+      await row('trash-target').click({button:'right'});
+      await expect(page.getByRole('menuitem',{name:'폴더 삭제…',exact:true})).toBeVisible();
+      await page.screenshot({path:`tmp/file-actions-evidence/after-menu-${width}-ko-dark.png`,mask:[page.locator('.sidebar-folder-name'),page.locator('.sidebar-host-account')]});
+      await page.getByRole('menuitem',{name:'폴더 삭제…',exact:true}).click();
+      await expect(dialog).toContainText('파일 2개');
+      await page.screenshot({path:`tmp/file-actions-evidence/folder-trash-${width}-ko-dark.png`,mask:[page.locator('.sidebar-folder-name'),page.locator('.sidebar-host-account')]});
+      await dialog.getByRole('button',{name:'취소',exact:true}).click(); await dialog.waitFor({state:'hidden'});
+    }
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.setViewportSize({width:1440,height:900});
+    await page.getByRole('tab',{name:'inside.md',exact:true}).click();
+  }
+  await context('trash-target','Delete folder…');
+  await dialog.getByRole('button',{name:'Move to Trash',exact:true}).click(); await dialog.waitFor({state:'hidden'});
+  await expect(row('trash-target')).toHaveCount(0);
+  await expect(page.getByRole('tab',{name:'inside.md',exact:true})).toHaveCount(0);
+  await expect.poll(async () => (await recoveryRecords(page)).some(record => record.path.endsWith(sep+'inside.md'))).toBe(false);
+  await page.unroute('**/api/host-capabilities');
+  await page.reload(); await row('a.md').waitFor();
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await row('a.md').click({button:'right'});
   await page.getByRole('menuitem', {name:'Copy path', exact:true}).click();

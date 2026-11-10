@@ -566,7 +566,7 @@ creation destination. File menus retain their target-specific actions. Child-fol
 right-click (#1064) reuses the same definitions for New document, New folder and
 Open in File Explorer (when supported), targeting the clicked folder exactly.
 Refresh is omitted because the existing handler refreshes opened roots only; Open
-folder and Close folder remain root-only. No rename, delete or move is added. No new command or common interaction
+folder and Close folder remain root-only. Rename and move are not offered. #1401 adds the child-folder Trash action below. No new common interaction
 is introduced; this is the existing U20/P10 action-menu surface without exceptions.
 
 ## Folder Explorer menu (#487)
@@ -586,13 +586,52 @@ Actual Windows root/child Explorer launches and a deleted-folder failure are man
 items (not run). See the [Desktop boundary](desktop-distribution-v1.md#open-folders-in-file-explorer-487).
 
 
+## Child-folder Trash (#1401)
+
+Only child folders below an opened Root offer Delete folder… through the existing
+ContextMenu and row More actions menu. Both use the same target actions; the opened Root
+still offers Close folder only. `host-capabilities.fileDeletion` must be `trash`.
+Otherwise Delete folder… remains unavailable with a hover/focus Tooltip explaining that
+OS Trash is required. No permanent folder deletion or assistant tool is provided.
+
+The shared DangerConfirmation names the folder and counts all contained files (including
+hidden files). Cancel has initial focus. Bounded inspection can show “at least N” and an
+incomplete count. Native documents under the chosen Root but outside the target that reference
+its images are named as a warning, without blocking. Unreadable/non-native documents and
+inspection limits produce an explicit incomplete-reference warning.
+
+Unsaved opened documents in this window refuse deletion with their names and save-first
+guidance. After saving, confirmation moves the entire folder once through the Host OS adapter.
+Success closes its saved tabs, removes matching local recovery records and refreshes loaded
+parent listings. Focus moves to the next surviving row, the preceding row, or the Root toggle.
+Opened Root preferences are unchanged; descendant cache entries are no longer reachable.
+A failed or interrupted OS call may have moved some items: retain tabs/recovery and tell the
+user to inspect the source and OS Trash before retrying. Other windows use the existing file
+operation boundary. [Host/CLI receipt](filesystem-host-boundary-v1.md#child-folder-trash-1401).
+
+Menu comparison at the same target, Korean Dark, 900px height, DPR 1 and 100% zoom:
+[1440px before](assets/folder-trash-1401/before-menu-1440-ko-dark.png) /
+[after](assets/folder-trash-1401/after-menu-1440-ko-dark.png),
+[640px before](assets/folder-trash-1401/before-menu-640-ko-dark.png) /
+[after](assets/folder-trash-1401/after-menu-640-ko-dark.png).
+Before uses FolderTree from base `431c85b7` temporarily restored in the same checkout and
+persistent profile, with the existing file-actions scenario; all working files were restored.
+The before menu has no folder deletion. After uses the trash-capable rename fixture.
+
+Manual visual evidence: [1440px Korean Dark](assets/folder-trash-1401/1440-ko-dark.png)
+and [640px Korean Dark](assets/folder-trash-1401/640-ko-dark.png). Alignment, clipping, Korean wording and dark-theme controls were visually checked in both captures. These use persistent Windows
+Chrome and a rename adapter for the whole scratch folder, not a real OS Trash invocation.
+The existing DangerConfirmation, ContextMenu, DropdownMenu, Tooltip, danger token and Button
+variants are reused without a new surface or interaction exception. Other destructive surfaces
+(file deletion, creation Undo and Settings removal) keep the same Cancel-first confirmation.
+
 ## File context menu (#505 / #504 PR A)
 
 Each file tree row (native/foreign document, image or other file) offers Rename… and Delete file…
 in a shared Base UI ContextMenu. Right click and focused-row Shift+F10 / Menu key open the
 same menu in every Host. These file targets suppress the browser context menu;
 the document body follows the [block context-menu boundary](#body-block-context-menu-223),
-while child-folder rows and Outline retain native behavior; opened root headers and
+while Outline retains native behavior; child-folder rows, opened root headers and
 Explorer blank space follow the folder context-menu contract above. There are no new ellipsis,
 toolbar, F2 or Delete entries. Target-local data supplies IDs, labels, icons, visibility and execution;
 there is no global registry. Keyboard menu navigation is independent of tree arrows; Escape
@@ -607,8 +646,8 @@ non-native Markdown files are named in a notice. [Host checking and rollback](fi
 include saved and applied unsaved work; [session behavior](editing-session-save-v1.md#referenced-image-rename-504)
 defines the same-window boundary and other-window Save conflicts.
 
-Deletion names the file and distinguishes permanent deletion in Vite/HTTP from OS Trash on
-Desktop. An open dirty document additionally says its unsaved changes will be discarded and
+Deletion names the file and distinguishes permanent deletion in Vite from OS Trash on
+the HTTP daemon and Desktop. An open dirty document additionally says its unsaved changes will be discarded and
 uses Delete and discard changes. Cancel has initial focus. The shared danger confirmation blocks
 dismissal while pending and keeps failures visible. Success closes the deleted document's tab,
 removes all local recovery records for that path and focuses the adjacent visible tree item (next,

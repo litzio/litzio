@@ -8,6 +8,8 @@ import { loadDocumentFile, MEDIA_TYPES } from "./document-reader.ts";
 import { resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
 import { figureMediaPath } from "../shared/figure-media-path.ts";
+import type { FolderTrashRequest, FolderTrashResult } from "../shared/file-operations.ts";
+import { TrashPreservedError } from "./os-trash.ts";
 
 export class ReferencedImageError extends Error {
   constructor(readonly references: string[]) { super(`Save these documents before renaming the image: ${references.join(", ")}`); }
@@ -18,12 +20,12 @@ export class ImageRenameError extends Error {
 }
 
 /** No retained roots or sessions: every request validates its chosen folder and file anew. */
-function scope(request: FileOperationRequest, access: FileAccess) {
+function scope(request: FileOperationRequest, access: FileAccess, directory = false) {
   if (!request || typeof request.root !== "string" || !request.root.trim() || typeof request.path !== "string" || !request.path.trim()) throw new Error("Folder and file paths are required.");
   assertUnicode(request.root); assertUnicode(request.path);
   const root = path.resolve(accessPath(request.root, access));
   const file = path.resolve(accessPath(request.path, access));
-  if (!inside(root, file) || root === file || !fs.statSync(root).isDirectory()) throw new FileAccessError();
+  if (!inside(root, file) || path.relative(root, file) === "" || !fs.statSync(root).isDirectory()) throw new FileAccessError();
   // Reuse pinned-root identity checks, including Windows Unicode case-fold lookalikes.
   new RootAccess([root]).resolve(file);
   for (let current = file; ; current = path.dirname(current)) {
@@ -32,8 +34,87 @@ function scope(request: FileOperationRequest, access: FileAccess) {
   }
   if (!inside(fs.realpathSync(root), fs.realpathSync(file))) throw new FileAccessError();
   const owner = fs.lstatSync(file, { bigint: true });
-  if (!owner.isFile()) throw new FileAccessError("Only regular files can be changed.");
+  if (directory ? !owner.isDirectory() : !owner.isFile()) throw new FileAccessError(directory ? "Only directories can be moved to Trash." : "Only regular files can be changed.");
   return { root, file, owner };
+}
+
+/** Stateless Host operation. The adapter receives the folder once, never its children. */
+export async function executeFolderTrash(request: FolderTrashRequest, options: {
+  access?: FileAccess; remove?: (folder: string) => void | Promise<void>; entryLimit?: number;
+} = {}): Promise<FolderTrashResult> {
+  const receipt: FolderTrashResult["receipt"] = { operation: "folder.trash", outcome: "refused", source: "unchanged", checkOnly: request?.checkOnly === true };
+  let attempted = false;
+  const access = options.access ?? LOCAL_FILE_ACCESS;
+  try {
+    if (!options.remove) throw new Error("The Host trash is unavailable.");
+    const { root, file, owner } = scope(request, access, true);
+    const identity = fileIdentity(owner);
+    if (request.checkOnly !== undefined && typeof request.checkOnly !== "boolean") throw new Error("Invalid deletion check.");
+    if (request.expectedIdentity !== undefined && Object.entries(identity).some(([key, value]) => request.expectedIdentity?.[key as keyof FileIdentity] !== value)) throw new Error("The folder changed. Review it and try again.");
+    if (request.openDocuments !== undefined && (!Array.isArray(request.openDocuments) || request.openDocuments.some(value => typeof value !== "string"))) throw new Error("Invalid open documents.");
+    const unsavedDocuments = (request.openDocuments ?? []).map(value => path.resolve(accessPath(value, access))).filter(value => inside(file, value)).map(value => path.relative(root, value));
+    if (unsavedDocuments.length) return { path: file, unsavedDocuments, error: "Save these documents before moving the folder to Trash.", receipt };
+    if (request.checkOnly) {
+      // Limit entries, elapsed work, document count and bytes. Never follow child links.
+      const limit = options.entryLimit ?? 2000, deadline = Date.now() + 250;
+      let visited = 0, documents = 0, fileCount = 0, countComplete = true, referencesComplete = true;
+      const references: string[] = [];
+      const inspectionAccess = new RootAccess([root]);
+      const walk = (start: string, inspect: (target: string, entry: fs.Dirent) => boolean | void): boolean => {
+        const pending = [start];
+        while (pending.length) {
+          if (visited >= limit || Date.now() > deadline) return false;
+          const folder = pending.pop()!;
+          let directory: fs.Dir | undefined;
+          try {
+            if (fs.lstatSync(folder).isSymbolicLink()) throw new FileAccessError();
+            inspectionAccess.resolve(folder);
+            directory = fs.opendirSync(accessPath(folder, access));
+            for (let entry; (entry = directory.readSync());) {
+              if (visited++ >= limit || Date.now() > deadline) return false;
+              const target = path.join(folder, entry.name);
+              if (inspect(target, entry) === false) continue;
+              if (entry.isDirectory() && !entry.isSymbolicLink()) {
+                // Recheck real-path policy if a directory was replaced during inspection.
+                if (fs.lstatSync(target).isSymbolicLink()) throw new FileAccessError();
+                accessPath(target, access); pending.push(target);
+              }
+            }
+          } catch { return false; }
+          finally { directory?.closeSync(); }
+        }
+        return true;
+      };
+      countComplete = walk(file, (_target, entry) => { if (!entry.isDirectory()) fileCount++; });
+      visited = 0;
+      const realFolder = fs.realpathSync(file);
+      referencesComplete = walk(root, (target, entry) => {
+        if (inside(file, target)) return false;
+        if (!entry.isFile() || path.extname(target).toLowerCase() !== ".md") return;
+        if (++documents > 200 || fs.statSync(target).size > 1024 * 1024) { referencesComplete = false; return; }
+        try {
+          const loaded = loadDocumentFile(target, access);
+          if (loaded.document.blocks.some(block => {
+            if (block.block !== "figure" || !block.imageUrl) return false;
+            try { const media = figureMediaPath(block.imageUrl); return !!media && inside(realFolder, fs.realpathSync(resolveMediaPath(media, target, access))); }
+            catch { return false; }
+          })) references.push(path.relative(root, target));
+        } catch { referencesComplete = false; }
+      }) && referencesComplete;
+      return { path: file, identity, fileCount, countComplete, references, referencesComplete, receipt: { ...receipt, outcome: "success" } };
+    }
+    const current = scope(request, access, true);
+    if (Object.entries(identity).some(([key, value]) => fileIdentity(current.owner)[key as keyof FileIdentity] !== value)) throw new Error("The folder changed. Review it and try again.");
+    attempted = true;
+    await options.remove(current.file);
+    // Some OS APIs can return after partial work. A surviving source is never success.
+    if (fs.lstatSync(file, { throwIfNoEntry: false })) throw new Error("The source folder still exists.");
+    return { path: file, receipt: { ...receipt, outcome: "success", source: "moved" } };
+  } catch (error) {
+    const uncertain = attempted && !(error instanceof TrashPreservedError);
+    return { error: uncertain ? "The Trash operation did not complete reliably. Some items may have moved. Check the source folder and OS Trash before trying again." : error instanceof Error ? error.message : String(error),
+      receipt: { ...receipt, outcome: uncertain ? "uncertain" : "refused", source: uncertain ? "unknown" : "unchanged" } };
+  }
 }
 
 function assertOwner(request: FileOperationRequest, owner: fs.BigIntStats, access: FileAccess) {
@@ -42,7 +123,7 @@ function assertOwner(request: FileOperationRequest, owner: fs.BigIntStats, acces
   return current.file;
 }
 
-/** The same validated deletion for permanent Host deletion and Electron shell.trashItem. */
+/** The same validated file deletion for permanent development deletion and OS trash adapters. */
 export async function deleteFile(request: FileOperationRequest, access: FileAccess = LOCAL_FILE_ACCESS, remove: (file: string) => void | Promise<void> = fs.unlinkSync): Promise<{ path: string; revision?: string; identity?: FileIdentity }> {
   const { file, owner } = scope(request, access);
   if (request.expectedRevision !== undefined && typeof request.expectedRevision !== "string") throw new Error("Invalid expected revision.");

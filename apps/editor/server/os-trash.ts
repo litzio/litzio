@@ -5,6 +5,9 @@ import path from "node:path";
 import { homedir } from "node:os";
 
 const execute = promisify(execFile);
+/** Only adapters with a non-mutating failure guarantee may use this error. */
+export class TrashPreservedError extends Error {}
+export function osTrashAvailable(): boolean { return process.platform === "win32" || process.platform === "linux"; }
 
 type TrashOptions = {
   platform?: NodeJS.Platform;
@@ -61,18 +64,18 @@ async function linuxTrash(file: string, options: TrashOptions): Promise<void> {
     const code = (cause as NodeJS.ErrnoException).code;
     // Deliberately path-free, including when the trash is outside allowed roots.
     const reason = code === "EXDEV" ? "The file and home trash are on different devices; per-device trash is unsupported." : `Could not ${phase}.`;
-    throw new Error(`OS trash unavailable: ${reason}${code ? ` (${code})` : ""}`, { cause });
+    throw new TrashPreservedError(`OS trash unavailable: ${reason}${code ? ` (${code})` : ""}`, { cause });
   }
 }
 
-/** OS-owned trash only. Failure must preserve the file; never fall back to unlink. */
+/** OS-owned trash only; never fall back to unlink. Windows failures may be partial. */
 export async function trashFile(file: string, options: TrashOptions = {}): Promise<void> {
   const platform = options.platform ?? process.platform;
   if (platform === "win32") {
     await execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-      "$ErrorActionPreference='Stop'; Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($env:LITZIO_TRASH_FILE, 'OnlyErrorDialogs', 'SendToRecycleBin', 'ThrowException')"],
+      "$ErrorActionPreference='Stop'; Add-Type -AssemblyName Microsoft.VisualBasic; if ([System.IO.Directory]::Exists($env:LITZIO_TRASH_FILE)) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($env:LITZIO_TRASH_FILE, 'OnlyErrorDialogs', 'SendToRecycleBin', 'ThrowException') } else { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($env:LITZIO_TRASH_FILE, 'OnlyErrorDialogs', 'SendToRecycleBin', 'ThrowException') }"],
     { windowsHide: true, env: { ...process.env, LITZIO_TRASH_FILE: file } });
   } else if (platform === "linux") {
     await linuxTrash(file, options);
-  } else throw new Error("OS trash is unavailable on this platform.");
+  } else throw new TrashPreservedError("OS trash is unavailable on this platform.");
 }

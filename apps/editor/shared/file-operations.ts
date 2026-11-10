@@ -3,6 +3,15 @@ export function fileIdentity(stat: { dev: bigint; ino: bigint; birthtimeMs: bigi
   return { dev: stat.dev.toString(), ino: stat.ino.toString(), birthtimeMs: stat.birthtimeMs.toString() };
 }
 export type FileOperationRequest = { root: string; path: string; expectedRevision?: string; expectedIdentity?: FileIdentity; checkOnly?: boolean };
+export type FolderTrashRequest = Pick<FileOperationRequest, "root" | "path" | "expectedIdentity" | "checkOnly"> & {
+  /** Unsaved documents in the calling window only. CLI has no window state. */
+  openDocuments?: string[];
+};
+export type FolderTrashResult = {
+  path?: string; identity?: FileIdentity; fileCount?: number; countComplete?: boolean;
+  references?: string[]; referencesComplete?: boolean; unsavedDocuments?: string[]; error?: string;
+  receipt: { operation: "folder.trash"; outcome: "success" | "refused" | "uncertain"; source: "unchanged" | "moved" | "unknown"; checkOnly: boolean };
+};
 export type RenameFileRequest = FileOperationRequest & {
   /** The stem only. The Host preserves the original extension. */
   name: string;

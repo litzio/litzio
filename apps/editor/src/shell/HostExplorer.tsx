@@ -65,7 +65,7 @@ export function HostExplorer({ onCopyPath, onAddToChat, hostId, documentPath, is
     {problem ? <p role="alert">{problem}</p> : null}
     {folders.trees.map(tree => <FolderTree onCopyPath={onCopyPath} key={tree.root} tree={tree} onAddToChat={onAddToChat} documentPath={documentPath}
       isFileDirty={isFileDirty} fileActionsDisabled={disabled}
-      onFileAction={async (...args) => { const result = await onFileAction(...args); folders.refreshParents(args[2].path); return result; }}
+      onFileAction={async (...args) => { try { return await onFileAction(...args); } finally { folders.refreshParents(args[2].path); } }}
       onNew={(button, path) => beginCreate("file", tree.root, button, path)}
       onNewFolder={(button, path) => beginCreate("folder", tree.root, button, path)}
       onToggleFolder={path => folders.toggle(tree.root, path)} onToggleSection={() => folders.toggleSection(tree.root)}

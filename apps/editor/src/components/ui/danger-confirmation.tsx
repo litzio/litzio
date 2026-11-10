@@ -4,10 +4,11 @@ import { Button } from "./button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog.tsx";
 
 /** Named destructive actions always begin on Cancel and return to the surviving target. */
-export function DangerConfirmation({ title, description, action, pending, error, returnFocus, onConfirm, onClose, children }: {
+export function DangerConfirmation({ title, description, action, pending, error, returnFocus, onConfirm, onClose, children, confirmDisabled }: {
   title: string; description: ReactNode; action: string; pending: boolean; error: string;
   returnFocus: RefObject<HTMLElement | null>; onConfirm(): void; onClose(): void;
   children?: ReactNode;
+  confirmDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   const cancel = useRef<HTMLButtonElement>(null);
@@ -20,7 +21,7 @@ export function DangerConfirmation({ title, description, action, pending, error,
       {error ? <p role="alert" className="text-sm text-destructive [overflow-wrap:anywhere]">{error}</p> : null}
       <DialogFooter>
         <Button ref={cancel} size="sm" variant="secondary" disabled={pending} onClick={onClose}>{t("Cancel")}</Button>
-        <Button size="sm" variant="destructive" disabled={pending} onClick={onConfirm}>{action}</Button>
+        <Button size="sm" variant="destructive" disabled={pending || confirmDisabled} onClick={onConfirm}>{action}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>;
