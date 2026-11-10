@@ -1,11 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
+import { accessPath, canonicalFilePath, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { SDK_VERSION, validateManifest } from "@litzio/plugin-sdk";
 
 import { authoringTemplate } from "./authoring-templates.ts";
 
-export function scaffoldPlugin(directory: string, id: string, access: FileAccess = LOCAL_FILE_ACCESS, creationScope: FileAccess = LOCAL_FILE_ACCESS, template: "greet" | "query" | "file" = "greet") {
+export function scaffoldPlugin(directory: string, id: string, access: FileAccess = LOCAL_FILE_ACCESS, creationScope: FileAccess = LOCAL_FILE_ACCESS, template: "greet" | "query" | "file" = "greet", expectedDirectory?: string) {
   if (!["greet", "query", "file"].includes(template)) throw new Error("Unknown plugin template");
   const example = template === "greet" ? undefined : authoringTemplate(id, template);
   let manifest = validateManifest({ schemaVersion: 1, id, tier: "community", publisher: { id: "local", name: "Local author" }, name: "인사말 예제", version: "0.1.0", requiresSdk: `>=${SDK_VERSION} <1.0.0`, entry: "host.js",
@@ -16,7 +16,12 @@ export function scaffoldPlugin(directory: string, id: string, access: FileAccess
   if (!path.isAbsolute(directory)) throw new Error("Use an absolute directory on the target Host");
   // Require a new directory; no pre-existing files are ever overwritten.
   directory = accessPath(accessPath(directory, access, true), creationScope, true);
+  const expected = expectedDirectory ?? path.join(canonicalFilePath(path.dirname(directory)), path.basename(directory));
+  const checkDirectory = () => {
+    if (path.relative(expected, canonicalFilePath(directory)) !== "") throw new Error("Plugin scaffold directory changed; inspect created files before retrying");
+  };
   mkdirSync(directory);
+  checkDirectory();
   const files = {
     "litzio-plugin.json": JSON.stringify(manifest, null, 2) + "\n",
     "package.json": JSON.stringify({ name: id, version: manifest.version, type: "module", private: true }, null, 2) + "\n",
@@ -48,6 +53,9 @@ export function activate(context) {
 `,
   };
   if (example) files["host.js"] = example.source;
-  for (const [name, content] of Object.entries(files)) writeFileSync(path.join(directory, name), content, { flag: "wx" });
+  for (const [name, content] of Object.entries(files)) {
+    writeFileSync(path.join(directory, name), content, { flag: "wx" });
+    checkDirectory();
+  }
   return { id, directory, files: Object.keys(files) };
 }

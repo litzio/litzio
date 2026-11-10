@@ -28,18 +28,21 @@ test("source and packaged paths retain overrides and the packaged user locations
   const source = hostPaths({ packaged: false, checkoutRoot: root }, {});
   assert.deepEqual(source.assistantDefaults, { model: "gpt-6-luna", reasoningEffort: "low" });
   assert.equal(source.templates, path.join(root, ".litzio-dev", "templates"));
+  assert.equal(source.plugins, path.join(root, ".litzio-dev", "plugins"));
   assert.equal(source.jobHistory, path.join(root, ".litzio-dev", "plugin-jobs.json"));
   assert.equal(source.settingsFile("assistant"), path.join(root, ".litzio-dev", "assistant.json"));
   assert.equal(source.assistant, path.join(root, ".litzio-dev", "assistant"));
   const packaged = hostPaths({ packaged: true }, {});
   assert.deepEqual(packaged.assistantDefaults, { model: "gpt-6.1-sol", reasoningEffort: "medium" });
   assert.equal(packaged.templates, path.join(os.homedir(), brand.folders.shared, "templates"));
+  assert.equal(packaged.plugins, path.join(os.homedir(), brand.folders.shared, "plugins"));
   assert.equal(packaged.jobHistory, path.join(os.homedir(), brand.folders.shared, "plugin-jobs.json"));
   assert.equal(packaged.settingsFile("assistant"), path.join(os.homedir(), brand.folders.shared, "assistant.json"));
   const data = process.platform === "win32" ? path.join(os.homedir(), "AppData", "Roaming")
     : process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support") : path.join(os.homedir(), ".local", "share");
   assert.equal(packaged.assistant, path.join(data, brand.folders.desktopData, "assistant"));
   for (const run of [{ packaged: true }, { packaged: false, checkoutRoot: root }]) {
+    assert.equal(hostPaths(run, { LITZIO_DATA_DIR: root }).plugins, path.join(root, "plugins"));
     const paths = hostPaths(run, { LITZIO_ASSISTANT_SETTINGS_FILE: "settings-override", LITZIO_ASSISTANT_CWD: "cwd-override" });
     assert.equal(paths.settingsFile("plugins"), path.join(run.packaged ? path.join(os.homedir(), brand.folders.shared) : path.join(root, ".litzio-dev"), "plugins.json"));
     assert.equal(paths.settingsFile("assistant"), "settings-override"); assert.equal(paths.assistant, "cwd-override");

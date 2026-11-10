@@ -1,3 +1,4 @@
+import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
@@ -12,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
 import { ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
-import { RootAccess, fileErrorMessage } from "../server/file-access.ts";
+import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
@@ -203,7 +204,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] });
-  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  const plugins = new PluginHost(path.join(root, "plugins.json"), { authoringDirectory: path.join(root, "data", "plugins") });
+  t.after(() => plugins.close());
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), plugins);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
@@ -248,7 +251,25 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(start.input[2], { type: "localImage", path: path.join(root, "image.png") });
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
   assert.deepEqual(JSON.parse(rpc.find(item => item.method === "turn/steer").params.input[1].text.split("(JSON):\n")[1]), { ...JSON.parse(start.input[1].text.split("(JSON):\n")[1]), userMessage: "Only summarize." });
-  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  const canonicalPlugins = path.join(canonicalFilePath(root), "data", "plugins");
+  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root, canonicalPlugins], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  const noFolders = await conversations.send({ message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  const noFolderStart = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start").at(-1).params;
+  assert.deepEqual(noFolderStart.sandboxPolicy.writableRoots, [canonicalPlugins]);
+  assert.deepEqual(noFolders.folders, []);
+  await conversations.interrupt(noFolders.id);
+  assert.equal(existsSync(plugins.authoringDirectory), false, "sandbox path checks must not create the plugins folder");
+  mkdirSync(path.dirname(plugins.authoringDirectory));
+  symlinkSync(root, plugins.authoringDirectory, process.platform === "win32" ? "junction" : "dir");
+  try {
+    const startsBefore = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    await conversations.send({ id: noFolders.id, message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+    const starts = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    assert.equal(starts.length, startsBefore.length + 1);
+    assert.deepEqual(starts.at(-1).params.sandboxPolicy.writableRoots, [], "an unsafe plugins directory is omitted from writableRoots");
+    await conversations.interrupt(noFolders.id);
+  } finally { rmSync(plugins.authoringDirectory); }
+
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);

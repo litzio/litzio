@@ -1,8 +1,11 @@
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { canonicalFilePath } from "../server/file-access.ts";
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
 import { rowSchema, completedReviewSchema } from "@litzio/plugin-sdk";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
@@ -712,11 +715,18 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
 
 test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh reload", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-"));
-  const host = new PluginHost(path.join(root, "state.json")), directory = path.join(root, "greeting"), id = "local.greeting";
+  const documents = path.join(root, "documents"); mkdirSync(documents);
+  const authoringDirectory = path.join(root, "data", "plugins"), id = "local.greeting", directory = path.join(authoringDirectory, id);
+  const access = new RootAccess([documents]);
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory });
   const activity: any[] = [];
-  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
+  const scope = { folders: null, access, permissionMode: "opened-folders" };
   try {
-    await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
+    const created = await executePluginTool(host, { action: "scaffold", id }, e => activity.push(e), scope);
+    assert.equal(created.activity.outcome, "success");
+    assert.ok("result" in created);
+    assert.equal((created.result as any).directory, canonicalFilePath(directory));
+    await assert.rejects(host.invoke("scaffold", { id }), /EEXIST/);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
     assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.4.0 <1.0.0");
     assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
@@ -843,7 +853,8 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
   mkdirSync(allowed); mkdirSync(opened);
   const access = new RootAccess([allowed]);
   const assistant = createPluginService(access, path.join(root, "plugins.json"));
-  const host = new PluginHost(path.join(root, "turn-plugins.json"), { access });
+  const authoringDirectory = path.join(root, "data", "plugins");
+  const host = new PluginHost(path.join(root, "turn-plugins.json"), { access, authoringDirectory });
   const scope = { access, folders: new RootAccess([opened]), permissionMode: "opened-folders" };
   const activities: unknown[] = [];
   try {
@@ -858,10 +869,167 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
     await attempt(path.join(opened, "readonly"), { ...scope, permissionMode: "read-only" });
     await attempt(path.join(opened, "no-scope"), undefined);
     await attempt(outside, { ...scope, permissionMode: "full-access" });
+    for (const turnScope of [undefined, { ...scope, folders: null, permissionMode: "read-only" }, { ...scope, folders: null, permissionMode: "full-access" }]) {
+      const denied = await executePluginTool(host, { action: "scaffold", id: "local.denied" }, () => {}, turnScope);
+      assert.equal(denied.activity.outcome, "failure");
+      assert.equal(existsSync(path.join(authoringDirectory, "local.denied")), false);
+    }
+    const defaultResult = await executePluginTool(host, { action: "scaffold", id: "local.default" }, () => {}, scope);
+    assert.equal(defaultResult.activity.outcome, "success");
+    assert.ok("result" in defaultResult);
+    assert.equal((defaultResult.result as any).directory, canonicalFilePath(path.join(authoringDirectory, "local.default")));
+    await assert.rejects(host.invoke("scaffold", { directory: path.join(authoringDirectory, "explicit"), id: "local.explicit" }), /outside/);
+
     const directory = path.join(opened, "valid");
     const result = await executePluginTool(host, { action: "scaffold", directory, id: "local.valid" }, e => activities.push(e), scope);
     assert.equal(result.activity.outcome, "success"); assert.equal(existsSync(path.join(directory, "host.js")), true);
   } finally { await assistant.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("default scaffold rejects an existing plugins junction before writing outside its directory", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-junction-"));
+  const data = path.join(root, "data"), outside = path.join(root, "outside"), documents = path.join(root, "documents");
+  for (const directory of [data, outside, documents]) mkdirSync(directory);
+  const directory = path.join(data, "plugins"), id = "local.escape";
+  t.after(() => {
+    // Only exact fixture files and empty directories; never traverse a junction for cleanup.
+    if (existsSync(directory)) rmSync(directory);
+    for (const target of [data, outside]) {
+      const artifact = path.join(target, id);
+      if (existsSync(artifact)) {
+        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+        rmdirSync(artifact);
+      }
+    }
+    for (const folder of [documents, outside, data, root]) rmdirSync(folder);
+  });
+  const access = new RootAccess([documents]);
+  for (const target of [data, outside]) {
+    symlinkSync(target, directory, process.platform === "win32" ? "junction" : "dir");
+    const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: directory });
+    try {
+      const result = await executePluginTool(host, { action: "scaffold", id }, () => {}, { access, folders: null, permissionMode: "opened-folders" });
+      assert.equal(result.activity.outcome, "failure");
+      assert.equal(existsSync(path.join(target, id)), false);
+      await assert.rejects(host.invoke("scaffold", { id }), /link/);
+    } finally { await host.close(); rmSync(directory); }
+  }
+  mkdirSync(directory);
+  const leaf = path.join(directory, id);
+  symlinkSync(outside, leaf, process.platform === "win32" ? "junction" : "dir");
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: directory });
+  try {
+    await assert.rejects(host.invoke("scaffold", { id }), /outside/);
+    assert.equal(existsSync(path.join(outside, "host.js")), false);
+  } finally { await host.close(); rmSync(leaf); rmdirSync(directory); }
+});
+
+test("authoring refuses deterministic junction replacements between checking and use", async t => {
+  for (const phase of ["sandbox-stat", "root-adoption", "after-mkdir", "after-write"]) await t.test(phase, async t => {
+    const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-swap-")));
+    const data = path.join(root, "data"), plugins = path.join(data, "plugins"), templates = path.join(data, "templates"), outside = path.join(root, "outside");
+    for (const folder of [data, plugins, templates, outside]) mkdirSync(folder);
+    const id = "local.swap", artifact = path.join(plugins, id), held = path.join(root, "held");
+    const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: plugins });
+    let swapped = false, rootReads = 0;
+    const swap = (directory: string, target: string) => {
+      fs.renameSync(directory, held);
+      symlinkSync(target, directory, process.platform === "win32" ? "junction" : "dir");
+      swapped = true;
+    };
+    const lstat = fs.lstatSync, realpath = process.platform === "win32" ? fs.realpathSync.native : fs.realpathSync, mkdir = fs.mkdirSync, write = fs.writeFileSync;
+    const adoptRoot = (...args: any[]) => {
+      // The first two plugin realpath reads are prechecks; the third adopts RootAccess.
+      if (args[0] === plugins && ++rootReads === 3 && !swapped) swap(plugins, outside);
+      return Reflect.apply(realpath, fs, args);
+    };
+    const replacement = phase === "sandbox-stat" ? t.mock.method(fs, "lstatSync", ((...args: any[]) => {
+      const stat = Reflect.apply(lstat, fs, args);
+      if (args[0] === plugins && !swapped) swap(plugins, templates);
+      return stat;
+    }) as typeof fs.lstatSync) : phase === "root-adoption" ? process.platform === "win32"
+      ? t.mock.method(fs.realpathSync, "native", adoptRoot as typeof fs.realpathSync.native)
+      : t.mock.method(fs, "realpathSync", adoptRoot as typeof fs.realpathSync)
+    : phase === "after-mkdir" ? t.mock.method(fs, "mkdirSync", ((...args: any[]) => {
+      const result = Reflect.apply(mkdir, fs, args);
+      if (args[0] === artifact && !swapped) swap(artifact, outside);
+      return result;
+    }) as typeof fs.mkdirSync) : t.mock.method(fs, "writeFileSync", ((...args: any[]) => {
+      const result = Reflect.apply(write, fs, args);
+      if (path.dirname(String(args[0])) === artifact && !swapped) swap(artifact, outside);
+      return result;
+    }) as typeof fs.writeFileSync);
+    syncBuiltinESMExports();
+    try {
+      if (phase === "sandbox-stat") assert.equal(host.authoringPath(), undefined);
+      else await assert.rejects(host.invoke("scaffold", { id }));
+      assert.equal(swapped, true, "the real directory must be replaced at the intended boundary");
+      assert.equal(existsSync(path.join(outside, "host.js")), false);
+      assert.equal(existsSync(path.join(outside, id, "host.js")), false);
+      if (phase === "after-write") assert.equal(existsSync(path.join(held, "litzio-plugin.json")), true, "failure must leave the created file for inspection");
+    } finally {
+      replacement.mock.restore(); syncBuiltinESMExports(); await host.close();
+      // Remove only this fixture's links, known files and empty directories.
+      const link = phase === "sandbox-stat" || phase === "root-adoption" ? plugins : artifact;
+      if (swapped) rmSync(link);
+      for (const folder of [path.join(outside, id), outside, held, artifact]) {
+        if (!existsSync(folder)) continue;
+        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) {
+          const target = path.join(folder, file); if (existsSync(target)) rmSync(target);
+        }
+        rmdirSync(folder);
+      }
+      for (const folder of [plugins, templates, data, root]) if (existsSync(folder)) rmdirSync(folder);
+    }
+  });
+});
+
+test("authoring accepts aliases above the data folder and validates canonical and configured paths", async t => {
+  const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-parent-")));
+  const data = path.join(root, "real-data"), alias = path.join(root, "data-alias"), documents = path.join(root, "documents");
+  mkdirSync(data); mkdirSync(documents);
+  symlinkSync(data, alias, process.platform === "win32" ? "junction" : "dir");
+  const configured = path.join(process.platform === "win32" ? alias.toUpperCase() : alias, "plugins");
+  const expected = path.join(canonicalFilePath(data), "plugins"), id = "local.alias", artifact = path.join(expected, id);
+  const access = new RootAccess([documents]);
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: configured });
+  t.after(async () => {
+    await host.close(); rmSync(alias);
+    if (existsSync(artifact)) {
+      for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+      rmdirSync(artifact);
+    }
+    if (existsSync(expected)) rmdirSync(expected);
+    for (const folder of [documents, data, root]) rmdirSync(folder);
+  });
+  assert.equal(host.authoringPath(), expected);
+  assert.equal(existsSync(expected), false);
+  const created = await executePluginTool(host, { action: "scaffold", id }, () => {}, { access, folders: null, permissionMode: "opened-folders" });
+  assert.equal(created.activity.outcome, "success"); assert.ok("result" in created);
+  assert.equal((created.result as any).directory, artifact);
+  for (const directory of [artifact, path.join(configured, id)]) {
+    assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
+  }
+});
+
+test("read-only validation never creates a missing plugins directory or its data parent", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-readonly-"));
+  const data = path.join(root, "missing-data"), directory = path.join(data, "plugins");
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: directory });
+  t.after(async () => {
+    await host.close();
+    if (existsSync(directory)) rmdirSync(directory);
+    if (existsSync(data)) rmdirSync(data);
+    rmdirSync(root);
+  });
+  const result = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
+  assert.equal(result.activity.outcome, "failure");
+  assert.equal(existsSync(directory), false);
+  assert.equal(existsSync(data), false);
+  mkdirSync(data);
+  const existingData = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
+  assert.equal(existingData.activity.outcome, "failure");
+  assert.equal(existsSync(directory), false);
 });
 
 test("validation diagnostics never expose source values through Host, assistant, CLI or logs", async t => {
