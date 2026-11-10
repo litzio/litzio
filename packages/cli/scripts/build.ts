@@ -26,7 +26,10 @@ cpSync(path.join(repo, "plugins/onedrive/digest.json"), path.join(destination, "
 for (const item of DESIGNATED_COMMUNITY_PLUGINS) {
   const target = path.join(destination, "community-plugins", item.folder);
   mkdirSync(target, { recursive: true });
-  for (const file of item.files) cpSync(path.join(repo, "community-plugins", item.folder, file), path.join(target, file));
+  for (const file of item.files) {
+    mkdirSync(path.dirname(path.join(target, file)), { recursive: true });
+    cpSync(path.join(repo, "community-plugins", item.folder, file), path.join(target, file));
+  }
 }
 assertDesignatedPluginPayload(destination);
 execSync("pnpm --filter @litzio/editor build", { cwd: repo, stdio: "inherit" });

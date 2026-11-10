@@ -242,3 +242,7 @@ CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|reg
 공통 CLI `review compare --input request.json --host <origin> --json`은 `{root,document,pageNo?}`로 대조 snapshot·progress·generatedBaseline을 읽는다. `review progress`에는 같은 root/document, generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:[1],lastPage:1}`를 보낸다. 결과의 progressSaved/receipt를 확인하고 응답이 유실되면 같은 requestId의 review status를 조회한다. 공용 SDK 0.4.0을 요구하며 아직 공개되지 않은 같은 버전에 포함한다.
 
 검증은 [공용 대조의 검사·1440/640px 전후 캡처](../../docs/design/plugin-stage1-v1.md#1408-검증화면-근거)를 따릅니다. 실제 docling-serve 1.32.0으로 NIST SP 1108r4 발췌 11쪽과 보충 합성 1쪽을 변환했습니다. 넓은 표의 대응·페이지 확인과 200쪽 합성 용량을 별도로 확인했으며 수치·한계는 공용 계약에 기록합니다. 컨테이너를 중지했습니다. 문서의 추출 품질이나 의미 동등성을 보증하지 않습니다.
+
+## 보관 자료
+
+[LSR 1.1 합성 PDF와 작성자 기대 구조](sample/lsr-1.1/README.md)를 보관합니다. Docling 출력 정답이나 품질 합격선이 아니며, 플러그인과 함께 배포되는 체험용 샘플입니다.
