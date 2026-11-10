@@ -14,7 +14,14 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   const mutationPaths = ['rename-pending.txt', 'delete-pending.txt'].map(name => root + sep + name);
   const mutationReads = [], mutations = [];
   const removed = { local: new Set(), remote: new Set() };
-  const comparisonHosts = [], previewHosts = [], assetRequests = [];
+  const comparisonHosts = [], previewHosts = [], assetRequests = [], connectionReads = [];
+  await page.route('**/fixture/remote/api/reviews', route => {
+    const input = route.request().postDataJSON();
+    expect(input.action).toBe('generated-find');
+    expect(input.root === root || input.root.startsWith(root + sep)).toBe(true);
+    connectionReads.push(input.root);
+    return route.fulfill({ json: { documents: [], receipt: { requestId: `00000000-0000-4000-8000-${String(connectionReads.length).padStart(12, '0')}`, operation: 'review.find', version: 1, scope: input.root, outcome: 'success' } } });
+  });
   await page.route('**/fixture/remote/document/**', route => {
     assetRequests.push(route.request().url());
     return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="navy"/></svg>' });
@@ -133,6 +140,7 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
     };
   });
   await page.goto(origin + '/host-fixture');
+  await expect.poll(() => connectionReads.length).toBeGreaterThan(0);
   await page.locator('[data-host-id="local"]').getByRole('treeitem', { name: /same.txt/ }).click();
   await page.locator('[data-host-id="remote"]').getByRole('treeitem', { name: /same.txt/ }).click();
   const local = page.getByRole('tab', { name: /same.txt.*Local/ });
