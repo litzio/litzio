@@ -1761,10 +1761,16 @@ async item observation above is the evidence for the additional shape.
 
 The Context ring keeps the conversation's token usage first. On hover or keyboard
 focus, Codex adds **Account** (login type, email and plan) and **Usage and limits**
-(bucket name, each window's minutes, percent used and reset time). Settings and the
+(bucket name, each window's duration, percent used and reset time). Settings and the
 ring share `AssistantAccount` / `AssistantRateLimits`, their translations and local
-date formatting. A logged-out account shows the existing Host login notice; API-key
-login shows only its type. Neither state shows quota rows. Copilot ACP provides no
+date formatting. Login methods use localized ChatGPT login / API key login labels,
+not provider enum values. Durations split into localized days, hours and minutes
+(300 minutes → 5 hours; 10080 minutes → 7 days). Reset times use local 24-hour
+hours/minutes, adding the locale's numeric month/day only when not today; year and
+seconds are omitted. Each quota window remains one unbroken line and the existing
+Tooltip uses the standard max-w-md width limit. A logged-out account shows the
+existing Host login notice; API-key login shows only its label. Neither state shows
+quota rows. Copilot ACP provides no
 account/quota diagnostic in the current integration, so its ring retains context only.
 
 The existing target-Host diagnostics operation accepts

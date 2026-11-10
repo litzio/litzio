@@ -31,7 +31,7 @@ export function AssistantUsageTooltip({ provider, active, context, children }: {
   }, [client, active, open, provider]);
   return <Tooltip onOpenChange={setOpen}>
     <TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>{children}</TooltipTrigger>
-    <TooltipContent><div className="min-w-0 break-words">
+    <TooltipContent className="max-w-md"><div className="min-w-0 break-words">
       <p>{context}</p>
       {provider === "codex" ? <div className="mt-2 border-t border-current/20 pt-2">
         <strong>{i18n.t("Account")}</strong>

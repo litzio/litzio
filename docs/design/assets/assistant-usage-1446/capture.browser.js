@@ -3,6 +3,7 @@ async (page, { expect, brand }) => {
   // pnpm browser:test quiet-document --screenshots, then restore that file.
   // For Before, temporarily restore AssistantPanel.tsx from the parent commit.
   const stage = 'after';
+  await page.clock.setFixedTime(new Date('2026-11-10T03:00:00Z'));
   const settings = { provider: 'codex', permissionMode: 'read-only', model: 'gpt-6-luna', reasoningEffort: 'low' };
   let conversation;
   await page.route('**/api/assistant/settings*', r => r.fulfill({ json: settings }));
@@ -43,6 +44,7 @@ async (page, { expect, brand }) => {
     const tooltip = page.locator('[data-slot=tooltip-content]');
     await expect(tooltip).toContainText('31,207 / 475,000 tokens');
     if (stage === 'after') await expect(tooltip).toContainText('demo@example.invalid');
+    await page.evaluate(() => document.fonts.ready);
     // Native footer + tooltip crop excludes unrelated Host OS identity and paths.
     const tip = await tooltip.boundingBox(), footer = await panel.locator('.assistant-composer').boundingBox();
     const x = Math.floor(Math.min(tip.x, footer.x)), y = Math.floor(Math.min(tip.y, footer.y) - 8);

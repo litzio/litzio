@@ -807,7 +807,10 @@ The existing Context ring keeps its shared hover/keyboard-focus Tooltip. Account
 and quota details appear only during interaction, using current Tooltip colors,
 spacing and borders; no shell/control geometry changes. AI Settings (U22) and the
 assistant panel share `AssistantAccount` / `AssistantRateLimits`, including login
-state, email/plan and minutes/percent-used/reset wording. Failure stays as a short
+state, email/plan and localized day/hour/minute durations, percent-used and compact
+reset wording (today: time only; otherwise numeric month/day and time; no year or
+seconds). Login method labels are localized. Quota rows stay on one line in the
+standard max-w-md Tooltip. Failure stays as a short
 Unavailable in this tooltip and does not enter chat errors or disable sending.
 Copilot keeps context only because its current ACP integration has no account
 quota diagnostic. No common interaction exception was introduced.

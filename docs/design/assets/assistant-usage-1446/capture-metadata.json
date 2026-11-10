@@ -20,19 +20,19 @@
   "images": [
     {
       "file": "after-1440-dark.png",
-      "sha256": "4055b6e3f843e775a5c9790c77d266e65da6edca41bfcde639f4761215e8712f"
+      "sha256": "0933264510728fd6e06ab9e944653ef8697be977b47b02cf113d3b298b35ca1f"
     },
     {
       "file": "after-1440-light.png",
-      "sha256": "36a9eee83ef08d15b0774ac07af50b65fdc3232c01b69b3709bd6bb420921e91"
+      "sha256": "def21031759b274b30ca32076a1c15aff14aa0c55141c21d0ca99b674c3b3e7e"
     },
     {
       "file": "after-640-dark.png",
-      "sha256": "205c350dc7f3269823f8a768d773455f94f0783e420a30c1761efb1333745508"
+      "sha256": "9c6bb658716e9b0ff93cf1365decd2497fcbab82cc7e4ee67debdce038bc17a4"
     },
     {
       "file": "after-640-light.png",
-      "sha256": "022fee0a86d961cc1813a668c7db0060cf75e5fd6eb406325c5c5e0e70694845"
+      "sha256": "3473805ebbe292c9a775d3d7256eecdf84e1c94806448d37cd11b74a7fffbd6f"
     },
     {
       "file": "before-1440-dark.png",
@@ -50,5 +50,6 @@
       "file": "before-640-light.png",
       "sha256": "8243e3e5ee14350b420b3d7c7f98bc9a311673824f99b4fc049ffdaf2a956cde"
     }
-  ]
+  ],
+  "afterFixedClockUtc": "2026-11-10T03:00:00Z"
 }

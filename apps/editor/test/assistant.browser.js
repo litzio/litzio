@@ -544,10 +544,15 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText('810 / 1,000 tokens · 81%');
   const contextTooltip = page.locator('[data-slot=tooltip-content]');
-  await expect(contextTooltip).toContainText('chatgpt · example@example.invalid · plus');
-  await expect(contextTooltip).toContainText('300 minutes · 28% used');
-  await expect(contextTooltip).toContainText('10080 minutes · 12% used');
-  await expect(contextTooltip).toContainText('Resets:');
+  await expect(contextTooltip).toContainText('ChatGPT login · example@example.invalid · plus');
+  await expect(contextTooltip).toContainText('5 hours · 28% used');
+  await expect(contextTooltip).toContainText('7 days · 12% used');
+  await expect(contextTooltip).toContainText('Resets ');
+  // Quota windows remain single readable rows inside the tooltip, not clipped.
+  for (const row of await contextTooltip.locator('p').all()) {
+    if (!(await row.textContent()).includes('% used')) continue;
+    expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
   await page.mouse.move(0, 0);
   await expect(contextTooltip).toHaveCount(0);
   summaryFail = true;
@@ -562,7 +567,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(contextTooltip).toHaveCount(0);
   summaryFail = false; summaryAccount = { type: 'apiKey' };
   await panel.getByRole('img', { name: 'Context usage' }).hover();
-  await expect(contextTooltip).toContainText('apiKey');
+  await expect(contextTooltip).toContainText('API key login');
   await expect(contextTooltip).not.toContainText('Usage and limits');
   await page.mouse.move(0, 0); await expect(contextTooltip).toHaveCount(0);
   summaryAccount = null;
