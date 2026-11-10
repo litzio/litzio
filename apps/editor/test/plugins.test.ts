@@ -83,9 +83,9 @@ test("Docling comparison uses immutable provenance, final targets and portable p
   assert.deepEqual(record,{patches:[],checkedPages:[1],lastPage:1,approval:null});
   assert.throws(()=>setProgress(doc,record,{checkedPages:[2],lastPage:2}),/Invalid/);
   assert.throws(()=>setProgress(doc,record,{checkedPages:[1,1],lastPage:1}),/Invalid/);
-  record.patches.push({type:"kind",self_ref:"#/texts/4",kind:"heading",level:2});
-  const corrected = await convertDocument(doc,"source",record.patches);
-  const correctedMaterial = comparison({document:doc},record,corrected.report,{generation:"corrected",sourceRevision:"revision",result:{revision:corrected.report.documentRevision}});
+  const correctedRecord = {...record,patches:[{type:"kind",self_ref:"#/texts/4",kind:"heading",level:2}]};
+  const corrected = await convertDocument(doc,"source",correctedRecord.patches);
+  const correctedMaterial = comparison({document:doc},correctedRecord,corrected.report,{generation:"corrected",sourceRevision:"revision",result:{revision:corrected.report.documentRevision}});
   assert.equal(correctedMaterial.pages[0].regions.find((r: any)=>r.id === "region-texts-4-0").category,"section_header");
   assert.equal(correctedMaterial.pages[0].regions.find((r: any)=>r.id === "region-texts-4-0").kind,"heading");
   delete doc.texts[1].prov; delete doc.texts[0].prov;
