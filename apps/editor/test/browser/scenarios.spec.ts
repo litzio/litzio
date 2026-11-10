@@ -449,8 +449,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       expect(decoded.manifest.source.sha256).toBe(createHash("sha256").update(sourceBytes).digest("hex"));
       expect(decoded.manifest.result.sha256).toBe(createHash("sha256").update(rawResult).digest("hex"));
       expect(decoded.manifest.profile).toEqual(PDF_PROFILE);
-      expect(decoded.manifest.version).toBe(2);
-      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.9");
+      expect(decoded.manifest.version).toBe(3);
+      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.10");
       expect(decoded.manifest.images[0].sha256).toBe(createHash("sha256").update(png).digest("hex"));
       conversionState = "failure";
       await expect(convertPdfToArchive({ file: source, serverUrl })).rejects.toThrow(/task fixture-2/);

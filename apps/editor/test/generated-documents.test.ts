@@ -9,6 +9,134 @@ import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { loadDocumentFile } from "../server/document-reader.ts";
 import { generatedDocumentIdentity, generatedDocumentLinkPath, isManagedGeneratedDocument } from "../server/generated-document.ts";
+import { emptyReviewLedger, updateReviewLedger, workspaceSnapshotSchema, type ReviewGroupTarget } from "@litzio/plugin-sdk";
+
+test("generic workspace groups preserve source and history through partial decisions, Undo, failures and CLI JSON", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-review-groups-")), file = path.join(root, "review.bin");
+  const digest = (value: unknown) => textRevision(JSON.stringify(value));
+  const original = { pdf: "%PDF-immutable", json: "immutable source JSON" };
+  writeFileSync(file, JSON.stringify({ original, edits: [], ledger: emptyReviewLedger(), snapshot: null }));
+  let fail = "";
+  const provider = async (_operation: string, input: any) => {
+    const record = JSON.parse(readFileSync(input.file, "utf8"));
+    const contentRevision = digest(record.edits);
+    if (input.mode === fail) throw new Error("Injected candidate failure");
+    const state = () => ({ record, ledger: record.ledger, items: [], snapshot: record.snapshot, cacheState: record.snapshot ? "current" : "missing" });
+    if (input.mode === "workspace-read") return { result: state() };
+    if (input.mode === "workspace-prepare") {
+      if (input.change) record.ledger = updateReviewLedger(record.ledger, input.change, {
+        contentRevision, snapshotHash: digest(record.snapshot), current: true, requestId: input.requestId, revision: input.revision, at: input.at,
+        apply(target: ReviewGroupTarget) { record.edits.push(...target.patch.operations); return [{ restore: "original" }]; },
+        undo(_target, inverse) { record.edits.push(...inverse); },
+      });
+      const preserveSnapshot = contentRevision === digest(record.edits) && !!record.snapshot;
+      writeFileSync(input.resultFile.path, JSON.stringify(record));
+      return { result: preserveSnapshot ? { preserveSnapshot: true } : {
+        // A derived input can own several Core targets. A merged input represents both source IDs.
+        build: { authoring: { inputs: record.edits.length ? [{ key: "merged:a+b", blocks: [{kind:"paragraph", text: JSON.stringify(record.edits)}] }] : [{ key: "split:a", blocks: [{kind:"paragraph",text:"First"},{kind:"paragraph",text:"Second"}] }] }, images: [] },
+        imageRefs: [], contentRevision: digest(record.edits), adapterVersion: "generic-1",
+      } };
+    }
+    if (input.mode === "workspace-seal") {
+      record.snapshot = workspaceSnapshotSchema.parse({ ...input.snapshot, cacheKey: digest(input.snapshot) });
+      record.lineage = Object.fromEntries(input.snapshot.inputs.flatMap((item:any) => (item.key === "split:a" ? ["a"] : ["a","b"]).map(id => [id,item.targets])));
+      writeFileSync(input.resultFile.path, JSON.stringify(record)); return { result: state() };
+    }
+    throw new Error("Unexpected provider mode");
+  };
+  const service = () => new GeneratedDocuments(new RootAccess([root]), () => ({ workspace: true, operation: "fixture", version: 1, assertCurrent() {} }), provider);
+  let host = service();
+  const base = { root, workspace: "review.bin", plugin: "fixture", job: "import" };
+  const read = () => host.execute({ ...base, action: "workspace-groups-read" });
+  const mutate = (change: unknown, baseline = textRevision(readFileSync(file,"utf8")), requestId = randomUUID()) => host.execute({ ...base, action: "workspace-review-change", change, baseline, requestId });
+  const human = { actor: "human", reason: "Reviewed exact target and change", confirmed: true };
+  try {
+    const opened = await host.execute({ ...base, action: "workspace-open", baseline: textRevision(readFileSync(file,"utf8")), requestId: randomUUID() });
+    assert.equal(opened.receipt.outcome, "success", JSON.stringify(opened));
+    assert.equal(opened.snapshot.inputs[0].targets.length, 2, "one source binds to multiple final Core targets");
+    assert.deepEqual(opened.record.lineage.a,opened.snapshot.inputs[0].targets);
+    await mutate({kind:"required-checks",inventory:{contentRevision:opened.contentRevision,pages:[1],targets:["a"],lenses:["text"],requiredChecks:[],complete:true},records:[]});
+    await mutate({kind:"inspection",records:[{lens:"text",runId:"run-initial",contentRevision:opened.contentRevision,scope:{pages:[1],targets:["a"]},state:"no-issue",evidence:"Complete fixture scope"}],comparisons:[]});
+    const completed=await mutate({kind:"completion",human});
+    assert.equal(completed.completion.approved,true,JSON.stringify(completed));
+    assert.equal(completed.completion.snapshotHash,digest(opened.snapshot));
+    const approvedBytes=readFileSync(file), changedMapping=JSON.parse(approvedBytes.toString());
+    changedMapping.snapshot.cacheKey="b".repeat(64);writeFileSync(file,JSON.stringify(changedMapping));
+    assert.equal((await read()).completion.approved,false,"unchanged Markdown cannot preserve approval across a different snapshot binding");
+    writeFileSync(file,approvedBytes);
+    const target = (id: string) => ({ id, locator: { source: id }, pages: [1], regions: [], before: ["old"],
+      evidence: [{ observation: "Original differs", materialRef: "page-1", materialHash: "a".repeat(64), inspector: "fixture/1", scope: { pages: [1], targets: [id] } }],
+      patch: { expectedBefore: ["old"], expectedContentRevision: opened.contentRevision, operations: [{ text: "new", source: id }], after: ["new"], supported: true, deferredReason: null },
+      inspection: "uncertain", proposal: "proposed", result: null, resolved: false, history: [] });
+    const group = { id: "g1", reasonCode: "text", reason: "Wrong text", provider: "fixture", providerVersion: "1", sourceRevision: "a".repeat(64), contentRevision: opened.contentRevision,
+      createdAt: new Date().toISOString(), runId: "run", representativeTargetId: "a", representativeReason: "Visible difference", splitFrom: null, targets: [target("a"), target("b")] };
+    const proposed = await mutate({kind:"groups-propose",groups:[group]});
+    assert.equal(proposed.receipt.outcome,"success", JSON.stringify(proposed)); assert.deepEqual(proposed.snapshot,opened.snapshot);
+    assert.equal(proposed.ledger.approval,null);
+    const before = readFileSync(file);
+    assert.equal((await mutate({kind:"groups-approve",groupId:"g1",targetIds:["a"],human,resolvesIssue:true})).receipt.outcome,"failure");
+    assert.deepEqual(readFileSync(file),before,"partial decisions require an explicit remainder identity");
+    const rejected = await mutate({kind:"groups-reject",groupId:"g1",targetIds:["b"],remainderGroupId:"g2",human,resolvesIssue:false});
+    assert.equal(rejected.ledger.groups[0].targets[0].resolved,false,"rejecting a real issue does not resolve it");
+    assert.equal(rejected.ledger.groups[1].splitFrom,"g1");
+    fail="workspace-prepare";
+    assert.equal((await mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true})).receipt.outcome,"failure");
+    fail="";
+    const fs = (await import("node:fs")).default, { syncBuiltinESMExports } = await import("node:module");
+    const rename = fs.renameSync, beforeCommit = readFileSync(file);
+    const fault = t.mock.method(fs,"renameSync",(from: import("node:fs").PathLike,to: import("node:fs").PathLike)=>{if(to===file)throw Object.assign(new Error("Injected commit failure"),{code:"EACCES"});return rename(from,to);});
+    syncBuiltinESMExports();
+    try {
+      const failed = await mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true});
+      assert.equal(failed.receipt.outcome,"uncertain");assert.deepEqual(readFileSync(file),beforeCommit);
+      await assert.rejects(mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true}),/Uncertain workspace/);
+      await host.execute({action:"workspace-status",requestId:failed.receipt.requestId}); await read();
+    } finally {fault.mock.restore();syncBuiltinESMExports();}
+    const requestId=randomUUID();
+    const approved = await mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true},rejected.baseline,requestId);
+    assert.equal(approved.receipt.outcome,"success",JSON.stringify(approved));
+    assert.equal(approved.snapshot.inputs[0].key,"merged:a+b");
+    assert.equal(approved.snapshot.inputs[0].targets.length,1,"many source IDs bind to the same final Core target");
+    assert.deepEqual(approved.record.lineage.a,approved.record.lineage.b);
+    assert.equal(approved.record.lineage.a[0].documentRevision,approved.documentRevision);
+    assert.deepEqual(approved.record.original,original); assert.notEqual(approved.documentRevision,opened.documentRevision);
+    assert.equal((await host.execute({action:"workspace-status",requestId})).receipt.outcome,"success");
+    await assert.rejects(mutate({kind:"groups-undo",groupId:"g2",targetIds:["a"],human},approved.baseline,requestId),/Duplicate requestId/);
+    assert.equal((await mutate({kind:"groups-undo",groupId:"g2",targetIds:["a"],human},opened.baseline)).receipt.outcome,"failure");
+    const undone = await mutate({kind:"groups-undo",groupId:"g2",targetIds:["a"],human});
+    const histories = undone.ledger.groups[1].targets[0].history;
+    assert.deepEqual(histories.map((h:any)=>h.action),["approved","undone"]);
+    assert.equal(histories[1].undoOf,histories[0].id); assert.equal(undone.ledger.groups[1].targets[0].resolved,false);
+    assert.deepEqual(undone.record.edits.slice(0,approved.record.edits.length),approved.record.edits,"Undo appends, never erases ledger entries");
+    host = service(); assert.equal((await host.execute({action:"workspace-status",requestId})).state,"unknown");
+    assert.deepEqual((await read()).ledger,undone.ledger);
+
+    // One real CLI subprocess covers argument parsing, HTTP dispatch and stdout JSON, without a daemon or AI process.
+    const { createServer } = await import("node:http"), { spawn } = await import("node:child_process");
+    const { DAEMON_PROTOCOL } = await import("../shared/daemon-version.ts");
+    const server = createServer(async (req,res) => {
+      res.setHeader("Content-Type","application/json");
+      if(req.url==="/daemon/health") { res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL})); return; }
+      try { let body="";for await(const chunk of req)body+=chunk;res.end(JSON.stringify(await host.execute(JSON.parse(body)))); }
+      catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}
+    });
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    try {
+      const input=path.join(root,"input.json"), replacement=structuredClone(group);
+      replacement.id="cli-replacement";replacement.targets=[replacement.targets[0]!];replacement.contentRevision=undone.contentRevision;
+      replacement.targets[0]!.patch.expectedContentRevision=undone.contentRevision;
+      writeFileSync(input,JSON.stringify({...base,baseline:undone.baseline,requestId:randomUUID(),change:{groups:[replacement],supersedes:[{groupId:"g2",targetIds:["a"],replacementGroupId:replacement.id}]}}));
+      const address=server.address() as {port:number};
+      const cli = spawn(process.execPath,["--import","tsx",path.resolve("../../packages/cli/src/cli.ts"),"review","groups","propose","--input",input,"--host",`http://127.0.0.1:${address.port}`,"--json"],{windowsHide:true});
+      let stdout="",stderr="";cli.stdout.on("data",b=>stdout+=b);cli.stderr.on("data",b=>stderr+=b);
+      const exit=await new Promise<number|null>((resolve,reject)=>{cli.on("error",reject);cli.on("exit",resolve);});
+      assert.equal(exit,0,stderr+stdout);
+      const fromCli=JSON.parse(stdout);assert.deepEqual(fromCli.ledger.groups[0],undone.ledger.groups[0]);
+      assert.deepEqual(fromCli.ledger.groups[1].targets[0].history.map((event:any)=>event.action),["approved","undone","superseded"]);
+      assert.equal(fromCli.ledger.groups[2].id,replacement.id);assert.equal(fromCli.ledger.groups[1].targets[0].history.at(-1).supersededBy.groupId,replacement.id);
+    } finally { await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve())); }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
 
 test("filesystem-distinct Unicode document names keep separate connections and admission locks across atomic Save", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-generated-unicode-"));

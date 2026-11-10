@@ -845,6 +845,89 @@ Docling adapter는 `current/snapshot.json`에 final correspondence를 추가해 
 
 workspace 선언은 K1 시작과 기존 generated-document 연결/재생성으로 외부 문서를 만들지 않는다. 같은 provider의 검수는 workspace 작업을 사용하고 일반 문서는 명시 current export로만 만든다. 같은 workspace 작업 중 읽기는 대기한 뒤 revision을 다시 검증하며, 쓰기는 기존 배타적 admission과 baseline 충돌을 유지한다.
 
+## Review 문제 묶음·검사 기록 (#1462 P2)
+
+미릴리스 SDK 0.4.0에 `reviewLedgerSchema/reviewLedgerChangeSchema`, 순수 provider용
+`updateReviewLedger/evaluateReviewCompletion`과 `REVIEW_LEDGER_OPERATIONS`를 추가했다.
+기존 `/api/reviews` dispatcher와 native-document workspace provider를 사용하며 새 registry나
+backend는 없다. Host는 형식의 locator·패치를 해석하지 않고 admission·baseline·candidate·Core
+canonical snapshot 검증·단일 파일 교체·receipt를 소유한다. provider는 휴대 가능한 record와
+원본 형식의 expected-before 검증·patch replay·역연산을 소유한다.
+
+| CLI (`--input <json> --host <origin> --json`) | dispatcher action / 입력 |
+| --- | --- |
+| `review groups read` | `workspace-groups-read`, 공통 `{root,workspace,plugin,job}` |
+| `review groups propose/approve/reject/undo` | `workspace-review-change`, 공통 입력+baseline/requestId+`change`; CLI가 `change.kind:groups-<action>`만 지정 |
+| `review inspection` | change 없으면 `workspace-inspection`; 있으면 `workspace-review-change`/`kind:inspection` |
+| `review required-checks` | change 없으면 `workspace-required-checks`; 있으면 `workspace-review-change`/`kind:required-checks` |
+| `review completion` | change 없으면 `workspace-completion`; 있으면 `workspace-review-change`/`kind:completion` |
+| `review workspace-status` | 기존 `workspace-status {requestId}`. 기존 generated-document status도 유지 |
+
+모든 읽기는 전체 검증 record/ledger·snapshot·live baseline·완료 조건을 반환하며 prepare하지 않는다.
+`workspaceState.ledger`는 일반 provider의 선택 필드다. 제공하면 완료를 계산하고, 제공하지 않는
+기존 provider는 `not-evaluated`다. 대조/export의 기존 completion 표시는 P11까지 그대로다.
+읽기별 영속 상태나 별도 Host ledger를 만들지 않는다. 쓰기는 현재 cache가 필요하며 metadata
+변경만이면 provider가 `preserveSnapshot:true`를 반환한다. Host는 candidate의 canonical snapshot이
+기존 것과 정확히 같은지 검증한다. approve/Undo의 source 변화는 P1 author/seal 경로로 다시 작성한다.
+
+묶음은 이유·provider/version·source/content revision·대표/선정 이유와 개별 대상의 opaque locator,
+페이지/영역·before·해시가 있는 자료 근거·patch 예상 전후/revision·지원/보류 이유를 보존한다.
+검사(`not-inspected/uncertain/no-issue`), 판단(`proposed/approved/rejected/superseded`), 적용 결과
+(`applied/regeneration-required/uncertain`)는 별도 필드다. 사람 판단은 `{actor,reason,confirmed:true}`와
+정확한 targetIds가 필요하다. 일부 대상만 처리하려면 새 `remainderGroupId`를 명시하며 남은
+대상을 그 묶음으로 옮기고 `splitFrom`과 모든 이력을 유지한다. 거절의 `resolvesIssue:false`는
+알려진 문제를 닫지 않는다. Undo는 승인 event를 지우지 않고 `undoOf`/`undone`을 추가하여 다시 연다.
+Undo도 propose와 같은 열린 중복 검사를 원본 replay 전에 수행하며, 충돌하면 묶음·대상 ID를 오류에 명시하고 원본/ledger를 보존한 채 거부한다. 충돌 제안을 자동 폐기하지 않는다.
+과거 event의 requestId는 Host receipt 조회 참조이며 daemon 재시작 뒤 실행 권한이 아니다.
+
+교정 후 stale인 제안이나 Undo로 다시 열린 제안은 승인 revision 검사를 완화하지 않는다.
+현재 revision의 근거로 새 묶음을 propose하면서 `change.supersedes:[{groupId,targetIds,replacementGroupId}]`를
+함께 지정한다. replacementGroupId는 같은 요청의 새 groups 중 하나다. 기존 대상은 proposed(Undo 재개 포함)여야
+하며 이미 승인·거절·대체된 대상은 거부한다. provider/source revision·reasonCode와 opaque locator가 같은 새
+대상으로만 대체할 수 있다. 이전 대상과 기존 이력은 유지하고 `proposal:superseded`와 새 묶음/대상 ID를 담은
+`superseded` event의 `supersededBy`를 추가한다. 이는 사람 승인 event가 아니므로 human은 null이다.
+대체된 대상만 열린 문제/완료 판정에서 제외하며 새 제안은 여전히 사람 승인이 필요하다.
+
+같은 workspace에서 target ID가 같거나 동일 provider/source revision의 opaque locator가 구조적으로 같고 reasonCode가 같은
+열린 proposed 대상은 명시 대체 없이 중복 저장할 수 없다. target ID를 바꾸거나 locator의 object key 순서를
+바꿔도 이 정책을 우회하지 않는다. 다른 reasonCode의 문제는 동시에 남길 수 있으며 각각 처리해야 완료된다.
+CLI `review groups propose`와 비서 propose 계약은 동일한 change/schema를 전달한다. 별도 자동 재승인 작업은 없다.
+
+inventory는 content revision·페이지/항목·렌즈 목록과 모든 그림/표 source 의무를 받는다. 추출은
+P4다. `required-checks`는 정확한 targetIds·content revision·직접 확인 또는 승인 대조 run의
+범위/완료/결과 반영과 사람 근거·결과를 기록한다. 이미지 열기나 렌즈 0후보는 확인 event가 아니다.
+같은 revision의 최신 검사/대조 run 상태와 대상별 최신 확인 결과를 사용하고 이전 성공으로
+실패/판단 불가를 숨기지 않는다. 원본 의무를 inventory 갱신으로 제거할 수 없다.
+approved-comparison의 수락과 매 완료 계산은 모두 같은 runId의 **마지막 기록**을 먼저 고른 뒤 현재 content
+revision·compared/selected·철회 없음·승인/실제 페이지와 대상 범위를 검사한다. 최신 상태가 미완료·철회됐거나
+다른 revision이면 이전 compared로 되돌아가 확인을 인정하지 않는다. 이미 저장한 필수 확인도 run의 최신 근거가
+무효가 되면 완료를 막는다. 본문 대조 철회 후에도 그림·표의 확인 의무는 남으며 직접 확인 또는 유효한 새 대조로
+처리해야 한다. 철회된 run은 현재 compared 페이지에도 포함하지 않는다.
+
+완료 결과는 `ready/incomplete/contentRevision/snapshotHash/ledgerRevision/notComparedPages/approved`다.
+현재 전체 inventory·렌즈 coverage, 열린/판단 불가 묶음 0, 필수 확인 처리, 현재 canonical snapshot과
+미확정 요청 0을 각각 검사한다. 선택한 대조가 미완료면 차단하고 선택하지 않은 본문은 미대조로
+남긴다. snapshotHash는 workspaceSnapshotSchema로 검증·정규화한 전체 snapshot JSON의 SHA-256이다. 본문 hash가 같아도 대응/생성 계약이 바뀌면 달라진다.
+최종 사람 승인은 ledger/content revision·snapshot hash에 고정하며 이후 ledger 변경은
+승인을 비운다. source 교정·Undo는 이전 coverage를 stale로 만들어 재검사를 요구한다. 공식 export
+gate/UI는 P11이며 현재 export를 완료 export로 바꾸지 않는다.
+
+publication 결과가 uncertain이면 파일 identity별 Host 잠금을 유지한다. 같은 requestId status를
+조회한 뒤 검증된 workspace read를 해야 잠금이 풀린다. 다른 requestId 쓰기와 자동 재전송은
+거부한다. 재시작 후 unknown은 자동 replay하지 않고 새 파일 읽기/새 baseline으로 이어간다.
+`REVIEW_LEDGER_OPERATIONS`의 비서 계약은 같은 입력 schema와 read/propose/inspection 작업을
+가리키며 approve/reject/Undo/최종 승인은 humanOnly다. 실제 AI adapter 등록·실행은 P5다.
+
+Docling은 ZIP format 3, review record version 3, plugin 0.0.10이다. 원본 PDF/JSON/manifest와
+patch 이전 항목은 보존하고 Undo inverse를 ordered patches 뒤에 추가한다. 대상별 expected-before,
+locator와 expected-after를 확인하며 Undo 역연산도 각 영향 값이 승인 뒤의 예상값인지 확인한다.
+기존 네 patch로 원상 표현할 수 없는 kind는 거부한다. source-format 원본 inventory의 그림·표
+누락, 완전하다고 주장한 7개 렌즈/페이지/항목 누락을 거부한다. 과거 archive/record migration은 없다.
+Docling 제안 수락 시에도 provider가 모든 원본 locator의 item(지정한 실제 cell 포함) 존재를 검증한다.
+지원 불가/보류 제안도 이 검사를 생략하지 않는다. SDK·Host는 self_ref나 Docling 배열을 해석하지 않는다.
+
+검증 계층·실행 범위와 미확인 조건은 [P2 기록](docling-review-stage3.md#p2-공용-묶음저장-경계)을 따른다.
+
 ## 생성 문서 대조 진입점 (#1465)
 
 문서의 기존 플러그인 관리 Notice는 연결된 작업이 `comparison`을 선언하고 현재 활성화된 경우

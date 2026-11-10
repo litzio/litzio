@@ -1,6 +1,7 @@
 import { reviewBundleSchema, reviewPageSchema, reviewMappingSchema, type ReviewBundle } from "@litzio/core/views-v2";
 export * from "./generated-document.ts";
 export * from "./review-workspace.ts";
+export * from "./review-ledger.ts";
 import { queryViewSchema, reviewContributionSchema, validateCatalogView, compileViewInputSchema } from "@litzio/core/views-v2";
 export * from "@litzio/core/views-v2";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DocumentAuthoringError, type DocumentAuthoringInput, type AuthoredDocument } from "@litzio/core";
