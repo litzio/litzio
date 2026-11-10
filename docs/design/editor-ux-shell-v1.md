@@ -3272,7 +3272,7 @@ active tab or the Explorer filter to another Host. Document creation uses the sh
 write path and tab-admission with `(hostId, path)`, then opens and focuses the created document.
 Folder creation refreshes/reveals its location without switching the document. Errors retain
 the dialog and input. File rename/delete continue using the same FileActionDialog as local.
-The remote template-gallery entry remains separate work (#1185).
+The template gallery reuses the Explorer Host select control (#1185). Catalog and preview are mounted per selected Host; folder selection, creation and the resulting document tab retain that Host. See the [template contract](document-templates-v1.md#host-요청-경계-1174-pr2).
 
 The title-strip search also displays the active tab's Host beside its document context. Its short
 Host label remains visible when the folder context yields at 640px; filter changes do not retarget it.

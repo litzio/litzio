@@ -375,6 +375,8 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 구분선과 목록 여백을 쓴다. 마지막 대화 선택은 origin별 UI 환경설정이며 새 대화는
 기존 버튼으로 시작한다([계약·전후 캡처](main-agent-v1.md#last-conversation-and-history-list-974)).
 
+템플릿 갤러리(#1185)는 탐색기와 같은 SettingsSelect/host-filter로 대상 Host를 표시·선택한다. 선택은 갤러리 탭의 일시 상태이며 문서·기기 설정과 분리한다. 목록·미리보기는 선택한 Host에 mount하고 생성 picker·이름 Dialog·생성 탭은 시작 당시 Host를 유지한다. 탐색기·플러그인 화면의 Host 선택과 공통 control을 대조했으며 새 상호작용 예외는 없다. 검증과 전후 화면은 [템플릿 계약](document-templates-v1.md#remote-gallery-verification-1185)을 따른다.
+
 ## P12 모달·파일·복구·설정 범위
 
 #1461의 U22 플러그인 추가는 U23의 공통 FolderDialog를 유지하며, 목록 갱신으로 입력 초안과

@@ -25,7 +25,7 @@ export function HostHeading({ hostId }: { hostId: string }) {
   return <div className="host-heading"><span className="sidebar-tree-name">{hostLabel(hostId)}</span><Tooltip><TooltipTrigger render={<span tabIndex={0} />}><HostStatus runtime={hostRegistry.get(hostId)} showDetails={false} compact /></TooltipTrigger><TooltipContent>{hostRegistry.get(hostId).reason ?? hostRegistry.get(hostId).warning ?? hostRegistry.list().find(host => host.hostId === hostId)?.origin}</TooltipContent></Tooltip></div>;
 }
 
-export function HostExplorer({ onCompare, onCopyPath, onAddToChat, hostId, documentPath, isFileDirty, onOpen, onFileAction, onCreate, createdDocumentFocus, disabled }: { onCompare?(target: ComparisonTarget): void; onCopyPath?(path: string): void; onAddToChat?(path: string, returnFocus: HTMLElement): void; onCreate(client: HostClient, path: string, root?: string): Promise<string>; createdDocumentFocus?(): HTMLElement | null; hostId: string; documentPath: string; isFileDirty(path: string): boolean; onOpen(path: string): Promise<void>; onFileAction: FileActionHandler; disabled: boolean }) {
+export function HostExplorer({ registerFolderOpener, onCompare, onCopyPath, onAddToChat, hostId, documentPath, isFileDirty, onOpen, onFileAction, onCreate, createdDocumentFocus, disabled }: { registerFolderOpener?(hostId: string, open: (path: string) => Promise<string>): () => void; onCompare?(target: ComparisonTarget): void; onCopyPath?(path: string): void; onAddToChat?(path: string, returnFocus: HTMLElement): void; onCreate(client: HostClient, path: string, root?: string): Promise<string>; createdDocumentFocus?(): HTMLElement | null; hostId: string; documentPath: string; isFileDirty(path: string): boolean; onOpen(path: string): Promise<void>; onFileAction: FileActionHandler; disabled: boolean }) {
   useTranslation();
   const client = getHostClient(hostId);
   const [problem, setProblem] = useState("");
@@ -43,6 +43,10 @@ export function HostExplorer({ onCompare, onCopyPath, onAddToChat, hostId, docum
   const browse = useCallback((path: string) => request<FolderBrowseResponse>(`/api/folder-browse?${new URLSearchParams({ path })}`), [request]);
   const places = useCallback(() => request<FolderPlacesResponse>("/api/folder-places").then(value => value.places), [request]);
   const folders = useFolderTrees((root, path, background) => request<FolderResponse>(`/api/folder?${new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) })}`), setProblem, undefined, hostId);
+  useEffect(() => registerFolderOpener?.(hostId, async path => {
+    try { folders.open(await request<FolderResponse>(`/api/folder?${new URLSearchParams({ root: path })}`), ""); return ""; }
+    catch (cause) { return messageOf(cause); }
+  }), [hostId, request, registerFolderOpener, folders.open]);
   function beginCreate(kind: "file" | "folder", root: string, button: HTMLElement, path?: string) {
     if (disabled) return;
     createReturn.current = button;
