@@ -200,11 +200,18 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   assert.equal(await runCliAsync(["plugins", "scaffold", "C:/host/greeting", "--id", "local.greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.equal(await runCliAsync(["plugins", "validate", "C:/host/greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.deepEqual(bodies, [{ action: "scaffold", directory: "C:/host/greeting", id: "local.greeting" }, { action: "validate", directory: "C:/host/greeting" }]);
+  for (const template of ["greet", "query", "file"]) {
+    await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", template, "--host", "http://127.0.0.1:5180", "--json"]);
+    assert.deepEqual(bodies.at(-1), { action: "scaffold", directory: "C:/host/example", id: "local.example", template });
+  }
+  const count = bodies.length;
+  await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", "unknown", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.equal(bodies.length, count, "Unknown template must not reach the Host");
   const registrationId = "62fbf782-043e-4c03-8b20-60aaaf34b6da";
   for (const args of [["trust", "local.greeting", "--registration", registrationId], ["enable", "local.greeting", "--trust", "--registration", registrationId]]) {
     assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
   }
-  assert.deepEqual(bodies.slice(2), [{ action: "trust", id: "local.greeting", registrationId }, { action: "enable", id: "local.greeting", trust: true, registrationId }]);
+  assert.deepEqual(bodies.slice(count), [{ action: "trust", id: "local.greeting", registrationId }, { action: "enable", id: "local.greeting", trust: true, registrationId }]);
   const sent = bodies.length;
   for (const args of [["trust", "local.greeting"], ["enable", "local.greeting", "--trust"]]) assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.equal(bodies.length, sent, "missing registration cannot dispatch consent");

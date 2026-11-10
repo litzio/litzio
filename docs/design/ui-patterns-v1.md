@@ -747,3 +747,15 @@ PluginIcon shares the same decorative 16px img in existing sidebar entries, Docu
 description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하고 실패 시 막는다.
 상시 설명 대신 기존 hover·keyboard focus Tooltip을 유지한다. 새 표면·공통 상호작용 예외는 없다.
 실행 계약은 [플러그인 1단계](plugin-stage1-v1.md#연결-설정-피드백-1396-sdk-040)를 따른다.
+
+## 플러그인 공통 화면과 제작 기준 (#1397)
+
+완성 화면은 다음 세 종류의 기존 공통 구현을 재사용한다. 새 플러그인은 제작 키트의 query/file 예제로 시작하며 화면 없는 업무는 작업 하나로 충분하다.
+
+| 화면 | 구성·기준 구현 | 동작 계약 |
+| --- | --- | --- |
+| 조회와 결과 | QueryInputs·PluginQueryTable·DataTable, 상단 조건과 전체 폭 결과 | [조회 입력과 결과](plugin-screens-v1.md#조회-입력과-결과-1394) |
+| 파일 처리와 결과 | PluginJobs, 지원 형식·파일 선택·파일별 진행·결과 | [공통 작업 패널](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340) |
+| 연결 설정 | PluginSettings, 표시 이름·설정·비밀키·연결 확인 | [설정 계약](plugin-stage1-v1.md)과 [UI 결정표](ui-decision-table-v1.md) |
+
+제목은 대상을 식별하고 설명은 목적·조건을 보충하여 같은 뜻을 반복하지 않는다. 현재 단계의 주 행동은 동사로 명확히 표시한다. 필수 입력은 보이고 드문 선택 조건은 접되 적용값을 요약한다([입력 접기](plugin-screens-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370)). 비활성 버튼에는 이유와 해결 행동을 알린다. 표는 조회 시점과 조회 범위를 알린다([결과 범위](plugin-stage1-v1.md#플러그인-조회-표-열과-결과-범위-1351)). 개발용 식별자는 표시 이름으로 쓰지 않는다. 같은 작업 유형은 같은 저장·오류·완료 행동을 따르며, 개별 플러그인에서 배치·저장 경로나 오류 행동을 재구현하지 않는다. 치수·토큰 및 기존 P01–P12 규칙은 위 연결을 그대로 따른다.
