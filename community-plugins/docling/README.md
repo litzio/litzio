@@ -40,7 +40,7 @@ CI 경로 정책은 이 새 경로를 미분류(full)로 취급합니다. 기존
 
 ## 버전
 
-플러그인 버전은 **0.0.10**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 3`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
+플러그인 버전은 **0.0.11**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 4`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
 
 현재 artifact는 대조·workspace 계약을 포함하는 `requiresSdk: ">=0.4.0 <1.0.0"`을 선언합니다.
 
@@ -335,3 +335,20 @@ superseded 상태로 보존되고, 새 묶음은 별도로 승인합니다. 이�
 그림·표의 approved-comparison 확인과 최종 완료는 참조 run의 최신 상태를 현재 revision에서 다시 검증합니다.
 과거 성공 후 최신 상태가 partial/철회/다른 revision이면 확인 근거가 되지 않습니다. 선택 본문 대조를 철회해도
 그림·표는 새 직접 확인 또는 유효한 새 대조로 처리해야 합니다.
+
+
+## 공용 칸 자료와 대응 (#1462 P3)
+
+0.0.11은 SDK 0.5.0, ZIP format 4 / review record version 4를 사용합니다. 과거 archive migration은 없습니다.
+`review material --kind cells --input <json-file> --host <origin> --json`은
+`{root,workspace,plugin,job,baseline}`으로 현재 canonical snapshot의 칸 자료를 읽습니다.
+반환된 `cells`는 `sourceLocator/locator`(self_ref·원본 table_cells index), `positions`,
+`sourceText/text`, `regions`, `disposition`, 최종 revision에 묶인 `targets`를 가집니다.
+병합 span은 모든 covered native cells에 연결하고 빈 grid 자리는 `cell:null`과 row/column으로 구분합니다.
+현재 변환한 표를 대상으로 하며 전체 그림/표 inventory는 P4 범위입니다.
+
+칸 bbox가 있으면 표 provenance의 각 페이지에서 TOPLEFT 영역으로 제공합니다. bbox가 없거나
+원본 cell이 없는 빈 자리는 영역을 만들지 않습니다. 칸 경로는 SDK의 Core read model에서만 복사합니다.
+`review read/patch --input ...`는 workspace 입력에서 workspace dispatcher를 사용합니다.
+`workspace-patch.targets`와 묶음 대상의 `documentTargets`를 선택적으로 전달하면 Host가 실제 칸·revision을
+검증하고 provider는 원본 locator와 전체 covered targets의 일치를 검증합니다. `cell:null` 칸 채우기는 P9입니다.

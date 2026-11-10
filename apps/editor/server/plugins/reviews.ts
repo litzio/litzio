@@ -1,4 +1,4 @@
-import { completedReviewSchema } from "@litzio/plugin-sdk";
+import { completedReviewSchema, readReviewDocument, validateReviewTargets } from "@litzio/plugin-sdk";
 import { randomUUID, createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -56,9 +56,10 @@ export class PluginReviews {
     const regionIds = data.pages.flatMap(p => p.regions.map(r => r.id));
     const regions = new Set(regionIds);
     if (data.mapping?.continuation) throw new Error("Incomplete review mapping unsupported");
-    const targets = new Set((embedded ? readModel(documentSource) : loadDocumentFile(file, boundary)).document.blocks.map(b => JSON.stringify(b.path)));
+    const snapshot = readReviewDocument(documentSource);
     for (const entry of data.mapping?.entries ?? []) {
-      if (entry.sourceIds.some(id => !regions.has(id)) || entry.targets.some(t => t.documentRevision !== revision || t.documentHash !== revision || !targets.has(JSON.stringify(t.path)))) throw new Error("Mixed mapping targets");
+      if (entry.sourceIds.some(id => !regions.has(id))) throw new Error("Mixed mapping targets");
+      validateReviewTargets(snapshot, entry.targets);
     }
     // Bound read-only image snapshots without discarding any K4 change or observation.
     if (stagedImage || embedded) for (const [ref, old] of this.bundles) if ((old.stagedImage || old.embedded) && !old.actions.size && !old.proposals.size && !old.unresolved.size && old.file === file && old.plugin === plugin) this.bundles.delete(ref);
@@ -170,6 +171,7 @@ export class PluginReviews {
       if (action === "propose") {
         const p = reviewProposalSchema.parse(result.result);
         if (p.state !== "pending" || b.proposals.has(p.id) || JSON.stringify(p.baseline) !== JSON.stringify(input.baseline) || p.targets.some(t => t.documentRevision !== b.bundle.documentRevision || t.documentHash !== b.bundle.documentHash)) throw new Error("Invalid pending proposal");
+        validateReviewTargets(readReviewDocument(b.documentSource), p.targets);
         if (b.proposals.size >= REVIEW_LIMITS.items) throw new Error("Proposal limit exceeded");
         // Pin the reviewed change at admission. An approve response cannot redefine it.
         const edit = p.targets.length === 1 && p.before.type === "plain" && p.after.type === "plain"

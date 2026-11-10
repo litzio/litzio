@@ -992,3 +992,33 @@ Notice 안 버튼 정렬·줄바꿈, 메뉴 행동·테마 대비와 가로 넘�
 최근 검수 진행률 목록을 추가한 화면이 아니며 기존 작업 목록의 최소 대안을 촬영했다.
 [촬영 정보·파일 해시](assets/compare-entry-1465/verification.json)에 환경과 범위를 남긴다.
 실제 Docling 서비스의 변환 품질·원격 네트워크·설치형 Desktop 수락은 미확인이다.
+
+
+## Review 칸 target·자료 (#1462 P3)
+
+SDK 0.5.0은 `readReviewDocument(source)`와 `validateReviewTargets(snapshot, targets)`를 제공합니다.
+Core의 canonical 재파싱·hash·공개 read model 및 `resolveDocumentTarget`을 사용합니다.
+일반 target은 실제 블록 또는 `EditableTableCell.path`이며 caption/inline/행/존재하지 않는 경로는
+받지 않습니다. `path/documentRevision/documentHash`가 정확한 최종 snapshot에 속해야 합니다.
+PluginReviews mapping publication도 같은 검증을 사용합니다. 칸별 화면 anchor·연결선은 P11입니다.
+
+`workspace-material {root,workspace,plugin,job,baseline,kind:"cells"}`는 현재 workspace snapshot에서만
+읽고 `kind/cells/baseline/documentRevision/contentRevision/receipt`를 반환합니다. stale workspace,
+이전 생성 계약·없는 snapshot, 잘못된 target 또는 1MB 초과 자료는 명시 거부합니다.
+provider의 `workspace-material {kind:"cells"}` 반환은 `reviewCellsSchema`로 검증합니다.
+칸마다 불투명 sourceLocator/locator, 0-based covered positions, sourceText/text, disposition,
+TOPLEFT page/bbox/ref regions, 최종 canonical targets를 제공합니다. Host는 source locator 의미를 해석하지 않습니다.
+빈 원본 cell 표시와 bbox·파생 계보 계산은 provider 책임입니다.
+
+CLI는 `review material --kind cells --input <json-file> --host <origin> --json`으로 동일 dispatcher를 호출합니다.
+`review read/patch --input ...`는 입력에 workspace가 있으면 workspace-read/patch로 연결하며, 기존 명시 workspace 명령도 유지합니다.
+`workspace-read`의 document는 기존 Core read model의 실제 칸 경로를 그대로 제공합니다.
+`workspace-patch.targets`와 문제 묶음 대상 `documentTargets`는 선택적 공용 target 검증 입력입니다.
+Host는 patch·groups-propose 전에 현재 revision/실재를 검사하며 provider는 locator와 대상 일치를 검사합니다.
+생성 inputs의 블록 완전성 검사는 그대로 유지합니다. targets를 칸 목록으로 대체하지 않습니다.
+비서 계약 `REVIEW_LEDGER_OPERATIONS.assistant.material`도 같은 자료 정의를 사용하며 실제 AI 등록은 P5입니다.
+
+Docling 0.0.11은 format 4 / review record 4와 mapping-2를 사용합니다. 과거 저장 데이터 migration은 없습니다.
+원본 span 하나의 모든 covered native cells를 연결하며 같은 값을 반복하는 직렬화는 유지합니다.
+원본 cell 없는 grid는 cell:null, bbox가 없는 칸은 regions:[]입니다. schema 렌즈·구조 수정·화면은 확장하지 않습니다.
+검증 계층과 실제 실행 범위는 [P3 기록](docling-review-stage3.md#p3-공용-칸-target대응)을 따릅니다.

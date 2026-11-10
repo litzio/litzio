@@ -148,6 +148,19 @@ export type EditableDocument = {
   headingNumbering?: HeadingNumbering;
 };
 
+/** Snapshot-local semantic targets, never arbitrary AST, caption or inline paths. */
+export function resolveDocumentTarget(document: EditableDocument, path: readonly number[]) {
+  if (!path.length || path.some(index => !Number.isSafeInteger(index) || index < 0)) return undefined;
+  const same = (other: NodePath) => other.length === path.length && other.every((index, i) => index === path[i]);
+  for (const block of document.blocks) {
+    if (same(block.path)) return { kind: "block" as const, block };
+    if (block.block === "table") for (const [row, value] of block.rows.entries()) for (const [column, cell] of value.cells.entries()) {
+      if (same(cell.path)) return { kind: "cell" as const, block, cell, row, column };
+    }
+  }
+  return undefined;
+}
+
 export function getEditableDocument(document: MystDocument): EditableDocument {
   const blocks = document.children.flatMap((node, index) => node[FRONT_MATTER_FIELD] === true ? [] : [toBlock(node, [index])]);
   const headingNumbering = getHeadingNumbering(document);

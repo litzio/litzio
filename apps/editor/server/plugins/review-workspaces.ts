@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { authorDocument, parse, serialize, getEditableDocument } from "@litzio/core";
 import { commitFileFromPath, textRevision } from "@litzio/file-commit";
-import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, evaluateReviewCompletion, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
+import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, evaluateReviewCompletion, readReviewDocument, validateReviewTargets, reviewCellsSchema, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
 import { validatedAuthoringRequest, exportReviewDocumentFile } from "../document-authoring.ts";
 import { validateImage } from "../image-validation.ts";
 import { readModel } from "../document-replay.ts";
@@ -41,7 +41,7 @@ export class ReviewWorkspaces {
     }
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
-    const writing = !["workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
+    const writing = !["workspace-read","workspace-material","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
     if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
     const unsettled = this.unsettled.get(key);
     if (writing && unsettled) throw new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`);
@@ -70,6 +70,18 @@ export class ReviewWorkspaces {
       if (original.snapshot) {
         try { validateSnapshot(original.snapshot); }
         catch { original.snapshot = null; original.cacheState = "invalid"; }
+      }
+      if (input.action === "workspace-material" || input.action === "workspace-patch" && input.targets || input.action === "workspace-review-change" && input.change.kind === "groups-propose") {
+        if (!original.snapshot || original.cacheState !== "current") throw new Error("Current snapshot required");
+        const snapshot = readReviewDocument(original.snapshot.source);
+        if (input.action === "workspace-patch") validateReviewTargets(snapshot, input.targets!);
+        if (input.action === "workspace-review-change" && input.change.kind === "groups-propose") for (const group of input.change.groups) for (const target of group.targets) validateReviewTargets(snapshot, target.documentTargets ?? []);
+        if (input.action === "workspace-material") {
+          const cells = reviewCellsSchema.parse(await call("workspace-material", file, { kind: input.kind }));
+          if (Buffer.byteLength(JSON.stringify(cells)) > 1024 * 1024) throw new Error("Review material exceeds limit");
+          for (const cell of cells) validateReviewTargets(snapshot, cell.targets);
+          check(); return { kind: input.kind, cells, baseline: before, documentRevision: snapshot.documentRevision, contentRevision: original.snapshot.contentRevision, receipt: receipt("success") };
+        }
       }
       const result = (state: typeof original, baseline: string, saved: boolean) => ({ ...state, baseline, workspace: { plugin: input.plugin, job: input.job, root, workspace: input.workspace },
         ...(state.snapshot ? { document: readModel(state.snapshot.source).document, documentRevision: state.snapshot.documentRevision, contentRevision: state.snapshot.contentRevision } : {}),
@@ -132,7 +144,7 @@ export class ReviewWorkspaces {
       staging = mkdtempSync(path.join(tmpdir(), "litzio-review-workspace-"));
       const candidate = path.join(staging, "candidate"); writeFileSync(candidate, "", { flag: "wx", mode: 0o600 });
       const resultFile = { path: candidate, maxBytes: JOB_FILE_MAX_BYTES };
-      const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
+      const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches, targets: input.targets } : {}), ...("progress" in input ? { progress: input.progress } : {}),
         ...("change" in input ? { change: input.change, requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
       const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;

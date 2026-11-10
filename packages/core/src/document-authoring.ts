@@ -33,6 +33,13 @@ export class DocumentAuthoringError extends Error {
   constructor(readonly code: "invalid-input" | "limit" | "unsupported-content") { super(`Document authoring failed: ${code}`); }
 }
 
+/** Snapshot-local public read model and content identity, without storage or editor state. */
+export function readCanonicalDocument(source: string) {
+  const parsed = parseNativeDocument(source);
+  if (serializeNativeDocument(parsed) !== source) throw new Error("Document source is not canonical");
+  return { document: getEditableDocument(parsed), documentRevision: bytesToHex(sha256(new TextEncoder().encode(source))) };
+}
+
 /** Pure document construction, never file IO. Targets address only the returned canonical snapshot. */
 export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<string, string>> = {}): Promise<AuthoredDocument> {
   let json: string | undefined;

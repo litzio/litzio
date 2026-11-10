@@ -1,4 +1,4 @@
-import { authorDocument, DOCUMENT_AUTHORING_LIMITS as limits } from "@litzio/plugin-sdk";
+import { authorDocument, readReviewDocument, DOCUMENT_AUTHORING_LIMITS as limits } from "@litzio/plugin-sdk";
 
 import { applyCorrections } from "./review.js";
 
@@ -105,6 +105,9 @@ export async function convertDocument(original, sourceHash, patches = []) {
       record(ref).cells.push({ index, positions });
       if (positions.length > 1) note(ref, "merged-cell", "Cell text repeated in covered positions", { cellIndex: index });
       if (cell.row_header || cell.row_section) note(ref, "table-role", "Row header/section represented as ordinary cells", { cellIndex: index });
+    }
+    for (let row = 0; row < height; row++) for (let column = 0; column < width; column++) {
+      if (!occupied.has(row * width + column)) record(ref).cells.push({ index: null, positions: [{ row, column }] });
     }
     if (headers.size > 1) note(ref, "multi-row-header", "Only the first row is a native header; later header rows retain their text as body cells");
     if (!headers.has(0)) note(ref, "table-role", "First source row used as native header");
@@ -217,6 +220,7 @@ export async function convertDocument(original, sourceHash, patches = []) {
   // are layout-only bindings; only the Host can publish final paths and targets.
   try { authored = await authorDocument(input, Object.fromEntries(images.map(image => [image.key, "./pending-image.png"]))); }
   catch (error) { refuse(`SDK authoring refused document (${error.code ?? "invalid-input"}); limits: ${limits.bytes} bytes, ${limits.string} characters/string`); }
+  const model = readReviewDocument(authored.source).document;
   function makeReport(final) {
     const targetsByKey = new Map(final.inputs.map(input => [input.key, input.targets]));
     const items = [...records.values()].map(({ links, cells, ...item }) => {
@@ -225,7 +229,15 @@ export async function convertDocument(original, sourceHash, patches = []) {
         return [JSON.stringify(target.path), target];
       })).values()];
       // Caption number and text may contribute to the table block and a following paragraph.
-      return { ...item, targets, ...(cells.length ? { cells: cells.map(cell => ({ ...cell, targets: targets.slice(0, 1) })) } : {}) };
+      return { ...item, targets, ...(cells.length ? { cells: cells.map(cell => {
+        const table = model.blocks.find(block => block.block === "table" && targets.some(target => JSON.stringify(target.path) === JSON.stringify(block.path)));
+        if (!table) refuse("Core table read model required", item.self_ref);
+        return { ...cell, targets: cell.positions.map(({ row, column }) => {
+          const native = table.rows[row]?.cells[column];
+          if (!native) refuse("Core cell read model required", item.self_ref);
+          return { path: [...native.path], documentRevision: final.documentRevision, documentHash: final.documentHash };
+        }) };
+      }) } : {}) };
     });
     const count = kind => losses.filter(loss => loss.kind === kind).length;
     const summary = [["병합 칸 반복", count("merged-cell")], ["다단 헤더 계층 소실", count("multi-row-header")],

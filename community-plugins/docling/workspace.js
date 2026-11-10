@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import { REVIEW_AUTHORING_CONTRACT, workspaceSnapshotSchema, updateReviewLedger } from "@litzio/plugin-sdk";
+import { REVIEW_AUTHORING_CONTRACT, workspaceSnapshotSchema, updateReviewLedger, readReviewDocument, validateReviewTargets } from "@litzio/plugin-sdk";
 import { readDoclingArchive, rewriteReview } from "./archive.js";
-import { readReview, applyCorrections, reviewItems, setProgress, comparison, correctionValue, inverseCorrection, originalReviewTarget } from "./review.js";
+import { readReview, applyCorrections, reviewItems, setProgress, comparison, cellMaterials, correctionValue, inverseCorrection, originalReviewTarget } from "./review.js";
 import { convertDocument } from "./document.js";
 
 // Adapter semantics, not the plugin package version or whole-workspace revision.
-export const WORKSPACE_ADAPTER_VERSION = "docling-replay-1/converter-1/mapping-1";
+export const WORKSPACE_ADAPTER_VERSION = "docling-replay-1/converter-1/mapping-2";
 const hash = value => createHash("sha256").update(value).digest("hex");
 const contentRevision = (archive, record) => hash(JSON.stringify([archive.manifest.document.sha256, record.patches]));
 const cacheKey = snapshot => hash(JSON.stringify([snapshot.contentRevision, snapshot.adapterVersion, snapshot.authoringContract, snapshot.images]));
@@ -48,6 +48,7 @@ export async function workspaceOperation(input) {
     }
     const { correspondence } = JSON.parse(archive.cacheEntries.get("current/snapshot.json").toString("utf8"));
     if (!correspondence) throw new Error("Explicit regeneration is required for correspondence");
+    if (input.kind === "cells") return cellMaterials(archive, record, correspondence);
     const pageNo = input.pageNo ?? record.lastPage ?? 1, image = archive.document.pages[pageNo]?.image;
     if (image?.mimetype !== "image/png") throw new Error("Page image unavailable");
     const bytes = Buffer.from(image.uri.slice(image.uri.indexOf(",")+1),"base64");
@@ -60,12 +61,33 @@ export async function workspaceOperation(input) {
   let bytes;
   if (input.mode === "workspace-prepare") {
     const priorContentRevision = contentRevision(archive, record);
+    const assertCorrespondence = (locator, targets) => {
+      if (!targets) return;
+      const report = JSON.parse(archive.cacheEntries.get("current/snapshot.json").toString("utf8")).correspondence;
+      const item = report.items.find(item => item.self_ref === locator.self_ref);
+      const expected = locator.cell === undefined ? item?.targets : item?.cells?.find(cell => cell.index === locator.cell && (cell.index !== null || cell.positions.some(position => position.row === locator.row && position.column === locator.column)))?.targets;
+      if (!expected || JSON.stringify(targets) !== JSON.stringify(expected)) throw new Error("Targets do not match source locator");
+    };
+    if (input.targets) {
+      const expected = [];
+      const report = JSON.parse(archive.cacheEntries.get("current/snapshot.json").toString("utf8")).correspondence;
+      for (const patch of input.patches) {
+        const item = report.items.find(item => item.self_ref === patch.self_ref);
+        const targets = patch.type === "cell" ? item?.cells?.find(cell => cell.index === patch.cell)?.targets : item?.targets;
+        if (!targets) throw new Error("Unknown patch correspondence");
+        for (const target of targets) if (!expected.some(value => JSON.stringify(value) === JSON.stringify(target))) expected.push(target);
+      }
+      if (JSON.stringify(input.targets) !== JSON.stringify(expected)) throw new Error("Patch targets do not match source locators");
+    }
     let metadataOnly = !!input.progress;
     if (input.change) {
       if (!state.snapshot || state.cacheState !== "current") throw new Error("Current snapshot required");
       if (input.change.kind === "groups-propose") {
         if (input.change.groups.some(group => group.sourceRevision !== archive.manifest.document.sha256)) throw new Error("Mixed group source revision");
-        for (const group of input.change.groups) for (const target of group.targets) originalReviewTarget(archive.document, target.locator);
+        for (const group of input.change.groups) for (const target of group.targets) {
+          originalReviewTarget(archive.document, target.locator);
+          assertCorrespondence(target.locator, target.documentTargets);
+        }
       }
       if (input.change.kind === "required-checks" && input.change.inventory) {
         const inventory = input.change.inventory;
@@ -141,10 +163,11 @@ export async function workspaceOperation(input) {
     // Bind source-format correspondence to the final Host canonical targets, without storing images again.
     const report = input.sealInput;
     if (report?.sourceHash !== archive.manifest.document.sha256 || !Array.isArray(report.items)) throw new Error("Prepared correspondence required");
-    const targets = new Map(snapshot.inputs.flatMap(item => item.targets).map(target => [JSON.stringify(target.path), target]));
+    const final = readReviewDocument(snapshot.source);
     const bind = values => values.map(value => {
-      const target = targets.get(JSON.stringify(value.path));
-      if (!target || value.documentHash !== report.documentHash || value.documentRevision !== report.documentRevision) throw new Error("Mixed prepared correspondence");
+      if (value.documentHash !== report.documentHash || value.documentRevision !== report.documentRevision) throw new Error("Mixed prepared correspondence");
+      const target = { ...value, documentRevision: final.documentRevision, documentHash: final.documentRevision };
+      validateReviewTargets(final, [target]);
       return target;
     });
     const correspondence = { ...report, documentRevision: snapshot.documentRevision, documentHash: snapshot.documentRevision,

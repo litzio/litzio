@@ -1,6 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyReviewLedger, updateReviewLedger, evaluateReviewCompletion, reviewLedgerSchema, reviewLedgerChangeSchema } from "../src/index.ts";
+import { authorDocument, readReviewDocument, validateReviewTargets, reviewCellsSchema, workspaceRequestSchema, reviewGroupTargetSchema } from "../src/index.ts";
+
+test("review SDK binds public block and cell targets to the exact final canonical snapshot",async()=>{
+  const authored=await authorDocument({inputs:[{key:"table",blocks:[{kind:"table",rows:[["a",""]]}]}]});
+  const snapshot=readReviewDocument(authored.source), table=snapshot.document.blocks.find(block=>block.block==="table")!;
+  assert.ok(table.block==="table");
+  const targets=table.rows[0].cells.map(cell=>({path:[...cell.path],documentRevision:authored.documentRevision,documentHash:authored.documentHash}));
+  validateReviewTargets(snapshot,[...authored.inputs[0].targets,...targets]);
+  assert.throws(()=>validateReviewTargets(snapshot,[{...targets[0],documentRevision:"a".repeat(64)}]),/stale/);
+  assert.throws(()=>validateReviewTargets(snapshot,[{...targets[0],path:[...targets[0].path,0]}]),/Invalid/);
+  assert.equal(workspaceRequestSchema.parse({action:"workspace-material",kind:"cells",root:"root",workspace:"file",plugin:"fixture",job:"import",baseline:"a".repeat(64)}).action,"workspace-material");
+  assert.ok(reviewCellsSchema.parse([{sourceLocator:{cell:null},locator:{cell:null},positions:[{row:0,column:1}],sourceText:"",text:"",disposition:"supported",regions:[],targets:[targets[1]]}]));
+  assert.ok(reviewGroupTargetSchema.shape.documentTargets.parse(targets));
+});
 
 function reviewScenario() {
   let ledger = emptyReviewLedger(), content = 1, sequence = 0;
@@ -147,8 +161,8 @@ test("review regions accept optional shared kinds and reject provider names as k
 });
 test("manifest rejects unsupported extensions, invalid identities, versions and unknown declarations before execution", () => {
   assert.equal(validateManifest(manifest()).id, "example.demo");
-  for (const requiresSdk of ["0.1.0", "^0.1.0", "0.2.0", "^0.2.0", ">=0.2.0 <1.0.0", "^0.3.0", "^0.4.0"]) assert.ok(validateManifest({ ...manifest(), requiresSdk }));
-  for (const requiresSdk of ["0.1.1", "^0.5.0", ">=1.0.0"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk }), /Unsupported SDK range/);
+  for (const requiresSdk of ["0.1.0", "^0.1.0", "0.2.0", "^0.2.0", ">=0.2.0 <1.0.0", "^0.3.0", "^0.4.0", "^0.5.0"]) assert.ok(validateManifest({ ...manifest(), requiresSdk }));
+  for (const requiresSdk of ["0.1.1", "^0.6.0", ">=1.0.0"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk }), /Unsupported SDK range/);
   for (const change of [{ settingsSchema: { type: "invalid" } }, { id: "../escape" }, { requiresSdk: "^2.0.0" }, { version: "bad" }, { entry: "../host.js" }, { contributes: { surprise: [] } }, { contributes: { jobs: [{ id: "import", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }, { contributes: { dataViews: [{ id: "table", operation: "read", version: 1 }] } }, { contributes: { generatedUi: [{ id: "ui", catalog: "table", schemaVersion: 1 }] } }, { contributes: { views: [{ id: "saved", definition: "view.json" }] } }, { contributes: { secretUses: [{ operation: "read", secret: "token" }] } }]) assert.throws(() => validateManifest({ ...manifest(), ...change }));
   assert.throws(() => compileSchema({ $ref: "https://example.test/schema" }));
   assert.throws(() => compileSchema({ type: "not-a-type" }));

@@ -110,7 +110,10 @@ test("Docling converter preserves source identity, native blocks, shared targets
   assert.equal(item("#/texts/0").targets.length, 0);
   assert.deepEqual(item("#/pictures/0").targets, item("#/texts/7").targets);
   assert.deepEqual(item("#/tables/0").cells[0].positions, [{ row: 0, column: 0 }, { row: 0, column: 1 }]);
-  assert.deepEqual(item("#/tables/0").cells[0].targets, [item("#/tables/0").targets[0]]);
+  const table = blocks.find(block => block.block === "table");
+  assert.ok(table?.block === "table");
+  assert.deepEqual(item("#/tables/0").cells[0].targets.map((target:any)=>target.path), table.rows[0].cells.map(cell=>cell.path));
+  assert.deepEqual(item("#/tables/0").cells.find((cell:any)=>cell.index===null).positions,[{row:2,column:1}]);
   assert.deepEqual(item("#/texts/9").targets, item("#/tables/0").targets);
   for (const entry of report.items) for (const target of entry.targets) {
     assert.equal(target.documentRevision, report.documentRevision);
@@ -235,6 +238,8 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
   document.pictures.push({self_ref:"#/pictures/1",label:"picture",captions:[],children:[]});
   document.body.children.push({$ref:"#/pictures/1"});
   document.texts[4].prov=[{page_no:1,bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
+  document.tables[0].prov=[{page_no:1,bbox:{l:10,t:30,r:200,b:100,coord_origin:"TOPLEFT"}}];
+  document.tables[0].data.table_cells[0].bbox={l:10,t:30,r:200,b:50,coord_origin:"TOPLEFT"};
   const original = archive.createDoclingArchiveFromResult({sourceName:"sample.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
     task:{id:"workspace",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"success",errors:[],document:{json_content:document}}))});
   writeFileSync(file, original);
@@ -391,6 +396,49 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     corrupt.cacheEntries.set("current/document.md",Buffer.from("corrupted derived cache"));
     writeFileSync(file,archive.rewriteReview(corrupt,corrupt.reviewBytes));
     assert.equal((await read()).cacheState,"invalid"); assert.equal((await write("workspace-regenerate")).cacheState,"current");
+    const readCells=async(baseline?:string)=>host.execute({...base,action:"workspace-material",kind:"cells",baseline:baseline??(await read()).baseline});
+    const cells=await readCells();
+    assert.equal(cells.receipt.outcome,"success",JSON.stringify(cells));
+    const merged=cells.cells.find((cell:any)=>cell.locator.cell===0), blank=cells.cells.find((cell:any)=>cell.locator.cell===null);
+    assert.equal(merged.targets.length,2);assert.equal(merged.sourceText,"Cell one");
+    assert.deepEqual(blank.positions,[{row:2,column:1}]);assert.equal(blank.text,"");assert.equal(blank.targets.length,1);
+    const cellComparison=await host.execute({...base,action:"workspace-compare"});
+    const mapped=cellComparison.snapshot.mapping.entries.find((entry:any)=>entry.sourceIds.includes(merged.regions[0].ref));
+    assert.deepEqual(mapped.targets,merged.targets,"comparison retains the span's complete native cell correspondence");
+    const invalid=await write("workspace-patch",{patches:[{type:"cell",self_ref:"#/tables/0",cell:0,text:"rejected"}],targets:[{...merged.targets[0],documentRevision:"a".repeat(64)}]});
+    assert.equal(invalid.receipt.outcome,"failure");assert.match(invalid.error,/stale/);
+    const changed=await write("workspace-patch",{patches:[{type:"cell",self_ref:"#/tables/0",cell:0,text:"corrected span"}],targets:merged.targets});
+    assert.equal(changed.receipt.outcome,"success",JSON.stringify(changed));
+    assert.equal((await readCells(cells.baseline)).receipt.outcome,"failure","material rejects the previous workspace revision");
+    const fresh=await readCells(), updated=fresh.cells.find((cell:any)=>cell.locator.cell===0);
+    assert.equal(updated.text,"corrected span");assert.equal(updated.sourceText,"Cell one");
+    assert.notEqual(updated.targets[0].documentRevision,merged.targets[0].documentRevision);
+    assert.equal(updated.targets[0].documentRevision,changed.documentRevision);
+    const cellGroup=structuredClone(grouped.ledger.groups[0]);
+    cellGroup.id="cell-proposal";cellGroup.contentRevision=fresh.contentRevision;cellGroup.representativeTargetId="span";
+    cellGroup.targets=[{...cellGroup.targets[0],id:"span",locator:{self_ref:"#/tables/0",cell:0},before:[updated.text],documentTargets:merged.targets,
+      patch:{expectedBefore:[updated.text],expectedContentRevision:fresh.contentRevision,operations:[],after:[updated.text],supported:false,deferredReason:"Inspection only"},history:[]}];
+    const groupStale=await write("workspace-review-change",{change:{kind:"groups-propose",groups:[cellGroup]}});
+    assert.equal(groupStale.receipt.outcome,"failure");assert.match(groupStale.error,/stale/);
+    cellGroup.targets[0].documentTargets=updated.targets;
+    const groupAccepted=await write("workspace-review-change",{change:{kind:"groups-propose",groups:[cellGroup]}});
+    assert.equal(groupAccepted.receipt.outcome,"success",JSON.stringify(groupAccepted));
+    assert.deepEqual(groupAccepted.ledger.groups.at(-1).targets[0].documentTargets,updated.targets);
+    fresh.baseline=groupAccepted.baseline;
+    const staleCell=await write("workspace-patch",{patches:[{type:"cell",self_ref:"#/tables/0",cell:0,text:"wrong"}],targets:merged.targets});
+    assert.equal(staleCell.receipt.outcome,"failure");assert.match(staleCell.error,/stale/);
+    // Unique CLI option/HTTP/JSON route; one short subprocess, no daemon or browser.
+    const {createServer}=await import("node:http"),{spawn}=await import("node:child_process"),{DAEMON_PROTOCOL}=await import("../shared/daemon-version.ts");
+    const server=createServer(async(req,res)=>{res.setHeader("Content-Type","application/json");if(req.url==="/daemon/health"){res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL}));return;}try{let body="";for await(const part of req)body+=part;res.end(JSON.stringify(await host.execute(JSON.parse(body))));}catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}});
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    const inputFile=path.join(root,"cells-input.json");
+    try {
+      writeFileSync(inputFile,JSON.stringify({...base,baseline:fresh.baseline}));
+      const cli=spawn(process.execPath,["--import","tsx",path.resolve("../../packages/cli/src/cli.ts"),"review","material","--kind","cells","--input",inputFile,"--host",`http://127.0.0.1:${(server.address() as {port:number}).port}`,"--json"],{windowsHide:true});
+      let stdout="",stderr="";cli.stdout.on("data",value=>stdout+=value);cli.stderr.on("data",value=>stderr+=value);
+      const code=await new Promise<number|null>((resolve,reject)=>{cli.on("error",reject);cli.on("exit",resolve);});
+      assert.equal(code,0,stderr+stdout);assert.deepEqual(JSON.parse(stdout).cells,fresh.cells);
+    } finally {await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));fs.unlinkSync(inputFile);}
     const invalidLedger=archive.readDoclingArchive(readFileSync(file));
     writeFileSync(file,archive.rewriteReview(invalidLedger,Buffer.from(JSON.stringify({...emptyReview(),patches:[{type:"text",self_ref:"#/texts/99999",text:"invalid"}]}))));
     const invalidBytes=readFileSync(file);
@@ -928,7 +976,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     assert.equal((created.result as any).directory, canonicalFilePath(directory));
     await assert.rejects(host.invoke("scaffold", { id }), /EEXIST/);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
-    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.4.0 <1.0.0");
+    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.5.0 <1.0.0");
     assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
     assert.match(readFileSync(path.join(directory, "plugin-sdk.d.ts"), "utf8"), /PluginContext/);
     // Even an artifact-local SDK must never replace the Host's public runtime.
@@ -995,7 +1043,7 @@ test("Host SDK runtime is one self-contained JavaScript module with only Node bu
     }
   }
   const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
-  assert.equal(runtime.SDK_VERSION, "0.4.0");
+  assert.equal(runtime.SDK_VERSION, "0.5.0");
   assert.equal(JSON.parse(readFileSync(new URL("../../../packages/plugin-sdk/package.json", import.meta.url), "utf8")).version, runtime.SDK_VERSION);
   assert.equal(typeof runtime.PluginOperationError, "function");
 });

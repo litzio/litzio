@@ -647,3 +647,47 @@ Undo→대체→재승인 통합을 보완했다. 새 daemon·AI·브라우저 s
 수정 후 SDK 19개, 기존 plugins/generated-documents 50개(58.0초), SDK/Editor/CLI typecheck,
 docs/boundaries·diff 검사가 통과했다. 실제 CLI supersede 요청과 Docling Undo→대체→재승인을 포함한다.
 기존 fault·stale·원본/이력 보존 단언은 유지했으며 Windows 경로·UI·브라우저 동작은 변경하지 않았다.
+
+
+## P3 공용 칸 target·대응
+
+2026-11-11: Core의 editor-neutral `resolveDocumentTarget`과 canonical snapshot 읽기,
+SDK의 최종 target binding 검증을 추가했다. Host mapping·material·선택 patch targets·묶음의
+선택 documentTargets는 같은 실제 블록/칸과 revision을 검증한다. 생성 inputs는 블록 단위
+완전성 검사를 유지하고 칸 대응은 별도로 소유한다.
+
+Docling은 Core가 만든 read model의 칸 경로만 복사한다. 원본 table_cells span 하나를 모든
+covered native cells에 연결하고 원본 cell 없는 grid를 cell:null로 표시한다. 같은 값 반복
+직렬화는 유지한다. comparison은 cell bbox가 있는 칸의 영역과 전체 targets를 같은 effective
+revision으로 생성하며, bbox가 없으면 영역을 꾸미지 않는다. 재생성 후 대응·revision을 다시 묶는다.
+원본/유효 locator와 원본/유효 텍스트는 플러그인 자료이며 Host는 self_ref 의미를 해석하지 않는다.
+
+공용 `workspace-material kind:cells`·`review material --kind cells`와 같은 비서 자료 정의를 추가했다.
+Host/provider·필드 계약은 [P3 공용 계약](plugin-stage1-v1.md#review-칸-target자료-1462-p3),
+사용 예와 버전은 [Docling P3](../../community-plugins/docling/README.md#공용-칸-자료와-대응-1462-p3)를 따른다.
+SDK 0.5.0 / Docling 0.0.11 / format 4 / review record 4로 맞췄으며 migration은 하지 않는다.
+
+기존 검사 보완의 고유한 보호: Core public API 검사는 블록·빈/실제 칸과 잘못된 경로 의미를,
+SDK manifest suite는 최종 canonical revision binding·자료 schema를 담당한다. 기존 Docling Host 저장
+검사는 원본 span 1→N·cell:null·대조 영역과 칸 targets·patch/묶음 stale 거부·재생성 후 새 대응을
+검사한다. 실제 CLI material의 새 --kind 파싱/HTTP/stdout 경계를 위해 작은 HTTP 서버와 CLI
+subprocess 1회를 추가한다. 기존 P2 groups CLI 검사는 유지하며 새 daemon/무거운 E2E는 추가하지 않는다.
+
+칸별 UI anchor·연결선(P11), 전체 inventory·렌즈(P4), 빈칸 채우기·칸 추가(P9), 표 합치기(P10),
+안전장치(P6), 실제 AI 연결(P5)은 변경하지 않는다. 큰 실제 문서·다른 PC 인계·AI 검수는 미확인이다.
+
+
+P3 중간 보존: 2026-11-11 소유자의 범위 재검토 요청으로 구현을 중단하고 로컬 커밋에만 남긴다.
+PR 생성·push·독립 리뷰·CI는 하지 않았다. Core 382개, SDK 21개, Host plugins/generated-documents
+50개, CLI 100개, typecheck·문서·경계 검사와 production CLI/Editor build가 통과했다.
+마지막 null locator 구분 뒤 기존 workspace 대상 검사도 통과했다(약 7초, CLI subprocess 포함).
+production HTTP browser는 recovery 검사만 통과했고 다음 plugin 검사 도중 중단·직접 시작한 프로세스를 정리했다.
+아직 전체 browser 수락·실제 문서·AI 검수를 완료한 구현으로 간주하지 않는다.
+
+범위 판단 근거: P3 이전 feature head `0bc353d1`에서도 원본에 존재하는 칸은
+`{type:"cell",self_ref,cell,text}`로 교정할 수 있다. provider의 groups-propose는 원본 locator 실재를
+검사하고 승인 apply는 locator/patch index·expected before/after를 확인해 ledger에 append한다.
+`applyCorrections`는 `table_cells[cell].text`를 바꾸고 `convertDocument`가 이를 replay하여
+covered positions 모두에 같은 값을 쓴 뒤 기존 Core 작성 경로로 재생성한다. 공용 칸 target은
+이 교정 경로의 전제 조건이 아니다. 기존 converter의 merged-cell 교정 regression은 통과했다.
+칸별 group 승인 전체를 P3 이전 코드에서 새로 실행한 것은 아니며 위 승인은 코드 경로 확인이다.

@@ -455,3 +455,15 @@ the corrected fixture on both operating systems.
 ## Unnumbered tables (#1383)
 
 Standard MyST `:enumerated: false` on the table directive suppresses its displayed number without changing caption, label or grid. Core caption/label operations, Editor copies and Save/Reload retain the option. Unnumbered tables do not advance automatic counters. Shared authoring and CLI `create --input` accept `enumerated:false` on table blocks. See the [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
+
+
+## Snapshot-local block and cell targets (#1462 P3)
+
+Core `resolveDocumentTarget(EditableDocument, path)` resolves only an actual block path or an
+existing `EditableTableCell.path` from the same public read model. A table cell path is
+`[...table.path, row, column]`, with zero-based row/column. Empty cells are valid targets;
+caption, row-only, inline, nonexistent and malformed paths are not. These paths are local
+to one canonical snapshot and are not durable IDs. `readCanonicalDocument(source)` checks
+canonical reserialization and returns the public model with its SHA-256 revision.
+SDK/Host bind targets to that exact revision; source-format span/locator meaning stays in providers.
+This adds no table operation, editor anchor, merged-cell shape or serialization change.

@@ -8,8 +8,8 @@
   },
   "name": "Docling",
   "description": "docling-serve 연결 확인, PDF 원본 보관·검수 작업공간·현재 상태 내보내기",
-  "version": "0.0.10",
-  "requiresSdk": ">=0.4.0 <1.0.0",
+  "version": "0.0.11",
+  "requiresSdk": ">=0.5.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [

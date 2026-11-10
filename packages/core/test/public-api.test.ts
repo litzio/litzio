@@ -6,6 +6,22 @@ import type { GenericParent } from "myst-common";
 import * as core from "@litzio/core";
 import { getEditableDocument, inspectDocument, parse, serialize, type Document } from "@litzio/core";
 
+test("public document targets resolve only blocks and existing table cells in the canonical read model", async () => {
+  const authored = await core.authorDocument({inputs:[{key:"table",blocks:[{kind:"table",rows:[["header",""],["value","second"]]}]},{key:"text",blocks:[{kind:"paragraph",text:"body"}]}]});
+  const snapshot = core.readCanonicalDocument(authored.source);
+  assert.equal(snapshot.documentRevision, authored.documentRevision);
+  const table = snapshot.document.blocks.find(block => block.block === "table")!;
+  assert.equal(core.resolveDocumentTarget(snapshot.document, table.path)?.kind,"block");
+  if (table.block !== "table") throw new Error("Expected table");
+  for (const row of table.rows) for (const cell of row.cells) {
+    const resolved = core.resolveDocumentTarget(snapshot.document,cell.path);
+    assert.equal(resolved?.kind,"cell");
+    if (resolved?.kind === "cell") assert.equal(resolved.cell.text,cell.text);
+  }
+  for (const path of [[],[-1],[1.5],[NaN],[Infinity],[999],[...table.path,99,0],[...table.path,0],[...table.rows[0].cells[0].path,0],[...authored.inputs[1].targets[0].path,0,0]]) assert.equal(core.resolveDocumentTarget(snapshot.document,path),undefined);
+  assert.throws(()=>core.readCanonicalDocument(authored.source+"\n"),/canonical/);
+});
+
 // The public Document is opaque: its MyST representation is not a consumer contract.
 // `pnpm typecheck` fails if any expectation below stops being an error.
 function consumerContract(document: Document): void {

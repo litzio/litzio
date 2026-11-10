@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.11 — 미발행
+
+- SDK 0.5.0의 블록·칸 target 검증과 칸 material/CLI를 사용합니다.
+- 원본 병합 span을 모든 실제 칸에 연결하고 빈 grid를 cell:null로 구분합니다.
+- 칸 영역과 최종 canonical snapshot 대응을 재생성합니다. ZIP format 4 / review record version 4이며 migration은 없습니다.
+
 ## 0.0.10 — 미발행
 
 - P1a/P1b의 내부 snapshot·대조·중간 export에 P2 공용 묶음·검사·필수 확인·완료 기록을 추가합니다.

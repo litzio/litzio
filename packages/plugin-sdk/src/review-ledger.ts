@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { generatedTargetSchema } from "./generated-document.ts";
 
 const id = z.string().min(1).max(512), text = z.string().min(1).max(10000);
 const hash = z.string().regex(/^[a-f0-9]{64}$/), page = z.number().int().positive();
@@ -10,6 +11,7 @@ export const reviewScopeSchema = z.strictObject({ pages: z.array(page).min(1).ma
 const region = z.strictObject({ page, bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]), ref: id });
 export const reviewGroupTargetSchema = z.strictObject({
   id, locator: opaque, pages: z.array(page).max(10000), regions: z.array(region).max(10000), before: z.unknown(),
+  documentTargets: z.array(generatedTargetSchema).min(1).max(10000).optional(),
   evidence: z.array(z.strictObject({ observation: text, materialRef: id, materialHash: hash, inspector: id, scope: reviewScopeSchema })).min(1).max(1000),
   patch: z.strictObject({ expectedBefore: z.unknown(), expectedContentRevision: hash, operations: z.array(opaque).max(2000), after: z.unknown(), supported: z.boolean(), deferredReason: text.nullable() })
     .refine(patch => patch.supported ? patch.operations.length > 0 && patch.deferredReason === null : patch.deferredReason !== null, "Executable patches or an explicit deferral reason required"),

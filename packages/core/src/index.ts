@@ -24,11 +24,13 @@ import { citationReport as citationReportTree, updateBibliography as updateBibli
 export type { Document, NodePath, BlockSummary } from "./document.ts";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DOCUMENT_AUTHORING_CONTRACT, DocumentAuthoringError } from "./document-authoring.ts";
 export type { DocumentAuthoringInput, AuthoredDocument } from "./document-authoring.ts";
+export { readCanonicalDocument } from "./document-authoring.ts";
 export { hasNativeMarker, NativeDocumentError } from "./myst/native.ts";
 export type { NativeDocumentErrorCode } from "./myst/native.ts";
 export { writeIssueOf, DocumentDiagnosticError } from "./write-error.ts";
 export type { WriteIssue, WriteIssueCode } from "./write-error.ts";
 export type { EditableDocument, EditableBlock } from "./editable.ts";
+export { resolveDocumentTarget } from "./editable.ts";
 export type { InlineContent, ReferenceRole } from "./inline.ts";
 export type { CitationContent, CitationRole, CitationReport } from "./citation.ts";
 export { bibliographyError, citationContentError, citationText } from "./citation.ts";

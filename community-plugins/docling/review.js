@@ -1,9 +1,9 @@
 import { DOCUMENT_AUTHORING_LIMITS, emptyReviewLedger, reviewLedgerSchema } from "@litzio/plugin-sdk";
 
-export const emptyReview = () => ({ version: 3, patches: [], checkedPages: [], lastPage: null, approval: null, ledger: emptyReviewLedger() });
+export const emptyReview = () => ({ version: 4, patches: [], checkedPages: [], lastPage: null, approval: null, ledger: emptyReviewLedger() });
 export function readReview(bytes) {
   const record = bytes === undefined ? emptyReview() : JSON.parse(Buffer.from(bytes).toString("utf8"));
-  if (!record || record.version !== 3 || Object.keys(record).sort().join() !== ["version", "patches", "checkedPages", "lastPage", "approval", "ledger"].sort().join() ||
+  if (!record || record.version !== 4 || Object.keys(record).sort().join() !== ["version", "patches", "checkedPages", "lastPage", "approval", "ledger"].sort().join() ||
       !Array.isArray(record.patches) || record.patches.length > 2000 || !Array.isArray(record.checkedPages) || record.checkedPages.some(p => !Number.isInteger(p) || p < 1) ||
       record.lastPage !== null && (!Number.isInteger(record.lastPage) || record.lastPage < 1) || record.approval !== null) throw new Error("Invalid review record");
   record.ledger = reviewLedgerSchema.parse(record.ledger);
@@ -16,6 +16,11 @@ export function originalReviewTarget(document, locator) {
   const item = match && document[match[1]]?.[Number(match[2])];
   if (!item || item.self_ref !== locator.self_ref || locator.cell !== undefined && locator.cell !== null &&
       (match[1] !== "tables" || !Number.isInteger(locator.cell) || locator.cell < 0 || !item.data?.table_cells?.[locator.cell])) throw new Error("Unknown original review target");
+  if (locator.cell === null) {
+    const { row, column } = locator;
+    if (match[1] !== "tables" || !Number.isInteger(row) || !Number.isInteger(column) || row < 0 || column < 0 || row >= item.data.num_rows || column >= item.data.num_cols ||
+        item.data.table_cells.some(cell => row >= cell.start_row_offset_idx && row < cell.end_row_offset_idx && column >= cell.start_col_offset_idx && column < cell.end_col_offset_idx)) throw new Error("Unknown empty grid position");
+  }
   return item;
 }
 export function correctionValue(document, patch) {
@@ -106,6 +111,30 @@ const regionKinds = new Map([
   ["code", "code"], ["code_block", "code"],
 ]);
 
+function regionBox(b, height) {
+  if (!["TOPLEFT", "BOTTOMLEFT"].includes(b.coord_origin)) throw new Error("Unknown coordinate origin");
+  const top = b.coord_origin === "TOPLEFT" ? b.t : height - b.t, bottom = b.coord_origin === "TOPLEFT" ? b.b : height - b.b;
+  return [Math.min(b.l, b.r), Math.min(top, bottom), Math.max(b.l, b.r), Math.max(top, bottom)];
+}
+
+/** Source locators and span interpretation stay in the adapter. Null means no original cell. */
+export function cellMaterials(archive, record, report) {
+  const effective = applyCorrections(archive.document, record.patches);
+  return report.items.flatMap(item => (item.cells ?? []).map(cell => {
+    const table = effective.tables.find(table => table.self_ref === item.self_ref);
+    const original = archive.document.tables.find(table => table.self_ref === item.self_ref);
+    const current = cell.index === null ? null : table.data.table_cells[cell.index];
+    const source = cell.index === null ? null : original.data.table_cells[cell.index];
+    const locator = { self_ref: item.self_ref, cell: cell.index, ...(cell.index === null ? cell.positions[0] : {}) };
+    const regions = current?.bbox ? (table.prov ?? []).map((prov, index) => ({
+      page: prov.page_no, bbox: regionBox(current.bbox, archive.document.pages[prov.page_no].size.height),
+      ref: `cell-${item.self_ref.slice(2).replaceAll("/", "-")}-${cell.index}-${index}`,
+    })) : [];
+    return { sourceLocator: locator, locator: { ...locator }, positions: cell.positions, sourceText: source?.text ?? "", text: current?.text ?? "",
+      disposition: table.__reviewExcluded ? "excluded" : item.status === "furniture" ? "furniture" : cell.targets.length ? "supported" : "unsupported", regions, targets: cell.targets };
+  }));
+}
+
 /** Page bytes stay immutable; regions, kinds and targets use one replayed effective document. */
 export function comparison(archive, record, report, input) {
   const pages = Object.entries(archive.document.pages ?? {}).map(([key, page]) => ({ generation: input.generation, sourceRevision: input.sourceRevision, pageNo: Number(key), width: page.size.width, height: page.size.height, unit: "pt", origin: "TOPLEFT", regions: [] })).sort((a,b) => a.pageNo-b.pageNo);
@@ -119,14 +148,20 @@ export function comparison(archive, record, report, input) {
       const page = pages.find(p => p.pageNo === prov.page_no);
       if (!page) throw new Error("Unknown provenance page");
       const b = prov.bbox, id = `region-${item.self_ref.slice(2).replaceAll("/","-")}-${index}`;
-      if (!["TOPLEFT","BOTTOMLEFT"].includes(b.coord_origin)) throw new Error("Unknown coordinate origin");
-      const top = b.coord_origin === "TOPLEFT" ? b.t : page.height-b.t, bottom = b.coord_origin === "TOPLEFT" ? b.b : page.height-b.b;
-      const bbox = [Math.min(b.l,b.r),Math.min(top,bottom),Math.max(b.l,b.r),Math.max(top,bottom)];
+      const bbox = regionBox(b, page.height);
       const status = current.__reviewExcluded ? "excluded" : item.status === "furniture" ? "decoration" : item.targets.length ? "supported" : "unsupported";
       const kind = regionKinds.get(current.label);
       page.regions.push({id,bbox,category: current.label ?? "item",...(kind ? {kind} : {}),status}); sourceIds.push(id);
     }
     if (sourceIds.length) entries.push({sourceIds,targets:item.targets});
+  }
+  for (const cell of cellMaterials(archive, record, report)) {
+    for (const region of cell.regions) {
+      const page = pages.find(page => page.pageNo === region.page);
+      if (!page) throw new Error("Unknown cell provenance page");
+      page.regions.push({ id: region.ref, bbox: region.bbox, category: "cell", kind: "table", status: cell.disposition });
+    }
+    if (cell.regions.length) entries.push({ sourceIds: cell.regions.map(region => region.ref), targets: cell.targets });
   }
   return {review:"compare",bundle:{generation:input.generation,documentRevision:input.result.revision,documentHash:input.result.revision,sourceRevision:input.sourceRevision,mappingRevision:input.generation},pages,images:[],mapping:{generation:input.generation,documentRevision:input.result.revision,documentHash:input.result.revision,sourceRevision:input.sourceRevision,mappingRevision:input.generation,entries}};
 }
