@@ -36,7 +36,13 @@ pnpm browser:test save-session       # 관련 시나리오만 선택
 pnpm browser:test --shard=1/8         # PR은 --shard=1/12; queue·릴리스는 8분할
 ```
 
-CI는 PR에서 12개, merge queue·전체 master fallback·릴리스에서 8개 shard로 stable 목록을 순환 분배하며 각 시나리오는 전체 shard에서 정확히 한 번 실행된다. `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`가 8·12분할 모두 누락·중복·빈 shard 없이 분할되는지 검사한다. 새 stable 시나리오도 같은 순환 규칙에 자동 포함된다. CI 로그에는 각 shard의 배정이 출력되고 실패 artifact는 `editor-browser-ci-logs-<shard>`로 PR 1–12, queue·전체 master 1–8을 구분한다. 로컬 전체 분할 실행은 같은 분모의 모든 shard를 순서대로 실행한다. Playwright 다운로드 캐시와 매번 Chromium 설치 검증은 유지한다.
+CI는 PR에서 12개, merge queue·전체 master fallback·릴리스에서 8개 shard로 stable 목록을 시간 기반으로 배정하며 각 시나리오는 전체 shard에서 정확히 한 번 실행된다. `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`가 가능한 모든 분할 수에서 누락·중복·빈 shard 없이 분할되는지 검사한다. 최근 성공 실행 5~10회의 시나리오별 중앙값을 [시간 데이터](../../apps/editor/test/browser/scenario-durations.json)에 저장하고, 긴 시나리오부터 가장 가벼운 shard에 넣는다. 같은 시간은 이름 순, 같은 부하는 shard 번호 순으로 결정한다. 실행 순서는 각 묶음 안에서 기존 stable 목록 순서를 유지하며 worker는 1이다. 시간 데이터에 없는 새 시나리오나 유효하지 않은 값은 20초로 추정한다. 배정 대상은 항상 stable 목록이므로 시간 데이터의 오래된 이름·오타는 시나리오를 추가하거나 누락시키지 않는다. CI 로그에는 각 shard의 배정이 출력되고 실패 artifact는 `editor-browser-ci-logs-<shard>`로 PR 1–12, queue·전체 master 1–8을 구분한다. 로컬 전체 분할 실행은 같은 분모의 모든 shard를 순서대로 실행한다. Playwright 다운로드 캐시와 매번 Chromium 설치 검증은 유지한다.
+
+시간 데이터는 수동으로만 갱신한다. 최근 성공한 CI 중 전체 Editor 시나리오를 실행한 5~10회 ID를 최신 순으로 넘긴다. 스크립트는 각 실행의 시나리오가 정확히 한 번씩 있는지 확인하고 중앙값을 재생성하며 8·12분할의 순환/시간 기반 예상 합계를 출력한다. GitHub 로그의 반올림된 scenario 시간이며 setup·종료·runner 대기는 계산에 포함하지 않는다.
+
+```bash
+node scripts/browser-shard-durations.mjs <run-id-1> <run-id-2> <run-id-3> <run-id-4> <run-id-5>
+```
 
 2026-11-10 PR 12분할의 비교 기준은 [#1422](https://github.com/litzio/litzio/pull/1422)의 PR 벽시계 6분 12초, 최장 browser job 5분 39초(표본 1회)다. 실제 효과와 runner 대기는 [#1426](https://github.com/litzio/litzio/issues/1426)의 구현 PR에서 측정하며, 목표 3~4분대 도달을 보장하지 않는다.
 

@@ -1,7 +1,9 @@
-/** The stable browser suite, shared by the runner and its coverage/selection checks.
- * Order feeds round-robin shards. Positions balance four shards using rounded scenario durations
- * from CI run 41946600342 (descending duration, least-loaded shard).
- */
+import { readFileSync } from "node:fs";
+
+const durations: { seconds: Record<string, number> } = JSON.parse(
+  readFileSync(new URL("./scenario-durations.json", import.meta.url), "utf8"));
+
+/** Stable suite membership is authoritative; timings never add or remove scenarios. */
 export const STABLE_SCENARIOS = [
   "plugin-columns",
   "vite-plugins",
@@ -142,6 +144,24 @@ export const NOTIFICATION_SCENARIOS = [
 /** Production HTTP has a different startup and filesystem policy; run it against its own Host. */
 export const HTTP_SCENARIOS = ["http-host", "http-plugins", "plugin-jobs", "plugin-views"];
 
+/** Longest estimate first, then least-loaded shard; ties use name and shard index.
+ * Missing/invalid estimates use 20 seconds. Ignore stale names in the timing data.
+ * Preserve suite order within each shard to avoid unnecessary execution-order changes.
+ */
+export function partitionBrowserScenarios(names: readonly string[], count: number,
+  seconds: Readonly<Record<string, number>> = durations.seconds): string[][] {
+  if (!Number.isSafeInteger(count) || count < 1 || count > names.length) throw new Error("Invalid shard count");
+  const estimate = (name: string) => Number.isFinite(seconds[name]) && seconds[name]! > 0 ? seconds[name]! : 20;
+  const loads = Array<number>(count).fill(0);
+  const assigned = new Map<string, number>();
+  for (const name of [...names].sort((a, b) => estimate(b) - estimate(a) || (a < b ? -1 : a > b ? 1 : 0))) {
+    const shard = loads.indexOf(Math.min(...loads));
+    assigned.set(name, shard);
+    loads[shard]! += estimate(name);
+  }
+  return loads.map((_, shard) => names.filter(name => assigned.get(name) === shard));
+}
+
 /** Select before starting a server probe or browser; an invalid/empty shard must fail. */
 export function selectBrowserScenarios(args: readonly string[]): {
   scenarios: string[];
@@ -165,7 +185,7 @@ export function selectBrowserScenarios(args: readonly string[]): {
     }
     if (requested.length || screenshots) throw new Error("Use --shard with the full stable suite, without names or --screenshots.");
     return {
-      scenarios: STABLE_SCENARIOS.filter((_, position) => position % count === index - 1),
+      scenarios: partitionBrowserScenarios(STABLE_SCENARIOS, count)[index - 1]!,
       screenshots: false,
       shard: `${index}/${count}`,
     };

@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { parse, serialize, getEditableDocument, validateStructure, unresolvedReferences, citationReport, type InlineContent, type ListContent } from "@litzio/core";
 import { prepareBrowserFixtures, REPOSITORY_ROOT, SCRATCH_DIRS, SOURCE_DIRS } from "./browser/fixtures.ts";
-import { NOTIFICATION_SCENARIOS, HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./browser/scenarios.ts";
+import { partitionBrowserScenarios, NOTIFICATION_SCENARIOS, HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./browser/scenarios.ts";
 import { classifyConsoleErrors } from "./browser/console-errors.ts";
 
 test("fault injection permits only its expected network failures", () => {
@@ -57,14 +57,23 @@ test("every scratch directory a browser scenario opens is prepared", () => {
   for (const name of prepared) assert.ok(scenarios.includes(`${name}.browser.js`), name);
 });
 
-test("browser shards cover the full stable suite once, with balanced nonempty groups", () => {
-  for (const count of [1, 2, 3, 4, 8, 12]) {
+test("browser shards cover the full stable suite once, with nonempty groups for every shard count", () => {
+  for (let count = 1; count <= STABLE_SCENARIOS.length; count++) {
     const groups = Array.from({ length: count }, (_, index) => selectBrowserScenarios([`--shard=${index + 1}/${count}`]).scenarios);
     assert.deepEqual(groups.flat().sort(), [...STABLE_SCENARIOS].sort(), "no missing or duplicate scenarios");
     const lengths = groups.map(group => group.length);
     assert.ok(Math.min(...lengths) > 0);
-    assert.ok(Math.max(...lengths) - Math.min(...lengths) <= 1);
+
   }
+});
+
+test("duration partition is deterministic, balances estimates and includes unmeasured scenarios", () => {
+  const names = ["a", "b", "c", "new"];
+  const weights = { a: 50, b: 30, c: 20, obsolete: 999 };
+  assert.deepEqual(partitionBrowserScenarios(names, 2, weights), [["a", "new"], ["b", "c"]]);
+  assert.deepEqual(partitionBrowserScenarios(names, 2, weights), partitionBrowserScenarios(names, 2, weights));
+  assert.deepEqual(partitionBrowserScenarios(names, 2, { ...weights, new: NaN }), partitionBrowserScenarios(names, 2, weights));
+  assert.deepEqual(partitionBrowserScenarios(["b", "a", "d", "c"], 2, {}), [["a", "c"], ["b", "d"]]);
 });
 
 test("invalid or ambiguous browser shards cannot silently run an incomplete suite", () => {
