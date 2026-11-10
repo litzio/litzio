@@ -138,6 +138,13 @@ Controls/overlays change state without decorative transitions, pressed movement 
 
 ## State rules
 
+The [assistant button status](main-agent-v1.md#assistant-button-status-1424) (#1424)
+uses the existing 6px `agent-dot` slot as an absolute decoration inside the ghost
+button: outlined `text-muted` circle for work, filled accent circle for unread
+completion, warning square for attention. Shape and localized Tooltip/accessibility
+name supplement color. The indicator reserves no layout space, introduces no
+animation, and does not change the control variant or size.
+
 These are independent axes. Visual interactions never write document attributes.
 
 | Axis | Expression |
