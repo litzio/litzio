@@ -58,6 +58,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await assert.rejects(conversations.send({ ...input, id: conversation.id }, settings), /Stop/);
     const request = { sessionId: conversation.id, toolCall: { toolCallId: "write", kind: "edit" as const, locations: [{ path: path.join(root, "new.txt") }] }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "cancelled" } });
+    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
     // A protocol barrier ensures prompt completion is processed, without a timing assumption.
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
@@ -65,6 +66,8 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "selected", optionId: "once" } });
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { ...request.toolCall, locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "cancelled" } });
+    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "selected", optionId: "once" } });
+    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "shell", kind: "execute" } }), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     await conversations.send({ ...input, id: conversation.id, message: "FAIL THIS TURN" }, settings);
@@ -219,7 +222,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(start.input[2], { type: "localImage", path: path.join(root, "image.png") });
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
   assert.deepEqual(JSON.parse(rpc.find(item => item.method === "turn/steer").params.input[1].text.split("(JSON):\n")[1]), { ...JSON.parse(start.input[1].text.split("(JSON):\n")[1]), userMessage: "Only summarize." });
-  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
@@ -618,4 +621,35 @@ test("display requests report absent windows, expire honestly, cancel and reject
     assert.equal(requests.snapshot("thread", "window"), undefined);
     assert.throws(() => requests.reply("thread", "window", oldSnapshot.id, { before, after: before }), /expired/);
   });
+});
+
+
+test("Codex requirements disable full access; policy rejection preserves history and permits retry", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-policy-"));
+  const connection = new ProviderConnections(root, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const original = connection.client.request.bind(connection.client);
+  let discovery = true;
+  t.mock.method(connection.client, "request", async (method: string, params?: any) => {
+    if (method === "configRequirements/read") {
+      if (!discovery) throw new Error("Method not found");
+      return { requirements: { allowedSandboxModes: ["read-only", "workspace-write"] } };
+    }
+    if (method === "turn/start" && params.sandboxPolicy.type === "dangerFullAccess") throw new Error("invalid thread settings override: invalid value for sandbox_mode: DangerFullAccess is not in the allowed set [ReadOnly, WorkspaceWrite] (set by enterprise-managed requirements private-organization)");
+    return original(method, params);
+  });
+  assert.equal((await connection.models()).fullAccessAllowed, false);
+  discovery = false;
+  assert.equal((await connection.models()).fullAccessAllowed, undefined);
+  const conversations = new AssistantConversations(connection, null);
+  const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const input = { message: "Keep this conversation", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort };
+  const conversation = await conversations.send(input, settings);
+  await conversations.interrupt(conversation.id);
+  const before = conversation.turns.length;
+  await assert.rejects(conversations.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings), { message: "Your organization does not allow Full access. Choose Opened folders or Read-only and send again." });
+  assert.equal(conversations.current(conversation.id).turns.length, before);
+  const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
+  assert.equal(retry.id, conversation.id);
+  assert.equal(retry.turns.at(-1)!.status, "inProgress");
 });

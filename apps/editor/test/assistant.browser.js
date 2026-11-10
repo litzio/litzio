@@ -27,7 +27,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     }
     return route.fulfill({ json: settings });
   });
-  await page.route('**/api/assistant/models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : {}), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
+  await page.route('**/api/assistant/models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : { fullAccessAllowed: false }), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
   await page.route('**/api/assistant/environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
   await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
     account: { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } }));
@@ -310,9 +310,19 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('button', {name: 'Model settings', exact: true})).toHaveText('GPT Sol');
 
   await panel.getByRole('button', {name: 'Permission mode settings', exact: true}).click();
+  await expect(page.getByRole('menuitem', {name: 'Full access', exact: true})).toBeDisabled();
   await page.getByRole('menuitem', {name: 'Read-only', exact: true}).click();
   await expect(panel.getByRole('button', {name: 'Permission mode settings', exact: true})).toHaveText('Read-only');
   expect(settingsWrites.length).toBe(defaultWrites);
+  const permissionButton = panel.getByRole('button', {name: 'Permission mode settings', exact: true});
+  await panel.getByRole('button', { name: 'Reasoning effort settings', exact: true }).focus();
+  await page.keyboard.press('Tab');
+  await expect(permissionButton).toBeFocused();
+  await expect(page.locator('[data-slot=tooltip-content]')).toContainText('Opened folders allows network access');
+  await expect(page.locator('[data-slot=tooltip-content]')).toContainText('Your organization does not allow Full access');
+  if (screenshots) await panel.screenshot({ path: 'tmp/1416-permission-tooltip.png' });
+  await message.focus();
+
 
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Model settings', exact: true }).focus();

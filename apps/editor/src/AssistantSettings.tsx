@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { useHostClient } from "./host-context.tsx";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ASSISTANT, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
@@ -137,11 +138,11 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
         <div title={settings?.provider === "copilot" && defaultModels?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={loading || !model || !settings}
           onChange={value => { save({ ...latest.current!, reasoningEffort: value }); }}
           options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /></div>
-        <div title={t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.")}>
+        <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
           <SettingsSelect label={t("Write access")} value={settings?.permissionMode ?? "opened-folders"} disabled={!settings}
             onChange={value => { save({ ...latest.current!, permissionMode: value as AssistantSettings["permissionMode"] }); }}
-            options={[{ value: "read-only", label: t("Read-only") }, { value: "opened-folders", label: t("Opened folders") }, { value: "full-access", label: t("Full access") }]} />
-        </div>
+            options={[{ value: "read-only", label: t("Read-only") }, { value: "opened-folders", label: t("Opened folders") }, { value: "full-access", label: t("Full access"), disabled: defaultModels?.fullAccessAllowed === false }]} />
+        </TooltipTrigger><TooltipContent>{t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.")}{defaultModels?.fullAccessAllowed === false ? ` ${t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : ""}</TooltipContent></Tooltip>
         <SettingsSelect label={t("AI default language")} value={settings?.responseLanguage ?? "en"} disabled={!settings}
           onChange={value => { save({ ...latest.current!, responseLanguage: value as AssistantSettings["responseLanguage"] }); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />

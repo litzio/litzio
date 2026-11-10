@@ -304,6 +304,7 @@ export const en = {
   "Save the document before saving it as a template.": "Save the document before saving it as a template.",
 
   "max": "max",
+  "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.": "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.",
   "Write access": "Permission mode",
   "Read-only": "Read-only",
   "Opened folders": "Opened folders",
@@ -312,7 +313,7 @@ export const en = {
   "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.",
   "Model, reasoning effort and mode changes apply to the next message.": "Model, reasoning effort and mode changes apply to the next message.",
   "Current model reasoning effort: {{value}}.": "Current model reasoning effort: {{value}}.",
-  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "Read-only denies file writes. Opened folders allows writes only in opened folders and Host Roots. In restricted modes, Codex tools run within its sandbox with network access disabled. Copilot denies execution and network permission requests, but has no OS sandbox and inherited preauthorizations may bypass mediation. Full access removes the Codex sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.",
+  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "Read-only blocks file writes and network access. Opened folders allows network access and writes inside opened folders and Host Roots. OS temporary write exceptions remain disabled. Copilot denies shell requests but has no OS sandbox; inherited preauthorizations may bypass mediation. Full access removes the Codex sandbox and approves tools, paths and network access. Existing documents must still be proposed in text.",
 
   "{{name}} settings": "{{name}} settings",
   "Copilot diagnostics": "Copilot diagnostics",
@@ -1555,6 +1556,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Save the document before saving it as a template.": "템플릿으로 저장하려면 먼저 문서를 저장하세요.",
 
   "max": "최대",
+  "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.": "조직 정책으로 전체 접근을 사용할 수 없습니다. 열린 폴더 또는 읽기 전용을 선택하고 다시 보내세요.",
   "Write access": "권한 모드",
   "Read-only": "읽기 전용",
   "Opened folders": "열린 폴더",
@@ -1563,7 +1565,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI 추론 강도는 대화마다 고정됩니다. 강도를 바꾸려면 새 대화를 시작하세요.",
   "Model, reasoning effort and mode changes apply to the next message.": "모델·추론 강도·모드 변경은 다음 메시지에 적용됩니다.",
   "Current model reasoning effort: {{value}}.": "현재 모델의 추론 강도: {{value}}.",
-  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "읽기 전용은 파일 쓰기를 거부합니다. 열린 폴더는 열린 폴더와 Host Root 안의 쓰기만 허용합니다. 제한 모드에서 Codex 도구는 sandbox 안에서 실행되며 네트워크는 차단됩니다. Copilot은 실행·네트워크 권한 요청을 거부하지만 OS sandbox가 없고 기존 사전 승인은 중개를 거치지 않을 수 있습니다. 전체 접근은 Codex sandbox를 해제하고 도구·경로·네트워크를 자동 승인합니다. 기존 문서 변경은 글로만 제안합니다.",
+  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "읽기 전용은 파일 쓰기와 네트워크를 차단합니다. 열린 폴더는 네트워크와 열린 폴더·Host Root 안 쓰기를 허용하며 OS 임시 폴더 쓰기 예외는 허용하지 않습니다. Copilot은 셸 요청을 거부하지만 OS sandbox가 없어 기존 사전 승인이 중재를 우회할 수 있습니다. 전체 접근은 Codex sandbox를 해제하고 도구·경로·네트워크를 승인합니다. 기존 문서는 계속 글로만 제안합니다.",
 
   "{{name}} settings": "{{name}} 설정",
   "Copilot diagnostics": "Copilot 진단",
