@@ -337,6 +337,8 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 
 ### 지정 커뮤니티 공급 (#1391)
 
+#1450: Docling 지정 공급에는 [LSR 1.1 체험용 샘플](../../community-plugins/docling/sample/lsr-1.1/README.md)을 함께 포함한다. 입력 PDF·작성자 기대 구조·라이선스 고지와 SHA-256 목록을 명시적 파일 목록으로 CLI와 Desktop에 배포한다. Docling 출력 정답·품질 합격선이나 자동 변환·채점 기능은 제공하지 않는다.
+
 제품 고정 `DESIGNATED_COMMUNITY_PLUGINS` 한 곳에서 지정 ID·폴더·실행 파일 목록을 관리한다. 초기 Docling·Jira는 개발 실행·CLI·Desktop에 포함되어 등록 없이 목록에 나타나며 계속 커뮤니티로 표시한다. 사용자·비서·설정으로 지정 목록을 바꾸지 않는다. 처음에는 꺼짐·미신뢰이며 기존 신뢰 확인을 거친 뒤에만 entry를 실행한다. 같은 등록의 신뢰·켜기/끄기·설정·secret은 재시작과 앱 업데이트에도 유지한다. 공식 공급 id·publisher·digest 검증은 별도로 유지한다.
 
 지정 복사본은 unregister를 거부하고 끄기만 허용한다. 같은 ID를 폴더에서 등록하면 그 등록이 우선한다(활성이면 먼저 끈다). 등록 교체는 새 registrationId로 다시 신뢰하며, 외부 등록을 제거하면 다음 Host 시작에 꺼짐·미신뢰 지정 복사본을 다시 표시한다. 외부 등록 제거의 기존 설정·secret 삭제 계약은 유지한다. 지정 복사본이 시작 시 복귀할 때 기존 등록과 operation ID가 충돌하면 목록에 `Plugin operation ID collision` 오류로 남기고 활성화도 거부하며, 먼저 등록된 플러그인의 실행은 유지한다. 공용 plugins 작업·CLI list·비서 도구가 같은 상태를 사용하며 새 명령은 없다.
