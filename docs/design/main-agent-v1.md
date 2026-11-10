@@ -1874,9 +1874,15 @@ roles as #983/#1436; no new palette, control geometry or modal. Self-review foun
 no overlap or horizontal overflow at the supported widths. Owner visual approval
 and an actual non-local connection are separate.
 
-| View | Working question card | Answered record after reopening |
-| --- | --- | --- |
-| 1440 Light | [Image](assets/assistant-question-1443/pending-1440-light.png) | [Image](assets/assistant-question-1443/reopened-1440-light.png) |
-| 1440 Dark | [Image](assets/assistant-question-1443/pending-1440-dark.png) | [Image](assets/assistant-question-1443/reopened-1440-dark.png) |
-| 640 Light | [Image](assets/assistant-question-1443/pending-640-light.png) | [Image](assets/assistant-question-1443/reopened-640-light.png) |
-| 640 Dark | [Image](assets/assistant-question-1443/pending-640-dark.png) | [Image](assets/assistant-question-1443/reopened-640-dark.png) |
+Before captures use the Host conversation mapping and bundled UI from parent
+`5fd8dd08`, driven by the same synthetic native async travel question event.
+The original text survives but no question card or pending-input projection exists.
+After captures exercise the Host-tool card and its rendering acknowledgement;
+the question content is the same, while the transport is explicitly different.
+
+| View | Before: working question text | After: working question card | Answered record after reopening |
+| --- | --- | --- | --- |
+| 1440 Light | [Image](assets/assistant-question-1443/before-1440-light.png) | [Image](assets/assistant-question-1443/pending-1440-light.png) | [Image](assets/assistant-question-1443/reopened-1440-light.png) |
+| 1440 Dark | [Image](assets/assistant-question-1443/before-1440-dark.png) | [Image](assets/assistant-question-1443/pending-1440-dark.png) | [Image](assets/assistant-question-1443/reopened-1440-dark.png) |
+| 640 Light | [Image](assets/assistant-question-1443/before-640-light.png) | [Image](assets/assistant-question-1443/pending-640-light.png) | [Image](assets/assistant-question-1443/reopened-640-light.png) |
+| 640 Dark | [Image](assets/assistant-question-1443/before-640-dark.png) | [Image](assets/assistant-question-1443/pending-640-dark.png) | [Image](assets/assistant-question-1443/reopened-640-dark.png) |
