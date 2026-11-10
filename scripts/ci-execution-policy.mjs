@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
-const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullLayout: true, smartquotes: true });
+const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullRemoval: true, fullLayout: true, smartquotes: true });
 // Consumers: root issue/docs commands and the always-run CI policy checks.
 // Product builds/tests do not load these files. Keep other scripts conservative.
 const policyFiles = new Set([
@@ -49,6 +49,14 @@ const desktopBuildInputs = new Set([
     'apps/editor'].map(path => `${path}/tsconfig.json`),
 ]);
 const desktopBuildInput = path => desktopBuildInputs.has(path) || path.startsWith('apps/editor/public/licenses/');
+// Build-only inputs that determine installed SDK/plugin supply or copied sample payload.
+// Removal must cover them without changing Stable/Beta or layout selection.
+const removalBuildInputs = new Set([
+  'packages/cli/scripts/plugin-sdk.ts',
+  'apps/editor/server/plugins/designated-plugins.ts',
+  'apps/editor/server/plugins/artifact-digest.mjs',
+]);
+const removalBuildInput = path => removalBuildInputs.has(path) || path.startsWith('apps/editor/samples/');
 const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildInput(path) ||
   path === 'brand.ts' || path.endsWith('/package.json') ||
   path.startsWith('apps/desktop/installer/') || path.startsWith('apps/desktop/scripts/') ||
@@ -90,6 +98,8 @@ export function selectJobs(eventName, paths) {
     browser, http,
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),
     update,
+    // Removal runs with every Desktop package; build inputs must not depend on update selection.
+    fullRemoval: paths.some(path => !policyOnly(path) && (lifecycleFullPaths(path) || removalBuildInput(path))),
     fullLifecycle: update && paths.some(path => !policyOnly(path) && lifecycleFullPaths(path)),
     fullLayout: paths.some(path => !policyOnly(path) && layoutFullPaths(path)),
     // Package manifests cover MyST/markdown-it version declarations; the lockfile

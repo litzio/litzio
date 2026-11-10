@@ -507,7 +507,7 @@ test("installs per user, then updates from Settings only after the open document
 
 
 // The old installer comes from GitHub; only the candidate is built. Rebuilding the old
-// version here would miss installer bootstrap defects. CI runs this as a separate early step.
+// version here would miss installer bootstrap defects. Release verification runs this as a separate early step.
 test("published beta.6 upgrades to the candidate without an installed lifecycle helper", {
   skip: !PUBLISHED_BASE || LIVE, timeout: 5 * 60_000,
 }, async () => {
