@@ -1057,16 +1057,20 @@ function EditorApp() {
     }).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
     return () => { active = false; stop?.(); };
   }, []);
+  function summarizeHostWork(records: readonly RecoveryRecord[]) {
+    const work = [...tabs, ...viewTabs, ...(galleryGroup ? [{ hostId: galleryHostId }] : [])];
+    const ids = new Set([...work.map(tab => tab.hostId), ...records.map(record => record.hostId)]);
+    return [...ids].map(hostId => ({
+      hostId, openWork: work.filter(tab => tab.hostId === hostId).length,
+      recovery: records.filter(record => record.hostId === hostId).length,
+    }));
+  }
   useEffect(() => {
     if (!desktop || !tabsRestored) return;
     let active = true;
     void recoveryStorage.list().then(records => {
       if (!active) return;
-      const ids = new Set([...tabs.map(tab => tab.hostId), ...viewTabs.map(tab => tab.hostId), ...records.map(record => record.hostId), ...(galleryGroup ? [galleryHostId] : [])]);
-      return desktop.reportHostWork([...ids].map(hostId => ({
-        hostId, openWork: [...tabs, ...viewTabs].filter(tab => tab.hostId === hostId).length + (galleryGroup && galleryHostId === hostId ? 1 : 0),
-        recovery: records.filter(record => record.hostId === hostId).length,
-      })));
+      return desktop.reportHostWork(summarizeHostWork(records));
     }).catch(() => {
       if (active) void desktop.reportHostWork(null).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
     });
@@ -1496,9 +1500,7 @@ function EditorApp() {
                   if ([...tabs, ...viewTabs].some(tab => tab.hostId === hostId) || (galleryGroup && galleryHostId === hostId)) throw new Error(i18n.t("Close Host work before removing this Host."));
                   const records = await recoveryStorage.list();
                   if (records.some(record => record.hostId === hostId)) throw new Error(i18n.t("Resolve Host recovery records before removal."));
-                  if (desktop) await desktop.reportHostWork([...new Set([...tabs.map(tab => tab.hostId), ...viewTabs.map(tab => tab.hostId), ...records.map(record => record.hostId)])].map(id => ({
-                    hostId: id, openWork: [...tabs, ...viewTabs].filter(tab => tab.hostId === id).length, recovery: records.filter(record => record.hostId === id).length,
-                  })));
+                  if (desktop) await desktop.reportHostWork(summarizeHostWork(records));
                   await desktop?.removeHost(hostId);
                 } finally { operationRef.current = false; setOperation(""); }
               }} onAssistantSaved={() => setAssistantSettingsRevision(value => value + 1)}

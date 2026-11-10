@@ -303,3 +303,5 @@ Windows persistent Chrome, 100% zoom, 1000px 높이의 수동 촬영이다. 1440
 | --- | --- | --- |
 | 1440px Light, 로컬 전용 → 원격 선택 | [capture](assets/remote-template-gallery-1185/before-1440.png) | [capture](assets/remote-template-gallery-1185/after-1440.png) |
 | 640px Korean Dark, 로컬 catalog | [capture](assets/remote-template-gallery-1185/before-640.png) | [capture](assets/remote-template-gallery-1185/after-640.png) |
+
+갤러리는 대상 Host의 열린 작업으로 집계한다. 정상 작업 보고와 다른 Host 제거 직전 재보고는 같은 집계 함수를 사용하여 전체 summary 교체 시 갤러리 작업을 보존한다. 기존 `multi-host`에 A의 갤러리만 남긴 채 B 제거를 준비하고 native bridge에서 취소하는 대표 사례를 보완했다. 정상 보고·제거 요청 시점·취소 후 보고에서 A의 `openWork: 1`을 확인한다. 수정 전에는 제거 요청의 summary에서 A가 빠져 `undefined`로 실패하는 것을 실행 확인했다. 주된 검증 계층은 Editor→Desktop bridge 보고이며 새 subprocess·전수 조합은 없다. 실제 packaged native 확인창 실행을 뜻하지 않는다.

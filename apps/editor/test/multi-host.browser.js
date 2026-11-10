@@ -132,8 +132,9 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   await page.addInitScript(() => {
     window.__explorerCalls = [];
     window.litzioDesktop = {
-      registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: 'test' }),
-      reportPendingWork: () => {}, reportHostWork: async () => {},
+      registeredHosts: async () => ({ hosts: [{ hostId: 'off', origin: location.origin + '/fixture/off', label: 'Offline' }], allowedHostIds: [], productVersion: 'test' }),
+      reportPendingWork: () => {}, reportHostWork: async summary => { window.__hostWork = structuredClone(summary); },
+      removeHost: async hostId => { window.__removal = { hostId, summary: structuredClone(window.__hostWork) }; throw Error('Removal cancelled.'); },
       hostConnection: async () => ({ url: location.origin, productVersion: 'test', desktopVersion: 'test' }),
       checkDaemon: async () => {}, setTheme: async () => false, setWindowBackground: async () => {},
       info: async () => ({ version: '0.0.2', channel: 'beta', updatesSupported: false, update: { phase: 'idle' }, postponed: null }),
@@ -597,6 +598,21 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
     await gallery.getByRole('combobox', { name: 'Host', exact: true }).selectOption('local');
     await expect(gallery.locator('.template-card-preview')).toHaveCount(2);
     await expect(gallery.getByText('Remote template', { exact: true })).toHaveCount(0);
+
+    // A gallery-only Host must survive the full-summary report before another Host's cancelled removal.
+    const remoteClose = page.getByRole('button', { name: /^Close .*Remote$/ });
+    while (await remoteClose.count()) await remoteClose.first().click();
+    await gallery.getByRole('combobox', { name: 'Host', exact: true }).selectOption('remote');
+    await expect.poll(() => page.evaluate(() => window.__hostWork?.find(row => row.hostId === 'remote'))).toEqual({ hostId: 'remote', openWork: 1, recovery: 0 });
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Hosts', exact: true }).click();
+    await page.getByTestId('host-settings').getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.__removal?.hostId)).toBe('off');
+    await expect(page.getByRole('alert').filter({ hasText: 'Close Host work and resolve recovery records before retrying removal.' })).toBeVisible();
+    expect(await page.evaluate(() => window.__removal.summary.find(row => row.hostId === 'remote'))).toEqual({ hostId: 'remote', openWork: 1, recovery: 0 });
+    expect(await page.evaluate(() => window.__hostWork.find(row => row.hostId === 'remote'))).toEqual({ hostId: 'remote', openWork: 1, recovery: 0 });
+    await expect(page.getByRole('tab', { name: /Template gallery.*Remote/ })).toHaveCount(1);
+    await expect(page.getByRole('heading', { name: 'Offline', exact: true })).toBeVisible();
 
   }
 }
