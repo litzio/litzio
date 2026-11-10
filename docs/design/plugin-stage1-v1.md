@@ -345,6 +345,7 @@ Host가 verification을 소유한다. 아직 원래 호출이 진행 중이면 p
 초기화하지 않는다. Host별 탐색·장소 조회 함수를 유지하고 기존 FolderDialog가 열기·Host 전환의
 초기화를 소유한다. 선택한 설정/신뢰 대상이 목록에서 사라진 경우에만 해당 Dialog를 닫고
 기존 Notice로 알린다. 일반 갱신과 사용자가 직접 완료한 제거에는 이 안내를 표시하지 않는다.
+닫히는 설정·신뢰 Dialog가 아직 마운트되어 있어도 안내는 활성 Dialog 또는 설정 본문 한 곳에만 표시한다.
 기존 `http-plugins`에 갱신 응답 반영 뒤 경로·focus 보존과 외부 제거 안내 검사를 보완했다.
 Windows persistent Chrome의 localhost fixture 검증이며 실제 외부 서비스 수락 근거는 아니다.
 

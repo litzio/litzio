@@ -286,11 +286,22 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
   await openSettings();
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
+  // Observe every DOM commit, including the still-mounted closing dialog. A final
+  // count alone could miss a duplicate notice that disappears with the portal.
+  await page.evaluate(() => {
+    window.pluginNoticeMaximum = 0;
+    window.pluginNoticeObserver = new MutationObserver(() => {
+      const count = [...document.querySelectorAll('[role="alert"]')].filter(node => node.textContent === "The selected plugin is no longer available.").length;
+      window.pluginNoticeMaximum = Math.max(window.pluginNoticeMaximum, count);
+    });
+    window.pluginNoticeObserver.observe(document.body, { childList: true, characterData: true, subtree: true });
+  });
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
   await expect(page.getByRole("dialog", { name: "Drive fixture", exact: true })).not.toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "The selected plugin is no longer available." })).toBeVisible();
+  expect(await page.evaluate(() => { window.pluginNoticeObserver.disconnect(); return window.pluginNoticeMaximum; }), "A closing dialog must not duplicate the selected-plugin notice").toBe(1);
   await page.keyboard.press("Escape");
   }
   // Actual detachable community artifact, same Host and CLI, one fake service.
