@@ -1,3 +1,4 @@
+import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { designatedPluginDirectories } from "./designated-plugins.ts";
 import { PLUGIN_REGISTRATION_CHANGED, inputHintResultSchema, inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
@@ -425,7 +426,10 @@ export class PluginHost {
               for (const [key, field] of Object.entries(properties ?? {})) message = message.replaceAll(`'${key}'`, `'${field.title ?? key}'`);
               return message;
             }).join("; ");
-            throw new Error(`Invalid settings: ${detail ?? "Invalid value"}`);
+            throw new PluginSettingsError(`Invalid settings: ${detail ?? "Invalid value"}`, (validate.errors ?? []).map(error => ({
+              keyword: error.keyword,
+              path: error.keyword === "required" ? `${error.instancePath}/${String(error.params.missingProperty).replaceAll("~", "~0").replaceAll("/", "~1")}` : error.instancePath,
+            })));
           }
           await this.changeConfiguration(id, () => { r.settings = structuredClone(args.settings!); });
         } else throw new Error("Unknown plugin management action");

@@ -1,3 +1,4 @@
+import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 // Use the published ESM entry: its UMD factory leaves dynamic relative require calls in CLI bundles.
 import { parseTree } from "jsonc-parser/lib/esm/main.js";
 import { catalogViewByteLimit, type CatalogView } from "@litzio/core/views-v2";
@@ -418,7 +419,12 @@ export async function handleDocumentRequest(
         const operation = route[req.method ?? ""];
         if (!operation) { res.statusCode = 405; res.end(); return; }
         const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(url.startsWith("/api/assistant/") ? decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, ASSISTANT_TRANSPORT_LIMITS.requestBytes))) : await readBody(req));
-        const result = await service!.invoke(operation, args);
+        let result;
+        try { result = await service!.invoke(operation, args); }
+        catch (error) {
+          if (error instanceof PluginSettingsError) { sendJson(res, 400, { error: error.message, settingsIssues: error.settingsIssues }); return; }
+          throw error;
+        }
         sendJson(res, 200, result);
         return;
       }

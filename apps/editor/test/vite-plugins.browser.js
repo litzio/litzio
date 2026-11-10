@@ -70,9 +70,18 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await serviceUrl.press("Tab");
   await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
   await expect(serviceUrl).toHaveValue("https://docling.example.test/service");
-  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("Fixture save rejected");
+  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("Could not save settings. Check the values and try again.");
   await check.click();
   expect(invokes).toBe(0);
+  await page.unroute("**/api/plugins");
+  await page.route("**/api/plugins", async route => {
+    if (route.request().postDataJSON()?.action === "settings") return route.fulfill({ status: 400, json: { error: "opaque validator message", settingsIssues: [{ keyword: "type", path: "/failure" }] } });
+    await route.continue();
+  });
+  await serviceUrl.focus();
+  await serviceUrl.press("Tab");
+  await expect(dialog.getByRole("switch", { name: "Simulate failure", exact: true })).toHaveAttribute("aria-invalid", "true");
+  await expect(dialog.getByText("Save failed: Enter a value of the expected type.", { exact: true })).toBeVisible();
   await page.unroute("**/api/plugins");
   let release;
   const gate = new Promise(resolve => { release = resolve; });
@@ -92,7 +101,8 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await serviceUrl.press("Tab");
   await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
   await expect(serviceUrl).toHaveValue("");
-  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("fewer than 1");
+  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("This value is too short. Enter a longer value.");
+  if (screenshots) await page.screenshot({ path: "tmp/plugin-settings-1407/error-1440.png", mask: [page.locator(".sidebar-host-account")] });
   await serviceUrl.fill("https://docling.example.test/service");
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
@@ -136,6 +146,12 @@ async (page, { expect, pluginFixture, screenshots }) => {
       await expect(page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true })).toHaveValue("https://docling.example.test/service");
       await expect(page.getByRole("dialog").locator('input[type="password"]')).toBeVisible();
       await page.screenshot({ path: `tmp/plugin-settings-1334/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+      if (width === 640) {
+        const url = page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true });
+        await url.fill(""); await url.press("Tab");
+        await expect(page.getByText("저장 실패: 입력한 값이 너무 짧습니다. 더 길게 입력하세요.", { exact: true })).toBeVisible();
+        await page.screenshot({ path: "tmp/plugin-settings-1407/error-640-ko.png", mask: [page.locator(".sidebar-host-account")] });
+      }
       await page.keyboard.press("Escape");
     }
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
