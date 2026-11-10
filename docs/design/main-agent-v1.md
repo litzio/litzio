@@ -1654,7 +1654,9 @@ The existing #1424 observer and attention priority are unchanged.
 
 - The transcript follows new output while at the bottom (2px rounding tolerance).
   User scrolling away retains the reading position, including within the previous
-  180px follow threshold. Reaching the bottom, explicitly jumping there or sending
+  180px follow threshold. Upward wheel/keyboard intent and scrollbar pointer-down
+  release following before a deferred resize can compete with the scroll event.
+  Reaching the bottom, explicitly jumping there or sending
   a message resumes following. Conversation/history navigation starts at the end;
   hiding/reopening the same panel retains its reading choice. Resize and deferred
   Markdown/math layout follow only when already following.

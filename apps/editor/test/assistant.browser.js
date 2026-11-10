@@ -543,39 +543,44 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await steps.locator('summary').click();
   const transcript = panel.locator('.assistant-transcript');
   const distanceFromEnd = () => transcript.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop);
-  progressTurn.items = [{ id: 'progress-user', kind: 'user', text: 'Explain the document.' },
-    { id: 'progress-reasoning', kind: 'reasoning', text: 'Checking the document.' }];
+  const progressReasoning = { id: 'progress-reasoning', kind: 'reasoning', text: 'Checking the document.' };
+  // Preserve provider-observed user/submission identities while streaming work.
+  progressTurn.items = [...progressItems.filter(item => item.kind === 'user'), progressReasoning];
   await expect(steps.locator('summary')).toHaveText('Thinking…');
   await expect(steps).not.toHaveAttribute('open');
   await steps.locator('summary').click();
-  progressTurn.items[1].text += ' More context arrived.';
+  progressReasoning.text += ' More context arrived.';
   await expect(steps).toContainText('More context arrived.');
   await expect(steps).toHaveAttribute('open', '');
-  progressTurn.items.push({ id: 'progress-tool', kind: 'tool', text: 'read_document · document.md', status: 'inProgress' });
+  const progressTool = { id: 'progress-tool', kind: 'tool', text: 'read_document · document.md', status: 'inProgress' };
+  progressTurn.items.push(progressTool);
   await expect(steps.locator('summary')).toHaveText('Running tool: read_document · document.md');
   await expect(steps).toHaveAttribute('open', '');
   await steps.locator('summary').click();
   const existingJump = panel.getByRole('button', { name: /Jump to bottom$/ });
   if (await existingJump.isVisible()) await existingJump.click();
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
-  progressTurn.items[2].status = 'completed';
-  progressTurn.items.push({ id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation.\n\n'.repeat(65) });
+  progressTool.status = 'completed';
+  const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation.\n\n'.repeat(65) };
+  progressTurn.items.push(progressAnswer);
   await expect(steps.locator('summary')).toHaveText('Writing answer…');
   await expect(steps).not.toHaveAttribute('open');
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   const transcriptBox = await transcript.boundingBox();
-  await page.mouse.move(transcriptBox.x + transcriptBox.width / 2, transcriptBox.y + transcriptBox.height / 2);
+  // Target the transcript gutter; the center may hover a restored-message action
+  // whose portalled tooltip becomes the native wheel target on Linux.
+  await page.mouse.move(transcriptBox.x + 8, transcriptBox.y + transcriptBox.height / 2);
   await page.mouse.wheel(0, -100);
   await expect.poll(distanceFromEnd).toBeGreaterThan(30);
   const readingTop = await transcript.evaluate(el => el.scrollTop);
-  progressTurn.items[3].text += 'New material.\n\n'.repeat(35);
+  progressAnswer.text += 'New material.\n\n'.repeat(35);
   const jump = panel.getByRole('button', { name: 'New content · Jump to bottom', exact: true });
   await expect(jump).toBeVisible();
   expect(await transcript.evaluate(el => el.scrollTop)).toBe(readingTop);
   await jump.click();
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   await expect(jump).toHaveCount(0);
-  progressTurn.items[3].text += 'Further material.\n\n'.repeat(35);
+  progressAnswer.text += 'Further material.\n\n'.repeat(35);
   await expect(panel.getByRole('group', { name: 'Assistant response' })).toContainText('Further material.');
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   progressTurn.items = progressItems;
