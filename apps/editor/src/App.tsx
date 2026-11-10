@@ -812,12 +812,16 @@ function EditorApp() {
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
-  function openComparison(hostId: string, comparison: ComparisonTarget) {
+  function openComparison(hostId: string, { root, document }: ComparisonTarget) {
+    const comparison = { root, document };
     const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && tab.comparison.document === comparison.document);
     const id = existing?.id ?? `comparison-${++nextId.current}`;
     setViewTabs(previous => previous.some(t => t.id === id) ? previous : [...previous,{id,hostId,root:comparison.root,comparison,label:i18n.t("Source comparison")}]);
     placeTab(id);
   }
+  // DocumentTab reports session changes to App; keep its event prop stable across those renders.
+  const comparisonEntry = useRef(openComparison); comparisonEntry.current = openComparison;
+  const openGeneratedComparison = useCallback((hostId: string, target: ComparisonTarget) => comparisonEntry.current(hostId, target), []);
   function openPluginJobs(): void {
     const hostId = viewTabs.find(tab => tab.id === activeId)?.hostId ?? session?.hostId ?? LOCAL_HOST_ID;
     const id = `plugin-jobs-${hostId}`;
@@ -1242,7 +1246,7 @@ function EditorApp() {
 
   return (<>
     <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
-      <Sidebar onCopyPath={path => void copyPath(path)}
+      <Sidebar onCompare={openComparison} onCopyPath={path => void copyPath(path)}
         documentHostId={activePdf?.hostId ?? session?.hostId ?? LOCAL_HOST_ID}
         onHostOpen={(hostId, path) => openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); })}
         onHostCreate={(hostId, client, path, root) => createFile(path, { hostId, client, root })}
@@ -1403,7 +1407,8 @@ function EditorApp() {
             return <DocumentTab client={tab.client} hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
               report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : remoteImageRename} onReveal={revealDocument}
-              onCompare={compareExternal} />;
+              comparisonRoot={(tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)).find(root => folderChain(root, tab.file.path).length > 0) ?? splitDocumentPath(tab.file.path).directory}
+              onOpenComparison={openGeneratedComparison} onCompare={compareExternal} />;
           })}
           {viewTabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));

@@ -1,0 +1,128 @@
+{
+  "issue": 1465,
+  "date": "2026-11-10",
+  "browser": "Windows installed Chrome, checkout-owned persistent profile",
+  "language": "en",
+  "zoom": "100%",
+  "source": "synthetic Docling HTTP fixture; no real conversion service",
+  "baseline": {
+    "uiRef": "d25aef816d8d5590d1c1b27b2e7610b2db7c8513",
+    "uiFiles": [
+      "apps/editor/src/App.tsx",
+      "apps/editor/src/DocumentTab.tsx",
+      "apps/editor/src/shell/FolderTree.tsx"
+    ],
+    "host": "current Host and same synthetic fixture",
+    "mode": "manual capture; new entry assertions replaced with baseline menu capture, then final source restored"
+  },
+  "command": "pnpm browser:test http-plugins --screenshots",
+  "privacy": "Host account, Root heading and folder select masked",
+  "limits": [
+    "No real remote network or packaged Desktop acceptance",
+    "No real Docling conversion quality claim",
+    "Not owner visual approval",
+    "Dashboard uses existing jobs; no recent review progress list"
+  ],
+  "files": {
+    "before-dashboard-existing-jobs-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "50700b9f055084ff90723ae5b6234fa532f7d294176e0f8ea001f662b5b9b912"
+    },
+    "before-dashboard-existing-jobs-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "57a35f096df4e05d60b161795d6d09bbc1ac4883c45a5bececc0daa917215d44"
+    },
+    "before-document-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "c1ceeb1c97044cc0485d718d971f613a93368a1611ae24e592d1611cb071d654"
+    },
+    "before-document-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "4ece8aee43402e7ac7844c7d1d8b0fa0045f3acf2f462250fdc13b6148c51610"
+    },
+    "before-document-640-dark.png": {
+      "width": 640,
+      "height": 1000,
+      "sha256": "034b0463db514cfa6df2f0e58b9ef9834259fa8efee1e48b3c3f2ee20b6d487e"
+    },
+    "before-document-640-light.png": {
+      "width": 640,
+      "height": 1000,
+      "sha256": "84d6031ed023fe8906384351775ce7d3e535f408fc0b70cf5571119aeb48398b"
+    },
+    "before-document-menu-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "b2d8024b9f557334e3ef926711ef6e961bbd00ab7d480c15e52fb53ed0b9f692"
+    },
+    "before-document-menu-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "de592e53898b0eba15c7a1ea96cd8a162b57d056dbe7831c615866595695427f"
+    },
+    "before-source-menu-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "421c7281f72b64627356e2449cb48e428c62fc12b0a622441be19a0442db09d1"
+    },
+    "before-source-menu-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "f85efe79d8fc0adc908fa18dcb8fc34bd624b574bf218a6b2545fc47dae37619"
+    },
+    "dashboard-existing-jobs-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "0cc27e83c2892865b071330b06aebc4f885fe59c0b11c20b97cb4eb6c3615290"
+    },
+    "dashboard-existing-jobs-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "2f8c1a9f193f07cbad6c91bdd969a72cdab80272b647d065fc79d1d5ca568696"
+    },
+    "document-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "05c8afec1541086de88e9f5473da8aa9276356050223c18032d40bc288efeff5"
+    },
+    "document-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "35f8a94bdc6f71e1a60cc031d87eb1c8d66503f0b379b74094f324ed352bb748"
+    },
+    "document-640-dark.png": {
+      "width": 640,
+      "height": 1000,
+      "sha256": "46050f0e44f20015b975e0d0d42a7088992c645ca83b5263c18e9fc5c0d42259"
+    },
+    "document-640-light.png": {
+      "width": 640,
+      "height": 1000,
+      "sha256": "1ea9cbc0fc6528ea2aeb9f8e2f5b577d1b7edee6a0a700fd549a155505449aaa"
+    },
+    "document-menu-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "acfd30bfaf419e53c0ac7bc1d5a162638b8e027f1959735ff44bf0c6cfc09bc8"
+    },
+    "document-menu-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "f3936df3245b9ecb5fc1f7c415e21638f796748315b2bf8deab79198df9d13ff"
+    },
+    "source-menu-1440-dark.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "9869c311328e7cd7f33b8c71e651abc5981652d72adb62a31717d0b0c71968ab"
+    },
+    "source-menu-1440-light.png": {
+      "width": 1440,
+      "height": 1000,
+      "sha256": "046bfe06e1258ad1d5ccaa0850addb6c7ee1e92635eee9aa3c1089f7e18ef495"
+    }
+  }
+}

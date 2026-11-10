@@ -8,7 +8,7 @@ import { commitFile, textRevision } from "@litzio/file-commit";
 import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { loadDocumentFile } from "../server/document-reader.ts";
-import { generatedDocumentIdentity, isManagedGeneratedDocument } from "../server/generated-document.ts";
+import { generatedDocumentIdentity, generatedDocumentLinkPath, isManagedGeneratedDocument } from "../server/generated-document.ts";
 
 test("filesystem-distinct Unicode document names keep separate connections and admission locks across atomic Save", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-generated-unicode-"));
@@ -58,10 +58,13 @@ test("filesystem-distinct Unicode document names keep separate connections and a
     }
     hold = true;
     const pending = read("\u212a.md");
+    let queued: Promise<any> | undefined, readFinished = false;
     try {
       assert.equal((await read("k.md")).state, "generated");
-      if (process.platform === "win32") await assert.rejects(read("\u212a.MD"), /operation in progress/);
-    } finally { hold = false; release(); await pending; }
+      queued = read(process.platform === "win32" ? "\u212a.MD" : "\u212a.md").then(value => { readFinished = true; return value; });
+      await Promise.resolve(); assert.equal(readFinished, false, "reopening waits for the previous read");
+      await assert.rejects(host.execute({ action: "generated-regenerate", root, document: "\u212a.md", requestId: randomUUID(), baseline: (await read("k.md")).baseline }), /operation in progress/);
+    } finally { hold = false; release(); await pending; assert.equal((await queued)?.state, "generated"); }
     const newRequest = (document: string, source: string) => ({ action: "generated-open", root, document, source, plugin: "fixture", job: "import", requestId: randomUUID(),
       baseline: { sourceRevision: textRevision(readFileSync(path.join(root, source), "utf8")), documentRevision: null, linkRevision: null } });
     hold = true;
@@ -104,7 +107,8 @@ test("generated document official writes keep source state first, reject conflic
     return { result: { record, items: [] } };
   };
   const access = new RootAccess([root]);
-  const service = () => new GeneratedDocuments(access, () => ({ operation: "fixture.provider", version: 1, assertCurrent() {} }), provider);
+  let comparison = true;
+  const service = () => new GeneratedDocuments(access, () => ({ operation: "fixture.provider", version: 1, comparison: comparison ? "inspect" : undefined, assertCurrent() {} }), provider);
   let host = service();
   const read = () => host.execute({ action: "generated-read", root, document: "result.md" });
   const patch = async (text: string, baseline = undefined as any) => host.execute({ action: "generated-patch", root, document: "result.md", baseline: baseline ?? (await read()).baseline, patches: [{ text }], requestId: randomUUID() });
@@ -113,6 +117,35 @@ test("generated document official writes keep source state first, reject conflic
       baseline: { sourceRevision: textRevision(readFileSync(source, "utf8")), documentRevision: null, linkRevision: null }, requestId: randomUUID() });
     assert.equal(opened.state, "generated");
     assert.equal(loadDocumentFile(document, access).managedGenerated, true);
+    const find = (locator?: string, scope = root) => host.execute({ action: "generated-find", root: scope, ...(locator ? { path: locator } : {}) });
+    const expectedConnection = { match: "source", root: generatedDocumentIdentity(root), document: "result.md", source: "source.bin", plugin: "fixture", job: "import" };
+    assert.deepEqual((await find("source.bin")).documents, [expectedConnection]);
+    assert.deepEqual((await find("result.md")).documents, [{ ...expectedConnection, match: "document" }]);
+    if (process.platform === "win32") assert.deepEqual((await find("RESULT.MD")).documents, [{ ...expectedConnection, match: "document" }]);
+    assert.equal((await find()).receipt.operation, "review.find");
+    assert.equal((await find()).receipt.outcome, "success");
+    assert.deepEqual((await find("unconnected.bin")).documents, []);
+    await assert.rejects(find("../outside.bin"), /outside/);
+    await assert.rejects(find(source), /Root-relative/);
+    const child = path.join(root, "child"); mkdirSync(child);
+    assert.deepEqual((await find(undefined, child)).documents, [], "Root-scoped lookup does not disclose parent connections");
+    comparison = false;
+    assert.deepEqual((await find()).documents, [], "only jobs declaring comparison are discoverable");
+    comparison = true;
+    // Discovery survives a Host restart and stale bytes; the comparison owns revision validation.
+    host = service();
+    const originalSource = readFileSync(source);
+    writeFileSync(source, "stale input");
+    assert.deepEqual((await find("source.bin")).documents, [expectedConnection]);
+    assert.equal((await host.execute({ action: "generated-compare", root, document: "result.md" })).state, "regeneration-required");
+    rmSync(source);
+    assert.deepEqual((await find("source.bin")).documents, [expectedConnection]);
+    assert.equal((await host.execute({ action: "generated-compare", root, document: "result.md" })).state, "regeneration-required");
+    writeFileSync(source, originalSource);
+    const linkPath = generatedDocumentLinkPath(document), linkBytes = readFileSync(linkPath);
+    writeFileSync(linkPath, "malformed connection");
+    assert.deepEqual((await find()).documents, []);
+    writeFileSync(linkPath, linkBytes);
     assert.equal((await read()).state, "generated");
     const old = (await read()).baseline;
     const first = await patch("corrected"); assert.equal(first.correctionsSaved, true); assert.equal(first.documentRegenerated, true);

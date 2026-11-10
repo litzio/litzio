@@ -1,7 +1,7 @@
 # Plugin screens and queries v1
 
 - Status: Implemented
-- Last verified: 2026-11-09 — #1341 제거 범위와 Core/Host/앱 코드를 대조. 실행 검증은 해당 PR의 검사·캡처 기록을 따른다.
+- Last verified: 2026-11-10 — #1465 문서·탐색기 대조 진입과 공통 화면 제약을 코드·Host/HTTP fixture로 확인. #1341 제거 범위의 과거 검증은 해당 PR의 기록을 따른다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [플러그인 1단계](plugin-stage1-v1.md), [#1341](https://github.com/litzio/litzio/issues/1341).
 - Scope: 플러그인 기본 화면·수동 조회·입력 폼·공통 표. 비서 생성 UI와 저장 뷰 계약이 아니다.
 
@@ -66,7 +66,7 @@ CLI는 얇은 `view validate <file> --host <origin> --json`와 `view run <file> 
 
 ## 남은 제한
 
-앱 안 review 진입은 현재 없음(CLI·API로만 열림), Docling 대조 화면 작업에서 추가. 이 제거 PR은 제품 진입 버튼을 추가하지 않는다. 기존 V5 fixture·review renderer/API/CLI를 유지한다.
+앱은 comparison을 선언한 완료 작업의 결과 행동과 생성 문서 안내·탐색기에서 대조에 진입한다. [생성 문서 진입점](plugin-stage1-v1.md#생성-문서-대조-진입점-1465)의 Root·Host 범위와 재생성 안내를 따른다. 일반 query 표는 HTTP(S) 링크만 지원하며 대조 행동 binding이나 최근 검수 진행률 목록을 제공하지 않는다. 기존 V5 fixture·review renderer/API/CLI를 유지한다.
 
 ## 제거와 검증 경계
 

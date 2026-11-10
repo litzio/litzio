@@ -5,7 +5,7 @@ import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
 import { FieldError, Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { PLUGIN_REGISTRATION_CHANGED, healthCheckResultSchema, type HealthCheckResult } from "@litzio/plugin-sdk";
 import { Info, Settings } from "lucide-react";
 import { useHostClient } from "./host-context.tsx";
@@ -21,6 +21,7 @@ export function PluginSettings() {
   const removeButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const client = useHostClient();
+  const folderPlaces = useCallback(async () => { const r = await client.request("/api/folder-places"); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v.places; }, [client]);
   const current = plugins.find(p => p.id === selected);
   const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
@@ -30,7 +31,7 @@ export function PluginSettings() {
     <Button ref={addButton} size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} showSidebarHint={false} initialPath="" recent={[]}
       browse={async path => { const r = await client.request(`/api/folder-browse?path=${encodeURIComponent(path)}`); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v; }}
-      places={async () => { const r = await client.request("/api/folder-places"); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v.places; }}
+      places={folderPlaces}
       onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
     {error || problem && !current ? <Notice tone="error">{error || problem}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} className="settings-section settings-section--stacked host-registration" aria-label={plugin.name ?? plugin.id}>

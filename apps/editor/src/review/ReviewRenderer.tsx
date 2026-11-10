@@ -250,7 +250,7 @@ export function ReviewDetail({ proposal: p, document, baseline, disabled, onActi
     })}</div></section>;
 }
 /** Mount with a new key on Host/source changes. Adapter is scoped to that mounted source. */
-export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: ReviewAdapter }) {
+export function ReviewRenderer({ view, adapter, unavailableMessage }: { view: ReviewView; adapter: ReviewAdapter; unavailableMessage?: string }) {
   const [snapshot, setSnapshot] = useState<ReviewSnapshot>(), [selected, setSelected] = useState<string>();
   const [state, setState] = useState<"loading" | "ready" | "refreshing" | "unavailable" | "uncertain">("loading");
   const verification = useRef<Promise<boolean> | undefined>(undefined);
@@ -309,7 +309,7 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
         <Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={unresolved ? "Check request status":i18n.t("Refresh data")} disabled={savingProgress || state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)} />}>{combined ? <RefreshCw />:unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipTrigger><TooltipContent>{unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipContent></Tooltip>
         {savingProgress && <span role="status">{i18n.t("Saving review progress…")}</span>}</>;
   return <div ref={host} className="review-renderer" data-generated={!!adapter.saveProgress}>{!combined && <header className="review-toolbar"><h2>{view.title}</h2>{controls}</header>}
-    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? i18n.t("Refreshing data…") : state === "loading" ? i18n.t("Loading data…") : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : i18n.t("Data unavailable.")}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
+    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? i18n.t("Refreshing data…") : state === "loading" ? i18n.t("Loading data…") : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : unavailableMessage ?? i18n.t("Data unavailable.")}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
     {progressError && <Notice tone="warning">{i18n.t("Review progress could not be saved. Refresh data before continuing.")}</Notice>}
     {stale && <Notice tone="warning">{i18n.t("Data is out of date. Open newly verified comparison data to continue.")}</Notice>}
     {!wide && !adapter.saveProgress && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
