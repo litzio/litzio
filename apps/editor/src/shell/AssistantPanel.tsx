@@ -8,7 +8,7 @@ import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, Square, Check } from "lucide-react";
+import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check } from "lucide-react";
 import { ASSISTANT, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
@@ -88,6 +88,45 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
   };
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
+  const transcriptContent = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const [away, setAway] = useState(false), [unread, setUnread] = useState(false);
+  const jumpToBottom = () => {
+    following.current = true; setAway(false); setUnread(false);
+    if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight;
+  };
+  const readPosition = () => {
+    const element = transcript.current;
+    if (!element) return;
+    const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 2;
+    following.current = atBottom; setAway(!atBottom);
+    if (atBottom) setUnread(false);
+  };
+  const holdDisclosure = () => {
+    // A reader opening details owns the viewport, including when previously following.
+    following.current = false;
+    requestAnimationFrame(readPosition);
+  };
+  const readingScope = `${conversation?.id ?? ""}:${!!history}`;
+  useLayoutEffect(jumpToBottom, [readingScope]);
+  // Compare visible content, not snapshot identity: unchanged polls are not new output.
+  const transcriptRevision = JSON.stringify([conversation?.turns, conversation?.userInput, visibleSubmissions]);
+  useLayoutEffect(() => {
+    if (following.current) jumpToBottom();
+    else setUnread(true);
+  }, [transcriptRevision]);
+  useLayoutEffect(() => {
+    if (!open) return;
+    // Markdown/math and viewport resizing can change height after the snapshot commit.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => { if (following.current) jumpToBottom(); });
+    });
+    if (transcript.current) observer.observe(transcript.current);
+    if (transcriptContent.current) observer.observe(transcriptContent.current);
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [open]);
   const referenceCaret = useRef<number | null>(null);
   useLayoutEffect(() => {
     if (referenceCaret.current === null) return;
@@ -237,7 +276,6 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     schedule();
     return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
   }, [observe, conversation?.id, observationReady, enabled, setup, settingsRevision, displayClient]);
-  useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation, submissions]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!pending && resultFocus.current) {
@@ -260,7 +298,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     const restores = restoring.current; restoring.current = [];
     setSubmissions(previous => [...previous, { hostId, provider, restores, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
-    requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
+    jumpToBottom();
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, displayClient, id: conversation?.id, message: value,
         provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(120_000));
@@ -412,7 +450,10 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
       </TooltipTrigger><TooltipContent><span><span className="break-all">{documentPath}</span><br />{i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}</span></TooltipContent></Tooltip>
         : <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span>}<span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
     </div>
-    <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")}>
+    <div className="assistant-reading">
+    <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
+      onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
+    <div ref={transcriptContent}>
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id });
@@ -420,13 +461,12 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
           setConversation(next); leaveSubmissionScope(); rememberConversation(conversationKey, next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
-        : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
+        : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user").map(item => <div key={item.id}>
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
             {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
           </div>)}
-          {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
-            {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
+          <AssistantWorkDetails turn={turn} needsInput={conversation.userInput?.turnId === turn.id} onDisclosure={holdDisclosure} />
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           </div>
@@ -467,7 +507,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
                 }}>{i18n.t("Undo display change")}</TooltipTrigger><TooltipContent>{i18n.t("Undo is available in the originating window and Host session while these values are unchanged.")}</TooltipContent></Tooltip></div>
             </div>;
           })}
-          {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
+          {turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{i18n.t(turn.error, { defaultValue: turn.error })}</p> : null}
           {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
             <CopyButton iconOnly text={turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n\n")} label={i18n.t("Copy answer")} />
@@ -487,6 +527,9 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
+    </div>
+    </div>
+    {!history && away ? <Button className="assistant-jump" variant="outline" size="sm" onClick={jumpToBottom}><ArrowDown />{i18n.t(unread ? "New content · Jump to bottom" : "Jump to bottom")}</Button> : null}
     </div>
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
@@ -558,6 +601,20 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
       </div>
     </form>
   </aside>;
+}
+function AssistantWorkDetails({ turn, needsInput, onDisclosure }: { turn: AssistantConversation["turns"][number]; needsInput: boolean; onDisclosure(): void }) {
+  const active = turn.status === "inProgress";
+  const [expanded, setExpanded] = useState(false);
+  useLayoutEffect(() => { if (!active) setExpanded(false); }, [active]);
+  const details = turn.items.filter(isWorkDetail);
+  if (!active && !details.length) return null;
+  const tool = turn.items.findLast(item => item.kind === "tool" && item.status === "inProgress");
+  const latest = turn.items.findLast(item => ["assistant", "reasoning", "tool"].includes(item.kind));
+  const stage = needsInput ? i18n.t("Needs your attention") : tool ? i18n.t("Running tool: {{target}}", { target: tool.text.replace(/\s+/g, " ") }) : latest?.kind === "assistant" ? i18n.t("Writing answer…") : i18n.t("Thinking…");
+  return <details className="assistant-steps" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary onClick={onDisclosure}><span role={active ? "status" : undefined} title={active ? stage : undefined}>{active ? stage : i18n.t("Work details")}</span></summary>
+    {details.map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}
+  </details>;
 }
 function activityStatus(value: string) {
   return value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;

@@ -512,6 +512,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(2);
   await expect(panel.locator('.assistant-submission .assistant-reference')).toHaveCount(1);
   releaseSend(); sendGate = undefined;
+  await expect(panel.locator('.assistant-steps').first()).not.toHaveAttribute('open');
+  await panel.locator('.assistant-steps summary').first().click();
   await expect(panel.getByText('File reference received.', { exact: true })).toBeVisible();
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(2);
   expect(sent.at(-1).message).toBe('');
@@ -534,6 +536,55 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText('810 / 1,000 tokens · 81%');
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/running-1440-light-en.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-1440.png' });
+  // #1436/#1440: same observer and response, with a large single-poll growth.
+  // Checking after layout used to lose bottom-follow and pull readers near the end.
+  const progressTurn = selected.turns[0], progressItems = progressTurn.items;
+  const steps = panel.locator('.assistant-steps').first();
+  await steps.locator('summary').click();
+  const transcript = panel.locator('.assistant-transcript');
+  const distanceFromEnd = () => transcript.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop);
+  const progressReasoning = { id: 'progress-reasoning', kind: 'reasoning', text: 'Checking the document.' };
+  // Preserve provider-observed user/submission identities while streaming work.
+  progressTurn.items = [...progressItems.filter(item => item.kind === 'user'), progressReasoning];
+  await expect(steps.locator('summary')).toHaveText('Thinking…');
+  await expect(steps).not.toHaveAttribute('open');
+  await steps.locator('summary').click();
+  progressReasoning.text += ' More context arrived.';
+  await expect(steps).toContainText('More context arrived.');
+  await expect(steps).toHaveAttribute('open', '');
+  const progressTool = { id: 'progress-tool', kind: 'tool', text: 'read_document · document.md', status: 'inProgress' };
+  progressTurn.items.push(progressTool);
+  await expect(steps.locator('summary')).toHaveText('Running tool: read_document · document.md');
+  await expect(steps).toHaveAttribute('open', '');
+  await steps.locator('summary').click();
+  const existingJump = panel.getByRole('button', { name: /Jump to bottom$/ });
+  if (await existingJump.isVisible()) await existingJump.click();
+  await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
+  progressTool.status = 'completed';
+  const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation.\n\n'.repeat(65) };
+  progressTurn.items.push(progressAnswer);
+  await expect(steps.locator('summary')).toHaveText('Writing answer…');
+  await expect(steps).not.toHaveAttribute('open');
+  await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
+  const transcriptBox = await transcript.boundingBox();
+  // Target the transcript gutter; the center may hover a restored-message action
+  // whose portalled tooltip becomes the native wheel target on Linux.
+  await page.mouse.move(transcriptBox.x + 8, transcriptBox.y + transcriptBox.height / 2);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(distanceFromEnd).toBeGreaterThan(30);
+  const readingTop = await transcript.evaluate(el => el.scrollTop);
+  progressAnswer.text += 'New material.\n\n'.repeat(35);
+  const jump = panel.getByRole('button', { name: 'New content · Jump to bottom', exact: true });
+  await expect(jump).toBeVisible();
+  expect(await transcript.evaluate(el => el.scrollTop)).toBe(readingTop);
+  await jump.click();
+  await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
+  await expect(jump).toHaveCount(0);
+  progressAnswer.text += 'Further material.\n\n'.repeat(35);
+  await expect(panel.getByRole('group', { name: 'Assistant response' })).toContainText('Further material.');
+  await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
+  progressTurn.items = progressItems;
+  await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
   await expect(statusTrigger).toHaveAttribute('data-status', 'working');
   // Background observation must not grant hidden-panel display-setting changes.
@@ -553,6 +604,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const questionCard = panel.getByTestId('assistant-question');
   await expect(questionCard).toBeVisible();
   await questionCard.scrollIntoViewIfNeeded();
+  expect(await questionCard.evaluate(el => !!el.closest('details'))).toBe(false);
+  await expect(steps).not.toHaveAttribute('open');
+  await expect(steps.locator('summary')).toHaveText('Needs your attention');
   if (screenshots) await page.screenshot({ path: 'tmp/983-after-1440.png' });
   await questionCard.getByRole('radio', { name: /Summary/ }).check();
   await questionCard.getByLabel('Your answer').fill('private example');
@@ -1045,6 +1099,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await message.fill('Prompt lost before provider record');
   await message.press('Enter');
   await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
+  await expect(panel.locator('.assistant-turn .assistant-user').filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
   const failedPrompt = selected.turns.at(-1);
   failedPrompt.status = 'failed'; failedPrompt.error = 'Prompt transport failed before recording';
   const failedPromptId = sent.at(-1).submissionId;
@@ -1068,6 +1123,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   // Clearing a restored draft detaches its lineage; an unrelated accepted send cannot erase it.
   await message.fill(''); await draftChips.getByRole('button').click();
   await message.fill('Different request after clearing restored draft'); await message.press('Enter');
+  await expect(panel.locator('.assistant-turn .assistant-user').filter({ hasText: 'Different request after clearing restored draft' })).toHaveCount(1);
+  await expect(panel.locator('.assistant-submission')).toHaveCount(1);
   await expect(panel.locator('.assistant-submission')).toContainText('Prompt lost before provider record');
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
