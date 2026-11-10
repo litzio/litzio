@@ -14,7 +14,7 @@ export type HostServices = {
 /** Compose once per Host. Assistant initialization cannot block plugin/view requests. */
 export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS) {
   const paths = hostPaths(undefined, { ...process.env });
-  const plugins = createPluginService(access, paths.settingsFile("plugins"));
+  const plugins = createPluginService(access, paths.settingsFile("plugins"), paths.jobHistory);
   const views = createViewService(access, plugins);
   let assistant: ReturnType<typeof createAssistantHost> | undefined;
   let closed = false;
