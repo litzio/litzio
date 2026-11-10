@@ -479,8 +479,11 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
       </div> : null}
       <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
-        if (!value && !references.length) restoring.current = [];
-        setReferences(previous => previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name)));
+        setReferences(previous => {
+          const remaining = previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name));
+          if (!value && !remaining.length) restoring.current = [];
+          return remaining;
+        });
         setMessage(value); const match = /(?:^|\s)\/([^\s]*)$/.exec(value.slice(0, end));
         if (match && !mentionOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
         setMention(match && provider === "codex" ? { start: end - match[1].length - 1, end, query: match[1] } : null); setCandidateIndex(0);

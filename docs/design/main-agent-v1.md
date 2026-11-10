@@ -1507,6 +1507,9 @@ admitted without a known turn failure, the original rejected/uncertain copies ar
 removed; the replacement copy remains protected until provider-history proof.
 Rejected replacement attempts retain the lineage for a later successful restoration.
 Manually clearing the draft or changing scope detaches this restoration intent.
+Clearing is judged after automatic skill-chip removal: empty text with no remaining
+references detaches the lineage even when deleting the final skill token removed
+the last chip.
 **Discard message** explicitly removes one local copy without cancelling provider
 work or resending. It preserves any new draft and invalidates pending queries for
 that view so they cannot resurrect the discarded local row. There is no silent

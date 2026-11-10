@@ -219,6 +219,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (body.action === 'send') {
         sent.push(body);
         await sendGate;
+        if (body.skills?.length && body.message.endsWith('Keep this rejected skill request')) {
+          const result = { submission: { id: body.submissionId, status: 'rejected', error: 'Fixture skill submission rejected' } };
+          receipts.set(body.submissionId, result); return route.fulfill({ json: result });
+        }
         if (!body.id) { selected = { provider: body.provider ?? settings.provider, permissionMode: body.permissionMode ?? settings.permissionMode, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
           updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
         else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
@@ -930,6 +934,25 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(editor).toHaveText(documentBeforeDisplay);
+  // Clearing the final skill token removes its chip automatically and must detach restoration.
+  const restoredSkillInput = panel.getByRole('textbox');
+  await restoredSkillInput.fill('/lit');
+  await panel.getByRole('listbox').getByRole('option').filter({ hasText: skill.name }).click();
+  await restoredSkillInput.press('End'); await restoredSkillInput.pressSequentially('Keep this rejected skill request', { delay: 30 });
+  await restoredSkillInput.press('Enter');
+  await expect(panel.locator('.assistant-submission')).toContainText('Keep this rejected skill request');
+  await panel.getByRole('button', { name: /^(Restore to input|입력으로 복원)$/ }).click();
+  await expect(draftChips).toHaveCount(1);
+  await restoredSkillInput.press('ControlOrMeta+A'); await restoredSkillInput.press('Backspace');
+  await expect(restoredSkillInput).toHaveValue('');
+  await expect(draftChips).toHaveCount(0);
+  await restoredSkillInput.pressSequentially('Different request after clearing restored skill', { delay: 30 });
+  await restoredSkillInput.press('Enter');
+  await expect(panel.locator('.assistant-turn .assistant-user').filter({ hasText: 'Different request after clearing restored skill' })).toHaveCount(1);
+  await expect(panel.locator('.assistant-submission')).toContainText('Keep this rejected skill request');
+  await expect(panel.locator('.assistant-submission .assistant-reference')).toContainText('$litzio-guide');
+  await panel.getByRole('button', { name: /^(Discard message|메시지 버리기)$/ }).click();
+  await panel.getByRole('button', { name: /^(Stop response|응답 중단)$/ }).click();
   await panel.getByRole('button', { name: '새 대화' }).click();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   // Global provider autosave retires the prior conversation; composer overrides above do not save settings.
