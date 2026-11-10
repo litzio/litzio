@@ -10,3 +10,15 @@ export function safePluginValue<T>(value: T, secrets: readonly string[]): T {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, safePluginValue(item, secrets)])) as T;
   return value;
 }
+
+/** Refuse remaining literal secrets anywhere in JSON, without renaming schema keys. */
+export function assertNoPluginSecrets(value: unknown, secrets: readonly string[]): void {
+  const known = [...new Set(secrets)].filter(Boolean);
+  const contains = (text: string) => known.some(secret => text.includes(secret));
+  const visit = (item: unknown): boolean => {
+    if (Array.isArray(item)) return item.some(visit);
+    if (item && typeof item === "object") return Object.entries(item).some(([key, child]) => contains(key) || visit(child));
+    return item !== undefined && contains(String(item));
+  };
+  if (known.length && visit(value)) throw new Error("Plugin result contains a secret");
+}

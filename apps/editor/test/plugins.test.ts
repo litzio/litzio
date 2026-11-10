@@ -274,6 +274,8 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
     const directory = lifecycleFixture(root, "fixture.lookup", `export function activate(c){return {operations:{
       read:({mode})=>{if(mode==='auth')throw Object.assign(Error(c.secrets.pat),{kind:'auth'});if(mode==='invalid')return 7;return mode==='empty'?[]:['output-only-marker',c.secrets.pat]},
+      echo:()=>({[c.secrets.pat]:'echoed as key',value:c.secrets.pat}),
+      nested:()=>[{safe:{['prefix-'+c.secrets.pat+'-suffix']:[{value:c.secrets.pat}]}}],
       connection:()=>({ok:true,message:'Connected'}), hidden:()=>{throw Error('must not run')}, write:()=>{throw Error('must not run')}
     },status:()=>({available:true,message:'Ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
@@ -283,6 +285,8 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     manifest.contributes = { healthCheck: "connection", operations: [
       { ...operation, id: "read", assistant: true, inputSchema: { type: "object", properties: { mode: { type: "string" }, query: { type: "string" } }, required: ["mode"], additionalProperties: false }, outputSchema: { type: "array", items: { type: "string" } } },
       { ...operation, id: "connection", outputSchema: { type: "object" } }, { ...operation, id: "hidden" }, { ...operation, id: "write", effect: "write", assistant: true },
+      { ...operation, id: "echo", assistant: true, outputSchema: { type: "object", additionalProperties: { type: "string" } } },
+      { ...operation, id: "nested", assistant: true, outputSchema: { type: "array", items: { type: "object" } } },
     ] };
     writeFileSync(manifestFile, JSON.stringify(manifest));
     await host.invoke("register", { directory });
@@ -304,6 +308,12 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     assert.equal(empty.success, true); assert.deepEqual(empty.result, []);
     const auth = await invoke("fixture.lookup.read", { mode: "auth" });
     assert.equal(auth.success, false); assert.equal(auth.errorKind, "auth"); assert.equal(auth.receipt.outcome, "failure");
+    for (const name of ["echo", "nested"]) {
+      const refused = await invoke(`fixture.lookup.${name}`, {});
+      assert.equal(refused.success, false, "Secret-bearing dynamic keys must not reach the provider");
+      assert.equal(refused.errorKind, "failed"); assert.equal(refused.receipt.outcome, "failure");
+      assert.ok(!("result" in refused)); assert.equal(JSON.stringify(refused).includes(secret), false);
+    }
     for (const name of ["hidden", "write"]) {
       const denied = await invoke(`fixture.lookup.${name}`, {});
       assert.equal(denied.success, false); assert.equal(denied.errorKind, "forbidden"); assert.equal(denied.activity.outcome, "refused");
@@ -894,8 +904,12 @@ test("validation diagnostics never expose source values through Host, assistant,
 
 
 test("short secrets preserve keys and leave the plugin scope on replacement, deletion and unregister", async () => {
-  const { safePluginValue } = await import("../server/plugins/secret-redaction.ts");
+  const { assertNoPluginSecrets, safePluginValue } = await import("../server/plugins/secret-redaction.ts");
   assert.deepEqual(safePluginValue({ id: "id", defaultCandidate: ["secret-long", "a.b"] }, ["id", "secret", "secret-long", "a.b"]), { id: "[secret]", defaultCandidate: ["[secret]", "[secret]"] });
+  // Keep key names intact, but refuse publication if a key or non-string scalar
+  // still contains an actual secret, including characters escaped in JSON text.
+  for (const [value, secret] of [[{ id: "safe" }, "id"], [{ outer: [{ 'quoted"key': "safe" }] }, 'quoted"key'], [[123], "123"], [true, "true"], [null, "null"]] as const)
+    assert.throws(() => assertNoPluginSecrets(safePluginValue(value, [secret]), [secret]), /Plugin result contains a secret/);
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-redaction-scope-")), values = new Map<string, string>();
   const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) values.delete(key); } };
   const host = new PluginHost(path.join(root, "state.json"), { secrets: store });
