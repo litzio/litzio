@@ -3,17 +3,22 @@ import path from "node:path";
 import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { SDK_VERSION, validateManifest } from "@litzio/plugin-sdk";
 
-export function scaffoldPlugin(directory: string, id: string, access: FileAccess = LOCAL_FILE_ACCESS, creationScope: FileAccess = LOCAL_FILE_ACCESS) {
-  const manifest = validateManifest({ schemaVersion: 1, id, tier: "community", publisher: { id: "local", name: "Local author" }, name: id, version: "0.1.0", requiresSdk: `>=${SDK_VERSION} <1.0.0`, entry: "host.js",
+import { authoringTemplate } from "./authoring-templates.ts";
+
+export function scaffoldPlugin(directory: string, id: string, access: FileAccess = LOCAL_FILE_ACCESS, creationScope: FileAccess = LOCAL_FILE_ACCESS, template: "greet" | "query" | "file" = "greet") {
+  if (!["greet", "query", "file"].includes(template)) throw new Error("Unknown plugin template");
+  const example = template === "greet" ? undefined : authoringTemplate(id, template);
+  let manifest = validateManifest({ schemaVersion: 1, id, tier: "community", publisher: { id: "local", name: "Local author" }, name: "인사말 예제", version: "0.1.0", requiresSdk: `>=${SDK_VERSION} <1.0.0`, entry: "host.js",
     contributes: { operations: [{ id: "greet", version: 1, effect: "read", scope: "host", assistant: true,
       inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false },
       outputSchema: { type: "object", properties: { greeting: { type: "string" } }, required: ["greeting"], additionalProperties: false } }] } });
+  if (example) manifest = validateManifest({ ...manifest, ...example.manifest });
   if (!path.isAbsolute(directory)) throw new Error("Use an absolute directory on the target Host");
   // Require a new directory; no pre-existing files are ever overwritten.
   directory = accessPath(accessPath(directory, access, true), creationScope, true);
   mkdirSync(directory);
   const files = {
-    "litzio-plugin.json": JSON.stringify({ ...manifest, contributes: { operations: manifest.contributes.operations }, secrets: undefined }, null, 2) + "\n",
+    "litzio-plugin.json": JSON.stringify(manifest, null, 2) + "\n",
     "package.json": JSON.stringify({ name: id, version: manifest.version, type: "module", private: true }, null, 2) + "\n",
     "jsconfig.json": JSON.stringify({ compilerOptions: { module: "NodeNext", moduleResolution: "NodeNext", paths: { "@litzio/plugin-sdk": ["./plugin-sdk.d.ts"] } }, include: ["host.js", "plugin-sdk.d.ts"] }, null, 2) + "\n",
     // Starter declarations are editor hints, not a standalone runtime SDK.
@@ -42,6 +47,7 @@ export function activate(context) {
 }
 `,
   };
+  if (example) files["host.js"] = example.source;
   for (const [name, content] of Object.entries(files)) writeFileSync(path.join(directory, name), content, { flag: "wx" });
   return { id, directory, files: Object.keys(files) };
 }
