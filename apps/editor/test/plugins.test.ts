@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
+import { canonicalFilePath } from "../server/file-access.ts";
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
 import { rowSchema, completedReviewSchema } from "@litzio/plugin-sdk";
 import test from "node:test";
@@ -265,7 +266,7 @@ test("local artifact trust, activation, admission, drain, settings persistence a
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ProviderConnections } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
-import { canonicalFilePath, RootAccess } from "../server/file-access.ts";
+import { RootAccess } from "../server/file-access.ts";
 test("Codex management runs without approval and exposes activity in the existing tool result", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-activity-"));
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
