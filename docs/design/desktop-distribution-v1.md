@@ -46,9 +46,43 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 
 ## Shared daemon Desktop (#1142 PR3)
 
-Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the PR2 lock/HTTP/asset path. A ready identity proves which generation it spawned. Normal close disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop close. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
+Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the PR2 lock/HTTP/asset path. A ready identity proves which generation it spawned. Actual Desktop exit disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop exit. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
 
-The existing single Desktop instance, native close protection, folder picker and Explorer integration remain. Folder selection has no Root-registration step. Before granting Explorer capability, main asks the connected daemon to validate the supplied opened-root listing and pins it through existing `RootAccess`. IPC accepts only this window's main frame at the exact bundled `litzio://app` origin; navigation outside it is refused. Browser links leave through the system browser. The bridge exposes startup file/sample paths, not a second document write API.
+### Close to tray (#1448)
+
+Ordinary close hides the existing BrowserWindow without unloading its renderer or disconnecting
+its daemon pipe. Unsaved edits, unapplied drafts and Undo remain in the same session; opening
+from the native tray (열기 or double-click) or launching a second instance reveals that same
+window. The tray uses the existing packaged brand icon and a native menu (열기 / 종료).
+The first close displays a Windows balloon explaining background execution and the exit menu;
+`backgroundNoticeShown` in the app profile's `preferences.json` records that it was shown.
+The tooltip reports 백그라운드 실행 중 or 연결 끊김 from the existing local connection checks.
+No task count, keep-daemon preference, idle exit, login startup or multiple windows are added.
+
+Tray 종료 first warns that Desktop-owned local daemon work stops, while CLI-owned and remote
+Hosts continue; cancelling preserves the app. Accepted exit uses the existing native unsaved-work
+guard and window-all-closed daemon cleanup. A refused unload restores ordinary close-to-tray.
+Update install, protected Host restart and reset also close for real after their existing guards.
+A downloaded update never installs merely because the window is hidden; failure to confirm owned
+daemon exit still cancels installation. Local reconnect remains manual and never replays writes.
+
+The installation helper enumerates top-level Electron windows by process identity, including
+hidden windows. It sends the private installation-exit intent (WM_APP 0x8148), then WM_CLOSE;
+main lets that close through and reveals the window for any unsaved-work question. Pre-tray
+builds ignore the new intent and still handle WM_CLOSE normally. A cancelled close blocks
+removal without forcing a process exit. Windows query-session-end/session-end mark real exit
+and begin the same owned-daemon cleanup even if Windows omits normal app quit events; parent
+IPC loss remains the crash/forced-session fallback. No remote stop is sent.
+
+Verification: the existing in-memory main lifecycle tests cover hide/restore, one-time notice,
+tray cancellation/exit, installation intent + close, session end, update failure and protected
+Host restart/reset. Existing CLI subprocess coverage verifies Desktop-owned cleanup and CLI
+survival. Windows unit partitions are run locally; packaged hide/Undo and tray-hidden uninstall
+cases are updated for queue execution. Native tray visuals, actual Electron/NSIS removal and OS
+logout acceptance are not established by unit ports; no packaged Desktop, Edge or fresh profile
+is launched locally.
+
+The existing single Desktop instance, native exit protection, folder picker and Explorer integration remain. Folder selection has no Root-registration step. Before granting Explorer capability, main asks the connected daemon to validate the supplied opened-root listing and pins it through existing `RootAccess`. IPC accepts only this window's main frame at the exact bundled `litzio://app` origin; navigation outside it is refused. Browser links leave through the system browser. The bridge exposes startup file/sample paths, not a second document write API.
 
 The existing sidebar DropdownMenu offers **Open in browser** and **Stop daemon**. Stop always confirms that connected tabs and ongoing work will be interrupted, regardless of launcher. The existing NotificationCenter reports disconnection and offers **Reconnect**, which explicitly repeats discovery/spawn without reloading or discarding local editing state. A five-second health check detects loss; it does not restart anything. About settings reuse SettingsRow and a details disclosure for daemon state, URL, launcher and versions plus process/access/path diagnostics. Launcher labels are localized (Desktop / CLI (start) / CLI (run)); CLI status JSON retains `desktop` / `cli-start` / `cli-run`. The window mounts independently of daemon discovery/startup, including failure. Connecting/disconnected states and explicit Reconnect use the same NotificationCenter/Button. Initial Host work waits for successful connection. Product mismatch warns in that surface and retains the connection; protocol mismatch refuses. Both direct the user to restart through the CLI, without a Desktop restart button.
 
@@ -69,7 +103,7 @@ installation helper. Both binaries embed their own built helper, extract it to t
 copy of the helper. In particular the first update from public `v0.0.2-beta.6` works even though
 that in-process-Host version has no helper or Desktop-owned daemon. No stop check is skipped.
 The installed helper remains available for diagnostics/tests. It compares canonical installed executable paths (including the CLI shim's junction), checks CLI ownership and OS
-creation identity, then requests `WM_CLOSE` only from windows of that installation (rechecking
+creation identity, then requests installation exit intent and `WM_CLOSE` only from windows (including hidden ones) of that installation (rechecking
 path and creation identity before the request). The existing unsaved-work confirmation remains.
 The helper excludes itself and requires all other processes using that executable to exit and
 observed discovery/lock files to disappear before replacement/removal. It fails closed on a
@@ -518,13 +552,14 @@ Before the first public release, local development versions can be reset. A prev
 
 ## Window close
 
-Electron retains its native **Close without saving / Keep editing** dialog. All-tab protection,
+Ordinary close preserves the live window in the [tray](#close-to-tray-1448). Actual exit retains
+Electron's native **Close without saving / Keep editing** dialog. All-tab protection,
 the distinction from single-tab Close and recovery retention follow the
 [session protection contract](editing-session-save-v1.md#switching-and-recovery).
 
-Client recovery uses IndexedDB at the fixed per-user/channel HTTP daemon origin in Electron's persistent
+Client recovery uses IndexedDB at the bundled `litzio://app` origin in Electron's persistent
 default session, under the app profile. The packaged regression checks identical `userData` and
-`sessionData` paths across new app PIDs, actual forced termination and normal window close, and
+`sessionData` paths across new app PIDs, actual forced termination and explicit app quit, and
 record/Restore/Save/Reload/conflict preservation. It keeps its test profile and resets recovery
 only at the beginning of each test, never between that test's restarts. The close-dialog response
 is stubbed through the existing harness; native window lifecycle, protocol, storage and files are

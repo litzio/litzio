@@ -260,7 +260,7 @@ test("installs per user, then updates from Settings only after the open document
     const exe = path.join(installedAt, `${brand.executableName}.exe`);
     assert.equal(existsSync(exe), true);
     console.log(`installed ${OLD} in ${Date.now() - started} ms at ${installedAt}`);
-    const prefs = { channel: BETA ? "beta" as const : "stable" as const, seenUpdate: OLD };
+    const prefs = { channel: BETA ? "beta" as const : "stable" as const, seenUpdate: OLD, backgroundNoticeShown: false };
     const preferencesFile = path.join(appData, "preferences.json");
     const canary = path.join(appData, "update-test-canary.txt");
     mkdirSync(appData, { recursive: true });
