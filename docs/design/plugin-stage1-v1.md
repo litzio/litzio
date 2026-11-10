@@ -544,6 +544,14 @@ SDK 필수 title·기능 버전 검사는 manifest 단위 검사가 담당한다
 
 production CSP는 유지하며 설정 검증은 Host에서 수행한다. 브라우저에서 코드 생성 validator를 실행하지 않는다.
 
+## 첫 대조 읽기의 effect 수명 (#1435)
+
+개발 StrictMode의 mount effect 재구독은 같은 adapter/bundle의 최초 읽기 Promise를 공유한다.
+구독 정리는 늦게 도착한 결과의 표시만 막으며 새 Host 읽기를 시작하지 않는다. 재시도나 지연으로
+Host의 generated document admission 충돌을 숨기지 않는다. 기존 review-v5에 generated adapter를
+StrictMode로 여는 회귀를 보완했으며 수정 전 이미지 없는 오류 상태, 수정 후 첫 이미지 표시를 확인했다.
+실제 docling-serve 1.32.0의 합성 1쪽 보관 파일은 production HTTP 첫 진입에서 정상 표시되었다.
+
 ## PDF 원본 대조와 확인 기록 (#1408, SDK 0.4.0)
 
 미공개 SDK 0.4.0에 함께 포함한다. native-document job은 `generatedDocument`와 같은 플러그인의 review ID인 `comparison`을 선언할 수 있다. 둘과 review read binding 및 최소 SDK를 entry 전에 검사한다. 완료 result의 `comparison:{root,document}`만으로 앱이 공통 ‘원본 대조’ 결과 행동을 제공한다. 플러그인 이름 분기나 플러그인 UI 코드는 없다.

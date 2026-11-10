@@ -1,10 +1,11 @@
 import { REVIEW_UNAVAILABLE_GUIDANCE } from "../../../shared/review.ts";
 import { createRoot } from "react-dom/client";
-import { useMemo, useState } from "react";
+import { StrictMode, useMemo, useState } from "react";
 import { parse, getEditableDocument } from "@litzio/core";
 import type { ReviewView } from "@litzio/core/views-v2";
 import { ReviewRenderer, type ReviewSnapshot, type ReviewAdapter } from "../../../src/review/ReviewRenderer.tsx";
 import { createReviewAdapter } from "../../../src/views/review-api.ts";
+import { GeneratedComparison } from "../../../src/review/GeneratedComparison.tsx";
 import { createHostClient } from "../../../src/host-client.ts";
 import { Button } from "../../../src/components/ui/button.tsx";
 import { TooltipProvider } from "../../../src/components/ui/tooltip.tsx";
@@ -13,6 +14,7 @@ import "../../../src/styles.css";
 import "katex/dist/katex.min.css";
 const view: ReviewView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }, { component: "ReviewList", title: "Changes", source: "review" }, { component: "ReviewDetail", title: "Details", source: "review" }] } };
 function Fixture() {
+  const [generated, setGenerated] = useState(false);
   const [mode, setMode] = useState("normal"), [held, setHeld] = useState(false), [count, setCount] = useState(0);
   const [clientEpoch, setClientEpoch] = useState(0);
   const [checks, setChecks] = useState(0);
@@ -94,6 +96,19 @@ function Fixture() {
       release: () => { const resolve = release; release = undefined; resolve?.(); setHeld(false); },
     } as ReviewAdapter;
   }, [mode]);
-  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "host-stale", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain", "unverifiable"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && mode !== "unverifiable" && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
+  const generatedClient = useMemo(() => {
+    let busy = false;
+    return {...createHostClient(location.origin), async request() {
+      if (busy) return new Response(JSON.stringify({error:"Generated document operation in progress"}), {status:400});
+      busy = true;
+      try {
+        const snapshot = await adapter.read(1);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        return new Response(JSON.stringify({snapshot,generatedBaseline:{sourceRevision:"s1",documentRevision:"r1",linkRevision:"l1"},progress:{checkedPages:[],lastPage:1},receipt:{outcome:"success"}}));
+      } finally { busy = false; }
+    }};
+  }, [adapter]);
+  if (generated) return <TooltipProvider><StrictMode><GeneratedComparison client={generatedClient} target={{root:"/",document:"sample.md"}} onOpen={() => {}} /></StrictMode></TooltipProvider>;
+  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls"><Button onClick={() => setGenerated(true)}>Generated comparison</Button>{["normal", "host-stale", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain", "unverifiable"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && mode !== "unverifiable" && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

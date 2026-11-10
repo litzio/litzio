@@ -325,7 +325,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
         if (docling.comparisonBefore) {
           await page.screenshot({path:`tmp/docling-1408/before-${width}.png`,mask:[page.locator(".sidebar-host-account"),panel.getByLabel(width===640?"열린 폴더":"Opened folder",{exact:true})]});
         } else {
+          const firstRead = page.waitForResponse(response => response.url().endsWith('/api/reviews') && response.request().postDataJSON()?.action === 'generated-compare');
           await row.getByRole("button",{name:width===640?"원본 대조":"Compare source",exact:true}).click();
+          const response = await firstRead;
+          const opening = await response.json();
+          expect(response.ok(), opening.error).toBe(true);
+          expect(opening.receipt.outcome).toBe('success');
           const compare = page.locator(".review-renderer").filter({visible:true});
           await expect(compare.locator(".review-page img")).toBeVisible();
           await expect.poll(()=>compare.locator(".review-page img").evaluate(c=>c.naturalWidth)).toBeGreaterThan(0);

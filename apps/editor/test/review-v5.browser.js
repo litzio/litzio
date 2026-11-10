@@ -2,6 +2,10 @@
 async (page, { expect, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(page.url().split('/').slice(0, 3).join('/') + '/test/fixtures/review-ui/index.html');
+  await page.getByRole('button', {name:'Generated comparison',exact:true}).click();
+  await expect(page.locator('.review-page img')).toBeVisible();
+  await expect(page.getByText('Data unavailable.',{exact:true})).toBeHidden();
+  await page.reload();
   const source = page.getByRole('region', { name: 'Source page' });
   const region = page.getByRole('button', { name: 'Sentence · Supported', exact: true });
   await expect(source.getByRole('img')).toBeVisible();

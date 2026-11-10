@@ -195,12 +195,16 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
   const saving = useRef(0), latest = useRef<ReviewSnapshot | undefined>(undefined);
   const refreshAfterSave = useRef(false);
   const currentAdapter = useRef(adapter); currentAdapter.current = adapter;
+  // StrictMode replays mount effects. Both subscriptions observe one Host read;
+  // starting it twice would contend for the generated document's admission lock.
+  const opening = useRef<{ adapter: ReviewAdapter; bundleRef: string; result: Promise<ReviewSnapshot> } | undefined>(undefined);
   latest.current = snapshot;
   const [savingProgress, setSavingProgress] = useState(false), [progressError, setProgressError] = useState(false);
   const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), epoch = useRef(0), busy = useRef(false);
   useEffect(() => { const observer = new ResizeObserver(entries => setWide(entries[0].contentRect.width >= 1024)); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
   useEffect(() => { const token = ++epoch.current; busy.current = true; saving.current = 0; refreshAfterSave.current = false; setSavingProgress(false); setProgressError(false); setState("loading"); setSnapshot(undefined); setSelected(undefined);
-    adapter.read(1).then(s => { if (epoch.current === token) { setSnapshot(s); setState(adapter.pending ? "uncertain" : "ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState(adapter.pending ? "uncertain" : "unavailable"); busy.current = false; } });
+    if (opening.current?.adapter !== adapter || opening.current.bundleRef !== view.sources.review.bundleRef) opening.current = { adapter, bundleRef: view.sources.review.bundleRef, result: adapter.read(1) };
+    opening.current.result.then(s => { if (epoch.current === token) { setSnapshot(s); setState(adapter.pending ? "uncertain" : "ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState(adapter.pending ? "uncertain" : "unavailable"); busy.current = false; } });
     return () => { ++epoch.current; };
   }, [adapter, view.sources.review.bundleRef]);
   const saveProgress = (s: ReviewSnapshot, pageNo: number, checked?: boolean) => {
