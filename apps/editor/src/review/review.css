@@ -1,6 +1,6 @@
 .review-renderer { padding: var(--space-4); height: 100%; overflow: auto; color: var(--foreground); background: var(--background); }
 .review-toolbar { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
-.review-toolbar h2 { margin-right: auto; }
+.review-toolbar h2 { margin-right: auto; max-width: 100%; overflow-wrap: anywhere; }
 .review-compare { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: var(--space-4); }
 .review-compare > div { min-width: 0; }
 .review-source, .review-read { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3); }
@@ -11,6 +11,8 @@
 .review-region span { position: absolute; left: 0; bottom: calc(100% + var(--space-1)); white-space: nowrap; pointer-events: none; background: var(--background); color: var(--foreground); font-size: var(--text-xs); }
 .review-region[aria-pressed=true] { outline: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .review-reading-content { position: relative; }
+.review-renderer[data-generated="true"] .review-compare .review-reading-content { min-width: 440px; }
+.review-renderer[data-generated="true"] .review-compare .review-read .document { --layout-document-gutter: var(--space-4); --layout-document-inline-padding: var(--space-4); --layout-document-block-padding: var(--layout-document-block-padding-narrow); }
 .review-highlights { position: absolute; inset: 0; pointer-events: none; }
 .review-highlights > div { position: absolute; left: 0; right: 0; border-left: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .review-panels { display: flex; flex-direction: column; gap: var(--space-4); }
@@ -25,3 +27,7 @@
 .review-value dl > div { display: flex; gap: var(--space-3); }
 .review-value dt { font-weight: 600; }
 .review-value dd { margin: 0; }
+
+.review-source, .review-read { min-width: 0; }
+.review-renderer[data-generated="true"] .review-page .review-region span { display: none; }
+.review-renderer[data-generated="true"] .review-page .review-region:hover span, .review-renderer[data-generated="true"] .review-page .review-region:focus-visible span { display: block; white-space: normal; overflow-wrap: anywhere; }

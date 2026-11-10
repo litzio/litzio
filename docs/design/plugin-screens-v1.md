@@ -94,6 +94,9 @@ Jira 0.0.5는 기본 Key·제목·Status·Assignee·Reporter·Created·Updated 7
 
 #1370 수동 시각 검토: 1440px [기본](assets/search-form-1370/default-1440.png) / [접힌 요약](assets/search-form-1370/collapsed-1440.png) / [열 메뉴](assets/search-form-1370/columns-1440.png), 한국어 다크 640px [기본](assets/search-form-1370/default-640-ko-dark.png) / [접힌 요약](assets/search-form-1370/collapsed-640-ko-dark.png) / [열 메뉴](assets/search-form-1370/columns-640-ko-dark.png). 입력 정렬·여백, 요약 줄바꿈, 메뉴 가용 높이와 표 내부 가로 스크롤을 확인했다. 이전 단계의 캡처와 달리 즐겨찾기가 없는 현재 화면이다. 합성 Jira·PAT와 전용 포트의 격리 Host이며 실제 회사 Jira나 소유자 시각 승인을 뜻하지 않는다.
 
+## 완료 문서의 PDF 대조 (#1408)
+
+native-document job의 선택 comparison 선언과 완료 result 참조에서 공통 결과 행동을 연다. 별도 작업 탭에서 기존 ReviewRenderer·SourceDocumentCompare·DocumentEditor 읽기를 사용하고, 원본 PDF의 서버 변환 페이지 PNG는 기존 PageSurface 이미지 표시를 재사용한다. 저장된 문서만 읽으며 PDF 영역과 문서 블록을 양방향 선택한다. 해당 대조는 640px 이상에서 두 패널의 내부 스크롤을 사용하고 페이지 전체 가로 넘침을 만들지 않는다. 기존 다른 review의 1024px 안내는 유지한다. 확인함·페이지 상태·문서 열기·다시 읽기만 제공하며 항목 편집·검수 완료 승인·PDF 검색/주석은 없다. 확인 저장은 순서대로 처리하며 다음 페이지 읽기를 막지 않는다. 저장 중에는 대응 선택을 막고 상태를 표시한다. 저장 실패는 안내하고 확인·대응 행동을 막는다. 선언·공용 HTTP/CLI·revision 계약은 [PDF 대조 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다.
 
 ## 조회 입력과 결과 (#1394)
 

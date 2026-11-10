@@ -18,13 +18,16 @@ const policyFiles = new Set([
 const policyOnly = path => policyFiles.has(path) ||
   path.startsWith('.agents/skills/') || path.startsWith('.claude/skills/');
 const inPackage = (path, name) => path.startsWith(`${name}/`);
+const pluginPackage = path => ['packages/plugin-sdk', 'plugins/onedrive', 'community-plugins']
+  .some(name => inPackage(path, name));
+const pluginDocumentation = path => pluginPackage(path) && path.endsWith('.md');
 const editorUpdate = path => ['apps/editor/shared/desktop-bridge.ts',
   'apps/editor/src/shell/SettingsDialog.tsx', 'apps/editor/src/shell/MessageArea.tsx'].includes(path);
 const shared = path => ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'].includes(path) ||
   /^(patches\/|tsconfig[^/]*$|\.github\/workflows\/|scripts\/)/.test(path);
 const product = path => ['packages/cli', 'apps/editor', 'packages/core', 'packages/file-commit', 'apps/desktop']
   .some(name => inPackage(path, name));
-const known = path => policyOnly(path) || product(path) || shared(path) || path.startsWith('docs/') ||
+const known = path => policyOnly(path) || product(path) || pluginPackage(path) || shared(path) || path.startsWith('docs/') ||
   path.endsWith('.md') || path.startsWith('.github/ISSUE_TEMPLATE/');
 // These files create/configure the parser and diagnostic/footnote tokenizers.
 const parserSettings = ['parse.ts', 'serialize.ts', 'footnote.ts', 'literal-syntax.ts']
@@ -57,19 +60,19 @@ const removalBuildInputs = new Set([
   'apps/editor/server/plugins/artifact-digest.mjs',
 ]);
 const removalBuildInput = path => removalBuildInputs.has(path) || path.startsWith('apps/editor/samples/');
-const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildInput(path) ||
+const lifecycleFullPaths = path => !pluginPackage(path) && (shared(path) || !known(path) || desktopBuildInput(path) ||
   path === 'brand.ts' || path.endsWith('/package.json') ||
   path.startsWith('apps/desktop/installer/') || path.startsWith('apps/desktop/scripts/') ||
   ['main.ts', 'preload.ts', 'preferences.ts', 'updates.ts', 'update-policy.ts',
     'github-provider.ts', 'signatures.ts', 'cli-integration.ts', 'uninstall-cli.ts',
     'windows-environment.ts'].some(name => path === `apps/desktop/src/${name}`) ||
-  (inPackage(path, 'apps/desktop') && !representativeDesktop.has(path));
+  (inPackage(path, 'apps/desktop') && !representativeDesktop.has(path)));
 
 // Layout and native caption coverage is independent of install/update ownership.
 // New shell/desktop inputs and global styling stay conservative; feature-local
 // document semantics retain representative coverage.
 // Development-only UI is excluded from production, including its styles (#1013 1A).
-const layoutFullPaths = path => !path.startsWith('apps/editor/src/dev/') && (
+const layoutFullPaths = path => !pluginPackage(path) && !path.startsWith('apps/editor/src/dev/') && (
   shared(path) || !known(path) || desktopBuildInput(path) ||
   path === 'brand.ts' || path.endsWith('/package.json') ||
   path.startsWith('apps/desktop/') || path.startsWith('apps/editor/src/shell/') ||
@@ -84,13 +87,16 @@ const layoutFullPaths = path => !path.startsWith('apps/editor/src/dev/') && (
     'apps/editor/test/layout-rules.browser.js'].includes(path) ||
   (path.startsWith('apps/editor/') && /\.(css|scss)$/.test(path)));
 
-export function selectJobs(eventName, paths) {
+function selectPathJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
   const full = paths.some(path => !policyOnly(path) && (shared(path) || !known(path)));
   // Editor scenarios consume UI assets and Host operations.
   // Select whole packages rather than maintaining a second dependency graph.
+  // vite-plugins activates the real OneDrive artifact. The shared scenario setup
+  // reads the Docling fixture; HTTP scenarios additionally load Docling/Jira.
+  const pluginConsumers = paths.some(path => pluginPackage(path) && !pluginDocumentation(path));
   const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', ]
-    .some(name => inPackage(path, name)));
+    .some(name => inPackage(path, name))) || pluginConsumers;
   const http = browser || paths.some(path => ['packages/cli', ].some(name => inPackage(path, name)));
   const update = full || paths.some(path => inPackage(path, 'apps/desktop') || editorUpdate(path));
   return {
@@ -108,6 +114,12 @@ export function selectJobs(eventName, paths) {
       'pnpm-workspace.yaml', 'packages/core/test/smartquotes-patch.test.ts'].includes(path) ||
       path.startsWith('patches/') || parserSettings.includes(path)),
   };
+}
+
+// Preserve path scopes for the queue; Windows execution is deferred on PRs.
+export function selectJobs(eventName, paths) {
+  const jobs = selectPathJobs(eventName, paths);
+  return eventName === 'pull_request' ? { ...jobs, desktop: false } : jobs;
 }
 
 export async function successfulQueueRun({ repository, sha, token, apiUrl = 'https://api.github.com', fetchRuns = fetch }) {

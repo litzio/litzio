@@ -18,7 +18,7 @@ export const reviewRequestSchema = z.strictObject({ action: z.enum(["read", "pro
   continuation: ref.optional(), proposalId: ref.optional(), baseline: reviewBaselineSchema.optional(), requestId: z.string().uuid().optional(), input: z.json().optional() });
 const editSchema = z.strictObject({ kind: z.literal("text"), path: z.array(z.number().int().nonnegative()), from: z.string().min(1).max(32768), to: z.string().min(1).max(32768) });
 type Edit = z.infer<typeof editSchema>;
-type Bundle = { stale?: boolean; actions: Set<string>; plugin: string; review: string; root: string; access: RootAccess; file: string; documentSource: string; source: string; sourceHash: string; bundle: ReviewBundle;
+type Bundle = { stagedImage?: {ref:string;bytes:Buffer}; stale?: boolean; actions: Set<string>; plugin: string; review: string; root: string; access: RootAccess; file: string; documentSource: string; source: string; sourceHash: string; bundle: ReviewBundle;
   pages: z.infer<typeof reviewPageSchema>[]; mapping?: z.infer<typeof reviewMappingSchema>; images: z.infer<typeof completedReviewSchema>["images"];
   proposals: Map<string, ReviewProposal>; unresolved: Map<string, ReviewPendingChange>; edits: Map<string, Edit>; revision: string; undo: Map<string, { edit: Edit; before: string }> };
 class ReviewStaleError extends Error {}
@@ -35,7 +35,7 @@ export class PluginReviews {
   private requests = new Map<string, { owner: string; value: unknown }>();
   constructor(private access: FileAccess, private declaration: (plugin: string, review: string) => ReviewContribution,
     private invoke: (name: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string; errorKind?: string }>) {}
-  publish(plugin: string, root: string, file: string, source: string, raw: unknown) {
+  publish(plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer) {
     const data = completedReviewSchema.parse(bounded(raw)); const declaration = this.declaration(plugin, data.review);
     const boundary = new RootAccess([accessPath(root, this.access)]);
     boundary.resolve(accessPath(file, this.access)); boundary.resolve(accessPath(source, this.access));
@@ -46,7 +46,9 @@ export class PluginReviews {
     if (data.mapping && (data.mapping.generation !== data.bundle.generation || data.mapping.sourceRevision !== sourceHash || data.mapping.documentRevision !== revision || data.mapping.documentHash !== revision || data.mapping.mappingRevision !== data.bundle.mappingRevision)) throw new Error("Mixed review mapping");
     if (!!data.mapping !== !!data.bundle.mappingRevision) throw new Error("Missing review mapping");
     const bundle: ReviewBundle = { ...data.bundle, bundleRef: randomUUID(), documentRef: randomUUID() };
-    const record: Bundle = { actions: new Set(["propose", "approve", "reject", "undo"].filter(action => declaration[action as keyof ReviewContribution])), plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource: decodeUtf8(readFileSync(file)), source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), unresolved: new Map(), edits: new Map(), revision: randomUUID(), undo: new Map() };
+    if (imageBytes && data.images.length !== 1) throw new Error("Expected one staged image");
+    const stagedImage = imageBytes ? {ref:data.images[0]!.ref,bytes:imageBytes} : undefined;
+    const record: Bundle = { stagedImage, actions: new Set(["propose", "approve", "reject", "undo"].filter(action => declaration[action as keyof ReviewContribution])), plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource: decodeUtf8(readFileSync(file)), source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), unresolved: new Map(), edits: new Map(), revision: randomUUID(), undo: new Map() };
     for (const image of data.images) this.image(record, image.ref);
     for (const page of data.pages) if (page.imageRef && !data.images.some(i => i.ref === page.imageRef)) throw new Error("Missing image");
     const regionIds = data.pages.flatMap(p => p.regions.map(r => r.id));
@@ -56,13 +58,20 @@ export class PluginReviews {
     for (const entry of data.mapping?.entries ?? []) {
       if (entry.sourceIds.some(id => !regions.has(id)) || entry.targets.some(t => t.documentRevision !== revision || t.documentHash !== revision || !targets.has(JSON.stringify(t.path)))) throw new Error("Mixed mapping targets");
     }
+    // Bound read-only image snapshots without discarding any K4 change or observation.
+    if (stagedImage) for (const [ref, old] of this.bundles) if (old.stagedImage && !old.actions.size && !old.proposals.size && !old.unresolved.size && old.file === file && old.plugin === plugin) this.bundles.delete(ref);
     this.bundles.set(bundle.bundleRef, record); return structuredClone(bundle);
   }
   private image(b: Bundle, ref: string) {
-    const image = b.images.find(i => i.ref === ref); if (!image || path.isAbsolute(image.path)) throw new Error("Unknown image");
-    const file = accessPath(b.access.resolve(path.join(b.root, image.path)), this.access);
-    if (statSync(file).size > REVIEW_LIMITS.imageBytes) throw new ReviewStaleError("Image exceeds limit");
-    const bytes = readFileSync(file); if (hash(bytes) !== image.revision) throw new ReviewStaleError("Image changed");
+    const image = b.images.find(i => i.ref === ref); if (!image) throw new Error("Unknown image");
+    let bytes = b.stagedImage?.ref === ref ? b.stagedImage.bytes : undefined;
+    if (!bytes) {
+      if (path.isAbsolute(image.path)) throw new Error("Expected a Root-relative image");
+      const file = accessPath(b.access.resolve(path.join(b.root, image.path)), this.access);
+      if (statSync(file).size > REVIEW_LIMITS.imageBytes) throw new ReviewStaleError("Image exceeds limit");
+      bytes = readFileSync(file);
+    }
+    if (bytes.length > REVIEW_LIMITS.imageBytes || hash(bytes) !== image.revision) throw new ReviewStaleError("Image changed");
     // Initial review images use the existing validated PNG container; other encodings are explicitly unsupported.
     validateImage("image/png", bytes);
     const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
@@ -126,6 +135,7 @@ export class PluginReviews {
         const document = loadDocumentFile(accessPath(b.file, this.access), b.access);
         const snapshot = bounded({ bundle: b.bundle, page, mapping: b.mapping, proposals: this.proposals(b), unresolved: [...b.unresolved.values()],
           document: document.document, documentRevision: document.revision, documentHash: document.revision, documentPath: document.path,
+          regionPages: Object.fromEntries(b.pages.flatMap(p => p.regions.map(r => [r.id, p.pageNo]))),
           baseline: { ...this.baseline(b), sourceRevision: stale ? b.bundle.sourceRevision : hash(readFileSync(b.source)) }, pageCount: b.pages.length });
         let image;
         if (page?.imageRef) { try { image = this.image(b, page.imageRef); } catch (cause) { if (!invalidatesReview(cause)) throw cause; b.stale = stale = true; } }

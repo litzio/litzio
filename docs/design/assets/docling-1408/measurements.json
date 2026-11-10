@@ -1,0 +1,214 @@
+{
+  "documents": {
+    "nist-sp1108r4": {
+      "description": "NIST SP 1108r4 excerpt",
+      "pages": 11,
+      "sourceBytes": 4768831
+    },
+    "synthetic": {
+      "description": "Archived structural supplement",
+      "pages": 1,
+      "sourceBytes": 2650
+    }
+  },
+  "conversion": [
+    {
+      "document": "synthetic",
+      "variant": "B",
+      "elapsedMs": 9510.4239,
+      "archiveBytes": 23988,
+      "pdfBytes": 2650,
+      "jsonBytes": 17449,
+      "pageCount": 1,
+      "pageImageBytes": 0
+    },
+    {
+      "document": "synthetic",
+      "variant": "A",
+      "elapsedMs": 7299.982199999999,
+      "archiveBytes": 334358,
+      "pdfBytes": 2650,
+      "jsonBytes": 327602,
+      "pageCount": 1,
+      "pageImageBytes": 232539
+    },
+    {
+      "document": "nist-sp1108r4",
+      "variant": "A",
+      "elapsedMs": 46156.57980000001,
+      "archiveBytes": 17548915,
+      "pdfBytes": 4768831,
+      "jsonBytes": 12771939,
+      "pageCount": 11,
+      "pageImageBytes": 7943538
+    },
+    {
+      "document": "nist-sp1108r4",
+      "variant": "B",
+      "elapsedMs": 49067.755900000004,
+      "archiveBytes": 6954049,
+      "pdfBytes": 4768831,
+      "jsonBytes": 2179432,
+      "pageCount": 11,
+      "pageImageBytes": 0
+    }
+  ],
+  "display": [
+    {
+      "document": "nist-sp1108r4",
+      "variant": "A",
+      "first": [
+        1957,
+        1962,
+        1891,
+        1909,
+        1431
+      ],
+      "next": [
+        2617,
+        2584,
+        2600,
+        2583,
+        2566
+      ]
+    },
+    {
+      "document": "nist-sp1108r4",
+      "variant": "B",
+      "first": [
+        2486,
+        1708,
+        1806,
+        1885,
+        1497
+      ],
+      "next": [
+        2340,
+        2351,
+        2454,
+        2429,
+        2193
+      ]
+    },
+    {
+      "document": "synthetic",
+      "variant": "A",
+      "first": [
+        445,
+        367,
+        377,
+        359,
+        372
+      ],
+      "next": []
+    },
+    {
+      "document": "synthetic",
+      "variant": "B",
+      "first": [
+        586,
+        454,
+        459,
+        425,
+        455
+      ],
+      "next": []
+    },
+    {
+      "document": "nist-sp1108r4",
+      "variant": "A-after",
+      "first": [
+        1977,
+        2028,
+        960,
+        906,
+        895
+      ],
+      "next": [
+        1101,
+        1334,
+        1099,
+        1017,
+        1000
+      ]
+    },
+    {
+      "document": "capacity200",
+      "variant": "A-after",
+      "first": [
+        3003
+      ],
+      "next": [
+        2708
+      ],
+      "capacitySaveMs": 4310,
+      "navigatedDuringSave": true,
+      "navigationRequestedDuringSave": true
+    },
+    {
+      "document": "synthetic",
+      "variant": "A-after",
+      "first": [
+        939,
+        387,
+        387,
+        397,
+        368
+      ],
+      "next": []
+    }
+  ],
+  "pngOptimization": [
+    {
+      "document": "nist-sp1108r4",
+      "pagePngBytes": 7943538,
+      "optimizedLosslessPngBytes": 4808043,
+      "resized72dpiPngBytes": 2665556,
+      "allOptimizationMs": 2982.775199925527
+    },
+    {
+      "document": "synthetic",
+      "pagePngBytes": 232539,
+      "optimizedLosslessPngBytes": 133676,
+      "resized72dpiPngBytes": 88406,
+      "allOptimizationMs": 147.47719978913665
+    }
+  ],
+  "capacity": {
+    "before": {
+      "archiveBytes": 199842050,
+      "creationMs": 4404.9295999999995,
+      "readMs": 2390.6695,
+      "saveMs": 17001.142
+    },
+    "after-cache": {
+      "archiveBytes": 199842050,
+      "creationMs": 4144.1445,
+      "readMs": 2157.943,
+      "saveMs": 3468.0816999999997
+    },
+    "after-queue": {
+      "archiveBytes": 199842050,
+      "creationMs": 4132.5607,
+      "readMs": 2222.1244000000006,
+      "saveMs": 3134.1093
+    }
+  },
+  "conditions": {
+    "display": "Windows Chrome persistent profile, 1440x1100, completed job action to decoded image/canvas plus two animation frames; five opens; one 200-page sample",
+    "conversion": "docling-serve 1.32.0, pinned profile images_scale=2, only include_page_images differs, one sequential run per variant/document; 1 second polling and warmup confound",
+    "capacity": "Synthetic 200-page PDF and repeated NIST page ImageRefs, 439 original items on first 11 pages only, not a real 200-page conversion or content quality acceptance",
+    "unmeasured": [
+      "rotated or differing CropBox/MediaBox source",
+      "open-time server image generation E2E",
+      "pdf.js to img E2E",
+      "server conversion at images_scale=1"
+    ]
+  },
+  "finalProductionCode": {
+    "files": 22,
+    "added": 421,
+    "deleted": 96,
+    "note": "Includes shared performance, sequential progress saving, and coherent reads; comparison table counts the pre-optimization prototypes"
+  }
+}

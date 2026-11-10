@@ -15,6 +15,12 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   const generated = withJob({ ...nativeJob, generatedDocument: "prepare" }, "^0.3.0");
   generated.contributes.operations.push({ id: "prepare", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } });
   assert.ok(validateManifest(generated));
+  const comparison = { ...generated, requiresSdk: "^0.4.0", contributes: { ...generated.contributes,
+    jobs: [{ ...nativeJob, generatedDocument: "prepare", comparison: "compare" }],
+    reviews: [{ id: "compare", title: "Compare", read: {operation:"example.demo.prepare",version:1} }] } };
+  assert.ok(validateManifest(comparison));
+  assert.throws(() => validateManifest({...comparison,requiresSdk:"^0.3.0"}),/Comparison requires/);
+  assert.throws(() => validateManifest({...comparison,contributes:{...comparison.contributes,reviews:[]}}),/Comparison requires/);
   assert.throws(() => validateManifest({ ...generated, requiresSdk: "^0.1.0" }), /Generated documents require SDK/);
   assert.throws(() => validateManifest({ ...generated, contributes: { ...generated.contributes, operations: generated.contributes.operations.slice(0, -1) } }), /host read provider/);
   for (const requiresSdk of ["0.1.0", "^0.1.0"]) {

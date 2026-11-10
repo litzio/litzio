@@ -21,11 +21,15 @@ git diff --check
 
 `pnpm test`는 Core, File commit, CLI, Editor, Desktop suite를 모두 실행한다. 개별 테스트 개수와 이름은 계약이 아니며 package scripts와 test runner가 source of truth다. 문서 checker 자체를 바꾸면 `pnpm exec tsx --test scripts/check-docs.test.ts`도 실행한다. Authenticode의 실제 검사는 Windows job에서 실행한다.
 
+PR CI는 품질·Linux browser·Linux HTTP를 실행하며, Windows unit·HTTP·Desktop package/제거·Stable/Beta는 merge queue와 전체 master fallback에서 경로 규칙에 따라 실행한다. Windows 전용 결함은 queue에서 발견되며 병합 전에 차단한다. PR의 수동 Windows CI 실행 경로는 없다. Linux unit은 기존 foundation·editor 두 묶음으로 병렬 실행하고 정책·문서·typecheck·build는 quality job이 소유한다.
+
 CI quality는 문서 전용 PR과 merge group에서 문서·checker tests, diff/whitespace, issue 정책, AI provenance validator·event commit 검사와 경로 분류 회귀만 실행한다. 제품 테스트·typecheck·Editor build는 생략한다. `node --test scripts/ci-quality-mode.test.mjs scripts/ci-execution-policy.test.mjs`는 PR merge-base diff와 group 전체 base..head diff, 문서·Editor·설치기·lockfile·다중 PR·삭제/rename·diff 실패, master push의 같은 SHA 성공 run 재사용/API 실패 fallback, aggregate와 캐시 갱신 조건을 검증한다. queue head별 CI가 서로 취소되지 않는지도 검사한다. smartquotes 대형 패치 검사는 기본 Core suite에서 분리한 `pnpm --filter @litzio/core test:smartquotes`이며 의존성·patch·parser 경로 변경 때 선택한다. 정확한 allowlist·실행 조건·캐시 key/scope는 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다. 로컬 probe와 PR CI만으로 실제 merge_group 실행을 검증했다고 보고하지 않는다.
 
 병합은 [독립 승인 후 merge queue 절차](../../CONTRIBUTING.md#review-and-sequential-merge)와 [Enqueue 명령·상태 확인](../../CONTRIBUTING.md#enqueue)을 따른다. Queue는 최신 master와 합친 결과의 전체 diff에 경로 규칙을 적용하고 필수 검사 `Core, CLI, Editor, and browser regressions`를 보고한다. `node --test scripts/commit-provenance.test.mjs`는 PR 고유 commit과 agent 작성 merge 검사를 유지하면서 GitHub 생성 queue merge는 건너뛰는지 확인한다. Queue 실패는 artifact부터 조사한다. Queue는 2026-10-26부터 활성화되어 있으며, [#537 검증 기록](https://github.com/litzio/litzio/issues/537)에 [PR #543](https://github.com/litzio/litzio/pull/543)의 실제 [merge_group 실행](https://github.com/litzio/litzio/actions/runs/40313330979)과 queue 병합 결과가 있다. 이후 PR도 해당 queue head의 실제 실행 결과를 확인하며, 로컬 probe와 PR CI만으로 실제 queue 병합 성공을 주장하지 않는다.
 
 ## Browser regression
+
+CI 경로 정책은 `packages/plugin-sdk/**`, `plugins/onedrive/**`, `community-plugins/**`를 알려진 패키지로 분류한다. Markdown 단독 변경은 제품 quality만 유지하며, 그 외 변경은 품질·Editor browser·HTTP와 queue의 Desktop package·대표 제거를 유지한다. `vite-plugins`가 실제 OneDrive를 켜고 끄며 공통 scenario 준비 코드가 Docling fixture를 읽으므로 browser도 실행 소비자다. HTTP에서는 실제 Docling·Jira와 공통 플러그인 화면을 검사한다. 세 경로의 전용 변경은 `package.json`을 포함해 업데이트·제거 전수·레이아웃 전수를 선택하지 않는다. 설치 구성 파일의 기존 전체 제거, 혼합 변경의 합집합, unknown·판정 실패의 전체 실행은 유지한다. 이 범위는 PR/group 단독·혼합 정책 테스트와 실제 workflow 집계 선택식 대조로 보호한다.
 
 ```bash
 pnpm editor                          # 별도 터미널, 개발 서버

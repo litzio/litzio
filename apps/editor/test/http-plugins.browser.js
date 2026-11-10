@@ -1,4 +1,5 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument }) => {
+
   const secretSaves = [];
   let listRequests = 0;
   const saveSecret = async () => {
@@ -295,6 +296,52 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await docling.cli(["plugins", "enable", id]);
     // Manual real-service evidence uses an already converted archive. Never put
     // external model latency inside the 180s automatic fake-service regression.
+    if (screenshots && docling.realFile && docling.comparisonCapture) {
+      await openFolderPicker(page);
+      await page.getByTestId("folder-path").fill(pluginFixture.folder);
+      await page.getByTestId("folder-open").click();
+      await expect(page.getByTestId("folder-path")).not.toBeVisible();
+      docling.setRealInput();
+      const started = await docling.cli(["plugins","start",id,"--input",docling.jobInput]);
+      // Manual real-document capture waits for the actual terminal K1 state;
+      // conversion/authoring duration is measured separately, not a 5s fixture assertion.
+      let completed;
+      do {
+        completed = (await docling.cli(["plugins","status",started.job.requestId])).job;
+        if (completed.state === "running") await new Promise(resolve => setTimeout(resolve,250));
+      } while (completed.state === "running");
+      expect(completed.state).toBe("completed");
+      const result = (await docling.cli(["plugins","result",started.job.requestId])).job.result;
+      const current = await docling.review("read",result.comparison);
+      await docling.review("progress",{...result.comparison,baseline:current.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),progress:{checkedPages:[],lastPage:docling.comparisonPage}});
+      for (const width of [1440,640]) {
+        await page.setViewportSize({width,height:1000});
+        await page.evaluate(width => {localStorage.setItem("litzio.uiLanguage",width === 640 ? "ko":"en");localStorage.setItem("litzio.theme",width === 640 ? "dark":"light");},width);
+        await page.reload();
+        await page.locator(".sidebar").getByRole("button",{name:"Docling",exact:true}).click();
+        const panel = page.getByTestId("plugin-job-panel");
+        const row = panel.getByRole("row").filter({has:page.getByRole("cell",{name:"real.docling",exact:true})}).first();
+        await expect(row.getByRole("status")).toHaveText(width === 640 ? "완료":"Completed");
+        if (docling.comparisonBefore) {
+          await page.screenshot({path:`tmp/docling-1408/before-${width}.png`,mask:[page.locator(".sidebar-host-account"),panel.getByLabel(width===640?"열린 폴더":"Opened folder",{exact:true})]});
+        } else {
+          await row.getByRole("button",{name:width===640?"원본 대조":"Compare source",exact:true}).click();
+          const compare = page.locator(".review-renderer").filter({visible:true});
+          await expect(compare.locator(".review-page img")).toBeVisible();
+          await expect.poll(()=>compare.locator(".review-page img").evaluate(c=>c.naturalWidth)).toBeGreaterThan(0);
+          const unchecked = compare.getByRole("button",{name:width===640?"페이지 확인함":"Mark page checked",exact:true});
+          if (await unchecked.isVisible()) await unchecked.click();
+          await expect(compare.getByRole("button",{name:width===640?"확인한 페이지":"Page checked",exact:true})).toHaveAttribute("aria-pressed","true");
+          await expect(compare.getByText(width===640?"확인 기록 저장 중…":"Saving review progress…",{exact:true})).toBeHidden();
+          await expect(compare.getByRole("button",{name:width===640?"데이터 새로고침":"Refresh data",exact:true})).toBeEnabled();
+          const table = compare.getByRole("button",{name:"table · Supported",exact:true}).first();
+          if (await table.count()) { await table.click(); await expect(compare.locator(".review-highlights > div")).not.toHaveCount(0); }
+          expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+          await page.screenshot({path:`tmp/docling-1408/after-${width}.png`,mask:[page.locator(".sidebar-host-account")]});
+        }
+      }
+      return;
+    }
     if (screenshots && docling.realFile) {
       await openFolderPicker(page);
       await page.getByTestId("folder-path").fill(pluginFixture.folder);
@@ -506,6 +553,62 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(nativeRow).toContainText("병합 칸 반복 1");
     await nativeRow.getByRole("button", { name: "Open result: sample.docling", exact: true }).click();
     await expect(editor).toContainText("PDF body *literal*.");
+    await page.locator(".sidebar").getByRole("button", {name:"Docling",exact:true}).click();
+    await nativeRow.getByRole("button",{name:"Compare source",exact:true}).click();
+    const comparison = page.locator(".review-renderer").filter({visible:true});
+    await expect(comparison.locator(".review-page img")).toBeVisible();
+    await expect.poll(() => comparison.locator(".review-page img").evaluate(c => c.naturalWidth)).toBeGreaterThan(0);
+    await comparison.getByRole("button",{name:"section_header · Supported",exact:true}).click();
+    await expect(comparison.locator(".review-highlights > div")).toHaveCount(1);
+    await comparison.locator(".tiptap p").filter({hasText:"PDF body *literal*."}).click();
+    await expect(comparison).toContainText("Page 2 / 2");
+    await expect(comparison.getByRole("button",{name:"text · Supported",exact:true})).toHaveAttribute("aria-pressed","true");
+    await expect(comparison.getByText("Saving review progress…",{exact:true})).toBeHidden();
+    await comparison.getByRole("button",{name:"Previous page",exact:true}).click();
+    await expect(comparison).toContainText("Page 1 / 2");
+    await expect(comparison.getByText("Saving review progress…",{exact:true})).toBeHidden();
+    await expect(comparison.getByRole("button",{name:"Refresh data",exact:true})).toBeEnabled();
+    let releaseProgress;
+    const heldProgress = new Promise(resolve => { releaseProgress = resolve; });
+    let holdProgress = true, rejectProgress = false;
+    await page.route("**/api/reviews",async route => {
+      if (route.request().postDataJSON()?.action === "generated-progress") {
+        if (holdProgress) await heldProgress;
+        if (rejectProgress) return route.fulfill({json:{error:"Fixture save failure",receipt:{outcome:"failure"}}});
+      }
+      await route.continue();
+    });
+    try {
+      await comparison.getByRole("button",{name:"Mark page checked",exact:true}).click();
+      await expect(comparison.getByText("Saving review progress…",{exact:true})).toBeVisible();
+      await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+      await expect(comparison).toBeVisible();
+      await comparison.getByRole("button",{name:"Next page",exact:true}).click();
+      await expect(comparison).toContainText("Page 2 / 2");
+      await comparison.getByRole("button",{name:"Mark page checked",exact:true}).click();
+    } finally { holdProgress = false; releaseProgress(); }
+    await expect(comparison.getByText("Saving review progress…",{exact:true})).toBeHidden();
+    await expect(comparison.getByRole("button",{name:"Refresh data",exact:true})).toBeEnabled();
+    await expect(comparison.getByRole("button",{name:"Page checked",exact:true})).toHaveAttribute("aria-pressed","true");
+    rejectProgress = true;
+    await comparison.getByRole("button",{name:"Page checked",exact:true}).click();
+    await expect(comparison).toContainText("Review progress could not be saved.");
+    await expect(comparison.getByRole("button",{name:"Mark page checked",exact:true})).toBeDisabled();
+    rejectProgress = false;
+    await comparison.getByRole("button",{name:"Refresh data",exact:true}).click();
+    await expect(comparison.getByRole("button",{name:"Page checked",exact:true})).toHaveAttribute("aria-pressed","true");
+    await page.unroute("**/api/reviews");
+    const resultPath = (await docling.cli(["jobs","list",id])).jobs.find(j => j.result?.comparison?.document && j.file?.endsWith("sample.docling"))?.result.comparison.document;
+    const progress = await docling.review("compare",{root:pluginFixture.folder,document:resultPath});
+    expect(progress.progress).toEqual({checkedPages:[1,2],lastPage:2});
+    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    await page.locator(".sidebar").getByRole("button",{name:"Docling",exact:true}).click();
+    await nativeRow.getByRole("button",{name:"Compare source",exact:true}).click();
+    await expect(comparison).toContainText("Page 2 / 2");
+    await expect(comparison.getByRole("button",{name:"Page checked",exact:true})).toHaveAttribute("aria-pressed","true");
+    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    await page.setViewportSize({width:1280,height:720});
+    await page.locator(".sidebar").getByRole("button",{name:"Docling",exact:true}).click();
     docling.setDocumentInput(true);
     const failure = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
     await expect.poll(async () => (await docling.cli(["plugins", "status", failure.job.requestId])).job.state).toBe("failed");

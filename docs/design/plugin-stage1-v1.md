@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1408: 2026-11-10 — 공용 PDF 대조·진행 저장 Host/CLI, SDK/Docling 단위 검사와 대표 HTTP 브라우저·기존 review 회귀 확인. 실제 docling-serve의 작은 합성 PDF를 변환해 1440px·한국어 Dark 640px 대조/확인 저장을 확인했으며 복잡한 PDF 품질·의미 동등성은 미검증.
 - Verification #1366: 2026-11-09 — SDK/OneDrive/Host·folder-tree tests, typecheck, CLI/Editor production build and HTTP folder/icon regressions; 1440px and Korean dark 640px before/after review. Real account synchronization is unverified.
 - Verification #1346: 2026-11-09 — SDK/Host icon validation and digest-trust tests, Editor typecheck, production CLI/Editor build, HTTP browser fixture with SVG script non-execution; 1440px and Korean dark 640px visual inspection. External plugin artwork/service adoption is unverified.
 - Verification #1334: 2026-11-09 — SDK 선언·기능 버전 거부, Host 고정 결과 검증, Vite 설정 성공/오류·비활성·정보 진입, production HTTP 사이드바·secret·복구 fixture, typecheck와 CLI build 확인. 외부 서비스 연결은 미검증.
@@ -192,6 +193,27 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 
 복구 결과는 두 artifact 모두 validate·등록·신뢰·활성화 후 실제 HTTP Host에서 조회/변환을 실행했다. query는 기본/추가 조건·표·선택적 연결 설정/비밀키와 healthCheck, file은 `.txt`→`.upper`·K1 세 작업·파일별 진행/결과를 유지했다. 임시 browser scenario를 기존 `pnpm browser:test` runner와 persistent Chrome으로 실행하고 원래 scenario 파일은 복원했다. [조회 1440px](assets/plugin-templates-1397/query-1440.png) / [한국어 다크 640px](assets/plugin-templates-1397/query-640.png), [파일 1440px](assets/plugin-templates-1397/file-1440.png) / [한국어 다크 640px](assets/plugin-templates-1397/file-640.png)에서 상단 입력·전체 폭 결과·정렬·줄바꿈·표 내부 스크롤을 확인했다. 기존 공통 QueryInputs·DataTable·PluginJobPanel을 사용하며 새 UI 예외는 없다. 계정·Root 선택은 mask했다. 외부 서비스·배포·secret 저장·소유자 시각 승인은 이 실행으로 검증하지 않았다. 상세 요청과 최초 실패·후속 결과는 PR에 기록한다.
 
+
+### 기준 모델 재검증 (#1421)
+
+2026-11-10 소유자 결정으로 비서 플러그인 제작 검증은 Codex `gpt-6.1-terra`, 추론 강도 `high`를 기준으로 한다. 다른 실제 AI 응답 확인은 AGENTS.md의 `gpt-6-luna`/`low` 기본값을 유지한다.
+
+격리된 Host·데이터 폴더와 열린 폴더 권한에서 실제 제품 `AssistantConversations`·번들 제작 안내·`manage_plugins`로 조회와 파일 처리를 각각 한 번 실행했다. 요청은 [PR #1418](https://github.com/litzio/litzio/pull/1418)의 문장을 그대로 사용하고 새 artifact 경로만 바꿨다. 외부 서비스·자격 증명은 사용하지 않았다. HTTP origin을 비서에게 제공하지 않았으므로 비서는 실제 조회·변환을 미확인으로 보고했고, 검증자가 같은 생성 artifact를 격리 HTTP Host에 올려 공통 화면에서 직접 실행했다.
+
+| 항목 | Luna low (#1418) | Terra high (#1421) |
+| --- | --- | --- |
+| 조회 첫 요청 | validate·등록·신뢰·활성 성공, 설정/비밀키 제거 | validate·등록·신뢰·활성 성공, 선언 보존 |
+| 파일 첫 요청 | scope/screens/K1 입력 누락으로 validate 실패 | validate·등록·신뢰·활성 성공, 선언 보존 |
+| 후속 요청 | 조회 1회, 파일 2회(선언 복구·staging 쓰기 수정) | 조회 0회, 파일 0회 |
+| 공통 화면 실행 | 후속 복구 뒤 조회 3행·파일 완료 | 첫 요청 산출물 그대로 조회 2행·파일 완료 |
+| 사람이 artifact/화면 수정 | 없음 | 없음 |
+
+Terra의 두 결과는 SDK 정규화 후 템플릿과 contributes가 동일했다. 조회의 선택적 workspace 설정·제목을 가진 token 비밀키·healthCheck·views/screens, 파일의 host scope·start/status/stop 전체 K1 입력(output/resultFile 포함)·jobs/screens를 보존했다. 두 host.js도 현재 템플릿과 byte 단위로 같았고, 파일 manifest의 표시 이름만 비서가 바꿨다. 두 validate 결과는 `valid:true`, `errors:[]`였으며 등록·신뢰·활성·실행 중 상태를 확인했다. 두 turn에서 각각 PowerShell 읽기 도구 한 번이 failed로 관측되었으나 각각 같은 turn에서 node_repl로 읽고 완료했다. 실패 원인은 확정하지 않았다. 사용자 후속 요청이나 artifact 복구는 없었다.
+
+`pnpm browser:test plugin-columns --screenshots`의 임시 시나리오로 persistent Chrome과 OS 할당 포트의 실제 HTTP Host를 사용했다(1개 통과, 약 10초). 시나리오는 실행 후 복원했고 커밋하지 않았다. 공통 QueryInputs·DataTable에서 예제 두 행, PluginJobPanel에서 완료·진행 1/1·example.upper 결과를 확인했다. 저장 결과는 `HELLO EXAMPLE`과 줄바꿈이며 원본 `Hello example`과 줄바꿈은 보존됐다. 1440px English/light [조회](assets/plugin-authoring-1421/query-1440.png)와 [파일](assets/plugin-authoring-1421/file-1440.png)의 입력·표 정렬, 여백, 잘림을 직접 검토했다. 계정·Root 선택은 mask했다. 기존 공통 화면을 그대로 사용하며 새 UI 예외는 없다.
+
+이는 모델별 한 번씩의 관측이며 모델 우열의 통제 실험이 아니다. Terra에는 #1418 실패 이후 선언 보존·staging 쓰기가 보강된 현재 번들 안내가 제공됐다. 새 안내 보완이나 재시험은 필요하지 않았다. secret 저장·실제 외부 연결·대용량 처리·다른 OS·패키지 Desktop과 소유자의 직접 시각 승인은 미검증이다. 요청 원문·대화·harness·manifest 비교는 로컬 임시 근거로 보관하며 로컬 식별자가 있는 원문과 재생성 가능한 대형 근거는 커밋하지 않는다.
+
 ## 작업 실패 공개 분류 (#1233)
 
 SDK `PluginOperationError(kind)` 또는 같은 `kind` 속성의 예외로 `auth`(인증 확인), `forbidden`(권한 문의), `not_found`(주소·ID 확인), `unavailable`(나중에 재시도), `timeout`(연결 확인), `failed`(설정·대상 확인)를 전달한다. HTTP 상태 매핑은 플러그인이 담당한다. 알 수 없는 kind, 일반 예외와 출력 검증 실패는 `failed`다. 하위 프로세스 제한 시간 초과는 `timeout`, 그 외 프로세스 실패는 `failed`다.
@@ -206,7 +228,7 @@ K1 호출은 등록 시 manifest의 start/status/stop read·write 효과를 기�
 
 K1 완료의 선택 `jobUpdate.review`는 SDK `completedReviewSchema`를 따른다. review, bundle(generation/documentRevision/documentHash/sourceRevision와 선택 mappingRevision), pages, 선택 mapping, images(ref/Root 상대 path/SHA-256 revision)를 전달한다. sourceRevision은 K1 입력 파일 SHA-256, documentRevision/hash는 Core canonical 출력 revision이다. Host는 문서 생성 후 모든 자료를 검증하고 `result.bundle`에 Host 발급 bundleRef/documentRef를 공개한다. Root·generation·revision·이미지 검증 실패 시 bundle은 공개하지 않으며 이미 생성된 결과 문서를 보존하고 uncertain으로 남긴다. 완료 전 자료는 공개하지 않는다.
 
-`POST /api/reviews`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. 현재 PNG만 지원하며 다른 형식은 거부한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
+`POST /api/reviews`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. image kind는 PNG만 지원하며 다른 이미지 형식은 거부한다. PDF 원본은 아래 SDK 0.4.0의 별도 pdf 자료를 사용한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
 
 변경에는 requestId(UUID), baseline과 선택 proposalId/input을 더한다. baseline은 문서·제안 revision과 원본/map revision이다. Host는 plugin 실행 전과 commit 직전에 문서·원본·이미지를 재검사하고 bundle별 동시 변경을 거부한다. binding ID/version·가용성·artifact 신뢰를 매번 확인하며 일반 operation invoke로 review binding을 호출할 수 없다. propose 결과는 Core ReviewProposal의 pending만 허용하고 target snapshot·baseline을 검사하며 기여의 action 제한을 유지한다. reject는 문서를 바꾸지 않는다.
 
@@ -234,7 +256,7 @@ K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 �
 
 #1341에서 비서 명세 생성·제안·저장 경로는 제거했다. review는 완료 작업 결과와 기존 전용 HTTP/CLI 진입점을 유지한다. 공통 view.validate는 같은 Host의 실제 완료 bundle 참조를 확인하며 조회·문서 변경을 실행하지 않는다. [현재 화면 계약](plugin-screens-v1.md)을 따른다.
 
-V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl을 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
+V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl 또는 PDF 자료를 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
 
 ### 화면의 변경 결과 관찰과 페이지 없는 K4
 
@@ -519,3 +541,56 @@ QueryInputs의 필드 오류 연결과 기존 SettingsSwitch 행 정렬을 대�
 SDK 필수 title·기능 버전 검사는 manifest 단위 검사가 담당한다.
 
 production CSP는 유지하며 설정 검증은 Host에서 수행한다. 브라우저에서 코드 생성 validator를 실행하지 않는다.
+
+## PDF 원본 대조와 확인 기록 (#1408, SDK 0.4.0)
+
+미공개 SDK 0.4.0에 함께 포함한다. native-document job은 `generatedDocument`와 같은 플러그인의 review ID인 `comparison`을 선언할 수 있다. 둘과 review read binding 및 최소 SDK를 entry 전에 검사한다. 완료 result의 `comparison:{root,document}`만으로 앱이 공통 ‘원본 대조’ 결과 행동을 제공한다. 플러그인 이름 분기나 플러그인 UI 코드는 없다.
+
+`review compare --input <file> --host <origin> --json`과 `POST /api/reviews`의 `generated-compare`는 `{root,document,pageNo?}`를 받는다. Host 연결의 마지막 생성 revision·source revision과 현재 저장 파일이 일치할 때만 연다. Host가 보관한 최종 authoring inputs/targets를 provider의 `mode:compare`에 result(path/revision/inputs), generation, sourceRevision, pageNo와 Host 소유 PNG staging 파일로 전달한다. comparison을 선언한 provider의 모든 mode에는 Host가 전후 검증하는 sourceRevision도 전달한다(SDK 0.4.0). provider는 이를 키로 활성화 수명의 검증된 원본·대응을 재사용할 수 있다. provider는 같은 변환 경로로 원본 항목 대응을 계산하고 기존 `completedReviewSchema`의 pages/images/mapping을 반환한다. 선택한 페이지 이미지 하나를 지정 staging에 닫아 쓰며 SHA-256과 16MiB 제한을 적용한다. Host는 검증한 PNG 바이트를 메모리에 보유해 snapshot `imageUrl`로 일시 제공한다. Root 상대 이미지를 사용하는 기존 완료 review와 같은 발행·Core block path·PNG 컨테이너/픽셀 검증을 거친다. 공용 review의 PDF schema나 PDF renderer는 추가하지 않는다. Docling은 변환 시 페이지 PNG를 원본 JSON 안에 포함하고, 화면 진입은 서버 호출·PDF 재렌더링 없이 기존 이미지·bbox를 사용한다. 좌표는 Docling page.size의 pt/TOPLEFT로 정규화해 이미지 크기에 비례 배치한다.
+
+snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(checkedPages/lastPage)를 함께 반환한다. 최초 진입은 lastPage를 사용한다. 문서 블록 선택은 대응 영역이 있는 페이지로 이동한다. 없는 대응은 없는 것으로 표시한다. 오른쪽은 기존 DocumentEditor readOnly preview의 저장된 문서이며 열린 편집 탭의 draft를 참조하지 않는다. 선택 전·페이지 읽기·저장·다시 읽기에서 현재 baseline을 검사하고 불일치나 저장 실패 뒤 대응/확인 행동을 막는다. 다시 읽은 새 generation만 탐색한다. K4 제안/승인 부품은 이 대조 layout에 넣지 않는다.
+
+`review progress --input <file> --host <origin> --json`은 같은 dispatcher의 `generated-progress`다. 입력은 root/document, read/compare가 반환한 generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:number[],lastPage:number|null}`다. provider의 `mode:progress`는 기록만 변경한 전체 source를 Host staging 파일에 쓴다. Host는 source/document/link baseline을 재검사하고 공식 전체 파일 교체 후 연결의 generatedFrom만 갱신한다. 문서와 final targets를 재생성하지 않는다. 화면은 확인 저장을 접수 순서대로 처리하며 저장 완료를 기다리지 않고 다음 페이지를 읽는다. 저장 중에는 상태를 표시하고 대응 선택을 막는다. 대조 탭 닫기·창 unload·Desktop 재시작은 기존 작업 중 보호를 재사용해 대기 중 기록을 취소하지 않는다. Host는 progress 교체를 준비하는 동안 이전의 일관된 baseline으로 읽기를 허용하고, 실제 교체 전에 그 읽기가 끝날 때까지 기다린다. 교체 중 새 읽기는 새 baseline을 기다린다. 수정·재생성 등 다른 쓰기의 배타성은 유지한다. 결과는 progressSaved/baseline/receipt이고 실패는 명시적으로 반환한다. 응답 유실은 같은 generated-status를 읽고 자동 재전송하지 않는다. source 교체 후 연결 저장 실패는 progressSaved와 regeneration-required를 돌려준다. 문서 재생성은 기존 regenerate 작업이다.
+
+최종 inputs는 Host 연결 자료에 보관되며 최대 4MiB다. 검수 기록은 source 파일에만 있다. source 하나를 옮겨 기존 generated-open/새 K1 생성을 수행하면 새 연결/출력 revision과 대응을 얻고 확인 위치를 이어간다. 이전 `.docling` 파일의 호환은 지원 범위가 아니다. 이전 review의 PNG 계약과 K4 변경 경계는 유지한다.
+
+### #1408 검증·화면 근거
+
+기존 SDK manifest 검사에 comparison의 최소 버전·기여 누락 거부를 보완했다. 기존 generated-documents 검사는 문서/수정 목록을 건드리지 않는 진행 저장, 이전 baseline·저장 중 외부 변경 거부와 같은 requestId status를 확인한다. 기존 reviews 검사는 staged PNG hash·Root 상대 자료·stale 거부와 K4 bundle 보존을 확인한다. 기존 generated-documents 검사에 느린 진행 저장과 동시에 읽는 경우의 publication 순서를 보완했다. 서로 다른 결함은 저장 지연이 탐색을 막거나 서로 다른 revision의 snapshot을 섞는 것이며, 주 검증 계층은 subprocess 없는 Host 작업이다. Docling 낮은 계층은 좌표 원점 변환·없는 targets·진행 범위·중복 거부와 원본 PDF/JSON/manifest의 byte 보존을 보호한다. 새 subprocess·suite·전수 조합은 추가하지 않았다.
+
+기존 http-plugins의 대표 경로에서 공개 SDK→K1→완료 행동→기존 PNG 이미지→양방향 선택과 다른 페이지 reveal→확인 저장→CLI compare→탭 재진입의 연결을 검사했다(HTTP 복구 포함 2개, 약 2.4분). focus/selection이 한 클릭에서 연속 발생해도 같은 baseline 검증을 공유하고 최신 선택을 유지한다. 합성 PDF/Docling JSON fixture의 연결 검증이며 변환 정확도 증거가 아니다. 기존 review-v5, layout-rules·quiet-document도 통과했다. Host/review/플러그인 대상 45개, SDK 11개, CLI remote-host 6개와 typecheck·CLI/Editor production build·docs/diff 검사를 통과했다.
+
+초기 보조 검토는 `fixtures/create-acceptance.py`의 한 페이지 PDF를 실제 docling-serve 1.32.0으로 변환해 수행했다. 최종 수락·표시 방식 비교는 아래의 보관 NIST 11쪽/합성 1쪽을 사용했다. 원본 대조·확인 저장과 최소 640px 페이지 가로 넘침 부재를 확인했다. 컨테이너는 중지했으며 다른 컨테이너를 조작하지 않았다. 코드/수식 인식 품질·원본과의 의미 동등성은 보증하지 않는다. 서버 지연은 자동 회귀에 넣지 않았다.
+
+`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`, `LITZIO_DOCLING_COMPARE_PAGE=5`를 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 최종 전후 캡처는 같은 NIST 입력·완료 작업을 사용한다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PageSurface와 내부 스크롤을 사용하며, 640px의 문서 최소 폭 440px는 기존 두 Editor 그룹과 같은 기준이다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
+
+| 화면 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| 1440px | [Before](assets/docling-1408/before-1440.png) | [After](assets/docling-1408/after-1440.png) |
+| 한국어 Dark 640px | [Before](assets/docling-1408/before-640.png) | [After](assets/docling-1408/after-640.png) |
+### #1408 표시 방식·규모 측정
+
+보관 fixture의 NIST SP 1108r4 발췌 11쪽(원본 4,768,831B)과 보충 합성 1쪽(2,650B)을 현재 고정 프로필과 실제 docling-serve 1.32.0으로 변환했다. 과거 document.md/산출물은 계약으로 쓰지 않았으며 PDF/큰 산출물을 추가 커밋하지 않았다. 합성 PDF는 영어 구조·URL 등의 보충 사례로, 한국어 UI 검증과는 다르다. 컨테이너는 이 이름 하나만 start/stop했고 종료 후 stop했다.
+
+아래는 최적화 전 비교 시제품의 실측이다. Windows persistent Chrome, 1440×1100, 완료 결과 행동 클릭→이미지 decode/canvas paint와 두 animation frame까지 다섯 번 측정했다. 전환은 기존의 blocking progress+compare를 포함한다. 변환은 각 1회이며 워밍업·1초 polling의 영향이 있어 A가 변환을 가속한다고 해석하지 않는다. MB는 십진수다.
+
+| 방식 | 첫 표시 ms: NIST / 합성 (첫 1회; 5회 중앙) | 페이지 1→2 중앙 | 변환 s: NIST / 합성; .docling 크기 | 코드·계약·정확성/인계 |
+|---|---|---|---|---|
+| **A: 서버 페이지 PNG를 .docling에 보관 — 선택** | 1957;1909 / 445;372 | 2584ms (합성 1쪽: 미측정) | 46.16 / 7.30; 17.55MB / 334KB | 생산 코드 +311/-77, 22파일; 새 의존성 0; 기존 PNG review 재사용. 한 파일·오프라인 인계 가능. Docling 이미지와 bbox 같은 좌표계 |
+| A: 열 때 Docling 서버에서 생성 | E2E 미측정 | 미측정 | 전체 프로필 재변환 원천 시간은 위 A 값; 보관 크기는 B와 같게 가능 | 서버 요청·대기 수명 추가, 서버 없는 인계 불가. 전체 재변환 대신 별도 경량 API의 시간은 미측정 |
+| B: pdf.js 직접 canvas + bbox | 2486;1806 / 586;455 | 2351ms | 49.07 / 9.51; 6.95MB / 24KB | 생산 코드 +326/-74, 22파일; 새 의존성 0; PDF 자료/SDK 필드 추가. 한 파일 인계 가능. PDF crop/rotation과 Docling 좌표 일치 필요 |
+| B: pdf.js→PNG→기존 img 자리 | E2E 미측정; PNG encode+decode 중앙 25.9 / 14.8ms 추가 | 미측정 | B와 동일 | 공용 PDF 전달 계약은 여전히 필요. 완성 시제품의 LOC는 미측정; 추가 PNG 변환/상태 필요 |
+
+첫 진입과 합성 표시에서 A가 빠르고, NIST warmed 중앙의 차이는 103ms(첫 표시)·233ms(전환)였다. 차이가 작을 때 코드와 계약이 적은 안을 우선해 A를 선택했다. 시제품 B→A 전환은 생산 코드 9파일 +43/-61로, PDF 표시 helper·PDF SDK/Host 자료 경로를 버리는 비용도 포함한다. 최종 성능·비동기 저장 보완까지 포함한 생산 코드는 22파일 +421/-96다. 이 추가 비용은 A/B에 공통인 생성 문서 읽기·기록 저장 경로다. 새 의존성과 플러그인 전용 Core/Host 분기는 없다. 두 문서의 페이지는 Rotate=0, CropBox=MediaBox이고 NIST 마지막 쪽은 가로 방향이다. 회전·다른 crop 좌표계의 실측은 없다. A는 서버의 같은 페이지 크기로 bbox를 비례 표시하며 NIST 5쪽 넓은 표와 합성 표의 실제 대응을 아래 캡처에서 확인했다. 원본과의 문서 전체 의미 동등성을 뜻하지 않는다.
+
+공통 지연 원인은 페이지마다 전체 봉투/JSON을 검증·복사하고 SDK authoring과 대응을 재계산한 뒤, 진행 저장 후 다시 compare를 호출하던 경로였다. Host가 전후 hash 검사하는 source revision별로 활성화 수명의 원본 한 개와 같은 원본 hash/patches의 authoring을 재사용하고, 패치 복사에서 불변 pages를 제외했다. 기록 재작성은 검증된 원본 PDF/JSON/manifest의 hash를 다시 확인하며 불변 항목을 그대로 pack한다. 외부 변경이면 캐시를 버리며 공식 revision 검사·전체 교체를 유지한다. NIST 동일 경로 5회에서 첫 표시 중앙 1909→960ms, 페이지 1→2 중앙 2584→1099ms였다.
+
+200쪽 용량 시험은 NIST의 PDF 페이지와 embedded 페이지 PNG를 반복한 **합성 봉투**다. 파일은 199,842,050B, JSON 194,968,771B이며 원래 439개 항목만 첫 11쪽에 둔다. 200쪽 실제 변환·내용 품질의 증거가 아니다. 확인 한 번 저장 API는 17.001→3.134초(각 1회)였고 중간 캐시 수정은 3.468초였다. 2초를 넘으므로 UI 저장은 순차 비동기로 처리한다. 같은 200쪽 파일의 실제 브라우저에서 첫 표시 3.003초, 저장 중 다음 페이지 표시 2.708초, 확인 저장 응답 4.310초로 페이지가 먼저 표시됐다. 동시 읽기 비용 때문에 단독 API보다 저장이 길었다. 저장 상태를 보이고 실패하면 확인·대응을 막아 다시 읽게 한다. 원본·수정 목록·생성 문서는 확인 저장으로 바뀌지 않는다.
+
+PNG 실험은 NIST의 원본 7,943,538B→무손실 optimize 4,808,043B, 72dpi 축소 2,665,556B; 합성은 232,539→133,676/88,406B였다. Pillow의 두 최적화를 합친 시간은 2.98초/0.15초이며 실제 서버 72dpi 변환 시간은 미측정이다. 좌표 비례 배치는 같지만 72dpi는 확대 시 작은 표 글자가 흐려진다. 원본 JSON/ImageRef를 재인코딩하지 않고 기존 144dpi를 유지한다. 남은 비용은 수백 MB 전체 교체와 디스크 IO다. 향후 선택지는 생성 시 낮은 images_scale의 품질 수락, 보관 전 서버 PNG 압축 개선, 또는 PDF 직접 표시를 다시 비교하는 것이며 이 PR에서 저장 형식을 재설계하지 않는다.
+
+[측정 원자료](assets/docling-1408/measurements.json)에는 반복값과 미측정을 구분했다. 서버 지연·성능 측정을 CI의 고정 시간 단언으로 추가하지 않았다. 기존 Host 검사의 저장/읽기 admission·publication 순서와 기존 대표 브라우저의 저장 중 이동·닫기 보호·실패 표시를 보완하며 새 subprocess·무거운 suite는 추가하지 않는다.
+
+[NIST 넓은 표 1440px](assets/docling-1408/after-1440.png) · [NIST 한국어 Dark 640px](assets/docling-1408/after-640.png) · [보충 합성 표 1440px](assets/docling-1408/synthetic-1440.png)
+
+비동기 기록 저장 중 대조 탭을 닫으면 아직 전송하지 않은 기록이 취소되는 경로를 대표 브라우저에서 먼저 재현했다. 기존 작업 중 닫기·beforeunload/재시작 보호를 재사용해 수정하고 같은 경로의 닫기 시도를 보완했다. CLI에는 창 수명 동작을 추가하지 않는다.

@@ -25,7 +25,7 @@ const operation = z.strictObject({ id, version: z.number().int().positive(), eff
 const extension = z.string().regex(/^\.[a-z0-9]+$/);
 const jobFields = { id, title: z.string().min(1), accept: z.array(extension).min(1), start: id, status: id, stop: id };
 const jobContributionSchema = z.discriminatedUnion("resultKind", [
-  z.strictObject({ ...jobFields, resultKind: z.literal("native-document"), generatedDocument: id.optional() }),
+  z.strictObject({ ...jobFields, resultKind: z.literal("native-document"), generatedDocument: id.optional(), comparison: id.optional() }),
   z.strictObject({ ...jobFields, resultKind: z.literal("file"), resultExtension: extension }),
 ]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
@@ -70,6 +70,9 @@ export function validateManifest(input: unknown): PluginManifest {
       if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Generated documents require SDK 0.3.0 or later");
       const provider = m.contributes.operations.find(op => op.id === job.generatedDocument);
       if (!provider || provider.effect !== "read" || provider.scope !== "host") throw new Error("Generated documents require a host read provider");
+    }
+    if (job.resultKind === "native-document" && job.comparison) {
+      if (!job.generatedDocument || !m.contributes.reviews.some(r => r.id === job.comparison) || !supportedSdkVersions.some(version => semver.gte(version, "0.4.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Comparison requires a generated provider, review and SDK 0.4.0");
     }
     if (job.resultKind === "file" && !supportedSdkVersions.some(version => semver.gte(version, "0.2.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("File job results require SDK 0.2.0 or later in requiresSdk");
     for (const binding of [job.start, job.status, job.stop]) if (!m.contributes.operations.some(op => op.id === binding)) throw new Error("Undeclared job operation");
@@ -200,7 +203,7 @@ export const jobUpdateSchema = z.strictObject({
   file: z.strictObject({ path: z.string().min(1) }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; output?: string; startFailure?: JobStartFailure; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; inputs?: import("@litzio/core").AuthoredDocument["inputs"]; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; output?: string; startFailure?: JobStartFailure; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; inputs?: import("@litzio/core").AuthoredDocument["inputs"]; comparison?: { root: string; document: string }; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
 export const JOB_BATCH_MAX_FILES = 50;
 export const JOB_START_FAILURE_MESSAGES = {
   result_exists: "The result path already exists or is in use.",
