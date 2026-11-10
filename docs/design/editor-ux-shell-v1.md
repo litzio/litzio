@@ -3166,7 +3166,8 @@ it overlays the document from the title strip to the bottom, with the existing w
 surface and shadow. The document keeps all space beside the 48px control rail (592px at
 the minimum 640px window); Explorer expansion consumes no extra document width.
 
-File activation (local or remote, including PDF), outside pointer and Escape dismiss the
+File activation (local or remote, including PDF), task navigation (Settings, Template
+gallery and plugin screens), outside pointer and Escape dismiss the
 overlay and return focus to its toggle. A subsequently activated document or outside
 control may take focus through its normal action. Portalled menus/dialogs keep their
 own dismissal boundary and do not collapse Explorer underneath their return target.
@@ -3201,6 +3202,16 @@ The capture-only `folder-navigation` body omits its expected HTTP-error exercise
 the runner reports those missing expected failures; this is not an automated regression
 pass. The restored four-scenario run passed (about 2.5 minutes). Visual review confirmed
 unchanged 1440px docking and bounded controls/scroll surfaces in both themes at 640px.
+
+CI follow-up keeps the expanded Explorer resize handle and all existing geometry
+assertions. Scenarios explicitly reopen the default-collapsed Explorer before using
+its files/actions; title-strip branding checks the rail's icon-only presentation.
+The selection-overlay fixture adds two preceding paragraphs so its bottom-edge anchor
+can still scroll into position in the wider document. The table fixture adds two more
+columns: its former twelve-column 432px table now fits the 464px content area, so fourteen
+columns restore the same horizontal-overflow/last-column checks. No pass criterion or
+timeout is reduced. The Assistant stacking check uses fixture settings/models/diagnostics,
+without requiring a provider account.
 
 ## Multiple Host shell (#1174 PR4)
 

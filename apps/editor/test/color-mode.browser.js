@@ -22,7 +22,10 @@ async (page, { expect, screenshots = false }) => {
   await assertChoice('dark');
   for (const [width, language, theme] of [[1440,'en','light'],[640,'ko','dark']]) {
     await page.setViewportSize({width,height:900});
+    await expect.poll(()=>page.locator('.app-shell').evaluate(n=>n.classList.contains('app-shell--navigation-overlay'))).toBe(width<1100);
     await configure(language,theme);
+    const expand=page.getByRole('button',{name:/^(Expand Explorer|탐색기 펼치기)$/});
+    if(await expand.isVisible()) await expand.click();
     await expect(mode()).toHaveAttribute('title',`${language==='en'?'Color mode':'색상 모드'}: ${theme==='light'?'Light':'다크'}`);
     await expect(mode().locator('svg')).toHaveClass(new RegExp(theme==='light'?'lucide-sun':'lucide-moon'));
     const a = await settings().boundingBox(), b = await mode().boundingBox();

@@ -14,7 +14,11 @@ async (page, { openDocument, screenshots, expect }) => {
   // Keyboard preview actions retain the short metadata draft; outside pointer clicks complete it.
   const activate = async target => { await target.focus(); await target.press('Enter'); };
   const dialogFocus = () => page.waitForFunction(() => document.querySelector('[data-slot="dialog-content"]')?.contains(document.activeElement));
-  const activateRow = async name => { await activate(row(name)); await dialogFocus(); };
+  const activateRow = async name => {
+    const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
+    if(await expand.isVisible()) await activate(expand);
+    await activate(row(name)); await dialogFocus();
+  };
   const dialog = () => page.locator('[data-slot="dialog-content"]');
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
   const snapshot = () => editor.evaluate(el => ({ json: JSON.stringify(el.editor.getJSON()), selection: el.editor.state.selection.toJSON(), undo: el.editor.can().undo() }));

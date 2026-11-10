@@ -105,7 +105,7 @@ export function Sidebar({
           event.preventDefault(); event.stopPropagation(); onClose?.();
         }
       }}>
-      {open && !overlay && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
+      {open && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
       <div className="sidebar-header">
         {open ? <span className="product">{i18n.t("Explorer")}</span> : null}
         <div className="sidebar-header-actions">

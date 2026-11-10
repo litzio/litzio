@@ -64,6 +64,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
   await expect(documentResize).toHaveAttribute('aria-valuenow', '280');
   await page.setViewportSize({ width: 640, height: 900 });
+  await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
   await expect(sidebarResize).toHaveAttribute('aria-valuenow', '200');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');

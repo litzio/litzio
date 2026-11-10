@@ -244,6 +244,7 @@ function EditorApp() {
     window.addEventListener("open-plugin-screen", open); return () => window.removeEventListener("open-plugin-screen", open);
   });
   function openScreen(screen: ViewScreen & {hostId: string}) {
+    if (sidebarOverlay) closeSidebar();
     const id = `screen-${screen.plugin}-${screen.id}`;
     const next = {id,hostId:screen.hostId,root:(screen.hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(screen.hostId))[0]??"",screen,label:screen.title};
     setViewTabs(previous => previous.some(tab => tab.id === id) ? previous.map(tab => tab.id === id && tab.hostId !== screen.hostId ? next : tab) : [...previous,next]);
@@ -729,6 +730,7 @@ function EditorApp() {
   const settingsReturnTab = useRef<string | null>(null);
   function openSettingsTab(): void {
     if (operationRef.current || settingsDisabled) return;
+    if (sidebarOverlay) closeSidebar();
     if (activeId !== "settings") settingsReturnTab.current = activeId;
     if (assistantOverlay) setAssistantOpen(false);
     settingsFocusRequested.current = true;
@@ -836,6 +838,7 @@ function EditorApp() {
   }
   function openTemplateGallery(): void {
     if (busy || continuation) return;
+    if (sidebarOverlay) closeSidebar();
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
@@ -1307,7 +1310,7 @@ function EditorApp() {
           if (sidebarOverlay) closeSidebar();
           void openFolderDocument(path);
         }}
-        onOpenRight={path => { if (canSplit) void openFolderDocument(path, rightGroup).then(opened => { if (opened) setCommandFileFocus(path); }); }}
+        onOpenRight={path => { if (canSplit) { if (sidebarOverlay) closeSidebar(); void openFolderDocument(path, rightGroup).then(opened => { if (opened) setCommandFileFocus(path); }); } }}
         openRightDisabled={!canSplit || busy || Boolean(continuation)}
         onRevealFolder={desktop?.openFolderInExplorer ? path => {
           void (async () => {

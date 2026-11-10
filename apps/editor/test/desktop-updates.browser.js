@@ -82,8 +82,10 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   for (const width of screenshots ? [1440,640] : [640]) {
     await page.setViewportSize({width,height:1000});
     await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
+    await page.getByRole('menuitem', {name:'Open in browser',exact:true}).waitFor();
     await capture(`daemon-menu-${width}`);
     await page.keyboard.press('Escape');
+    await page.getByRole('menu').waitFor({state:'hidden'});
     await page.getByRole('button', {name:'Settings',exact:true}).click();
     await page.getByRole('button', {name:'About & updates',exact:true}).click();
     await page.getByText('running · CLI (start) · 0.2.0', {exact:true}).waitFor();
@@ -233,7 +235,8 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
               const sidebar = document.querySelector('.sidebar-header').getBoundingClientRect();
               const docked = document.querySelector('.document-panel:not([hidden]):not(.document-panel--overlay) .document-panel-navigation')?.getBoundingClientRect();
               const aligned = sidebar.top === tabs.top && sidebar.bottom === tabs.bottom && (!docked || docked.top === tabs.top && docked.bottom === tabs.bottom);
-              const branded = brand.querySelector('img').complete && !!brand.querySelector('span') === !document.querySelector('.sidebar--collapsed');
+              const branded = brand.querySelector('img').complete && !!brand.querySelector('span') ===
+                (!document.querySelector('.sidebar--collapsed') && !document.querySelector('.app-shell--navigation-overlay'));
               const settingsBox = settings.getBoundingClientRect();
               const rail = document.querySelector('.sidebar').getBoundingClientRect();
               const modeBox = document.querySelector('.sidebar-preferences button:last-child').getBoundingClientRect();
@@ -384,6 +387,9 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   check(await settings.getAttribute('title') === 'New version 0.3.0-beta.1 available', 'Tooltip omits the offered version');
   for (const width of [1440,640]) {
     await page.setViewportSize({width,height:900});
+    await page.waitForFunction(width=>document.querySelector('.app-shell').classList.contains('app-shell--navigation-overlay') === (width<1100),width);
+    const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
+    if(await expand.isVisible()) await expand.click();
     const geometry = await dot.evaluate(n => { const r=n.getBoundingClientRect(); return {width:r.width,height:r.height}; });
     check(geometry.width === 8 && geometry.height === 8, 'Update dot is not 8px');
     if (screenshots) await page.screenshot({path:`tmp/665/after-en-dark-${width}.png`});

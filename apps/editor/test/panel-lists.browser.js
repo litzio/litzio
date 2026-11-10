@@ -246,6 +246,10 @@ async (page, { openDocument, expect, screenshots }) => {
     await expect(explorer).toBeFocused();
     await expect(panel).toBeVisible();
     await explorer.click();
+    // Stacking needs only the Assistant shell, without a real account/model connection.
+    await page.route('**/api/assistant/settings*',route=>route.fulfill({json:{provider:'codex',permissionMode:'opened-folders',model:'gpt-6-luna',reasoningEffort:'low'}}));
+    await page.route('**/api/assistant/models*',route=>route.fulfill({json:{provider:'codex',models:[],updatedAt:0}}));
+    await page.route('**/api/assistant/diagnostics*',route=>route.fulfill({json:{provider:'codex',connected:false,checkedAt:0}}));
     await page.locator('.assistant-trigger').click();
     await expect(page.locator('.assistant-panel--overlay')).toBeVisible();
     expect(await page.getByTestId('sidebar').evaluate(n=>n.inert)).toBe(true);
