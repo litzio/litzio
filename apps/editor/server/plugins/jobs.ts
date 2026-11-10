@@ -19,7 +19,7 @@ export class PluginJobs {
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
     private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string; errorKind?: PluginErrorKind }>,
     private effect: (name: string) => "read" | "write", private publishReview?: (plugin: string, root: string, file: string, source: string, data: unknown) => NonNullable<JobSnapshot["result"]>["bundle"],
-    private registerGenerated?: (plugin: string, job: string, root: string, source: string, file: string, revision: string, sourceRevision: string) => void) {}
+    private registerGenerated?: (plugin: string, job: string, root: string, source: string, file: string, revision: string, sourceRevision: string, inputs?: NonNullable<JobSnapshot["result"]>["inputs"]) => void) {}
   private async call(record: Record, operation: string) {
     const value = await this.invoke(`${record.snapshot.plugin}.${operation}`, record.input);
     if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
@@ -59,11 +59,11 @@ export class PluginJobs {
             accessPath(record.input.output, this.access, true);
           });
         current.result = { path: created.path, revision: created.revision, ...(created.inputs ? { inputs: created.inputs } : {}) };
-        if (record.binding.resultKind === "native-document" && record.binding.generatedDocument) this.registerGenerated!(current.plugin, record.binding.id, current.root, record.input.file, created.path, created.revision, record.sourceRevision!);
+        if (record.binding.resultKind === "native-document" && record.binding.generatedDocument) this.registerGenerated!(current.plugin, record.binding.id, current.root, record.input.file, created.path, created.revision, record.sourceRevision!, created.inputs);
         // Publication failure must not lose the successful document receipt or recreate it on status.
         record.finishedAt = Date.now();
         const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
-        current.result = { path: created.path, revision: created.revision, ...(created.inputs ? { inputs: created.inputs } : {}), ...(bundle ? { bundle, review: { plugin: current.plugin, review: update.review!.review, root: current.root, bundleRef: bundle.bundleRef, generation: bundle.generation } } : {}) };
+        current.result = { path: created.path, revision: created.revision, ...(created.inputs ? { inputs: created.inputs } : {}), ...(record.binding.resultKind === "native-document" && record.binding.comparison ? { comparison: { root: current.root, document: path.relative(current.root, created.path).split(path.sep).join("/") } } : {}), ...(bundle ? { bundle, review: { plugin: current.plugin, review: update.review!.review, root: current.root, bundleRef: bundle.bundleRef, generation: bundle.generation } } : {}) };
       }
     }
     if (update.state !== "running") this.cleanup(record);

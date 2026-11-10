@@ -11,7 +11,7 @@ export async function pluginCli(args: string[]): Promise<number> {
     const [command, action, id] = tokens;
     let body: Record<string, unknown>;
     if (command === "review" && tokens[2] === "--input") {
-      if (!["open", "read", "patch", "regenerate", "status"].includes(action!) || tokens.length !== 4) throw new Error("review open|read|patch|regenerate|status --input <json-file> --host <origin> --json");
+      if (!["open", "read", "compare", "progress", "patch", "regenerate", "status"].includes(action!) || tokens.length !== 4) throw new Error("review open|read|compare|progress|patch|regenerate|status --input <json-file> --host <origin> --json");
       body = { ...JSON.parse(readFileSync(tokens[3]!, "utf8")), action: `generated-${action}` };
     } else if (command === "review") {
       if (!["read", "propose", "approve", "reject", "undo", "status"].includes(action!) || tokens.length !== 8 || tokens[4] !== "--input" || tokens[6] !== "--root") throw new Error("review <action> <pluginId> <reviewId> --input <file> --root <root> --host <origin> --json");

@@ -1,3 +1,4 @@
+import type { ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { JobObservations } from "./job-observations.ts";
 import { randomUuid } from "./uuid.ts";
 import { i18n } from "./i18n.ts";
@@ -18,7 +19,7 @@ const stateLabels = { running: "In progress", completed: "Completed", failed: "F
 type FileSelection = { root: string; relativePath: string };
 
 type Plugin = { id: string; name: string; running: boolean; jobs?: JobContribution[] };
-export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: HostClient; hostId: string; roots: string[]; active: boolean; onOpen(path: string): Promise<unknown> }) {
+export function PluginJobs({ client, hostId, roots, active, onOpen, onCompare }: { client: HostClient; hostId: string; roots: string[]; active: boolean; onCompare?(target: ComparisonTarget): void; onOpen(path: string): Promise<unknown> }) {
   const [plugins, setPlugins] = useState<Plugin[]>([]), [selected, setSelected] = useState("");
   const [root, setRoot] = useState(roots[0] ?? ""), [folder, setFolder] = useState("");
   const [entries, setEntries] = useState<{ path: string; name: string; kind: string }[]>([]), [file, setFile] = useState<FileSelection>(), [output, setOutput] = useState("result.md");
@@ -108,7 +109,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
       {job.progress ? <div className="plugin-job-progress"><Progress aria-label={i18n.t("Job progress")} max={job.progress.total} value={job.progress.done} /><span>{job.progress.done}/{job.progress.total}</span></div> : null}
       {job.state === "uncertain" ? <Notice tone="warning">{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</Notice> : null}
       {job.error ? <Notice tone="error">{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error}</Notice> : null}
-      <JobActions job={job} busy={busy} request={request} observe={observe} run={run} onOpen={onOpen} />
+      <JobActions job={job} busy={busy} request={request} observe={observe} run={run} onOpen={onOpen} onCompare={onCompare} />
     </section> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
   </div>;
@@ -120,12 +121,13 @@ export function JobState({ job }: { job: JobSnapshot }) {
           {i18n.t(job.state === "running" && job.stopRequested ? "Cancellation requested" : stateLabels[job.state])}
         </span>;
 }
-export function JobActions({ job, busy, request, observe, run, onOpen, compact = false }: { compact?: boolean; job: JobSnapshot; busy: boolean; request(body: unknown): Promise<any>; observe(action: "job-status" | "job-stop", id: string): Promise<void>; run(action: () => Promise<void>): Promise<void>; onOpen(path: string): Promise<unknown> }) {
+export function JobActions({ job, busy, request, observe, run, onOpen, onCompare, compact = false }: { compact?: boolean; job: JobSnapshot; busy: boolean; request(body: unknown): Promise<any>; observe(action: "job-status" | "job-stop", id: string): Promise<void>; run(action: () => Promise<void>): Promise<void>; onCompare?(target: ComparisonTarget): void; onOpen(path: string): Promise<unknown> }) {
   const requestId = job.requestId;
   return <>      <div className="view-controls">
         {job.state === "uncertain" ? <Button variant={compact ? "ghost" : "secondary"} size={compact ? "sm" : "default"} disabled={busy} onClick={() => void run(() => observe("job-status", requestId))}>{i18n.t("Recheck status")}</Button> : null}
         {job.state === "running" && !job.stopRequested ? <Button variant={compact ? "ghost" : "secondary"} size={compact ? "sm" : "default"} disabled={busy} onClick={() => void run(() => observe("job-stop", requestId))}>{i18n.t("Request cancellation")}</Button> : null}
         {job.state === "completed" && job.result?.kind !== "file" ? <Button variant={compact ? "ghost" : "default"} size={compact ? "sm" : "default"} aria-label={compact ? i18n.t("Open result: {{file}}", { file: job.file ?? job.requestId }) : undefined} disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t(compact ? "Open" : "Open result document")}</Button> : null}
+        {job.state === "completed" && job.result?.comparison && onCompare ? <Button variant="ghost" size="sm" disabled={busy} onClick={() => void run(async () => { const value = await request({action:"job-result",requestId}); if (value.job.result.comparison) onCompare(value.job.result.comparison); })}>{i18n.t("Compare source")}</Button> : null}
       </div>
       {job.state === "completed" && job.result?.kind === "file" ? <div className="view-controls plugin-job-file-result">{compact ? null : <p>{job.result.path}</p>}<CopyButton text={job.result.path} label={i18n.t("Copy result path")} /></div> : null}</>;
 }

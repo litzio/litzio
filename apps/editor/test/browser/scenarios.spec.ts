@@ -178,7 +178,7 @@ for (const name of scenarios) {
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; review(action: string, data: unknown): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; benchmark?: boolean; benchmarkVariant?: string; benchmarkDocument?: string; comparisonCapture?: boolean; comparisonBefore?: boolean; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; review(action: string, data: unknown): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -251,6 +251,10 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     syntheticDocument.body.children.push({ $ref: "#/pictures/1" });
     syntheticDocument.origin = { binary_hash: "UNSAFE_INTEGER", mimetype: "application/pdf", filename: "source.pdf", uri: null };
     syntheticDocument.pictures[0].image = { uri: "data:image/png;base64," + png.toString("base64"), mimetype: "image/png", dpi: 72, size: { width: 1, height: 1 } };
+    syntheticDocument.pages = {"1":{size:{width:612,height:792}},"2":{size:{width:612,height:792}}};
+    for (const page of Object.values(syntheticDocument.pages) as any[]) page.image = syntheticDocument.pictures[0].image;
+    syntheticDocument.texts[4].prov = [{page_no:2,bbox:{l:50,t:710,r:400,b:680,coord_origin:"BOTTOMLEFT"}}];
+    syntheticDocument.texts[1].prov = [{page_no:1,bbox:{l:50,t:40,r:400,b:80,coord_origin:"TOPLEFT"}}];
     const rawResult = JSON.stringify({ status: "success", errors: [], document: { json_content: syntheticDocument } }).replace('"UNSAFE_INTEGER"', "18446744073709551615");
     let doclingFailure = false, conversionRequests = 0, submissions = 0, conversionState = "success", taskId = "", receivedFields: Record<string, FormDataEntryValue[]> = {};
     let jiraFault = 0, jiraRedirects = 0, jiraLarge = false;
@@ -332,6 +336,9 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       directory: path.join(REPOSITORY_ROOT, "tmp/http-host-a/docling-artifact"),
       input: path.join(REPOSITORY_ROOT, "tmp/docling-input.json"),
       settings: path.join(REPOSITORY_ROOT, "tmp/docling-settings.json"),
+      comparisonPage: Number(process.env.LITZIO_DOCLING_COMPARE_PAGE ?? 1),
+      comparisonCapture: process.env.LITZIO_DOCLING_COMPARE_CAPTURE === "1",
+      comparisonBefore: process.env.LITZIO_DOCLING_COMPARE_BEFORE === "1",
       realFile: screenshots && process.env.LITZIO_DOCLING_REAL_ARCHIVE ? "real.docling" : undefined,
       beforeFile: screenshots && process.env.LITZIO_DOCLING_BEFORE ? "docling-before.md" : undefined,
       setRealInput() {
@@ -391,7 +398,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       const { readDoclingArchive } = await import(new URL("../../../../community-plugins/docling/archive.js", import.meta.url).href);
       const { convertPdfToArchive, PDF_PROFILE } = await import(new URL("../../../../community-plugins/docling/conversion.js", import.meta.url).href);
       const serverUrl = `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}`;
-      const source = path.join(pluginFolder, "source.pdf"), sourceBytes = Buffer.from("%PDF-1.4 synthetic conversion fixture");
+      const source = path.join(pluginFolder, "source.pdf"), sourceBytes = readFileSync(path.join(REPOSITORY_ROOT, "tmp/http-host-a/fixture/reading.pdf"));
       writeFileSync(source, sourceBytes);
       for (const name of ["dashboard-a", "dashboard-b"]) writeFileSync(path.join(pluginFolder, name + ".pdf"), sourceBytes);
       const archive = await convertPdfToArchive({ file: source, serverUrl });
@@ -407,12 +414,13 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       expect(Buffer.from(await uploaded.arrayBuffer()).equals(sourceBytes)).toBe(true);
       expect(decoded.documentJson).toContain('"binary_hash":18446744073709551615');
       expect(decoded.sourcePdf.equals(sourceBytes)).toBe(true);
-      expect(archive.includes(Buffer.from("pages/1.png"))).toBe(false);
+      expect(decoded.document.pages[1].image).toEqual(syntheticDocument.pages[1].image);
+      expect(decoded.manifest.images.find((image: any) => image.pointer === "/pages/1/image").sha256).toBe(createHash("sha256").update(png).digest("hex"));
       expect(decoded.manifest.source.sha256).toBe(createHash("sha256").update(sourceBytes).digest("hex"));
       expect(decoded.manifest.result.sha256).toBe(createHash("sha256").update(rawResult).digest("hex"));
       expect(decoded.manifest.profile).toEqual(PDF_PROFILE);
       expect(decoded.manifest.version).toBe(1);
-      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.5");
+      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.7");
       expect(decoded.manifest.images[0].sha256).toBe(createHash("sha256").update(png).digest("hex"));
       conversionState = "failure";
       await expect(convertPdfToArchive({ file: source, serverUrl })).rejects.toThrow(/task fixture-2/);

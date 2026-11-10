@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, X, Undo2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { EditableDocument } from "@litzio/core";
 import type { ReviewView, ReviewBundle, ReviewPage, ReviewMapping, ReviewProposal, ReviewBaseline } from "@litzio/core/views-v2";
+import { i18n } from "../i18n.ts";
 import { DocumentEditor } from "../DocumentEditor.tsx";
 import type { ReadingPosition } from "../document-reading.ts";
 import { Button } from "../components/ui/button.tsx";
@@ -10,12 +11,15 @@ import { Notice } from "../ui/primitives.tsx";
 import "./review.css";
 import { REVIEW_UNAVAILABLE_GUIDANCE, type ReviewPendingChange, type ReviewVerification } from "../../shared/review.ts";
 
+
 /** Host supplies one coherent snapshot, including the identity of the actual Read model. */
 export type ReviewSnapshot = {
   state?: "ready" | "stale";
+  generatedBaseline?: { sourceRevision: string; documentRevision: string | null; linkRevision: string | null };
   bundle: ReviewBundle; page?: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
   document: EditableDocument; documentRevision: string; documentHash: string; documentPath: string;
-  baseline: ReviewBaseline; pageCount: number; imageUrl?: string;
+  regionPages?: Record<string, number>;
+  baseline: ReviewBaseline; pageCount: number; imageUrl?: string; progress?: { checkedPages: number[]; lastPage: number | null };
   unresolved?: ReviewPendingChange[];
 };
 export type ReviewAction = "approve" | "reject" | "undo";
@@ -24,6 +28,8 @@ export type ReviewAdapter = {
   readonly pending?: { requestId: string; receipt?: { requestId: string; outcome: string }; verification?: ReviewVerification; guidance?: string };
   read(pageNo: number): Promise<ReviewSnapshot>;
   act(action: ReviewAction, proposal: ReviewProposal, baseline: ReviewBaseline): Promise<void>;
+  verify?(snapshot: ReviewSnapshot): Promise<void>;
+  saveProgress?(snapshot: ReviewSnapshot, pageNo: number, checked?: boolean): Promise<ReviewSnapshot>;
   openDocument(): void;
 };
 function documentCoherent(s: ReviewSnapshot) {
@@ -63,10 +69,10 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
   const p = s.page;
   if (!p) return <section aria-label="Source page" className="review-source"><Notice>No source pages available. Page controls are disabled.</Notice></section>;
   return <section aria-label="Source page" className="review-source">
-    <div className="review-toolbar"><Button variant="ghost" aria-label="Previous page" disabled={disabled || p.pageNo <= 1} onClick={() => onPage(p.pageNo - 1)}><ChevronLeft /></Button>
-      <span>Page {p.pageNo} of {s.pageCount}</span><Button variant="ghost" aria-label="Next page" disabled={disabled || p.pageNo >= s.pageCount} onClick={() => onPage(p.pageNo + 1)}><ChevronRight /></Button>
-      <Button variant="outline" onClick={() => setZoom(v => v === 1 ? 1.5 : 1)}>{zoom === 1 ? "Zoom in" : "Fit to width"}</Button></div>
-    {(!s.imageUrl || failed) && <Notice>No image available. Showing regions only.</Notice>}
+    <div className="review-toolbar"><Button variant="ghost" aria-label={i18n.t("Previous page")} disabled={disabled || p.pageNo <= 1} onClick={() => onPage(p.pageNo - 1)}><ChevronLeft /></Button>
+      <span>{i18n.t("Page")} {p.pageNo} / {s.pageCount}</span><Button variant="ghost" aria-label={i18n.t("Next page")} disabled={disabled || p.pageNo >= s.pageCount} onClick={() => onPage(p.pageNo + 1)}><ChevronRight /></Button>
+      <Button variant="outline" onClick={() => setZoom(v => v === 1 ? 1.5 : 1)}>{zoom === 1 ? i18n.t("Zoom in") : i18n.t("Fit to width")}</Button></div>
+    {(!s.imageUrl || failed) && <Notice>{i18n.t("No image available. Showing regions only.")}</Notice>}
     <div className="review-page-scroll"><div className="review-page" style={{ width: `${zoom * 100}%`, aspectRatio: `${p.width}/${p.height}` }}>
       {s.imageUrl && !failed ? <img src={s.imageUrl} alt={`Source page ${p.pageNo}`} onError={() => setFailed(true)} /> : null}
       {p.regions.map(r => { const [x1,y1,x2,y2] = r.bbox; return <Button key={r.id} variant="ghost" className="review-region p-0 rounded-none" aria-label={`${r.category} · ${regionStatus[r.status]}${r.reason ? ` · ${r.reason}` : ""}`} aria-pressed={selected.includes(r.id)} disabled={disabled || selectionDisabled}
@@ -74,14 +80,17 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
     </div></div>
   </section>;
 }
-export function SourceDocumentCompare({ snapshot: s, disabled, onPage }: { snapshot: ReviewSnapshot; disabled: boolean; onPage(n: number): void }) {
+export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled, onPage, onVerify }: { snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean> }) {
   const [sources, setSources] = useState<string[]>([]), [targets, setTargets] = useState<string[]>([]);
   const [positions, setPositions] = useState<ReadingPosition>({ blocks: [], height: 0 });
   const scroll = useRef<HTMLDivElement>(null), content = useRef<HTMLDivElement>(null), source = useRef<HTMLDivElement>(null);
   const [unmapped, setUnmapped] = useState(false);
   const valid = !disabled && coherent(s);
-  useEffect(() => { setSources([]); setTargets([]); setUnmapped(false); }, [s]);
-  const selectSource = (id: string) => {
+  useEffect(() => { setSources([]); setTargets([]); setUnmapped(false); }, [s, disabled]);
+  const selectionEpoch = useRef(0);
+  const selectSource = async (id: string) => {
+    const token = ++selectionEpoch.current;
+    if (onVerify && !await onVerify() || token !== selectionEpoch.current) return;
     if (!valid || !s.mapping) return;
     const entries = s.mapping.entries.filter(e => e.sourceIds.includes(id));
     const keys = entries.flatMap(e => e.targets.map(t => JSON.stringify(t.path)));
@@ -89,27 +98,34 @@ export function SourceDocumentCompare({ snapshot: s, disabled, onPage }: { snaps
     const first = positions.blocks.find(b => keys.includes(b.key));
     if (first && scroll.current && content.current) reveal(scroll.current, content.current.offsetTop + first.top, first.height);
   };
-  const selectDocument = (key: string | undefined) => {
+  const pendingSelection = useRef<string | undefined>(undefined);
+  const selectDocument = async (key: string | undefined) => {
+    if (!key) return;
+    const token = ++selectionEpoch.current;
+    if (onVerify && !await onVerify() || token !== selectionEpoch.current) return;
     if (!valid || !key || !s.mapping) return;
     const ids = s.mapping.entries.filter(e => e.targets.some(t => JSON.stringify(t.path) === key)).flatMap(e => e.sourceIds);
     setTargets([key]); setSources(ids); setUnmapped(!ids.length);
 
+    const targetPage = s.mapping.entries.filter(e => e.targets.some(t => JSON.stringify(t.path) === key)).flatMap(e => e.sourceIds).map(id => s.regionPages?.[id]).find(Boolean);
+    if (targetPage && targetPage !== s.page?.pageNo) { pendingSelection.current = key; onPage(targetPage); }
     // Reveal the new source after React commits.
 
   };
+  useEffect(() => { if (pendingSelection.current && !disabled && !selectionDisabled) { const key = pendingSelection.current; pendingSelection.current = undefined; selectDocument(key); } }, [s, disabled, selectionDisabled]);
   useLayoutEffect(() => {
     const container = source.current?.querySelector<HTMLElement>(".review-page-scroll");
     const region = container?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (container && region) { const a = container.getBoundingClientRect(), b = region.getBoundingClientRect(); reveal(container, container.scrollTop + b.top-a.top, b.height); }
   }, [sources]);
   return <><div className="review-compare">
-    <div ref={source}><PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid} /></div>
+    <div ref={source}><PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid || selectionDisabled} /></div>
     <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0}>
       <div className="review-reading-content" ref={content}>
         <DocumentEditor readOnly preview document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} />
         <div className="review-highlights" aria-hidden="true">{positions.blocks.filter(b => targets.includes(b.key)).map(b => <div key={b.key} style={{ top: b.top, height: b.height }} />)}</div>
       </div>
-    </section></div>{unmapped && <Notice>No matching content.</Notice>}{!disabled && !valid && <Notice tone="warning">{!s.mapping ? "Correspondence unavailable. Source-to-document navigation is disabled."
+    </section></div>{unmapped && <Notice>{i18n.t("No matching content.")}</Notice>}{!disabled && !valid && <Notice tone="warning">{!s.mapping ? "Correspondence unavailable. Source-to-document navigation is disabled."
       : s.mapping.continuation ? "Mappings are incomplete. Source-to-document navigation is disabled."
       : "Mappings are out of date. Source-to-document navigation is disabled."}</Notice>}</>;
 }
@@ -175,21 +191,39 @@ export function ReviewDetail({ proposal: p, document, baseline, disabled, onActi
 export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: ReviewAdapter }) {
   const [snapshot, setSnapshot] = useState<ReviewSnapshot>(), [selected, setSelected] = useState<string>();
   const [state, setState] = useState<"loading" | "ready" | "refreshing" | "unavailable" | "uncertain">("loading");
+  const verification = useRef<Promise<boolean> | undefined>(undefined);
+  const saving = useRef(0), latest = useRef<ReviewSnapshot | undefined>(undefined);
+  const refreshAfterSave = useRef(false);
+  const currentAdapter = useRef(adapter); currentAdapter.current = adapter;
+  latest.current = snapshot;
+  const [savingProgress, setSavingProgress] = useState(false), [progressError, setProgressError] = useState(false);
   const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), epoch = useRef(0), busy = useRef(false);
   useEffect(() => { const observer = new ResizeObserver(entries => setWide(entries[0].contentRect.width >= 1024)); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
-  useEffect(() => { const token = ++epoch.current; busy.current = true; setState("loading"); setSnapshot(undefined); setSelected(undefined);
+  useEffect(() => { const token = ++epoch.current; busy.current = true; saving.current = 0; refreshAfterSave.current = false; setSavingProgress(false); setProgressError(false); setState("loading"); setSnapshot(undefined); setSelected(undefined);
     adapter.read(1).then(s => { if (epoch.current === token) { setSnapshot(s); setState(adapter.pending ? "uncertain" : "ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState(adapter.pending ? "uncertain" : "unavailable"); busy.current = false; } });
     return () => { ++epoch.current; };
   }, [adapter, view.sources.review.bundleRef]);
-  const read = async (pageNo: number) => {
-    if (busy.current) return; busy.current = true; const token = ++epoch.current; setState("refreshing");
-    try { const next = await adapter.read(pageNo); if (token === epoch.current) { setSnapshot(next); setState(adapter.pending ? "uncertain" : "ready"); } }
-    catch { if (token === epoch.current) setState(adapter.pending ? "uncertain" : "unavailable"); } finally { if (token === epoch.current) busy.current = false; }
+  const saveProgress = (s: ReviewSnapshot, pageNo: number, checked?: boolean) => {
+    if (!adapter.saveProgress || progressError) return;
+    saving.current++; setSavingProgress(true);
+    let failed = false;
+    void adapter.saveProgress(s, pageNo, checked).catch(() => { failed = true; if (currentAdapter.current === adapter) setProgressError(true); }).finally(() => {
+      if (currentAdapter.current !== adapter) return;
+      if (!--saving.current) {
+        setSavingProgress(false);
+        if (!failed) { refreshAfterSave.current = true; if (!busy.current) { refreshAfterSave.current = false; void read(latest.current?.page?.pageNo ?? pageNo); } }
+      }
+    });
   };
-  const stale = snapshot && (!documentCoherent(snapshot) || snapshot.bundle.bundleRef !== view.sources.review.bundleRef);
+  const read = async (pageNo: number, remember = false) => {
+    if (busy.current) return; busy.current = true; const token = ++epoch.current; setState("refreshing");
+    try { const next = await adapter.read(pageNo); if (token === epoch.current) { setSnapshot(next); latest.current = next; setState(adapter.pending ? "uncertain" : "ready"); if (!saving.current) setProgressError(false); if (remember) saveProgress(next, pageNo); } }
+    catch { if (token === epoch.current) setState(adapter.pending ? "uncertain" : "unavailable"); } finally { if (token === epoch.current) { busy.current = false; if (refreshAfterSave.current && !saving.current) { refreshAfterSave.current = false; void read(latest.current?.page?.pageNo ?? pageNo); } } }
+  };
+  const stale = snapshot && (!documentCoherent(snapshot) || !adapter.saveProgress && snapshot.bundle.bundleRef !== view.sources.review.bundleRef);
   const unresolved = adapter.pending ?? snapshot?.unresolved?.[0];
   const unverifiable = unresolved?.verification === "unavailable";
-  const disabled = state !== "ready" || !!stale || !!unresolved;
+  const disabled = state !== "ready" || !!stale || !!unresolved || progressError;
   const proposal = snapshot?.proposals.find(p => p.id === selected);
   const act = async (action: ReviewAction) => {
     if (busy.current || disabled || !snapshot || !proposal || !sameBaseline(proposal.baseline, snapshot.baseline) || !targetsMatch(snapshot, proposal) || (action === "undo" ? proposal.state !== "approved" : proposal.state !== "pending") || !proposal.actions.some(a => a.action === action && a.allowed)) return;
@@ -202,16 +236,34 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     } catch { if (token === epoch.current) setState("uncertain"); }
     finally { if (token === epoch.current) busy.current = false; }
   };
-  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2>{unverifiable
+  return <div ref={host} className="review-renderer" data-generated={!!adapter.saveProgress}><header className="review-toolbar"><h2>{view.title}</h2>{unverifiable
       ? <Tooltip><TooltipTrigger render={<Button variant="outline" onClick={adapter.openDocument} />}>Open result document</TooltipTrigger><TooltipContent>{REVIEW_UNAVAILABLE_GUIDANCE}</TooltipContent></Tooltip>
-      : <><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{unresolved ? "Check request status" : "Refresh data"}</Button></>}</header>
-    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : "Data unavailable."}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
-    {stale && <Notice tone="warning">Data is out of date. Open newly verified comparison data to continue.</Notice>}
-    {!wide && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
-    {snapshot && wide && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
+      : <><Button variant="outline" onClick={adapter.openDocument}>{i18n.t("Open document")}</Button><Button variant="outline" disabled={savingProgress || state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{unresolved ? "Check request status" : i18n.t("Refresh data")}</Button></>}</header>
+    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? i18n.t("Refreshing data…") : state === "loading" ? i18n.t("Loading data…") : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : i18n.t("Data unavailable.")}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
+    {adapter.saveProgress && snapshot?.page && <div className="review-toolbar"><Button variant="outline" disabled={disabled} aria-pressed={snapshot.progress?.checkedPages.includes(snapshot.page.pageNo)} onClick={() => {
+      if (busy.current || disabled) return;
+      const pageNo = snapshot.page!.pageNo, checked = !snapshot.progress?.checkedPages.includes(pageNo), pages = new Set(snapshot.progress?.checkedPages);
+      if (checked) pages.add(pageNo); else pages.delete(pageNo);
+      setSnapshot({...snapshot,progress:{checkedPages:[...pages],lastPage:pageNo}});
+      saveProgress(snapshot,pageNo,checked);
+    }}>{i18n.t(snapshot.progress?.checkedPages.includes(snapshot.page.pageNo) ? "Page checked" : "Mark page checked")}</Button><span>{snapshot.progress?.checkedPages.length ?? 0} / {snapshot.pageCount}</span>{savingProgress && <span role="status">{i18n.t("Saving review progress…")}</span>}</div>}
+    {progressError && <Notice tone="warning">{i18n.t("Review progress could not be saved. Refresh data before continuing.")}</Notice>}
+    {stale && <Notice tone="warning">{i18n.t("Data is out of date. Open newly verified comparison data to continue.")}</Notice>}
+    {!wide && !adapter.saveProgress && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
+    {snapshot && (wide || adapter.saveProgress) && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
       <h3>{child.title}</h3>
-      {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />}
-      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />}
+      {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n,true)} />}
+      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} disabled={disabled} selectionDisabled={savingProgress} onPage={n => void read(n,true)} onVerify={adapter.verify ? async () => {
+        if (disabled || saving.current) return false;
+        if (verification.current) return verification.current;
+        if (busy.current) return false;
+        busy.current = true;
+        return verification.current = (async () => {
+          try { await adapter.verify!(snapshot); return true; }
+          catch { setState("unavailable"); return false; }
+          finally { busy.current = false; verification.current = undefined; }
+        })();
+      } : undefined} />}
       {child.component === "ReviewList" && <ReviewList proposals={snapshot.proposals} selected={selected} onSelect={setSelected} />}
       {child.component === "ReviewDetail" && (proposal
         ? <ReviewDetail proposal={proposal} document={snapshot.document} baseline={snapshot.baseline} disabled={disabled || !targetsMatch(snapshot, proposal)} onAction={a => void act(a)} />

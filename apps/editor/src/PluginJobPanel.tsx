@@ -1,3 +1,4 @@
+import type { ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { JobObservations } from "./job-observations.ts";
 import { useEffect, useId, useRef, useState } from "react";
 import { JOB_START_FAILURE_MESSAGES, JOB_BATCH_MAX_FILES, type JobContribution, type JobSnapshot, type BatchJobResult } from "@litzio/plugin-sdk";
@@ -13,8 +14,8 @@ import { Notice } from "./ui/primitives.tsx";
 import { i18n } from "./i18n.ts";
 import { randomUuid } from "./uuid.ts";
 
-export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }: {
-  client: HostClient; plugin: string; jobIds: string[]; roots: string[]; active: boolean; onOpen(path: string): Promise<unknown>;
+export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen, onCompare }: {
+  client: HostClient; plugin: string; jobIds: string[]; roots: string[]; active: boolean; onCompare?(target: ComparisonTarget): void; onOpen(path: string): Promise<unknown>;
 }) {
   const [bindings, setBindings] = useState<JobContribution[]>([]), [selected, setSelected] = useState(jobIds[0] ?? "");
   const [root, setRoot] = useState(roots[0] ?? ""), [folder, setFolder] = useState("");
@@ -112,7 +113,7 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
           {job.state === "uncertain" ? <p>{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</p> : null}
           {job.startFailure ? <p>{i18n.t(JOB_START_FAILURE_MESSAGES[job.startFailure.kind])}{job.startFailure.path ? ` ${job.startFailure.path}` : ""}</p> : job.error ? <p>{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error}</p> : null}
         </div></TooltipContent></Tooltip> : null}</div></td>
-        <td className="plugin-job-phase"><div className="plugin-job-phase-label">{job.state === "running" && !job.progress ? <LoaderCircle className="animate-spin" size={16} aria-label={i18n.t("In progress")} /> : null}{job.phase}</div>{job.progress ? <div className="plugin-job-progress"><Progress aria-label={i18n.t("Job progress")} value={job.progress.done} max={job.progress.total} /><span>{job.progress.done}/{job.progress.total}</span></div> : null}</td><td>{Math.floor(job.elapsedMs / 1000)} s</td><td><JobActions compact job={job} busy={busy || !active} request={request} observe={observe} run={run} onOpen={onOpen} /></td>
+        <td className="plugin-job-phase"><div className="plugin-job-phase-label">{job.state === "running" && !job.progress ? <LoaderCircle className="animate-spin" size={16} aria-label={i18n.t("In progress")} /> : null}{job.phase}</div>{job.progress ? <div className="plugin-job-progress"><Progress aria-label={i18n.t("Job progress")} value={job.progress.done} max={job.progress.total} /><span>{job.progress.done}/{job.progress.total}</span></div> : null}</td><td>{Math.floor(job.elapsedMs / 1000)} s</td><td><JobActions compact job={job} busy={busy || !active} request={request} observe={observe} run={run} onOpen={onOpen} onCompare={onCompare} /></td>
       </tr>)}</tbody>
     </table></div> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}

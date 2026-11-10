@@ -1,5 +1,5 @@
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
-import { rowSchema } from "@litzio/plugin-sdk";
+import { rowSchema, completedReviewSchema } from "@litzio/plugin-sdk";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
@@ -16,7 +16,8 @@ async function doclingConverter() {
   const source = readFileSync(new URL("../../../community-plugins/docling/document.js", import.meta.url), "utf8");
   const review = readFileSync(new URL("../../../community-plugins/docling/review.js", import.meta.url), "utf8");
   const reviewUrl = "data:text/javascript;base64," + Buffer.from(review.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64");
-  return import("data:text/javascript;base64," + Buffer.from(source.replace('"./review.js"', JSON.stringify(reviewUrl)).replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
+  const converter = await import("data:text/javascript;base64," + Buffer.from(source.replace('"./review.js"', JSON.stringify(reviewUrl)).replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
+  return {...converter,...await import(reviewUrl)};
 }
 const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
 
@@ -47,6 +48,25 @@ test("Docling corrections replay by self_ref with last assignment winning before
   for (const patch of [{ type: "kind", self_ref: "#/texts/4", kind: "heading", level: 7 }, { type: "cell", self_ref: "#/tables/0", cell: 9, text: "bad" }, { type: "text", self_ref: "#/texts/999", text: "bad" }]) {
     await assert.rejects(convertDocument(original, "a".repeat(64), [patch]));
   }
+});
+
+test("Docling comparison uses immutable provenance, final targets and portable progress only", async () => {
+  const {convertDocument,comparison,setProgress,emptyReview} = await doclingConverter();
+  const doc = doclingFixture(), original = JSON.stringify(doc), record = emptyReview();
+  doc.texts[1].prov = [{page_no:1,bbox:{l:10,t:800,r:100,b:780,coord_origin:"BOTTOMLEFT"}}];
+  doc.texts[0].prov = [{page_no:1,bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
+  const authored = await convertDocument(doc,"source");
+  const material = completedReviewSchema.parse(comparison({document:doc},record,authored.report,{generation:"generation",sourceRevision:"revision",result:{revision:authored.report.documentRevision}}));
+  assert.deepEqual(material.pages[0].regions.find(r=>r.id === "region-texts-1-0")!.bbox,[10,42,100,62]);
+  assert.ok(material.pages[0].regions.some(r=>r.status === "decoration"));
+  assert.ok(material.mapping!.entries.some(e=>e.targets.length === 0));
+  assert.ok(material.mapping!.entries.some(e=>e.targets.some(t=>t.documentRevision === authored.report.documentRevision)));
+  setProgress(doc,record,{checkedPages:[1],lastPage:1});
+  assert.deepEqual(record,{patches:[],checkedPages:[1],lastPage:1,approval:null});
+  assert.throws(()=>setProgress(doc,record,{checkedPages:[2],lastPage:2}),/Invalid/);
+  assert.throws(()=>setProgress(doc,record,{checkedPages:[1,1],lastPage:1}),/Invalid/);
+  delete doc.texts[1].prov; delete doc.texts[0].prov;
+  assert.equal(JSON.stringify(doc),original);
 });
 
 test("Docling converter preserves source identity, native blocks, shared targets and item losses without mutating original", async () => {
@@ -165,9 +185,16 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
   const reviewBytes = Buffer.from('{"opaque":"future review shape"}');
   const withReservedEntry = archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes, reviewBytes });
   const reread = archive.readDoclingArchive(withReservedEntry);
+  const manifestBytes = Buffer.from(JSON.stringify(original.manifest) + "\n");
+  const formatted = archive.readDoclingArchive(archive.createDoclingArchive({manifest:original.manifest,manifestBytes,documentJson:original.documentJson,sourceBytes,reviewBytes}));
+  const saved = archive.readDoclingArchive(archive.rewriteReview(formatted,Buffer.from(JSON.stringify({patches:[],checkedPages:[1],lastPage:1,approval:null}))));
+  assert.deepEqual(saved.manifestBytes,manifestBytes); assert.deepEqual(saved.sourcePdf,original.sourcePdf); assert.equal(saved.documentJson,original.documentJson);
   assert.deepEqual(reread.manifest, original.manifest);
   assert.equal(reread.documentJson, original.documentJson);
   assert.ok(reread.reviewBytes.equals(reviewBytes));
+  assert.throws(() => archive.rewriteReview({...formatted,documentJson:formatted.documentJson+" "},reviewBytes), /Original changed/);
+  assert.throws(() => archive.rewriteReview({...formatted,sourcePdf:Buffer.from("%PDF-tampered")},reviewBytes), /Original changed/);
+  assert.throws(() => archive.rewriteReview({...formatted,manifestBytes:Buffer.from("{}")},reviewBytes), /Original changed/);
   assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes: Buffer.from("%PDF-tampered"), reviewBytes }), /Original PDF mismatch/);
   assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson + " ", sourceBytes, reviewBytes }), /Invalid DoclingDocument/);
 });
