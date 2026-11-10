@@ -29,7 +29,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   });
   await page.route('**/api/assistant/models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : { fullAccessAllowed: false }), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
   await page.route('**/api/assistant/environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
-  let summaryFail = false, summaryAccount = { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, summaryReads = 0;
+  let summaryFail = false, summaryAccount = { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, summaryReads = 0, summaryLimits;
   const diagnosticReply = route => {
     const summary = route.request().url().includes('summary=account-usage');
     if (summary) {
@@ -37,7 +37,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (summaryFail) return route.fulfill({ status: 503, json: { error: 'private provider failure must not appear' } });
     }
     return route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
-      account: summary ? summaryAccount : { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }, { usedPercent: 12, windowDurationMins: 10080, resetsAt: 1794000000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } });
+      account: summary ? summaryAccount : { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: summary && summaryLimits ? summaryLimits : [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }, { usedPercent: 12, windowDurationMins: 10080, resetsAt: 1794000000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } });
   };
   await page.route('**/api/assistant/diagnostics*', diagnosticReply);
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -555,6 +555,20 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }
   await page.mouse.move(0, 0);
   await expect(contextTooltip).toHaveCount(0);
+  summaryAccount = { ...summaryAccount, planType: 'business' };
+  summaryLimits = [{ name: 'Codex', windows: [], planType: 'business',
+    individualLimit: { limit: 500, used: 208.24, remainingPercent: 58, resetsAt: 1795478400 },
+    credits: { hasCredits: true, unlimited: false, balance: null }, spendControlReached: true }];
+  await panel.getByRole('img', { name: 'Context usage' }).hover();
+  await expect(contextTooltip).toContainText('Individual limit · 208 / 500 · 42% used');
+  await expect(contextTooltip).toContainText('58% remaining');
+  await expect(contextTooltip).toContainText('Credits available');
+  await expect(contextTooltip).toContainText('Spending limit reached.');
+  for (const row of await contextTooltip.locator('p').all()) {
+    expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
+  await page.mouse.move(0, 0); await expect(contextTooltip).toHaveCount(0);
+  summaryLimits = undefined; summaryAccount = { ...summaryAccount, planType: 'plus' };
   summaryFail = true;
   await message.focus();
   const contextRing = panel.getByRole('img', { name: 'Context usage' });

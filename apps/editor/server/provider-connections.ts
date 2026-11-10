@@ -140,7 +140,21 @@ export class ProviderConnections {
 
 function usageBuckets(buckets: Record<string, any>): NonNullable<AssistantDiagnostics["rateLimits"]> {
   return Object.entries(buckets).filter(([, value]) => value).map(([name, value]) => ({ name: value.limitName ?? name,
-    windows: [value.primary, value.secondary].filter(Boolean).map(window => ({ usedPercent: window.usedPercent, windowDurationMins: window.windowDurationMins, resetsAt: window.resetsAt })) }));
+    windows: [value.primary, value.secondary].filter(Boolean).map(window => ({ usedPercent: window.usedPercent, windowDurationMins: window.windowDurationMins, resetsAt: window.resetsAt })),
+    ...(typeof value.planType === "string" ? { planType: value.planType } : {}),
+    ...(value.individualLimit ? { individualLimit: {
+      limit: usageNumber(value.individualLimit.limit), used: usageNumber(value.individualLimit.used),
+      remainingPercent: usageNumber(value.individualLimit.remainingPercent), resetsAt: usageNumber(value.individualLimit.resetsAt),
+    } } : {}),
+    ...(value.credits ? { credits: { hasCredits: value.credits.hasCredits === true, unlimited: value.credits.unlimited === true, balance: usageNumber(value.credits.balance) } } : {}),
+    ...(typeof value.spendControlReached === "boolean" ? { spendControlReached: value.spendControlReached } : {}),
+  }));
+}
+
+function usageNumber(value: unknown): number | null {
+  if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 export const LITZIO_GUIDE = `---
