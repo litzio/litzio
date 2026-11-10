@@ -3,7 +3,7 @@
   /* Source categories; status also has distinct border styles. */
   color-scheme: light;
 
-  --duration-theme-transition: 160ms; /* Brief whole-screen theme crossfade. */
+  --duration-theme-transition: 500ms; /* Whole-screen theme crossfade for user and assistant changes. */
   /* Adjustable values: tuned by hand or chosen by a user preference. Change them here only;
    * no rule or script repeats these numbers. See Visual Language "Adjustable values". */
   /* Initial assistant dock width; an explicit 340–560px user resize overrides it. */

@@ -120,7 +120,7 @@ References read like links without box/fill: content-link color, underline on ho
 
 Settings → Appearance & language, the footer toggle beside Settings, and two Command Center choices share Light / Dark (#1042). With no saved choice, startup resolves the OS theme once and stores that explicit choice. Later OS changes do not change it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles. Images retain original pixels; KaTeX inherits text.
 
-User theme changes use a short 160ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
+User and assistant theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
 
 External blocking [theme-init.js](../../apps/editor/public/theme-init.js) resolves theme/page before styles/app bundle; it temporarily sets native `color-scheme` without duplicating colors. Runtime applies theme/accent before React UI. [Desktop appearance](desktop-distribution-v1.md#appearance-595) owns native resolution/bridge and first-window background; no Host theme persistence is added.
 

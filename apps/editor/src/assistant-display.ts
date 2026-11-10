@@ -16,7 +16,7 @@ export async function handleDisplayRequest(request: DisplayRequest, width: Docum
     // Apply to the live window even when storage is blocked, as manual Settings does.
     // Report persistence failure explicitly instead of claiming a saved change.
     let persisted = true;
-    if (changes.theme) { await applyTheme(changes.theme, false); setTheme(changes.theme); persisted = writeTheme(changes.theme) && persisted; }
+    if (changes.theme) { await applyTheme(changes.theme); setTheme(changes.theme); persisted = writeTheme(changes.theme) && persisted; }
     if (changes.uiLanguage) { await i18n.changeLanguage(changes.uiLanguage); persisted = writeUiLanguage(changes.uiLanguage) && persisted; }
     if (changes.pageBackground) { applyPageBackground(changes.pageBackground); persisted = writePageBackground(changes.pageBackground) && persisted; }
     if (changes.documentWidth) { width = changes.documentWidth; setWidth(width); persisted = writeDocumentWidth(width) && persisted; }
