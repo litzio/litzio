@@ -11,8 +11,8 @@
 .review-region span { position: absolute; left: 0; bottom: calc(100% + var(--space-1)); white-space: nowrap; pointer-events: none; background: var(--background); color: var(--foreground); font-size: var(--text-xs); }
 .review-region[aria-pressed=true] { outline: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .review-reading-content { position: relative; }
-.review-compare:has(.review-pdf) .review-reading-content { min-width: 440px; }
-.review-compare:has(.review-pdf) .review-read .document { --layout-document-gutter: var(--space-4); --layout-document-inline-padding: var(--space-4); --layout-document-block-padding: var(--layout-document-block-padding-narrow); }
+.review-renderer[data-generated="true"] .review-compare .review-reading-content { min-width: 440px; }
+.review-renderer[data-generated="true"] .review-compare .review-read .document { --layout-document-gutter: var(--space-4); --layout-document-inline-padding: var(--space-4); --layout-document-block-padding: var(--layout-document-block-padding-narrow); }
 .review-highlights { position: absolute; inset: 0; pointer-events: none; }
 .review-highlights > div { position: absolute; left: 0; right: 0; border-left: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .review-panels { display: flex; flex-direction: column; gap: var(--space-4); }
@@ -28,7 +28,6 @@
 .review-value dt { font-weight: 600; }
 .review-value dd { margin: 0; }
 
-.review-pdf { width: 100%; height: 100%; display: block; background: white; }
 .review-source, .review-read { min-width: 0; }
-.review-page:has(.review-pdf) .review-region span { display: none; }
-.review-page:has(.review-pdf) .review-region:hover span, .review-page:has(.review-pdf) .review-region:focus-visible span { display: block; white-space: normal; overflow-wrap: anywhere; }
+.review-renderer[data-generated="true"] .review-page .review-region span { display: none; }
+.review-renderer[data-generated="true"] .review-page .review-region:hover span, .review-renderer[data-generated="true"] .review-page .review-region:focus-visible span { display: block; white-space: normal; overflow-wrap: anywhere; }

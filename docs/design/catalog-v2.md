@@ -31,4 +31,4 @@ Core 의미, SDK 등록, Host/CLI, 브라우저 fixture는 각 계약에 기록�
 
 ## #1408의 한정 구현
 
-생성 문서 PDF 대조·페이지 확인 기록은 [구현 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다. K2/K3 renderer와 V4 snapshot을 재사용하고 PDF 참조를 추가했다. Docling의 화면 내 수정·완료 승인은 구현하지 않았으며 이 Draft 전체나 후속 수락 시험의 완료를 뜻하지 않는다.
+생성 문서 PDF 대조·페이지 확인 기록은 [구현 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다. K2/K3의 기존 페이지 이미지·bbox renderer와 V4 snapshot을 재사용하며 확인 기록 작업을 추가했다. Docling의 화면 내 수정·완료 승인은 구현하지 않았으며 이 Draft 전체나 후속 수락 시험의 완료를 뜻하지 않는다.

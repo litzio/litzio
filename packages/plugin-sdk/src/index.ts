@@ -181,7 +181,7 @@ export function defaultJobOutput(job: JobContribution, file: string): string {
 /** Completed K1 review materials are admitted and assigned opaque refs by the Host. */
 export const completedReviewSchema = z.strictObject({ review: z.string().min(1).max(512),
   bundle: reviewBundleSchema.omit({ bundleRef: true, documentRef: true }), pages: z.array(reviewPageSchema).max(2000),
-  pdf: z.strictObject({ path: z.string().min(1), revision: z.string().regex(/^[a-f0-9]{64}$/) }).optional(), mapping: reviewMappingSchema.optional(), images: z.array(z.strictObject({ ref: z.string().min(1).max(512), path: z.string().min(1), revision: z.string().min(1).max(512) })).max(2000) }).superRefine((value, ctx) => {
+  mapping: reviewMappingSchema.optional(), images: z.array(z.strictObject({ ref: z.string().min(1).max(512), path: z.string().min(1), revision: z.string().min(1).max(512) })).max(2000) }).superRefine((value, ctx) => {
     const ids = value.pages.flatMap(page => page.regions.map(region => region.id));
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "Duplicate region across review pages" });
   });

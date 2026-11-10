@@ -50,21 +50,16 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     const ro = { plugin: "fixture", review: "text", root, bundleRef: roBundle.bundleRef };
     assert.equal((await readonly.execute({ ...ro, action: "read", pageNo: 1 })).state, "ready");
     await assert.rejects(readonly.execute({ ...ro, action: "propose" }), /not declared/);
-    const pdfBytes = Buffer.from("%PDF-1.7 synthetic Host material"), pdfFile = path.join(root,"source.pdf");
-    writeFileSync(pdfFile,pdfBytes);
-    const pdfPage = {...data.pages[0]!,imageRef:undefined};
-    const pdfData = {...data,pages:[{...pdfPage,unit:"pt"}],images:[],pdf:{path:"source.pdf",revision:hashForPdf(pdfBytes)}};
-    function hashForPdf(bytes: Buffer) { return createHash("sha256").update(bytes).digest("hex"); }
-    assert.throws(()=>reviews.publish("fixture",root,file,source,{...pdfData,pdf:{...pdfData.pdf,revision:"0".repeat(64)}}),/Invalid PDF/);
-    const pdfBundle = reviews.publish("fixture",root,file,source,pdfData);
-    const pdfRequest = {action:"read",plugin:"fixture",review:"text",root,bundleRef:pdfBundle.bundleRef,pageNo:1};
-    assert.equal((await reviews.execute(pdfRequest)).snapshot.pdfUrl,`data:application/pdf;base64,${pdfBytes.toString("base64")}`);
-    // Re-publishing a PDF must not remove a K4 bundle that can own change observations.
-    reviews.publish("fixture",root,file,source,pdfData);
-    assert.equal((await reviews.execute(pdfRequest)).state,"ready");
-    writeFileSync(pdfFile,"%PDF-changed");
-    const stalePdf = await reviews.execute(pdfRequest);
-    assert.equal(stalePdf.state,"stale"); assert.equal(stalePdf.snapshot.pdfUrl,undefined);
+    // Host staging is private; the published PNG remains readable after its file disappears.
+    const stagedData = {...data,images:[{...data.images[0]!,path:"private-stage.png"}]};
+    assert.throws(()=>readonly.publish("fixture",root,file,source,stagedData,Buffer.from("bad")), /Image changed/);
+    const staged = readonly.publish("fixture",root,file,source,stagedData,png);
+    const stagedRequest = {action:"read",plugin:"fixture",review:"text",root,bundleRef:staged.bundleRef,pageNo:1};
+    assert.equal((await readonly.execute(stagedRequest)).snapshot.imageUrl,`data:image/png;base64,${png.toString("base64")}`);
+    // Replacing read-only staging must not remove K4 bundles that own change observations.
+    const k4 = reviews.publish("fixture",root,file,source,stagedData,png);
+    reviews.publish("fixture",root,file,source,stagedData,png);
+    assert.equal((await reviews.execute({...stagedRequest,bundleRef:k4.bundleRef})).state,"ready");
     const bundle = reviews.publish("fixture", root, file, source, data);
     const base = { plugin: "fixture", review: "text", root, bundleRef: bundle.bundleRef, generation: "g1" };
     assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, images: [{ ...data.images[0], path: "../outside.png" }] }));

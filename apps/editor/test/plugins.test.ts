@@ -187,11 +187,14 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
   const reread = archive.readDoclingArchive(withReservedEntry);
   const manifestBytes = Buffer.from(JSON.stringify(original.manifest) + "\n");
   const formatted = archive.readDoclingArchive(archive.createDoclingArchive({manifest:original.manifest,manifestBytes,documentJson:original.documentJson,sourceBytes,reviewBytes}));
-  const saved = archive.readDoclingArchive(archive.createDoclingArchive({manifest:formatted.manifest,manifestBytes:formatted.manifestBytes,documentJson:formatted.documentJson,sourceBytes:formatted.sourcePdf,reviewBytes:Buffer.from(JSON.stringify({patches:[],checkedPages:[1],lastPage:1,approval:null}))}));
+  const saved = archive.readDoclingArchive(archive.rewriteReview(formatted,Buffer.from(JSON.stringify({patches:[],checkedPages:[1],lastPage:1,approval:null}))));
   assert.deepEqual(saved.manifestBytes,manifestBytes); assert.deepEqual(saved.sourcePdf,original.sourcePdf); assert.equal(saved.documentJson,original.documentJson);
   assert.deepEqual(reread.manifest, original.manifest);
   assert.equal(reread.documentJson, original.documentJson);
   assert.ok(reread.reviewBytes.equals(reviewBytes));
+  assert.throws(() => archive.rewriteReview({...formatted,documentJson:formatted.documentJson+" "},reviewBytes), /Original changed/);
+  assert.throws(() => archive.rewriteReview({...formatted,sourcePdf:Buffer.from("%PDF-tampered")},reviewBytes), /Original changed/);
+  assert.throws(() => archive.rewriteReview({...formatted,manifestBytes:Buffer.from("{}")},reviewBytes), /Original changed/);
   assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes: Buffer.from("%PDF-tampered"), reviewBytes }), /Original PDF mismatch/);
   assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson + " ", sourceBytes, reviewBytes }), /Invalid DoclingDocument/);
 });

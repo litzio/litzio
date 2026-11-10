@@ -62,11 +62,11 @@ CLI 입력 파일은 artifact 밖에 둡니다.
 - `litzio plugins stop <requestId> --host <origin> --json`
 - `litzio plugins result <requestId> --host <origin> --json`
 
-작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 활성 화면은 진행 중 작업을 1초마다 관찰합니다. 여러 파일은 각각 별도 요청이며 Host 큐·재시작 복원·대조 화면·검수 폼·내부 이미지 대조뷰는 없습니다. 항목 수정 CLI는 아래 0.0.5 계약을 따릅니다. PDF 중단은 요청/폴링과 staging writer를 닫은 뒤 stopped를 보고하며 이미 제출된 서버 작업은 계속될 수 있습니다. 문서 작업의 중단은 로컬 읽기/생성을 중단하며 서버와 무관합니다.
+작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 활성 화면은 진행 중 작업을 1초마다 관찰합니다. 여러 파일은 각각 별도 요청이며 Host 작업 큐·재시작 복원·검수 폼은 없습니다. 완료 문서는 아래 공용 원본 대조로 엽니다. 항목 수정 CLI는 아래 0.0.5 계약을 따릅니다. PDF 중단은 요청/폴링과 staging writer를 닫은 뒤 stopped를 보고하며 이미 제출된 서버 작업은 계속될 수 있습니다. 문서 작업의 중단은 로컬 읽기/생성을 중단하며 서버와 무관합니다.
 
 ### `.docling` 형식 1 봉투
 
-플러그인 소유 ZIP32 형식이며 모든 항목은 무압축(STORE)입니다. `manifest.json`, `document.json`, `source.pdf`를 포함합니다. `source.pdf`는 제출한 원본 바이트이며 manifest.source의 SHA-256·크기로 확인합니다. `document.json`은 DoclingDocument 전체 필드·그림 ImageRef와 embedded data URI를 보존하며 manifest.document의 SHA-256·크기로 확인합니다. 페이지 PNG는 요청하지도 보관하지도 않습니다(`include_page_images:false`). 기존 `.docling` 파일 호환은 지원하지 않습니다.
+플러그인 소유 ZIP32 형식이며 모든 항목은 무압축(STORE)입니다. `manifest.json`, `document.json`, `source.pdf`를 포함합니다. `source.pdf`는 제출한 원본 바이트이며 manifest.source의 SHA-256·크기로 확인합니다. `document.json`은 DoclingDocument 전체 필드·그림 ImageRef와 embedded data URI를 보존하며 manifest.document의 SHA-256·크기로 확인합니다. 페이지 PNG도 서버 변환 때 요청해 DoclingDocument의 embedded ImageRef 그대로 보관합니다(`include_page_images:true`, `images_scale:2`). 별도 중복 PNG 항목은 만들지 않습니다. 기존 `.docling` 파일 호환은 지원하지 않습니다.
 
 0.0.5는 선택 `review.json`에 수정 목록과 후속 진행·승인 자리를 둡니다. 슬롯이 없으면 빈 기록으로 읽고 첫 수정에서 저장합니다. 상세 schema·작업은 아래 검수 계약을 따릅니다. 검수 기록과 무관하게 원본 PDF/JSON hash를 검증하며 전체 ZIP hash를 원본 항목 identity로 쓰지 않습니다. 검수 저장은 공식 경로로 ZIP 전체를 다시 쓰고 `.md`·`assets/`는 밖에 둡니다.
 
@@ -85,13 +85,13 @@ CLI 입력 파일은 artifact 밖에 둡니다.
 | images | ImageRef JSON pointer, 저장/내장 경로, MIME, 원본 바이트 SHA-256와 크기 |
 | verification | imageBytesMatchEmbedded / jsonExceptImageUrisMatches |
 
-picture/table/text/nested 이미지는 `document.json#<JSON pointer>`의 embedded URI에 원본 그대로 남고 해당 경로를 manifest에 기록합니다. 이미지의 크기 변경·재인코딩은 하지 않습니다. MIME/magic/base64와 이미지 hash를 확인하며 페이지 ImageRef가 있으면 거부합니다. 원격/file 이미지 URI는 가져오지 않고 거부합니다. JSON의 모든 ImageRef URI·좌표·크기·DPI를 그대로 유지합니다. 숫자는 Node JSON reviver의 source와 `JSON.rawJSON`으로 원래 토큰을 보존하므로 `origin.binary_hash` 같은 uint64가 반올림되지 않습니다. 저장 JSON은 공백 형태만 달라질 수 있습니다.
+picture/table/text/nested 이미지는 `document.json#<JSON pointer>`의 embedded URI에 원본 그대로 남고 해당 경로를 manifest에 기록합니다. 이미지의 크기 변경·재인코딩은 하지 않습니다. MIME/magic/base64와 이미지 hash를 확인하며 페이지 ImageRef는 PNG만 받습니다. 페이지 이미지는 `/pages/<번호>/image` pointer와 `pages/<번호>.png` 논리 경로로 기록하지만 실제 바이트는 원본 JSON 안에만 있습니다. 원격/file 이미지 URI는 가져오지 않고 거부합니다. JSON의 모든 ImageRef URI·좌표·크기·DPI를 그대로 유지합니다. 숫자는 Node JSON reviver의 source와 `JSON.rawJSON`으로 원래 토큰을 보존하므로 `origin.binary_hash` 같은 uint64가 반올림되지 않습니다. 저장 JSON은 공백 형태만 달라질 수 있습니다.
 
 `createDoclingArchive({manifest,documentJson,sourceBytes,reviewBytes?})`는 Buffer만 반환하며 `readDoclingArchive`는 같은 봉투를 읽습니다. Node 표준 Buffer/crypto/zlib만 쓰며 npm 의존성·SDK 내부 import·직접 결과 파일 쓰기·디스크 압축 해제는 없습니다. Node에 ZIP API가 없어 필요한 STORE ZIP32 헤더/목록만 플러그인에 둡니다. 일반 ZIP/DEFLATE/ZIP64/분할 ZIP/암호화/알 수 없는 항목은 지원하지 않습니다. 경로·중복 항목·CRC·중앙/로컬 헤더·범위·필수 원본 항목·manifest의 PDF/문서/이미지 hash를 확인합니다. 이 hash 검증은 보관 이후의 바이트 일치이며 원본 PDF의 진위나 추출 품질 보증이 아닙니다. 파일 결과 상한은 Host의 2 GiB이며 writer를 닫은 뒤 Host가 크기·확장자·Root·충돌을 확인해 저장합니다. 실패·중단 때 staging 정리도 Host가 소유합니다. 플러그인의 ZIP 생성은 현재 메모리에 전체 바이트를 준비하므로 대규모 PDF의 메모리 사용은 수락하지 않았습니다.
 
 ### 작업 1 고정 프로필과 검증
 
-보관 SHA `ce90560aacaee2482d37c4b25e36e93060ed156c`의 `plugins/docling/profiles/litzio-pdf-en-v1.json`에서 `include_page_images`만 false로 바꾼 [고정 프로필](litzio-pdf-en-v1.json)을 사용합니다. 아래 탐색 시험의 축소 옵션이나 서버 기본값을 제품 요청 옵션으로 쓰지 않습니다. 개별 옵션 선택이나 대체 프로필은 없습니다.
+보관 SHA `ce90560aacaee2482d37c4b25e36e93060ed156c`의 `plugins/docling/profiles/litzio-pdf-en-v1.json`의 페이지 이미지 포함 요청을 유지한 [고정 프로필](litzio-pdf-en-v1.json)을 사용합니다. 아래 탐색 시험의 축소 옵션이나 서버 기본값을 제품 요청 옵션으로 쓰지 않습니다. 개별 옵션 선택이나 대체 프로필은 없습니다.
 
 | 그룹 | 고정 요청 |
 | --- | --- |
@@ -235,10 +235,10 @@ CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|reg
 
 ## 원본 대조 0.0.7 (#1408)
 
-완료된 ‘Litzio 문서 만들기’ 행의 ‘원본 대조’로 연다. 왼쪽은 보관된 source.pdf이며 페이지 PNG를 만들지 않는다. 오른쪽은 저장된 생성 문서다. 원본 영역 또는 문서 블록을 선택해 대응 위치로 이동한다. 없는 대응은 추측하지 않는다. 페이지의 ‘확인함’과 이동 위치는 review.json의 checkedPages·lastPage에 저장한다. patches·approval과 원본 source.pdf/document.json/manifest 바이트는 보존한다. 원본 hash는 저장 전후 검증한다. 재생성은 같은 출력 revision의 최종 targets로 대응을 다시 계산한다.
+완료된 ‘Litzio 문서 만들기’ 행의 ‘원본 대조’로 연다. 왼쪽은 같은 변환에서 보관한 원본 PDF의 페이지 PNG이며 화면을 열 때 다시 변환하지 않는다. 오른쪽은 저장된 생성 문서다. 원본 영역 또는 문서 블록을 선택해 대응 위치로 이동한다. 없는 대응은 추측하지 않는다. 페이지의 ‘확인함’과 이동 위치는 review.json의 checkedPages·lastPage에 저장한다. patches·approval과 원본 source.pdf/document.json/manifest 바이트는 보존한다. 원본 hash는 저장 전후 검증한다. 재생성은 같은 출력 revision의 최종 targets로 대응을 다시 계산한다.
 
-확인 기록 저장은 `.docling` 전체를 공식 경로로 교체하고 생성 문서를 쓰지 않는다. 외부 변경이나 저장 실패가 보이면 다시 읽어야 한다. 실패한 저장은 자동 반복하지 않는다. 대조 안 편집·검수 완료 승인은 다음 단계다. 같은 파일을 전달받으면 기존 open 또는 새 문서 만들기로 새 Host 연결을 만든 뒤 기록을 이어간다.
+확인 기록 저장은 `.docling` 전체를 공식 경로로 교체하고 생성 문서를 쓰지 않는다. 저장은 순서대로 진행하며 다음 페이지 읽기를 막지 않는다. 저장 중에는 대응 선택을 잠시 막고 상태를 표시하며, 실패하면 확인·대응 행동을 막고 새로고침을 안내한다. 캐시는 현재 활성화에서 Host가 검증한 source revision 하나에 한정하고 외부 변경 시 버린다. 외부 변경이나 저장 실패가 보이면 다시 읽어야 한다. 실패한 저장은 자동 반복하지 않는다. 대조 안 편집·검수 완료 승인은 다음 단계다. 같은 파일을 전달받으면 기존 open 또는 새 문서 만들기로 새 Host 연결을 만든 뒤 기록을 이어간다.
 
 공통 CLI `review compare --input request.json --host <origin> --json`은 `{root,document,pageNo?}`로 대조 snapshot·progress·generatedBaseline을 읽는다. `review progress`에는 같은 root/document, generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:[1],lastPage:1}`를 보낸다. 결과의 progressSaved/receipt를 확인하고 응답이 유실되면 같은 requestId의 review status를 조회한다. 공용 SDK 0.4.0을 요구하며 아직 공개되지 않은 같은 버전에 포함한다.
 
-검증은 [공용 대조의 검사·1440/640px 전후 캡처](../../docs/design/plugin-stage1-v1.md#1408-검증화면-근거)를 따릅니다. 실제 docling-serve로 작은 한 페이지 합성 PDF를 변환해 대조와 확인 저장을 검토했으며 컨테이너를 중지했습니다. 복잡한 PDF의 추출 품질이나 의미 동등성을 보증하지 않습니다.
+검증은 [공용 대조의 검사·1440/640px 전후 캡처](../../docs/design/plugin-stage1-v1.md#1408-검증화면-근거)를 따릅니다. 실제 docling-serve 1.32.0으로 NIST SP 1108r4 발췌 11쪽과 보충 합성 1쪽을 변환했습니다. 넓은 표의 대응·페이지 확인과 200쪽 합성 용량을 별도로 확인했으며 수치·한계는 공용 계약에 기록합니다. 컨테이너를 중지했습니다. 문서의 추출 품질이나 의미 동등성을 보증하지 않습니다.

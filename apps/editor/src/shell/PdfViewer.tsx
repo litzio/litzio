@@ -113,24 +113,3 @@ function PdfPage({ pdf, number, width, zoom, active, scroll, onCurrent, onError 
     <canvas ref={canvas} /><div className="textLayer" ref={text} />
   </div>;
 }
-
-/** The comparison surface shares the reader's pdf.js renderer, without text interaction. */
-export function PdfComparisonPage({ url, pageNo, onError }: { url: string; pageNo: number; onError(): void }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    let render: RenderTask | undefined, cancelled = false;
-    const data = Uint8Array.from(atob(url.slice(url.indexOf(",") + 1)), char => char.charCodeAt(0));
-    const task = getDocument({ data, enableXfa: false, isEvalSupported: false, useWasm: false, useWorkerFetch: false,
-      cMapUrl: new URL("/pdf-assets/cmaps/", location.href).href, cMapPacked: true, standardFontDataUrl: new URL("/pdf-assets/standard_fonts/", location.href).href });
-    void task.promise.then(async pdf => {
-      const page = await pdf.getPage(pageNo);
-      if (cancelled) return;
-      const natural = page.getViewport({ scale: 1 }), viewport = page.getViewport({ scale: Math.min(2, 4096 / Math.max(natural.width,natural.height)) });
-      const drawing = canvas.current!; drawing.width = Math.ceil(viewport.width); drawing.height = Math.ceil(viewport.height);
-      render = page.render({canvas:drawing,viewport,annotationMode:AnnotationMode.DISABLE,background:"white"});
-      await render.promise;
-    }).catch(() => { if (!cancelled) onError(); });
-    return () => { cancelled = true; render?.cancel(); void task.destroy(); };
-  }, [url,pageNo,onError]);
-  return <canvas ref={canvas} className="review-pdf" aria-label={`PDF ${pageNo}`} />;
-}

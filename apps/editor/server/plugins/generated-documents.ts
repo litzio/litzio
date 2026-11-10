@@ -14,10 +14,11 @@ type Provider = { comparison?: string; operation: string; version: number; asser
 /** Only connections are Host state. Plugin-owned source files carry the portable correction ledger. */
 export class GeneratedDocuments {
   private busy = new Set<string>();
+  private progressWrites = new Map<string, { readers: number; closing: boolean; done: Promise<void>; release(): void; idle?: () => void }>();
   private requests = new Map<string, unknown>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => Provider,
     private invoke: (operation: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string }>,
-    private publish?: (plugin: string, root: string, file: string, source: string, raw: unknown, pdf?: Buffer) => any,
+    private publish?: (plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer) => any,
     private readComparison?: (input: unknown) => Promise<any>) {}
   private paths(root: string, document: string) {
     root = accessPath(root, this.access);
@@ -62,9 +63,18 @@ export class GeneratedDocuments {
     // A missing Windows leaf has no filesystem spelling yet. Serialize new leaves
     // within their actual parent, while existing independent documents stay parallel.
     const creating = [source, p.file].map(file => `creating:${canonicalFilePath(path.dirname(file))}`);
-    if ([...keys, ...creating].some(key => this.busy.has(key))) throw new Error("Generated document operation in progress");
+    const readingProgress = !writing ? this.progressWrites.get(keys[0]!) : undefined;
+    if (readingProgress?.closing) { await readingProgress.done; return this.execute(raw); }
+    if ([...keys, ...creating].some(key => this.busy.has(key) && (!readingProgress || this.progressWrites.get(key) !== readingProgress))) throw new Error("Generated document operation in progress");
     if (!existsSync(p.file)) keys.push(creating[1]!);
-    keys.forEach(key => this.busy.add(key));
+    if (readingProgress) readingProgress.readers++;
+    else keys.forEach(key => this.busy.add(key));
+    let progressWrite: typeof readingProgress;
+    if (input.action === "generated-progress") {
+      let release!: () => void;
+      progressWrite = { readers: 0, closing: false, done: new Promise<void>(resolve => { release = resolve; }), release: () => release() };
+      keys.forEach(key => this.progressWrites.set(key, progressWrite!));
+    }
     const receipt = (outcome: "success" | "failure" | "uncertain") => ({ requestId, operation: `review.${input.action.slice(10)}`, version: 1, scope: input.root, outcome });
     if (writing) this.requests.set(requestId, { state: "pending", receipt: receipt("uncertain") });
     let progressSaved = false, correctionsSaved = false, documentRegenerated = false, linkSaved = false, staging: string | undefined;
@@ -78,7 +88,7 @@ export class GeneratedDocuments {
       };
       const call = async (mode: string, extra = {}) => {
         check();
-        const response = await this.invoke(provider.operation, { mode, file: source, ...extra }, provider.version);
+        const response = await this.invoke(provider.operation, { mode, file: source, ...(provider.comparison ? { sourceRevision: before.sourceRevision } : {}), ...extra }, provider.version);
         if (response.error) throw new Error("Generated document provider unavailable or rejected input");
         check(); return response.result;
       };
@@ -87,10 +97,10 @@ export class GeneratedDocuments {
       if (input.action === "generated-compare") {
         if (!provider.comparison || !this.publish || !this.readComparison || !link.inputs || link.generatedFrom !== before.sourceRevision || link.generatedRevision !== before.documentRevision) throw new Error("Comparison requires the current saved generated document; regenerate and reopen");
         staging = mkdtempSync(path.join(tmpdir(), "litzio-generated-"));
-        const pdf = path.join(staging, "source.pdf"); writeFileSync(pdf, "", { flag: "wx", mode: 0o600 });
-        const material: any = await call("compare", { result: { path: p.file, revision: before.documentRevision, inputs: generatedInputsSchema.parse(link.inputs) }, sourceRevision: before.sourceRevision, generation: randomUUID(), resultFile: { path: pdf, maxBytes: 25 * 1024 * 1024 } });
-        if (material.review !== provider.comparison || material.pdf?.path !== pdf || statSync(pdf).size > 25 * 1024 * 1024) throw new Error("Invalid comparison material");
-        const bundle = this.publish(link.plugin, input.root, p.file, source, material, readFileSync(pdf));
+        const imageFile = path.join(staging, "page.png"); writeFileSync(imageFile, "", { flag: "wx", mode: 0o600 });
+        const material: any = await call("compare", { pageNo: input.pageNo, result: { path: p.file, revision: before.documentRevision, inputs: generatedInputsSchema.parse(link.inputs) }, sourceRevision: before.sourceRevision, generation: randomUUID(), resultFile: { path: imageFile, maxBytes: 16 * 1024 * 1024 } });
+        if (material.review !== provider.comparison || material.images?.length !== 1 || material.images[0].path !== imageFile || statSync(imageFile).size > 16 * 1024 * 1024) throw new Error("Invalid comparison material");
+        const bundle = this.publish(link.plugin, input.root, p.file, source, material, readFileSync(imageFile));
         const details = generatedDocumentStateSchema.parse(await call("read"));
         const progress = generatedProgressSchema.parse({ checkedPages: details.record.checkedPages, lastPage: details.record.lastPage });
         const pages = new Set(material.pages.map((page: { pageNo: number }) => page.pageNo));
@@ -114,6 +124,9 @@ export class GeneratedDocuments {
         staging = mkdtempSync(path.join(tmpdir(), "litzio-generated-"));
         const staged = path.join(staging, "result"); writeFileSync(staged, "", { flag: "wx", mode: 0o600 });
         generatedDocumentStateSchema.parse(await call(input.action === "generated-progress" ? "progress" : "patch", { ...(input.action === "generated-progress" ? { progress: input.progress } : { patches: input.patches }), resultFile: { path: staged, maxBytes: JOB_FILE_MAX_BYTES } }));
+        // Progress preserves document semantics. Readers may use the old coherent baseline while
+        // its replacement is prepared; publication waits for them and excludes new readers.
+        if (progressWrite) { progressWrite.closing = true; if (progressWrite.readers) await new Promise<void>(resolve => { progressWrite!.idle = resolve; }); }
         check();
         before.sourceRevision = await commitFileFromPath(p.resolve(source), staged, before.sourceRevision, JOB_FILE_MAX_BYTES, check);
         if (input.action === "generated-progress") {
@@ -142,6 +155,11 @@ export class GeneratedDocuments {
       const result = { state: progressSaved || correctionsSaved || documentRegenerated || linkSaved ? "regeneration-required" : "failed", correctionsSaved, documentRegenerated,
         ...(input.action === "generated-progress" ? { progressSaved } : {}), error: error instanceof Error ? error.message : "Generated document operation failed", guidance: "Read the files before the next write. Query the requestId after a lost response; never automatically resend edits.", receipt: receipt("failure") };
       if (writing) this.requests.set(requestId, result); return result;
-    } finally { keys.forEach(key => this.busy.delete(key)); if (staging) rmSync(staging, { recursive: true, force: true }); }
+    } finally {
+      if (readingProgress) { if (!--readingProgress.readers) readingProgress.idle?.(); }
+      else keys.forEach(key => this.busy.delete(key));
+      if (progressWrite) { keys.forEach(key => this.progressWrites.delete(key)); progressWrite.release(); }
+      if (staging) rmSync(staging, { recursive: true, force: true });
+    }
   }
 }

@@ -11,7 +11,10 @@ export function readReview(bytes) {
 /** Replay against a copy. The archived PDF and JSON bytes never change. */
 export function applyCorrections(original, patches = []) {
   if (!Array.isArray(patches) || patches.length > 2000) throw new Error("Invalid corrections");
-  const doc = structuredClone(original), nodes = new Map();
+  // Patches cannot address pages. Keep their immutable embedded image bytes out of the replay copy.
+  const { pages, ...content } = original;
+  const doc = structuredClone(content), nodes = new Map();
+  if (pages !== undefined) doc.pages = pages;
   for (const kind of ["texts", "tables", "pictures", "groups", "key_value_items", "form_items"]) for (const [i, item] of (doc[kind] ?? []).entries()) {
     if (item.self_ref !== `#/${kind}/${i}`) throw new Error("Invalid self_ref");
     nodes.set(item.self_ref, { item, kind });

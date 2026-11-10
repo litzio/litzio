@@ -598,6 +598,10 @@
             },
             "generation": {
               "type": "string"
+            },
+            "pageNo": {
+              "type": "integer",
+              "minimum": 1
             }
           },
           "required": [

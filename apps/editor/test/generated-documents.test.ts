@@ -82,6 +82,7 @@ test("generated document official writes keep source state first, reject conflic
   const source = path.join(root, "source.bin"), document = path.join(root, "result.md");
   writeFileSync(source, JSON.stringify({ original: "immutable", edits: [] }));
   let failBuild = false, raceDocument = false, raceSource = false;
+  let progressGate: Promise<void> | undefined, readGate: Promise<void> | undefined, progressEntered: (() => void) | undefined, readEntered: (() => void) | undefined;
   const provider = async (_op: string, input: any) => {
     const record = JSON.parse(readFileSync(input.file, "utf8"));
     if (input.mode === "patch") {
@@ -89,10 +90,12 @@ test("generated document official writes keep source state first, reject conflic
       if (raceSource) writeFileSync(source, "competitor source");
     }
     if (input.mode === "progress") {
+      progressEntered?.(); if (progressGate) await progressGate;
       if (raceDocument) writeFileSync(document,"competitor document");
       record.progress = input.progress; writeFileSync(input.resultFile.path, JSON.stringify(record));
       if (raceSource) writeFileSync(source, "competitor source");
     }
+    if (input.mode === "read") { readEntered?.(); if (readGate) await readGate; }
     if (input.mode === "build") {
       if (failBuild) return { error: "injected failure" };
       if (raceDocument) writeFileSync(document, "competitor document");
@@ -119,6 +122,25 @@ test("generated document official writes keep source state first, reject conflic
     assert.equal((await read()).state,"generated");
     assert.deepEqual(JSON.parse(readFileSync(source,"utf8")).edits,beforeProgress.record.edits);
     assert.equal((await host.execute({action:"generated-status",requestId:progressId})).progressSaved,true);
+    // A slow progress preparation permits coherent reads. Publication waits for those
+    // readers, and reads arriving at publication observe the new baseline.
+    let releaseProgress!: () => void, releaseRead!: () => void;
+    progressGate = new Promise<void>(resolve => { releaseProgress = resolve; });
+    const entered = new Promise<void>(resolve => { progressEntered = resolve; });
+    const concurrentBaseline = (await read()).baseline;
+    let savedConcurrent = false;
+    const concurrentSave = host.execute({action:"generated-progress",root,document:"result.md",baseline:concurrentBaseline,progress:{checkedPages:[],lastPage:1},requestId:randomUUID()}).then(value => { savedConcurrent = true; return value; });
+    await entered;
+    readGate = new Promise<void>(resolve => { releaseRead = resolve; });
+    const reading = new Promise<void>(resolve => { readEntered = resolve; });
+    const concurrentRead = read(); await reading;
+    releaseProgress(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(savedConcurrent,false);
+    const afterPublication = read();
+    releaseRead(); await concurrentRead;
+    assert.equal((await concurrentSave).progressSaved,true);
+    assert.equal((await afterPublication).baseline.sourceRevision,(await read()).baseline.sourceRevision);
+    progressGate = readGate = undefined; progressEntered = readEntered = undefined;
     const staleProgress = await host.execute({action:"generated-progress",root,document:"result.md",baseline:beforeProgress.baseline,progress:{checkedPages:[],lastPage:null},requestId:randomUUID()});
     assert.equal(staleProgress.receipt.outcome,"failure");
     const bytes = readFileSync(source);
