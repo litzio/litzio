@@ -8,7 +8,7 @@ import { JOB_START_FAILURE_MESSAGES, JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BY
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 import { createAuthoredDocumentFile } from "../document-authoring.ts";
-import { JobHistory, retainJobHistory, type JobHistorySnapshot } from "./job-history.ts";
+import { JobHistory, retainJobHistory } from "./job-history.ts";
 
 type Record = { sourceRevision?: string; effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 class StartRefused extends Error {
@@ -17,7 +17,7 @@ class StartRefused extends Error {
 /** Host-owned history; live observations never resume after restart. */
 export class PluginJobs {
   private records = new Map<string, Record>();
-  private archived = new Map<string, JobHistorySnapshot>();
+  private archived = new Map<string, JobSnapshot>();
   private history?: JobHistory;
   private needsPersistence = false;
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
@@ -28,20 +28,21 @@ export class PluginJobs {
     if (historyFile) {
       this.history = new JobHistory(historyFile);
       for (const job of this.history.load()) {
-        if (job.state === "uncertain") Object.assign(job, this.failure({ kind: "unavailable" }, job.effect));
+        if (job.state === "uncertain") Object.assign(job, this.failure({ kind: "unavailable" }, "write"));
         this.archived.set(job.requestId, job);
       }
     }
   }
   private save() {
-    const jobs = retainJobHistory(this.snapshots());
+    const liveRequestIds = new Set([...this.records.values()].filter(record => !record.detached).map(record => record.snapshot.requestId));
+    const jobs = retainJobHistory(this.snapshots(), liveRequestIds);
     const retained = new Set(jobs.map(job => job.requestId));
     for (const id of [...this.records.keys(), ...this.archived.keys()]) {
       if (retained.has(id)) continue;
       this.records.delete(id); this.archived.delete(id);
     }
     this.needsPersistence = true;
-    this.history?.save(jobs);
+    this.history?.save(jobs, liveRequestIds);
     this.needsPersistence = false;
   }
   hasActive(plugin: string) {
@@ -101,6 +102,8 @@ export class PluginJobs {
     }
     if (update.state !== "running") this.cleanup(record);
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
+    else if (update.state === "uncertain") record.finishedAt ??= Date.now();
+    else record.finishedAt = undefined;
     const failure = update.state === "failed" || update.state === "uncertain";
     Object.assign(current, { state: update.state, phase: failure ? (update.state === "failed" ? "Failed" : "Observation lost") : update.phase, progress: update.progress,
       ...(failure ? this.failure({ kind: update.errorKind }, update.state === "uncertain" && record.uncertainWrite ? "write" : effect) : { errorKind: undefined, error: undefined }) });
@@ -131,6 +134,7 @@ export class PluginJobs {
       if (operation === record.binding.start && (failure.errorKind === "timeout" || (cause as { startContract?: boolean })?.startContract)) failure.error += " " + JOB_START_CONTRACT_MESSAGE;
       Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...failure,
         ...(operation === record.binding.start ? { startFailure: { kind: "start_failed" } } : {}) });
+      record.finishedAt ??= Date.now();
     }
   }
   private async startMany(input: { plugin: string; job: string; root: string; files: string[]; requestIds?: string[] }): Promise<{ files: BatchJobResult[]; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string } }> {
@@ -210,22 +214,21 @@ export class PluginJobs {
     }
     return this.response(record, input.action);
   }
-  private snapshot(record: Record): JobHistorySnapshot {
-    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, finishedAt: record.finishedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt,
-      effect: record.uncertainWrite || record.effects.get(record.binding.start) === "write" ? "write" : "read" };
+  private snapshot(record: Record): JobSnapshot {
+    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, finishedAt: record.finishedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
   }
   private snapshots() {
     return [...this.archived.values(), ...[...this.records.values()].map(record => this.snapshot(record))].sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
   }
   list(plugin?: string) {
     jobRequestSchema.parse({ action: "job-list", ...(plugin ? { plugin } : {}) });
-    return { jobs: structuredClone(this.snapshots().filter(job => !plugin || job.plugin === plugin).map(({ effect: _effect, ...job }) => job)), ...(this.history?.warning ? { warning: this.history.warning } : {}),
+    return { jobs: structuredClone(this.snapshots().filter(job => !plugin || job.plugin === plugin)), ...(this.history?.warning ? { warning: this.history.warning } : {}),
       receipt: { requestId: randomUUID(), operation: "plugins.job-list", version: 1, scope: "host", outcome: "success" } };
   }
   private response(record: Record, action: string) {
     return this.responseSnapshot(this.snapshot(record), action);
   }
-  private responseSnapshot({ effect: _effect, ...job }: JobHistorySnapshot, action: string) {
+  private responseSnapshot(job: JobSnapshot, action: string) {
     return { job, receipt: { requestId: job.requestId, operation: `plugins.${action}`, version: 1, scope: job.root, outcome: job.state === "uncertain" ? "uncertain" : "success" } };
   }
   private stop(record: Record) {
@@ -242,6 +245,7 @@ export class PluginJobs {
       record.detached = true;
       this.cleanup(record);
       record.uncertainWrite = true;
+      record.finishedAt ??= Date.now();
       Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...this.failure({ kind: "unavailable" }, "write") });
     }
     this.save();

@@ -10,13 +10,61 @@ import path from "node:path";
 import { createHostServices } from "../server/host-services.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { PluginJobs } from "../server/plugins/jobs.ts";
-import { JobHistory, JOB_HISTORY_LIMIT, JOB_HISTORY_WARNING } from "../server/plugins/job-history.ts";
+import { JobHistory, retainJobHistory, JOB_HISTORY_LIMIT, JOB_HISTORY_WARNING } from "../server/plugins/job-history.ts";
 import { JOB_FILE_MAX_BYTES, PLUGIN_ERROR_MESSAGES } from "@litzio/plugin-sdk";
 import { RootAccess } from "../server/file-access.ts";
 
 const safeWriteAdvice = " Check the target before retrying a write. Query the same requestId; do not resend start.";
 
-test("K1 retention preserves unfinished jobs ahead of newer completed history in memory and on disk", async t => {
+test("K1 restored uncertainty is bounded and a just-finished old request remains queryable", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-archive-cap-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json");
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  for (const state of ["uncertain", "completed"] as const) {
+    const entries = Array.from({ length: JOB_HISTORY_LIMIT + 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: i + 10, finishedAt: i + 20, elapsedMs: 10, state, effect: "write", stopRequested: false }));
+    writeFileSync(file, JSON.stringify({ version: 1, jobs: entries }));
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const jobs = new PluginJobs(new RootAccess([root]), () => binding, async name => ({ result: name.endsWith(".status")
+        ? { state: "completed", phase: "Done", document: { source: "---\nlitzio: 1\n---\n\n# Result\n" } }
+        : { state: "running", phase: "Waiting" } }), () => "write", undefined, undefined, file);
+      const requestId = randomUUID();
+      // A long-running request started before every archived record but finishes now.
+      const now = t.mock.method(Date, "now", () => 1);
+      await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: `${state}-${cycle}.md` });
+      now.mock.restore();
+      const completed = await jobs.execute({ action: "job-status", requestId });
+      assert.ok("job" in completed); assert.equal(completed.job.state, "completed");
+      const result = await jobs.execute({ action: "job-result", requestId });
+      assert.ok("job" in result); assert.ok(result.job.result?.revision);
+      assert.equal(jobs.list().jobs.length, JOB_HISTORY_LIMIT);
+      assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs.length, JOB_HISTORY_LIMIT);
+    }
+  }
+});
+
+test("K1 restored uncertainty always retains safe advice even when saved effect is changed to read", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-forged-effect-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json"), requestId = randomUUID();
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  const jobs = new PluginJobs(new RootAccess([root]), () => binding, async () => ({ result: { state: "running", phase: "Waiting" } }), () => "write", undefined, undefined, file);
+  await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: "result.md" });
+  const saved = JSON.parse(readFileSync(file, "utf8")); saved.jobs[0].effect = "read";
+  writeFileSync(file, JSON.stringify(saved));
+  const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => "read", undefined, undefined, file);
+  for (const action of ["job-status", "job-stop"] as const) {
+    const value = await restarted.execute({ action, requestId });
+    assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
+    assert.equal(value.job.error, PLUGIN_ERROR_MESSAGES.unavailable + safeWriteAdvice);
+    assert.deepEqual(value.job, restarted.list().jobs[0]);
+  }
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs[0].effect, undefined);
+});
+
+test("K1 only current daemon running jobs are exempt in memory and on disk", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-retention-"));
   t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
   const file = path.join(root, "jobs.json"), startedAt = Date.now();
@@ -25,11 +73,11 @@ test("K1 retention preserves unfinished jobs ahead of newer completed history in
   for (const state of ["completed", "running"] as const) {
     // Seed history instead of performing 999 redundant filesystem publications.
     // Two real admissions cross the cap with an older, still-running first job.
-    const entries = Array.from({ length: JOB_HISTORY_LIMIT - 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: startedAt + i, elapsedMs: 10, state, effect: "write", stopRequested: false }));
+    const entries = Array.from({ length: JOB_HISTORY_LIMIT - 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: startedAt - 100_000 + i, elapsedMs: 10, state, stopRequested: false }));
     writeFileSync(file, JSON.stringify({ version: 1, jobs: entries }));
     const jobs = new PluginJobs(new RootAccess([root]), () => binding, async () => ({ result: { state: "running", phase: "Waiting" } }), () => "write", undefined, undefined, file);
     const first = randomUUID();
-    const now = t.mock.method(Date, "now", () => startedAt - 1000);
+    const now = t.mock.method(Date, "now", () => startedAt - 200_000);
     await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId: first, root, file: "input.txt", output: "first.md" });
     now.mock.restore();
     await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId: randomUUID(), root, file: "input.txt", output: "second.md" });
@@ -37,15 +85,27 @@ test("K1 retention preserves unfinished jobs ahead of newer completed history in
     const disk = JSON.parse(readFileSync(file, "utf8")).jobs.map((job: { requestId: string }) => job.requestId).sort();
     assert.deepEqual(disk, memory, "memory and file must retain exactly the same IDs");
     assert.ok(disk.includes(first), "unfinished work cannot be evicted ahead of completed history");
-    assert.equal(disk.length, state === "completed" ? JOB_HISTORY_LIMIT : JOB_HISTORY_LIMIT + 1);
+    assert.equal(disk.length, JOB_HISTORY_LIMIT + 1);
     const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => "read", undefined, undefined, file);
-    assert.deepEqual(restarted.list().jobs.map(job => job.requestId).sort(), memory);
+    assert.deepEqual(restarted.list().jobs.map(job => job.requestId).sort(), memory.filter(id => id !== entries[0].requestId));
     const value = await restarted.execute({ action: "job-status", requestId: first });
     assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
   }
+  // A fresh completion must retain a result slot even while >1000 live requests
+  // are exempt. Ownership comes from this daemon, never from serialized state.
+  const running = Array.from({ length: JOB_HISTORY_LIMIT + 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: i, elapsedMs: 10, state: "running" as const, phase: "", stopRequested: false }));
+  const completed = { ...running[0], requestId: randomUUID(), startedAt: 0, finishedAt: startedAt, state: "completed" as const };
+  const live = new Set(running.map(job => job.requestId));
+  const retained = retainJobHistory([...running, completed], live);
+  assert.equal(retained.length, running.length + 1); assert.ok(retained.includes(completed));
+  new JobHistory(file).save([...running, completed], live);
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs.length, retained.length);
+  const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => "read", undefined, undefined, file);
+  assert.equal(restarted.list().jobs.length, JOB_HISTORY_LIMIT);
+  assert.ok(restarted.list().jobs.some(job => job.requestId === completed.requestId));
 });
 
-test("K1 restored uncertainty uses the admitted effect and common safe error guidance without replay", async t => {
+test("K1 restored uncertainty uses common safe advice regardless of admitted effect without replay", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-restored-advice-"));
   t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
   const file = path.join(root, "jobs.json");
@@ -63,10 +123,10 @@ test("K1 restored uncertainty uses the admitted effect and common safe error gui
       const value = await restarted.execute({ action, requestId });
       assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
       assert.equal(value.job.errorKind, "unavailable");
-      assert.equal(value.job.error, PLUGIN_ERROR_MESSAGES.unavailable + (effect === "write" ? safeWriteAdvice : ""));
+      assert.equal(value.job.error, PLUGIN_ERROR_MESSAGES.unavailable + safeWriteAdvice);
       assert.deepEqual(value.job, restarted.list().jobs[0]);
     }
-    assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs[0].effect, effect);
+    assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs[0].effect, undefined);
   }
 });
 
