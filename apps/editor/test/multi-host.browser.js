@@ -33,6 +33,7 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   const saves = [];
   const created = { local: new Map(), remote: new Map() };
   const creations = [];
+  const templateCreates = [];
   const versions = { local: 0, remote: 0 };
   const revision = host => (host === "local" ? "a" : "b").repeat(60) + String(versions[host]).padStart(4, "0");
   await page.route('**/api/document**', async route => {
@@ -47,7 +48,8 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
       return route.fulfill({ response: await route.fetch({ headers: { ...route.request().headers(), Connection: "close" }, url: origin + '/api/document-source?recovery=1' }) });
     }
     if (route.request().method() === 'PUT') {
-      const { path: target } = route.request().postDataJSON();
+      const { path: target, template } = route.request().postDataJSON();
+      if (template) templateCreates.push({ host, path: target, template });
       creations.push({ host, path: target, kind: 'document' });
       created[host].set(target, 'document');
       return route.fulfill({ json: { ...empty, path: target } });
@@ -563,4 +565,38 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   await page.getByTestId('sidebar').getByRole('button',{name:'예시: Host screen',exact:true}).click();
   await expect(screen.getByRole('combobox',{name:'Host',exact:true})).toHaveValue('local');
   expect(offlineCatalogReads).toBe(0);
+  {
+    // #1185: the gallery and its folder/name flow retain the selected Host while Local is active.
+    const remoteTemplate = { id: 'user:Remote template', name: 'Remote template', description: 'Remote catalog only', kind: 'user' };
+    await page.route('**/fixture/remote/api/templates?*', route => route.fulfill({ json: { directory: root, templates: [remoteTemplate], problems: [] } }));
+    const templateReads = [];
+    await page.route('**/fixture/remote/api/template?*', route => { templateReads.push(route.request().url()); return route.fulfill({ json: { ...remoteTemplate, source: empty.source } }); });
+    await local.click();
+    await page.getByTestId('sidebar').getByRole('button', { name: 'Template gallery', exact: true }).click();
+    const gallery = page.locator('.template-gallery');
+    await gallery.getByRole('combobox', { name: 'Host', exact: true }).selectOption('remote');
+    const remoteCard = gallery.getByRole('button', { name: 'Preview Remote template', exact: true });
+    await expect(remoteCard).toBeVisible();
+    await remoteCard.focus();
+    await expect.poll(() => templateReads.length).toBe(1);
+    await expect(page.locator('.template-preview .document-editor')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await gallery.getByRole('button', { name: 'New document from template', exact: true }).click();
+    const picker = page.getByRole('dialog', { name: 'Open folder', exact: true });
+    await expect(picker).toBeVisible();
+    await picker.getByTestId('folder-path').fill(root);
+    await picker.getByTestId('folder-open').click();
+    await page.getByTestId('new-file-name').fill('remote-template');
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(page.getByRole('tab', { name: /remote-template.md.*Remote/ })).toHaveAttribute('aria-selected', 'true');
+    expect(templateCreates).toEqual([{ host: 'remote', path: root + sep + 'remote-template.md', template: remoteTemplate.id }]);
+    await page.getByTestId('sidebar').getByRole('button', { name: 'Template gallery', exact: true }).click();
+    await expect(gallery.getByRole('combobox', { name: 'Host', exact: true })).toHaveValue('remote');
+    await gallery.getByRole('button', { name: 'Open template folder', exact: true }).click();
+    await expect(remoteExplorer.getByTestId('folder')).toHaveCount(1);
+    await gallery.getByRole('combobox', { name: 'Host', exact: true }).selectOption('local');
+    await expect(gallery.locator('.template-card-preview')).toHaveCount(2);
+    await expect(gallery.getByText('Remote template', { exact: true })).toHaveCount(0);
+
+  }
 }
