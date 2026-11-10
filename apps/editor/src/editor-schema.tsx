@@ -382,8 +382,9 @@ const Figure = Node.create<{ documentPath?: string | (() => string) }>({
     return [{ tag: "figure[data-figure]", contentElement: "figcaption" }];
   },
   renderHTML({ node, HTMLAttributes }) {
+    const src = resolveFigureSource(node.attrs.imageUrl, this.options.documentPath);
     return ["figure", { ...HTMLAttributes, "data-figure": "" },
-      ...(node.attrs.imageUrl ? [["img", { src: resolveFigureSource(node.attrs.imageUrl, this.options.documentPath), alt: node.attrs.imageAlt }]] : []), ["figcaption", 0]];
+      ...(src ? [["img", { src, alt: node.attrs.imageAlt }]] : []), ["figcaption", 0]];
   },
   addNodeView() {
     return captionNodeView(ReactNodeViewRenderer(FigureView));

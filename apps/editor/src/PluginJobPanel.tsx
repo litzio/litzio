@@ -38,7 +38,7 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen, 
     if (active) void Promise.all([request(), request({ action: "job-list", plugin })]).then(([catalog, history]) => {
       if (controller.signal.aborted) return;
       if (history.warning) setProblem(i18n.t(history.warning));
-      setBindings(catalog.plugins.find((p: { id: string }) => p.id === plugin)?.jobs ?? []); setJobs(previous => [
+      setBindings(catalog.plugins.find((p: { id: string }) => p.id === plugin)?.jobs?.filter((job:JobContribution)=>!(job.resultKind==="native-document"&&job.workspace)) ?? []); setJobs(previous => [
         ...history.jobs.filter((job: JobSnapshot) => !previous.some(item => item.requestId === job.requestId)),
         ...previous.map(item => history.jobs.find((job: JobSnapshot) => job.requestId === item.requestId) ?? item),
       ]);

@@ -144,4 +144,4 @@ Editor와 CLI는 Core를 연결하며, 공식 AI 비서는 Host 공용 작업을
 [MIT License](LICENSE)에 따라 사용·수정·재배포할 수 있습니다.
 
 
-Docling 검수 3단계는 `feature/docling-stage3`에서 진행 중입니다. [P1a](docs/design/docling-review-stage3.md#p1a-저장읽기-기반-구현과-측정)는 단일 `.docling` 내부 canonical 캐시와 Host·CLI 읽기/원자적 저장까지 제공합니다. 기존 `.docling→문서` 화면과 별개이며 작업공간 대조 화면·중간 내보내기는 후속 P1b 범위입니다.
+Docling 검수 3단계는 `feature/docling-stage3`에서 진행 중입니다. [P1 작업공간](docs/design/docling-review-stage3.md#p1b-내부-대조이미지명시-export)은 단일 `.docling` 내부 canonical 캐시와 Host·CLI 원자적 저장, 외부 문서 없는 대조, 사람이 실행하는 “현재 상태로 내보내기”를 제공합니다. 검수 완료 승인·공식 완료 내보내기는 후속 단계입니다.

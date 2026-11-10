@@ -159,6 +159,7 @@ export class PluginJobs {
     if (input.action === "job-start") {
       if (this.records.has(input.requestId) || this.archived.has(input.requestId)) throw new Error("Duplicate requestId; query status instead");
       const binding = this.declaration(input.plugin, input.job);
+      if (binding.resultKind === "native-document" && binding.workspace) throw new Error("Open this review workspace; use an explicit current export to create a document");
       const root = accessPath(input.root, this.access);
       const boundary = new RootAccess([root]);
       const relative = (value: string, create = false) => {

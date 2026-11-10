@@ -21,7 +21,8 @@ async (page, { openDocument, screenshots, expect }) => {
   let documentReads = 0, writes = 0, leaks = 0;
   page.on('request', request => {
     if (request.url().includes('/api/document?')) documentReads++;
-    if (['PUT','POST','DELETE'].includes(request.method())) writes++;
+    const scopedReviewRead=request.method()==='POST'&&new URL(request.url()).pathname==='/api/reviews'&&request.postDataJSON()?.action==='workspace-find'&&request.postDataJSON()?.root===root;
+    if (['PUT','POST','DELETE'].includes(request.method())&&!scopedReviewRead) writes++;
     if (request.url().includes('preview-leak') || request.url().includes('svg11.dtd')) leaks++;
   });
   for (const name of ['archive.zip', 'README']) {

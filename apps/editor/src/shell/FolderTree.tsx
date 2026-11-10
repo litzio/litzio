@@ -1,3 +1,5 @@
+import { useWorkspaceExtensions } from "../review/workspace-entries.ts";
+import { getHostClient } from "../host-client.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
 import { FileActionDialog, type FileAction, type FileActionHandler } from "./FileActionDialog.tsx";
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
@@ -75,6 +77,8 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
   const folderName = name(tree.root);
   const toggleName = i18n.t(tree.sectionExpanded ? "Collapse folder {{name}}" : "Expand folder {{name}}", { name: folderName });
   const items = visibleTreeItems(tree);
+  const workspaceExtensions=useWorkspaceExtensions(getHostClient(tree.hostId),tree.root,tree.nodes);
+  const workspace=(file:string)=>workspaceExtensions.includes(file.slice(file.lastIndexOf(".")).toLowerCase());
   const rows = useRef(new Map<string, HTMLLIElement>());
   useLayoutEffect(() => {
     const target = focusFolder && tree.sectionExpanded ? rows.current.get(focusFolder) : undefined;
@@ -96,9 +100,16 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
   // One tab stop: the item last focused, else the open document, else the first item.
   const tabStop = [focused, documentPath].find(path => items.some(item => item.entry.path === path)) ?? items[0]?.entry.path;
 
-  const activate = (item: TreeItem) => {
+  const activate = async (item: TreeItem) => {
+    if(item.entry.kind==="file"&&!/\.pdf$/i.test(item.entry.path)) {
+      try {
+        const response=await getHostClient(tree.hostId).request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"workspace-find",root:tree.root,path:item.entry.path})});
+        const result=await response.json();
+        if(response.ok&&result.targets?.length){onOpenDocument(item.entry.path);return;}
+      } catch { /* A file without an available provider retains the ordinary preview. */ }
+    }
     if (item.entry.kind === "folder") onToggleFolder(item.entry.path);
-    else if (item.entry.kind === "document" || /\.pdf$/i.test(item.entry.path)) onOpenDocument(item.entry.path);
+    else if (item.entry.kind === "document" || /\.pdf$/i.test(item.entry.path) || workspace(item.entry.path)) onOpenDocument(item.entry.path);
     else {
       previewReturn.current = rows.current.get(item.entry.path) ?? null;
       setPreview(item);
@@ -188,7 +199,8 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
               aria-selected={folder ? entry.path === focused : undefined}
               aria-current={!folder && entry.path === documentPath ? "page" : undefined}
               onFocus={() => setFocused(entry.path)}
-              onClick={() => activate(item)}
+              onClick={() => {if(!workspace(entry.path))activate(item);}}
+              onDoubleClick={()=>{if(workspace(entry.path))activate(item);}}
             >
               {folder ? <span className="sidebar-tree-chevron" aria-hidden="true"><ChevronRight /></span>
                 : <Icon className="sidebar-tree-icon" aria-hidden="true" />}

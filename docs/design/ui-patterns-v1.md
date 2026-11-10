@@ -854,3 +854,8 @@ The warning uses bold text within the existing contrasting surface, without a ne
 color or control. The [contract and fixture Before/After pairs](main-agent-v1.md#business-account-usage-1453)
 record the Business shape, rounding and unchanged target-Host cache ownership.
 No common interaction exception or new persistent chrome was introduced.
+
+
+## Workspace 대조·중간 내보내기 (#1462 P1b)
+
+공용 원본 대조 패턴은 기존 ReviewRenderer의 source pages/Read/연결·확인과 Button/Tooltip/Notice를 재사용한다. 문서 파일이 없는 내부 snapshot은 “문서 열기”를 숨기고 현재 상태 내보내기를 제공한다. 출력 선택/충돌 확인은 P12의 Dialog/Input/Button/checkbox를 재사용하고 미저장 열린 대상을 거부한다. 새 token/control 예외는 없다. [P1b 동작과 시각 근거](docling-review-stage3.md#p1b-내부-대조이미지명시-export)를 따른다. 완료 승인 화면은 이 구현에 포함하지 않는다.

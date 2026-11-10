@@ -113,6 +113,11 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   });
   await page.route('**/fixture/remote/api/folder-places', route => route.fulfill({ json: { places: [{ kind: 'home', name: 'Fixture home', path: root }] } }));
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
+  await page.route('**/fixture/remote/api/reviews',route=>{
+    const body=route.request().postDataJSON();
+    if(body.action!=="workspace-find"||body.root!==root)throw new Error("Unexpected remote review operation");
+    return route.fulfill({json:{providers:[]}});
+  });
   let remoteAvailable = true;
   await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash', identity: { runAs: 'WORKSTATION\\local-user' } } }));
   await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash', identity: { runAs: 'remote-user' } } } : { status: 503, json: { error: 'Fixture unreachable' } }));

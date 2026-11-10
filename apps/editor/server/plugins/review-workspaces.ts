@@ -1,35 +1,52 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, statSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { authorDocument, parse, serialize, getEditableDocument } from "@litzio/core";
 import { commitFileFromPath, textRevision } from "@litzio/file-commit";
 import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
-import { validatedAuthoringRequest } from "../document-authoring.ts";
+import { validatedAuthoringRequest, exportReviewDocumentFile } from "../document-authoring.ts";
+import { validateImage } from "../image-validation.ts";
 import { readModel } from "../document-replay.ts";
 import { RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
 
-type Provider = { operation: string; version: number; assertCurrent(): void };
+type Provider = { operation: string; version: number; comparison?: string; assertCurrent(): void };
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const revision = (file: string) => { if (statSync(file).size > JOB_FILE_MAX_BYTES) throw new Error("Workspace exceeds Host limit"); return hash(readFileSync(file)); };
 
 /** Source formats remain opaque. The Host owns canonical validation, admission and one-file commit. */
 export class ReviewWorkspaces {
   private requests = new Map<string, unknown>();
+  private admissions = new Map<string, {done:Promise<void>;release():void}>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => Provider,
     private invoke: (operation: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string }>,
-    private busy: Set<string>) {}
+    private busy: Set<string>,
+    private publish?: (plugin:string,root:string,file:string,source:string,raw:unknown,image?:Buffer,embedded?:{source:string})=>any,
+    private readComparison?: (input:unknown)=>Promise<any>,
+    private find?: (file?:string)=>{plugin:string;job:string;accept:string[]}[]) {}
 
   async execute(raw: unknown): Promise<any> {
     const input = workspaceRequestSchema.parse(raw);
     if (input.action === "workspace-status") return structuredClone(this.requests.get(input.requestId) ?? { state: "unknown", guidance: "Read the workspace; never automatically replay writes." });
     const root = accessPath(input.root, this.access), boundary = new RootAccess([root]);
+    if (input.action === "workspace-find") {
+      const receipt={requestId:randomUUID(),operation:"review.workspace-find",version:1,scope:root,outcome:"success"};
+      if(!input.path)return {providers:this.find?.()??[],receipt};
+      const file=accessPath(boundary.resolve(path.isAbsolute(input.path)?input.path:path.join(root,input.path)),this.access);
+      return {targets:(this.find?.(canonicalFilePath(file))??[]).map(target=>({...target,root,workspace:path.relative(root,file),baseline:revision(file)})),receipt};
+    }
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
-    const writing = input.action !== "workspace-read", requestId = "requestId" in input ? input.requestId : randomUUID();
+    const writing = !["workspace-read","workspace-compare","workspace-image","workspace-export-check"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
     if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
-    if (this.busy.has(key)) throw new Error("Workspace operation in progress");
+    if (this.busy.has(key)) {
+      const current=this.admissions.get(key);
+      if(!writing&&current){await current.done;return this.execute(raw);}
+      throw new Error("Workspace operation in progress");
+    }
     this.busy.add(key);
+    let release!:()=>void;
+    this.admissions.set(key,{done:new Promise<void>(resolve=>{release=resolve;}),release:()=>release()});
     const receipt = (outcome: "success" | "failure" | "uncertain") => ({ requestId, operation: `review.${input.action}`, version: 1, scope: root, outcome });
     if (writing) this.requests.set(requestId, { state: "pending", receipt: receipt("uncertain") });
     let staging: string | undefined, publishing = false, saved = false;
@@ -42,7 +59,7 @@ export class ReviewWorkspaces {
         check(); if (response.error) throw new Error("Workspace provider unavailable or rejected input");
         return response.result;
       };
-      if (writing && input.baseline !== before) throw new Error("Workspace baseline conflict; read before writing");
+      if ("baseline" in input && input.baseline !== undefined && input.baseline !== before) throw new Error("Workspace baseline conflict; read before writing");
       const original = workspaceStateSchema.parse(await call("workspace-read"));
       if (original.snapshot) {
         try { validateSnapshot(original.snapshot); }
@@ -51,6 +68,51 @@ export class ReviewWorkspaces {
       const result = (state: typeof original, baseline: string, saved: boolean) => ({ ...state, baseline, workspace: { plugin: input.plugin, job: input.job, root, workspace: input.workspace },
         ...(state.snapshot ? { document: readModel(state.snapshot.source).document, documentRevision: state.snapshot.documentRevision, contentRevision: state.snapshot.contentRevision } : {}),
         completion: "not-evaluated", saved, receipt: receipt("success") });
+      const image = async (ref:string) => {
+        const expected=original.snapshot?.images.find(image=>image.revision===ref);
+        if (!expected) throw new Error("Unknown workspace image");
+        const value:any=await call("workspace-material",file,{ref});
+        const bytes=Buffer.from(value.base64,"base64");
+        if(bytes.length>10*1024*1024 || bytes.toString("base64")!==value.base64 || hash(bytes)!==ref || value.revision!==ref || value.mime!==expected.mime) throw new Error("Mixed workspace image");
+        validateImage(value.mime,bytes); return {...value,bytes};
+      };
+      if (input.action === "workspace-image") { const value=await image(input.ref); return {mime:value.mime,base64:value.base64,revision:value.revision,baseline:before,receipt:receipt("success")}; }
+      if (input.action === "workspace-compare") {
+        if (!original.snapshot || !provider.comparison || !this.publish || !this.readComparison) throw new Error("Workspace comparison unavailable; explicitly regenerate the snapshot");
+        staging=mkdtempSync(path.join(tmpdir(),"litzio-review-workspace-"));
+        const candidate=path.join(staging,"candidate"); writeFileSync(candidate,"",{flag:"wx"});
+        const generation=randomUUID();
+        // Older, intact snapshots remain readable. Do not reconstruct old correspondence with a new adapter.
+        const material:any=original.cacheState==="created-version" ? {review:provider.comparison,bundle:{generation,documentRevision:original.snapshot.documentRevision,documentHash:original.snapshot.documentRevision,sourceRevision:before},pages:[],images:[]}
+          : await call("workspace-material",file,{pageNo:input.pageNo,generation,resultFile:{path:candidate,maxBytes:16*1024*1024}});
+        if(material.review!==provider.comparison || original.cacheState!=="created-version"&&(material.images?.length!==1 || material.images[0].path!==candidate || statSync(candidate).size>16*1024*1024)) throw new Error("Invalid workspace comparison material");
+        const bundle=this.publish(input.plugin,root,file,file,material,material.images.length?readFileSync(candidate):undefined,{source:original.snapshot.source});
+        const pageNo=input.pageNo ?? Number(original.record.lastPage??1);
+        const comparison=await this.readComparison({action:"read",plugin:input.plugin,review:provider.comparison,root,bundleRef:bundle.bundleRef,pageNo});
+        check(); return {...comparison,workspaceBaseline:before,contentRevision:original.snapshot.contentRevision,completion:"not-evaluated",cacheState:original.cacheState,images:original.snapshot.images,progress:{checkedPages:original.record.checkedPages,lastPage:original.record.lastPage},receipt:receipt("success")};
+      }
+      if (input.action === "workspace-export-check" || input.action === "workspace-export") {
+        if (!original.snapshot) throw new Error("Workspace snapshot unavailable");
+        if (original.cacheState !== "current") throw new Error("Explicit regeneration is required before exporting this snapshot");
+        const workspaceName=path.relative(canonicalFilePath(root),canonicalFilePath(file));
+        const relative=input.output??path.join(path.dirname(workspaceName),`${path.basename(workspaceName,path.extname(workspaceName))}-검수중.md`);
+        if(path.isAbsolute(relative)||/^[a-z]:|^\\\\/i.test(relative)) throw new Error("Expected a Root-relative export path");
+        const output=accessPath(boundary.resolve(path.join(root,relative),true),this.access,true);
+        if(path.extname(output).toLowerCase()!==".md"||canonicalFilePath(output,true)===key) throw new Error("Expected a separate Markdown export path");
+        const targetRevision=()=>existsSync(output)?hash(readFileSync(output)):null;
+        if(input.action==="workspace-export-check") return {output:relative,path:output,targetRevision:targetRevision(),baseline:before,receipt:receipt("success")};
+        if(input.targetRevision!==targetRevision() || input.targetRevision!==null&&!input.overwrite) throw new Error("Export target conflict; inspect and explicitly confirm overwrite");
+        const targetKey=canonicalFilePath(output,true);
+        if(this.busy.has(targetKey)) throw new Error("Export target operation in progress");
+        this.busy.add(targetKey);
+        try {
+          const images=await Promise.all([...new Set(original.snapshot.images.map(image=>image.revision))].map(image));
+          const outputCheck=()=>{check();accessPath(boundary.resolve(output,true),this.access,true);if(targetRevision()!==input.targetRevision)throw new Error("Export target conflict");};
+          const exported=exportReviewDocumentFile(output,original.snapshot.source,images,this.access,outputCheck,input.targetRevision);
+          const value={...exported,mode:"current",completion:"not-evaluated",workspaceSaved:false,receipt:receipt("success")};
+          this.requests.set(requestId,value);return value;
+        } finally {this.busy.delete(targetKey);}
+      }
       if (!writing || input.action === "workspace-open" && ["current", "created-version"].includes(original.cacheState)) {
         check(); const value = result(original, before, false); if (writing) this.requests.set(requestId, value); return value;
       }
@@ -63,7 +125,7 @@ export class ReviewWorkspaces {
       if (input.action !== "workspace-progress") {
         const { input: build, images } = validatedAuthoringRequest(plan.build);
         // An internal image identity addresses bytes supplied by the provider, never an external path/URL.
-        if (build.authoring.inputs.some(item => item.blocks.some(block => block.kind === "figure" && block.imageAsset === undefined))) throw new Error("Workspace images require stable asset bindings");
+        if (build.authoring.inputs.some(item => item.blocks.some(block => block.kind === "figure" && block.imageAsset === undefined && block.imageUrl !== ""))) throw new Error("Workspace images require stable asset bindings");
         const bindings: Record<string, string> = Object.create(null);
         const imageRefs = images.map(image => {
           const ref = plan.imageRefs?.find((ref: any) => ref.key === image.key);
@@ -94,6 +156,7 @@ export class ReviewWorkspaces {
       if (writing) this.requests.set(requestId, value); return value;
     } finally {
       this.busy.delete(key);
+      this.admissions.delete(key);release();
       if (staging) { unlinkSync(path.join(staging, "candidate")); rmdirSync(staging); }
     }
   }

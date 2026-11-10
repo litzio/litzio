@@ -10,6 +10,7 @@ import { RootAccess, FileAccessError, accessPath, type FileAccess } from "../fil
 import { validateImage } from "../image-validation.ts";
 import { publicOperationError } from "./operation-result.ts";
 import { loadDocumentFile } from "../document-reader.ts";
+import { readModel } from "../document-replay.ts";
 import { REVIEW_PENDING_GUIDANCE, REVIEW_UNAVAILABLE_GUIDANCE, type ReviewPendingChange } from "../../shared/review.ts";
 
 const ref = z.string().min(1).max(512);
@@ -18,7 +19,7 @@ export const reviewRequestSchema = z.strictObject({ action: z.enum(["read", "pro
   continuation: ref.optional(), proposalId: ref.optional(), baseline: reviewBaselineSchema.optional(), requestId: z.string().uuid().optional(), input: z.json().optional() });
 const editSchema = z.strictObject({ kind: z.literal("text"), path: z.array(z.number().int().nonnegative()), from: z.string().min(1).max(32768), to: z.string().min(1).max(32768) });
 type Edit = z.infer<typeof editSchema>;
-type Bundle = { stagedImage?: {ref:string;bytes:Buffer}; stale?: boolean; actions: Set<string>; plugin: string; review: string; root: string; access: RootAccess; file: string; documentSource: string; source: string; sourceHash: string; bundle: ReviewBundle;
+type Bundle = { embedded?: boolean; stagedImage?: {ref:string;bytes:Buffer}; stale?: boolean; actions: Set<string>; plugin: string; review: string; root: string; access: RootAccess; file: string; documentSource: string; source: string; sourceHash: string; bundle: ReviewBundle;
   pages: z.infer<typeof reviewPageSchema>[]; mapping?: z.infer<typeof reviewMappingSchema>; images: z.infer<typeof completedReviewSchema>["images"];
   proposals: Map<string, ReviewProposal>; unresolved: Map<string, ReviewPendingChange>; edits: Map<string, Edit>; revision: string; undo: Map<string, { edit: Edit; before: string }> };
 class ReviewStaleError extends Error {}
@@ -35,11 +36,12 @@ export class PluginReviews {
   private requests = new Map<string, { owner: string; value: unknown }>();
   constructor(private access: FileAccess, private declaration: (plugin: string, review: string) => ReviewContribution,
     private invoke: (name: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string; errorKind?: string }>) {}
-  publish(plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer) {
+  publish(plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer, embedded?: { source: string }) {
     const data = completedReviewSchema.parse(bounded(raw)); const declaration = this.declaration(plugin, data.review);
     const boundary = new RootAccess([accessPath(root, this.access)]);
     boundary.resolve(accessPath(file, this.access)); boundary.resolve(accessPath(source, this.access));
-    const revision = textRevision(decodeUtf8(readFileSync(file))), sourceHash = hash(readFileSync(source));
+    const documentSource = embedded?.source ?? decodeUtf8(readFileSync(file));
+    const revision = textRevision(documentSource), sourceHash = hash(readFileSync(source));
     if (data.bundle.documentRevision !== revision || data.bundle.documentHash !== revision || data.bundle.sourceRevision !== sourceHash) throw new Error("Mixed review document/source revisions");
     for (const page of data.pages) if (page.generation !== data.bundle.generation || page.sourceRevision !== sourceHash) throw new Error("Mixed review generations");
     if (new Set(data.pages.map(p => p.pageNo)).size !== data.pages.length || new Set(data.images.map(i => i.ref)).size !== data.images.length) throw new Error("Duplicate review material");
@@ -48,18 +50,18 @@ export class PluginReviews {
     const bundle: ReviewBundle = { ...data.bundle, bundleRef: randomUUID(), documentRef: randomUUID() };
     if (imageBytes && data.images.length !== 1) throw new Error("Expected one staged image");
     const stagedImage = imageBytes ? {ref:data.images[0]!.ref,bytes:imageBytes} : undefined;
-    const record: Bundle = { stagedImage, actions: new Set(["propose", "approve", "reject", "undo"].filter(action => declaration[action as keyof ReviewContribution])), plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource: decodeUtf8(readFileSync(file)), source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), unresolved: new Map(), edits: new Map(), revision: randomUUID(), undo: new Map() };
+    const record: Bundle = { embedded: !!embedded, stagedImage, actions: new Set(embedded ? [] : ["propose", "approve", "reject", "undo"].filter(action => declaration[action as keyof ReviewContribution])), plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource, source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), unresolved: new Map(), edits: new Map(), revision: randomUUID(), undo: new Map() };
     for (const image of data.images) this.image(record, image.ref);
     for (const page of data.pages) if (page.imageRef && !data.images.some(i => i.ref === page.imageRef)) throw new Error("Missing image");
     const regionIds = data.pages.flatMap(p => p.regions.map(r => r.id));
     const regions = new Set(regionIds);
     if (data.mapping?.continuation) throw new Error("Incomplete review mapping unsupported");
-    const targets = new Set(loadDocumentFile(file, boundary).document.blocks.map(b => JSON.stringify(b.path)));
+    const targets = new Set((embedded ? readModel(documentSource) : loadDocumentFile(file, boundary)).document.blocks.map(b => JSON.stringify(b.path)));
     for (const entry of data.mapping?.entries ?? []) {
       if (entry.sourceIds.some(id => !regions.has(id)) || entry.targets.some(t => t.documentRevision !== revision || t.documentHash !== revision || !targets.has(JSON.stringify(t.path)))) throw new Error("Mixed mapping targets");
     }
     // Bound read-only image snapshots without discarding any K4 change or observation.
-    if (stagedImage) for (const [ref, old] of this.bundles) if (old.stagedImage && !old.actions.size && !old.proposals.size && !old.unresolved.size && old.file === file && old.plugin === plugin) this.bundles.delete(ref);
+    if (stagedImage || embedded) for (const [ref, old] of this.bundles) if ((old.stagedImage || old.embedded) && !old.actions.size && !old.proposals.size && !old.unresolved.size && old.file === file && old.plugin === plugin) this.bundles.delete(ref);
     this.bundles.set(bundle.bundleRef, record); return structuredClone(bundle);
   }
   private image(b: Bundle, ref: string) {
@@ -91,7 +93,7 @@ export class PluginReviews {
     try {
       this.checkAccess(b);
       for (const image of b.images) this.image(b, image.ref);
-      if (hash(readFileSync(b.source)) !== b.sourceHash || hash(readFileSync(b.file)) !== b.bundle.documentRevision) throw new ReviewStaleError("Review baseline is stale");
+      if (hash(readFileSync(b.source)) !== b.sourceHash || !b.embedded && hash(readFileSync(b.file)) !== b.bundle.documentRevision) throw new ReviewStaleError("Review baseline is stale");
     } catch (cause) { if (invalidatesReview(cause)) b.stale = true; throw cause; }
   }
   private baseline(b: Bundle) { return { documentRevision: b.bundle.documentRevision, proposalRevision: b.revision, sourceRevision: b.bundle.sourceRevision, mappingRevision: b.bundle.mappingRevision }; }
@@ -119,6 +121,7 @@ export class PluginReviews {
     if (!b && input.action === "status") return { state: "unknown", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, nextAction: "open-document", receipt: { requestId: input.requestId ?? randomUUID(), operation: "review.status", version: 1, scope: accessPath(input.root, this.access), outcome: "unknown" } };
     if (!b || b.plugin !== input.plugin || b.review !== input.review || b.root !== accessPath(input.root, this.access) || input.generation !== undefined && b.bundle.generation !== input.generation) throw new Error("Review bundle unavailable on this Host/Root/generation");
     this.checkAccess(b);
+    if (b.embedded && input.action !== "read" && input.action !== "status") throw new Error("Embedded review documents are read-only; use the workspace operations");
     const owner = `${input.plugin}/${input.review}/${input.bundleRef}`;
     const receipt = (outcome: string) => ({ requestId: input.requestId ?? randomUUID(), operation: `review.${input.action}`, version: 1, scope: b.root, outcome });
     if (input.action === "status") { const observed = this.requests.get(input.requestId ?? ""); return observed?.owner === owner ? structuredClone(observed.value) : { state: "unknown", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, nextAction: "open-document", documentPath: b.file, receipt: receipt("unknown") }; }
@@ -132,9 +135,9 @@ export class PluginReviews {
         if (input.continuation) throw new Error("Review material unavailable");
         const page = b.pages.find(p => p.pageNo === (input.pageNo ?? 1));
         if (!page && b.pages.length) throw new Error("Review page unavailable");
-        const document = loadDocumentFile(accessPath(b.file, this.access), b.access);
+        const document = b.embedded ? { ...readModel(b.documentSource), revision: textRevision(b.documentSource) } : loadDocumentFile(accessPath(b.file, this.access), b.access);
         const snapshot = bounded({ bundle: b.bundle, page, pages: b.pages, mapping: b.mapping, proposals: this.proposals(b), unresolved: [...b.unresolved.values()],
-          document: document.document, documentRevision: document.revision, documentHash: document.revision, documentPath: document.path,
+          document: document.document, documentRevision: document.revision, documentHash: document.revision, ...("path" in document ? { documentPath: document.path } : {}),
           regionPages: Object.fromEntries(b.pages.flatMap(p => p.regions.map(r => [r.id, p.pageNo]))),
           baseline: { ...this.baseline(b), sourceRevision: stale ? b.bundle.sourceRevision : hash(readFileSync(b.source)) }, pageCount: b.pages.length });
         let image;

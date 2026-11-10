@@ -11,7 +11,7 @@ import { ReviewWorkspaces } from "./review-workspaces.ts";
 
 const hash = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
 const revision = (file: string) => existsSync(file) ? hash(file) : null;
-type Provider = { comparison?: string; operation: string; version: number; assertCurrent: () => void };
+type Provider = { workspace?: boolean; comparison?: string; operation: string; version: number; assertCurrent: () => void };
 /** Only connections are Host state. Plugin-owned source files carry the portable correction ledger. */
 export class GeneratedDocuments {
   private busy = new Set<string>();
@@ -20,8 +20,9 @@ export class GeneratedDocuments {
   private workspaces: ReviewWorkspaces;
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => Provider,
     private invoke: (operation: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string }>,
-    private publish?: (plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer) => any,
-    private readComparison?: (input: unknown) => Promise<any>) { this.workspaces = new ReviewWorkspaces(access, declaration, invoke, this.busy); }
+    private publish?: (plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer, embedded?:{source:string}) => any,
+    private readComparison?: (input: unknown) => Promise<any>,
+    findWorkspace?: (file?:string)=>{plugin:string;job:string;accept:string[]}[]) { this.workspaces = new ReviewWorkspaces(access, declaration, invoke, this.busy, publish, readComparison, findWorkspace); }
   private paths(root: string, document: string) {
     root = accessPath(root, this.access);
     const boundary = new RootAccess([root]);
@@ -48,7 +49,8 @@ export class GeneratedDocuments {
   /** Called on the same K1 publication path, without interpreting source filenames or bytes. */
   register(plugin: string, job: string, root: string, source: string, file: string, documentRevision: string, sourceRevision: string, inputs?: unknown) {
     const p = this.paths(root, path.relative(root, file));
-    p.resolve(source); this.declaration(plugin, job).assertCurrent();
+    p.resolve(source); const provider=this.declaration(plugin, job); provider.assertCurrent();
+    if(provider.workspace) throw new Error("Use the review workspace operations and explicit current export");
     if (hash(source) !== sourceRevision) throw new Error("Generated source changed during document creation");
     this.saveLink(p.linkFile, { plugin, job, source: path.relative(path.dirname(file), source).split(path.sep).join("/"), generatedFrom: sourceRevision, generatedRevision: documentRevision, ...(inputs ? { inputs: generatedInputsSchema.parse(inputs) } : {}) }, revision(p.linkFile));
   }
@@ -83,6 +85,7 @@ export class GeneratedDocuments {
     let progressSaved = false, correctionsSaved = false, documentRegenerated = false, linkSaved = false, staging: string | undefined;
     try {
       const provider = this.declaration(link.plugin, link.job);
+      if(provider.workspace) throw new Error("Use the review workspace operations and explicit current export");
       const baseline = () => ({ sourceRevision: hash(p.resolve(source)), documentRevision: revision(p.resolve(p.file, true)), linkRevision: revision(p.linkFile) });
       let before = baseline();
       const check = () => {

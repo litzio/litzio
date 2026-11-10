@@ -826,4 +826,21 @@ progress는 생성 호출 없이 캐시 source/key/targets를 그대로 보존�
 
 Docling format 2는 원본 PDF/JSON/manifest와 review.json에 두 파생 cache entries를 추가한다. key는 immutable JSON hash·patches content revision·adapter 의미 버전·Core authoring/serialization 계약·이미지 binding을 포함하고 workspace 전체 hash·진행 정보는 제외한다. 생성 계약의 버전은 패키지 버전과 별도다. 이미지 바이트는 기존 JSON에 보존하고 cache에 복제하지 않는다. 원본/ledger 손상은 파생 캐시에서 역복구하지 않는다. 과거 archive migration은 없다.
 
-이 PR은 P1a 저장/읽기 기반이다. 기존 K1 외부 문서 생성과 generated 비교 화면은 유지되며 새 workspace 대조/material/중간 export는 P1b이다. 기존 source-first generated 작업을 새 원자적 workspace 저장으로 혼동하지 않는다. 새 renderer·공식 완료 export는 구현하지 않았다. Host/CLI 실제 호출·측정 범위와 미확인 항목은 [3단계 P1a 기록](docling-review-stage3.md#p1a-저장읽기-기반-구현과-측정)에 남긴다.
+P1a 제출 시점에는 저장/읽기 기반과 기존 K1 외부 문서 생성만 있었다. 현재 workspace 대조/material/중간 export와 Docling K1 전환은 아래 P1b 절을 따른다. 기존 source-first generated 작업을 새 원자적 workspace 저장으로 혼동하지 않는다. 새 renderer·공식 완료 export는 구현하지 않았다. Host/CLI 실제 호출·측정 범위와 미확인 항목은 [3단계 P1a 기록](docling-review-stage3.md#p1a-저장읽기-기반-구현과-측정)에 남긴다.
+
+
+## Review workspace 대조·중간 export (#1462 P1b)
+
+SDK 0.4.0의 native-document provider 선언은 `workspace:true`를 선택할 수 있다. generatedDocument/comparison 선언이 필요하며 workspace-only 진입으로 K1 start는 거부한다. 기존 provider 선언을 재사용해 별도 plugin 전용 backend를 만들지 않는다. `workspace-find {root,path?}`는 활성 provider의 accept/대상을 Root 범위에서 읽고 receipt를 반환한다. Explorer는 이 선언으로 기존 파일 preview와 workspace 대조 열기를 구분하며 문서 편집 열기는 유지한다. #1465의 공용 대조 작업 탭 진입 방식을 사용하고 workspace 참조와 실제 Markdown 참조는 구분한다. 두 provider가 같은 파일에 맞으면 임의로 하나를 실행하지 않는다.
+
+`workspace-compare`는 공통 workspace 입력과 pageNo/baseline 선택 값을 받는다. provider의 `workspace-material`은 Host-created PNG staging 파일과 effective pages/mapping을 제공하고 Host는 기존 PluginReviews의 publication·revision·실제 Core targets·PNG 검증을 재사용한다. 내부 canonical source를 실제 workspace 파일과 별도 embedded reader로 제공하며 파일을 풀거나 가짜 .md를 만들지 않는다. snapshot에 documentPath가 없고 새 scoped bundle/document refs가 있다. workspace 전체 revision 변경은 scoped 읽기를 stale로 만든다. embedded review는 일반 K4 Core 승인/Undo 쓰기를 받지 않는다.
+
+`workspace-image {baseline,ref}`는 snapshot이 선언한 SHA-256 이미지 한 건만 읽는다. provider가 준 mime/base64를 Host가 original binding·hash·이미지 검증과 대조하고 UI는 read-only image context에서 일시 data URL로 표시한다. canonical identity와 archive 소유 bytes는 유지하고 외부 assets/중복 cache image는 만들지 않는다. 페이지와 그림은 같은 Root/provider/workspace baseline으로 검증하며 페이지 geometry·대응·문서 revision이 다른 응답은 UI가 거부한다. 생성 계약이 다른 cache는 old source만 읽고 새 대응을 계산하지 않으며 명시 regenerate 후 대조/진행/내보내기를 허용한다.
+
+`workspace-export-check`는 baseline/output?로 일반 파일의 path·상대 이름·targetRevision을 읽는다. `workspace-export`는 baseline/requestId, mode:current, output?, targetRevision와 overwrite를 받는다. CLI는 같은 action 이름의 `review <action> --input ... --host ... --json`이다. 기본 이름은 canonical workspace 파일명의 `-검수중.md`이며 Windows 짧은 alias 이름을 기본 이름으로 내보내지 않는다. 같은 파일/Root 밖/비Markdown 출력과 stale target은 거부한다. 기존 파일은 명시 overwrite와 정확한 revision이 필요하다. UI는 열린 출력 문서의 미저장 변경을 거부한다.
+
+export는 검증한 내부 source를 Core media-reference operation으로 변환하고 공용 image asset publication·canonical 문서 쓰기를 사용한다. source·ledger·connection/export 기록을 저장하지 않고 completion:not-evaluated다. 이미지/문서 충돌·실패는 기존 official write path 결과이며 이미 게시된 assets를 별도 rollback/삭제하지 않는다. request status는 daemon 수명이며 UI는 응답 유실 때 동일 UUID를 조회하고 재전송하지 않는다. final mode/완료 gate는 제공하지 않는다.
+
+Docling adapter는 `current/snapshot.json`에 final correspondence를 추가해 source와 함께 hash로 고정한다. key의 adapter 의미 버전도 바꾼다. P1a 캐시는 이전 계약 결과로 보존·읽고 명시적으로 다시 만든다. 이미지가 없던 그림은 converter의 빈 이미지 자리/손실 기록으로 보존하며 외부 imageUrl로 오인해 전체 workspace를 거부하지 않는다. 실제 검증 범위·Windows 8.3·시각 근거는 [P1b 기록](docling-review-stage3.md#p1b-내부-대조이미지명시-export)을 따른다.
+
+workspace 선언은 K1 시작과 기존 generated-document 연결/재생성으로 외부 문서를 만들지 않는다. 같은 provider의 검수는 workspace 작업을 사용하고 일반 문서는 명시 current export로만 만든다. 같은 workspace 작업 중 읽기는 대기한 뒤 revision을 다시 검증하며, 쓰기는 기존 배타적 admission과 baseline 충돌을 유지한다.

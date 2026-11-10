@@ -7,8 +7,8 @@
     "name": "Community"
   },
   "name": "Docling",
-  "description": "docling-serve 연결 확인, PDF 원본 보관과 Litzio 문서 만들기",
-  "version": "0.0.8",
+  "description": "docling-serve 연결 확인, PDF 원본 보관·검수 작업공간·현재 상태 내보내기",
+  "version": "0.0.9",
   "requiresSdk": ">=0.4.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
@@ -565,7 +565,8 @@
                 "progress",
                 "workspace-read",
                 "workspace-prepare",
-                "workspace-seal"
+                "workspace-seal",
+                "workspace-material"
               ]
             },
             "patches": {
@@ -608,6 +609,9 @@
             },
             "snapshot": {
               "type": "object"
+            },
+            "ref": {
+              "type": "string"
             }
           },
           "required": [
@@ -628,8 +632,7 @@
         "icon": "Table",
         "primary": true,
         "jobs": [
-          "convert-pdf",
-          "create-document"
+          "convert-pdf"
         ]
       }
     ],
@@ -648,7 +651,7 @@
       },
       {
         "id": "create-document",
-        "title": "Litzio 문서 만들기",
+        "title": "검수 작업공간",
         "accept": [
           ".docling"
         ],
@@ -657,7 +660,8 @@
         "stop": "job-stop",
         "resultKind": "native-document",
         "generatedDocument": "generated-document",
-        "comparison": "compare"
+        "comparison": "compare",
+        "workspace": true
       }
     ],
     "healthCheck": "connection",

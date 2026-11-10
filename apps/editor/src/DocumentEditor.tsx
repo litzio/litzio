@@ -128,7 +128,7 @@ type DocumentEditorProps = ReadingCallbacks & {
   bibliography?: DocumentFileResponse["bibliography"];
   /** Internal initialization only; the opening model remains the structural baseline. */
   initialSnapshot?: EditorSnapshot;
-  documentPath: string;
+  documentPath?: string;
   onStructuralReject: (reason?: UiMessage) => void;
   onNotice?: (message: UiMessage, action?: () => void) => void;
   onDraftChange?: (active: boolean) => void;
@@ -234,7 +234,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const assetClient = useHostClient();
   const [editorOptions] = useState<UseEditorOptions>(() => {
     const initialDeletedPaths: string[] = [];
-    const extensions = createEditorExtensions(projection, onStructuralReject, reportDraft, () => documentPathRef.current, validateFigure, onAssetPendingChange, onAssetError,
+    const extensions = createEditorExtensions(projection, onStructuralReject, reportDraft, () => documentPathRef.current ?? "", validateFigure, onAssetPendingChange, onAssetError,
       sourcePath => sourcePath === undefined ? activeDrafts.current.size > 0
         : [...activeDrafts.current.values()].some(draft => draft.path === sourcePath), chooseImage, initialDeletedPaths, onAssetChange, assetClient);
     const restored = initialSnapshot && prepareEditorSnapshot(getSchema(extensions), projection, initialSnapshot);
@@ -917,7 +917,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       {!comparison ? <NumberingNotice editor={editor} onReveal={revealBlock} disabled={settingsDisabled} /> : null}
       {!preview || editor.state.doc.attrs.title ? <DocumentTitle editor={editor} /> : null}
       <DocumentPathContext.Provider value={documentPath}><ImageRenameContext.Provider value={renameImage}>
-        <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath}>
+        <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath ?? ""}>
           <EditorContent className={comparison ? "visual-engine-content" : undefined} editor={editor} />
           {!comparison ? <ReadingPreview editor={editor} host={host} documentPath={documentPath} /> : null}
         </BibliographyContent>

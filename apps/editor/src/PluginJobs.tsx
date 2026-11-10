@@ -48,7 +48,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen, onCompare }:
       if (latest) { setJob(latest); changeRoot(latest.root); setSelected(`${latest.plugin}/${latest.job}`); }
     }).catch(error => { if (!lifetime.current?.signal.aborted) setProblem(String(error)); });
   }, [client]);
-  const choices = plugins.filter(plugin => plugin.running).flatMap(plugin => (plugin.jobs ?? []).map(binding => ({ plugin, binding, key: `${plugin.id}/${binding.id}` })));
+  const choices = plugins.filter(plugin => plugin.running).flatMap(plugin => (plugin.jobs ?? []).filter(binding=>!(binding.resultKind==="native-document"&&binding.workspace)).map(binding => ({ plugin, binding, key: `${plugin.id}/${binding.id}` })));
   const choice = choices.find(item => item.key === selected);
   useEffect(() => {
     if (choice && file) setOutput(defaultJobOutput(choice.binding, file.relativePath));

@@ -231,12 +231,19 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-workspace-")), file = path.join(root, "source.docling");
   const document = doclingFixture();
   document.pictures[0].image = {mimetype:"image/png",dpi:72,size:{width:1,height:1},uri:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII="};
+  document.pages[1].image = document.pictures[0].image;
+  document.pictures.push({self_ref:"#/pictures/1",label:"picture",captions:[],children:[]});
+  document.body.children.push({$ref:"#/pictures/1"});
+  document.texts[4].prov=[{page_no:1,bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
   const original = archive.createDoclingArchiveFromResult({sourceName:"sample.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
     task:{id:"workspace",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"success",errors:[],document:{json_content:document}}))});
   writeFileSync(file, original);
   const access = new RootAccess([root]); let fail = "", reads = 0, builds = 0;
   let hold: (() => void) | undefined, entered: (() => void) | undefined;
-  const service = () => new GeneratedDocuments(access, () => ({operation:"fixture.provider",version:1,assertCurrent(){}}), async (_op, raw: any) => {
+  const {PluginReviews}=await import("../server/plugins/reviews.ts");
+  let reviews!:InstanceType<typeof PluginReviews>;
+  const service = () => { reviews=new PluginReviews(access,()=>({id:"compare",title:"Compare",read:{operation:"fixture.provider",version:1}}),async()=>({}));
+  return new GeneratedDocuments(access, () => ({operation:"fixture.provider",comparison:"compare",workspace:true,version:1,assertCurrent(){}}), async (_op, raw: any) => {
     if (raw.mode === "workspace-prepare" && !raw.progress) builds++;
     if (raw.mode === "workspace-read") reads++;
     if (raw.mode === fail) throw new Error("Injected provider failure");
@@ -245,7 +252,7 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     if (fail === "race" && raw.mode === "workspace-seal") writeFileSync(file, original);
     if (fail === "mixed" && raw.mode === "workspace-read" && raw.file !== file && result.snapshot) result.snapshot.inputs.find((item: any) => item.targets.length).targets[0].documentHash = "0".repeat(64);
     return {result};
-  });
+  },(...args)=>reviews.publish(...args),input=>reviews.execute(input)); };
   let host = service();
   const base = {root, workspace:"source.docling",plugin:"fixture",job:"import"};
   const read = () => host.execute({...base,action:"workspace-read"});
@@ -253,11 +260,32 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
   const patch = {patches:[{type:"text",self_ref:"#/texts/4",text:"Corrected canonical text"}]};
   try {
     assert.equal((await read()).cacheState,"missing"); assert.deepEqual(readFileSync(file),original,"read never writes");
+    const legacy=await host.execute({action:"generated-open",root,source:"source.docling",document:"forbidden.md",plugin:"fixture",job:"import",baseline:{sourceRevision:digest(original),documentRevision:null,linkRevision:null},requestId:randomUUID()});
+    assert.equal(legacy.receipt.outcome,"failure");assert.match(legacy.error,/workspace operations/);
     const opened = await write("workspace-open");
     assert.equal(opened.cacheState,"current", JSON.stringify(opened)); assert.equal(opened.saved,true);
     assert.match(opened.snapshot.source,/review-asset:/); assert.equal(opened.snapshot.images.length,1);
     assert.ok(opened.document.blocks.length); assert.equal(opened.documentPath,undefined);
     assert.deepEqual(fs.readdirSync(root),["source.docling"],"no external Markdown, assets or connection file");
+    const compared=await host.execute({...base,action:"workspace-compare"});
+    assert.equal(compared.state,"ready",JSON.stringify(compared));assert.equal(compared.snapshot.documentPath,undefined);
+    assert.equal(compared.snapshot.documentHash,opened.documentRevision);assert.ok(compared.snapshot.mapping.entries.length);
+    const firstBundle=compared.snapshot.bundle.bundleRef;
+    const material=await host.execute({...base,action:"workspace-image",baseline:opened.baseline,ref:opened.snapshot.images[0].revision});
+    assert.equal(material.mime,"image/png");assert.ok(material.base64);
+    assert.deepEqual(fs.readdirSync(root),["source.docling"],"material reads cannot create external documents or assets");
+    const inspect=await host.execute({...base,action:"workspace-export-check",baseline:opened.baseline});
+    assert.match(inspect.output,/검수중\.md$/);assert.equal(inspect.targetRevision,null);
+    const archiveBeforeExport=readFileSync(file);
+    const exported=await host.execute({...base,action:"workspace-export",mode:"current",baseline:opened.baseline,targetRevision:null,requestId:randomUUID()});
+    assert.equal(exported.receipt.outcome,"success",JSON.stringify(exported));assert.equal(exported.completion,"not-evaluated");
+    assert.deepEqual(readFileSync(file),archiveBeforeExport);assert.doesNotMatch(readFileSync(exported.path,"utf8"),/review-asset:/);
+    assert.ok(fs.readdirSync(path.join(root,"assets")).length);
+    const conflict=await host.execute({...base,action:"workspace-export",mode:"current",baseline:opened.baseline,targetRevision:exported.revision,requestId:randomUUID()});
+    assert.equal(conflict.receipt.outcome,"failure");
+    const overwritten=await host.execute({...base,action:"workspace-export",mode:"current",baseline:opened.baseline,targetRevision:exported.revision,overwrite:true,requestId:randomUUID()});
+    assert.equal(overwritten.receipt.outcome,"success",JSON.stringify(overwritten));
+    fs.unlinkSync(exported.path);for(const name of fs.readdirSync(path.join(root,"assets")))fs.unlinkSync(path.join(root,"assets",name));fs.rmdirSync(path.join(root,"assets"));
     const cached = readFileSync(file), snapshot = opened.snapshot;
     await read(); await write("workspace-open"); assert.equal(builds,1,"reads and an already prepared open never convert");
     const progress = await write("workspace-progress",{progress:{checkedPages:[1],lastPage:1}});
@@ -287,6 +315,7 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     assert.equal(recovered.saved,true,JSON.stringify(recovered)); assert.match(recovered.snapshot.source,/Corrected canonical text/);
     await assert.rejects(write("workspace-patch",patch,digest(readFileSync(file)),requestId),/Duplicate requestId/);
     host=service(); assert.equal((await host.execute({action:"workspace-status",requestId})).state,"unknown");
+    await assert.rejects(reviews.execute({action:"read",plugin:"fixture",review:"compare",root,bundleRef:firstBundle,pageNo:1}),/unavailable/);
     assert.deepEqual((await read()).snapshot,recovered.snapshot,"restart verifies the same portable source and targets");
     const assistant=await executeReadReviewDocument({generatedDocuments:host},base,{folders:access,access,permissionMode:"read-only"});
     assert.deepEqual(assistant.snapshot,recovered.snapshot); assert.equal(assistant.saved,false);
@@ -294,8 +323,12 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     // Windows aliases and concurrent writes share the filesystem identity admission lock.
     let signal!: () => void; const waiting=new Promise<void>(resolve=>{signal=resolve;}); entered=signal;
     const pending=write("workspace-progress",{progress:{checkedPages:[],lastPage:1}}); await waiting;
-    await assert.rejects(host.execute({...base,workspace:process.platform==="win32"?"SOURCE.DOCLING":"source.docling",action:"workspace-read"}),/operation in progress/);
+    await assert.rejects(host.execute({...base,workspace:process.platform==="win32"?"SOURCE.DOCLING":"source.docling",action:"workspace-progress",baseline:digest(readFileSync(file)),requestId:randomUUID(),progress:{checkedPages:[],lastPage:1}}),/operation in progress/);
+    let readFinished=false;
+    const queuedRead=host.execute({...base,action:"workspace-read"}).then(value=>{readFinished=true;return value;});
+    await new Promise(resolve=>setImmediate(resolve));assert.equal(readFinished,false);
     entered=undefined; hold!(); await pending;
+    assert.equal((await queuedRead).baseline,digest(readFileSync(file)));
     // Preserve an external writer if the baseline changes after preparation.
     fail="race"; assert.equal((await write("workspace-patch",patch)).receipt.outcome,"failure"); assert.deepEqual(readFileSync(file),original); fail="";
     await write("workspace-open");
@@ -303,11 +336,15 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     const metadata=JSON.parse(intact.cacheEntries.get("current/snapshot.json").toString());
     metadata.authoringContract="old-core-contract";
     metadata.cacheKey=digest(JSON.stringify([metadata.contentRevision,metadata.adapterVersion,metadata.authoringContract,metadata.images]));
-    const {integrity: _integrity,...saved}=metadata;
-    metadata.integrity=digest(JSON.stringify([intact.cacheEntries.get("current/document.md").toString(),saved]));
+    const {integrity: _integrity,correspondence,...saved}=metadata;
+    metadata.integrity=digest(JSON.stringify([intact.cacheEntries.get("current/document.md").toString(),saved,correspondence]));
     intact.cacheEntries.set("current/snapshot.json",Buffer.from(JSON.stringify(metadata)));
     writeFileSync(file,archive.rewriteReview(intact,intact.reviewBytes));
     const older=readFileSync(file); assert.equal((await write("workspace-open")).cacheState,"created-version"); assert.deepEqual(readFileSync(file),older);
+    const oldComparison=await host.execute({...base,action:"workspace-compare"});
+    assert.equal(oldComparison.cacheState,"created-version");assert.ok(oldComparison.snapshot.document.blocks.length);
+    assert.equal(oldComparison.snapshot.page,undefined);assert.equal(oldComparison.snapshot.mapping,undefined);
+    assert.deepEqual(readFileSync(file),older,"old source reads never rebuild current correspondence");
     assert.equal((await write("workspace-patch",patch)).receipt.outcome,"failure");
     assert.equal((await write("workspace-regenerate")).cacheState,"current");
     const mixedLedger=archive.readDoclingArchive(readFileSync(file));
@@ -325,7 +362,7 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     assert.deepEqual(readFileSync(file),invalidBytes,"never recover source/ledger from a derived cache");
     assert.deepEqual(fs.readdirSync(root),["source.docling"]);
     assert.ok(reads>0);
-  } finally { fs.unlinkSync(file); fs.rmdirSync(root); }
+  } finally { if(fs.existsSync(path.join(root,"assets"))){for(const name of fs.readdirSync(path.join(root,"assets")))fs.unlinkSync(path.join(root,"assets",name));fs.rmdirSync(path.join(root,"assets"));}for(const name of fs.readdirSync(root))fs.unlinkSync(path.join(root,name));fs.rmdirSync(root); }
 });
 
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {

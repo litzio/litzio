@@ -18,6 +18,11 @@ export const workspaceStateSchema = z.strictObject({
 const common = { root: id, workspace: id, plugin: id, job: id };
 export const workspaceRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ ...common, action: z.literal("workspace-read") }),
+  z.strictObject({ action: z.literal("workspace-find"), root: id, path: id.optional() }),
+  z.strictObject({ ...common, action: z.literal("workspace-compare"), pageNo: z.number().int().positive().optional(), baseline: hash.optional() }),
+  z.strictObject({ ...common, action: z.literal("workspace-image"), baseline: hash, ref: hash }),
+  z.strictObject({ ...common, action: z.literal("workspace-export-check"), baseline: hash, output: id.optional() }),
+  z.strictObject({ ...common, action: z.literal("workspace-export"), mode: z.literal("current"), baseline: hash, requestId: z.uuid(), output: id.optional(), targetRevision: hash.nullable(), overwrite: z.boolean().default(false) }),
   ...(["workspace-open", "workspace-regenerate"] as const).map(action => z.strictObject({ ...common, action: z.literal(action), baseline: hash, requestId: z.uuid() })),
   z.strictObject({ ...common, action: z.literal("workspace-patch"), baseline: hash, requestId: z.uuid(), patches: z.array(z.record(z.string(), z.unknown())).min(1).max(2000) }),
   z.strictObject({ ...common, action: z.literal("workspace-progress"), baseline: hash, requestId: z.uuid(), progress: generatedProgressSchema }),

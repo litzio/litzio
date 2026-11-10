@@ -1,6 +1,15 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Check request status": "Check request status",
+  "Regenerate review snapshot": "Regenerate review snapshot",
+  "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.": "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.",
+  "Replace the existing document": "Replace the existing document",
+  "Output file": "Output file",
+  "Save or close the unsaved target document before exporting.": "Save or close the unsaved target document before exporting.",
+  "This exports a regular document in review. It does not mark review complete.": "This exports a regular document in review. It does not mark review complete.",
+  "Export current state": "Export current state",
+  "Export current state…": "Export current state…",
   "Inspect the folder again before moving it to Trash.": "Inspect the folder again before moving it to Trash.",
   "The folder changed or could not be fully checked. Close this dialog and confirm again.": "The folder changed or could not be fully checked. Close this dialog and confirm again.",
   "Folder contents could not be fully checked. Moving to Trash is unavailable.": "Folder contents could not be fully checked. Moving to Trash is unavailable.",
@@ -1329,6 +1338,15 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Check request status": "요청 상태 확인",
+  "Regenerate review snapshot": "검수 문서 다시 만들기",
+  "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.": "이전 생성 계약의 문서입니다. 대조하거나 확인 기록을 바꾸려면 명시적으로 다시 만드세요.",
+  "Replace the existing document": "기존 문서 덮어쓰기",
+  "Output file": "출력 파일",
+  "Save or close the unsaved target document before exporting.": "내보내기 전에 대상 문서의 미저장 변경을 저장하거나 문서를 닫으세요.",
+  "This exports a regular document in review. It does not mark review complete.": "검수 중인 현재 상태를 일반 문서로 내보냅니다. 검수 완료로 표시하지 않습니다.",
+  "Export current state": "현재 상태로 내보내기",
+  "Export current state…": "현재 상태로 내보내기…",
   "Inspect the folder again before moving it to Trash.": "폴더를 휴지통으로 이동하기 전에 다시 확인하세요.",
   "The folder changed or could not be fully checked. Close this dialog and confirm again.": "폴더가 변경되었거나 전체 내용을 확인하지 못했습니다. 창을 닫고 다시 확인하세요.",
   "Folder contents could not be fully checked. Moving to Trash is unavailable.": "폴더 전체 내용을 확인하지 못해 휴지통으로 이동할 수 없습니다.",
