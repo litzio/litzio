@@ -27,8 +27,9 @@ export function assistantWidth() { try { const value = Number(localStorage.getIt
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 
 export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; restores?: string[]; text: string; references: AssistantFileReference[] };
+export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
-type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
@@ -36,7 +37,7 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ submissions, setSubmissions, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -96,9 +97,26 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
   }, [message]);
   const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
+  const panelOpen = useRef(open); panelOpen.current = open;
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const enabled = !!settings;
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
+  // Read acknowledgement is local presentation state; conversation/submission owners stay unchanged.
+  const lastTurn = conversation?.turns.at(-1);
+  const completion = lastTurn?.status === "completed" ? `${conversation!.id}:${lastTurn.id}` : undefined;
+  const [seenCompletion, setSeenCompletion] = useState<string>();
+  useEffect(() => { if (open) setSeenCompletion(completion); }, [open, completion]);
+  const unresolved = visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id)));
+  const needsAttention = !!conversation?.userInput || lastTurn?.status === "failed" || unresolved.some(value => ["rejected", "unknown"].includes(value.receipt.status));
+  const working = active || unresolved.some(value => value.receipt.status === "pending");
+  const buttonStatus: AssistantButtonStatus = open ? undefined : needsAttention ? "attention" : working ? "working" : completion && completion !== seenCompletion ? "completed" : undefined;
+  useEffect(() => { onStatus(buttonStatus); }, [buttonStatus, onStatus]);
+  useEffect(() => () => { onStatus(undefined); }, [onStatus]);
+  // Keep the same nonoverlapping observer for hidden work, then stop at rest.
+  const observe = open || active || !!conversation?.userInput || unresolved.some(value => ["pending", "unknown", "accepted"].includes(value.receipt.status) && !value.receipt.turnFailed);
+  // Closing a setup refresh must not strand an already-admitted turn/send.
+  // Failed setup is still blocked by `setup` below.
+  const observationReady = ready || !open && (active || unresolved.length > 0);
   const defaults = (value: AssistantSettings) => { setProvider(value.provider); setPermissionMode(value.permissionMode); setModel(value.model); setEffort(value.reasoningEffort); setMode(models?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); };
   useEffect(() => {
     const refreshingSettings = initializedSettings.current !== settingsRevision;
@@ -136,12 +154,15 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
       if (alive) setReady(true);
     }).catch(error => { if (alive) setSetup(error.message); });
     return () => {
-      alive = false; initialFocus.current = false; setReady(false);
-      providerVersion.current++; busy.current = false; setPending(false);
-      setSubmissions(previous => previous.map(value => value.hostId === hostId && value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
+      alive = false; initialFocus.current = false;
       document.removeEventListener("focusin", cancelInitialFocus);
     };
   }, [open, settingsRevision]);
+  // Hiding the panel is not a provider/scope change: a late send reply still belongs here.
+  useEffect(() => () => {
+    providerVersion.current++; busy.current = false; setPending(false);
+    setSubmissions(previous => previous.map(value => value.hostId === hostId && value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
+  }, [settingsRevision]);
   useLayoutEffect(() => {
     if (open && ready && enabled && !setup && initialFocus.current) {
       initialFocus.current = false;
@@ -170,7 +191,7 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
     });
   }, [conversation, hostId, setSubmissions]);
   useEffect(() => {
-    if (!open || !ready || !enabled || setup) return;
+    if (!observe || !observationReady || !enabled || setup) return;
     let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
     const schedule = () => {
       if (alive && document.visibilityState === "visible" && !polling && timer === undefined) timer = setTimeout(poll, 600);
@@ -192,9 +213,9 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
       const id = current.current?.id;
       if (!id || !alive || document.visibilityState !== "visible") { polling = false; schedule(); return; }
       const pollStartedAt = performance.now();
-      try { const next = await request<AssistantConversation & DisplaySnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}&displayClient=${encodeURIComponent(displayClient)}`);
+      try { const next = await request<AssistantConversation & DisplaySnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}${panelOpen.current ? `&displayClient=${encodeURIComponent(displayClient)}` : ""}`);
         if (alive && document.visibilityState === "visible") {
-          if (next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
+          if (panelOpen.current && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
             const command = next.displayRequest;
             // An ACK can be lost; retransmit the reply, never apply the request twice.
             let reply = displayReplies.current.get(command.id);
@@ -215,7 +236,7 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
     document.addEventListener("visibilitychange", visibilityChanged);
     schedule();
     return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
-  }, [open, conversation?.id, ready, enabled, setup, settingsRevision, displayClient]);
+  }, [observe, conversation?.id, observationReady, enabled, setup, settingsRevision, displayClient]);
   useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation, submissions]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
