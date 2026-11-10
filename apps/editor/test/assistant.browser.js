@@ -1099,6 +1099,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await message.fill('Prompt lost before provider record');
   await message.press('Enter');
   await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
+  await expect(panel.locator('.assistant-turn .assistant-user').filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
   const failedPrompt = selected.turns.at(-1);
   failedPrompt.status = 'failed'; failedPrompt.error = 'Prompt transport failed before recording';
   const failedPromptId = sent.at(-1).submissionId;
@@ -1122,6 +1123,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   // Clearing a restored draft detaches its lineage; an unrelated accepted send cannot erase it.
   await message.fill(''); await draftChips.getByRole('button').click();
   await message.fill('Different request after clearing restored draft'); await message.press('Enter');
+  await expect(panel.locator('.assistant-turn .assistant-user').filter({ hasText: 'Different request after clearing restored draft' })).toHaveCount(1);
+  await expect(panel.locator('.assistant-submission')).toHaveCount(1);
   await expect(panel.locator('.assistant-submission')).toContainText('Prompt lost before provider record');
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
