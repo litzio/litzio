@@ -452,9 +452,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     </div>
     <div className="assistant-reading">
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
-      onWheel={event => { if (event.deltaY < 0) following.current = false; }}
-      onPointerDown={event => { if (event.target === event.currentTarget) following.current = false; }}
-      onKeyDown={event => { if (["ArrowUp", "PageUp", "Home"].includes(event.key)) following.current = false; }}>
+      onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
     <div ref={transcriptContent}>
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {

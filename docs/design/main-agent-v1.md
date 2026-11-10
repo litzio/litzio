@@ -1654,8 +1654,10 @@ The existing #1424 observer and attention priority are unchanged.
 
 - The transcript follows new output while at the bottom (2px rounding tolerance).
   User scrolling away retains the reading position, including within the previous
-  180px follow threshold. Upward wheel/keyboard intent and scrollbar pointer-down
-  release following before a deferred resize can compete with the scroll event.
+  180px follow threshold. Upward wheel intent releases following before a deferred
+  resize can compete with the scroll event, only when upward scrolling is possible.
+  Other scrolling uses the actual native scroll position; typing or clicking empty
+  space does not detach following.
   Reaching the bottom, explicitly jumping there or sending
   a message resumes following. Conversation/history navigation starts at the end;
   hiding/reopening the same panel retains its reading choice. Resize and deferred
