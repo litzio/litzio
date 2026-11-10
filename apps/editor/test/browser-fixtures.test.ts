@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -7,6 +7,58 @@ import { parse, serialize, getEditableDocument, validateStructure, unresolvedRef
 import { prepareBrowserFixtures, REPOSITORY_ROOT, SCRATCH_DIRS, SOURCE_DIRS } from "./browser/fixtures.ts";
 import { NOTIFICATION_SCENARIOS, HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./browser/scenarios.ts";
 import { classifyConsoleErrors } from "./browser/console-errors.ts";
+import { browserHostEnvironment } from "./browser/host-environment.ts";
+import { hostPaths } from "../server/host-paths.ts";
+
+test("owned browser Hosts isolate persisted jobs and app paths between runs", () => {
+  const first = browserHostEnvironment({}), second = browserHostEnvironment({});
+  try {
+    const paths = [first, second].map(run => hostPaths({ packaged: true }, run.env));
+    mkdirSync(path.dirname(paths[0].jobHistory), { recursive: true });
+    writeFileSync(paths[0].jobHistory, "previous run");
+    assert.notEqual(paths[0].jobHistory, paths[1].jobHistory);
+    assert.equal(existsSync(paths[1].jobHistory), false);
+    for (const key of ["LITZIO_DAEMON_DIR", "LITZIO_PLUGINS_SETTINGS_FILE", "LITZIO_ASSISTANT_CWD", "LITZIO_ASSISTANT_SETTINGS_FILE"] as const) {
+      assert.notEqual(first.env[key], second.env[key]);
+      assert.ok(path.relative(first.env.LITZIO_BROWSER_DAEMON_DIR!, first.env[key]!).startsWith("..") === false);
+    }
+  } finally { first.cleanup(); second.cleanup(); }
+  assert.equal(existsSync(first.env.LITZIO_BROWSER_DAEMON_DIR!), false);
+  assert.equal(existsSync(second.env.LITZIO_BROWSER_DAEMON_DIR!), false);
+});
+
+test("browser cleanup preserves explicit Host data and never owns an external server", () => withTmp(directory => {
+  const file = path.join(directory, "plugin-jobs.json");
+  writeFileSync(file, "keep");
+  const host = browserHostEnvironment({ LITZIO_DATA_DIR: directory });
+  assert.equal(host.env.LITZIO_DATA_DIR, directory);
+  host.cleanup();
+  assert.equal(readFileSync(file, "utf8"), "keep");
+  const external = browserHostEnvironment({ LITZIO_BROWSER_URL: "http://127.0.0.1:1234", LITZIO_DATA_DIR: directory });
+  assert.deepEqual(external.env, {});
+  external.cleanup();
+  assert.equal(readFileSync(file, "utf8"), "keep");
+}));
+
+test("browser cleanup refuses a replaced directory even at its original temporary path", () => {
+  const host = browserHostEnvironment({});
+  const directory = host.env.LITZIO_BROWSER_DAEMON_DIR!;
+  const moved = `${directory}-moved`;
+  renameSync(directory, moved);
+  mkdirSync(directory);
+  const sentinel = path.join(directory, "unowned.txt");
+  writeFileSync(sentinel, "keep");
+  try {
+    assert.throws(() => host.cleanup(), /Refusing to remove/);
+    assert.equal(readFileSync(sentinel, "utf8"), "keep");
+  } finally {
+    // Remove only the known sentinel/replacement, then restore the owned identity.
+    rmSync(sentinel);
+    rmdirSync(directory);
+    renameSync(moved, directory);
+    host.cleanup();
+  }
+});
 
 test("fault injection permits only its expected network failures", () => {
   const missingThread = "Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5173/api/assistant/conversations";

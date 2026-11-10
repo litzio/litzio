@@ -377,6 +377,12 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 
 ## P12 모달·파일·복구·설정 범위
 
+#1461의 U22 플러그인 추가는 U23의 공통 FolderDialog를 유지하며, 목록 갱신으로 입력 초안과
+focus를 초기화하지 않는다. App의 이미지 picker와 같은 Host별 안정된 조회 콜백을 사용한다.
+선택한 플러그인이 외부에서 제거될 때만 기존 Dialog를 닫고 Notice로 안내한다.
+`http-plugins`에서 갱신 응답 반영 뒤 초안·focus 보존과 외부 제거 안내를 확인한다.
+새 표면·control·시각 토큰 예외는 없으며 [현재 계약](plugin-stage1-v1.md#공식-번들-공급과-외부-폴더-추가-1279)을 따른다.
+
 #1401은 U23의 폴더 메뉴에서 U24의 기존 DangerConfirmation을 연다. 일반 파일 삭제,
 생성 Undo와 Settings의 복구 삭제·Host 제거에서 쓰는 Cancel 초기 focus·pending 방지·
 살아남는 항목으로 복귀를 유지한다. 폴더는 미저장 문서를 버리는 선택 없이 저장을 요구한다.
