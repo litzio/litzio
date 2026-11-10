@@ -2,7 +2,7 @@ import { publicOperationResult } from "../server/plugins/operation-result.ts";
 import { rowSchema, completedReviewSchema } from "@litzio/plugin-sdk";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
@@ -815,6 +815,64 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
     const result = await executePluginTool(host, { action: "scaffold", directory, id: "local.valid" }, e => activities.push(e), scope);
     assert.equal(result.activity.outcome, "success"); assert.equal(existsSync(path.join(directory, "host.js")), true);
   } finally { await assistant.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("default scaffold rejects an existing plugins junction before writing outside its directory", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-junction-"));
+  const data = path.join(root, "data"), outside = path.join(root, "outside"), documents = path.join(root, "documents");
+  for (const directory of [data, outside, documents]) mkdirSync(directory);
+  const directory = path.join(data, "plugins"), id = "local.escape";
+  t.after(() => {
+    // Only exact fixture files and empty directories; never traverse a junction for cleanup.
+    if (existsSync(directory)) rmSync(directory);
+    for (const target of [data, outside]) {
+      const artifact = path.join(target, id);
+      if (existsSync(artifact)) {
+        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+        rmdirSync(artifact);
+      }
+    }
+    for (const folder of [documents, outside, data, root]) rmdirSync(folder);
+  });
+  const access = new RootAccess([documents]);
+  for (const target of [data, outside]) {
+    symlinkSync(target, directory, process.platform === "win32" ? "junction" : "dir");
+    const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: directory });
+    try {
+      const result = await executePluginTool(host, { action: "scaffold", id }, () => {}, { access, folders: null, permissionMode: "opened-folders" });
+      assert.equal(result.activity.outcome, "failure");
+      assert.equal(existsSync(path.join(target, id)), false);
+      await assert.rejects(host.invoke("scaffold", { id }), /link/);
+    } finally { await host.close(); rmSync(directory); }
+  }
+  mkdirSync(directory);
+  const leaf = path.join(directory, id);
+  symlinkSync(outside, leaf, process.platform === "win32" ? "junction" : "dir");
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: directory });
+  try {
+    await assert.rejects(host.invoke("scaffold", { id }), /outside/);
+    assert.equal(existsSync(path.join(outside, "host.js")), false);
+  } finally { await host.close(); rmSync(leaf); rmdirSync(directory); }
+});
+
+test("read-only validation never creates a missing plugins directory or its data parent", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-readonly-"));
+  const data = path.join(root, "missing-data"), directory = path.join(data, "plugins");
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: directory });
+  t.after(async () => {
+    await host.close();
+    if (existsSync(directory)) rmdirSync(directory);
+    if (existsSync(data)) rmdirSync(data);
+    rmdirSync(root);
+  });
+  const result = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
+  assert.equal(result.activity.outcome, "failure");
+  assert.equal(existsSync(directory), false);
+  assert.equal(existsSync(data), false);
+  mkdirSync(data);
+  const existingData = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
+  assert.equal(existingData.activity.outcome, "failure");
+  assert.equal(existsSync(directory), false);
 });
 
 test("validation diagnostics never expose source values through Host, assistant, CLI or logs", async t => {

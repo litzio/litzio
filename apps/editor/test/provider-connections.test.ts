@@ -257,6 +257,15 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(noFolderStart.sandboxPolicy.writableRoots, [plugins.authoringDirectory]);
   assert.deepEqual(noFolders.folders, []);
   await conversations.interrupt(noFolders.id);
+  assert.equal(existsSync(plugins.authoringDirectory), false, "sandbox path checks must not create the plugins folder");
+  mkdirSync(path.dirname(plugins.authoringDirectory));
+  symlinkSync(root, plugins.authoringDirectory, process.platform === "win32" ? "junction" : "dir");
+  try {
+    const startsBefore = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    await assert.rejects(conversations.send({ id: noFolders.id, message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings), /link/);
+    const starts = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    assert.equal(starts.length, startsBefore.length, "an unsafe plugins directory must not reach turn/start writableRoots");
+  } finally { rmSync(plugins.authoringDirectory); }
 
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");

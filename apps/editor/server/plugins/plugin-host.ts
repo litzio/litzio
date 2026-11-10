@@ -7,9 +7,9 @@ import { OFFICIAL_PLUGINS, type OfficialPlugin } from "./official-plugins.ts";
 import { publicOperationError, publicOperationResult, safePluginValue } from "./operation-result.ts";
 import { type ViewOperation } from "@litzio/core/views";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync, lstatSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { accessPath, inside, RootAccess, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
+import { accessPath, canonicalFilePath, inside, RootAccess, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess } from "./plugin-process.ts";
 import { healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
@@ -82,13 +82,34 @@ export class PluginHost {
     (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
-  /** App-owned artifacts are separate from document Roots. Pin the same boundary for the Host lifetime. */
-  authoringAccess(): RootAccess {
-    if (!this.authoringRoot) {
-      mkdirSync(this.authoringDirectory, { recursive: true });
-      this.authoringRoot = new RootAccess([this.authoringDirectory]);
+  /** Check without creating anything, including when the data directory does not exist yet. */
+  authoringPath(): string {
+    let ancestor = path.dirname(path.resolve(this.authoringDirectory));
+    const missing: string[] = [];
+    while (!lstatSync(ancestor, { throwIfNoEntry: false })) {
+      missing.unshift(path.basename(ancestor));
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) throw new Error("Plugin data parent is unavailable");
+      ancestor = parent;
     }
-    this.authoringRoot.resolve(this.authoringDirectory);
+    if (!statSync(ancestor).isDirectory()) throw new Error("Plugin data parent must be a directory");
+    const data = path.join(canonicalFilePath(ancestor), ...missing);
+    const directory = path.join(data, path.basename(this.authoringDirectory));
+    const entry = lstatSync(directory, { throwIfNoEntry: false });
+    if (entry && (entry.isSymbolicLink() || !entry.isDirectory())) throw new Error("Plugin authoring directory must not be a link");
+    const real = entry ? canonicalFilePath(directory) : directory;
+    if (!inside(data, real) || real === data) throw new Error("Plugin authoring directory must be inside Host data");
+    this.authoringRoot?.resolve(real);
+    return real;
+  }
+  /** Only scaffold may prepare directories. Existing roots stay pinned for the Host lifetime. */
+  authoringAccess(create = false): RootAccess {
+    const directory = this.authoringPath();
+    if (create && !this.authoringRoot) mkdirSync(directory, { recursive: true });
+    // Recheck after mkdir before adopting a root, including an initially present junction.
+    if (this.authoringPath() !== directory) throw new Error("Plugin authoring directory changed");
+    this.authoringRoot ??= new RootAccess([this.authoringDirectory]);
+    this.authoringRoot.resolve(directory);
     return this.authoringRoot;
   }
   private save() {
@@ -364,7 +385,7 @@ export class PluginHost {
       let id = args.id!;
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
       if (action === "scaffold") {
-        const access = args.directory === undefined ? this.authoringAccess() : this.access;
+        const access = args.directory === undefined ? this.authoringAccess(true) : this.access;
         const directory = args.directory ?? path.join(this.authoringDirectory, id);
         return { ...scaffoldPlugin(directory, id, access, creationScope, args.template), receipt: receipt("success") };
       }

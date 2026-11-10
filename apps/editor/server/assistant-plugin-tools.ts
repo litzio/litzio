@@ -12,7 +12,7 @@ export async function executePluginTool(host: PluginHost, input: unknown, activi
     let creationScope = scope?.folders;
     if (action === "scaffold") {
       if (!scope || !["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("Plugin creation is read-only for this turn.");
-      if (scope.permissionMode === "opened-folders" && args.directory === undefined) creationScope = host.authoringAccess();
+      if (scope.permissionMode === "opened-folders" && args.directory === undefined) creationScope = host.authoringAccess(true);
       if (!creationScope) throw new Error("No writable folder for this turn.");
       if (args.directory !== undefined) args.directory = creationScope.resolve(accessPath(args.directory, scope.access, true), true);
     }
