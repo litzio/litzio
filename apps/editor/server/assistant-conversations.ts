@@ -281,7 +281,8 @@ export class AssistantConversations {
         this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient });
         const writableRoots = [...folders];
         if (settings.permissionMode === "opened-folders" && this.plugins) {
-          writableRoots.push(this.plugins.authoringPath());
+          const directory = this.plugins.authoringPath();
+          if (directory) writableRoots.push(directory);
         }
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",

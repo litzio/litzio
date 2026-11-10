@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
 import { rowSchema, completedReviewSchema } from "@litzio/plugin-sdk";
 import test from "node:test";
@@ -853,6 +855,66 @@ test("default scaffold rejects an existing plugins junction before writing outsi
     await assert.rejects(host.invoke("scaffold", { id }), /outside/);
     assert.equal(existsSync(path.join(outside, "host.js")), false);
   } finally { await host.close(); rmSync(leaf); rmdirSync(directory); }
+});
+
+test("authoring refuses deterministic junction replacements between checking and use", async t => {
+  for (const phase of ["sandbox-stat", "root-adoption", "after-mkdir", "after-write"]) await t.test(phase, async t => {
+    const root = fs.realpathSync(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-swap-")));
+    const data = path.join(root, "data"), plugins = path.join(data, "plugins"), templates = path.join(data, "templates"), outside = path.join(root, "outside");
+    for (const folder of [data, plugins, templates, outside]) mkdirSync(folder);
+    const id = "local.swap", artifact = path.join(plugins, id), held = path.join(root, "held");
+    const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: plugins });
+    let swapped = false, rootReads = 0;
+    const swap = (directory: string, target: string) => {
+      fs.renameSync(directory, held);
+      symlinkSync(target, directory, process.platform === "win32" ? "junction" : "dir");
+      swapped = true;
+    };
+    const lstat = fs.lstatSync, realpath = process.platform === "win32" ? fs.realpathSync.native : fs.realpathSync, mkdir = fs.mkdirSync, write = fs.writeFileSync;
+    const adoptRoot = (...args: any[]) => {
+      // The first two plugin realpath reads are prechecks; the third adopts RootAccess.
+      if (args[0] === plugins && ++rootReads === 3 && !swapped) swap(plugins, outside);
+      return Reflect.apply(realpath, fs, args);
+    };
+    const replacement = phase === "sandbox-stat" ? t.mock.method(fs, "lstatSync", ((...args: any[]) => {
+      const stat = Reflect.apply(lstat, fs, args);
+      if (args[0] === plugins && !swapped) swap(plugins, templates);
+      return stat;
+    }) as typeof fs.lstatSync) : phase === "root-adoption" ? process.platform === "win32"
+      ? t.mock.method(fs.realpathSync, "native", adoptRoot as typeof fs.realpathSync.native)
+      : t.mock.method(fs, "realpathSync", adoptRoot as typeof fs.realpathSync)
+    : phase === "after-mkdir" ? t.mock.method(fs, "mkdirSync", ((...args: any[]) => {
+      const result = Reflect.apply(mkdir, fs, args);
+      if (args[0] === artifact && !swapped) swap(artifact, outside);
+      return result;
+    }) as typeof fs.mkdirSync) : t.mock.method(fs, "writeFileSync", ((...args: any[]) => {
+      const result = Reflect.apply(write, fs, args);
+      if (path.dirname(String(args[0])) === artifact && !swapped) swap(artifact, outside);
+      return result;
+    }) as typeof fs.writeFileSync);
+    syncBuiltinESMExports();
+    try {
+      if (phase === "sandbox-stat") assert.equal(host.authoringPath(), undefined);
+      else await assert.rejects(host.invoke("scaffold", { id }));
+      assert.equal(swapped, true, "the real directory must be replaced at the intended boundary");
+      assert.equal(existsSync(path.join(outside, "host.js")), false);
+      assert.equal(existsSync(path.join(outside, id, "host.js")), false);
+      if (phase === "after-write") assert.equal(existsSync(path.join(held, "litzio-plugin.json")), true, "failure must leave the created file for inspection");
+    } finally {
+      replacement.mock.restore(); syncBuiltinESMExports(); await host.close();
+      // Remove only this fixture's links, known files and empty directories.
+      const link = phase === "sandbox-stat" || phase === "root-adoption" ? plugins : artifact;
+      if (swapped) rmSync(link);
+      for (const folder of [path.join(outside, id), outside, held, artifact]) {
+        if (!existsSync(folder)) continue;
+        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) {
+          const target = path.join(folder, file); if (existsSync(target)) rmSync(target);
+        }
+        rmdirSync(folder);
+      }
+      for (const folder of [plugins, templates, data, root]) if (existsSync(folder)) rmdirSync(folder);
+    }
+  });
 });
 
 test("read-only validation never creates a missing plugins directory or its data parent", async t => {

@@ -262,9 +262,11 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   symlinkSync(root, plugins.authoringDirectory, process.platform === "win32" ? "junction" : "dir");
   try {
     const startsBefore = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
-    await assert.rejects(conversations.send({ id: noFolders.id, message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings), /link/);
+    await conversations.send({ id: noFolders.id, message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
     const starts = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
-    assert.equal(starts.length, startsBefore.length, "an unsafe plugins directory must not reach turn/start writableRoots");
+    assert.equal(starts.length, startsBefore.length + 1);
+    assert.deepEqual(starts.at(-1).params.sandboxPolicy.writableRoots, [], "an unsafe plugins directory is omitted from writableRoots");
+    await conversations.interrupt(noFolders.id);
   } finally { rmSync(plugins.authoringDirectory); }
 
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
