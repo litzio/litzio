@@ -18,40 +18,73 @@ async (page, { openPath, reloadDocument, waitForEditorFocus, bibliographyFixture
   if (screenshots) await page.screenshot({ path: 'tmp/visual-refinement/references-unused-1280.png', fullPage: true });
   const settings = page.getByRole('button', { name: 'Document settings', exact: true });
   const settingsDialog = page.getByRole('region', {name:'Document settings',exact:true}).locator('.display-settings');
-  for (const entry of ['Document settings', 'command center']) {
-    if (entry === 'Document settings') {
-      await settings.click(); await settingsDialog.waitFor();
-      if (screenshots) await page.screenshot({path:'tmp/visual-refinement/references-document-settings-1280.png'});
-    }
-    let connect;
-    if (entry === 'Document settings') connect = settingsDialog.getByRole('button', { name: 'Connect bibliography…', exact: true });
-    else {
-      await page.keyboard.press('Control+/');
-      await page.getByRole('combobox', { name: 'Search documents and commands', exact: true }).fill('> Connect bibliography');
-      connect = page.getByRole('option', { name: 'Connect bibliography…', exact: true });
-    }
+  const openConnectCommand = async () => {
+    await page.keyboard.press('Control+/');
+    await page.getByRole('combobox', { name: 'Search documents and commands', exact: true }).fill('> Connect bibliography');
+    return page.getByRole('option', { name: 'Connect bibliography…', exact: true });
+  };
+  // An unconnected document hides the Settings row; the command center keeps the path.
+  await settings.click();
+  await settingsDialog.waitFor();
+  if (screenshots) await page.screenshot({path:'tmp/visual-refinement/references-document-settings-1280.png'});
+  if (await settingsDialog.getByRole('button', { name: 'Connect bibliography…', exact: true }).count() !== 0) {
+    regressions.push('Unconnected document must hide the bibliography row in Document settings');
+  }
+  await page.keyboard.press('Escape');
+  {
+    const connect = await openConnectCommand();
     if (!await connect.count()) {
-      regressions.push(`${entry} must offer Connect bibliography`);
-      if (entry === 'command center') await page.keyboard.press('Escape');
-      continue;
-    }
-    await connect.click();
-    await page.getByRole('group', { name: 'Bibliography files in this folder', exact: true }).waitFor();
-    assert(await references().count() === 0, 'Opening the connection UI alone leaves an unused document without References');
-    await page.getByRole('button', { name: 'Connect refs.bib', exact: true }).click();
-    await page.getByRole('dialog', {name:'Connect bibliography…',exact:true}).waitFor({state:'detached'});
-    if(entry==='Document settings') {
-      await connect.and(page.locator(':focus')).waitFor();
-      assert(await connect.evaluate(n=>n===document.activeElement),'Bibliography must return focus to Connect');
+      regressions.push('command center must offer Connect bibliography');
       await page.keyboard.press('Escape');
+    } else {
+      await connect.click();
+      await page.getByRole('group', { name: 'Bibliography files in this folder', exact: true }).waitFor();
+      assert(await references().count() === 0, 'Opening the connection UI alone leaves an unused document without References');
+      await page.getByRole('button', { name: 'Connect refs.bib', exact: true }).click();
+      await page.getByRole('dialog', {name:'Connect bibliography…',exact:true}).waitFor({state:'detached'});
+      assert(await references().count() === 1, 'command center connection shows References before Save');
+      assert(!(await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(unused)}`, { headers: { Connection: "close" } })).json()).source.includes('bibliography:'), 'command center stages without writing');
+      await save(); await reloadDocument(page);
+      await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
+      assert(await references().count() === 1, 'command center declaration survives Save and Reload without citations');
+      await references().getByRole('button', { name: 'Disconnect refs.bib', exact: true }).click();
+      assert(await references().count() === 0, 'Staged removal of the only declaration hides unused References');
+      await save(); await reloadDocument(page);
+      await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
+      assert(await references().count() === 0, 'Disconnection survives Save and Reload');
     }
-    assert(await references().count() === 1, `${entry} connection shows References before Save`);
-    assert(!(await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(unused)}`, { headers: { Connection: "close" } })).json()).source.includes('bibliography:'), `${entry} stages without writing`);
+  }
+  // A connected document keeps the Settings row and returns focus to its Connect button.
+  {
+    const connect = await openConnectCommand();
+    if (!await connect.count()) {
+      regressions.push('command center must offer Connect bibliography');
+    } else {
+      await connect.click();
+      await page.getByRole('group', { name: 'Bibliography files in this folder', exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Connect refs.bib', exact: true }).click();
+      await page.getByRole('dialog', {name:'Connect bibliography…',exact:true}).waitFor({state:'detached'});
+    }
+  }
+  await settings.click();
+  await settingsDialog.waitFor();
+  const settingsConnect = settingsDialog.getByRole('button', { name: 'Connect bibliography…', exact: true });
+  if (await settingsConnect.count() === 0) {
+    regressions.push('Document settings must offer Connect bibliography while a declaration exists');
+  } else {
+    await settingsConnect.click();
+    await page.getByRole('group', { name: 'Bibliography files in this folder', exact: true }).waitFor();
+    await page.keyboard.press('Escape');
+    await settingsConnect.and(page.locator(':focus')).waitFor();
+    assert(await settingsConnect.evaluate(n=>n===document.activeElement),'Bibliography must return focus to Connect');
+    await page.keyboard.press('Escape');
+    assert(await references().count() === 1, 'Settings connection shows References before Save');
+    assert(!(await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(unused)}`, { headers: { Connection: "close" } })).json()).source.includes('bibliography:'), 'Settings stages without writing');
     await save(); await reloadDocument(page);
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
-    assert(await references().count() === 1, `${entry} declaration survives Save and Reload without citations`);
+    assert(await references().count() === 1, 'Settings declaration survives Save and Reload without citations');
     await references().getByRole('button', { name: 'Disconnect refs.bib', exact: true }).click();
-    assert(await references().count() === 0, 'Staged removal of the only declaration hides unused References');
+    assert(await references().count() === 0, 'Settings disconnection hides unused References');
     await save(); await reloadDocument(page);
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
     assert(await references().count() === 0, 'Disconnection survives Save and Reload');

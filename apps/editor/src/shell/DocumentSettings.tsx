@@ -74,9 +74,9 @@ export const DocumentSettings = forwardRef<DocumentSettingsHandle, Props>(functi
           </Menu.RadioGroup>
         </DropdownMenuContent>
       </DropdownMenu> } },
-    { id: "bibliography", label: i18n.t("Bibliography"), summary: bibliography.join(" · ") || i18n.t("No bibliography connected"),
-      control: { kind: "custom", render: descriptionId => <Button variant="outline" size="sm" disabled={disabled}
-        aria-describedby={descriptionId} onClick={event => props.onConnectBibliography(event.currentTarget)}>{i18n.t("Connect bibliography…")}</Button> } },
+    ...(bibliography.length > 0 ? [{ id: "bibliography", label: i18n.t("Bibliography"), summary: bibliography.join(" · "),
+      control: { kind: "custom" as const, render: (descriptionId: string) => <Button variant="outline" size="sm" disabled={disabled}
+        aria-describedby={descriptionId} onClick={event => props.onConnectBibliography(event.currentTarget)}>{i18n.t("Connect bibliography…")}</Button> } }] : []),
   ] }];
   return <section ref={block} className="document-settings" aria-label={i18n.t("Document settings")}
     onKeyDown={event => {
