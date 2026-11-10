@@ -185,15 +185,21 @@ export class RemoteHostRegistry {
   async status(hostId: string, productVersion: string) {
     const host = this.get(hostId);
     const context = { host, observation: "cli-probe", windowObserved: false, restartRequired: true } as const;
-    try {
-      const response = await fetch(host.origin + "/daemon/health", { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
-      if (response.status === 409) return { ...context, outcome: "refused", state: "protocol-mismatch" } as const;
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const health = await response.json() as { protocolVersion?: string; productVersion?: string };
-      if (health.protocolVersion !== DAEMON_PROTOCOL) return { ...context, outcome: "refused", state: "protocol-mismatch" } as const;
-      if (typeof health.productVersion !== "string") throw new Error("Invalid health response.");
-      return { ...context, outcome: "success", state: "connected", protocolVersion: health.protocolVersion, productVersion: health.productVersion,
-        ...(health.productVersion !== productVersion ? { warning: `Host product ${health.productVersion}, client ${productVersion}` } : {}) } as const;
-    } catch (error) { return { ...context, outcome: "failure", state: "unreachable", reason: (error as Error).message } as const; }
+    return { ...context, ...await checkRemoteHost(host.origin, productVersion) };
   }
+}
+
+/** Read-only address observation shared by Desktop registration and CLI. Never saves a Host. */
+export async function checkRemoteHost(value: string, productVersion: string) {
+  const origin = remoteHostOrigin(value);
+  try {
+    const response = await fetch(origin + "/daemon/health", { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
+    if (response.status === 409) return { origin, windowObserved: false, outcome: "refused", state: "protocol-mismatch" } as const;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const health = await response.json() as { protocolVersion?: string; productVersion?: string };
+    if (health.protocolVersion !== DAEMON_PROTOCOL) return { origin, windowObserved: false, outcome: "refused", state: "protocol-mismatch" } as const;
+    if (typeof health.productVersion !== "string") throw new Error("Invalid health response.");
+    return { origin, windowObserved: false, outcome: "success", state: "connected", protocolVersion: health.protocolVersion, productVersion: health.productVersion,
+      ...(health.productVersion !== productVersion ? { warning: `Host product ${health.productVersion}, client ${productVersion}` } : {}) } as const;
+  } catch (error) { return { origin, windowObserved: false, outcome: "failure", state: "unreachable", reason: (error as Error).message } as const; }
 }

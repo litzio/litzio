@@ -11,6 +11,10 @@ async (page, { expect, screenshots }) => {
     window.__cli = {state:{status:'off'}, calls:[], pending:false, fail:false};
     window.litzioDesktop = {
       registeredHosts: async () => ({ hosts, allowedHostIds: applied, productVersion: "0.2.0", cliRemovalProtectionWarning: true }),
+      checkHost: async origin => {
+        window.__checkedOrigin = origin;
+        return await new Promise(resolve => { window.__finishHostCheck = resolve; });
+      },
       registerHost: async (origin, label) => {
         hosts.push({ hostId: "remote-fixture", origin, label });
         sessionStorage.setItem("host-fixture", JSON.stringify(hosts));
@@ -75,6 +79,27 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByRole("alert").filter({ hasText: "Could not record CLI removal protection." })).toBeVisible();
   await page.getByLabel("Host address", { exact: true }).fill(await page.evaluate(() => location.origin));
   await page.getByLabel("Host label", { exact: true }).fill("Test remote Host");
+  const checkButton = page.getByRole("button", { name: "Check connection", exact: true });
+  await checkButton.click();
+  await expect(page.getByTestId("host-settings").getByText("Connecting", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => !!window.__finishHostCheck)).toBe(true);
+  await page.getByLabel("Host address", { exact: true }).fill("https://offline.example");
+  await page.evaluate(() => window.__finishHostCheck({ state: "connected", outcome: "success" }));
+  await expect(page.getByTestId("host-settings").getByText("Connected", { exact: true })).toBeHidden();
+  await checkButton.click();
+  await expect.poll(() => page.evaluate(() => window.__checkedOrigin)).toBe("https://offline.example");
+  await page.evaluate(() => window.__finishHostCheck({ state: "unreachable", outcome: "failure" }));
+  await expect(page.getByTestId("host-settings").getByText("Unreachable", { exact: true })).toBeVisible();
+  await checkButton.click();
+  await expect(page.getByTestId("host-settings").getByText("Connecting", { exact: true })).toBeVisible();
+  await page.evaluate(() => window.__finishHostCheck({ state: "connected", outcome: "success" }));
+  await expect(page.getByTestId("host-settings").getByText("Connected", { exact: true })).toBeVisible();
+  // A failed optional observation still allows registration; changing the address clears it.
+  await page.getByLabel("Host address", { exact: true }).fill(await page.evaluate(() => location.origin));
+  await checkButton.click();
+  await expect.poll(() => page.evaluate(() => window.__checkedOrigin)).toBe(await page.evaluate(() => location.origin));
+  await page.evaluate(() => window.__finishHostCheck({ state: "protocol-mismatch", outcome: "refused" }));
+  await expect(page.getByTestId("host-settings").getByText("Protocol mismatch", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Register Host", exact: true }).click();
   await expect(page.getByTestId("host-settings").getByText("Restart required", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toBeDisabled();

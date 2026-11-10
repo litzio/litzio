@@ -8,3 +8,5 @@
   .host-actions .host-action-label { display: none; }
   .host-actions button { width: var(--size-control-compact); padding-inline: 0; }
 }
+
+.host-registration-actions { align-items: center; }
