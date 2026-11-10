@@ -8,6 +8,12 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
   const menu = page.getByRole('menu');
   const rename = () => page.getByRole('menuitem', {name:'Rename…', exact:true});
   const cancel = async () => { await dialog.getByRole('button', {name:'Cancel', exact:true}).click(); await dialog.waitFor({state:'hidden'}); };
+  const closeFolder = async folder => {
+    const section = page.locator(`[data-testid="folder"][data-root=${JSON.stringify(folder)}]`);
+    await section.getByRole('button',{name:'More actions',exact:true}).click();
+    await page.getByRole('menuitem',{name:'Close folder',exact:true}).click();
+    await section.waitFor({state:'hidden'});
+  };
   const context = async (name, action) => {
     await row(name).click({button:'right'});
     await page.getByRole('menuitem', {name:action, exact:true}).click();
@@ -41,16 +47,16 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
   await expect(dialog.getByRole('alert')).toContainText('Close this dialog and confirm again');
   await cancel();
   await expect(row('trash-target')).toBeVisible();
-  await row('trash-target').click();
   // The document is physically in trash-target, but its opened path passes through a junction/symlink.
+  // Close the ancestor first: overlapping roots absorb descendants, whose symlink rows are hidden.
+  await closeFolder(root);
   const openedAlias = sep === '\\' ? folderAliasRoot.toLowerCase() : folderAliasRoot;
   await openDocument(page, openedAlias + sep + 'inside.md');
-  for (const section of await page.getByTestId('folder').all()) {
-    if (await section.getAttribute('data-root') !== openedAlias) continue;
-    await section.getByRole('button',{name:'More actions',exact:true}).click();
-    await page.getByRole('menuitem',{name:'Close folder',exact:true}).click();
-    await section.waitFor({state:'hidden'});
-  }
+  await closeFolder(openedAlias);
+  await openFolderPicker(page);
+  await page.getByTestId('folder-path').fill(root);
+  await page.getByTestId('folder-open').click();
+  await expect(row('trash-target')).toBeVisible();
   await expect(page.getByTestId('current-file')).toHaveText('inside.md');
   const inside = activeDocument(page).locator('.document-editor p').first();
   await inside.click(); await page.keyboard.press('End'); await page.keyboard.type(' Unsaved folder work.');
