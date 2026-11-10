@@ -242,13 +242,16 @@ export class AssistantConversations {
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
-            networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
+            networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
       }
       conversation.folders = folders; conversation.updatedAt = Date.now();
       this.save(conversation);
       return conversation;
+    } catch (error) {
+      if (conversation && !conversation.turns.some(turn => turn.status === "inProgress")) this.scopes.delete(conversation.id);
+      throw new Error(permissionError((error as Error).message));
     } finally { this.pending.delete(key); }
   }
   private expireQuestion(conversation: AssistantConversation) {
@@ -370,7 +373,8 @@ export class AssistantConversations {
       }
     } catch { allowed = false; }
     const fullAccess = !!scope && !!active && scope.permissionMode === "full-access";
-    const option = allowed || fullAccess ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
+    const network = !!scope && !!active && scope.permissionMode === "opened-folders" && tool.kind === "fetch";
+    const option = allowed || network || fullAccess ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
     return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } };
   }
   private copilotUpdate({ sessionId, update }: SessionNotification) {
@@ -419,7 +423,7 @@ export class AssistantConversations {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
       else { this.display.cancel(params.threadId); this.scopes.delete(params.threadId); if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
-      if (params.turn.error) turn.error = params.turn.error.message;
+      if (params.turn.error) turn.error = permissionError(params.turn.error.message);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item);
       if (item) { const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item; }
@@ -430,7 +434,7 @@ export class AssistantConversations {
     } else if (method === "turn/plan/updated") {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
-    } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = params.error.message; turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
+    } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
   }
 }
 const CONTEXT = "Litzio read-only context (JSON):\n";
@@ -505,4 +509,10 @@ function checkedReferences(value: string[], folders: string[], access: FileAcces
     if (references.length > 10) throw new Error("At most 10 file references are allowed.");
   }
   return references;
+}
+
+function permissionError(message: string): string {
+  return /invalid.*sandbox_mode.*DangerFullAccess.*not in the allowed set/s.test(message)
+    ? "Your organization does not allow Full access. Choose Opened folders or Read-only and send again."
+    : message;
 }
