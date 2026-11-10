@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { assertUnicode, commitFile, FileChangedError, preflightFileCommit, textRevision } from "@litzio/file-commit";
 import { parse, serialize, updateMediaReferences } from "@litzio/core";
 import { fileIdentity, type FileIdentity, validFileStem, type FileOperationRequest, type RenameFileRequest, type FileOperationResponse } from "../shared/file-operations.ts";
@@ -13,6 +14,37 @@ import { TrashPreservedError } from "./os-trash.ts";
 
 export class ReferencedImageError extends Error {
   constructor(readonly references: string[]) { super(`Save these documents before renaming the image: ${references.join(", ")}`); }
+}
+
+/** A complete bounded metadata manifest, not a sample. An incomplete scan grants no deletion permission. */
+function folderState(folder: string, access: FileAccess, limit: number, deadline = Date.now() + 250) {
+  const pending = [folder], records: unknown[][] = [];
+  const boundary = new RootAccess([folder]);
+  let fileCount = 0, visited = 0, complete = true;
+  const stamp = (target: string, stat: fs.BigIntStats) => [path.relative(folder, target), stat.mode.toString(), ...Object.values(fileIdentity(stat)), stat.size.toString(), stat.mtimeNs.toString(), stat.ctimeNs.toString()];
+  const root = fs.lstatSync(folder, { bigint: true });
+  records.push(stamp(folder, root));
+  scan: while (pending.length) {
+    const current = pending.pop()!;
+    let directory: fs.Dir | undefined;
+    try {
+      if (fs.lstatSync(current).isSymbolicLink()) { complete = false; break; }
+      boundary.resolve(current); accessPath(current, access);
+      directory = fs.opendirSync(current);
+      for (let entry; (entry = directory.readSync());) {
+        if (visited++ >= limit || Date.now() > deadline) { complete = false; break scan; }
+        const target = path.join(current, entry.name), stat = fs.lstatSync(target, { bigint: true });
+        records.push(stamp(target, stat));
+        if (stat.isSymbolicLink()) records.push([path.relative(folder, target), fs.readlinkSync(target)]);
+        if (stat.isDirectory() && !stat.isSymbolicLink()) pending.push(target);
+        else fileCount++;
+      }
+    } catch { complete = false; break; }
+    finally { directory?.closeSync(); }
+  }
+  if (JSON.stringify(stamp(folder, fs.lstatSync(folder, { bigint: true }))) !== JSON.stringify(stamp(folder, root))) complete = false;
+  const revision = complete ? createHash("sha256").update(JSON.stringify(records.map(record => JSON.stringify(record)).sort())).digest("hex") : undefined;
+  return { fileCount, countComplete: complete, revision };
 }
 
 export class ImageRenameError extends Error {
@@ -57,7 +89,7 @@ export async function executeFolderTrash(request: FolderTrashRequest, options: {
     if (request.checkOnly) {
       // Limit entries, elapsed work, document count and bytes. Never follow child links.
       const limit = options.entryLimit ?? 2000, deadline = Date.now() + 250;
-      let visited = 0, documents = 0, fileCount = 0, countComplete = true, referencesComplete = true;
+      let visited = 0, documents = 0, referencesComplete = true;
       const references: string[] = [];
       const inspectionAccess = new RootAccess([root]);
       const walk = (start: string, inspect: (target: string, entry: fs.Dirent) => boolean | void): boolean => {
@@ -85,8 +117,7 @@ export async function executeFolderTrash(request: FolderTrashRequest, options: {
         }
         return true;
       };
-      countComplete = walk(file, (_target, entry) => { if (!entry.isDirectory()) fileCount++; });
-      visited = 0;
+      const state = folderState(file, access, limit, deadline);
       const realFolder = fs.realpathSync(file);
       referencesComplete = walk(root, (target, entry) => {
         if (inside(file, target)) return false;
@@ -101,10 +132,13 @@ export async function executeFolderTrash(request: FolderTrashRequest, options: {
           })) references.push(path.relative(root, target));
         } catch { referencesComplete = false; }
       }) && referencesComplete;
-      return { path: file, identity, fileCount, countComplete, references, referencesComplete, receipt: { ...receipt, outcome: "success" } };
+      return { path: file, identity, ...state, references, referencesComplete, receipt: { ...receipt, outcome: "success" } };
     }
     const current = scope(request, access, true);
     if (Object.entries(identity).some(([key, value]) => fileIdentity(current.owner)[key as keyof FileIdentity] !== value)) throw new Error("The folder changed. Review it and try again.");
+    if (typeof request.expectedRevision !== "string" || !/^[a-f0-9]{64}$/.test(request.expectedRevision)) throw new Error("Inspect the folder again before moving it to Trash.");
+    const state = folderState(current.file, access, options.entryLimit ?? 2000);
+    if (!state.revision || state.revision !== request.expectedRevision) throw new Error("The folder changed or could not be fully checked. Close this dialog and confirm again.");
     attempted = true;
     await options.remove(current.file);
     // Some OS APIs can return after partial work. A surviving source is never success.

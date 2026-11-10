@@ -478,28 +478,46 @@ New Document v1은 Workspace를 만들지 않고 특정 file path를 Host에 전
 ## Child-folder Trash (#1401)
 
 The stateless `folder.trash` Host operation is shared by `POST /api/folder-trash` and
-`litzio folder-trash <path> --root <folder> [--host <origin>] [--check] --json`.
+`litzio folder-trash <path> --root <folder> [--host <origin>] [--check | --revision <sha256>] --json`.
 CLI without `--host` uses the local OS adapter; with it, paths belong to the selected Host.
-No window state or assistant tool is added. Input is `{root, path, checkOnly?, expectedIdentity?,
+No window state or assistant tool is added. Input is `{root, path, checkOnly?, expectedIdentity?, expectedRevision?,
 openDocuments?}`; `openDocuments` contains unsaved document paths from the caller's window.
 Both lexical and real-path scope use the existing file-operation checks, including Root
 identity, symlink/junction ancestry refusal, regular directory type and strict descendant
 requirement. The operator allowlist applies in HTTP. No opened-folder registry is retained.
 
-`checkOnly` returns `{path, identity, fileCount, countComplete, references,
+`checkOnly` returns `{path, identity, revision?, fileCount, countComplete, references,
 referencesComplete, receipt}`. Inspection never follows descendant links, includes hidden
 entries in counts, and bounds each count/reference scan to 2,000 entries with a shared 250ms work deadline per request; one
 in-progress filesystem read/Core parse can finish beyond that deadline. Reference inspection
 loads at most 200 native Markdown documents of at most 1 MiB each beneath the chosen Root,
 using the existing Core read model, Figure media decoding and Host media resolver. It warns
 about references from outside the target. Unreadable/non-native documents, oversized files or
-an exhausted limit make the check incomplete, never “no references”. This is a warning,
-not an eligibility condition. Counts and references are a snapshot, not a filesystem lock.
+an exhausted limit make the reference check incomplete, never “no references”. Reference
+warnings do not block execution; complete folder-state verification below is required.
+Counts and references are a snapshot, not a filesystem lock.
+
+A complete metadata manifest supplies the confirmation revision: relative names, item kinds,
+file identities, sizes and nanosecond modification/change timestamps, including hidden files,
+subfolders and link metadata without following links. Execution requires that revision and
+recomputes the complete manifest immediately before calling the adapter. Editing (even at the
+same size with restored mtime), adding, removing or renaming an item refuses and requires a
+new confirmation. A missing revision or a scan exceeding the 2,000-entry/250ms safety bound
+never grants permission: the dialog shows the incomplete count and disables moving. CLI
+without `--revision` inspects immediately before execution; `--check` plus `--revision` also
+supports a separate review step. This is a metadata precondition, not a filesystem lock or
+protection against a hostile privileged writer changing files between validation and OS use.
 
 Execution rechecks scope and optional folder identity, rejects any supplied unsaved descendant,
 and sends the whole folder once to the injected OS adapter. It never recursively deletes,
-copies or unlinks contents. Windows reuses VisualBasic FileSystem SendToRecycleBin, selecting
-DeleteDirectory for a folder. Linux uses the existing single rename plus freedesktop metadata;
+copies or unlinks contents. Windows uses a thin IFileOperation COM bridge with
+FOFX_RECYCLEONDELETE, FOFX_EARLYFAILURE and no error/confirmation UI. No VisualBasic
+DeleteDirectory, recursive Directory.Delete, legacy Shell delete or permanent fallback exists.
+Windows 8+ and Environment.UserInteractive are required; both capability reporting and the
+native call refuse unsupported/noninteractive sessions. HRESULT and aborted-operation results
+are checked; lack of a usable Recycle Bin or failure cannot select a permanent-delete branch.
+See [Microsoft's operation flags](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-setoperationflags).
+Linux uses the existing single rename plus freedesktop metadata;
 cross-device and permission errors refuse without a permanent fallback. macOS remains
 unsupported and reports trash unavailable; capabilities do not advertise it as trash.
 Desktop uses the shared HTTP daemon, not a separate Electron shell.trashItem connection.

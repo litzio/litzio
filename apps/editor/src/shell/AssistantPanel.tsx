@@ -1,3 +1,4 @@
+import { sameHostPath } from "../../shared/file-operations.ts";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { hostLabel } from "../host-client.ts";
 import { createAssistantRequest } from "../assistant-api.ts";
@@ -455,10 +456,8 @@ function isWorkDetail(item: AssistantConversation["turns"][number]["items"][numb
   return !["user", "assistant"].includes(item.kind) && (item.kind !== "reasoning" || item.text.trim().length > 0);
 }
 
-function samePath(a: string, b: string) {
-  const normalize = (value: string) => /^[a-z]:|^\\\\/i.test(value) ? value.replaceAll("\\", "/").toLowerCase() : value;
-  return normalize(a) === normalize(b);
-}
+const samePath = sameHostPath;
+
 function ReferenceChips({ references, remove }: { references: AssistantFileReference[]; remove?(path: string): void }) {
   if (!references.length) return null;
   return <span className="assistant-references">{references.map(file => <span className="assistant-reference" key={file.path}>

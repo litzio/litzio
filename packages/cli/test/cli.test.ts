@@ -68,11 +68,16 @@ test("folder-trash CLI shares Host receipts, inspection and unavailable-trash re
   available = true; stdout = "";
   assert.equal(await runCliAsync([...args, "--check"]), 0);
   assert.equal(JSON.parse(stdout).fileCount, 1);
+  const confirmedRevision = JSON.parse(stdout).revision;
   assert.equal(fs.existsSync(child), true);
+  writeFileSync(path.join(child, "keep.txt"), "updated"); stdout = "";
+  assert.equal(await runCliAsync([...args, "--revision", confirmedRevision]), 1);
+  assert.equal(JSON.parse(stdout).receipt.outcome, "refused");
+  assert.equal(calls, 0, "a stale CLI confirmation never reaches the adapter");
   stdout = "";
   assert.equal(await runCliAsync(args), 0);
   assert.equal(JSON.parse(stdout).receipt.source, "moved");
-  assert.equal(readFileSync(path.join(root, "child.moved", "keep.txt"), "utf8"), "keep");
+  assert.equal(readFileSync(path.join(root, "child.moved", "keep.txt"), "utf8"), "updated");
   mkdirSync(child); writeFileSync(path.join(child, "keep.txt"), "interrupted");
   fs.renameSync(path.join(root, "child.moved"), path.join(root, "first-move"));
   disconnect = true; stdout = "";

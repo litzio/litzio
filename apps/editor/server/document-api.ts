@@ -256,8 +256,9 @@ export async function handleDocumentRequest(
     } catch (error) { failure(error); }
     return;
   }
-  const folderTrash = removeFile === trashFile && !osTrashAvailable() ? undefined : removeFile;
-  if (url === "/api/host-capabilities" && req.method === "GET") { sendJson(res, 200, { fileDeletion: folderTrash ? "trash" : "permanent", identity: hostIdentity() }); return; }
+  if (url === "/api/host-capabilities" && req.method === "GET") {
+    sendJson(res, 200, { fileDeletion: removeFile && (removeFile !== trashFile || await osTrashAvailable()) ? "trash" : "permanent", identity: hostIdentity() }); return;
+  }
   if (url === "/api/templates" || url === "/api/template") {
     try {
       if (req.method === "GET") {
@@ -285,6 +286,7 @@ export async function handleDocumentRequest(
   if (url === "/api/folder-trash") {
     if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
     try {
+      const folderTrash = removeFile === trashFile && !await osTrashAvailable() ? undefined : removeFile;
       const result = await executeFolderTrash(JSON.parse(await readBody(req)), { access, remove: folderTrash });
       sendJson(res, result.receipt.outcome === "success" ? 200 : 400, result);
     } catch (error) { failure(error); }

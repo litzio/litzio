@@ -1,6 +1,9 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Inspect the folder again before moving it to Trash.": "Inspect the folder again before moving it to Trash.",
+  "The folder changed or could not be fully checked. Close this dialog and confirm again.": "The folder changed or could not be fully checked. Close this dialog and confirm again.",
+  "Folder contents could not be fully checked. Moving to Trash is unavailable.": "Folder contents could not be fully checked. Moving to Trash is unavailable.",
   "Move folder to Trash?": "Move folder to Trash?",
   "Delete folder…": "Delete folder…",
   "Folder deletion requires OS Trash. This Host does not provide it.": "Folder deletion requires OS Trash. This Host does not provide it.",
@@ -1281,6 +1284,9 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Inspect the folder again before moving it to Trash.": "폴더를 휴지통으로 이동하기 전에 다시 확인하세요.",
+  "The folder changed or could not be fully checked. Close this dialog and confirm again.": "폴더가 변경되었거나 전체 내용을 확인하지 못했습니다. 창을 닫고 다시 확인하세요.",
+  "Folder contents could not be fully checked. Moving to Trash is unavailable.": "폴더 전체 내용을 확인하지 못해 휴지통으로 이동할 수 없습니다.",
   "Move folder to Trash?": "폴더를 휴지통으로 이동할까요?",
   "Delete folder…": "폴더 삭제…",
   "Folder deletion requires OS Trash. This Host does not provide it.": "폴더 삭제에는 OS 휴지통이 필요합니다. 이 Host에서는 지원하지 않습니다.",

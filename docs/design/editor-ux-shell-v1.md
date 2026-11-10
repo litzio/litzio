@@ -602,7 +602,9 @@ inspection limits produce an explicit incomplete-reference warning.
 
 Unsaved opened documents in this window refuse deletion with their names and save-first
 guidance. After saving, confirmation moves the entire folder once through the Host OS adapter.
-Success closes its saved tabs, removes matching local recovery records and refreshes loaded
+Confirmation carries a complete folder-state revision; a subsequent content/list change refuses
+and asks the user to close and confirm again. Incomplete bounded state inspection disables the
+move rather than authorizing an unchecked folder. Success closes its saved tabs, removes matching local recovery records and refreshes loaded
 parent listings. Focus moves to the next surviving row, the preceding row, or the Root toggle.
 Opened Root preferences are unchanged; descendant cache entries are no longer reachable.
 A failed or interrupted OS call may have moved some items: retain tabs/recovery and tell the

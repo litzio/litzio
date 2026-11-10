@@ -3,11 +3,19 @@ import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { homedir } from "node:os";
+import { WINDOWS_TRASH_SCRIPT, WINDOWS_TRASH_SOURCE } from "./windows-trash.ts";
 
 const execute = promisify(execFile);
 /** Only adapters with a non-mutating failure guarantee may use this error. */
 export class TrashPreservedError extends Error {}
-export function osTrashAvailable(): boolean { return process.platform === "win32" || process.platform === "linux"; }
+export async function osTrashAvailable(): Promise<boolean> {
+  if (process.platform === "linux") return true;
+  if (process.platform !== "win32") return false;
+  try {
+    const result = await execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "[Environment]::UserInteractive -and ([Environment]::OSVersion.Version -ge [Version]'6.2')"], { windowsHide: true });
+    return result.stdout.trim() === "True";
+  } catch { return false; }
+}
 
 type TrashOptions = {
   platform?: NodeJS.Platform;
@@ -72,9 +80,13 @@ async function linuxTrash(file: string, options: TrashOptions): Promise<void> {
 export async function trashFile(file: string, options: TrashOptions = {}): Promise<void> {
   const platform = options.platform ?? process.platform;
   if (platform === "win32") {
-    await execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-      "$ErrorActionPreference='Stop'; Add-Type -AssemblyName Microsoft.VisualBasic; if ([System.IO.Directory]::Exists($env:LITZIO_TRASH_FILE)) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($env:LITZIO_TRASH_FILE, 'OnlyErrorDialogs', 'SendToRecycleBin', 'ThrowException') } else { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($env:LITZIO_TRASH_FILE, 'OnlyErrorDialogs', 'SendToRecycleBin', 'ThrowException') }"],
-    { windowsHide: true, env: { ...process.env, LITZIO_TRASH_FILE: file } });
+    try {
+      await execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-STA", "-Command", WINDOWS_TRASH_SCRIPT],
+        { windowsHide: true, env: { ...process.env, LITZIO_TRASH_FILE: file, LITZIO_TRASH_SOURCE: WINDOWS_TRASH_SOURCE } });
+    } catch (error) {
+      if (String((error as { stderr?: string }).stderr).includes("LITZIO_TRASH_UNAVAILABLE")) throw new TrashPreservedError("OS trash unavailable: an interactive Windows 8 or newer session is required.");
+      throw error;
+    }
   } else if (platform === "linux") {
     await linuxTrash(file, options);
   } else throw new TrashPreservedError("OS trash is unavailable on this platform.");

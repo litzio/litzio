@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { FileIdentity, FolderTrashResult } from "../../shared/file-operations.ts";
+import type { FolderTrashConfirmation, FolderTrashResult } from "../../shared/file-operations.ts";
 import { getHostClient } from "../host-client.ts";
 import { useTranslation } from "react-i18next";
 import type { FolderEntry } from "../../shared/document-protocol.ts";
@@ -10,12 +10,12 @@ import { DangerConfirmation } from "@/components/ui/danger-confirmation.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
 export type FileAction = "rename" | "delete";
-export type FileActionHandler = (action: FileAction, root: string, entry: FolderEntry, name?: string, folderIdentity?: FileIdentity) => Promise<string>;
+export type FileActionHandler = (action: FileAction, root: string, entry: FolderEntry, name?: string, folderConfirmation?: FolderTrashConfirmation) => Promise<string>;
 
 export function FileActionDialog({ action, entry, trash, dirty, root, hostId, returnFocus, onExecute, onClose }: {
   action: FileAction; entry: FolderEntry; trash: boolean; dirty: boolean;
   root: string; hostId: string;
-  returnFocus: RefObject<HTMLElement | null>; onExecute(name?: string, identity?: FileIdentity): Promise<void>; onClose(): void;
+  returnFocus: RefObject<HTMLElement | null>; onExecute(name?: string, confirmation?: FolderTrashConfirmation): Promise<void>; onClose(): void;
 }) {
   const { t } = useTranslation();
   const dot = entry.name.lastIndexOf(".");
@@ -43,7 +43,7 @@ export function FileActionDialog({ action, entry, trash, dirty, root, hostId, re
     const stem = extension.toLowerCase() === ".md" && name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
     if (action === "rename" && !validFileStem(stem)) { setError(t("Enter a valid file name without an extension or directory path.")); return; }
     pendingRef.current = true; setPending(true); setError("");
-    try { await onExecute(action === "rename" ? stem : undefined, inspection?.identity); onClose(); }
+    try { await onExecute(action === "rename" ? stem : undefined, inspection?.identity && inspection.revision ? { identity: inspection.identity, revision: inspection.revision } : undefined); onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { pendingRef.current = false; setPending(false); }
   };
@@ -52,8 +52,8 @@ export function FileActionDialog({ action, entry, trash, dirty, root, hostId, re
       {inspection ? t(inspection.countComplete ? "Files: {{count}}" : "Files: at least {{count}} (count incomplete)", { count: inspection.fileCount ?? 0 }) : t("Checking folder contents…")}
       {inspection?.references?.length ? <><br />{t("Documents outside this folder reference images inside it: {{documents}}", { documents: inspection.references.join(", ") })}</> : null}
       {inspection && !inspection.referencesComplete ? <><br />{t("Image reference check is incomplete. Other documents may reference this folder.")}</> : null}</>}
-    action={t("Move to Trash")} pending={pending} error={error} returnFocus={returnFocus}
-    onConfirm={() => { if (inspection) void execute(); }} onClose={onClose} confirmDisabled={!inspection} />;
+    action={t("Move to Trash")} pending={pending} error={error || (inspection && !inspection.revision ? t("Folder contents could not be fully checked. Moving to Trash is unavailable.") : "")} returnFocus={returnFocus}
+    onConfirm={() => { if (inspection) void execute(); }} onClose={onClose} confirmDisabled={!inspection?.revision} />;
   if (action === "delete") return <DangerConfirmation title={t(trash ? "Move file to Trash?" : "Delete file permanently?")}
     description={<>{t(trash ? "Move “{{name}}” to the OS Trash?" : "Permanently delete “{{name}}”? This cannot be undone.", {name:entry.name})}
       {dirty ? <> {t("Unsaved changes will be discarded.")}</> : null}</>}

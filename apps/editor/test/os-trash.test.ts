@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import test, { type TestContext } from "node:test";
-import { trashFile } from "../server/os-trash.ts";
+import { trashFile, osTrashAvailable } from "../server/os-trash.ts";
+import { WINDOWS_TRASH_SOURCE } from "../server/windows-trash.ts";
 import { fileErrorMessage, RootAccess } from "../server/file-access.ts";
 
 function fixture(t: TestContext) {
@@ -13,6 +15,21 @@ function fixture(t: TestContext) {
   const trash = path.join(dataHome, "Trash");
   return { root, trash, options: { platform: "linux" as const, dataHome } };
 }
+
+test("Windows trash has no VisualBasic permanent-delete branch for folders", () => {
+  const source = fs.readFileSync(new URL("../server/os-trash.ts", import.meta.url), "utf8") + WINDOWS_TRASH_SOURCE;
+  assert.doesNotMatch(source, /FileSystem\]::DeleteDirectory|Directory\.Delete|File\.Delete|SHFileOperation/, "No permanent or legacy deletion path is allowed");
+  assert.match(source, /FOFX_RECYCLEONDELETE/);
+});
+
+test("compiled Windows bridge refuses a noninteractive session before any Shell mutation", { skip: process.platform !== "win32" }, t => {
+  const { root } = fixture(t), folder = path.join(root, "keep"); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "child.txt"), "preserved");
+  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-STA", "-Command",
+    "$ErrorActionPreference='Stop'; Add-Type -TypeDefinition $env:LITZIO_TEST_SOURCE; try { [Litzio.Recycle]::Move($env:LITZIO_TEST_PATH, $false); throw 'Unexpected success' } catch { if ($_.Exception.ToString().Contains('LITZIO_TRASH_UNAVAILABLE')) { exit 0 } else { throw } }"],
+    { windowsHide: true, env: { ...process.env, LITZIO_TEST_SOURCE: WINDOWS_TRASH_SOURCE, LITZIO_TEST_PATH: folder } });
+  assert.equal(fs.readFileSync(path.join(folder, "child.txt"), "utf8"), "preserved");
+});
 
 test("Linux home trash preserves bytes and encoded original path with local deletion time", async t => {
   const { root, trash, options } = fixture(t);
@@ -50,8 +67,17 @@ test("Windows CI recycles one nonempty folder through the daemon adapter", { ski
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const folder = path.join(root, "recycle-me"); fs.mkdirSync(folder);
   fs.writeFileSync(path.join(folder, "child.txt"), "keep");
+  if (!await osTrashAvailable()) {
+    await assert.rejects(trashFile(folder), /interactive Windows/);
+    assert.equal(fs.readFileSync(path.join(folder, "child.txt"), "utf8"), "keep");
+    return;
+  }
   await trashFile(folder);
   assert.equal(fs.existsSync(folder), false);
+  const recycled = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+    "$ErrorActionPreference='Stop'; $shell=New-Object -ComObject Shell.Application; $owned=@($shell.NameSpace(10).Items() | Where-Object { $_.Name -eq 'recycle-me' -and $_.ExtendedProperty('System.Recycle.DeletedFrom') -eq $env:LITZIO_TEST_PARENT }); if ($owned.Count -ne 1) { throw 'Owned folder was not found in the Recycle Bin' }; [Console]::Write($owned[0].Path)"],
+    { windowsHide: true, encoding: "utf8", env: { ...process.env, LITZIO_TEST_PARENT: root } }).trim();
+  assert.equal(fs.readFileSync(path.join(recycled, "child.txt"), "utf8"), "keep");
 });
 
 test("Linux collisions preserve both metadata and orphaned trash files, including concurrent deletes", async t => {

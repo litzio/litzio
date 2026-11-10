@@ -1,3 +1,4 @@
+import { withinHostFolder } from "../shared/file-operations.ts";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
 import { brand } from "../../../brand.ts";
 import type { SessionSnapshot } from "./DocumentTab.tsx";
@@ -90,7 +91,7 @@ export const recoveryStorage = {
   /** File operations invalidate queued writes and move/discard matching records atomically. */
   changePath(previous: string, next: string | null, expected?: RecoveryRecord[], hostId = LOCAL_HOST_ID, descendants = false): Promise<void> {
     const matches = (locator: { hostId: string; path: string }) => sameLocator(locator, { hostId, path: previous }) ||
-      descendants && locator.hostId === hostId && (locator.path.startsWith(previous + "/") || locator.path.startsWith(previous + "\\"));
+      descendants && locator.hostId === hostId && withinHostFolder(previous, locator.path);
     return transaction((records, barriers, done, fail) => {
       const apply = () => {
         // Permission exists before the first record. Revoke all sessions registered to this

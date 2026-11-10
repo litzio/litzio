@@ -1,3 +1,4 @@
+import { withinHostFolder } from "../shared/file-operations.ts";
 import { readOpenFolders, writeOpenFolders, readRecentFolders, rememberRecentFolder } from "../src/preferences.ts";
 import { readTableWrapDefault, readTableWrapDocuments, TABLE_WRAP_DEFAULT_KEY, TABLE_WRAP_DOCUMENTS_KEY } from "../src/preferences.ts";
 import { setTableWrap, setTableWrapDefault, relocateTableWrap } from "../src/table-wrap.ts";
@@ -905,4 +906,14 @@ test("navigation memory isolates Hosts and ignores path-only legacy storage", ()
   } finally {
     if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor); else Reflect.deleteProperty(globalThis, "localStorage");
   }
+});
+
+
+test("folder trash uses target Host Windows rules without folding POSIX paths or prefix siblings", () => {
+  assert.equal(withinHostFolder("C:/Root/Child", "c:/root/CHILD/draft.md"), true);
+  assert.equal(withinHostFolder(String.raw`C:\Root\Child`, "c:/root/child/draft.md"), true);
+  assert.equal(withinHostFolder(String.raw`\\Server\Share\Child`, String.raw`\\server\share\CHILD\draft.md`), true);
+  assert.equal(withinHostFolder("C:/Root/Child", "c:/root/child-other/draft.md"), false);
+  assert.equal(withinHostFolder("/Root/Child", "/root/child/draft.md"), false);
+  assert.equal(withinHostFolder("/Root/Child", "/Root/Child/draft.md"), true);
 });

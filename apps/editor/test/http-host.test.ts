@@ -134,7 +134,7 @@ test("HTTP file mutations reuse shared validation, strict bodies and allowlisted
   assert.equal(preview.status, 200);
   const checked = await preview.json();
   assert.equal(checked.fileCount, 1);
-  const deleted = await send("/api/folder-trash", "POST", { root: a, path: folder, expectedIdentity: checked.identity });
+  const deleted = await send("/api/folder-trash", "POST", { root: a, path: folder, expectedIdentity: checked.identity, expectedRevision: checked.revision });
   assert.equal(deleted.status, 200);
   assert.equal((await deleted.json()).receipt.source, "moved");
   assert.equal(fs.readFileSync(path.join(base, "trashed-child", "saved.txt"), "utf8"), "saved");

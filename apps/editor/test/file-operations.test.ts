@@ -12,6 +12,23 @@ import { nativeSource } from "./helpers/document.ts";
 import { getEditableDocument, parse } from "@litzio/core";
 import { loadDocumentFile } from "../server/document-api.ts";
 
+for (const change of ["edit", "add", "remove", "rename"] as const) test(`folder confirmation refuses ${change} after inspection before invoking trash`, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-confirm-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, "folder"), nested = path.join(folder, "nested"); fs.mkdirSync(nested, { recursive: true });
+  const file = path.join(nested, "document.txt"); fs.writeFileSync(file, "before");
+  let calls = 0;
+  const remove = (target: string) => { calls++; fs.renameSync(target, path.join(root, "moved")); };
+  const checked = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove });
+  if (change === "edit") { const stat = fs.statSync(file); fs.writeFileSync(file, "edited"); fs.utimesSync(file, stat.atime, stat.mtime); }
+  if (change === "add") fs.writeFileSync(path.join(nested, "new.txt"), "new");
+  if (change === "remove") fs.unlinkSync(file);
+  if (change === "rename") fs.renameSync(file, path.join(nested, "renamed.txt"));
+  const result = await executeFolderTrash({ root, path: folder, expectedIdentity: checked.identity, expectedRevision: checked.revision }, { remove });
+  assert.equal(result.receipt.outcome, "refused");
+  assert.equal(calls, 0); assert.equal(fs.existsSync(folder), true);
+});
+
 test("folder trash refuses roots, links, unavailable trash and dirty documents; moves the whole folder", async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "folder-trash-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -28,7 +45,7 @@ test("folder trash refuses roots, links, unavailable trash and dirty documents; 
   const check = await executeFolderTrash({ root, path: folder, checkOnly: true }, { access, remove });
   assert.equal(check.fileCount, 1); assert.equal(check.countComplete, true);
   assert.equal((await executeFolderTrash({ root, path: folder, openDocuments: [path.join(folder, "keep.txt")] }, { access, remove })).receipt.outcome, "refused");
-  const result = await executeFolderTrash({ root, path: folder, expectedIdentity: check.identity }, { access, remove });
+  const result = await executeFolderTrash({ root, path: folder, expectedIdentity: check.identity, expectedRevision: check.revision }, { access, remove });
   assert.equal(result.receipt.outcome, "success"); assert.equal(calls, 1);
 });
 
@@ -43,10 +60,14 @@ test("folder trash bounds reference inspection and never reports partial removal
   assert.deepEqual(checked.references, ["ref.md"]); assert.equal(checked.referencesComplete, true);
   const incomplete = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove: () => {}, entryLimit: 1 });
   assert.equal(incomplete.fileCount, 1); assert.equal(incomplete.countComplete, false);
+  assert.equal(incomplete.revision, undefined, "an incomplete manifest never grants deletion permission");
+  const unverified = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision }, { entryLimit: 1, remove: () => { throw new Error("must not invoke trash"); } });
+  assert.equal(unverified.receipt.outcome, "refused");
   assert.equal(incomplete.referencesComplete, false);
-  const partial = await executeFolderTrash({ root, path: folder }, { remove: () => { fs.unlinkSync(path.join(folder, "a.svg")); } });
+  const partial = await executeFolderTrash({ root, path: folder, expectedRevision: checked.revision }, { remove: () => { fs.unlinkSync(path.join(folder, "a.svg")); } });
   assert.equal(partial.receipt.outcome, "uncertain");
-  const failed = await executeFolderTrash({ root, path: folder }, { remove: () => { throw new Error("locked"); } });
+  const afterPartial = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove: () => {} });
+  const failed = await executeFolderTrash({ root, path: folder, expectedRevision: afterPartial.revision }, { remove: () => { throw new Error("locked"); } });
   assert.equal(failed.receipt.outcome, "uncertain");
   fs.renameSync(folder, path.join(root, "old")); fs.mkdirSync(folder);
   assert.equal((await executeFolderTrash({ root, path: folder, expectedIdentity: checked.identity }, { remove: () => {} })).receipt.outcome, "refused");

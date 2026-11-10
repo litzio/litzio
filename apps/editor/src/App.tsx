@@ -14,7 +14,7 @@ import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
 import { getHostClient, hostRegistry, hostLabel, monitorRegisteredHosts, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
-import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
+import { creationUndoNeedsConfirmation, withinHostFolder, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { brand, productName } from "../../../brand.ts";
@@ -530,7 +530,7 @@ function EditorApp() {
     navigate({ type: "close", id });
     rememberTabs(tabs.find(tab => tab.id === id)?.hostId);
   }
-  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, hostId = LOCAL_HOST_ID, folderIdentity?: FileIdentity) => {
+  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, hostId = LOCAL_HOST_ID, folderConfirmation?: FolderTrashConfirmation) => {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
     if (hostId !== LOCAL_HOST_ID && action === "delete" && hostRegistry.get(hostId).capabilities?.fileDeletion !== "trash") throw new Error(i18n.t("The Host trash is unavailable."));
     const isFolder = entry.kind === "folder";
@@ -539,13 +539,13 @@ function EditorApp() {
     // Include descendants for folder operations, with a separator boundary and Host identity.
     for (const [group, pending] of pendingOpens.current) {
       if (pending.hostId === hostId && (pending.path === entry.path ||
-          entry.kind === "folder" && folderChain(entry.path, pending.path).length > 0)) cancelOpen(group);
+          entry.kind === "folder" && withinHostFolder(entry.path, pending.path))) cancelOpen(group);
     }
     operationRef.current = true; setFileOperationPending(true);
     if (figure) setFigureRenamePending(true);
     const hostSessions = () => tabs.filter(tab => tab.hostId === hostId)
       .flatMap(tab => { const session = sessions.current.get(tab.id); return session ? [session] : []; });
-    const affected = tabs.filter(tab => tab.hostId === hostId && (tab.path === entry.path || isFolder && folderChain(entry.path, tab.path).length > 0));
+    const affected = tabs.filter(tab => tab.hostId === hostId && (tab.path === entry.path || isFolder && withinHostFolder(entry.path, tab.path)));
     const affectedSessions = affected.flatMap(tab => { const session = sessions.current.get(tab.id); return session ? [session] : []; });
     const formSession = figure && hostSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
     const tab = tabs.find(tab => sameLocator(tab, { hostId, path: entry.path }));
@@ -607,7 +607,7 @@ function EditorApp() {
       }
       const response = await client.request(isFolder ? "/api/folder-trash" : `/api/file`, {
         method: isFolder ? "POST" : action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root, path: entry.path, ...(isFolder ? { expectedIdentity: folderIdentity } : {}), ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
+        body: JSON.stringify({ root, path: entry.path, ...(isFolder ? { expectedIdentity: folderConfirmation?.identity, expectedRevision: folderConfirmation?.revision } : {}), ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
           ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
             historicalSources: formSession.imageRenameSources(),
             revision: formSession.imageRenameRevision(), source: await formSession.appliedSource() } } : {}) }),

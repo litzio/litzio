@@ -98,6 +98,9 @@ property drafts or restored work. It names those documents and asks for Save fir
 not offer discard. Saved descendant tabs close only after a successful Host receipt. Local
 recovery cleanup uses one IndexedDB transaction matching Host and the folder path plus a
 separator boundary, deleting descendant records and revoking their registered pending writers.
+Folder Trash uses the existing assistant locator rule for Windows drive/UNC paths (case-insensitive,
+separator-normalized), independently of the browser OS; POSIX paths remain case-sensitive.
+The same rule covers pending opens, affected dirty/saved tabs and descendant recovery cleanup.
 Prefix siblings and other Hosts remain untouched. Recorders are suspended during execution;
 on refusal or an uncertain result they resume and tabs/records remain available. Recovery
 storage failure after disk success remains visible. The CLI cannot inspect another window's

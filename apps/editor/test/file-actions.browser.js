@@ -1,4 +1,4 @@
-async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument, enableFolderTrash } = {}) => {
+async (page, { changeFolderContents, openDocument, openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument, enableFolderTrash } = {}) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const root = fileActionsRoot;
   const sep = root.includes('\\') ? '\\' : '/';
@@ -34,8 +34,26 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await expect(dialog).toContainText('trash-reference.md');
   await expect(dialog.getByRole('button',{name:'Cancel',exact:true})).toBeFocused();
   await cancel();
+  await context('trash-target','Delete folder…');
+  await expect(dialog.getByRole('button',{name:'Move to Trash',exact:true})).toBeEnabled();
+  changeFolderContents();
+  await dialog.getByRole('button',{name:'Move to Trash',exact:true}).click();
+  await expect(dialog.getByRole('alert')).toContainText('Close this dialog and confirm again');
+  await cancel();
+  await expect(row('trash-target')).toBeVisible();
   await row('trash-target').click();
-  await row('inside.md').click(); await expect(page.getByTestId('current-file')).toHaveText('inside.md');
+  // A Windows Host preserves a caller's spelling; dirty protection must still match its tree path.
+  if (sep === '\\') {
+    await openDocument(page, (file('trash-target') + sep + 'inside.md').toLowerCase());
+    // Closing a folder keeps its document tab. Keep the original Root as this test's deletion context.
+    for (const section of await page.getByTestId('folder').all()) {
+      if (await section.getAttribute('data-root') !== file('trash-target').toLowerCase()) continue;
+      await section.getByRole('button',{name:'More actions',exact:true}).click();
+      await page.getByRole('menuitem',{name:'Close folder',exact:true}).click();
+      await section.waitFor({state:'hidden'});
+    }
+  } else await row('inside.md').click();
+  await expect(page.getByTestId('current-file')).toHaveText('inside.md');
   const inside = activeDocument(page).locator('.document-editor p').first();
   await inside.click(); await page.keyboard.press('End'); await page.keyboard.type(' Unsaved folder work.');
   await expect(page.getByRole('tab',{name:'inside.md, Unsaved changes',exact:true})).toBeVisible();

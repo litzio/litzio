@@ -35,6 +35,7 @@ const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
     {status:400, pathname:"/api/document", minimum:5, description:"Core refuses unpreservable table-cell inline math at the current submitted location"},
   ],
   "file-actions": [
+    { status:400, pathname:"/api/folder-trash", minimum:1, description:"folder changed after confirmation refuses without invoking trash" },
     { status:400, pathname:"/api/file", minimum:2, description:"duplicate file name and dirty referenced image renames are refused" },
   ],
   "ui-language": [

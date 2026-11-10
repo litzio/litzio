@@ -68,6 +68,13 @@ async page => {
       if (written !== (index > 0)) throw new Error('Folder cleanup did not revoke only descendant writers');
     }
     await store.delete(); await store.delete(undefined,'remote');
+    const win = make('windows-case', 'c:/ROOT/child/draft.md', 'local');
+    const sibling = make('windows-sibling', 'c:/root/child-other/draft.md', 'local');
+    for (const record of [win, sibling]) await store.write(record.id, await store.ticket(record.id, record.path), () => record);
+    await store.changePath('C:/Root/Child', null, undefined, 'local', true);
+    const kept = await store.list();
+    if (kept.some(record => record.id === win.id) || !kept.some(record => record.id === sibling.id)) throw new Error('Windows folder recovery cleanup ignored case or crossed sibling boundary');
+    await store.delete();
   });
   // File operations must invalidate that permission for both deletion and rename.
   await page.evaluate(async () => {
