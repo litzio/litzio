@@ -166,6 +166,9 @@ const nativeButtons = new Map([
   ["shell/DocumentStart.tsx:document-start-folder", "Wrapping recent-folder list row, not a fixed action."],
   ["shell/FolderDialog.tsx:folder-picker-option", "Recent-folder list option retains picker navigation."],
   ["shell/Sidebar.tsx:sidebar-tree-item", "Recent-folder tree row retains navigation geometry."],
+  ["PluginBuilder.tsx:pb-option", "Spike plugin builder radio/checkbox rows with role semantics; no shared choice row fits multi-line option help."],
+  ["PluginBuilder.tsx:pb-switch", "Spike plugin builder role=switch toggle; no shared switch primitive."],
+  ["PluginBuilder.tsx:pb-tab", "Spike plugin builder plan tabs (flow/spec/preview) in a local tablist."],
 ]);
 
 test("UI consumers use shared colors, control geometry and reasoned native-button exceptions", () => {
@@ -194,6 +197,18 @@ test("UI consumers use shared colors, control geometry and reasoned native-butto
       [".selection-toolbar.cross-reference-form|width|22rem", "Overlay width, not action geometry."],
       [".message-dismiss|min-width|1.5rem", "Existing 24px floor beneath the shared Button's actual 28px target."],
       [".message-dismiss|min-height|1.5rem", "Existing 24px floor beneath the shared Button's actual 28px target."],
+      [".pb-option .pb-mark|height|16px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-option .pb-mark|width|16px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-option[aria-checked=\"true\"] .pb-mark::after|height|6px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-option[aria-checked=\"true\"] .pb-mark::after|width|6px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-option[role=\"checkbox\"] .pb-mark|border-radius|4px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-option[role=\"checkbox\"][aria-checked=\"true\"] .pb-mark::after|height|4px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-option[role=\"checkbox\"][aria-checked=\"true\"] .pb-mark::after|width|8px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-switch|border-radius|999px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-switch|height|20px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-switch|width|36px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-switch::after|height|16px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
+      [".pb-switch::after|width|16px", "Spike plugin builder: custom radio/checkbox/switch glyph geometry, not a shared action control."],
     ]);
     // Gather actual JSX control classes before scanning CSS, including names without "button".
     for (const { root, prefix, plugin } of roots) {

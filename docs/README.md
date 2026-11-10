@@ -161,3 +161,4 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Test Guide](test/TEST_GUIDE.md) | Implemented | 현재 실행/수동 검토 절차. 테스트 이름·개수의 원본은 runner. |
 
 | [비서 플러그인 제작 예행연습](reviews/plugin-authoring-rehearsal-2026-11.md) | Historical | Windows 실제 Codex Luna low·Sol 기본 low 비교, 최초 시험 구성 실패와 재시험·스킬 보강 근거. |
+| [비서와 플러그인 만들기 스파이크](reviews/assistant-plugin-builder-spike-2026-11.md) | Historical | #767 협의형 사례(결정 수정이 다음 질문을 바꾸는지) 검증. 고정 위젯·결정요소·계획 그래프, Codex `gpt-6.1-terra` high 실행과 GitHub 이슈 플러그인 생성·설치 근거. 현재 계약 아님. |

@@ -103,5 +103,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     conversations?.close();
     return closing ??= Promise.resolve(agent?.close());
   };
-  return { invoke, route, close };
+  /** Shared provider connection for Host features that run their own isolated turns (plugin builder). */
+  const connection = () => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run));
+  return { invoke, route, close, connection };
 }

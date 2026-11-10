@@ -16,6 +16,7 @@ import { folderVersion } from "./folder-watch.ts";
 import { documentRevisions } from "./document-revisions.ts";
 import { readBibliographySources } from "./bibliography.ts";
 import type { HostServices } from "./host-services.ts";
+import { PLUGIN_BUILDER } from "../shared/plugin-builder.ts";
 import { MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
 import { ImageValidationError, validateImage } from "./image-validation.ts";
 import fs, { readFileSync, statSync, writeFileSync } from "node:fs";
@@ -425,7 +426,7 @@ export async function handleDocumentRequest(
         res.setHeader("Cache-Control", "no-store");
         res.end(icon.bytes); return;
       }
-      const service = (url.startsWith("/api/plugins") || url === "/api/reviews") ? services?.plugins : url.startsWith("/api/assistant/") ? services?.assistant : undefined;
+      const service = (url.startsWith("/api/plugins") || url === "/api/reviews") ? services?.plugins : url.startsWith("/api/assistant/") ? services?.assistant : url === PLUGIN_BUILDER.route ? services?.pluginBuilder : undefined;
       const route = service?.route(url);
       if (route) {
         const operation = route[req.method ?? ""];
