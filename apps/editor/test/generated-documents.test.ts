@@ -56,6 +56,7 @@ test("filesystem-distinct Unicode document names keep separate connections and a
       assert.equal((await host.execute({ action: "generated-regenerate", root, document: name, baseline: reloaded.baseline, requestId: randomUUID() })).state, "generated");
       assert.equal(isManagedGeneratedDocument(alias), true);
     }
+    const beforeQueuedRead = await read("\u212a.md");
     hold = true;
     const pending = read("\u212a.md");
     let queued: Promise<any> | undefined, readFinished = false;
@@ -64,7 +65,12 @@ test("filesystem-distinct Unicode document names keep separate connections and a
       queued = read(process.platform === "win32" ? "\u212a.MD" : "\u212a.md").then(value => { readFinished = true; return value; });
       await Promise.resolve(); assert.equal(readFinished, false, "reopening waits for the previous read");
       await assert.rejects(host.execute({ action: "generated-regenerate", root, document: "\u212a.md", requestId: randomUUID(), baseline: (await read("k.md")).baseline }), /operation in progress/);
-    } finally { hold = false; release(); await pending; assert.equal((await queued)?.state, "generated"); }
+    } finally {
+      hold = false; release(); await pending;
+      const reread = await queued;
+      assert.equal(reread.state, beforeQueuedRead.state);
+      assert.deepEqual(reread.baseline, beforeQueuedRead.baseline);
+    }
     const newRequest = (document: string, source: string) => ({ action: "generated-open", root, document, source, plugin: "fixture", job: "import", requestId: randomUUID(),
       baseline: { sourceRevision: textRevision(readFileSync(path.join(root, source), "utf8")), documentRevision: null, linkRevision: null } });
     hold = true;
