@@ -8,7 +8,7 @@
   },
   "name": "Docling",
   "description": "docling-serve 연결 확인, PDF 원본 보관과 Litzio 문서 만들기",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "requiresSdk": ">=0.4.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
@@ -562,7 +562,10 @@
                 "patch",
                 "build",
                 "compare",
-                "progress"
+                "progress",
+                "workspace-read",
+                "workspace-prepare",
+                "workspace-seal"
               ]
             },
             "patches": {
@@ -602,6 +605,9 @@
             "pageNo": {
               "type": "integer",
               "minimum": 1
+            },
+            "snapshot": {
+              "type": "object"
             }
           },
           "required": [

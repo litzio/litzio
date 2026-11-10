@@ -4,7 +4,7 @@
 - Last verified: 2026-11-10 — `d25aef81`의 SDK·Docling·Host 소스 및 기존 계약 대조. 아래 재측정은 별도 Codex CLI 실험이며 제품 비서·저장·화면 실행 검증이 아니다.
 - Verification v3: 2026-11-10 — #1466 병합 기준 `08b8a98b`에서 페이지 조각 및 공식 Docling Core 기반 렌즈 입력을 추가 비교. 제품 코드는 변경하지 않는다.
 - Decision / verification: 2026-11-10 — #1467 병합 기준 `eb9eda51`의 변환·replay·Host·Core target을 대조하고 소유자의 기본 검사·완료·구조 수정 범위 결정을 반영했다. 기존 Docling 변환 검사 1개 통과. 새 AI 측정·제품 기능 구현은 하지 않았다.
-- Scope: [#1462](https://github.com/litzio/litzio/issues/1462) 소유자 결정·설계안·변환 검토·구현 분할 계획과 누적 입력 방식 측정. 이번 PR은 구현·SDK 변경·기존 문서 migration을 하지 않는다. 개발 및 하위 PR base는 `feature/docling-stage3`; master 반영에는 소유자 승인과 독립 리뷰·merge queue 검사가 필요하다.
+- Scope: [#1462](https://github.com/litzio/litzio/issues/1462) 소유자 결정·설계안·변환 검토·구현 분할 계획과 누적 입력 방식 측정. 초기 설계 PR은 구현·SDK 변경·기존 문서 migration을 하지 않았다. 아래 P1a 절은 이후 구현 범위이며 나머지 Draft를 완료로 바꾸지 않는다. 개발 및 하위 PR base는 `feature/docling-stage3`; master 반영에는 소유자 승인과 독립 리뷰·merge queue 검사가 필요하다.
 - Authority: [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0020](../adr/0020-plugin-architecture.md), [현재 플러그인 계약](plugin-stage1-v1.md). 아래 2026-11-10 소유자 결정은 #1462의 방향과 범위를 확정하며, 세부 필드·작업 이름·미구현 PR 계획은 Draft다. Implemented 선언이 아니다.
 
 ## 소유자 결정 — 2026-11-10
@@ -531,3 +531,23 @@ P1의 수락 검증은 다음을 포함한다. 기존 lower-layer/Host 검사와
 각 PR에서 [현재 플러그인 계약](plugin-stage1-v1.md)과 필요한 Core/SDK/작성 계약을 실제 변경 범위만큼 함께 갱신한다. 특히 **P1에서 루트 README·plugin-stage1·Docling README/manifest의 `.docling→문서`, 외부 `.md` 결과/연결·대조 전제를 새 작업공간/중간 export로 함께 갱신**하고 P11에서 완료 승인 export를 덧붙인다. 이번 문서 PR에서는 아직 동작하는 기존 구현 안내를 완료된 것처럼 바꾸지 않는다. 위 이름은 후보이며 지금 명령이 제공된다는 안내가 아니다. PR 제출/수락은 [검증 matrix](../../CONTRIBUTING.md#verification-matrix)와 [테스트 설계 지침](../contributing/test-design.md)을 따르고 master 병합은 소유자 승인·독립 리뷰·merge queue 전체 검사를 별도로 충족한다.
 
 의미·보존은 기존 Docling replay/작성 검사, 공용 revision·stale·no-replay·부분 실패는 기존 generated-document/review Host 검사, CLI·비서 도구는 같은 정의의 실제 호출 연결에서 검증한다. 전체 블록 승인을 다시 도입하지 않고 실제 LSR/실문서의 새 workflow 완료·미대조 범위·누락과 위험 제안을 별도 수락 근거로 남긴다. UI 구현 시 [UI 결정표](ui-decision-table-v1.md)와 [반복 패턴](ui-patterns-v1.md)을 읽는다. 이번 문서 PR은 화면 구현·시각 승인을 포함하지 않는다.
+
+
+## P1a 저장·읽기 기반 구현과 측정
+
+2026-11-10: P1을 저장/읽기 기반 P1a와 대조/material/중간 export 연결 P1b로 분리했다. source-first 외부 문서 저장과 새 단일 archive commit의 실패 경계를 독립 검증하기 위한 분할이다. P1a에는 실제 SDK schema·Host handler·CLI·비서 읽기가 있으며 placeholder 성공은 없다. P1 전체 수락·renderer 검증·중간 export 완료는 아직 아니다. 현재 구현 계약은 [plugin-stage1](plugin-stage1-v1.md#review-workspace-기반-1462-p1a)과 [플러그인 안내](../../community-plugins/docling/README.md#단일-작업공간-hostcli-기반-1462-p1a)를 따른다. 기존 K1의 외부 `.md` 생성은 P1b 전환 전까지 남긴다.
+
+P1a는 format 2의 canonical source/final inputs·targets·key/hash/생성 계약/이미지 binding, 단일 archive 원자적 patch 저장과 캐시 보존 progress를 구현한다. read는 prepare하지 않으며 old contract는 생성 당시 결과로 읽고 새 변경 전에 명시 regenerate를 요구한다. 비서와 CLI는 같은 reader를 호출하고 completion은 not-evaluated다. 이미지 bytes/material·새 scoped bundle·ReviewRenderer와 명시 current export는 P1b에 남아 있다. effective region 종류는 현재 네 patch replay 결과로 기존 comparison을 계산하도록 수정했으며 구조 lineage operation은 P7~P10 범위다.
+
+측정은 Windows/Node 24의 실제 HTTP Host + SDK worker에서 수행했다. LSR는 앞 실험 원본 JSON hash `fc3a4b657e3bbd530c245226f191a8b9b9b53b3e1ab5f599389323aa7c47098d`·PDF bytes를 바꾸지 않고 format 2 envelope로 새로 포장한 입력이며 서버를 다시 호출하거나 사용자 파일을 migration하지 않았다. 300쪽 자료는 4,500개의 약 200자 문단·provenance를 가진 합성 JSON과 PDF marker이며 실제 PDF 변환·페이지 이미지는 없다. 각각 1회 최초 열기·3회 반복 읽기·1회 text patch·1회 progress이며 시간은 HTTP 요청 전체 ms다.
+
+| 입력 | 원래/저장 후 archive bytes | 최초 cache bytes | 최초 열기 ms | 반복 읽기 ms | patch 저장 ms | progress ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| LSR 13쪽 (group 포함 170 items) | 4,898,929 / 4,942,081 | 42,752 | 2,126 | 264 / 235 / 235 | 1,955 | 665 |
+| 합성 300쪽·4,500문단 | 1,698,153 / 3,649,580 | 1,951,136 | 24,374 | 1,133 / 1,175 / 1,291 | 21,133 | 1,871 |
+
+Host RSS 시작 290,668,544 bytes, 5ms sampling peak 935,182,336, process high-water 947,871,744였다. 두 자료 연속 실행의 Host 측 수치이며 child worker peak·실제 disk high-water는 미측정이다. 쓰기는 원본+candidate+temporary sibling을 동시에 유지하므로 전체 archive 재기록/일시 디스크 비용이 남는다. 큰 합성 자료 최초 열기/patch는 CLI 30초 요청 제한에 가깝고 이미지가 많은 큰 실제 문서·최대 한도에서 성공/응답성을 보장하지 않는다. 기존 10초 plugin RPC·30초 CLI 제한은 늘리지 않았다. 파일 크기가 작은 합성 300쪽을 실제 300쪽 PDF 성능으로 일반화하지 않는다.
+
+실제 `review workspace-read --input ... --host ... --json`은 같은 LSR Host에서 exit 0·current·canonical source/revision을 반환했고 documentPath 같은 가짜 경로가 없었다. 원본 PDF/JSON bytes와 progress 전후 cache bytes를 대조했다. measurements/raw 파일은 로컬 tmp에만 있으며 공개 자료에는 경로·계정 식별자를 싣지 않는다. 측정 Host는 close했고 Docling 서버를 시작하지 않았다.
+
+기존 plugins 검사에 주된 보존 검사를 보완했다: 원본 bytes·image 무중복·캐시 key/최종 targets·진행 무재작성·후보/교체 실패·stale/동시 admission·혼합 target 거부·lost-response status/중복 거부·재시작·손상 cache 복구·old contract 명시 재생성·잘못된 ledger의 캐시 역복구 금지. 비서 tool handler도 같은 reader/열린 폴더 범위를 검사한다. 새 suite·subprocess·timeout 확대 없이 in-process Host/adapter 계층에 보호를 둔다. 실제 AI가 tool을 선택해 호출한 제품 대화·다른 PC 인계·8.3 alias 실측·큰 실제 문서와 P1b 대조/export는 미확인이다.

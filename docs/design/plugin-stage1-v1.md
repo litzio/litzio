@@ -812,3 +812,18 @@ Docling의 section_header/list_item/code_block 등의 분류 대응은 community
 어두운 화면의 흰 원본 위에 너무 밝은 선을 그리지 않는다. 미대응은 source graphite와 UI muted를
 쓴다. 얇은 선의 opacity/굵기와 선택 굵기도 공용 토큰이다. 실제 캡처 실행은 각 종류의 원본 경계·
 원본 위 일반 선·UI 위 일반 선을 색상/opacity 적용 뒤 계산해 모두 3:1 이상인지 확인한다.
+
+
+## Review workspace 기반 (#1462 P1a)
+
+미릴리스 SDK 0.4.0의 `workspaceRequestSchema/workspaceStateSchema/workspaceSnapshotSchema`를 추가한다. 기존 native-document job의 read generatedDocument provider를 공용 review dispatcher로만 호출한다. `POST /api/reviews`와 `litzio review workspace-open|workspace-read|workspace-patch|workspace-progress|workspace-regenerate|workspace-status --input <json> --host <origin> --json`은 같은 Host 작업이다. provider는 source 형식을 소유하고 Host는 ZIP·원본 item locator를 해석하지 않는다. OCR/import 검수 자료에도 같은 reader·candidate 계약을 사용할 수 있다.
+
+입력은 `{root,workspace,plugin,job}`이며 workspace는 Root 상대 실제 파일이다. read 외 쓰기는 전체 파일 SHA-256 baseline과 UUID requestId를 요구한다. patch는 opaque patches 목록, progress는 기존 generatedProgressSchema를 추가한다. status는 requestId만 받는다. 출력은 record/items와 nullable snapshot, cacheState(`missing/invalid/current/created-version`), live baseline, receipt/saved, 별도 content/document revision과 Core read model이다. 완료 판정은 아직 `not-evaluated`이며 캐시 유효성으로 대체하지 않는다. archive 내부 경로·가짜 문서 경로·export connection은 없다. 비서 `read_review_document`는 열린 폴더의 같은 read를 사용하며 쓰거나 prepare하지 않는다.
+
+provider mode `workspace-read`는 영속 snapshot을 검증해 반환한다. `workspace-prepare`는 Host-created resultFile에 후보 source를 쓰고 의미 변경/준비 때 `{build:{authoring,images},imageRefs,contentRevision,adapterVersion}`를 반환한다. imageRefs는 기존 원본 바이트를 가리키는 `{key,ref,revision,mime}`이며 Host가 build 이미지와 대조한다. Host는 기존 SDK/Core authorDocument와 공용 이미지 검증을 사용해 안정적인 `review-asset:<sha256>` binding으로 canonical source와 final input targets를 작성한다. `workspace-seal`은 Host가 전달한 snapshot을 후보 파일의 파생 항목에 저장한다. Host는 후보를 다시 읽어 source hash·canonical round-trip·실제 block paths·target revision 및 Host 작성 결과와의 동일성을 확인한 뒤 원본 baseline을 재검사하고 단일 source 교체로 commit한다. 실패 전 원본은 수정하지 않는다. 결과가 불확실하면 status 확인을 요구하고 자동 재실행하지 않는다. 임시 candidate는 명시 파일 삭제와 빈 directory 제거로 정리한다.
+
+progress는 생성 호출 없이 캐시 source/key/targets를 그대로 보존하며 전체 파일만 교체한다. 동일 filesystem identity는 기존 generated-document와 같은 admission set으로 보호한다. read가 파일을 쓰지 않는다. open은 current/created-version 캐시를 바꾸지 않으며 누락·손상 때만 준비한다. 이전 생성 계약 캐시의 새 변경은 명시 regenerate를 요구한다. Host request receipt는 재시작 복원하지 않으며 영속 캐시·ledger를 다시 검증한다.
+
+Docling format 2는 원본 PDF/JSON/manifest와 review.json에 두 파생 cache entries를 추가한다. key는 immutable JSON hash·patches content revision·adapter 의미 버전·Core authoring/serialization 계약·이미지 binding을 포함하고 workspace 전체 hash·진행 정보는 제외한다. 생성 계약의 버전은 패키지 버전과 별도다. 이미지 바이트는 기존 JSON에 보존하고 cache에 복제하지 않는다. 원본/ledger 손상은 파생 캐시에서 역복구하지 않는다. 과거 archive migration은 없다.
+
+이 PR은 P1a 저장/읽기 기반이다. 기존 K1 외부 문서 생성과 generated 비교 화면은 유지되며 새 workspace 대조/material/중간 export는 P1b이다. 기존 source-first generated 작업을 새 원자적 workspace 저장으로 혼동하지 않는다. 새 renderer·공식 완료 export는 구현하지 않았다. Host/CLI 실제 호출·측정 범위와 미확인 항목은 [3단계 P1a 기록](docling-review-stage3.md#p1a-저장읽기-기반-구현과-측정)에 남긴다.

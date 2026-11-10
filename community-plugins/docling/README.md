@@ -1,5 +1,7 @@
 # Docling community plugin
 
+#1462 P1a는 아래 **단일 작업공간 Host·CLI 기반**까지 구현합니다. 기존 K1 `.docling→문서` 화면은 아직 외부 `.md`를 만드는 기존 경로입니다. 새 workspace reader의 대조 renderer·이미지 자료 읽기·중간 export 연결은 P1b이며 P1 전체 완료가 아닙니다.
+
 소유자 개인 작업을 위한 실험 플러그인입니다. Litzio 공식 공급·기본 활성 플러그인이 아닙니다. #1391 지정 커뮤니티로 앱에 포함됩니다. 이 디렉터리만 독립 저장소로 옮길 수 있으며 pnpm workspace에 속하지 않습니다.
 
 ## 사용
@@ -68,13 +70,13 @@ CLI 입력 파일은 artifact 밖에 둡니다.
 
 플러그인 소유 ZIP32 형식이며 모든 항목은 무압축(STORE)입니다. `manifest.json`, `document.json`, `source.pdf`를 포함합니다. `source.pdf`는 제출한 원본 바이트이며 manifest.source의 SHA-256·크기로 확인합니다. `document.json`은 DoclingDocument 전체 필드·그림 ImageRef와 embedded data URI를 보존하며 manifest.document의 SHA-256·크기로 확인합니다. 페이지 PNG도 서버 변환 때 요청해 DoclingDocument의 embedded ImageRef 그대로 보관합니다(`include_page_images:true`, `images_scale:2`). 별도 중복 PNG 항목은 만들지 않습니다. 기존 `.docling` 파일 호환은 지원하지 않습니다.
 
-0.0.5는 선택 `review.json`에 수정 목록과 후속 진행·승인 자리를 둡니다. 슬롯이 없으면 빈 기록으로 읽고 첫 수정에서 저장합니다. 상세 schema·작업은 아래 검수 계약을 따릅니다. 검수 기록과 무관하게 원본 PDF/JSON hash를 검증하며 전체 ZIP hash를 원본 항목 identity로 쓰지 않습니다. 검수 저장은 공식 경로로 ZIP 전체를 다시 쓰고 `.md`·`assets/`는 밖에 둡니다.
+0.0.5는 선택 `review.json`에 수정 목록과 후속 진행·승인 자리를 둡니다. 슬롯이 없으면 빈 기록으로 읽고 첫 수정에서 저장합니다. 상세 schema·작업은 아래 검수 계약을 따릅니다. 검수 기록과 무관하게 원본 PDF/JSON hash를 검증하며 전체 ZIP hash를 원본 항목 identity로 쓰지 않습니다. 기존 generated-document 검수 저장은 외부 `.md`를 갱신합니다. 새 workspace 경로는 아래와 같이 내부 캐시만 저장합니다.
 
 `manifest.json`은 다음 출처 정보를 담습니다. 원본 절대 경로와 secret은 넣지 않습니다.
 
 | 필드 | 기록 |
 | --- | --- |
-| format/version/status/createdAt | docling / 1 / success / 완료 UTC 시각 |
+| format/version/status/createdAt | docling / 2 / success / 완료 UTC 시각 |
 | converter | 이 원본 파일을 만든 플러그인 버전 |
 | source | 원본 파일 이름, SHA-256, 바이트 수 |
 | server | `/version`의 버전들, 실제 OpenAPI SHA-256, 프로필의 기준 hash와 일치 여부(차이만으로 거부하지 않음) |
@@ -246,3 +248,29 @@ CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|reg
 ## 보관 자료
 
 [LSR 1.1 합성 PDF와 작성자 기대 구조](sample/lsr-1.1/README.md)를 보관합니다. Docling 출력 정답이나 품질 합격선이 아니며, 플러그인과 함께 배포되는 체험용 샘플입니다.
+
+
+## 단일 작업공간 Host·CLI 기반 (#1462 P1a)
+
+새 형식은 `manifest.version:2`이며 과거 archive migration은 없습니다. 원본 PDF·JSON·manifest bytes와 hash는 작업공간 저장 전후 그대로 유지합니다. `current/document.md`는 Host의 SDK/Core가 작성한 canonical source, `current/snapshot.json`은 최종 input keys/targets·문서 hash·의미 revision·캐시 key·생성 계약·이미지 binding과 무결성 hash입니다. 원본+ordered patches가 진실이고 두 current 항목은 직접 편집하지 않는 파생 자료입니다. 이미지 바이트는 원본 Docling JSON에 한 번만 있으며 내부 source에는 `review-asset:<sha256>` identity를 바인딩합니다. 외부 파일 경로나 임시 URL이 아닙니다. 실제 이미지 자료와 화면 resolver는 P1b에서 연결합니다.
+
+다음 CLI는 같은 `POST /api/reviews` 공용 Host 작업을 호출합니다. 입력 JSON은 artifact 밖에 둡니다.
+
+```sh
+litzio review workspace-open --input open.json --host <origin> --json
+litzio review workspace-read --input read.json --host <origin> --json
+litzio review workspace-patch --input patch.json --host <origin> --json
+litzio review workspace-progress --input progress.json --host <origin> --json
+litzio review workspace-regenerate --input regenerate.json --host <origin> --json
+litzio review workspace-status --input status.json --host <origin> --json
+```
+
+공통 입력은 `{root,workspace:"a.docling",plugin:"community.docling",job:"create-document"}`입니다. read 외 쓰기는 workspace 전체 SHA-256인 `baseline`과 새 UUID `requestId`를 요구합니다. patch는 위의 기존 네 operation 목록 `patches`, progress는 `{checkedPages,lastPage}`를 추가합니다. status는 `{requestId}`만 받습니다. HTTP action 이름은 CLI의 `workspace-*`와 같습니다. 첫 baseline은 파일 SHA-256 또는 read 응답에서 얻습니다.
+
+read는 archive를 변경하지 않고 source·read model·최종 targets와 별도 `documentRevision/contentRevision/cacheState/baseline`을 반환합니다. 비서 `read_review_document`도 동일한 read를 호출하며 열린 폴더 범위를 검사합니다. 내부 archive 경로나 가짜 `.md` 경로는 반환하지 않습니다. 이 단계에는 이미지 바이트 읽기와 scoped 대조 bundle은 아직 없습니다. 완료 판정은 `completion:"not-evaluated"`이며 cacheState를 완료로 간주하지 않습니다.
+
+open은 캐시가 없거나 손상됐을 때 준비하고 이미 무결한 캐시가 있으면 쓰지 않습니다. 생성 계약이 다른 무결한 캐시는 `created-version`으로 읽고 open이 조용히 교체하지 않습니다. 새 patch/progress 전 명시 regenerate가 필요합니다. 원본/ledger 손상은 캐시로 복구하지 않습니다. cache key는 원본 JSON hash+ordered patches hash, replay/converter 의미 버전, Core authoring/직렬화 계약 및 이미지 binding으로 계산하며 workspace 전체 hash·페이지 확인·위치는 포함하지 않습니다.
+
+patch는 staging에서 후보 ledger→replay→Host 공식 작성/이미지 검증→캐시 seal→후보 재검증을 끝낸 뒤 live baseline을 재확인하고 `.docling` 한 번으로 교체합니다. 중간 실패·충돌은 기존 ledger·캐시를 함께 보존합니다. progress는 같은 경로로 전체 archive를 교체하되 cache bytes/key/targets를 보존하고 문서를 재작성하지 않습니다. Host는 ZIP을 해석하지 않습니다. provider가 자료/후보를 제공하며 Host가 Core canonical source와 실제 block targets·revision을 검증합니다. 파일 identity에 따른 admission과 공식 file-commit은 기존 경로를 재사용합니다.
+
+receipt와 status는 daemon 수명입니다. 응답 유실은 같은 requestId status로 확인하며 자동 재전송하지 않습니다. 재시작 후 status는 unknown이고 파일을 다시 읽습니다. 결과에 export 이력·Host generated-document connection은 생성하지 않습니다. 새 경로에서 외부 `.md`·assets가 생기지 않으며 기존 K1은 P1b 전까지 별도 기존 동작입니다.

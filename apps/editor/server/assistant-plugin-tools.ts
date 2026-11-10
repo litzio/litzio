@@ -4,6 +4,17 @@ import { PLUGIN_REGISTRATION_CHANGED, pluginManagementSchema, jobRequestSchema, 
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { z } from "zod";
 import { publicOperationError } from "./plugins/operation-result.ts";
+import { workspaceRequestSchema } from "@litzio/plugin-sdk";
+import path from "node:path";
+
+export const reviewDocumentTools = [{ type: "function", name: "read_review_document", description: "Read the canonical document, revisions and progress of a prepared review workspace on this Host. Uses the common review reader; never pass an archive-internal or fake Markdown path. Does not prepare or write the workspace.", inputSchema: z.toJSONSchema(workspaceRequestSchema.options[0]!.omit({ action: true })) }];
+export async function executeReadReviewDocument(host: Pick<PluginHost, "generatedDocuments">, input: unknown, scope: DocumentToolScope) {
+  const parsed = workspaceRequestSchema.parse({ ...(input as object), action: "workspace-read" });
+  if (parsed.action !== "workspace-read" || !scope.folders) throw new Error("No opened folders for this review.");
+  const root = scope.folders.resolve(accessPath(parsed.root, scope.access));
+  scope.folders.resolve(accessPath(path.resolve(root, parsed.workspace), scope.access));
+  return host.generatedDocuments.execute(parsed);
+}
 
 const pluginOperationInput = z.strictObject({ operation: z.string().min(1), input: z.unknown().refine(value => value !== undefined) });
 export const pluginOperationTools = [{ type: "function", name: "invoke_plugin_operation", description: "Invoke a declared assistant:true read operation or health check on this conversation's Host. Inspect manage_plugins list for full operation names and input schemas. Supply comparison targets as operation input, never settings. Read-only turns cannot invoke. No per-call approval. Activity contains metadata only; never supply secrets.", inputSchema: { type: "object", properties: { operation: { type: "string" }, input: {} }, required: ["operation", "input"], additionalProperties: false } }];

@@ -1,6 +1,6 @@
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
-import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -124,6 +124,7 @@ export class AssistantConversations {
         ? await executePluginTool(this.plugins, params.arguments, entry => {
           active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
         }, scope)
+        : params.tool === "read_review_document" && this.plugins ? await executeReadReviewDocument(this.plugins, params.arguments, scope)
         : displayTools.some(tool => tool.name === params.tool)
         ? await this.display.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
         : params.tool === templateOperations.list.name ? executeTemplateOperation("list", params.arguments, templateScope)
@@ -304,7 +305,7 @@ export class AssistantConversations {
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [
-            ...documentTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools] : [])] });
+            ...documentTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools] : [])] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);

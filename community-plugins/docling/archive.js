@@ -6,7 +6,7 @@ import { PLUGIN_VERSION, DOCLING_FORMAT_VERSION } from "./versions.js";
 // Node has no ZIP API; this deliberately supports our small fixed envelope, not general ZIP.
 // The opaque review ledger is independent of immutable source hashes.
 // Record semantics belong to review.js; this envelope only preserves its bytes.
-const validName = name => name === "manifest.json" || name === "document.json" || name === "source.pdf" || name === "review.json";
+const validName = name => ["manifest.json", "document.json", "source.pdf", "review.json", "current/document.md", "current/snapshot.json"].includes(name);
 const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 const hashPattern = /^[a-f0-9]{64}$/;
@@ -53,7 +53,7 @@ function validateEntries(entries) {
   const images = imagesOf(document);
   if (JSON.stringify(manifest.images) !== JSON.stringify(images.map(({ data, ...record }) => record))) throw new Error("Image record mismatch");
   for (const name of entries.keys()) if (!validName(name)) throw new Error("Unsupported .docling entry");
-  return { manifest, manifestBytes: entries.get("manifest.json"), manifestHash: sha256(entries.get("manifest.json")), documentJson, document, sourcePdf, ...(entries.has("review.json") ? { reviewBytes: entries.get("review.json") } : {}) };
+  return { manifest, manifestBytes: entries.get("manifest.json"), manifestHash: sha256(entries.get("manifest.json")), documentJson, document, sourcePdf, cacheEntries: new Map([...entries].filter(([name]) => name.startsWith("current/"))), ...(entries.has("review.json") ? { reviewBytes: entries.get("review.json") } : {}) };
 
 }
 
@@ -66,11 +66,13 @@ export function createDoclingArchive({ manifest, documentJson, sourceBytes, revi
 }
 
 /** Rewrite only the ledger of an already validated archive; immutable bytes are hash checked. */
-export function rewriteReview(archive, reviewBytes) {
+export function rewriteReview(archive, reviewBytes, cacheEntries = archive.cacheEntries ?? new Map()) {
   const documentBytes = Buffer.from(archive.documentJson);
   if (sha256(documentBytes) !== archive.manifest.document.sha256 || sha256(archive.sourcePdf) !== archive.manifest.source.sha256 ||
       sha256(archive.manifestBytes) !== archive.manifestHash) throw new Error("Original changed");
-  return packEntries(new Map([["manifest.json", archive.manifestBytes], ["document.json", documentBytes], ["source.pdf", archive.sourcePdf], ["review.json", reviewBytes]]));
+  const entries = new Map([["manifest.json", archive.manifestBytes], ["document.json", documentBytes], ["source.pdf", archive.sourcePdf], ["review.json", reviewBytes], ...cacheEntries]);
+  for (const name of cacheEntries.keys()) if (!["current/document.md", "current/snapshot.json"].includes(name)) throw new Error("Unsupported cache entry");
+  return packEntries(entries);
 }
 
 function packEntries(entries) {

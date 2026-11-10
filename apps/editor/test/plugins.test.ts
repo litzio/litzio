@@ -12,6 +12,9 @@ import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
 import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from "@litzio/core";
+import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
+import { createHash, randomUUID } from "node:crypto";
+import { executeReadReviewDocument } from "../server/assistant-plugin-tools.ts";
 
 // Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
 // SDK runtime admission, official K1 storage and the browser result boundary.
@@ -20,7 +23,12 @@ async function doclingConverter() {
   const review = readFileSync(new URL("../../../community-plugins/docling/review.js", import.meta.url), "utf8");
   const reviewUrl = "data:text/javascript;base64," + Buffer.from(review.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64");
   const converter = await import("data:text/javascript;base64," + Buffer.from(source.replace('"./review.js"', JSON.stringify(reviewUrl)).replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
-  return {...converter,...await import(reviewUrl)};
+  const workspace = readFileSync(new URL("../../../community-plugins/docling/workspace.js", import.meta.url), "utf8")
+    .replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))
+    .replace('"./review.js"', JSON.stringify(reviewUrl))
+    .replace('"./document.js"', JSON.stringify("data:text/javascript;base64," + Buffer.from(source.replace('"./review.js"', JSON.stringify(reviewUrl)).replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64")))
+    .replace('"./archive.js"', JSON.stringify(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href));
+  return {...converter,...await import(reviewUrl), ...await import("data:text/javascript;base64," + Buffer.from(workspace).toString("base64"))};
 }
 const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
 
@@ -210,6 +218,111 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
   assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson + " ", sourceBytes, reviewBytes }), /Invalid DoclingDocument/);
 });
 
+test("Docling workspace atomically stores canonical cache and ledger, preserves progress, rejects mixed state and survives handoff", async t => {
+  const { workspaceOperation } = await doclingConverter();
+  const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);
+  const { PDF_PROFILE } = await import(new URL("../../../community-plugins/docling/conversion.js", import.meta.url).href);
+  const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-workspace-")), file = path.join(root, "source.docling");
+  const document = doclingFixture();
+  document.pictures[0].image = {mimetype:"image/png",dpi:72,size:{width:1,height:1},uri:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII="};
+  const original = archive.createDoclingArchiveFromResult({sourceName:"sample.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
+    task:{id:"workspace",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"success",errors:[],document:{json_content:document}}))});
+  writeFileSync(file, original);
+  const access = new RootAccess([root]); let fail = "", reads = 0, builds = 0;
+  let hold: (() => void) | undefined, entered: (() => void) | undefined;
+  const service = () => new GeneratedDocuments(access, () => ({operation:"fixture.provider",version:1,assertCurrent(){}}), async (_op, raw: any) => {
+    if (raw.mode === "workspace-prepare" && !raw.progress) builds++;
+    if (raw.mode === "workspace-read") reads++;
+    if (raw.mode === fail) throw new Error("Injected provider failure");
+    const result = await workspaceOperation(raw);
+    if (raw.mode === "workspace-prepare" && entered) { entered(); await new Promise<void>(resolve => { hold = resolve; }); }
+    if (fail === "race" && raw.mode === "workspace-seal") writeFileSync(file, original);
+    if (fail === "mixed" && raw.mode === "workspace-read" && raw.file !== file && result.snapshot) result.snapshot.inputs.find((item: any) => item.targets.length).targets[0].documentHash = "0".repeat(64);
+    return {result};
+  });
+  let host = service();
+  const base = {root, workspace:"source.docling",plugin:"fixture",job:"import"};
+  const read = () => host.execute({...base,action:"workspace-read"});
+  const write = (action: string, extra = {}, baseline = digest(readFileSync(file)), requestId = randomUUID()) => host.execute({...base,action,baseline,requestId,...extra});
+  const patch = {patches:[{type:"text",self_ref:"#/texts/4",text:"Corrected canonical text"}]};
+  try {
+    assert.equal((await read()).cacheState,"missing"); assert.deepEqual(readFileSync(file),original,"read never writes");
+    const opened = await write("workspace-open");
+    assert.equal(opened.cacheState,"current", JSON.stringify(opened)); assert.equal(opened.saved,true);
+    assert.match(opened.snapshot.source,/review-asset:/); assert.equal(opened.snapshot.images.length,1);
+    assert.ok(opened.document.blocks.length); assert.equal(opened.documentPath,undefined);
+    assert.deepEqual(fs.readdirSync(root),["source.docling"],"no external Markdown, assets or connection file");
+    const cached = readFileSync(file), snapshot = opened.snapshot;
+    await read(); await write("workspace-open"); assert.equal(builds,1,"reads and an already prepared open never convert");
+    const progress = await write("workspace-progress",{progress:{checkedPages:[1],lastPage:1}});
+    assert.equal(progress.saved,true,JSON.stringify(progress)); assert.equal(builds,1);
+    const progressed = archive.readDoclingArchive(readFileSync(file)), initial = archive.readDoclingArchive(cached);
+    assert.deepEqual(progressed.cacheEntries,initial.cacheEntries,"progress preserves cache bytes and mapping");
+    for (const entry of ["sourcePdf","documentJson","manifestBytes"]) assert.deepEqual(progressed[entry],initial[entry]);
+    assert.deepEqual(progress.snapshot,snapshot);
+    const before = readFileSync(file);
+    for (const mode of ["workspace-prepare","workspace-seal","mixed"]) {
+      fail=mode; const failed=await write("workspace-patch",patch); assert.equal(failed.receipt.outcome,"failure",JSON.stringify(failed));
+      assert.deepEqual(readFileSync(file),before,"failed candidate cannot publish ledger or cache");
+    }
+    fail="";
+    const rename = fs.renameSync;
+    const commitFailure = t.mock.method(fs, "renameSync", (from: fs.PathLike, to: fs.PathLike) => {
+      if (to === file) throw Object.assign(new Error("Injected atomic replacement failure"),{code:"EACCES"});
+      return rename(from,to);
+    });
+    try {
+      const failed = await write("workspace-patch",patch);
+      assert.notEqual(failed.receipt.outcome,"success"); assert.deepEqual(readFileSync(file),before);
+    } finally { commitFailure.mock.restore(); }
+    const stale=await write("workspace-patch",patch,opened.baseline); assert.equal(stale.receipt.outcome,"failure");
+    const requestId=randomUUID(); await write("workspace-patch",patch,digest(before),requestId); // Simulate a lost response.
+    const recovered=await host.execute({action:"workspace-status",requestId});
+    assert.equal(recovered.saved,true,JSON.stringify(recovered)); assert.match(recovered.snapshot.source,/Corrected canonical text/);
+    await assert.rejects(write("workspace-patch",patch,digest(readFileSync(file)),requestId),/Duplicate requestId/);
+    host=service(); assert.equal((await host.execute({action:"workspace-status",requestId})).state,"unknown");
+    assert.deepEqual((await read()).snapshot,recovered.snapshot,"restart verifies the same portable source and targets");
+    const assistant=await executeReadReviewDocument({generatedDocuments:host},base,{folders:access,access,permissionMode:"read-only"});
+    assert.deepEqual(assistant.snapshot,recovered.snapshot); assert.equal(assistant.saved,false);
+    await assert.rejects(executeReadReviewDocument({generatedDocuments:host},{...base,root:path.dirname(root)}, {folders:access,access,permissionMode:"read-only"}));
+    // Windows aliases and concurrent writes share the filesystem identity admission lock.
+    let signal!: () => void; const waiting=new Promise<void>(resolve=>{signal=resolve;}); entered=signal;
+    const pending=write("workspace-progress",{progress:{checkedPages:[],lastPage:1}}); await waiting;
+    await assert.rejects(host.execute({...base,workspace:process.platform==="win32"?"SOURCE.DOCLING":"source.docling",action:"workspace-read"}),/operation in progress/);
+    entered=undefined; hold!(); await pending;
+    // Preserve an external writer if the baseline changes after preparation.
+    fail="race"; assert.equal((await write("workspace-patch",patch)).receipt.outcome,"failure"); assert.deepEqual(readFileSync(file),original); fail="";
+    await write("workspace-open");
+    const intact=archive.readDoclingArchive(readFileSync(file));
+    const metadata=JSON.parse(intact.cacheEntries.get("current/snapshot.json").toString());
+    metadata.authoringContract="old-core-contract";
+    metadata.cacheKey=digest(JSON.stringify([metadata.contentRevision,metadata.adapterVersion,metadata.authoringContract,metadata.images]));
+    const {integrity: _integrity,...saved}=metadata;
+    metadata.integrity=digest(JSON.stringify([intact.cacheEntries.get("current/document.md").toString(),saved]));
+    intact.cacheEntries.set("current/snapshot.json",Buffer.from(JSON.stringify(metadata)));
+    writeFileSync(file,archive.rewriteReview(intact,intact.reviewBytes));
+    const older=readFileSync(file); assert.equal((await write("workspace-open")).cacheState,"created-version"); assert.deepEqual(readFileSync(file),older);
+    assert.equal((await write("workspace-patch",patch)).receipt.outcome,"failure");
+    assert.equal((await write("workspace-regenerate")).cacheState,"current");
+    const mixedLedger=archive.readDoclingArchive(readFileSync(file));
+    writeFileSync(file,archive.rewriteReview(mixedLedger,Buffer.from(JSON.stringify({patches:[{type:"text",self_ref:"#/texts/4",text:"different valid ledger"}],checkedPages:[],lastPage:null,approval:null}))));
+    assert.equal((await read()).cacheState,"invalid","a valid cache from another ledger is not a current result");
+    assert.equal((await write("workspace-regenerate")).cacheState,"current");
+    const corrupt=archive.readDoclingArchive(readFileSync(file));
+    corrupt.cacheEntries.set("current/document.md",Buffer.from("corrupted derived cache"));
+    writeFileSync(file,archive.rewriteReview(corrupt,corrupt.reviewBytes));
+    assert.equal((await read()).cacheState,"invalid"); assert.equal((await write("workspace-regenerate")).cacheState,"current");
+    const invalidLedger=archive.readDoclingArchive(readFileSync(file));
+    writeFileSync(file,archive.rewriteReview(invalidLedger,Buffer.from(JSON.stringify({patches:[{type:"text",self_ref:"#/texts/99999",text:"invalid"}],checkedPages:[],lastPage:null,approval:null}))));
+    const invalidBytes=readFileSync(file);
+    assert.equal((await write("workspace-regenerate")).receipt.outcome,"failure");
+    assert.deepEqual(readFileSync(file),invalidBytes,"never recover source/ledger from a derived cache");
+    assert.deepEqual(fs.readdirSync(root),["source.docling"]);
+    assert.ok(reads>0);
+  } finally { fs.unlinkSync(file); fs.rmdirSync(root); }
+});
+
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
@@ -306,6 +419,7 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
     const start = readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).find(entry => entry.method === "thread/start");
     assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "invoke_plugin_operation"));
+    assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "read_review_document"));
     const invoke = async (operation: string, input: unknown, id = conversation.id) => {
       const response: any = await connection.client.request("fixture/tool", { threadId: id, tool: "invoke_plugin_operation", arguments: { operation, input } });
       return { success: response.result.success, ...JSON.parse(response.result.contentItems[0].text) };
