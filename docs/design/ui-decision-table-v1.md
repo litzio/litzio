@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 닫힌 비서의 작업·완료·답변 필요를 확인한다 (#1424) | 기존 상단 비서 버튼 | ghost sm Button + Tooltip + agent-dot, 기존 text-muted/accent/warning 토큰 | 빈 원은 작업 중, 채운 원은 완료(읽지 않음), 사각형은 확인·답변 필요. 열면 완료를 확인 처리하며 열린 동안 표시는 숨김 | [비서 상태](main-agent-v1.md#assistant-button-status-1424) | 기존 대화·제출 관측을 재사용하며 새 작업 상태·OS 알림·소리 없음 |
 | 조회 폼의 드문 조건을 숨긴다 (#1370) | 기존 조회 폼 | QueryInputs + Button/Input/FieldError | 선택 advanced 입력만 접기·지정값 요약·오류 자동 펼침, 수동 조회 유지 | [추가 조건](ui-patterns-v1.md#공통-조회-폼의-추가-조건-1370) | 새로운 공통 접기 상호작용, JobPanel에는 자동 적용하지 않음 |
 | 플러그인 폴더를 장식한다 (#1366) | 기존 Explorer 폴더 행 | PluginIcon + 기존 16px 아이콘 칸 | 제공 플러그인의 manifest 이미지, 없으면 생략 | FolderTree·Sidebar; 설정·탭과 같은 PluginIcon | 없음 |
 | 플러그인 설정에 진입한다 (#1334) | Plugins 목록 행 오른쪽 끝 | ghost icon Button + Tooltip(설정/Settings), 그 뒤 settings-switch | 이름을 포함한 aria-label; 설정이 없어도 정보 열기; 화면 이동은 사이드바 | PluginSettings | 없음 |
