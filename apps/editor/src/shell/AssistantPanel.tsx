@@ -6,7 +6,7 @@ import { displayRequestCurrent, displayValues, type DisplayRequest, type Display
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, Square, Check } from "lucide-react";
 import { ASSISTANT, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
@@ -26,9 +26,9 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 
-type LocalSubmission = { receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
+export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
 
-type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
@@ -36,7 +36,7 @@ type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; over
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ submissions, setSubmissions, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -69,10 +69,12 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
-  const [submissions, setSubmissions] = useState<LocalSubmission[]>([]);
   const submissionScope = useRef(0);
-  const clearSubmissions = () => { submissionScope.current++; setSubmissions([]); };
-  const submitted = useRef(submissions); submitted.current = submissions;
+  const leaveSubmissionScope = () => { submissionScope.current++; };
+  // Navigation hides other owners' rows without discarding their only local copy.
+  const visibleSubmissions = submissions.filter(value => value.hostId === hostId && value.provider === provider &&
+    (conversation ? (value.conversationId ?? value.receipt.conversationId) === conversation.id : value.conversationId === undefined));
+  const submitted = useRef(visibleSubmissions); submitted.current = visibleSubmissions;
   const applySubmission = (result: AssistantSubmissionResult) => {
     setSubmissions(previous => previous.map(value => value.receipt.id === result.submission.id ? { ...value,
       receipt: value.receipt.status === "accepted" && result.submission.status !== "accepted" || value.receipt.status === "unknown" && result.submission.status === "pending"
@@ -132,7 +134,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     return () => {
       alive = false; initialFocus.current = false; setReady(false);
       providerVersion.current++; busy.current = false; setPending(false);
-      setSubmissions(previous => previous.map(value => value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
+      setSubmissions(previous => previous.map(value => value.hostId === hostId && value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
       document.removeEventListener("focusin", cancelInitialFocus);
     };
   }, [open, settingsRevision]);
@@ -142,6 +144,15 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
       input.current?.focus();
     }
   }, [open, ready, enabled, setup]);
+  useEffect(() => {
+    if (!conversation) return;
+    const observed = new Set(conversation.turns.flatMap(turn => turn.items.filter(item => item.kind === "user").map(item => item.submissionId)));
+    if (!observed.size) return;
+    setSubmissions(previous => {
+      const retained = previous.filter(value => value.hostId !== hostId || !observed.has(value.receipt.id));
+      return retained.length === previous.length ? previous : retained;
+    });
+  }, [conversation, hostId, setSubmissions]);
   useEffect(() => {
     if (!open || !ready || !enabled || setup) return;
     let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
@@ -209,7 +220,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     const value = message.trim(); if (!value && !references.length) return;
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
-    setSubmissions(previous => [...previous, { receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
+    setSubmissions(previous => [...previous, { hostId, provider, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
     try {
@@ -313,7 +324,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
-        setConversation(undefined); clearSubmissions(); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
+        setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
         setModels(catalog); if (settings) defaults(settings);
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
@@ -341,7 +352,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id });
           if (!isCurrent()) return;
-          setConversation(next); clearSubmissions(); rememberConversation(conversationKey, next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
+          setConversation(next); leaveSubmissionScope(); rememberConversation(conversationKey, next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
@@ -394,7 +405,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
             <CopyButton iconOnly text={turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n\n")} label={i18n.t("Copy answer")} />
           </div> : null}
         </section>)}
-      {!history && submissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))).map(value =>
+      {!history && visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))).map(value =>
         <div key={value.receipt.id} className="assistant-submission">
           <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips references={value.references} /></p>
           <div className="assistant-submission-status">
@@ -415,7 +426,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation.id, turnId: question.turnId, requestId: question.requestId, answers });
           if (isCurrent()) setConversation(next);
         })} /> : null}
-      {!history && !conversation && !submissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
+      {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
     </div>
@@ -451,7 +462,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
           onSelect={selection => {
             const selected = selection as "codex" | "copilot";
             void run(async isCurrent => {
-              clearSubmissions(); setReady(false);
+              leaveSubmissionScope(); setReady(false);
               try {
                 const [catalog, diagnostics] = await Promise.all([request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selected}`), request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${selected}`)]);
                 if (!isCurrent()) return;

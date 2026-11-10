@@ -1012,6 +1012,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('alert')).toHaveText('Failed');
   expect(sent.at(-1).reasoningEffort).toBe('max');
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await message.fill('New draft through history');
+  // Selecting the same history entry must retain a rejected submission's only copy.
+  await panel.getByRole('button', { name: 'Conversation history', exact: true }).click();
+  await panel.locator('.assistant-history').getByRole('button').filter({ hasText: 'After provider switch' }).click();
+  await expect(panel.locator('.assistant-submission')).toContainText('Recover supported model');
+  await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeDisabled();
+  await expect(message).toHaveValue('New draft through history');
+  await message.fill('');
+  await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
+  await expect(message).toHaveValue('Recover supported model');
+
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   await message.fill('Uncertain first');
   const beforeLost = sent.length;
@@ -1032,12 +1043,15 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   revealLost = false;
+  await referenceRow.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
   await message.fill('Uncertain first'); await message.press('Enter');
   await expect(panel.getByRole('button', { name: 'Check conversation', exact: true })).toBeVisible();
   revealLost = true;
   receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
   const readsBeforeSwitch = receiptReads;
   await expect.poll(() => receiptReads).toBeGreaterThan(readsBeforeSwitch);
+  setupMode = 'missing';
   await panel.getByRole('button', { name: 'AI provider settings', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Codex', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'AI provider settings', exact: true })).toHaveText('Codex');
@@ -1047,6 +1061,24 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'AI provider settings', exact: true })).toBeEnabled();
+  setupMode = 'ready';
+  receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
+  await panel.getByRole('button', { name: 'AI provider settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'GitHub Copilot', exact: true }).click();
+  const retained = panel.locator('.assistant-submission');
+  await expect(retained).toContainText('Uncertain first');
+  await expect(retained.locator('.assistant-reference')).toContainText('document.md');
+  await expect(retained.getByRole('button', { name: 'Check conversation', exact: true })).toBeEnabled();
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  await page.getByRole('button', { name: 'Assistant', exact: true }).first().click();
+  await expect(retained).toContainText('Uncertain first');
+  await expect(retained.getByRole('button', { name: 'Check conversation', exact: true })).toBeEnabled();
+  const sendsBeforeCheck = sent.length;
+  await retained.getByRole('button', { name: 'Check conversation', exact: true }).click();
+  releaseReceipt(); receiptGate = undefined;
+  await expect(retained).toHaveCount(0);
+  await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Uncertain first' })).toHaveCount(1);
+  expect(sent.length).toBe(sendsBeforeCheck);
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
 
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-light-en.png' });

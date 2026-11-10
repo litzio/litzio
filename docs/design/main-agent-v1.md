@@ -1498,17 +1498,32 @@ Visible-panel, visible-tab nonoverlapping 600ms polling continues during a pendi
 send and queries unresolved submissions as well as conversation snapshots. Closing
 or refreshing the panel invalidates outstanding response handlers without cancelling
 the Host turn; reopening reconciles retained submission rows and preserves the new
-draft. New conversation or explicit history selection discards the local submission
-view. Late handlers cannot restore it. This session-local state is not persisted
-across page reload or Host changes. Existing Codex steer, interruption, model/provider
-locks and daemon lifetime remain unchanged.
+draft. App memory owns the submitted text, references and receipt, keyed by Host,
+provider and the conversation selected at submission. A first submission without a
+conversation ID belongs to that Host/provider's new-conversation scope; its receipt
+can subsequently identify the conversation. Provider changes, New conversation and
+explicit history selection invalidate late screen updates and hide rows outside the
+selected scope without deleting their content. Returning to the original provider's
+new-conversation scope or the original conversation restores unresolved/rejected rows
+and their Check conversation/Restore to input actions. Failed provider lookup does
+not discard them. Closing/reopening the panel, or selecting another Host, retains
+this App-owned memory. Only a correlated user item observed in a conversation
+snapshot retires the local copy after merging. A new draft is never overwritten,
+and none of these navigation/recovery actions automatically resends a message.
+There is no new persistent store: page reload, app restart or App unmount loses this
+memory, so unresolved submissions cannot be recovered locally across those boundaries.
+Existing Codex steer, interruption, model/provider locks and daemon lifetime remain unchanged.
 
 Verification extends existing assistant fake Host/browser scenarios and Host/stdio
 tests. The delayed-row browser assertion and missing Host receipt assertion failed
 before implementation. Cases cover first send, steer/reference-only input, one row
 after observation before the POST reply, confirmed rejection/restoration with a new
 draft, unknown first-send acknowledgement, query recovery without retransmission,
-provider choices and panel reopen. Host cases cover duplicate IDs, event-before-RPC,
+provider choices and panel reopen. Review follow-up additionally covers a rejected
+row surviving history reselection with a new draft, and an uncertain first message
+with references surviving provider unavailability, a delayed old receipt, return
+to its provider and panel reopening, then recovery without retransmission. Host cases
+cover duplicate IDs, event-before-RPC,
 uncertain RPC failure and both providers. These are synthetic fixtures, not real
 provider latency, model entitlement or user-perceived performance measurements.
 
