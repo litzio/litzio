@@ -112,28 +112,19 @@ test('Linux browser container tags match the locked Playwright base version', ()
   }
 });
 
-test('PR uses 12 browser shards; queue and release retain 8 and publication gates', () => {
+test('CI and release retain eight browser shards and publication gates', () => {
   const ci = load(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   const { browser, publish } = release.jobs;
   const ciBrowser = ci.jobs.browser;
-  for (const eventName of ['pull_request', 'merge_group', 'push']) {
-    const matrix = runInNewContext(ciBrowser.strategy.matrix.slice(3, -2), {
-      github: { event_name: eventName }, fromJSON: JSON.parse,
-    });
-    const count = eventName === 'pull_request' ? 12 : 8;
-    assert.deepEqual(matrix.total, [count]);
-    assert.deepEqual(matrix.shard, Array.from({ length: count }, (_, index) => index + 1),
-      `${eventName}: every shard scheduled exactly once`);
-    if (eventName !== 'pull_request') assert.deepEqual(matrix.shard, browser.strategy.matrix.shard);
-    const artifacts = matrix.shard.map(shard => ciBrowser.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'))
+  for (const job of [ciBrowser, browser]) {
+    assert.deepEqual(job.strategy.matrix.shard, [1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.equal(job.env.LITZIO_BROWSER_SHARD, '${{ matrix.shard }}/8');
+    const artifacts = job.strategy.matrix.shard.map(shard => job.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'))
       .with.name.replace('${{ matrix.shard }}', shard));
-    assert.equal(new Set(artifacts).size, count, 'no artifact name collisions');
+    assert.equal(new Set(artifacts).size, 8, 'no artifact name collisions');
   }
-  assert.equal(ciBrowser.env.LITZIO_BROWSER_SHARD, '${{ matrix.shard }}/${{ matrix.total }}');
-  assert.equal(ciBrowser.name, 'Editor browser regressions (${{ matrix.shard }}/${{ matrix.total }})');
-  assert.equal(browser.env.LITZIO_BROWSER_SHARD, '${{ matrix.shard }}/8');
-  assert.deepEqual(browser.strategy.matrix.shard, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(ciBrowser.name, 'Editor browser regressions (${{ matrix.shard }}/8)');
   const aggregate = ci.jobs['quality-and-browser'];
   assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');
   assert.ok(aggregate.needs.includes('browser'));
