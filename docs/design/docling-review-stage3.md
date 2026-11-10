@@ -5,6 +5,7 @@
 - Verification v3: 2026-11-10 — #1466 병합 기준 `08b8a98b`에서 페이지 조각 및 공식 Docling Core 기반 렌즈 입력을 추가 비교. 제품 코드는 변경하지 않는다.
 - Decision / verification: 2026-11-10 — #1467 병합 기준 `eb9eda51`의 변환·replay·Host·Core target을 대조하고 소유자의 기본 검사·완료·구조 수정 범위 결정을 반영했다. 기존 Docling 변환 검사 1개 통과. 새 AI 측정·제품 기능 구현은 하지 않았다.
 - P1b verification: 2026-11-11 — 내부 snapshot 대조·이미지 material·중간 export·8.3 별칭·실제 daemon 재시작을 검사했다. 아래 P1b 절에 실행 범위와 미확인 조건을 기록한다.
+- Plan update: 2026-11-11 — 소유자 승인으로 P3 축소·렌즈별 완료 범위·사람 승인 경계·제품 실측 우선 순서와 검사 방식 전환 대비를 반영했다. 구현 완료 선언이 아니다.
 - Scope: [#1462](https://github.com/litzio/litzio/issues/1462) 소유자 결정·설계안·변환 검토·구현 분할 계획과 누적 입력 방식 측정. 초기 설계 PR은 구현·SDK 변경·기존 문서 migration을 하지 않았다. 아래 P1a/P1b 절은 이후 구현 범위이며 나머지 Draft를 완료로 바꾸지 않는다. 개발 및 하위 PR base는 `feature/docling-stage3`; master 반영에는 소유자 승인과 독립 리뷰·merge queue 검사가 필요하다.
 - Authority: [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0020](../adr/0020-plugin-architecture.md), [현재 플러그인 계약](plugin-stage1-v1.md). 아래 2026-11-10 소유자 결정은 #1462의 방향과 범위를 확정하며, 세부 필드·작업 이름·미구현 PR 계획은 Draft다. Implemented 선언이 아니다.
 
@@ -22,6 +23,38 @@
 8. **`.docling`이 단일 검수 작업공간**이다. 검수 중 외부 `.md`를 자동 생성하지 않고 현재 `.docling→문서` K1의 `.md` 생성을 명시적 내보내기로 옮긴다. PDF→`.docling` 변환은 유지한다. 이 결정은 11-09의 “검수 중 `.md`가 결과물” 결정을 대체한다.
 9. 내보내기는 공용 Host 작업+CLI로 제공한다. 사람이 명시적으로 실행하는 **중간 “현재 상태로 내보내기”**와 검수 완료 조건 충족·사람의 **4단계 완료 승인 뒤 공식 내보내기**를 구분한다. 둘 다 Docling 연결 없는 일반 `.md`이며 중간 내보내기 이력·최신 여부·작업공간 안 export 기록은 만들지 않는다. 기본 이름의 “검수중” 표시와 일반 파일 충돌/명시적 덮어쓰기 확인만 둔다.
 10. **`.docling` 내부 canonical `.md` 캐시를 채택한다**(소유자 승인·Astra 검토 권고). 진실은 원본 PDF·원본 Docling JSON·승인된 patch ledger이며 내부 문서/대응은 직접 편집하지 않는 파생 결과다. `.docling`은 교환용 검수 자료 묶음이고 Litzio 문서의 plain-text SSOT가 아니다. 첫 저장은 전체 archive 교체를 유지한다. 직전의 검토 중 대안/두 갈래 계획은 이 확정안으로 대체한다.
+
+### 2026-11-11 순서 재조정(소유자 승인)
+
+다음은 남은 단계의 범위와 순서를 바꾸는 확정 결정이다. 아래 과거 측정과 검토 근거는 보존하되
+충돌하는 P3 일반 칸 target 선행·구조 수정 뒤 화면 완성 계획은 이 결정으로 대체한다.
+
+- **P3 축소:** 문제 보고는 표 단위로 하고 칸 교정은 기존 Docling 원본 cell index locator를 재사용한다.
+  제안→사람 승인→snapshot 재생성 뒤 병합 span의 모든 칸만 수정되는 기존 경로를 회귀 검사한다.
+  Core·Host 일반 칸 target은 P9에서 필요한 만큼, 칸별 anchor는 P11로 옮긴다.
+  기존 확대 구현은 `archive/1462-p3-cell-targets`의 `d10392a1b3907719de47bb6dcba3181c06143836`에 보관하고
+  P9에서 필요한 부분만 가져온다. 보관 브랜치로 PR을 만들지 않는다.
+- **P4:** 기존 schema 렌즈·inventory에 렌즈별 적용 범위를 추가하고 완료 계산은 각 검사의 자기 범위만 요구한다.
+  추출 누락을 빈 범위의 성공으로 취급하지 않는다. 현재 [evaluateReviewCompletion](../../packages/plugin-sdk/src/review-ledger.ts)은
+  `inventory.lenses` 각각에 전체 `inventory.pages/targets`를 요구하므로 범위 계약과 함께 고친다.
+- **P5:** 비서는 읽기→검사→제안 저장까지만 한다. 승인·완료 승인은 질문 카드·화면의 실제 사람 응답으로만
+  실행하며 비서 도구에 넣지 않는다. 교정 적용은 P6 안전장치 전에는 열지 않는다.
+- **P6 + P11 최소 화면:** 기존 4종(text/kind/exclude/cell) 교정의 안전장치와 묶음 보기·승인·거절·Undo·필수 확인 화면을
+  함께 제공한다. 새 화면 구조는 시안 선택을 거친다. LSR 13쪽 전체의 탐지·정확한 수정·잘못된 수정·사람 처리 횟수/시간·
+  토큰·저장 지연을 제품에서 실측해 완료 근거로 남긴다. 여러 묶음 일괄 승인은 이 실측에서 재제안 부담이 확인되면
+  승인 입력을 여러 묶음으로 넓혀 한 번 저장·한 번 재검사하는 최소 변경으로 추가한다.
+- **P11 완료 경로:** 완료 조건 표시·4단계 사람 완료 승인·공식 export·미대조 범위 표시를 완결한다.
+  그 뒤 **P7→P8→P9→P10**을 진행하며 실측 결과에 따라 순서는 다시 조정할 수 있다.
+- **동결:** P2 묶음 상태 모델에는 새 상태 전이를 추가하지 않는다. 실사용 뒤 불필요한 전이를 줄인다.
+  300쪽 저장 성능은 실제 큰 문서에서 막힐 때 다룬다.
+
+**검사 방식 전환 대비:** 기본 검사는 계속 렌즈 방식이며 페이지 조각+이미지는 사람이 승인한 범위에서만 실행한다
+(2026-11-10 결정 유지). P4 완료 계산은 7개 렌즈를 코드에 고정하지 않고 **필수 검사 종류와 각 적용 범위** 목록만
+보며, 페이지 전체를 덮는 이미지 검사를 필수 종류로 넣는 것만으로 향후 전환할 수 있어야 한다. P5는 해당 페이지와
+앞뒤 쪽의 항목·관계·원문·provenance를 이미지 대조 전용이 아닌 공용 `review material` 조회로 제공하고 비서는 두 방식에서
+같은 도구를 쓴다. P6+P11 최소 화면의 LSR 13쪽 실측에서는 두 방식을 모두 제품에서 실행해 탐지·정확한 수정·잘못된 수정·
+사람 처리 부담·토큰·시간을 비교하며 기본 방식 전환은 이 실측 뒤 소유자가 결정한다. 별도 파이프라인, 방식 전환용 전략
+레이어나 새 추상화는 만들지 않는다.
 
 ## 목적과 현재 경계
 
@@ -199,11 +232,11 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 | `review.required-checks` (read/write) | `review required-checks` / `read_review_required_checks/record_review_required_check` | baseline과 전체 그림/표 목록, write는 requestId·확인한 정확한 대상·사람 확인 또는 승인된 대조 run/결과 → 필수 확인 처리 기록·남은 대상·새 baseline. 보기만 한 항목을 완료하지 않는다. |
 | `review.groups.propose` (write) | `review groups propose` / `propose_review_groups` | requestId, baseline, 묶음·개별 근거·제안 패치 → 검증된 묶음 IDs, 지원/보류, 새 baseline. 원본/문서 변경 없이 제안만 저장. |
 | `review.groups.read` (read) | `review groups read` / `read_review_groups` | baseline, groupId 또는 상태 필터/continuation → 전체 대상·대표·근거·제안·판단·처리 이력·열린 문제 수. 잘라서 완전 목록처럼 표시하지 않는다. |
-| `review.groups.approve` (write) | `review groups approve` / `approve_review_group` | requestId, baseline, groupId, 정확한 proposal revision과 사람 결정 → 검증한 교정·snapshot/mapping을 같은 workspace revision에 저장/발행한 결과와 새 baseline. 사람 승인 근거 없이 비서가 스스로 적용하지 않는다. |
-| `review.groups.reject` (write) | `review groups reject` / `reject_review_group` | requestId, baseline, groupId, 사람 판단·이유 → 거절 이력과 잔여 문제. 문서 교정 없음. |
-| `review.groups.undo` (write) | `review groups undo` / `undo_review_group` | requestId, baseline, 승인 receipt/groupId → 승인 교정 비활성화·원본부터 replay·공식 재생성 결과. 후속 의존 교정 충돌 시 거부하며 임의 역텍스트를 쓰지 않는다. |
+| `review.groups.approve` (write) | `review groups approve` / 질문 카드·화면의 사람 응답 전용(비서 도구 없음) | requestId, baseline, groupId, 정확한 proposal revision과 사람 결정 → 검증한 교정·snapshot/mapping을 같은 workspace revision에 저장/발행한 결과와 새 baseline. 사람 승인 근거 없이 비서가 스스로 적용하지 않는다. |
+| `review.groups.reject` (write) | `review groups reject` / 사람 응답 전용(비서 도구 없음) | requestId, baseline, groupId, 사람 판단·이유 → 거절 이력과 잔여 문제. 문서 교정 없음. |
+| `review.groups.undo` (write) | `review groups undo` / 사람 응답 전용(비서 도구 없음) | requestId, baseline, 승인 receipt/groupId → 승인 교정 비활성화·원본부터 replay·공식 재생성 결과. 후속 의존 교정 충돌 시 거부하며 임의 역텍스트를 쓰지 않는다. |
 | 기존 status/regenerate + 완료 읽기 | `review status/regenerate/completion` / 동일 의미 도구 | status는 같은 requestId; 재생성은 최신 baseline; 완료는 현재 content revision → 기존 no-replay 안내·단계별 결과 또는 미완료 조건 목록. |
-| `review.complete-approve/export` (write) | `review complete-approve/export --mode current|final` / 같은 공용 정의의 사람 승인·명시 export 도구 | 완료 승인은 현재 ledger/snapshot·검사 조건에 고정. export는 requestId·workspace snapshot·일반 output/충돌 baseline·명시 current 요청 또는 유효 final 승인 → 일반 `.md`/assets와 receipt. workspace에 export 기록/연결은 저장하지 않는다. |
+| `review.complete-approve/export` (write) | `review complete-approve/export --mode current|final` / 완료 승인은 사람 응답 전용(비서 도구 없음), export는 공용 정의 재사용 | 완료 승인은 현재 ledger/snapshot·검사 조건에 고정. export는 requestId·workspace snapshot·일반 output/충돌 baseline·명시 current 요청 또는 유효 final 승인 → 일반 `.md`/assets와 receipt. workspace에 export 기록/연결은 저장하지 않는다. |
 
 읽기는 현재 자료 검증을 위한 receipt를 반환하되 모든 읽기 바이트를 영속 ledger에 저장하지 않는다. 쓰기는 UUID·operation/version·scope·success/failure/uncertain·전후 revision·단계별 저장 결과를 반환한다. Host 실패를 다른 Host/로컬 CLI의 재실행으로 대체하지 않는다. timeout·취소는 해당 요청 소유이며 모델 응답 중단을 교정 취소/원복 성공으로 표시하지 않는다.
 
@@ -484,9 +517,9 @@ S09는 두 표·continued caption이 렌즈 문맥에 있었지만 모델이 놓
 | 항목 | 판정·근거 | 반영 PR |
 | --- | --- | --- |
 | 원본 병합 셀 직렬화 | **변경 불필요.** table 변환은 `[r0,r1)×[c0,c1)`의 모든 위치에 같은 `cell.text`를 채우고 원본 cell index의 covered positions를 기록한다. 겹치는 셀은 거부하며 `merged-cell` 손실 기록을 남긴다. 소유자 규칙과 일치한다. 병합 셀을 하나의 native 셀로 만드는 수정은 하지 않는다. | 별도 직렬화 수정 PR 없음. P9/P10에서 반복값·covered positions·충돌 거부를 회귀 검증. |
-| 표 칸 대응 | **변경 필요.** `makeReport`는 cell의 positions를 갖지만 `targets.slice(0,1)`로 표 블록만 반환한다. `comparison`도 항목 prov만 영역화한다. 칸 수정 대상은 원본 cell index로 지정할 수 있으나 칸별 선택·근거·연결선을 정확히 제공하지 못한다. Core `EditableTableCell.path`는 이미 `[...tablePath,row,column]`을 표현한다. 반면 공용 Host는 block.path 집합만 허용하고 geometry도 block anchor만 찾는다. target schema의 숫자 배열이 허용된다는 것만으로 현재 지원이라고 할 수 없다. | P3에서 일반 칸 target 해석/검증·SDK 최종 binding·source cell→모든 covered native cells 대응. P11에서 칸 anchor/연결선. |
+| 표 칸 대응 | **변경 필요.** `makeReport`는 cell의 positions를 갖지만 `targets.slice(0,1)`로 표 블록만 반환한다. `comparison`도 항목 prov만 영역화한다. 칸 수정 대상은 원본 cell index로 지정할 수 있으나 칸별 선택·근거·연결선을 정확히 제공하지 못한다. Core `EditableTableCell.path`는 이미 `[...tablePath,row,column]`을 표현한다. 반면 공용 Host는 block.path 집합만 허용하고 geometry도 block anchor만 찾는다. target schema의 숫자 배열이 허용된다는 것만으로 현재 지원이라고 할 수 없다. | P3는 표 단위 보고와 기존 cell locator 교정 회귀만 보호. 일반 칸 target·최종 binding·covered native cells 대응은 P9에서 필요한 만큼, 칸 anchor/연결선은 P11. |
 | 파생 항목 replay | **변경 필요.** 현재 text/kind/exclude/cell은 기존 항목 값과 내부 flag를 바꾸고, 항목 생성/소비·트리 갱신은 하지 않는다. replay·변환 inventory는 `self_ref===배열 index`를 요구한다. 원본 배열을 재번호화하거나 검사를 제거하지 않고 파생 노드를 끝에 결정적으로 붙이며 locator를 별도로 해석해야 한다. inventory는 consumed source를 새 orphan/중복 출력으로 오판하지 않아야 한다. | P1 공통 effective/lineage 기반, P7~P10 실제 구조 연산. |
-| 1→N / N→1 변환·대조 | **변경 필요, 기존 작성 계약 재사용.** `authorDocument`는 입력 key마다 여러 blocks를 받을 수 있고 converter의 links도 캡션/목록 등 공유 target을 이미 표현한다. 이를 일반 파생 계보에 연결해야 한다. `comparison`이 원본 배열에서 item을 다시 찾는 가정은 파생 ref와 충돌한다. 최종 Host input keys/target 개수 검사도 같은 effective 작성 요청 기준이어야 한다. | P1, P3, 각 구조 PR. 원본 sourceRefs와 effective refs·최종 Core targets를 분리. |
+| 1→N / N→1 변환·대조 | **변경 필요, 기존 작성 계약 재사용.** `authorDocument`는 입력 key마다 여러 blocks를 받을 수 있고 converter의 links도 캡션/목록 등 공유 target을 이미 표현한다. 이를 일반 파생 계보에 연결해야 한다. `comparison`이 원본 배열에서 item을 다시 찾는 가정은 파생 ref와 충돌한다. 최종 Host input keys/target 개수 검사도 같은 effective 작성 요청 기준이어야 한다. | P1, 각 구조 PR. 원본 sourceRefs와 effective refs·최종 Core targets를 분리하고 칸 target은 P9에서 필요한 만큼 추가. |
 | 왼쪽 영역·종류/연결 | **변경 필요.** 현재 `comparison`은 원본 prov/label을 쓰고 effective는 excluded 여부만 조회한다. 제목 재분류나 합치기 후 오른쪽만 바뀌는 설계는 채택하지 않는다. | P2에서 effective review 자료/페이지별 영역 그룹 재생성, P11에서 수정됨/추정 표시와 단일 논리 연결. |
 | 각주 | **3단계의 탐지·보고 변경 필요, 자동 의미 복구는 후속.** converter는 captions와 children을 처리하지만 소유 표/그림의 footnotes 관계를 해석하지 않는다. standalone `footnote`는 호출 위치를 추정하지 않고 paragraph로 보존하며 unsupported를 기록한다. children에 없는 note는 inventory에서 미도달로 남을 수도 있다. 각주 렌즈에는 실제 참조·label·미연결/손실을 제공하고, 원문이 남았다고 관계 복원 완료로 표시하지 않는다. 현행 Core 작성 입력에는 footnote/reference block 형식도 없으므로 호출 위치를 검증한 별도 중립 작성 확장 없이 위첨자 문자로 우회하지 않는다. | P4에서 원본/effective 각주 관계와 변환 손실을 검사 자료로 연결. 실제 호출 연결 작성은 후속 범위 결정. 구조 PR은 관련 참조를 유실·임의 재귀속하지 않는 보호 포함. |
 | losses/summary | **변경 필요.** losses는 변환 표현 차이이고 summary는 집계 문구/현재 작업 phase이지 검수 상태가 아니다. `merged-cell`은 승인된 표현 방침일 수 있고, `picture-image`는 필수 확인 자료 없음이 될 수 있다. 각각 source/effective locator·영향·근거를 붙여 렌즈/필수 확인에 전달하고 실제 결과에 따라 문제/제약/검사 못 함/판단 불가를 구분한다. 미지원 능력과 내용 판단 불가를 섞거나 summary 0을 no-issue로 취급하지 않는다. | P4, P5, P11. 실제 열린 문제는 보류·집계만으로 닫지 않음. |
@@ -505,19 +538,24 @@ P 번호는 계획 식별자이며 GitHub PR 번호가 아니다. 모든 PR의 b
 
 | PR | 범위와 공용/플러그인 책임 | CLI·비서 진입점 후보 | 독립 검증·완료 근거 | 선행 |
 | --- | --- | --- | --- | --- |
-| **P1 단일 작업공간·내부 캐시·중간 export 기반** | `.docling` 열기→내부 canonical cache 준비→외부 파일 없는 대조→기존 4patch/확인 원자적 저장→재시작/인계 후 동일 결과→중간 export를 완결한다. effective/lineage·영역 그룹·공식 작성 source/targets·생성 계약/key/hash·Host reader/lock/binding과 새 archive 형식을 통합한다. 이미지 무중복·진행 시 캐시 보존·버전 차이의 생성 당시 읽기를 제공한다. 문제 묶음/구조 operation/공식 완료 export는 아직 없음. | `review open/read/patch/progress/regenerate/material/status`, `export --mode current`; 비서도 공용 `read_review_document`만 사용하고 archive 내부 경로·가짜 `.md` 경로 없음. | 아래 P1 수락 목록과 실제 CLI/비서 공용 읽기·기존 ReviewRenderer. 큰 문서의 최초/반복 열기·승인/진행 저장을 따로 재측정하고 크기·전체 재기록 비용 공개. | 없음 |
+| **P1 단일 작업공간·내부 캐시·중간 export 기반** | `.docling` 열기→내부 canonical cache 준비→외부 파일 없는 대조→기존 4patch/확인 원자적 저장→재시작/인계 후 동일 결과→중간 export를 완결한다. effective/lineage·영역 그룹·공식 작성 source/targets·생성 계약/key/hash·Host reader/lock/binding과 새 archive 형식을 통합한다. 이미지 무중복·진행 시 캐시 보존·버전 차이의 생성 당시 읽기를 제공한다. 문제 묶음/구조 operation/공식 완료 export는 아직 없음. | `review open/read/patch/progress/regenerate/material/status`, `export --mode current`; 비서도 공용 `read_review_document`만 사용하고 archive 내부 경로·가짜 `.md` 경로 없음. | 아래 P1 수락 목록과 실제 CLI/비서 공용 읽기·기존 ReviewRenderer. 300쪽 저장 성능은 실제 큰 문서에서 막힐 때 비용을 측정해 개선 판단. | 없음 |
 | **P2 공용 묶음·저장 경계** | 공통 문제/필수 확인 모델·coverage·상태·receipt, 제안 저장/조회/승인/거절/Undo를 P1 workspace snapshot 경로에 연결한다. Host는 범위/전체 교체, source-format record와 파생 replay는 provider 소유. 최종 완료 승인 모델도 정의하되 공식 export gate는 P11에서 연결한다. | `review groups propose/read/approve/reject/undo`, `inspection/required-checks/completion/status`. 같은 dispatcher의 비서 도구 계약을 정의하고 실제 AI 연결은 P5. | 일반 workspace provider fixture로 승인/거절/Undo·snapshot과 원본 보존·후보 작성/commit 실패·stale/중복/재시작 unknown, 실제 CLI JSON. 파생 계보 fixture의 1→N/N→1 binding을 Core 작성 경로로 확인. | P1 |
-| **P3 공용 칸 target·대응** | Core 공개 read model의 실제 cell path를 일반 target으로 resolve/검증하고 SDK/Host가 최종 canonical snapshot에 묶는다. Docling은 원본/파생 cell locator·covered positions·원본 영역을 공급한다. plugin이 DOM/ProseMirror 위치나 임의 Core path를 추정하지 않는다. | `review material --kind cells`, 기존 `review read/patch`; 비서용 자료 형식도 동일. | Core/SDK에서 block/존재하는 cell 경로와 잘못된 경로, Host revision 검증, 1원본 span→여러 native cell, 빈 칸 및 후속 재생성의 새 대응·실제 CLI 조회. 칸별 화면 anchor는 P11. | P1, P2 |
-| **P4 Docling schema 렌즈·필수 확인** | 변환 버전의 공식 JSON Schema 검증/타입과 7개 결정적 렌즈·보조 후보 구분, 전체 그림/표 inventory, 원본/effective 계보와 변환 losses 연결을 구현한다. .docling 검수 record를 갱신하되 원본 bytes는 보존한다. AI 실행은 plugin에 넣지 않는다. | `review lenses/rules/required-checks/material`, 도구 `read_review_lenses/run_review_rules/read_review_required_checks`의 공용 정의. | 고정 공식 schema로 valid/invalid/미지원 버전, body/furniture·관계·표 점유, 전체 inventory 누락 없음, 전후 effective 자료·loss 분류, 인계/reload·CLI. 모델 정확도와 구별한 추출 검사. | P1, P3 |
-| **P5 공식 비서·예상량/요청 승인** | 공식 비서가 기본 렌즈 분석→검사/제안 저장을 실행한다. 추가 페이지 조각+이미지는 예상량·대상/content revision·사람 승인 범위에만 실행하고 usage/결과·미대조 본문을 기록한다. AI 대화/모델은 기존 제품 기능, plugin은 자료/도구만 제공한다. | `review inspect`, `image-estimate/image-compare`, `inspection/required-checks`; 동일 공용 정의의 비서 도구를 실제 provider adapter에 연결. CLI도 같은 비서 대화/Host를 지정하고 별도 AI를 띄우지 않음. | 요청/미승인 시 추가 호출 0, 승인 범위·revision 변경 거부, 실패/취소/응답 유실·no-replay, 결과/실제 usage 반영, 필수 확인/미대조 완료 조건. 기존 질문 카드/CLI로 UI 완성 전 실행 확인. P6 전에는 새 Docling AI 교정의 적용을 개방하지 않고 제안 저장까지 검증. | P4, P2 |
-| **P6 교정 내용 안전장치** | 보이지 않는 글자 삭제·번호만의 제목 교정·근거 없는 수식/관계·미지원 patch 우회를 공용 검수 판정과 plugin 의미 검증에서 거부한다. 예상량/실행 승인은 P5, baseline·권한·원본 보존은 P1부터 이미 적용한다. | 같은 `groups propose/approve`와 비서 제안 도구. 실패를 판단 불가/거부 이유로 공개하며 새 우회 명령 없음. | S20 삭제, 정상 continuation·오탈자 보존, 전체 provenance 확인, 미지원/부정 locator 거부와 원문 무변경. fixture와 실제 응답 수락을 구분하고 기존 테스트 강화 우선. | P5, P1 |
-| **P7 문단 나누기** | 첫 구조 operation. 원문 보존 분할·파생 append/트리·prov/영역 추정·사람 경계 지정과 1→N 대응·Core 여러 paragraph 작성을 제공한다. 이미지 경계 좌표 입력도 공용 operation이며 UI만의 의미가 아니다. | 같은 `review patch/groups`로 typed split 입력, 비서 제안/승인 도구; 경계 지정도 `review material/patch`와 동일 schema. | S03/S20 분할·Unicode/공백 보존·잘못된 경계 거부, exact/추정 영역 구분, 재생성/인계/Undo·후속 의존 충돌, CLI 저장→공식 재파싱. | P6, P1/P3 |
-| **P8 문단 합치기** | 페이지 경계 포함 N→1 operation. 입력 순서·접합부 방침·같은 논리 문단 근거, 모든 prov와 쪽별 union 영역·소비된 source 계보를 보존한다. | 같은 `review patch/groups`로 typed merge-paragraphs, 비서 도구도 같은 정의. | 실제 정상 continuation과 S20의 별개 문단 거부, 같은 쪽/다른 쪽 영역·단일 관계, 모든 원문 보존·의존 patch/Undo·재생성 및 CLI. | P7 |
-| **P9 표 빈칸/없는 칸 추가** | 기존 empty cell의 값 변경은 재사용하고, 미점유 위치의 신규 칸은 파생 locator로 추가한다. effective geometry·Core cell target과 최종 직사각 rows를 재생성한다. 기존 span 모양 변경은 금지한다. | 같은 `review patch/groups`로 cell-fill/add-cell, 원본 index와 row/column 신규 위치를 구분한 비서 제안. | 원래 빈칸/누락칸 구별, 충돌/범위/span 수정 거부, 병합 셀 모든 covered 위치 값 반복 보존, Core 지원 내용·작성 한도·새 대응/Undo·CLI. 미지원 수식 서식을 텍스트 성공으로 바꾸지 않음. | P7, P3/P6 |
-| **P10 이어진 표 합치기** | continuation 근거·열/행 순서·header/caption 방침을 명시한 N→1 파생 table, 각 칸의 원본 페이지와 새 행 위치, caption/footnote 소유와 source 계보를 보존한다. 잘못된 표/각주를 자동 결합하지 않는다. | 같은 `review patch/groups`로 merge-tables, 비서 도구도 동일. | S09와 관계없는 표 거부, 다중 페이지 칸 mapping·쪽별 영역/단일 표 연결, 반복 header 명시 처리·병합 셀 반복값·Core 한도 초과 거부·재생성/Undo·CLI. | P8, P9 |
-| **P11 공통 묶음 화면·완료 승인 export** | P1의 읽기 전용 renderer 위에 문제/필수 확인·예상량 승인·body coverage, effective 칸/영역 그룹 anchor·수정됨/추정·네 구조 수정/Undo를 연결한다. 검사 조건·사람 4단계 완료 승인을 검증하는 공식 export도 공용 Host로 완결한다. 화면이 별도 완료 권한을 갖지 않는다. | P1~P10의 Host/CLI/비서 결과 재사용 + `review complete-approve/export --mode final`. focus/selection만 CLI parity 제외. | 기존 `pnpm browser:test`로 실제 workspace Host·비서/CLI 교정→대조/확인→완료 승인→공식 일반 `.md`/assets·연결 없음. 완료 전 final 거부·current 허용, 승인 후 교정/Undo의 final 무효화·overwrite 보호. 1440px/한국어 Dark 640px와 LSR·실제 문서 수락 기록. | P5~P10 |
+| **P3 기존 칸 locator 교정 회귀** | 문제 보고는 표 단위로 하고 Docling 원본 cell index locator를 교정에 재사용한다. Core·Host 일반 칸 target과 새 칸 material은 추가하지 않는다. 확대 구현은 `archive/1462-p3-cell-targets`(`d10392a1b3907719de47bb6dcba3181c06143836`)에 보관하고 P9에서 필요한 부분만 가져온다. | 기존 `review groups propose/approve`·workspace snapshot 재생성 경로. 새 CLI·비서 도구 없음. | 기존 workspace fixture에서 원본 cell locator의 제안→사람 승인→저장된 snapshot 재파싱을 대표 사례 하나로 실행해 병합 span의 모든 칸 변경·다른 칸 보존 확인. 새 subprocess·browser 없음. | P1, P2 |
+| **P4 Docling schema 렌즈·필수 확인** | 변환 버전의 공식 JSON Schema 검증/타입과 7개 결정적 렌즈·보조 후보 구분, 전체 그림/표 inventory, 원본/effective 계보와 변환 losses 연결을 구현한다. 필수 검사 종류와 각 적용 범위를 정의해 완료 계산이 각 범위만 요구하게 고친다. 추출 누락을 빈 범위 성공으로 처리하지 않는다. 원본 bytes 보존, plugin에 AI 실행 없음. | `review lenses/rules/required-checks/material`, 도구 `read_review_lenses/run_review_rules/read_review_required_checks`의 공용 정의. | 고정 공식 schema로 valid/invalid/미지원 버전, body/furniture·관계·표 점유, inventory 누락 없음, 전후 effective 자료·loss 분류, 인계/reload·CLI. 전체 페이지/대상을 모든 렌즈에 요구하는 현재 `evaluateReviewCompletion`의 범위 결함과 추출 실패를 보호. 완료 계산은 7개 렌즈를 고정하지 않고 필수 검사 종류/적용 범위 목록만 사용. 모델 정확도와 구별한 추출 검사. | P1, P3 |
+| **P5 공식 비서·예상량/요청 승인** | 공식 비서가 읽기→검사→제안 저장을 실행한다. 추가 페이지 조각+이미지는 예상량·대상/content revision·사람 승인 범위에만 실행하고 usage/결과·미대조 본문을 기록한다. 해당/앞뒤 페이지의 항목·관계·원문·provenance를 공용 material로 제공한다. AI 대화/모델은 기존 제품 기능, plugin은 자료/도구만 제공한다. | `review inspect`, `image-estimate/image-compare`, `material/inspection/required-checks`; 두 검사 방식은 동일 공용 도구를 사용. 승인·완료 승인은 질문 카드·화면의 사람 응답으로만 실행하며 비서 도구에 넣지 않는다. CLI도 같은 비서 대화/Host를 지정하고 별도 AI를 띄우지 않음. | 요청/미승인 시 추가 호출 0, 승인 범위·revision 변경 거부, 실패/취소/응답 유실·no-replay, 결과/실제 usage 반영, 필수 확인/미대조 완료 조건. 기존 질문 카드/CLI로 실행 확인. P6 전에는 교정 적용을 개방하지 않고 제안 저장까지 검증. | P4, P2 |
+| **P6 안전장치 + P11 최소 묶음 화면** | 기존 4종(text/kind/exclude/cell) 교정에서 보이지 않는 글자 삭제·번호만의 제목 교정·근거 없는 수식/관계·미지원 patch 우회를 공용 검수 판정과 plugin 의미 검증에서 거부한다. 묶음 보기·승인·거절·Undo·필수 확인 화면을 함께 제공하고 새 화면 구조는 시안 선택을 거친다. baseline·권한·원본 보존은 P1부터 유지. | 같은 `groups propose/approve/reject/undo`와 필수 확인 공용 작업. 비서는 제안만, 사람 응답이 승인/거절/Undo를 실행. 실패를 판단 불가/거부 이유로 공개하며 우회 명령 없음. | 기존 fixture 강화와 실제 제품 수락을 구분한다. LSR 13쪽 전체에서 렌즈와 페이지 조각+이미지 양쪽을 제품에서 실행해 탐지·정확한 수정·잘못된 수정·사람 처리 횟수/시간·토큰·시간·저장 지연을 비교한다. 기본 방식 전환은 실측 뒤 소유자가 결정한다. 실측에서 재제안 부담이 확인되면 여러 묶음을 승인 입력으로 받아 한 번 저장·한 번 재검사하는 최소 변경을 추가. | P5, P1 |
+| **P11 완료 경로** | 완료 조건 표시·4단계 사람 완료 승인·공식 export·미대조 범위 표시를 완결한다. 화면이 별도 완료 권한을 갖지 않는다. 칸별 anchor/연결선은 P9에서 필요한 칸 target 이후 이 단계의 후속 화면으로 연결한다. | 기존 공용 결과 + `review complete-approve/export --mode final`. 완료 승인은 비서 도구 없이 사람 응답으로만 실행. focus/selection만 CLI parity 제외. | 기존 `pnpm browser:test`로 workspace 교정→대조/필수 확인→완료 승인→공식 일반 `.md`/assets·연결 없음. 완료 전 final 거부·current 허용, 승인 후 교정/Undo의 final 무효화·overwrite 보호. 1440px/한국어 Dark 640px와 LSR·실제 문서 수락 기록. | P6 + P11 최소 화면 |
+| **P7 문단 나누기** | 첫 구조 operation. 원문 보존 분할·파생 append/트리·prov/영역 추정·사람 경계 지정과 1→N 대응·Core 여러 paragraph 작성을 제공한다. 이미지 경계 좌표 입력도 공용 operation이며 UI만의 의미가 아니다. | 같은 `review patch/groups`로 typed split 입력, 비서는 제안만; 경계 지정도 `review material/patch`와 동일 schema. | S03/S20 분할·Unicode/공백 보존·잘못된 경계 거부, exact/추정 영역 구분, 재생성/인계/Undo·후속 의존 충돌, CLI 저장→공식 재파싱과 기존 화면 연결. | P11 완료 경로, P1 |
+| **P8 문단 합치기** | 페이지 경계 포함 N→1 operation. 입력 순서·접합부 방침·같은 논리 문단 근거, 모든 prov와 쪽별 union 영역·소비된 source 계보를 보존한다. | 같은 `review patch/groups`로 typed merge-paragraphs, 비서는 제안만. | 실제 정상 continuation과 S20의 별개 문단 거부, 같은 쪽/다른 쪽 영역·단일 관계, 모든 원문 보존·의존 patch/Undo·재생성 및 CLI. | P7 |
+| **P9 표 빈칸/없는 칸 추가** | 기존 empty cell의 값 변경은 재사용하고, 미점유 위치의 신규 칸은 파생 locator로 추가한다. effective geometry·최종 직사각 rows를 재생성하며 Core·Host 일반 칸 target·SDK 최종 binding은 필요할 때 필요한 만큼만 보관 브랜치에서 가져온다. 기존 span 모양 변경은 금지한다. | 같은 `review patch/groups`로 cell-fill/add-cell, 원본 index와 row/column 신규 위치를 구분한 비서 제안. 일반 칸 target이 필요한 경우 공용 CLI·자료 계약도 함께 제공. | 원래 빈칸/누락칸 구별, 충돌/범위/span 수정 거부, 병합 셀 모든 covered 위치 값 반복 보존, Core 지원 내용·작성 한도·새 대응/Undo·CLI. 미지원 수식 서식을 텍스트 성공으로 바꾸지 않음. | P8, P6 |
+| **P10 이어진 표 합치기** | continuation 근거·열/행 순서·header/caption 방침을 명시한 N→1 파생 table, 각 칸의 원본 페이지와 새 행 위치, caption/footnote 소유와 source 계보를 보존한다. 잘못된 표/각주를 자동 결합하지 않는다. | 같은 `review patch/groups`로 merge-tables, 비서는 제안만. | S09와 관계없는 표 거부, 다중 페이지 칸 mapping·쪽별 영역/단일 표 연결, 반복 header 명시 처리·병합 셀 반복값·Core 한도 초과 거부·재생성/Undo·CLI. | P8, P9 |
 
-임계 순서는 **P1→P2→P3→P4→P5→P6**, 이후 네 구조 PR과 P11이다. 최신 확정안에 따라 **내부 캐시 작업공간+effective 대조를 첫 기반 P1**으로 앞당겼다. 칸 target은 Core에서 이미 표현 가능하지만 Host/SDK/대조 소비자가 미지원인 실제 경계이므로 P3로 분리했다. P9는 P7의 파생 항목 기반이 준비되면 P8과 별도 검증할 수 있고, P10은 두 병합/칸 경로를 함께 대조한다.
+임계 순서는 **P1→P2→축소 P3→P4→P5→P6+P11 최소 화면→P11 완료 경로→P7→P8→P9→P10**이다.
+실측 결과에 따라 이후 순서는 조정할 수 있다. P1의 내부 캐시 작업공간+effective 대조 기반을 재사용하고,
+P3는 기존 원본 cell locator의 승인·재생성 회귀만 보강한다. 일반 칸 target은 P9에서 필요성이 확인된 만큼,
+칸별 anchor는 P11 후속 화면에서 구현한다. P6+P11 최소 화면에서 두 검사 방식의 LSR 13쪽 제품 실측을 먼저 수행하고
+기본 검사 방식 전환·일괄 승인 필요성을 소유자가 판단한다. P2 묶음 상태 모델의 새 전이는 동결하고 실사용 뒤
+불필요한 전이를 줄인다. 300쪽 저장 성능은 실제 큰 문서에서 막힐 때 다룬다.
 
 P1의 수락 검증은 다음을 포함한다. 기존 lower-layer/Host 검사와 실제 CLI/비서 읽기·대조 경로에 주된 보호를 배치하고 같은 결함을 모든 계층에 반복하지 않는다.
 
@@ -527,7 +565,7 @@ P1의 수락 검증은 다음을 포함한다. 기존 lower-layer/Host 검사와
 - 캐시 누락/손상 준비·복구, 무결한 이전 계약의 “생성 당시 결과” 읽기와 새 승인/완료 전 명시 재생성 요구. 원본/ledger 손상은 캐시로 덮어 복구하지 않음.
 - 재시작·다른 Host 인계 후 동일 내부 source/targets와 새 scoped 참조, 검수 읽기 중 **외부 `.md`·assets 미생성 및 내부 이미지 무중복**.
 - CLI·비서가 같은 공용 읽기를 사용하고 내부 경로를 노출하지 않음. current export만 일반 `.md`/assets를 만들며 연결/최신 여부/export 이력·작업공간 export 기록이 없음.
-- 큰 실제 문서의 최초 열기·반복 읽기·승인 저장·진행 저장을 분리 측정. 전체 archive 교체 비용과 peak 공간·메모리를 기록하되 fixture 통과로 큰 문서 성능을 선언하지 않음.
+- 300쪽 저장 성능은 실제 큰 문서에서 막힐 때 최초/반복 열기·승인/진행 저장과 전체 archive 교체 비용·peak 공간/메모리를 나누어 측정한다. fixture 통과로 큰 문서 성능을 선언하지 않음.
 
 각 PR에서 [현재 플러그인 계약](plugin-stage1-v1.md)과 필요한 Core/SDK/작성 계약을 실제 변경 범위만큼 함께 갱신한다. 특히 **P1에서 루트 README·plugin-stage1·Docling README/manifest의 `.docling→문서`, 외부 `.md` 결과/연결·대조 전제를 새 작업공간/중간 export로 함께 갱신**하고 P11에서 완료 승인 export를 덧붙인다. 이번 문서 PR에서는 아직 동작하는 기존 구현 안내를 완료된 것처럼 바꾸지 않는다. 위 이름은 후보이며 지금 명령이 제공된다는 안내가 아니다. PR 제출/수락은 [검증 matrix](../../CONTRIBUTING.md#verification-matrix)와 [테스트 설계 지침](../contributing/test-design.md)을 따르고 master 병합은 소유자 승인·독립 리뷰·merge queue 전체 검사를 별도로 충족한다.
 
@@ -647,3 +685,21 @@ Undo→대체→재승인 통합을 보완했다. 새 daemon·AI·브라우저 s
 수정 후 SDK 19개, 기존 plugins/generated-documents 50개(58.0초), SDK/Editor/CLI typecheck,
 docs/boundaries·diff 검사가 통과했다. 실제 CLI supersede 요청과 Docling Undo→대체→재승인을 포함한다.
 기존 fault·stale·원본/이력 보존 단언은 유지했으며 Windows 경로·UI·브라우저 동작은 변경하지 않았다.
+
+
+## P3 축소 — 기존 원본 cell locator 승인 회귀
+
+2026-11-11: 확대 P3는 보관 브랜치에 남기고 제품 코드·SDK/Docling 버전은 바꾸지 않는다.
+기존 Docling workspace fixture에 대표 칸 묶음 한 건의 제안→사람 승인→원자적 저장/재생성→
+저장된 canonical snapshot 재파싱을 추가했다. 원본 cell index만 사용하며 병합 span이 덮는 모든
+Litzio 칸에는 새 값, 나머지 칸과 원본 PDF/JSON/manifest에는 기존 값이 유지되는지 확인한다.
+제안 저장만으로 snapshot이 변하지 않는 것도 검사한다.
+
+기존 검사는 cell patch replay/변환과 text 묶음 승인 흐름을 각각 보호했으나 cell locator 묶음의
+승인 후 재생성 결과를 끝까지 확인하지 않았다. 기존 동작의 이 공백을 보완하므로 수정 전 실패 확인은
+하지 않았다. 주된 검증 계층은 기존 Host workspace fixture이며 새 subprocess·브라우저 시나리오는 없다.
+대상 검사 1개가 Windows에서 통과했다(약 3.0초, 전체 실행 약 5.4초). 이는 합성 fixture의 저장/변환 검증이며
+실제 LSR 비서 검수·화면·큰 문서의 성능 수락을 대신하지 않는다.
+
+로컬 최종 검증: 기존 plugins/generated-documents 검사 50개가 54.6초에 통과했고 Editor typecheck,
+`pnpm docs:check`, `git diff --check`도 통과했다. 제품 코드·UI 변경이 없어 새 browser 실행은 추가하지 않았다.
