@@ -1,24 +1,25 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
-import os from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { prepareBrowserFixtures, REPOSITORY_ROOT } from "./fixtures.ts";
 import { HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./scenarios.ts";
+import { browserHostEnvironment } from "./host-environment.ts";
 
 try {
   const { scenarios, screenshots, shard } = selectBrowserScenarios(process.argv.slice(2));
+  const host = browserHostEnvironment(process.env);
+  Object.assign(process.env, host.env);
+  process.once("exit", () => {
+    try { host.cleanup(); }
+    catch (error) { console.error(error); process.exitCode = 1; }
+  });
   if (scenarios.some(name => HTTP_SCENARIOS.includes(name))) {
     if (!process.env.LITZIO_BROWSER_URL && !existsSync(path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"))) {
       throw new Error("Build the production HTTP Host first: pnpm --filter @litzio/cli build");
     }
     process.env.LITZIO_BROWSER_HOST = "http";
-    if (!process.env.LITZIO_BROWSER_URL) {
-      const directory = mkdtempSync(path.join(os.tmpdir(), "litzio-http-browser-"));
-      process.env.LITZIO_BROWSER_DAEMON_DIR = directory;
-      process.once("exit", () => rmSync(directory, { recursive: true, force: true }));
-    }
     prepareBrowserFixtures();
   }
   if ((!process.env.LITZIO_BROWSER_URL && process.env.LITZIO_BROWSER_HOST !== "http") || scenarios.includes("vite-plugins")) execFileSync(process.execPath, ["build.mjs"], { cwd: path.join(REPOSITORY_ROOT, "plugins/onedrive"), stdio: "inherit", windowsHide: true });

@@ -341,6 +341,14 @@ Host가 verification을 소유한다. 아직 원래 호출이 진행 중이면 p
 
 ## 공식 번들 공급과 외부 폴더 추가 (#1279)
 
+#1461: 플러그인 목록·설정 갱신은 열린 “플러그인 추가…”의 폴더 경로 초안과 focus를
+초기화하지 않는다. Host별 탐색·장소 조회 함수를 유지하고 기존 FolderDialog가 열기·Host 전환의
+초기화를 소유한다. 선택한 설정/신뢰 대상이 목록에서 사라진 경우에만 해당 Dialog를 닫고
+기존 Notice로 알린다. 일반 갱신과 사용자가 직접 완료한 제거에는 이 안내를 표시하지 않는다.
+닫히는 설정·신뢰 Dialog가 아직 마운트되어 있어도 안내는 활성 Dialog 또는 설정 본문 한 곳에만 표시한다.
+기존 `http-plugins`에 갱신 응답 반영 뒤 경로·focus 보존과 외부 제거 안내 검사를 보완했다.
+Windows persistent Chrome의 localhost fixture 검증이며 실제 외부 서비스 수락 근거는 아니다.
+
 공식 OneDrive는 개발 실행·CLI·Desktop에 artifact를 포함하고 Host 시작 때 등록 없이 Settings → Plugins 및 공용 `plugins list`/비서 `manage_plugins` 목록에 표시한다. 기본은 꺼짐이다. 제품 공급 목록 `OFFICIAL_PLUGINS` 항목의 `defaultEnabled` 하나로 기본값을 바꾼다. Host는 사용자 선택 `enabledChoice`를 저장해 기본값보다 우선하고, 선택 전에는 설정 저장·재시작을 거쳐도 공급 기본값을 따른다. 기본값이 켜짐으로 바뀌면 선택하지 않은 사용자만 자동 활성화한다.
 
 OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json`을 생성한다. CLI 빌드는 매번 OneDrive를 빌드해 artifact와 digest를 함께 복사하고 npm 배포 파일 목록에 포함한다. Desktop은 이 CLI 산출물 전체를 사용한다. 개발 `pnpm editor`도 OneDrive를 먼저 빌드한다. Host는 공급 목록 id·publisher·digest를 대조하며 불일치·누락은 오류 행으로 남기고 실행·trust 우회를 막는다. 공식 플러그인은 앱 업데이트와 함께만 갱신하며 등록 교체·unregister는 불가하고 끄기만 제공한다. 비활성화의 설정·secret·열린 탭 보존 계약은 유지하며 OneDrive 자동 표시 폴더만 위 계약에 따라 목록에서 제거한다.
