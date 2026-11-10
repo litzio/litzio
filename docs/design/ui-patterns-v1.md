@@ -818,3 +818,14 @@ quota diagnostic. No common interaction exception was introduced.
 The [current contract and four same-state Before/After pairs](main-agent-v1.md#context-account-and-usage-1446)
 record Host cache/notification ownership and fixture-only verification limits.
 Captures are manual review evidence, not owner visual approval.
+
+## Business usage details (#1453, P07 / P12)
+
+AI Settings (U22) and the Context ring retain the shared account/quota display and
+Tooltip. Individual quota/remaining credit states and spending warnings use short
+localized text and the existing compact reset format; period rows still use the
+same component. Empty successful snapshots explicitly say No usage information.
+The warning uses bold text within the existing contrasting surface, without a new
+color or control. The [contract and fixture Before/After pairs](main-agent-v1.md#business-account-usage-1453)
+record the Business shape, rounding and unchanged target-Host cache ownership.
+No common interaction exception or new persistent chrome was introduced.

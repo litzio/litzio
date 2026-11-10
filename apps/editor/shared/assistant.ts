@@ -40,7 +40,13 @@ export type AssistantDiagnostics = {
   provider: AiProvider; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;
   account?: { type: string; email?: string | null; planType?: string } | null;
   accountError?: string; rateLimitsError?: string; mcpError?: string;
-  rateLimits?: { name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[] }[];
+  rateLimits?: {
+    name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[];
+    planType?: string;
+    individualLimit?: { limit: number | null; used: number | null; remainingPercent: number | null; resetsAt: number | null };
+    credits?: { hasCredits: boolean; unlimited: boolean; balance: number | null };
+    spendControlReached?: boolean;
+  }[];
   mcp?: { name: string; status: string; authStatus: string }[];
 };
 /** Display-only subset of provider diagnostics; owned and cached by the target Host. */

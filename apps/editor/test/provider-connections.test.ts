@@ -410,6 +410,24 @@ test("account usage shares the lazy connection, caches concurrent reads for 60s 
   assert.deepEqual(updated.account, { type: "chatgpt", email: "fixture@example.invalid", planType: "plus" });
   assert.deepEqual(updated.rateLimits?.map(bucket => bucket.windows[0].usedPercent), [45, 12]);
   assert.doesNotMatch(JSON.stringify(updated), /hidden/);
+  const business = { limitName: "Codex", primary: null, secondary: null, planType: "business",
+    individualLimit: { limit: "500", used: "208.24", remainingPercent: 58, resetsAt: 1900000000 },
+    credits: { hasCredits: true, unlimited: false, balance: null }, spendControlReached: false };
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt", planType: "business" },
+    limits: { rateLimits: business, rateLimitsByLimitId: { codex: business } } });
+  const businessUsage = (await connection.accountUsage()).rateLimits![0];
+  assert.deepEqual(businessUsage, { name: "Codex", windows: [], planType: "business",
+    individualLimit: { limit: 500, used: 208.24, remainingPercent: 58, resetsAt: 1900000000 },
+    credits: { hasCredits: true, unlimited: false, balance: null }, spendControlReached: false });
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt" }, limits: { rateLimits: {
+    ...business, primary: bucket("Codex", 28).primary,
+    credits: { hasCredits: true, unlimited: false, balance: "125.50" },
+  } } });
+  const combined = (await connection.accountUsage()).rateLimits![0];
+  assert.equal(combined.windows[0].usedPercent, 28, "period and individual quotas can coexist, including the single-bucket response");
+  assert.equal(combined.credits?.balance, 125.5);
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt" }, limits: { rateLimits: { futureField: true } } });
+  assert.deepEqual((await connection.accountUsage()).rateLimits, [{ name: "codex", windows: [] }]);
   await connection.client.request("fixture/usage", { notification: "account/updated", account: { type: "apiKey", email: "hidden", planType: "hidden" }, limits: {} });
   assert.deepEqual((await connection.accountUsage()).account, { type: "apiKey" });
   await connection.client.request("fixture/usage", { notification: "account/updated", account: null, limits: {} });

@@ -58,6 +58,23 @@ test("assistant account and quota use readable localized units, login labels and
     assert.match(usage, /7일 · 12% 사용 · 11\. 17\. 09:00 초기화/);
     assert.match(usage, /1일 1시간 1분/);
     assert.doesNotMatch(usage, /2026|09:00:|14:00:/);
+    const business = { ...value, rateLimits: [{ name: "Codex", windows: [], planType: "business",
+      individualLimit: { limit: 500, used: 208.24, remainingPercent: 58, resetsAt: new Date(2026, 10, 24, 9, 0).getTime() / 1000 },
+      credits: { hasCredits: true, unlimited: false, balance: null }, spendControlReached: true }] };
+    const businessText = renderToStaticMarkup(<AssistantRateLimits value={business} />);
+    assert.match(businessText, /개별 한도 · 208 \/ 500 · 42% 사용 · 11\. 24\. 09:00 초기화/);
+    assert.match(businessText, /남은 58%/);
+    assert.match(businessText, /크레딧 있음/);
+    assert.match(businessText, /지출 한도에 도달했습니다/);
+    assert.match(renderToStaticMarkup(<AssistantRateLimits value={{ ...business, rateLimits: [{ ...business.rateLimits[0], individualLimit: { ...business.rateLimits[0].individualLimit, used: 208.8 } }] }} />), /209 \/ 500/);
+    assert.match(renderToStaticMarkup(<AssistantRateLimits value={{ ...value, rateLimits: [{ name: "codex", windows: [] }] }} />), /사용량 정보 없음/);
+    for (const [credits, expected] of [
+      [{ hasCredits: false, unlimited: false, balance: null }, "크레딧 없음"],
+      [{ hasCredits: true, unlimited: true, balance: null }, "크레딧 무제한"],
+      [{ hasCredits: true, unlimited: false, balance: 125.5 }, "크레딧 있음 · 125.5"],
+    ] as const) {
+      assert.ok(renderToStaticMarkup(<AssistantRateLimits value={{ ...value, rateLimits: [{ name: "Codex", windows: [], credits }] }} />).includes(expected));
+    }
   } finally { await i18n.changeLanguage("en"); }
 });
 import { messageText, type UiMessage } from "../src/ui-message.ts";

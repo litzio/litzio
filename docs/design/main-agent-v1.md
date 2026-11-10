@@ -1826,3 +1826,51 @@ Manual native crops (1440/640px, English, 100% zoom, light/dark, synthetic accou
 Host labels and paths; all account values use `example.invalid` fixtures.
 [Capture metadata and image hashes](assets/assistant-usage-1446/capture-metadata.json)
 record the baseline and fixture conditions.
+
+## Business account usage (#1453)
+
+The existing Codex account/usage projection also supports Business snapshots whose
+`primary` and `secondary` windows are null. Alongside period windows, each shared
+rate-limit bucket can contain `planType`, `individualLimit` (limit, used,
+remainingPercent, resetsAt), `credits` (hasCredits, unlimited, balance), and
+`spendControlReached`. Host explicitly projects only these display fields; numeric
+strings in limit/used/balance become finite numbers, preserving decimal usage until
+rendering. No provider identifiers are copied or added to fixtures or logs. Both
+multi-bucket and single-bucket responses use the same conversion. Existing official
+RPCs, target-Host ownership, 60-second cache and notification invalidation are unchanged.
+
+Settings and the Context tooltip share `AssistantRateLimits`: **Individual limit**
+shows rounded integer usage/limit, used percentage derived from remainingPercent
+(or usage/limit when remainingPercent is absent), and the existing compact local
+reset time. Remaining percentage is a separate short line. Credit status is
+**Credits available**, **No credits** or **Unlimited credits**, with the balance
+when supplied; no currency/unit is invented. A reached spending limit adds a short
+bold warning. The plan type accompanies the bucket name. Period windows remain
+visible when present, including alongside individual limits. A successful snapshot
+without any usable quota/credit/spending information says **No usage information**;
+lookup failures still say **Unavailable**. All new wording is bundled in English/Korean.
+The current Tooltip and its max-w-md width, typography and surface tokens are reused.
+
+Regression evidence: before implementation, the added Business fixture produced
+only `{name: 'Codex', windows: []}` and the shared renderer showed only the Codex
+heading; both existing targeted tests failed. The updated provider and shell checks
+cover the owner-reported null-window/string-number shape, multi/single-bucket
+responses, period/individual coexistence, rounding, credit states/balance, warning
+and empty information. The assistant browser scenario supplements its period-limit
+hover check with the Business fields and row-clipping check. Tests and captures use
+fake accounts and values only; real Business quota, backend timing and owner visual
+approval are not established by these fixtures.
+
+Manual native crops (1440/640px, English, light/dark, fixed date, synthetic Business
+account; warning and balance deliberately enabled to show those states):
+[1440 light Before](assets/assistant-usage-1453/before-1440-light.png) /
+[After](assets/assistant-usage-1453/after-1440-light.png),
+[1440 dark Before](assets/assistant-usage-1453/before-1440-dark.png) /
+[After](assets/assistant-usage-1453/after-1440-dark.png),
+[640 light Before](assets/assistant-usage-1453/before-640-light.png) /
+[After](assets/assistant-usage-1453/after-640-light.png),
+[640 dark Before](assets/assistant-usage-1453/before-640-dark.png) /
+[After](assets/assistant-usage-1453/after-640-dark.png).
+[Capture procedure](assets/assistant-usage-1453/capture.browser.js) and
+[metadata/hashes](assets/assistant-usage-1453/capture-metadata.json) record fixture
+conditions. Captures exclude unrelated Host identity and local paths.
