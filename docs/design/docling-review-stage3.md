@@ -18,6 +18,9 @@
 5. 최종 구조 수정 범위는 **문단 나누기, 문단 합치기(페이지 경계 포함), 표 빈칸 채우기·없는 칸 추가, 쪽을 넘어 이어진 표 합치기**다. 각 구조 수정은 별도 구현 PR로 둔다. 앞서 전달된 “없는 표 칸 추가를 후속으로 보류” 결정은 이 최종 범위로 대체한다. **셀 합치기·나누기로 병합 셀 모양을 바꾸는 기능은 제외**한다. 병합 셀은 걸치는 모든 Litzio 칸에 같은 값을 채운다.
 6. 결정적 렌즈 추출은 DoclingDocument 표준 필드 의미를 따른다. 제품은 JS 플러그인이므로 변환에 사용한 버전의 **공식 DoclingDocument JSON Schema로 검증하고 그 스키마에 타입을 맞춘다**. 실험의 Python venv를 제품 실행 의존성으로 만들거나 검증 없는 임의 JSON 해석을 하지 않는다.
 7. 대조 화면과 대응은 **원본+승인된 패치 replay로 얻은 유효 문서 하나**를 기준으로 만든다. 왼쪽 PDF/페이지 이미지 바이트는 원본 그대로이고, 그 위의 영역 박스·종류 색·연결선, 오른쪽 Litzio 문서, 대응 표는 모두 같은 effective revision을 사용한다. 교정 후에도 원본의 예전 박스를 그대로 현재 영역인 것처럼 사용하지 않는다.
+8. **`.docling`이 단일 검수 작업공간**이다. 검수 중 외부 `.md`를 자동 생성하지 않고 현재 `.docling→문서` K1의 `.md` 생성을 명시적 내보내기로 옮긴다. PDF→`.docling` 변환은 유지한다. 이 결정은 11-09의 “검수 중 `.md`가 결과물” 결정을 대체한다.
+9. 내보내기는 공용 Host 작업+CLI로 제공한다. 사람이 명시적으로 실행하는 **중간 “현재 상태로 내보내기”**와 검수 완료 조건 충족·사람의 **4단계 완료 승인 뒤 공식 내보내기**를 구분한다. 둘 다 Docling 연결 없는 일반 `.md`이며 중간 내보내기 이력·최신 여부·작업공간 안 export 기록은 만들지 않는다. 기본 이름의 “검수중” 표시와 일반 파일 충돌/명시적 덮어쓰기 확인만 둔다.
+10. **`.docling` 내부 canonical `.md` 캐시를 채택한다**(소유자 승인·Astra 검토 권고). 진실은 원본 PDF·원본 Docling JSON·승인된 patch ledger이며 내부 문서/대응은 직접 편집하지 않는 파생 결과다. `.docling`은 교환용 검수 자료 묶음이고 Litzio 문서의 plain-text SSOT가 아니다. 첫 저장은 전체 archive 교체를 유지한다. 직전의 검토 중 대안/두 갈래 계획은 이 확정안으로 대체한다.
 
 ## 목적과 현재 경계
 
@@ -30,9 +33,10 @@
 | 현재 구현 | 3단계 제안 |
 | --- | --- |
 | V4 review의 pending 제안·승인/거절/Undo와 Core text 변경, daemon 수명 bundle | 여러 대상과 개별 근거를 가진 영속 문제 묶음. 기존 Core text 경로를 Docling 교정 이력 대신 쓰지 않는다. |
-| generated-document의 opaque 교정·재생성과 `sourceRevision/documentRevision/linkRevision` 보호 | 같은 source-first 경로로 승인된 묶음의 교정을 저장·재생성하고 부분 실패를 공개한다. |
+| generated-document의 opaque 교정·외부 `.md` 재생성과 `sourceRevision/documentRevision/linkRevision` 보호 | `.docling`을 검수 대상으로 저장하고 검증한 canonical snapshot을 읽는다. 외부 `.md`/link를 검수의 필수 상태로 삼지 않는다. 기존 staging·revision·uncertain 보호를 작업공간에 재사용한다. |
 | Docling `review.json`의 `patches/checkedPages/lastPage/approval:null` | 비서 검사 범위·판단·묶음·승인 이력과 완료 판정을 추가한다. 현재 reader는 추가 필드를 거부하므로 SDK/플러그인 구현 변경이 필요하다. |
 | 사람이 저장하는 페이지 확인과 원본 대조 | 렌즈 coverage·그림/표 필수 확인·선택한 이미지 대조 coverage를 분리해 완료를 판정한다. |
+| `.docling→문서` K1의 native-document 결과 생성 | 검수 열기는 외부 파일을 만들지 않는다. `.md` 생성은 중간/공식의 명시적 export 공용 작업으로 옮긴다. |
 
 실행 근거: [Docling review adapter](../../community-plugins/docling/review.js), [Docling Host](../../community-plugins/docling/host.js), [공용 review Host](../../apps/editor/server/plugins/reviews.ts), [생성 문서 Host](../../apps/editor/server/plugins/generated-documents.ts). 현재 동작의 권위는 계속 [플러그인 1단계](plugin-stage1-v1.md)다.
 
@@ -78,9 +82,58 @@ Undo는 과거 승인을 삭제하지 않고 `undone` 처리 이력을 추가한
 1. 7개 렌즈가 문서 전 범위를 처리했고, 필수 입력·페이지/항목 inventory의 누락이나 검사 못 함이 0이다. 렌즈와 수식·표 crop의 실제 coverage를 기록한다. 전체 본문 이미지 검사를 했다는 뜻은 아니다.
 2. 열린 문제 묶음과 판단 불가가 0이고, 사람이 문제 묶음을 승인 또는 근거 있는 거절로 처리했다. 규칙 후보의 기각·확정 문제의 해소·재검사 결과도 남는다.
 3. 모든 그림·표의 필수 확인 항목이 처리됐다. 직접 사람 확인, 또는 예상량 승인 뒤 실제 이미지 대조를 끝내고 결과를 검수 상태에 반영한 기록이 필요하다. 실행 승인만으로는 완료하지 않으며 발견된 문제/판단 불가는 2번 조건으로 남는다.
-4. 승인 변경이 `.docling`에 저장되고 공식 write path로 문서가 재생성돼 현재 mapping·문서 revision과 일치한다. 재생성 필요, 외부 수정, stale 자료, pending/unknown 요청은 0이다. 교정 뒤 필요한 재검사도 마친다.
+4. 승인 변경이 `.docling`에 저장되고 SDK/Core 공식 작성 경로로 검증한 canonical snapshot과 현재 mapping·문서 revision이 일치한다. 재생성 필요, 작업공간 외부 수정, stale 자료, pending/unknown 요청은 0이다. 교정 뒤 필요한 재검사도 마친다. 외부 `.md` 존재/최신 여부는 검사하지 않는다.
 
-선택하지 않은 본문 이미지 대조는 완료를 막지 않는다. 완료 기록에는 content revision, 렌즈별 범위/결과, 필수 확인의 대상·처리 방식, 이미지 대조한 페이지/범위와 **본문 대조 안 함** 페이지, 확인된 제약·사람 결정, 생성 문서/mapping revision을 함께 남긴다. “모든 본문이 원본과 일치함”으로 표시하지 않는다.
+선택하지 않은 본문 이미지 대조는 완료를 막지 않는다. 완료 기록에는 content revision, 렌즈별 범위/결과, 필수 확인의 대상·처리 방식, 이미지 대조한 페이지/범위와 **본문 대조 안 함** 페이지, 확인된 제약·사람 결정, canonical snapshot/mapping revision을 함께 남긴다. “모든 본문이 원본과 일치함”으로 표시하지 않는다. 사람의 최종 완료 승인은 이 ledger/content revision과 snapshot hash에 고정하고 이후 교정/Undo로 무효화한다. 이 승인 기록은 export 이력과 다르다.
+
+## 단일 검수 작업공간·snapshot·내보내기
+
+검수 내용의 진실은 `.docling` 안의 불변 원본 PDF·Docling JSON과 승인된 patch ledger다. 오른쪽 문서는 Host가 공개 SDK/Core로 검증·canonical 직렬화해 내부 캐시에 저장한 **파생 snapshot**이다. 캐시의 존재·해시는 승인이나 검수 완료의 증거가 아니다. 비서와 CLI는 공용 review 읽기로 canonical text/read model·revision·assets를 받으며 archive 내부 경로·가짜 `.md` 경로나 임시 폴더 문서를 직접 다루지 않는다. `ReviewRenderer`와 읽기 전용 문서 표시는 재사용한다. 일반 Litzio 문서는 계속 plain-text `.md`가 SSOT이고, `.docling` 검수 자료를 새 native 문서 형식이나 범용 backend로 승격하지 않는다.
+
+### 확정 저장 계약: 내부 문서·대응·생성 입력
+
+내부에는 예를 들어 `current/document.md`의 canonical source와 **최종 authoring inputs/targets 또는 검증 가능한 대응 자료**, metadata를 함께 보관한다. 검수 읽기는 이 자료에서 snapshot을 발행하며 파일 시스템에 풀어서 일반 문서처럼 열지 않는다. replay와 변환이 같은 입력을 사용했는지, targets가 그 canonical snapshot의 실제 경로/영역을 가리키는지 검증한다.
+
+| 값 | 목적·기준 |
+| --- | --- |
+| 의미 입력 revision | 원본 JSON hash와 실제 적용한 승인 patches revision. 확인 시각·위치·검사 메모는 포함하지 않음 |
+| 캐시 key | 원본 JSON hash·적용 patches revision·replay/변환 버전·**Core authoring/직렬화 계약 버전**·이미지 binding 기준. 패키지 버전 하나나 출력 hash만으로 대체하지 않음 |
+| 문서 revision/hash | 내부 canonical `.md` bytes의 출력 무결성 검증. 의미 입력 revision과 별도 |
+| workspace revision | `.docling` 전체 hash. 동시 쓰기/교체 보호에만 쓰며 **캐시 key에 넣지 않음** |
+| 대응·검수 상태 | mapping/targets는 해당 캐시 key와 문서 hash에 고정. 렌즈/사람 확인/완료 승인은 별도 검수 기록이며 캐시 존재로 추정하지 않음 |
+
+공용 review 반환은 문서 revision, 의미 입력 revision, 캐시 유효 상태, 검수 완료 상태를 분리한다. 재시작·다른 Host 인계 후에는 영속 문서/대응·검수 기록을 검증해 동일 결과를 읽는다. 예전 daemon bundle ID·미확정 request의 실행 권한은 복원하지 않고 새 scoped 참조를 발급한다.
+
+캐시 안의 targets/원본 대응은 의미 입력과 문서 hash에 고정하고, 현재 archive 전체 hash는 Host의 live 쓰기 baseline에서 별도로 관리한다. 진행 저장으로 전체 hash가 바뀌어도 canonical source·영속 대응을 다시 생성하지 않고 live 읽기 envelope/baseline만 갱신한다. 캐시 안에 자기 자신을 포함한 archive hash를 고정해 매 저장마다 불일치시키지 않는다.
+
+이미지는 archive가 이미 소유한 바이트를 가리키는 안정적인 참조를 쓰고 공용 review 읽기가 제공한다. 내부 `.md`를 위해 그림/페이지 이미지를 **중복 저장하거나 외부 assets로 만들지 않는다**. 일시적 URL이나 가짜 외부 파일명을 canonical identity로 사용하지 않는다. 이미지 binding은 캐시 key와 문서/대응 검증의 일부다.
+
+### 원자적 승인 저장·재생성 시점
+
+승인 저장은 **새 ledger 후보 → replay → 공식 SDK/Core 작성·검증 → 문서·대응·metadata를 담은 새 archive → 기존 workspace revision 재확인 → 전체 교체** 한 번이다. source를 선저장하고 별도 문서를 갱신하는 현재 `generated-documents.ts` 순서는 쓰지 않는다. 실패하면 기존 승인 기록·캐시를 함께 보존한다. 응답 유실은 같은 requestId status로 확인하며 자동 재전송하지 않는다. 캐시와 승인 ledger의 혼합 revision은 발행하지 않는다.
+
+재생성은 최초 준비, 승인된 의미 변경/Undo, 캐시 누락·손상, 생성 계약 변경 때 수행한다. **페이지 확인·위치·검사 메모 저장은 기존 캐시 source·대응·key/hash를 보존하고 다시 생성하지 않는다.** archive는 첫 구현에서 계속 전체 교체하므로 진행 저장의 I/O 비용까지 없어진다는 뜻은 아니다.
+
+무결한 캐시의 생성 계약 버전이 현재와 다르면 **“생성 당시 결과”**로 읽을 수 있다. 새 승인·완료 판정 전에는 **명시적 재생성**을 요구하며 열기만으로 새 버전 결과에 조용히 교체하지 않는다. 의미 입력이 맞지 않거나 hash/targets가 손상된 자료는 현행 결과로 내놓지 않는다. 검증한 원본/승인 ledger에서 복구할 수 없으면 재생성 필요/검사 못 함으로 남기며 캐시를 정본으로 역수입하지 않는다. open/prepare/regenerate의 저장 효과와 receipt는 명시하고 read가 몰래 archive를 쓰지 않는다.
+
+현재 `archive.js`의 고정 네 항목 목록과 `rewriteReview`는 내부 문서/대응/metadata를 보존할 수 있도록 **형식을 변경**한다. 원본 PDF/JSON 바이트·해시는 유지하고 과거 archive 호환 계층/migration은 만들지 않는다. 정본·캐시·검수 기록 각각의 역할과 검증 경계를 새 형식에 명시한다.
+
+큰 실제 문서에서 **최초 열기·반복 읽기·승인 저장·진행 저장**을 따로 측정한다. canonical 문서/대응으로 늘어난 archive 크기·전체 재기록 시간·peak 메모리/디스크와 원본 이미지 무중복을 기록하고 기존 전체 교체의 개선 필요를 판단한다. 이 문서 PR은 측정이나 성능 보장을 하지 않는다.
+
+### 공용 Host에서 바뀌는 파일 전제
+
+- `generated-documents.ts`는 현재 `.md`와 연결 파일을 찾고 source/document/link를 잠근다. 새 검수 모드는 실제 `.docling` workspace·ledger/snapshot revision을 대상으로 열기/패치/진행/복원을 제공한다. export 결과를 generated-document 연결에 등록하지 않는다.
+- `reviews.ts`의 `publish/check`는 현재 저장된 문서를 `readFileSync`/`loadDocumentFile`로 읽고 파일 hash·block target을 검증한다. 새 workspace 문서는 canonical bytes/read model과 asset resolver를 받는 공용 reader로 바꾸고 archive+snapshot hash·generation·targets를 검증한다. 일반 파일 review의 실제 파일 검증은 유지하고 가짜 파일을 만들어 우회하지 않는다.
+- 현재 `documentPath`와 결과 문서 열기를 가정하는 generated adapter는 workspace ref를 사용하도록 바꾼다. 읽기 전용 renderer는 snapshot을 표시하며 “문서 열기”는 실제 export 결과 경로가 있을 때의 일반 파일 행동이다. 임의 archive 내부 경로를 Host 절대 경로처럼 반환하지 않는다.
+- Docling provider는 내부 캐시·replay·entry 검증과 candidate를 준비하고, Host는 공개 SDK/Core의 공식 작성/이미지 검증·쓰기 권한/commit·receipt를 소유한다. 기존 최종-file `bindReport`는 내부 문서에서 검증한 snapshot의 실제 canonical hash/targets에 묶도록 바꾼다.
+
+### 두 내보내기와 비추적 경계
+
+중간 export는 사람이 현재 상태를 명시적으로 내보내는 동작이다. 기본 이름에 `검수중`을 포함하고, 완료 전 문서를 완료로 표시하지 않는다. 공식 export는 앞의 완료 조건과 **사람의 4단계 완료 승인**이 현재 snapshot에 유효할 때만 허용한다. P1에서는 중간 export까지 제공하고 공식 export gate는 검사·묶음·완료 판정이 갖춰진 뒤 P11에서 연결한다.
+
+두 export는 검증한 **내부 결과를 기준으로 이미지 게시·참조 변환·공식 문서 검증**을 수행해 일반 `.md`와 assets를 만든다. source를 단순 문자열 치환하는 작업이 아니며 기존 Core 의미·SDK/asset binding·공식 작성/직렬화 경로를 재사용한다. `.md`·assets의 충돌/실패는 기존 공식 생성/쓰기 결과로 공개한다. 기본 이름이 충돌하면 일반 새 파일 규칙과 명시적인 덮어쓰기 확인·대상 revision/미저장 보호를 적용하고 조용히 교체하지 않는다.
+
+내보낸 파일은 작업공간과 **연결 없는 일반 문서**다. export 경로/시각/history·최신 여부·generation 연결이나 `.docling` 안 export 기록을 만들지 않고, 외부 편집·이동·삭제를 감시하거나 다시 가져오지 않는다. 일반 Host 작업 receipt가 실행 결과를 반환하는 것은 export 추적 기능이 아니다. 중간 결과의 관리는 사람에게 맡긴다.
 
 이는 workflow 완료 조건이며 원본과 의미가 완전히 같다는 수학적 증명이나 모델의 무오류 보증이 아니다. 실제 제품 수락은 LSR와 실제 문서에서 비서 검사→묶음 처리→재생성→완료 판정의 연결, 놓침·위험 제안 기록을 포함한다. 이번 문서 실험은 이 연결의 완료가 아니다.
 
@@ -100,7 +153,7 @@ AI 검사는 기존 공식 비서 turn/task의 수명·중단·결과 관찰을 
 
 ## 유효 문서와 대조 자료의 공통 생성 경로
 
-소유자 결정의 데이터 흐름은 **불변 원본 + 유효 교정 ledger → 한 번의 replay → effective document/lineage → Core 작성 요청과 review 자료 → Host 공식 저장·최종 target binding**이다. 검사 항목·필수 확인·변환 losses도 같은 effective revision에서 계산한다. 원본은 원본 PDF/이미지 바이트·근거와 교정 전 상세를 읽을 때만 참조한다.
+소유자 결정의 데이터 흐름은 **불변 원본 + 유효 교정 ledger → 한 번의 replay → effective document/lineage → SDK/Core canonical 문서·작성 inputs/targets·review 자료 → 같은 archive에 저장·snapshot 발행**이다. 유효한 캐시는 반복 읽기 때 재사용한다. 검사 항목·필수 확인·변환 losses도 같은 effective revision에서 계산한다. 원본은 원본 PDF/이미지 바이트·근거와 교정 전 상세를 읽을 때만 참조한다.
 
 DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현재 `__reviewKind/__reviewExcluded`는 내부 표시일 뿐 공식 스키마 필드가 아니다. 유효 문서의 노드에 임의 키를 계속 붙여 표준 검증을 우회하지 않고, active/consumed/excluded·수정 이력·lineage는 typed review projection에 둔다. 구조 수정은 표준 컬렉션·parent/children·prov로 표현하고, source locator와 현재 effective `self_ref`를 구별한다.
 
@@ -108,8 +161,8 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 
 - `review.js`의 `comparison()`은 현재 `archive.document`에서 페이지·원본 항목 prov·label을 읽고, effective 결과에서는 excluded 여부만 본다. 이를 effective 항목/영역 projection을 읽도록 바꾼다. `original.label`에 따른 색과 원래 bbox를 고정 사용하지 않는다.
 - `document.js`의 `convertDocument()`는 내부에서 별도로 `applyCorrections()`를 호출한다. `host.js`의 read/build/compare가 동일한 replay 결과를 공유하게 하고, renderer용 자료와 변환이 다른 replay/ledger snapshot을 보는 경로를 없앤다. 공개 provider 입력은 유지 가능한 범위에서 재사용한다.
-- `host.js`의 author cache는 원본 hash+patch JSON 외에 실제 effective revision/adapter 의미 버전과 일치해야 한다. 원본 archive hash를 검수 기록/진행 저장 때문에 바뀌는 파일 revision과 혼동하지 않는다. Host의 기존 before/after source/document/link 검증과 stale/no-replay 보호는 유지한다.
-- `comparison`과 `bindReport`는 Host가 발행한 **새** 문서 revision/hash·Core targets에 대응을 다시 묶는다. 재생성 전 mapping을 새 결과에 붙이지 않으며 source-first 부분 실패 때 오른쪽 문서와 새 영역을 혼합 표시하지 않는다.
+- `host.js`의 author cache는 원본 hash+patch JSON 외에 실제 effective revision/adapter 의미 버전과 일치해야 한다. 원본 archive hash를 검수 기록/진행 저장 때문에 바뀌는 파일 revision과 혼동하지 않는다. 새 검수 경로는 workspace/ledger/canonical snapshot 검증을 사용하며 외부 document/link 파일을 요구하지 않는다. stale/no-replay 보호는 유지한다.
+- `comparison`과 `bindReport`는 Host가 검증한 **새 snapshot** revision/hash·Core targets에 대응을 다시 묶는다. 작업공간 교체/재작성 실패 때 새 영역과 예전 오른쪽 snapshot을 혼합 표시하지 않는다. 외부 export의 파일 revision은 검수 snapshot과 별도다.
 
 ### 영역·종류·연결과 수정 표시
 
@@ -131,10 +184,11 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 
 ## 공용 Host 작업·CLI·비서 도구 제안
 
-다음 이름은 **미구현 후보**다. 기존 `/api/reviews` dispatcher와 generated-document 경로를 확장하고, 새 범용 backend/registry를 만들지 않는다. 각 CLI·비서 도구는 같은 공용 작업 정의와 검증을 호출한다. 공통 입력은 대상 Host·provider·Root 상대 생성 문서/원본 연결·content revision이며 임의 파일 경로/URL을 image ref로 받지 않는다.
+다음 이름은 **미구현 후보**다. 기존 `/api/reviews` dispatcher와 generated-document 경로를 확장하고, 새 범용 backend/registry를 만들지 않는다. 각 CLI·비서 도구는 같은 공용 작업 정의와 검증을 호출한다. 새 검수의 공통 입력은 대상 Host·provider·Root 상대 workspace와 ledger/content·snapshot revision이며 임의 파일 경로/URL을 image ref로 받지 않는다. 일반 파일 review와 작업공간 review를 명시적으로 구분한다.
 
 | Host 작업 후보 | CLI 후보 / 비서 도구 후보 | 입력 → 결과 |
 | --- | --- | --- |
+| `review.open/read` (open은 저장 효과 명시, read는 읽기) | `review open/read` / `open_review_workspace/read_review_document` | workspace·baseline → 내부 canonical text/read model·문서 revision·의미 입력 revision·캐시 상태·검수 완료 상태·asset refs·검사/패치/진행. 무결한 이전 계약은 생성 당시 결과로 읽고 새 승인 전 명시 재생성을 요구한다. 외부/내부 `.md` 경로를 호출자가 직접 다루게 하지 않는다. |
 | `review.material` (read) | `review material` / `read_review_material` | baseline, pageNo, kind `page/region/items/cells/structure`; region은 검증된 page+영역 ID 또는 좌표·배율 → 이미지 ref/hash·실제 치수·해상도·좌표계, 관련 모든 provenance 페이지, 항목의 원문/유효값·관계·실제 cell index/행열 범위, 전체 구조 및 continuation. 자료 없음·상한 초과·미지원은 명시 오류. |
 | `review.rules` (read) | `review rules` / `run_review_rules` | baseline, rule IDs/version, 범위 → 결정적 무결성 결과와 의미 판단 후보를 구별한 대상·근거·완료 범위. 0건도 검사 범위와 실패를 반환. |
 | `review.inspection` (write) | `review inspection` / `record_review_inspection` | requestId, baseline, run/model/effort, 실제 읽은 자료 refs/hash, 페이지별 modality·결과·한계 → 저장 revision과 검사 coverage. 단순 호출자가 claimed한 완료를 전체 검사 증거로 취급하지 않는다. |
@@ -144,10 +198,11 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 | `review.required-checks` (read/write) | `review required-checks` / `read_review_required_checks/record_review_required_check` | baseline과 전체 그림/표 목록, write는 requestId·확인한 정확한 대상·사람 확인 또는 승인된 대조 run/결과 → 필수 확인 처리 기록·남은 대상·새 baseline. 보기만 한 항목을 완료하지 않는다. |
 | `review.groups.propose` (write) | `review groups propose` / `propose_review_groups` | requestId, baseline, 묶음·개별 근거·제안 패치 → 검증된 묶음 IDs, 지원/보류, 새 baseline. 원본/문서 변경 없이 제안만 저장. |
 | `review.groups.read` (read) | `review groups read` / `read_review_groups` | baseline, groupId 또는 상태 필터/continuation → 전체 대상·대표·근거·제안·판단·처리 이력·열린 문제 수. 잘라서 완전 목록처럼 표시하지 않는다. |
-| `review.groups.approve` (write) | `review groups approve` / `approve_review_group` | requestId, baseline, groupId, 정확한 proposal revision과 사람 결정 → 승인·교정 저장·문서 재생성·mapping 결과 각각과 새 baseline. 사람 승인 근거 없이 비서가 스스로 적용하지 않는다. |
+| `review.groups.approve` (write) | `review groups approve` / `approve_review_group` | requestId, baseline, groupId, 정확한 proposal revision과 사람 결정 → 검증한 교정·snapshot/mapping을 같은 workspace revision에 저장/발행한 결과와 새 baseline. 사람 승인 근거 없이 비서가 스스로 적용하지 않는다. |
 | `review.groups.reject` (write) | `review groups reject` / `reject_review_group` | requestId, baseline, groupId, 사람 판단·이유 → 거절 이력과 잔여 문제. 문서 교정 없음. |
 | `review.groups.undo` (write) | `review groups undo` / `undo_review_group` | requestId, baseline, 승인 receipt/groupId → 승인 교정 비활성화·원본부터 replay·공식 재생성 결과. 후속 의존 교정 충돌 시 거부하며 임의 역텍스트를 쓰지 않는다. |
 | 기존 status/regenerate + 완료 읽기 | `review status/regenerate/completion` / 동일 의미 도구 | status는 같은 requestId; 재생성은 최신 baseline; 완료는 현재 content revision → 기존 no-replay 안내·단계별 결과 또는 미완료 조건 목록. |
+| `review.complete-approve/export` (write) | `review complete-approve/export --mode current|final` / 같은 공용 정의의 사람 승인·명시 export 도구 | 완료 승인은 현재 ledger/snapshot·검사 조건에 고정. export는 requestId·workspace snapshot·일반 output/충돌 baseline·명시 current 요청 또는 유효 final 승인 → 일반 `.md`/assets와 receipt. workspace에 export 기록/연결은 저장하지 않는다. |
 
 읽기는 현재 자료 검증을 위한 receipt를 반환하되 모든 읽기 바이트를 영속 ledger에 저장하지 않는다. 쓰기는 UUID·operation/version·scope·success/failure/uncertain·전후 revision·단계별 저장 결과를 반환한다. Host 실패를 다른 Host/로컬 CLI의 재실행으로 대체하지 않는다. timeout·취소는 해당 요청 소유이며 모델 응답 중단을 교정 취소/원복 성공으로 표시하지 않는다.
 
@@ -159,7 +214,7 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 - 번호 깊이·제목 점프는 후보이지 자동 수준 교정 근거가 아니다. 글꼴·배치·주변 제목 관계·본문 재분류 가능성을 함께 본다.
 - 근거 없는 추정, 상한으로 빠진 자료, 불명확한 수식/칸/각주 관계는 판단 불가다. 원문 오탈자·유효한 문단 연속·이미 보존된 furniture를 고치지 않는다.
 - 현재 지원은 정확한 `text`, `kind:paragraph|heading`(heading level 1–6), `exclude`, `cell`(원본 index)이다. 원본 `orig`, PDF, 변환 JSON은 보존하고 복사에 replay한다. no-op·없는 target/index·미지원 키·stale baseline·중복/상충 패치는 저장 전에 거부한다.
-- 승인 단위는 묶음의 정확한 대상 집합과 patch revision이다. 일부 대상 실패를 전체 성공으로 감추지 않는다. source-first 저장과 재생성은 두 파일의 원자적 transaction이 아니므로 기존 `correctionsSaved/documentRegenerated/regeneration-required`를 유지하고 새 baseline으로 명시 재생성한다.
+- 승인 단위는 묶음의 정확한 대상 집합과 patch revision이다. 일부 대상 실패를 전체 성공으로 감추지 않는다. 새 검수 저장은 후보 ledger와 검증한 내부 문서·대응·metadata를 한 workspace 상태로 교체한다. 작성/교체 실패·결과 불확실을 공개하고 파일을 확인한 최신 baseline에서 복구한다. 기존 외부 `.md` source-first 처리의 두 파일 성공 flag를 그대로 새 완료 기준으로 사용하지 않는다.
 
 | 3단계 수정 범위 | 판단과 최소 조건 |
 | --- | --- |
@@ -183,7 +238,7 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 
 후속 `review.json`은 명시적인 형식 version과 immutable 원본 PDF/JSON 해시, ordered 교정 ledger·파생 locator/lineage, 검사 run/coverage, 문제 묶음·그림/표 필수 확인, 예상량 승인/이미지 대조 결과·미대조 본문 범위, 사람 결정·적용/Undo 이력을 보관하는 안이다. 현재 `approval:null`을 완료 boolean으로 바꾸기보다 현재 content revision에 대한 완료 근거/미완료 이유를 계산한다. 과거 파일 migration은 소유자 지시 전 범위 밖이다.
 
-원본 PDF/JSON bytes·해시는 변하지 않는다. content revision은 immutable 입력+유효 교정 ledger로 정하고, 압축 파일 전체 revision 및 Host link revision과 구분한다. 검사/진행/거절만 저장해 archive hash가 바뀌어도 문서 의미와 mapping을 무효화하지 않아야 한다. 현재 generated-progress가 link를 갱신하는 경계를 재사용하되 이 구분은 구현 시 추가해야 한다.
+원본 PDF/JSON bytes·해시는 변하지 않는다. content revision은 immutable 입력+유효 교정 ledger로 정하고 압축 파일 전체 revision·canonical snapshot hash와 구분한다. 새 검수 모드는 외부 `.md` 연결/link revision이 필요하지 않다. 검사/진행/거절만 저장해 archive hash가 바뀌어도 내용과 mapping을 의미 변경으로 오판하지 않도록 최신 workspace baseline을 갱신한다.
 
 단일 `.docling` 인계로 교정·묶음·검사 근거를 읽고 동일 결과를 재생성할 수 있어야 한다. daemon 수명의 bundleRef·requestId 결과 cache·절대 경로·대화 ID는 이식 가능한 권한/완료 증거로 사용하지 않는다. 다른 Host에서는 등록된 provider와 원본/교정 해시를 재검사하고 새 bundle/mapping·연결을 발급한다. 과거 모델 판단은 이력이지 새 검사를 실행했다는 증거가 아니다. provider/profile 또는 입력이 달라 재현할 수 없으면 완료를 보류한다.
 
@@ -192,7 +247,8 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 | 승인 교정·Undo·원본/변환 입력 교체 | 첫 구현은 현재와 같이 **모든 렌즈 검사·사람 확인·선택 이미지 대조 결과를 무효화**한다. 필수 그림/표 inventory와 유효 영역·대응을 재생성하고 미실행 예상/승인도 무효화한다. 이전 기록은 삭제하지 않고 superseded로 보존한다. 부분 무효화는 관계 의존성 증거가 생기기 전 구현하지 않는다. |
 | 규칙/검사 지시문·변환 profile/provider 의미 버전 변경 | 해당 검사 run을 현행 완료 근거에서 제외하고 재검사한다. 자동 재교정·과거 사람 판단 복사는 하지 않는다. |
 | 제안 저장·거절·lastPage/선택·확대·사람 필수 확인 | 문서 의미 검사 결과는 유지하되 열린 문제/필수 확인/완료 상태를 다시 계산한다. 새 증거가 기존 no-issue와 충돌하면 해당 판단을 다시 연다. |
-| 재생성·외부 `.md` 편집·mapping 불일치 | 새 mapping과 결과 문서 검증 전 완료 불가. 원본 검사 이력은 보존하되 결과에 대한 완료 승인을 무효화한다. 외부 편집을 교정 ledger에 자동 역수입하지 않는다. |
+| snapshot 재작성·생성 계약 변경·작업공간/mapping 불일치 | key/hash/targets 무결성을 확인한다. 이전 생성 계약 결과는 표시를 구분해 읽되 새 승인·완료 전 명시 재생성이 필요하다. 원본 검사 이력을 보존하며 캐시 자체를 승인·완료 증거로 승격하지 않는다. |
+| 내보낸 `.md`의 편집·이동·삭제 | 추적·무효화·역수입하지 않는다. 작업공간과 연결 없는 일반 문서이며 export 이력도 저장하지 않는다. |
 
 ## 측정 설계와 결과
 
@@ -428,13 +484,15 @@ S09는 두 표·continued caption이 렌즈 문맥에 있었지만 모델이 놓
 | --- | --- | --- |
 | 원본 병합 셀 직렬화 | **변경 불필요.** table 변환은 `[r0,r1)×[c0,c1)`의 모든 위치에 같은 `cell.text`를 채우고 원본 cell index의 covered positions를 기록한다. 겹치는 셀은 거부하며 `merged-cell` 손실 기록을 남긴다. 소유자 규칙과 일치한다. 병합 셀을 하나의 native 셀로 만드는 수정은 하지 않는다. | 별도 직렬화 수정 PR 없음. P9/P10에서 반복값·covered positions·충돌 거부를 회귀 검증. |
 | 표 칸 대응 | **변경 필요.** `makeReport`는 cell의 positions를 갖지만 `targets.slice(0,1)`로 표 블록만 반환한다. `comparison`도 항목 prov만 영역화한다. 칸 수정 대상은 원본 cell index로 지정할 수 있으나 칸별 선택·근거·연결선을 정확히 제공하지 못한다. Core `EditableTableCell.path`는 이미 `[...tablePath,row,column]`을 표현한다. 반면 공용 Host는 block.path 집합만 허용하고 geometry도 block anchor만 찾는다. target schema의 숫자 배열이 허용된다는 것만으로 현재 지원이라고 할 수 없다. | P3에서 일반 칸 target 해석/검증·SDK 최종 binding·source cell→모든 covered native cells 대응. P11에서 칸 anchor/연결선. |
-| 파생 항목 replay | **변경 필요.** 현재 text/kind/exclude/cell은 기존 항목 값과 내부 flag를 바꾸고, 항목 생성/소비·트리 갱신은 하지 않는다. replay·변환 inventory는 `self_ref===배열 index`를 요구한다. 원본 배열을 재번호화하거나 검사를 제거하지 않고 파생 노드를 끝에 결정적으로 붙이며 locator를 별도로 해석해야 한다. inventory는 consumed source를 새 orphan/중복 출력으로 오판하지 않아야 한다. | P2 공통 effective/lineage 기반, P7~P10 실제 구조 연산. |
-| 1→N / N→1 변환·대조 | **변경 필요, 기존 작성 계약 재사용.** `authorDocument`는 입력 key마다 여러 blocks를 받을 수 있고 converter의 links도 캡션/목록 등 공유 target을 이미 표현한다. 이를 일반 파생 계보에 연결해야 한다. `comparison`이 원본 배열에서 item을 다시 찾는 가정은 파생 ref와 충돌한다. 최종 Host input keys/target 개수 검사도 같은 effective 작성 요청 기준이어야 한다. | P2, P3, 각 구조 PR. 원본 sourceRefs와 effective refs·최종 Core targets를 분리. |
+| 파생 항목 replay | **변경 필요.** 현재 text/kind/exclude/cell은 기존 항목 값과 내부 flag를 바꾸고, 항목 생성/소비·트리 갱신은 하지 않는다. replay·변환 inventory는 `self_ref===배열 index`를 요구한다. 원본 배열을 재번호화하거나 검사를 제거하지 않고 파생 노드를 끝에 결정적으로 붙이며 locator를 별도로 해석해야 한다. inventory는 consumed source를 새 orphan/중복 출력으로 오판하지 않아야 한다. | P1 공통 effective/lineage 기반, P7~P10 실제 구조 연산. |
+| 1→N / N→1 변환·대조 | **변경 필요, 기존 작성 계약 재사용.** `authorDocument`는 입력 key마다 여러 blocks를 받을 수 있고 converter의 links도 캡션/목록 등 공유 target을 이미 표현한다. 이를 일반 파생 계보에 연결해야 한다. `comparison`이 원본 배열에서 item을 다시 찾는 가정은 파생 ref와 충돌한다. 최종 Host input keys/target 개수 검사도 같은 effective 작성 요청 기준이어야 한다. | P1, P3, 각 구조 PR. 원본 sourceRefs와 effective refs·최종 Core targets를 분리. |
 | 왼쪽 영역·종류/연결 | **변경 필요.** 현재 `comparison`은 원본 prov/label을 쓰고 effective는 excluded 여부만 조회한다. 제목 재분류나 합치기 후 오른쪽만 바뀌는 설계는 채택하지 않는다. | P2에서 effective review 자료/페이지별 영역 그룹 재생성, P11에서 수정됨/추정 표시와 단일 논리 연결. |
 | 각주 | **3단계의 탐지·보고 변경 필요, 자동 의미 복구는 후속.** converter는 captions와 children을 처리하지만 소유 표/그림의 footnotes 관계를 해석하지 않는다. standalone `footnote`는 호출 위치를 추정하지 않고 paragraph로 보존하며 unsupported를 기록한다. children에 없는 note는 inventory에서 미도달로 남을 수도 있다. 각주 렌즈에는 실제 참조·label·미연결/손실을 제공하고, 원문이 남았다고 관계 복원 완료로 표시하지 않는다. 현행 Core 작성 입력에는 footnote/reference block 형식도 없으므로 호출 위치를 검증한 별도 중립 작성 확장 없이 위첨자 문자로 우회하지 않는다. | P4에서 원본/effective 각주 관계와 변환 손실을 검사 자료로 연결. 실제 호출 연결 작성은 후속 범위 결정. 구조 PR은 관련 참조를 유실·임의 재귀속하지 않는 보호 포함. |
 | losses/summary | **변경 필요.** losses는 변환 표현 차이이고 summary는 집계 문구/현재 작업 phase이지 검수 상태가 아니다. `merged-cell`은 승인된 표현 방침일 수 있고, `picture-image`는 필수 확인 자료 없음이 될 수 있다. 각각 source/effective locator·영향·근거를 붙여 렌즈/필수 확인에 전달하고 실제 결과에 따라 문제/제약/검사 못 함/판단 불가를 구분한다. 미지원 능력과 내용 판단 불가를 섞거나 summary 0을 no-issue로 취급하지 않는다. | P4, P5, P11. 실제 열린 문제는 보류·집계만으로 닫지 않음. |
 | 중첩 목록·다단 header·inline | **의미 재현 확장은 후속.** 현재 중첩 목록은 평탄화, 다단 표 header는 첫 행만 native header, row_header/row_section은 일반 칸, formatting/link는 literal text 중심으로 남기며 손실을 기록한다. 3단계에는 이를 렌즈와 제약에 드러내는 변경이 필요하다. 새 editor engine이나 native merged-cell/다단 header를 만들지 않는다. 구조 수정이 손실을 확대하거나 숨기지 않도록 한다. | P4 손실 연결, P7~P10 보존, P11 표시. 추가 의미 지원은 별도 결정. |
-| Host 저장/cache/검사 기록 | **변경 필요.** `host.js`는 현재 patch마다 기존 배열에 추가하고 checkedPages를 모두 비운다. 새 review record·derived locator·필수 확인·선택 대조 coverage를 읽고, read/build/compare가 같은 effective snapshot을 쓰도록 바꿔야 한다. .docling 의미는 plugin, staging/공식 교체·baseline·uncertain은 공용 Host 책임을 유지한다. | P1, P2, P4/P5. |
+| Host 저장/cache/검사 기록 | **변경 필요.** `host.js`는 현재 patch마다 기존 배열에 추가하고 checkedPages를 모두 비운다. 새 review record·derived locator·필수 확인·선택 대조 coverage를 읽고, read/build/compare가 같은 effective snapshot을 쓰도록 바꿔야 한다. .docling 의미는 plugin, staging/공식 교체·baseline·uncertain은 공용 Host 책임을 유지한다. | P2, P1, P4/P5. |
+| 검수 중 외부 `.md`·파일 전제 | **변경 필요.** 기존 `.docling→문서` K1/생성 결과 대조는 저장된 `.md`와 link를 전제로 한다. 새 검수는 작업공간의 canonical snapshot을 읽고 외부 `.md`는 명시 export로만 만든다. `generated-documents.ts`·`reviews.ts`·adapter의 path/읽기/lock/target binding을 바꾸며 일반 파일 review의 실제 파일 검증은 유지한다. | P1. README·plugin-stage1과 plugin README/manifest의 구현 계약 동시 갱신. |
+| 내부 `.md`·작성/대응 캐시 | **채택·변경 필요.** 현재 `archive.js`의 네 항목 고정 목록/`rewriteReview`는 새 cache entry를 수용·보존하지 못한다. canonical source와 최종 inputs/targets·metadata를 보존하는 새 형식이 필요하다. 이미지 바이트는 기존 소유 자료를 참조해 중복하지 않으며 원본/승인 ledger가 진실이다. | P1. 과거 archive 호환 계층 없음. 최초 열기·반복 읽기·승인/진행 저장의 실제 큰 문서 비용을 측정해 개선 판단. |
 
 현행 병합 셀 확인은 위 source 대조와 기존 `Docling converter preserves source identity, native blocks, shared targets and item losses without mutating original` 검사 **1개 통과**에 근거한다. source 불변·covered positions·loss 기록을 확인했으며 새로운 칸 단위 UI/Host 지원이나 구조 수정 runtime을 검증한 것은 아니다.
 
@@ -446,20 +504,30 @@ P 번호는 계획 식별자이며 GitHub PR 번호가 아니다. 모든 PR의 b
 
 | PR | 범위와 공용/플러그인 책임 | CLI·비서 진입점 후보 | 독립 검증·완료 근거 | 선행 |
 | --- | --- | --- | --- | --- |
-| **P1 공용 묶음·저장 경계** | 공통 문제/필수 확인 모델·coverage·상태·receipt, 조회/제안 저장/승인/거절/Undo, source-first 저장/재생성·no-replay를 정의한다. Host는 범위/교체, source-format record 해석·후보 파일 작성은 provider 소유. 기존 generated-document 경로를 재사용한다. | `review groups propose/read/approve/reject/undo`, `inspection/required-checks/completion/status`. 같은 dispatcher의 비서 도구 계약을 정의하고 실제 연결은 P5. | 일반 provider fixture로 승인/거절/Undo·원본 보존·재생성 부분 실패·stale/중복/재시작 unknown, 실제 CLI JSON 결과. 기존 문서 semantics를 fixture에 복제하지 않는다. | 없음 |
-| **P2 effective replay+review 재생성 기반** | Docling의 기존 4patch를 한 effective/lineage projection으로 통합한다. 원본/파생 locator 구분·active/consumed 상태와 영역 그룹, build/read/compare 공통 입력·cache·새 mapping binding을 만든다. 아직 구조 operation은 제공하지 않는다. Host/SDK에는 일반 영역 그룹 계약만 추가한다. | 기존 `review read/patch/regenerate/material`, 향후 비서 `read_review_material`이 같은 결과를 받음. | 기존 kind/exclude/text/cell에서 왼쪽 종류·상태와 오른쪽 결과 일치, 같은 ledger 재생성 결정성, 원본 불변·stale map 차단·Undo 복원. 파생 계보 fixture의 1→N/N→1 binding을 실제 Core 작성 경로로 확인. | P1 |
-| **P3 공용 칸 target·대응** | Core 공개 read model의 실제 cell path를 일반 target으로 resolve/검증하고 SDK/Host가 최종 canonical snapshot에 묶는다. Docling은 원본/파생 cell locator·covered positions·원본 영역을 공급한다. plugin이 DOM/ProseMirror 위치나 임의 Core path를 추정하지 않는다. | `review material --kind cells`, 기존 `review read/patch`; 비서용 자료 형식도 동일. | Core/SDK에서 block/존재하는 cell 경로와 잘못된 경로, Host revision 검증, 1원본 span→여러 native cell, 빈 칸 및 후속 재생성의 새 대응·실제 CLI 조회. 칸별 화면 anchor는 P11. | P2 |
-| **P4 Docling schema 렌즈·필수 확인** | 변환 버전의 공식 JSON Schema 검증/타입과 7개 결정적 렌즈·보조 후보 구분, 전체 그림/표 inventory, 원본/effective 계보와 변환 losses 연결을 구현한다. .docling 검수 record를 갱신하되 원본 bytes는 보존한다. AI 실행은 plugin에 넣지 않는다. | `review lenses/rules/required-checks/material`, 도구 `read_review_lenses/run_review_rules/read_review_required_checks`의 공용 정의. | 고정 공식 schema로 valid/invalid/미지원 버전, body/furniture·관계·표 점유, 전체 inventory 누락 없음, 전후 effective 자료·loss 분류, 인계/reload·CLI. 모델 정확도와 구별한 추출 검사. | P2, P3 |
-| **P5 공식 비서·예상량/요청 승인** | 공식 비서가 기본 렌즈 분석→검사/제안 저장을 실행한다. 추가 페이지 조각+이미지는 예상량·대상/content revision·사람 승인 범위에만 실행하고 usage/결과·미대조 본문을 기록한다. AI 대화/모델은 기존 제품 기능, plugin은 자료/도구만 제공한다. | `review inspect`, `image-estimate/image-compare`, `inspection/required-checks`; 동일 공용 정의의 비서 도구를 실제 provider adapter에 연결. CLI도 같은 비서 대화/Host를 지정하고 별도 AI를 띄우지 않음. | 요청/미승인 시 추가 호출 0, 승인 범위·revision 변경 거부, 실패/취소/응답 유실·no-replay, 결과/실제 usage 반영, 필수 확인/미대조 완료 조건. 기존 질문 카드/CLI로 UI 완성 전 실행 확인. P6 전에는 새 Docling AI 교정의 적용을 개방하지 않고 제안 저장까지 검증. | P4, P1 |
-| **P6 교정 내용 안전장치** | 보이지 않는 글자 삭제·번호만의 제목 교정·근거 없는 수식/관계·미지원 patch 우회를 공용 검수 판정과 plugin 의미 검증에서 거부한다. 예상량/실행 승인은 P5, baseline·권한·원본 보존은 P1부터 이미 적용한다. | 같은 `groups propose/approve`와 비서 제안 도구. 실패를 판단 불가/거부 이유로 공개하며 새 우회 명령 없음. | S20 삭제, 정상 continuation·오탈자 보존, 전체 provenance 확인, 미지원/부정 locator 거부와 원문 무변경. fixture와 실제 응답 수락을 구분하고 기존 테스트 강화 우선. | P5, P2 |
-| **P7 문단 나누기** | 첫 구조 operation. 원문 보존 분할·파생 append/트리·prov/영역 추정·사람 경계 지정과 1→N 대응·Core 여러 paragraph 작성을 제공한다. 이미지 경계 좌표 입력도 공용 operation이며 UI만의 의미가 아니다. | 같은 `review patch/groups`로 typed split 입력, 비서 제안/승인 도구; 경계 지정도 `review material/patch`와 동일 schema. | S03/S20 분할·Unicode/공백 보존·잘못된 경계 거부, exact/추정 영역 구분, 재생성/인계/Undo·후속 의존 충돌, CLI 저장→공식 재파싱. | P6, P2/P3 |
+| **P1 단일 작업공간·내부 캐시·중간 export 기반** | `.docling` 열기→내부 canonical cache 준비→외부 파일 없는 대조→기존 4patch/확인 원자적 저장→재시작/인계 후 동일 결과→중간 export를 완결한다. effective/lineage·영역 그룹·공식 작성 source/targets·생성 계약/key/hash·Host reader/lock/binding과 새 archive 형식을 통합한다. 이미지 무중복·진행 시 캐시 보존·버전 차이의 생성 당시 읽기를 제공한다. 문제 묶음/구조 operation/공식 완료 export는 아직 없음. | `review open/read/patch/progress/regenerate/material/status`, `export --mode current`; 비서도 공용 `read_review_document`만 사용하고 archive 내부 경로·가짜 `.md` 경로 없음. | 아래 P1 수락 목록과 실제 CLI/비서 공용 읽기·기존 ReviewRenderer. 큰 문서의 최초/반복 열기·승인/진행 저장을 따로 재측정하고 크기·전체 재기록 비용 공개. | 없음 |
+| **P2 공용 묶음·저장 경계** | 공통 문제/필수 확인 모델·coverage·상태·receipt, 제안 저장/조회/승인/거절/Undo를 P1 workspace snapshot 경로에 연결한다. Host는 범위/전체 교체, source-format record와 파생 replay는 provider 소유. 최종 완료 승인 모델도 정의하되 공식 export gate는 P11에서 연결한다. | `review groups propose/read/approve/reject/undo`, `inspection/required-checks/completion/status`. 같은 dispatcher의 비서 도구 계약을 정의하고 실제 AI 연결은 P5. | 일반 workspace provider fixture로 승인/거절/Undo·snapshot과 원본 보존·후보 작성/commit 실패·stale/중복/재시작 unknown, 실제 CLI JSON. 파생 계보 fixture의 1→N/N→1 binding을 Core 작성 경로로 확인. | P1 |
+| **P3 공용 칸 target·대응** | Core 공개 read model의 실제 cell path를 일반 target으로 resolve/검증하고 SDK/Host가 최종 canonical snapshot에 묶는다. Docling은 원본/파생 cell locator·covered positions·원본 영역을 공급한다. plugin이 DOM/ProseMirror 위치나 임의 Core path를 추정하지 않는다. | `review material --kind cells`, 기존 `review read/patch`; 비서용 자료 형식도 동일. | Core/SDK에서 block/존재하는 cell 경로와 잘못된 경로, Host revision 검증, 1원본 span→여러 native cell, 빈 칸 및 후속 재생성의 새 대응·실제 CLI 조회. 칸별 화면 anchor는 P11. | P1, P2 |
+| **P4 Docling schema 렌즈·필수 확인** | 변환 버전의 공식 JSON Schema 검증/타입과 7개 결정적 렌즈·보조 후보 구분, 전체 그림/표 inventory, 원본/effective 계보와 변환 losses 연결을 구현한다. .docling 검수 record를 갱신하되 원본 bytes는 보존한다. AI 실행은 plugin에 넣지 않는다. | `review lenses/rules/required-checks/material`, 도구 `read_review_lenses/run_review_rules/read_review_required_checks`의 공용 정의. | 고정 공식 schema로 valid/invalid/미지원 버전, body/furniture·관계·표 점유, 전체 inventory 누락 없음, 전후 effective 자료·loss 분류, 인계/reload·CLI. 모델 정확도와 구별한 추출 검사. | P1, P3 |
+| **P5 공식 비서·예상량/요청 승인** | 공식 비서가 기본 렌즈 분석→검사/제안 저장을 실행한다. 추가 페이지 조각+이미지는 예상량·대상/content revision·사람 승인 범위에만 실행하고 usage/결과·미대조 본문을 기록한다. AI 대화/모델은 기존 제품 기능, plugin은 자료/도구만 제공한다. | `review inspect`, `image-estimate/image-compare`, `inspection/required-checks`; 동일 공용 정의의 비서 도구를 실제 provider adapter에 연결. CLI도 같은 비서 대화/Host를 지정하고 별도 AI를 띄우지 않음. | 요청/미승인 시 추가 호출 0, 승인 범위·revision 변경 거부, 실패/취소/응답 유실·no-replay, 결과/실제 usage 반영, 필수 확인/미대조 완료 조건. 기존 질문 카드/CLI로 UI 완성 전 실행 확인. P6 전에는 새 Docling AI 교정의 적용을 개방하지 않고 제안 저장까지 검증. | P4, P2 |
+| **P6 교정 내용 안전장치** | 보이지 않는 글자 삭제·번호만의 제목 교정·근거 없는 수식/관계·미지원 patch 우회를 공용 검수 판정과 plugin 의미 검증에서 거부한다. 예상량/실행 승인은 P5, baseline·권한·원본 보존은 P1부터 이미 적용한다. | 같은 `groups propose/approve`와 비서 제안 도구. 실패를 판단 불가/거부 이유로 공개하며 새 우회 명령 없음. | S20 삭제, 정상 continuation·오탈자 보존, 전체 provenance 확인, 미지원/부정 locator 거부와 원문 무변경. fixture와 실제 응답 수락을 구분하고 기존 테스트 강화 우선. | P5, P1 |
+| **P7 문단 나누기** | 첫 구조 operation. 원문 보존 분할·파생 append/트리·prov/영역 추정·사람 경계 지정과 1→N 대응·Core 여러 paragraph 작성을 제공한다. 이미지 경계 좌표 입력도 공용 operation이며 UI만의 의미가 아니다. | 같은 `review patch/groups`로 typed split 입력, 비서 제안/승인 도구; 경계 지정도 `review material/patch`와 동일 schema. | S03/S20 분할·Unicode/공백 보존·잘못된 경계 거부, exact/추정 영역 구분, 재생성/인계/Undo·후속 의존 충돌, CLI 저장→공식 재파싱. | P6, P1/P3 |
 | **P8 문단 합치기** | 페이지 경계 포함 N→1 operation. 입력 순서·접합부 방침·같은 논리 문단 근거, 모든 prov와 쪽별 union 영역·소비된 source 계보를 보존한다. | 같은 `review patch/groups`로 typed merge-paragraphs, 비서 도구도 같은 정의. | 실제 정상 continuation과 S20의 별개 문단 거부, 같은 쪽/다른 쪽 영역·단일 관계, 모든 원문 보존·의존 patch/Undo·재생성 및 CLI. | P7 |
 | **P9 표 빈칸/없는 칸 추가** | 기존 empty cell의 값 변경은 재사용하고, 미점유 위치의 신규 칸은 파생 locator로 추가한다. effective geometry·Core cell target과 최종 직사각 rows를 재생성한다. 기존 span 모양 변경은 금지한다. | 같은 `review patch/groups`로 cell-fill/add-cell, 원본 index와 row/column 신규 위치를 구분한 비서 제안. | 원래 빈칸/누락칸 구별, 충돌/범위/span 수정 거부, 병합 셀 모든 covered 위치 값 반복 보존, Core 지원 내용·작성 한도·새 대응/Undo·CLI. 미지원 수식 서식을 텍스트 성공으로 바꾸지 않음. | P7, P3/P6 |
 | **P10 이어진 표 합치기** | continuation 근거·열/행 순서·header/caption 방침을 명시한 N→1 파생 table, 각 칸의 원본 페이지와 새 행 위치, caption/footnote 소유와 source 계보를 보존한다. 잘못된 표/각주를 자동 결합하지 않는다. | 같은 `review patch/groups`로 merge-tables, 비서 도구도 동일. | S09와 관계없는 표 거부, 다중 페이지 칸 mapping·쪽별 영역/단일 표 연결, 반복 header 명시 처리·병합 셀 반복값·Core 한도 초과 거부·재생성/Undo·CLI. | P8, P9 |
-| **P11 공통 문제 묶음 화면** | 기존 review 목록/상세·대조·Notice/Button을 재사용해 문제/필수 확인, 빠른 그림/표 확인·예상량 승인, body coverage·완료 근거를 연결한다. effective 칸/영역 그룹 anchor와 수정됨/추정 표시·네 구조 수정의 결과/Undo를 보여준다. 화면이 문서 의미나 완료 권한 원본을 따로 갖지 않는다. | P1~P10의 Host/CLI/비서 결과 그대로 사용. 화면 전용 focus/selection은 CLI parity 제외. | 기존 `pnpm browser:test` persistent session으로 실제 공용 Host·비서/CLI 교정→대조 갱신·미저장/충돌 보호·필수 확인→완료·Undo. 1440px/한국어 Dark 640px 시각 검토와 LSR·실제 문서 수락 기록. | P5~P10 |
+| **P11 공통 묶음 화면·완료 승인 export** | P1의 읽기 전용 renderer 위에 문제/필수 확인·예상량 승인·body coverage, effective 칸/영역 그룹 anchor·수정됨/추정·네 구조 수정/Undo를 연결한다. 검사 조건·사람 4단계 완료 승인을 검증하는 공식 export도 공용 Host로 완결한다. 화면이 별도 완료 권한을 갖지 않는다. | P1~P10의 Host/CLI/비서 결과 재사용 + `review complete-approve/export --mode final`. focus/selection만 CLI parity 제외. | 기존 `pnpm browser:test`로 실제 workspace Host·비서/CLI 교정→대조/확인→완료 승인→공식 일반 `.md`/assets·연결 없음. 완료 전 final 거부·current 허용, 승인 후 교정/Undo의 final 무효화·overwrite 보호. 1440px/한국어 Dark 640px와 LSR·실제 문서 수락 기록. | P5~P10 |
 
-임계 순서는 **P1→P2→P3→P4→P5→P6**, 이후 네 구조 PR과 P11이다. 유효 문서/대조 기반을 공용 묶음 바로 뒤(P2)로 앞당겼다. 칸 target은 Core에서 이미 표현 가능하지만 Host/SDK/대조 소비자가 미지원인 실제 경계이므로 P3로 분리했다. 이 두 기반을 UI 뒤로 미루지 않는다. P9는 P7의 파생 항목 기반이 준비되면 P8과 별도 검증할 수 있고, P10은 두 병합/칸 경로를 함께 대조한다.
+임계 순서는 **P1→P2→P3→P4→P5→P6**, 이후 네 구조 PR과 P11이다. 최신 확정안에 따라 **내부 캐시 작업공간+effective 대조를 첫 기반 P1**으로 앞당겼다. 칸 target은 Core에서 이미 표현 가능하지만 Host/SDK/대조 소비자가 미지원인 실제 경계이므로 P3로 분리했다. P9는 P7의 파생 항목 기반이 준비되면 P8과 별도 검증할 수 있고, P10은 두 병합/칸 경로를 함께 대조한다.
 
-각 PR에서 [현재 플러그인 계약](plugin-stage1-v1.md)과 필요한 Core/SDK/작성 계약을 실제 변경 범위만큼 함께 갱신한다. 위 이름은 후보이며 지금 명령이 제공된다는 안내가 아니다. PR 제출/수락은 [검증 matrix](../../CONTRIBUTING.md#verification-matrix)와 [테스트 설계 지침](../contributing/test-design.md)을 따르고, master 병합은 소유자 승인·독립 리뷰·merge queue 전체 검사를 별도로 충족한다. 이번 문서 PR은 구현·병합을 수행하지 않는다.
+P1의 수락 검증은 다음을 포함한다. 기존 lower-layer/Host 검사와 실제 CLI/비서 읽기·대조 경로에 주된 보호를 배치하고 같은 결함을 모든 계층에 반복하지 않는다.
+
+- 원본 PDF/JSON 바이트 불변, canonical source·최종 inputs/targets·key·의미 revision·문서 hash의 일치와 **혼합 revision 거부**.
+- 새 ledger 작성/검증 실패·동시 쓰기 충돌·commit 응답 유실 때 기존 승인/캐시 보존, 같은 request status 조회·자동 재전송 없음.
+- 페이지 확인·위치·검사 메모 저장에서 cache bytes/key/대응을 보존하고 생성 호출이 다시 일어나지 않음.
+- 캐시 누락/손상 준비·복구, 무결한 이전 계약의 “생성 당시 결과” 읽기와 새 승인/완료 전 명시 재생성 요구. 원본/ledger 손상은 캐시로 덮어 복구하지 않음.
+- 재시작·다른 Host 인계 후 동일 내부 source/targets와 새 scoped 참조, 검수 읽기 중 **외부 `.md`·assets 미생성 및 내부 이미지 무중복**.
+- CLI·비서가 같은 공용 읽기를 사용하고 내부 경로를 노출하지 않음. current export만 일반 `.md`/assets를 만들며 연결/최신 여부/export 이력·작업공간 export 기록이 없음.
+- 큰 실제 문서의 최초 열기·반복 읽기·승인 저장·진행 저장을 분리 측정. 전체 archive 교체 비용과 peak 공간·메모리를 기록하되 fixture 통과로 큰 문서 성능을 선언하지 않음.
+
+각 PR에서 [현재 플러그인 계약](plugin-stage1-v1.md)과 필요한 Core/SDK/작성 계약을 실제 변경 범위만큼 함께 갱신한다. 특히 **P1에서 루트 README·plugin-stage1·Docling README/manifest의 `.docling→문서`, 외부 `.md` 결과/연결·대조 전제를 새 작업공간/중간 export로 함께 갱신**하고 P11에서 완료 승인 export를 덧붙인다. 이번 문서 PR에서는 아직 동작하는 기존 구현 안내를 완료된 것처럼 바꾸지 않는다. 위 이름은 후보이며 지금 명령이 제공된다는 안내가 아니다. PR 제출/수락은 [검증 matrix](../../CONTRIBUTING.md#verification-matrix)와 [테스트 설계 지침](../contributing/test-design.md)을 따르고 master 병합은 소유자 승인·독립 리뷰·merge queue 전체 검사를 별도로 충족한다.
 
 의미·보존은 기존 Docling replay/작성 검사, 공용 revision·stale·no-replay·부분 실패는 기존 generated-document/review Host 검사, CLI·비서 도구는 같은 정의의 실제 호출 연결에서 검증한다. 전체 블록 승인을 다시 도입하지 않고 실제 LSR/실문서의 새 workflow 완료·미대조 범위·누락과 위험 제안을 별도 수락 근거로 남긴다. UI 구현 시 [UI 결정표](ui-decision-table-v1.md)와 [반복 패턴](ui-patterns-v1.md)을 읽는다. 이번 문서 PR은 화면 구현·시각 승인을 포함하지 않는다.
