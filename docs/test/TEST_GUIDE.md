@@ -58,6 +58,8 @@ pnpm browser:prepare                       # 수동 검토용 scratch 사본만 
 
 ### CI
 
+`packages/plugin-sdk/**`, `plugins/onedrive/**`, `community-plugins/**`는 품질·browser·HTTP와 queue의 Desktop package·대표 제거를 선택한다. `vite-plugins`의 실제 OneDrive 활성화와 공통 scenario 준비 코드의 Docling fixture 읽기가 browser 유지 근거다. Markdown 단독 변경은 제품 quality만 유지한다. 세 경로의 전용 변경(`package.json` 포함)은 업데이트·제거 전수·레이아웃 전수를 생략한다. 설치 구성 파일의 기존 전체 제거·unknown fallback·혼합 합집합은 유지한다. 자세한 소비자는 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)에 기록한다.
+
 queue의 Windows Desktop package·Stable/Beta 및 릴리스의 published 검사는 runner 임시 경로의 Electron·electron-builder 다운로드 캐시를 OS/arch/lockfile 키로 재사용한다. 설치·업데이트·제거 작업 전체를 재시도하지 않는다. 공개 릴리스 fixture GET만 HTTP 504에 최대 2회(1초·2초 대기) 재시도하며 URL·상태·시도 횟수를 기록한다. 다른 HTTP/전송 오류와 크기·해시 불일치는 기존 단언으로 실패한다. builder 다운로드 URL은 `@electron/get` debug 로그에 남긴다.
 
 CI 선택·필수 성공 조건은 [CONTRIBUTING Verification matrix](../../CONTRIBUTING.md#verification-matrix)와 [ci.yml](../../.github/workflows/ci.yml)을 따른다. quality의 정책·문서 검사는 항상 실행하며 Linux unit foundation·editor는 별도 병렬 job으로 실행한다. PR은 품질·Linux browser·Linux HTTP만 실행한다. Windows Desktop unit·HTTP·package/제거·Stable/Beta는 merge group과 전체 master fallback에서 경로 규칙에 따라 실행한다. Windows 전용 결함은 queue에서 드러난다. PR의 수동 Windows CI 실행 경로는 없다. group은 전체 base..head diff를 검사한다. 선택된 job은 성공해야 하며 미선택 job만 skipped를 허용한다. master push는 같은 SHA의 성공한 merge_group CI가 확인되면 제품 검사를 생략하고 OS별 의존성·Linux Chromium 캐시를 갱신한다. 성공 기록이나 diff/API 확인이 없으면 전체 실행한다. Desktop Beta 설치·업데이트는 `update`, Stable은 `fullLifecycle`을 따른다. 대표 제거(silent empty·user·foreign)는 Desktop package job에서 항상 실행하고, 전체 제거는 보수적 설치 경로 분류의 `fullRemoval`로 선택한다. Published beta.6는 릴리스 전용이며 릴리스에서는 전체 제거와 함께 게시 차단 검사로 실행한다.
