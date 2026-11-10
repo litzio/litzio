@@ -20,6 +20,8 @@ const CLEAN_PREFIX = `${brand.storagePrefix}.recoveryClean.v1.`;
 type Ticket = [number, string | null, number, string];
 type Barrier = { generation: string; expiresAt: number; path: string; hostId: string };
 
+export type FolderRecoverySnapshot = { records: RecoveryRecord[]; writers: { id: string; barrier: Barrier }[] };
+
 // A session-local clean acknowledgement must survive a reload before IndexedDB's
 // next turn. It contains no document data. New applied work clears it before writing.
 function clearClean(id: string): void { localStorage.removeItem(CLEAN_PREFIX + id); }
@@ -89,6 +91,7 @@ function ticket(barriers: IDBObjectStore, id: string, hostId: string, done: (val
 export const recoveryStorage = {
   /** File operations invalidate queued writes and move/discard matching records atomically. */
   changePath(previous: string, next: string | null, expected?: RecoveryRecord[], hostId = LOCAL_HOST_ID): Promise<void> {
+    const matches = (locator: { hostId: string; path: string }) => sameLocator(locator, { hostId, path: previous });
     return transaction((records, barriers, done, fail) => {
       const apply = () => {
         // Permission exists before the first record. Revoke all sessions registered to this
@@ -98,7 +101,7 @@ export const recoveryStorage = {
           const entry = pending.result;
           if (!entry) return;
           try {
-            if (Array.isArray(entry.key) && entry.key[0] === "session" && sameLocator(entry.value as Barrier, { hostId, path: previous })) entry.delete();
+            if (Array.isArray(entry.key) && entry.key[0] === "session" && matches(entry.value as Barrier)) entry.delete();
             entry.continue();
           } catch (error) { fail(error); }
         };
@@ -108,7 +111,7 @@ export const recoveryStorage = {
           if (!entry) { done(undefined); return; }
           try {
             const record = entry.value as RecoveryRecord;
-            if (sameLocator(record, { hostId, path: previous })) {
+            if (matches(record)) {
               barriers.delete(["session", record.id]);
               if (next === null) entry.delete();
               else entry.update({ ...record, path: next, snapshot: { ...record.snapshot, file: { ...record.snapshot.file, path: next } } });
@@ -124,6 +127,49 @@ export const recoveryStorage = {
         if (JSON.stringify(matching) !== JSON.stringify(expected)) { fail(new Error("Recovery work changed during deletion; the records were preserved.")); return; }
         apply();
       };
+    });
+  },
+  /** Capture record/writer generations before Host classification; no path heuristics authorize deletion. */
+  folderTrashSnapshot(hostId = LOCAL_HOST_ID): Promise<FolderRecoverySnapshot> {
+    return transaction((records, barriers, done, fail) => {
+      const snapshot: FolderRecoverySnapshot = { records: [], writers: [] };
+      let ready = 0;
+      const finish = () => { if (++ready === 2) done(snapshot); };
+      const read = records.getAll();
+      read.onsuccess = () => {
+        try { snapshot.records = (read.result as RecoveryRecord[]).filter(record => record.hostId === hostId); finish(); }
+        catch (error) { fail(error); }
+      };
+      const cursor = barriers.openCursor();
+      cursor.onsuccess = () => {
+        const entry = cursor.result;
+        if (!entry) { finish(); return; }
+        try {
+          if (Array.isArray(entry.key) && entry.key[0] === "session" && entry.value.hostId === hostId) snapshot.writers.push({ id: String(entry.key[1]), barrier: entry.value as Barrier });
+          entry.continue();
+        } catch (error) { fail(error); }
+      };
+    });
+  },
+  /** Exact Host-verified paths only; missing/unverified paths and newer work remain untouched. */
+  discardFolderSnapshot(snapshot: FolderRecoverySnapshot, containedPaths: string[], hostId = LOCAL_HOST_ID): Promise<void> {
+    const paths = new Set(containedPaths);
+    return transaction((records, barriers, done, fail) => {
+      const capturedRecords = new Map(snapshot.records.filter(record => record.hostId === hostId).map(record => [record.id, record]));
+      const capturedWriters = new Map(snapshot.writers.filter(writer => writer.barrier.hostId === hostId).map(writer => [writer.id, writer]));
+      for (const id of new Set([...capturedRecords.keys(), ...capturedWriters.keys()])) {
+        const record = capturedRecords.get(id), writer = capturedWriters.get(id);
+        const key = ["session", id], readRecord = records.get(id), readWriter = barriers.get(key);
+        readWriter.onsuccess = () => {
+          try {
+            // A changed/new record also preserves its writer, even if it reused the ticket generation.
+            if (JSON.stringify(readRecord.result) !== JSON.stringify(record)) return;
+            if (record && paths.has(record.path)) records.delete(id);
+            if (writer && paths.has(writer.barrier.path) && JSON.stringify(readWriter.result) === JSON.stringify(writer.barrier)) barriers.delete(key);
+          } catch (error) { fail(error); }
+        };
+      }
+      done(undefined);
     });
   },
   restore(record: RecoveryRecord, id: string): Promise<void> {

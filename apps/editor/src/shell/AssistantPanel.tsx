@@ -637,6 +637,7 @@ function samePath(a: string, b: string) {
   const normalize = (value: string) => /^[a-z]:|^\\\\/i.test(value) ? value.replaceAll("\\", "/").toLowerCase() : value;
   return normalize(a) === normalize(b);
 }
+
 function ReferenceChips({ references, remove }: { references: AssistantFileReference[]; remove?(path: string): void }) {
   if (!references.length) return null;
   return <span className="assistant-references">{references.map(file => <span className="assistant-reference" key={file.path}>

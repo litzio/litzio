@@ -327,7 +327,8 @@ button {
 }
 
 .sidebar-tree-item { cursor: pointer; }
-.sidebar-tree-item--actions { grid-template-columns: var(--size-icon-slot) minmax(0, 1fr) auto; }
+.sidebar-tree-item--actions { padding-right: var(--size-control-compact); }
+.sidebar-tree-item--actions > button { position: absolute; top: 0; right: 0; }
 .sidebar-folder-name { flex: 1; min-width: 0; margin: 0; padding-right: 0; }
 
 .sidebar-folder-name--decorated { grid-template-columns: var(--size-icon-slot) var(--size-icon-slot) minmax(0, 1fr); }

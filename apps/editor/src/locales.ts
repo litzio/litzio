@@ -1,6 +1,21 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Inspect the folder again before moving it to Trash.": "Inspect the folder again before moving it to Trash.",
+  "The folder changed or could not be fully checked. Close this dialog and confirm again.": "The folder changed or could not be fully checked. Close this dialog and confirm again.",
+  "Folder contents could not be fully checked. Moving to Trash is unavailable.": "Folder contents could not be fully checked. Moving to Trash is unavailable.",
+  "Move folder to Trash?": "Move folder to Trash?",
+  "Delete folder…": "Delete folder…",
+  "Folder deletion requires OS Trash. This Host does not provide it.": "Folder deletion requires OS Trash. This Host does not provide it.",
+  "Move “{{name}}” and its contents to the OS Trash?": "Move “{{name}}” and its contents to the OS Trash?",
+  "Files: {{count}}": "Files: {{count}}",
+  "Files: at least {{count}} (count incomplete)": "Files: at least {{count}} (count incomplete)",
+  "Checking folder contents…": "Checking folder contents…",
+  "Documents outside this folder reference images inside it: {{documents}}": "Documents outside this folder reference images inside it: {{documents}}",
+  "Image reference check is incomplete. Other documents may reference this folder.": "Image reference check is incomplete. Other documents may reference this folder.",
+  "Save these documents before moving the folder to Trash: {{documents}}": "Save these documents before moving the folder to Trash: {{documents}}",
+  "The Trash operation did not complete reliably. Some items may have moved. Check the source folder and OS Trash before trying again.": "The Trash operation did not complete reliably. Some items may have moved. Check the source folder and OS Trash before trying again.",
+  "The folder changed. Review it and try again.": "The folder changed. Review it and try again.",
   "Discard message": "Discard message",
   "Discard this local copy without cancelling or resending the message.": "Discard this local copy without cancelling or resending the message.",
 
@@ -1290,6 +1305,21 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Inspect the folder again before moving it to Trash.": "폴더를 휴지통으로 이동하기 전에 다시 확인하세요.",
+  "The folder changed or could not be fully checked. Close this dialog and confirm again.": "폴더가 변경되었거나 전체 내용을 확인하지 못했습니다. 창을 닫고 다시 확인하세요.",
+  "Folder contents could not be fully checked. Moving to Trash is unavailable.": "폴더 전체 내용을 확인하지 못해 휴지통으로 이동할 수 없습니다.",
+  "Move folder to Trash?": "폴더를 휴지통으로 이동할까요?",
+  "Delete folder…": "폴더 삭제…",
+  "Folder deletion requires OS Trash. This Host does not provide it.": "폴더 삭제에는 OS 휴지통이 필요합니다. 이 Host에서는 지원하지 않습니다.",
+  "Move “{{name}}” and its contents to the OS Trash?": "“{{name}}” 폴더와 안의 항목을 OS 휴지통으로 이동할까요?",
+  "Files: {{count}}": "파일 {{count}}개",
+  "Files: at least {{count}} (count incomplete)": "파일 {{count}}개 이상 (집계 미완료)",
+  "Checking folder contents…": "폴더 내용을 확인하고 있습니다…",
+  "Documents outside this folder reference images inside it: {{documents}}": "폴더 밖의 문서가 안의 이미지를 참조합니다: {{documents}}",
+  "Image reference check is incomplete. Other documents may reference this folder.": "이미지 참조 검사를 완료하지 못했습니다. 다른 문서가 이 폴더를 참조할 수 있습니다.",
+  "Save these documents before moving the folder to Trash: {{documents}}": "다음 문서를 먼저 저장한 뒤 폴더를 휴지통으로 이동하세요: {{documents}}",
+  "The Trash operation did not complete reliably. Some items may have moved. Check the source folder and OS Trash before trying again.": "휴지통 이동 결과를 확인하지 못했습니다. 일부 항목이 이동했을 수 있습니다. 다시 시도하기 전에 원래 폴더와 OS 휴지통을 확인하세요.",
+  "The folder changed. Review it and try again.": "폴더가 변경되었습니다. 확인한 뒤 다시 시도하세요.",
   "Discard message": "메시지 버리기",
   "Discard this local copy without cancelling or resending the message.": "전송을 취소하거나 다시 보내지 않고 이 로컬 사본을 버립니다.",
 
