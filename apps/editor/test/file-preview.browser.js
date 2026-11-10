@@ -21,7 +21,12 @@ async (page, { openDocument, screenshots, expect }) => {
   let documentReads = 0, writes = 0, leaks = 0;
   page.on('request', request => {
     if (request.url().includes('/api/document?')) documentReads++;
-    if (['PUT','POST','DELETE'].includes(request.method())) writes++;
+    // Connection discovery is a Root-scoped read on the shared POST dispatcher.
+    // Every other mutation-shaped request remains forbidden during preview.
+    const connectionRead = request.method() === 'POST' && request.url().split('?')[0] === origin + '/api/reviews'
+      && request.postDataJSON()?.action === 'generated-find';
+    if (connectionRead) check(request.postDataJSON().root === root, 'Preview connection discovery escaped its opened folder');
+    else if (['PUT','POST','DELETE'].includes(request.method())) writes++;
     if (request.url().includes('preview-leak') || request.url().includes('svg11.dtd')) leaks++;
   });
   for (const name of ['archive.zip', 'README']) {
