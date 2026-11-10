@@ -2,11 +2,11 @@ import { mkdirSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
-import type { AssistantDiagnostics, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
+import type { AssistantDiagnostics, AssistantAccountUsage, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
 import { CodexAppServer } from "./codex-app-server.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions } from "./copilot-acp.ts";
 
-export const ASSISTANT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands. Use list_templates, read_template, save_template and create_document with template for templates; CLI is for terminal continuation. For display settings, use read_display_settings and change_display_settings only when available. Change only what the user requested: propose, obtain permission, then apply; an explicit change request is permission. Never change assistant permissions/provider/model, plugins, document contents or front matter with these tools. For plugin management, use manage_plugins when available. For plugin lookups and declared health checks, use invoke_plugin_operation on this conversation Host. Ordinary reads require assistant:true; writes and read-only turns are refused. Never bypass this refusal using shell/CLI. Comparison targets belong in operation input, not saved settings. Plugin management runs without per-call approval and appears in conversation activity. Never supply secrets. If a window does not confirm application, report it as unconfirmed, never as success. Read .agents/skills/litzio-guide/SKILL.md for template consent and CLI workflows. For document creation requests, query list_templates to learn current names/descriptions before proposing a suitable template; never apply or save a template without user authorization. A user explicitly requesting a template authorizes its use.\nLitzio sends read-only context as JSON with each message: document contains only the active file path; read its saved content when needed. Unsaved editor changes are never supplied; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references identify attached files. Read saved reference content with the available document tools when needed. Images are also supplied as localImage inputs.\n`;
+export const ASSISTANT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands. Use list_templates, read_template, save_template and create_document with template for templates; CLI is for terminal continuation. For display settings, use read_display_settings and change_display_settings only when available. Change only what the user requested: propose, obtain permission, then apply; an explicit change request is permission. Never change assistant permissions/provider/model, plugins, document contents or front matter with these tools. For user questions in Litzio, use request_litzio_user_input instead of request_user_input_async. It confirms question-card rendering before accepted:true and reports display failures. Do not claim the user has seen or answered a question from an unconditional native accepted result. For plugin management, use manage_plugins when available. For plugin lookups and declared health checks, use invoke_plugin_operation on this conversation Host. Ordinary reads require assistant:true; writes and read-only turns are refused. Never bypass this refusal using shell/CLI. Comparison targets belong in operation input, not saved settings. Plugin management runs without per-call approval and appears in conversation activity. Never supply secrets. If a window does not confirm application, report it as unconfirmed, never as success. Read .agents/skills/litzio-guide/SKILL.md for template consent and CLI workflows. For document creation requests, query list_templates to learn current names/descriptions before proposing a suitable template; never apply or save a template without user authorization. A user explicitly requesting a template authorizes its use.\nLitzio sends read-only context as JSON with each message: document contains only the active file path; read its saved content when needed. Unsaved editor changes are never supplied; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references identify attached files. Read saved reference content with the available document tools when needed. Images are also supplied as localImage inputs.\n`;
 export function assistantDirectory() {
   return hostPaths().assistant;
 }
@@ -15,9 +15,41 @@ export class ProviderConnections {
   readonly client: CodexAppServer;
   readonly copilot: CopilotAcp;
   readonly templatesDirectory: string;
+  private usageCache?: AssistantAccountUsage;
+  private usageRead?: Promise<AssistantAccountUsage>;
+  private accountRevision = 0;
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}) {
     this.templatesDirectory = hostPaths(run).templates;
     this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env) }); this.copilot = new CopilotAcp(cwd, copilotOptions);
+    this.client.on("notification", method => {
+      // Rate-limit notifications carry only one bucket. Refetch the full snapshot.
+      if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();
+    });
+    this.client.on("disconnected", () => this.invalidateUsage());
+  }
+  private invalidateUsage() { this.accountRevision++; this.usageCache = undefined; }
+  async accountUsage(refresh = false): Promise<AssistantAccountUsage> {
+    if (!refresh && this.usageCache && Date.now() - this.usageCache.checkedAt < 60_000) return this.usageCache;
+    if (this.usageRead) { await this.usageRead; return this.accountUsage(); }
+    const accountRevision = this.accountRevision;
+    this.usageRead = (async () => {
+      this.environment();
+      const [account, limits] = await Promise.allSettled([
+        this.client.request("account/read", { refreshToken: false }), this.client.request("account/rateLimits/read"),
+      ]);
+      const result: AssistantAccountUsage = { provider: "codex", checkedAt: Date.now() };
+      if (account.status === "fulfilled") {
+        const value = account.value.account;
+        // Never forward provider IDs, tokens or unrecognized account fields.
+        result.account = value ? value.type === "chatgpt" ? { type: value.type, email: value.email, planType: value.planType } : { type: value.type } : null;
+      } else result.accountError = account.reason.message;
+      if (limits.status === "fulfilled") result.rateLimits = usageBuckets(limits.value.rateLimitsByLimitId ?? { codex: limits.value.rateLimits });
+      else result.rateLimitsError = limits.reason.message;
+      if (accountRevision === this.accountRevision) this.usageCache = result;
+      return result;
+    })().finally(() => { this.usageRead = undefined; });
+    const result = await this.usageRead;
+    return accountRevision === this.accountRevision ? result : this.accountUsage();
   }
   environment(): AssistantEnvironment {
     mkdirSync(this.cwd, { recursive: true });
@@ -87,14 +119,10 @@ export class ProviderConnections {
     const result: AssistantDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false };
     try { await this.client.connect(); result.connected = true; }
     catch (error) { result.error = String((error as Error).message); return result; }
-    const [account, limits, mcp] = await Promise.allSettled([
-      this.client.request("account/read", { refreshToken: false }), this.client.request("account/rateLimits/read"), this.mcp(),
+    const [usage, mcp] = await Promise.all([
+      this.accountUsage(true), Promise.allSettled([this.mcp()]).then(([result]) => result),
     ]);
-    if (account.status === "fulfilled") result.account = account.value.account; else result.accountError = account.reason.message;
-    if (limits.status === "fulfilled") {
-      const buckets = limits.value.rateLimitsByLimitId ?? { codex: limits.value.rateLimits };
-      result.rateLimits = Object.entries(buckets).map(([name, value]: [string, any]) => ({ name: value.limitName ?? name, windows: [value.primary, value.secondary].filter(Boolean) }));
-    } else result.rateLimitsError = limits.reason.message;
+    Object.assign(result, usage);
     if (mcp.status === "fulfilled") result.mcp = mcp.value; else result.mcpError = mcp.reason.message;
     return result;
   }
@@ -108,6 +136,25 @@ export class ProviderConnections {
     return servers;
   }
   async close() { const results = await Promise.allSettled([this.client.close(), this.copilot.close()]); for (const result of results) if (result.status === "rejected") throw result.reason; }
+}
+
+function usageBuckets(buckets: Record<string, any>): NonNullable<AssistantDiagnostics["rateLimits"]> {
+  return Object.entries(buckets).filter(([, value]) => value).map(([name, value]) => ({ name: value.limitName ?? name,
+    windows: [value.primary, value.secondary].filter(Boolean).map(window => ({ usedPercent: window.usedPercent, windowDurationMins: window.windowDurationMins, resetsAt: window.resetsAt })),
+    ...(typeof value.planType === "string" ? { planType: value.planType } : {}),
+    ...(value.individualLimit ? { individualLimit: {
+      limit: usageNumber(value.individualLimit.limit), used: usageNumber(value.individualLimit.used),
+      remainingPercent: usageNumber(value.individualLimit.remainingPercent), resetsAt: usageNumber(value.individualLimit.resetsAt),
+    } } : {}),
+    ...(value.credits ? { credits: { hasCredits: value.credits.hasCredits === true, unlimited: value.credits.unlimited === true, balance: usageNumber(value.credits.balance) } } : {}),
+    ...(typeof value.spendControlReached === "boolean" ? { spendControlReached: value.spendControlReached } : {}),
+  }));
+}
+
+function usageNumber(value: unknown): number | null {
+  if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 export const LITZIO_GUIDE = `---

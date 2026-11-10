@@ -17,6 +17,22 @@ import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
+test("Copilot ACP rejects unsupported interactive questions instead of acknowledging them", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-question-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-question"] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "copilot-model", reasoningEffort: "low" };
+  const c = await conversations.send({ message: "Ask about travel", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  for (let attempt = 0; c.turns.at(-1)!.status === "inProgress" && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(c.turns.at(-1)!.status, "completed");
+  assert.match(c.turns.at(-1)!.items.map(item => item.text).join(""), /Interactive question unsupported/);
+  assert.equal(c.userInput, undefined);
+  const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(requests.find(row => row.id === "question-unsupported").error.code, -32601);
+  assert.match(requests.find(row => row.method === "session/prompt").params.prompt[0].text, /does not support interactive question cards/);
+});
+
 test("Copilot session creation errors retain a readable message across the Host error boundary", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-error-"));
   const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), "", "--fixture-session-error"] });
@@ -392,6 +408,67 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.throws(() => process.kill(lines[0].pid, 0));
   await assert.rejects(connection.client.request("model/list"), /closed/);
 });
+test("account usage shares the lazy connection, caches concurrent reads for 60s and refetches notifications without leaking provider fields", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "usage-connection-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  let now = Date.now(); t.mock.method(Date, "now", () => now);
+  const count = () => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(line => line.method === "account/rateLimits/read").length;
+  const [first, concurrent] = await Promise.all([connection.accountUsage(), connection.accountUsage()]);
+  assert.deepEqual(first, concurrent); assert.equal(count(), 1);
+  now += 59_999; await connection.accountUsage(); assert.equal(count(), 1);
+  now++; await connection.accountUsage(); assert.equal(count(), 2);
+  const bucket = (name: string, usedPercent: number) => ({ limitName: name, primary: { usedPercent, windowDurationMins: 300, resetsAt: 1900000000, secret: "hidden" }, secondary: null });
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt", email: "fixture@example.invalid", planType: "plus", id: "hidden-id", accessToken: "hidden-token" },
+    limits: { rateLimitsByLimitId: { codex: bucket("Codex", 45), review: bucket("Review", 12) } } });
+  const updated = await connection.accountUsage();
+  assert.equal(count(), 3);
+  assert.deepEqual(updated.account, { type: "chatgpt", email: "fixture@example.invalid", planType: "plus" });
+  assert.deepEqual(updated.rateLimits?.map(bucket => bucket.windows[0].usedPercent), [45, 12]);
+  assert.doesNotMatch(JSON.stringify(updated), /hidden/);
+  const business = { limitName: "Codex", primary: null, secondary: null, planType: "business",
+    individualLimit: { limit: "500", used: "208.24", remainingPercent: 58, resetsAt: 1900000000 },
+    credits: { hasCredits: true, unlimited: false, balance: null }, spendControlReached: false };
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt", planType: "business" },
+    limits: { rateLimits: business, rateLimitsByLimitId: { codex: business } } });
+  const businessUsage = (await connection.accountUsage()).rateLimits![0];
+  assert.deepEqual(businessUsage, { name: "Codex", windows: [], planType: "business",
+    individualLimit: { limit: 500, used: 208.24, remainingPercent: 58, resetsAt: 1900000000 },
+    credits: { hasCredits: true, unlimited: false, balance: null }, spendControlReached: false });
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt" }, limits: { rateLimits: {
+    ...business, primary: bucket("Codex", 28).primary,
+    credits: { hasCredits: true, unlimited: false, balance: "125.50" },
+  } } });
+  const combined = (await connection.accountUsage()).rateLimits![0];
+  assert.equal(combined.windows[0].usedPercent, 28, "period and individual quotas can coexist, including the single-bucket response");
+  assert.equal(combined.credits?.balance, 125.5);
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt" }, limits: { rateLimits: { futureField: true } } });
+  assert.deepEqual((await connection.accountUsage()).rateLimits, [{ name: "codex", windows: [] }]);
+  await connection.client.request("fixture/usage", { notification: "account/updated", account: { type: "apiKey", email: "hidden", planType: "hidden" }, limits: {} });
+  assert.deepEqual((await connection.accountUsage()).account, { type: "apiKey" });
+  await connection.client.request("fixture/usage", { notification: "account/updated", account: null, limits: {} });
+  assert.equal((await connection.accountUsage()).account, null);
+  // Account changes while a read is pending must discard that older account.
+  now += 60_000;
+  const originalRequest = connection.client.request.bind(connection.client);
+  let release!: () => void, observed!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const reading = new Promise<void>(resolve => { observed = resolve; });
+  let hold = true;
+  const request = t.mock.method(connection.client, "request", async (method: string, params?: unknown) => {
+    const result = await originalRequest(method, params);
+    if (method === "account/read" && hold) { hold = false; observed(); await held; }
+    return result;
+  });
+  const pending = connection.accountUsage(); await reading;
+  await originalRequest("fixture/usage", { notification: "account/updated", account: { type: "apiKey" }, limits: {} });
+  release(); assert.deepEqual((await pending).account, { type: "apiKey" });
+  request.mock.restore();
+  const lines = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(lines.filter(line => line.method === "initialize").length, 1);
+  assert.equal(lines.some(line => ["model/list", "mcpServerStatus/list"].includes(line.method)), false, "hover reads only account and usage");
+});
+
 test("malformed output, process loss and request timeout reject without replay", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-transport-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -537,7 +614,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -570,6 +647,8 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
     const replies = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(value => value.id === requestId && value.result);
     assert.deepEqual(replies, [{ id: requestId, result: { answers } }]);
   }
+  const savedQuestions = JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions;
+  assert.deepEqual(savedQuestions.find((record: any) => record.question.requestId === 0).question.answers["__proto__"], { answers: ["••••"] }, "the Host index masks secret answers while the RPC receives the actual value");
   questions[0]!.isOther = true;
   await ask("custom-constructor");
   const custom = { ...answers, constructor: { answers: ["Explain the assumptions"] } };
@@ -584,13 +663,123 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
   await ask("finished"); await connection.client.request("fixture/finish", { threadId: c.id });
   assert.equal(c.userInput, undefined); assert.throws(() => answer("finished"), /expired/);
   await conversations.send({ ...input, id: c.id }, settings);
-  await ask("interrupted"); await conversations.interrupt(c.id);
+  await ask("interrupted");
+  const originalRequest = connection.client.request.bind(connection.client);
+  const interruptRpc = t.mock.method(connection.client, "request", async (method: string, params: unknown) => method === "turn/interrupt" ? {} : originalRequest(method, params));
+  try { await conversations.interrupt(c.id); } finally { interruptRpc.mock.restore(); }
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.find((record: any) => record.question.requestId === "interrupted").question.status, "expired", "interrupt persists closure even when no turn/completed notification follows");
   assert.equal(c.userInput, undefined); assert.throws(() => answer("interrupted"), /expired/);
   await conversations.send({ ...input, id: c.id }, settings);
   await ask("disconnected"); await connection.close();
   assert.equal(c.userInput, undefined); assert.throws(() => answer("disconnected"), /expired/);
 });
 
+
+test("async questions retain metadata and answered history while ended questions stay closed on reopen", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ai-async-question-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  let restarted: ProviderConnections | undefined;
+  t.after(async () => { await restarted?.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const c = await conversations.send({ message: "Ask about travel", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  const turnId = c.turns.at(-1)!.id;
+  const questions = [{ title: "예시 여행 계획에서 어떤 여행 방식을 선호하시나요?", options: ["휴식 중심", "관광 중심", "음식 탐방"] }, { title: "추가 요청을 알려 주세요.", options: null }];
+  await connection.client.request("fixture/async-question", { threadId: c.id, itemId: "travel-question", questions });
+  const item = c.turns.at(-1)!.items.find(item => item.id === "travel-question")!;
+  assert.equal(item.kind, "question", "async input must not degrade to ordinary answer text");
+  const question = (item as any).question;
+  assert.equal(question.delivery, "async");
+  assert.deepEqual(question.sourceQuestions, questions);
+  assert.equal(question.status, "pending");
+  assert.equal(c.userInput?.requestId, question.requestId);
+  const answers = { "0": { answers: ["음식 탐방"] }, "1": { answers: ["아이와 쉬는 시간을 넣어 주세요."] } };
+  await conversations.answer(c.id, turnId, question.requestId, answers);
+  assert.equal(question.status, "answered");
+  assert.deepEqual(question.answers, answers);
+  const steer = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(row => row.method === "turn/steer");
+  assert.equal(steer.length, 1);
+  assert.equal(steer[0].params.expectedTurnId, turnId);
+  assert.match(JSON.stringify(steer[0].params.input), /travel-question/);
+  assert.match(JSON.stringify(steer[0].params.input), /음식 탐방/);
+  await connection.client.request("fixture/finish", { threadId: c.id });
+  const reopened = await conversations.resume(c.id, settings);
+  const restored = (reopened.turns.flatMap(turn => turn.items).find(item => item.id === "travel-question") as any).question;
+  assert.equal(restored.status, "answered");
+  assert.deepEqual(restored.answers, answers);
+  assert.deepEqual(restored.sourceQuestions, questions);
+  await conversations.send({ id: c.id, message: "Ask another question", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  await connection.client.request("fixture/async-question", { threadId: c.id, itemId: "later-question", questions });
+  await connection.client.request("fixture/async-question", { threadId: c.id, itemId: "second-pending-question", questions });
+  await connection.client.request("fixture/finish", { threadId: c.id });
+  assert.equal(conversations.current(c.id).userInput, undefined, "completion closes every pending question in the turn");
+  assert.ok(conversations.current(c.id).turns.at(-1)!.items.filter(item => item.question).every(item => item.question!.status === "expired"));
+  await conversations.interrupt(c.id);
+  assert.equal(conversations.current(c.id).turns.at(-1)!.items.find(item => item.id === "later-question")!.question!.status, "expired");
+  const saved = JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"));
+  assert.equal(saved[0].questions.find((record: any) => record.itemId === "later-question").question.status, "expired", "interrupt after completion must persist question expiry without another provider notification");
+  const stopped = await conversations.resume(c.id, settings);
+  assert.equal(stopped.userInput, undefined, "explicit reopen cannot revive a stopped question");
+  assert.throws(() => conversations.answer(c.id, stopped.turns.at(-1)!.id, "later-question", answers), /expired/);
+  await connection.close();
+  // Recreate the stale pending index from the reviewer's completed-turn race.
+  saved[0].questions.find((record: any) => record.itemId === "later-question").question.status = "pending";
+  writeFileSync(path.join(connection.cwd, "conversations.json"), JSON.stringify(saved));
+  restarted = new ProviderConnections(connection.cwd, { bin: process.execPath, args: [fakeServer, log] });
+  const history = new AssistantConversations(restarted, new RootAccess([root]));
+  const resumed = await history.resume(c.id, settings);
+  assert.equal(resumed.userInput, undefined, "a stopped question must stay closed after daemon restart");
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.find((record: any) => record.itemId === "later-question").question.status, "expired", "restoration persists normalized completed-turn questions");
+  assert.deepEqual((resumed.turns.flatMap(turn => turn.items).find(item => item.id === "travel-question") as any).question.answers, answers);
+  assert.throws(() => history.answer(c.id, resumed.turns.at(-1)!.id, "later-question", answers), /expired/);
+  assert.equal(resumed.turns.at(-1)!.status, "completed", "answering a closed question cannot start a new turn");
+  const ordinary = 'Litzio question answers (JSON):\n{"turnId":"missing","requestId":"missing","answers":{"0":{"answers":["example"]}}}';
+  await history.send({ id: c.id, message: ordinary, folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  const ordinaryItem = resumed.turns.at(-1)!.items.find(item => item.kind === "user")!;
+  assert.equal(ordinaryItem.questionAnswer, undefined, "unmatched user-authored JSON is not hidden as an answer record");
+  assert.equal(ordinaryItem.text, ordinary);
+  assert.throws(() => history.answer(c.id, resumed.turns[1]!.id, "later-question", answers), /expired/, "another active turn must not revive an old question");
+  for (const itemId of ["failed-question", "second-failed-question"]) await restarted.client.request("fixture/async-question", { threadId: c.id, itemId, questions });
+  await restarted.client.request("fixture/fail", { threadId: c.id });
+  assert.equal(resumed.turns.at(-1)!.status, "failed");
+  assert.equal(resumed.userInput, undefined);
+  assert.ok(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.filter((record: any) => record.itemId.includes("failed-question")).every((record: any) => record.question.status === "expired"), "a terminal error persists all question expiries without turn/completed");
+  await history.send({ id: c.id, message: "Disconnect during a question", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  await restarted.client.request("fixture/async-question", { threadId: c.id, itemId: "disconnected-question", questions });
+  await restarted.close();
+  assert.equal(resumed.userInput, undefined);
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.find((record: any) => record.itemId === "disconnected-question").question.status, "expired");
+});
+
+test("Host question tool accepts a confirmed conversation renderer and reports hidden-window failure", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ai-question-display-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), undefined, 1000);
+  t.after(async () => { conversations.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const c = await conversations.send({ message: "Ask", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "origin-window");
+  const ask = (title: string) => connection.client.request("fixture/tool", { threadId: c.id, tool: "request_litzio_user_input", arguments: { questions: [{ title, options: ["A", "B"] }] } });
+  const toolReply = ask("Choose a travel style");
+  for (let attempt = 0; !c.userInput && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(c.userInput);
+  const q = c.userInput!;
+  assert.throws(() => conversations.questionVisible("another-conversation", q.turnId, q.requestId, "other-window"), /another conversation/);
+  conversations.questionVisible(c.id, q.turnId, q.requestId, "other-window");
+  const accepted = await toolReply;
+  assert.equal(accepted.result.success, true);
+  assert.equal(JSON.parse(accepted.result.contentItems[0].text).accepted, true);
+  assert.deepEqual(conversations.questionVisible(c.id, q.turnId, q.requestId, "origin-window"), { acknowledged: true }, "lost acknowledgements do not apply twice");
+  const failed = await ask("Hidden window");
+  assert.equal(failed.result.success, false);
+  assert.equal(JSON.parse(failed.result.contentItems[0].text).accepted, false);
+  assert.match(JSON.parse(failed.result.contentItems[0].text).error, /No Litzio window confirmed/);
+  await conversations.answer(c.id, q.turnId, q.requestId, { "0": { answers: ["A"] } }, "answer-window");
+  const followupReply = ask("Follow-up during the same turn");
+  for (let attempt = 0; !c.userInput && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(c.userInput, "the active turn retains its rendering client for follow-up questions");
+  conversations.questionVisible(c.id, c.userInput.turnId, c.userInput.requestId, "answer-window");
+  assert.equal((await followupReply).result.success, true);
+});
 
 test("skills use only assistant cwd, enabled catalog, explicit input and context history", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-skills-")), log = path.join(root, "rpc.jsonl");

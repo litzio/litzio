@@ -5,11 +5,12 @@ import { useHostClient, HostContext } from "../host-context.tsx";
 import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
+import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check } from "lucide-react";
-import { ASSISTANT, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
+import { ASSISTANT, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -47,6 +48,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
   const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
   const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
   const displayReplies = useRef(new Map<string, DisplayReply>());
+  const questionAcks = useRef(new Set<string>());
   const [displayUndoBusy, setDisplayUndoBusy] = useState(false);
   const [displayUndone, setDisplayUndone] = useState<string[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
@@ -146,11 +148,25 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
   const [seenCompletion, setSeenCompletion] = useState<string>();
   useEffect(() => { if (open) setSeenCompletion(completion); }, [open, completion]);
   const unresolved = visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id)));
-  const needsAttention = !!conversation?.userInput || lastTurn?.status === "failed" || unresolved.some(value => ["rejected", "unknown"].includes(value.receipt.status));
+  const needsAttention = !!conversation?.userInput || conversation?.turns.some(turn => turn.items.some(item => item.question?.status === "unknown")) || lastTurn?.status === "failed" || unresolved.some(value => ["rejected", "unknown"].includes(value.receipt.status));
   const working = active || unresolved.some(value => value.receipt.status === "pending");
   const buttonStatus: AssistantButtonStatus = open ? undefined : needsAttention ? "attention" : working ? "working" : completion && completion !== seenCompletion ? "completed" : undefined;
   useEffect(() => { onStatus(buttonStatus); }, [buttonStatus, onStatus]);
   useEffect(() => () => { onStatus(undefined); }, [onStatus]);
+  useEffect(() => {
+    if (!open || history || !conversation) return;
+    for (const item of conversation.turns.flatMap(turn => turn.items)) {
+      const q = item.question;
+      if (!q?.requiresDisplayAck || q.displayed || q.status !== "pending") continue;
+      const signature = JSON.stringify([q.turnId, typeof q.requestId, q.requestId]);
+      const key = `${conversation.id}:${signature}`;
+      const card = [...panel.current!.querySelectorAll<HTMLElement>("[data-question-request]")].find(el => el.getAttribute("data-question-request") === signature);
+      if (!card?.getClientRects().length || questionAcks.current.has(key)) continue;
+      questionAcks.current.add(key);
+      void request(ASSISTANT.conversationsRoute, { action: "question-visible", id: conversation.id, turnId: q.turnId, requestId: q.requestId, displayClient })
+        .catch(() => questionAcks.current.delete(key));
+    }
+  }, [conversation, open, history, displayClient]);
   // Keep the same nonoverlapping observer for hidden work, then stop at rest.
   const observe = open || active || !!conversation?.userInput || unresolved.some(value => ["pending", "unknown", "accepted"].includes(value.receipt.status) && !value.receipt.turnFailed);
   // Closing a setup refresh must not strand an already-admitted turn/send.
@@ -381,6 +397,10 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     return candidate;
   };
   const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
+  const submitAnswer = (question: AssistantUserInput, answers: import("../../shared/assistant.ts").AssistantUserInputAnswers) => run(async isCurrent => {
+    const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers, displayClient });
+    if (isCurrent()) setConversation(next);
+  });
   const submissionActions = (value: AssistantLocalSubmission, failure?: string) => {
     const status = failure || value.receipt.status === "accepted" ? "unknown" : value.receipt.status;
     const error = failure ?? value.receipt.error;
@@ -462,7 +482,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
-          {turn.items.filter(item => item.kind === "user").map(item => <div key={item.id}>
+          {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
             {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
           </div>)}
@@ -470,6 +490,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           </div>
+          {turn.items.filter(item => item.question).map(item => <AssistantQuestion key={item.id} question={item.question!} disabled={pending || !ready || !enabled || !!setup} submit={answers => submitAnswer(item.question!, answers)} />)}
           {turn.items.map(item => {
             const result = createdDocument(item);
             if (!result) return null;
@@ -518,12 +539,8 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
           <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips references={value.references} /></p>
           {submissionActions(value)}
         </div>)}
-      {!history && conversation?.userInput ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
-        submit={answers => run(async isCurrent => {
-          const question = conversation.userInput!;
-          const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation.id, turnId: question.turnId, requestId: question.requestId, answers });
-          if (isCurrent()) setConversation(next);
-        })} /> : null}
+      {!history && conversation?.userInput && !conversation.turns.some(turn => turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId)) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
+        submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
@@ -532,6 +549,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     {!history && away ? <Button className="assistant-jump" variant="outline" size="sm" onClick={jumpToBottom}><ArrowDown />{i18n.t(unread ? "New content · Jump to bottom" : "Jump to bottom")}</Button> : null}
     </div>
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
+      {provider === "copilot" ? <p className="assistant-provider-note">{i18n.t("This Copilot connection does not support question cards. Reply in a message after the response ends.")}</p> : null}
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
       <ReferenceChips references={references} remove={removeReference} />
@@ -593,9 +611,9 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
       </div>
       <div className="assistant-footer">
 
-        <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
+        <AssistantUsageTooltip provider={provider} active={open} context={usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
-        </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
+        </AssistantUsageTooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
         <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
       </div>
@@ -630,7 +648,7 @@ function createdDocument(item: import("../../shared/assistant.ts").AssistantConv
 }
 
 function isWorkDetail(item: AssistantConversation["turns"][number]["items"][number]) {
-  return !["user", "assistant"].includes(item.kind) && (item.kind !== "reasoning" || item.text.trim().length > 0);
+  return !["user", "assistant", "question"].includes(item.kind) && (item.kind !== "reasoning" || item.text.trim().length > 0);
 }
 
 function samePath(a: string, b: string) {

@@ -13,6 +13,7 @@ const persist = () => writeFileSync(threadFile, JSON.stringify(threads));
 const notify = (method, params) => send({ method, params });
 const model = (name, efforts) => ({ id: name, model: name, displayName: name, description: "한국어 모델", defaultReasoningEffort: efforts[0], supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) });
 const toolPending = new Map();
+let usageOverride;
 createInterface({ input: process.stdin }).on("line", line => {
   const message = JSON.parse(line); record(message);
   const { id, method, params } = message;
@@ -40,10 +41,25 @@ createInterface({ input: process.stdin }).on("line", line => {
     send({ id: params.requestId, method: "item/tool/requestUserInput", params: { threadId: params.threadId, turnId: turn.id, questions: params.questions } });
     send({ id, result: {} }); return;
   }
+  if (method === "fixture/async-question") {
+    const thread = threads[params.threadId], turn = thread.turns.at(-1);
+    const item = { type: "agentMessage", id: params.itemId, text: params.text ?? "Travel question", delivery: "async", questions: params.questions };
+    turn.items.push(item); persist();
+    notify("item/started", { threadId: thread.id, turnId: turn.id, item });
+    notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
+    send({ id, result: {} }); return;
+  }
   if (method === "fixture/resolved") {
     notify("serverRequest/resolved", params); send({ id, result: {} }); return;
   }
   if (!method) return;
+  if (method === "fixture/usage") {
+    usageOverride = params;
+    notify(params.notification ?? "account/rateLimits/updated", { rateLimits: params.limits?.rateLimits });
+    send({ id, result: {} }); return;
+  }
+  if (usageOverride && method === "account/read") { send({ id, result: { account: usageOverride.account } }); return; }
+  if (usageOverride && method === "account/rateLimits/read") { send({ id, result: usageOverride.limits }); return; }
   if (method === "hang") return;
   if (method === "exit") process.exit(3);
   if (method === "malformed") { process.stdout.write("not json\n"); return; }
@@ -89,6 +105,11 @@ createInterface({ input: process.stdin }).on("line", line => {
       notify("thread/tokenUsage/updated", { threadId: thread.id, turnId: turn.id, tokenUsage: { total: { totalTokens: 2000 }, last: { totalTokens: 810 }, modelContextWindow: 1000 } });
     }
     persist(); send({ id, result: method === "turn/start" ? { turn } : { turnId: turn.id } }); return;
+  }
+  if (method === "fixture/fail") {
+    const turn = threads[params.threadId].turns.at(-1); turn.status = "failed"; persist();
+    notify("error", { threadId: params.threadId, turnId: turn.id, willRetry: false, error: { message: "Fixture terminal failure" } });
+    send({ id, result: {} }); return;
   }
   if (method === "turn/interrupt" || method === "fixture/finish") {
     const thread = threads[params.threadId], turn = thread.turns.at(-1);

@@ -1504,7 +1504,10 @@ test("designated distribution payload check rejects a missing runtime file", asy
   for (const item of DESIGNATED_COMMUNITY_PLUGINS) {
     const folder = path.join(root, "community-plugins", item.folder); mkdirSync(folder, { recursive: true });
     assert.ok(!item.files.some(file => file.includes("fixtures")));
-    for (const file of item.files) writeFileSync(path.join(folder, file), "payload");
+    for (const file of item.files) {
+      mkdirSync(path.dirname(path.join(folder, file)), { recursive: true });
+      writeFileSync(path.join(folder, file), "payload");
+    }
   }
   assertDesignatedPluginPayload(root);
   const { unlinkSync } = await import("node:fs");

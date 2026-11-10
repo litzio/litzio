@@ -15,12 +15,22 @@ export type AssistantConversationInfo = { id: string; provider?: AiProvider; per
 export type AssistantSkill = { name: string; path: string; description: string };
 export type AssistantSkills = { skills: AssistantSkill[]; errors: { path: string; message: string }[] };
 export type AssistantFileReference = { path: string; name: string; kind: string };
-export type AssistantConversationItem = { id: string; submissionId?: string; userMessageSource?: "host" | "provider-live" | "provider-history"; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; references?: AssistantFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
+export type AssistantConversationItem = { id: string; submissionId?: string; userMessageSource?: "host" | "provider-live" | "provider-history"; kind: "user" | "assistant" | "reasoning" | "tool" | "plan" | "question"; text: string; question?: AssistantQuestionRecord; questionAnswer?: { requestId: string | number; turnId: string; answers: AssistantUserInputAnswers }; references?: AssistantFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
 export type AssistantUserInput = { requestId: string | number; turnId: string; questions: {
   id: string; header: string; question: string; isOther: boolean; isSecret: boolean;
   options: { label: string; description: string }[] | null;
 }[] };
 export type AssistantUserInputAnswers = Record<string, { answers: string[] }>;
+/** Conversation-owned interaction metadata. Provider message text remains provider-owned. */
+export type AssistantQuestionRecord = AssistantUserInput & {
+  delivery: "blocking" | "async";
+  status: "pending" | "sending" | "answered" | "expired" | "unknown";
+  sourceQuestions?: { title: string; options: string[] | null }[];
+  answers?: AssistantUserInputAnswers;
+  error?: string;
+  requiresDisplayAck?: boolean;
+  displayed?: boolean;
+};
 export type AssistantConversationTurn = { id: string; status: string; items: AssistantConversationItem[]; error?: string };
 export type AssistantConversation = AssistantConversationInfo & { turns: AssistantConversationTurn[]; userInput?: AssistantUserInput; model: string; reasoningEffort: string;
   copilot?: AiCopilotOptions;
@@ -40,9 +50,17 @@ export type AssistantDiagnostics = {
   provider: AiProvider; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;
   account?: { type: string; email?: string | null; planType?: string } | null;
   accountError?: string; rateLimitsError?: string; mcpError?: string;
-  rateLimits?: { name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[] }[];
+  rateLimits?: {
+    name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[];
+    planType?: string;
+    individualLimit?: { limit: number | null; used: number | null; remainingPercent: number | null; resetsAt: number | null };
+    credits?: { hasCredits: boolean; unlimited: boolean; balance: number | null };
+    spendControlReached?: boolean;
+  }[];
   mcp?: { name: string; status: string; authStatus: string }[];
 };
+/** Display-only subset of provider diagnostics; owned and cached by the target Host. */
+export type AssistantAccountUsage = Pick<AssistantDiagnostics, "provider" | "checkedAt" | "account" | "accountError" | "rateLimits" | "rateLimitsError">;
 
 export type ProviderLogFailure = { available: false; reason: "unknown" | "missing" | "denied" | "unverified" | "launch" };
 

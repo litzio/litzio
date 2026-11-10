@@ -800,3 +800,46 @@ description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장�
 공통 palette·spacing·control 치수 예외는 없다. 제품 동작·시각 근거 및 별도 서버 문제인
 #1443의 진단 범위는 [비서 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440)을 따른다.
 캡처는 localhost 합성이며 소유자 시각 승인을 대신하지 않는다.
+
+## 비서 질문·답변 기록 (#1443)
+
+기존 AssistantQuestion의 native fieldset/radio·공용 Input/Button을 재사용한다.
+작업 중 질문과 선택지·직접 입력은 과정 밖에 보이며, 답변 후에는 같은 카드에 질문과
+답변 전달 상태를 읽기 전용으로 남긴다. 접기를 통해 필수 입력을 숨기지 않는다.
+질문이 속한 응답의 완료·중지·실패 또는 공급자 전환으로 닫힌 질문에는 답변 입력을
+보이지 않고 `응답 종료됨`을 표시한다. 기록을 다시 열어도 입력을 복원하지 않는다.
+상단 #1424 표시는 같은 대화의 pending/unknown 질문에서 계산한다.
+카드 렌더링 확인은 사용자에게 별도 버튼을 요구하지 않고, 실제 카드가 mount된 창에서만
+보낸다. 숨김 패널·기록 목록은 확인하지 않는다. 같은 대화를 연 다른 창도 확인할 수 있다.
+U22의 기존 비서 질문 및 #1370 공용 조회 입력의 오류·필수 입력 노출과 비교했으며
+새 공통 컨트롤·모달·시각 토큰 예외는 없다. Copilot 연결의 미지원은 입력창 가까이에
+명시한다. [현재 계약·검증·캡처](main-agent-v1.md#async-questions-and-answer-history-1443).
+
+## Assistant Context account and usage (#1446, P07 / P12)
+
+The existing Context ring keeps its shared hover/keyboard-focus Tooltip. Account
+and quota details appear only during interaction, using current Tooltip colors,
+spacing and borders; no shell/control geometry changes. AI Settings (U22) and the
+assistant panel share `AssistantAccount` / `AssistantRateLimits`, including login
+state, email/plan and localized day/hour/minute durations, percent-used and compact
+reset wording (today: time only; otherwise numeric month/day and time; no year or
+seconds). Login method labels are localized. Quota rows stay on one line in the
+standard max-w-md Tooltip. Failure stays as a short
+Unavailable in this tooltip and does not enter chat errors or disable sending.
+Copilot keeps context only because its current ACP integration has no account
+quota diagnostic. No common interaction exception was introduced.
+
+The [current contract and four same-state Before/After pairs](main-agent-v1.md#context-account-and-usage-1446)
+record Host cache/notification ownership and fixture-only verification limits.
+Captures are manual review evidence, not owner visual approval.
+
+## Business usage details (#1453, P07 / P12)
+
+AI Settings (U22) and the Context ring retain the shared account/quota display and
+Tooltip. Individual quota/remaining credit states and spending warnings use short
+localized text and the existing compact reset format; period rows still use the
+same component. Empty successful snapshots explicitly say No usage information.
+The warning uses bold text within the existing contrasting surface, without a new
+color or control. The [contract and fixture Before/After pairs](main-agent-v1.md#business-account-usage-1453)
+record the Business shape, rounding and unchanged target-Host cache ownership.
+No common interaction exception or new persistent chrome was introduced.

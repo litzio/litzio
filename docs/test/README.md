@@ -497,3 +497,8 @@ This prior measurement was documented on 2026-10-16 in [the Host recovery verifi
 ## Official AI (#1150 ③)
 
 `pnpm --filter @litzio/editor exec tsx --test test/assistant-host.test.ts test/provider-connections.test.ts` verifies direct daemon composition, shared HTTP/CLI settings, unavailable-provider refusal, retained conversations and owned process shutdown with fake app-server/ACP only. No paid model call is needed. `pnpm browser:test assistant assistant-result` checks settings, conversation and assistant tools; `pnpm browser:test assistant --screenshots` separately produces manual 1440/640px evidence. Removed plugin/Docling tests are archived with their feature, not skipped.
+
+#1443: `assistant-question` adds the focused question DOM/acknowledgement/history
+case. Provider/Host tests own protocol, index persistence and explicit-Host CLI
+`assistant conversation` / `assistant answer`. Manual 1440/640px Light/Dark captures
+are separate from CI in `docs/design/assets/assistant-question-1443/`.

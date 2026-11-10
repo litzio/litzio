@@ -26,6 +26,7 @@ import { DocumentActions } from "../src/shell/DocumentActions.tsx";
 import { DocumentTabs } from "../src/shell/DocumentTabs.tsx";
 import { TopBar } from "../src/shell/TopBar.tsx";
 import { i18n } from "../src/i18n.ts";
+import { AssistantAccount, AssistantRateLimits } from "../src/AssistantAccountUsage.tsx";
 import { MissingFileNotice, type Comparison } from "../src/shell/SourceCompare.tsx";
 import type { RecoveryDiff } from "../src/recovery-diff.ts";
 import { DocumentDiagnosticError } from "@litzio/core";
@@ -33,6 +34,49 @@ import { labelPropertyError } from "../src/label-rename.ts";
 import { labelError, targetLabelError } from "@litzio/core/label";
 import { FieldError } from "../src/ui/primitives.tsx";
 import { en, ko } from "../src/locales.ts";
+
+test("assistant account and quota use readable localized units, login labels and compact reset times", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date(2026, 10, 10, 12, 0).getTime() });
+  const value = { provider: "codex" as const, checkedAt: Date.now(), account: { type: "chatgpt", email: "demo@example.invalid", planType: "plus" },
+    rateLimits: [{ name: "Codex", windows: [
+      { usedPercent: 28, windowDurationMins: 300, resetsAt: new Date(2026, 10, 10, 14, 0).getTime() / 1000 },
+      { usedPercent: 12, windowDurationMins: 10080, resetsAt: new Date(2026, 10, 17, 9, 0).getTime() / 1000 },
+      { usedPercent: 1, windowDurationMins: 1501, resetsAt: null },
+    ] }] };
+  try {
+    await i18n.changeLanguage("en");
+    assert.match(renderToStaticMarkup(<AssistantAccount value={value} />), /ChatGPT login · demo@example.invalid · plus/);
+    let usage = renderToStaticMarkup(<AssistantRateLimits value={value} />);
+    assert.match(usage, /5 hours · 28% used · Resets 14:00/);
+    assert.match(usage, /7 days · 12% used · Resets 11\/17, 09:00/);
+    assert.match(usage, /1 day 1 hour 1 minute/);
+    await i18n.changeLanguage("ko");
+    assert.match(renderToStaticMarkup(<AssistantAccount value={value} />), /ChatGPT 로그인/);
+    assert.equal(renderToStaticMarkup(<AssistantAccount value={{ ...value, account: { type: "apiKey" } }} />), "API 키 로그인");
+    usage = renderToStaticMarkup(<AssistantRateLimits value={value} />);
+    assert.match(usage, /5시간 · 28% 사용 · 14:00 초기화/);
+    assert.match(usage, /7일 · 12% 사용 · 11\. 17\. 09:00 초기화/);
+    assert.match(usage, /1일 1시간 1분/);
+    assert.doesNotMatch(usage, /2026|09:00:|14:00:/);
+    const business = { ...value, rateLimits: [{ name: "Codex", windows: [], planType: "business",
+      individualLimit: { limit: 500, used: 208.24, remainingPercent: 58, resetsAt: new Date(2026, 10, 24, 9, 0).getTime() / 1000 },
+      credits: { hasCredits: true, unlimited: false, balance: null }, spendControlReached: true }] };
+    const businessText = renderToStaticMarkup(<AssistantRateLimits value={business} />);
+    assert.match(businessText, /개별 한도 · 208 \/ 500 · 42% 사용 · 11\. 24\. 09:00 초기화/);
+    assert.match(businessText, /남은 58%/);
+    assert.match(businessText, /크레딧 있음/);
+    assert.match(businessText, /지출 한도에 도달했습니다/);
+    assert.match(renderToStaticMarkup(<AssistantRateLimits value={{ ...business, rateLimits: [{ ...business.rateLimits[0], individualLimit: { ...business.rateLimits[0].individualLimit, used: 208.8 } }] }} />), /209 \/ 500/);
+    assert.match(renderToStaticMarkup(<AssistantRateLimits value={{ ...value, rateLimits: [{ name: "codex", windows: [] }] }} />), /사용량 정보 없음/);
+    for (const [credits, expected] of [
+      [{ hasCredits: false, unlimited: false, balance: null }, "크레딧 없음"],
+      [{ hasCredits: true, unlimited: true, balance: null }, "크레딧 무제한"],
+      [{ hasCredits: true, unlimited: false, balance: 125.5 }, "크레딧 있음 · 125.5"],
+    ] as const) {
+      assert.ok(renderToStaticMarkup(<AssistantRateLimits value={{ ...value, rateLimits: [{ name: "Codex", windows: [], credits }] }} />).includes(expected));
+    }
+  } finally { await i18n.changeLanguage("en"); }
+});
 import { messageText, type UiMessage } from "../src/ui-message.ts";
 import { ACCENT_COLORS, ACCENT_COLOR_KEY, readAccentColor, writeAccentColor, readUiLanguage, writeUiLanguage, UI_LANGUAGE_KEY } from "../src/preferences.ts";
 import { filterInsertCommands } from "../src/block-commands.ts";

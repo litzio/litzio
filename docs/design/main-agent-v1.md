@@ -3,7 +3,8 @@
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Dynamic UI removal (#1341, 2026-11-09): assistant view tools, generation/correction, material snapshots, result cards, favorites and saved views are removed. Ordinary conversations, references, document tools and requestUserInput remain. Retained plugin screens/query/Table and review boundaries are defined in [Plugin screens v1](plugin-screens-v1.md); [Generated views v1](generated-views-v1.md) is Historical.
-- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
+- Last verified: 2026-11-10 — #1443의 질문 메타데이터·답변·기록과 Codex 0.167.0/gpt-6-luna low의 실제 Host·브라우저 전달/수신/재열기를 확인. Copilot ACP 미지원 거부는 fixture, 실제 원격 연결·Copilot AI 호출은 미검증.
+- Previous shell verification: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 정적 대조와 문서 검사.
 - Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
 - Official AI transition: 2026-11-04 (#1150 ③). `assistant-host.ts` composes connections/conversations directly; the official AI itself requires no registration, manifest or plugin worker. Owner-initiated ADR-0020 plugin management is a separate Host feature (see Plugin stage 1 below). Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 4 refuses older daemons.
 - Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
@@ -425,7 +426,8 @@ Same-state source captures: 1440px English Light [Before](assets/reasoning-976/b
 The composer opens individual conversation choices directly through the shared
 DropdownMenu/DropdownMenuItem controls. The context ring below the input uses the latest token-usage
 notification and model context window, exposes numbers on hover/focus, and
-recommends a new conversation at 80%. Codex owns automatic compaction. Replies
+recommends a new conversation at 80%. Its Codex account/quota supplement follows
+[Context account and usage](#context-account-and-usage-1446). Codex owns automatic compaction. Replies
 remain text; existing-document changes are suggestions with no Apply action.
 
 The browser scenario uses fake metadata/conversation responses to check settings
@@ -882,11 +884,15 @@ original JSON-RPC id and `{answers: {questionId: {answers: [value]}}}`.
 Question IDs are opaque keys, including `constructor` and `__proto__`: UI state
 uses Maps and Host accepts only own question keys and own `answers` fields.
 
-A pending question belongs to one thread, turn and RPC id. It is kept in the live
-conversation snapshot, not the history index, and survives polling and panel
+A blocking question belongs to one thread, turn and RPC id. Since #1443 its
+question/answer interaction is also retained in the conversation index (secret
+answers are masked there); provider message content remains provider-owned.
+The pending RPC callback remains live-memory only and survives polling and panel
 closure. Host consumes it before replying, rejects duplicate/stale submissions,
-and expires it on `serverRequest/resolved`, turn completion/failure, interruption,
-or disconnection. The form locks while submitting. Approval requests and MCP
+and expires the blocking request on `serverRequest/resolved`, turn completion/failure,
+interruption or disconnection. History retains the question and its answer or
+expiry. Async questions follow the [#1443 contract](#async-questions-and-answer-history-1443).
+The form locks while submitting. Approval requests and MCP
 elicitation remain unsupported (-32601); `approvalPolicy: never` is unchanged.
 
 The child starts with `app-server -c features.default_mode_request_user_input=true`.
@@ -896,9 +902,10 @@ and the pinned [0.166.0 feature definition](https://github.com/openai/codex/blob
 confirm the flag and its false default. The same flag exists in
 [0.141.0](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/features/src/lib.rs);
 question execution on that version is unverified and questions may not arrive.
-This is conversation interaction, not a document semantic operation; CLI parity
-is intentionally omitted. No approval queue, provider interface or request registry
-is introduced.
+This is conversation interaction, not a document semantic operation. #1443 adds
+explicit-Host CLI conversation read/resume and answer through the same operations;
+render acknowledgement remains a screen interaction. No approval queue or new
+provider interface is introduced.
 
 
 Verification: the stdio fixture checks string and zero-valued numeric RPC ids,
@@ -1735,6 +1742,9 @@ warning is not evidence of a regression introduced by this change.
 
 ### #1443 protocol diagnosis (not fixed here)
 
+Historical diagnosis from #1436; the implementation is now defined in
+[Async questions and answer history](#async-questions-and-answer-history-1443).
+
 Two actual gpt-6-luna/low calls on Codex 0.167.0 asked the reported travel question.
 The first requested synchronous input and ended with UNAVAILABLE. The second
 requested the title/options async form. Its actual `item/started` and
@@ -1755,3 +1765,255 @@ neither closes it nor claims the existing synchronous fixture proves async input
 The [official app-server documentation](https://learn.chatgpt.com/docs/app-server)
 also describes user-input requests as a distinct experimental request; the live
 async item observation above is the evidence for the additional shape.
+
+## Async questions and answer history (#1443)
+
+A Codex `agentMessage` with `delivery: "async"` and structured `questions` is a
+question item, not ordinary assistant answer text or folded work detail. Host
+preserves its original text, delivery and original title/options as
+`question.sourceQuestions`, alongside normalized form fields. No Markdown or
+ordinary prose is guessed to be a question. Multiple question items retain their
+own origin turn and request/item ID. `conversation.userInput` is only the first
+pending question projection for existing polling and #1424 attention; it is not
+another owner. Question forms and their answered history remain outside details.
+
+The conversation owns question status and correlated answers. The existing
+atomic conversation index additionally stores these interaction records because
+provider history does not retain Litzio's rendering acknowledgement or structured
+answer relation. Provider turns/text remain provider-owned. Explicit resume merges
+question records into provider history by turn/item ID. Blocking callbacks cannot
+survive daemon restart and become expired. Every pending question, blocking or
+async, closes with its originating turn on completion, interruption or failure.
+The same conversation-index write persists that closure. Interrupt saves it even
+when completion already occurred and no further provider notification will arrive.
+Changing the default provider closes and saves the previous provider's pending
+questions without terminating its admitted turns. Resume normalizes pending
+questions whose originating turn is no longer in progress and saves the normalized
+records. A later active turn cannot revive them. Closed cards have no answer inputs
+and show **Response ended / 응답 종료됨**. Answered/uncertain cards remain read-only.
+Secret blocking answers are masked in the index; the actual answer goes only to
+the original provider callback.
+
+The existing `assistantConversation { action: "answer", id, turnId, requestId,
+answers }` validates exact own keys and one nonempty answer per question. It
+consumes the pending interaction before dispatch, preventing duplicate delivery.
+A blocking answer uses its exact RPC id. An async answer uses the existing
+`turn/steer` with the originating active turn's expected ID. Answers to completed,
+stopped or failed turns are rejected; they never start a continuation. Its user
+message carries
+`Litzio question answers (JSON)` with origin IDs, question text and answers. Host
+retains that relation rather than displaying an unlabelled answer or raw JSON.
+A failed/unknown async send is not automatically replayed. Explicit history resume
+can reconcile a provider-recorded correlated answer; until then uncertainty remains
+visible and #1424 requires attention. An accepted transport receipt is not proof
+that a model has semantically used an answer.
+
+CLI uses those same HTTP operations on an explicit Host:
+
+```text
+litzio assistant conversation <id> --host <origin>
+litzio assistant answer <id> --file <answers.json> --host <origin>
+```
+
+`conversation` explicitly resumes/reads without starting a turn. The answer file is
+`{ "turnId": "...", "requestId": "...", "answers": { "0": { "answers": ["음식 탐방"] } } }`.
+Host rejection/uncertainty is nonzero; no local fallback, independent parser or
+automatic retry exists. Render acknowledgement is not a CLI command.
+
+### Rendering acknowledgement and the native-tool limit
+
+Codex's native `request_user_input_async` emits a completed async message and
+returns `accepted:true` inside Codex, without asking the client. Its
+[implementation](https://github.com/openai/codex/blob/b6d93b4cbadd6f449395d326f72465a5823f1492/codex-rs/core/src/tools/handlers/request_user_input_async.rs)
+provides no client hook to replace that result. Litzio supports those native
+question events and their answers, but does not reinterpret native acceptance as
+proof that a window displayed a card. This limitation cannot be fixed by a renderer.
+
+Litzio therefore registers `request_litzio_user_input` (same title/options input)
+and instructs Codex to use it. This Host tool returns `accepted:true` only after a
+window viewing the same conversation commits the pending card and sends
+`assistantConversation { action: "question-visible", id, turnId, requestId,
+displayClient }`. Other windows of the same conversation may confirm; this is a
+conversation interaction, not the originating-window-only display-settings action.
+The UI sends no acknowledgement while hidden or viewing history. Until confirmed,
+the form is disabled. A missing client, invalid input, persistence failure,
+cancellation or no acknowledgement within 10 seconds returns `success:false` with
+`accepted:false` and the reason to the model. The request expires and cannot be
+revived by a late acknowledgement. Lost acknowledgements are idempotent. Host
+shutdown cancels its owned acknowledgement timers. This confirms renderability,
+not the user's attention, reading or answer.
+
+### Provider scope and validation
+
+Codex: fake stdio/HTTP/CLI and browser tests cover metadata, exact question IDs,
+choices/free text, active-turn steering, index/history merge, restart, display
+acknowledgement, timeout and duplicate/stale handling. The P2 review regression
+first failed with an expired in-memory question still pending on disk. Existing
+tests now cover completion followed immediately by interrupt, interrupt without
+a subsequent provider notification, multiple pending questions on terminal error,
+disconnect/provider change, and normalization of a stale pending record on resume.
+No answer to those closed questions can start another turn.
+The metadata test failed before implementation: the item was `assistant` instead
+of `question`. Existing blocking/prototype-key/expiry checks remain.
+
+Copilot: the current Litzio ACP connection implements no interactive-question
+extension. Its prompt and UI explicitly say that question cards are unavailable
+and the user can reply in ordinary text after the response ends. The ACP fixture
+confirms an unsupported interactive request receives `-32601`, not acceptance.
+Installed CLI 1.0.107 was identified without an AI turn. This does not claim all
+Copilot products or future ACP extensions lack questions; no real Copilot AI turn
+was used and no undocumented field is silently treated as a supported question.
+
+Actual Codex 0.167.0 + gpt-6-luna/low was driven through the actual Host and bundled
+browser UI using the issue's travel question plus a free-text request. Rendering
+acknowledgement preceded tool acceptance; the answer POST occurred while the turn
+was in progress. The model replied `RECEIVED: 음식 탐방 / 아이와 쉬는 시간을 넣어 주세요.`
+Explicit provider-history resume restored the same question and both answers.
+[Sanitized proof](assets/assistant-question-1443/real-proof.json),
+[actual pending card](assets/assistant-question-1443/real-pending-1440-light.png) and
+[actual reopened record](assets/assistant-question-1443/real-reopened-1440-light.png)
+contain only synthetic content. The helper Host/provider/browser processes were
+closed. This does not establish real Copilot, remote/long-running sessions or
+physical human attention; the native tool's unconditional receipt remains as above.
+
+The existing provider/Host tests protect transport, persistence and CLI boundaries.
+The focused `assistant-question` browser case protects DOM placement outside
+folded details, hidden-panel attention/no acknowledgement, render gating,
+choice/free-text interaction and reopened history. It is appended to the stable
+suite without shifting existing shard positions; it does not duplicate Core rules.
+Manual capture uses a separate [procedure](assets/assistant-question-1443/capture.browser.js),
+not a screenshot-only CI loop. Same native form/Button/Input and surface/spacing
+roles as #983/#1436; no new palette, control geometry or modal. Self-review found
+no overlap or horizontal overflow at the supported widths. Owner visual approval
+and an actual non-local connection are separate.
+
+Before captures use the Host conversation mapping and bundled UI from parent
+`5fd8dd08`, driven by the same synthetic native async travel question event.
+The original text survives but no question card or pending-input projection exists.
+After captures exercise the Host-tool card and its rendering acknowledgement;
+the question content is the same, while the transport is explicitly different.
+
+| View | Before: working question text | After: working question card | Answered record after reopening |
+| --- | --- | --- | --- |
+| 1440 Light | [Image](assets/assistant-question-1443/before-1440-light.png) | [Image](assets/assistant-question-1443/pending-1440-light.png) | [Image](assets/assistant-question-1443/reopened-1440-light.png) |
+| 1440 Dark | [Image](assets/assistant-question-1443/before-1440-dark.png) | [Image](assets/assistant-question-1443/pending-1440-dark.png) | [Image](assets/assistant-question-1443/reopened-1440-dark.png) |
+| 640 Light | [Image](assets/assistant-question-1443/before-640-light.png) | [Image](assets/assistant-question-1443/pending-640-light.png) | [Image](assets/assistant-question-1443/reopened-640-light.png) |
+| 640 Dark | [Image](assets/assistant-question-1443/before-640-dark.png) | [Image](assets/assistant-question-1443/pending-640-dark.png) | [Image](assets/assistant-question-1443/reopened-640-dark.png) |
+
+## Context account and usage (#1446)
+
+The Context ring keeps the conversation's token usage first. On hover or keyboard
+focus, Codex adds **Account** (login type, email and plan) and **Usage and limits**
+(bucket name, each window's duration, percent used and reset time). Settings and the
+ring share `AssistantAccount` / `AssistantRateLimits`, their translations and local
+date formatting. Login methods use localized ChatGPT login / API key login labels,
+not provider enum values. Durations split into localized days, hours and minutes
+(300 minutes → 5 hours; 10080 minutes → 7 days). Reset times use local 24-hour
+hours/minutes, adding the locale's numeric month/day only when not today; year and
+seconds are omitted. Each quota window remains one unbroken line and the existing
+Tooltip uses the standard max-w-md width limit. A logged-out account shows the
+existing Host login notice; API-key login shows only its label. Neither state shows
+quota rows. Copilot ACP provides no
+account/quota diagnostic in the current integration, so its ring retains context only.
+
+The existing target-Host diagnostics operation accepts
+`summary=account-usage&provider=codex`. This hover-only projection reads just
+`account/read` (`refreshToken:false`) and `account/rateLimits/read` through the
+Host's existing daemon-lifetime app-server connection, without executable-version,
+model or MCP discovery. Account and quota display fields are explicitly projected;
+provider account IDs, tokens and other fields are not forwarded. No authentication
+file or ChatGPT website usage API is read. Full Settings diagnostics still refreshes
+and exposes its existing individual errors; the tooltip projection returns only
+short Unavailable errors and never changes conversation state.
+
+`ProviderConnections` owns a 60-second in-memory cache, including partial failures,
+and shares concurrent reads. Official `account/rateLimits/updated` and
+`account/updated` notifications invalidate it; disconnect also invalidates it. A
+notification contains one rate-limit bucket, so the next read refetches the complete
+multi-bucket snapshot rather than replacing the whole display with that bucket.
+An account change during a read discards the old result. The tooltip reads when
+opened and checks every five seconds only while visible, reusing the Host cache;
+closing/hiding it or switching provider aborts the UI read and stops polling.
+This is an Editor hover interaction over the existing diagnostics operation, not a
+new document semantic operation or assistant tool.
+
+Public references: [Paseo account usage CLI](https://github.com/getpaseo/paseo/blob/main/public-docs/cli.md#account-usage)
+separates account quota windows/reset times from an agent's token use and caches
+Host reads. Litzio reuses that distinction with a shorter 60-second cache and keeps
+its existing Settings wording. Codex's [account protocol source](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs)
+defines the rate-limit read and update payloads; the current Copilot ACP connection
+only supplies models/modes/effort and session events, not account quota diagnostics.
+
+Common implementation: the existing ring, shared Base UI Tooltip and current
+foreground/background, border and spacing tokens. No new surface, persistent chrome,
+control dimensions or common interaction exception. The same pattern in AI Settings
+was checked and now shares the two display components.
+
+Verification uses fake provider stdio/HTTP responses only: the existing connection
+checks cover caching/expiry, concurrent reads, notification invalidation, multi-bucket
+preservation and field projection; the assistant browser scenario covers pointer and
+keyboard display, both windows, failure without disabling chat, logged-out/API-key
+states and Copilot omission. No real AI request, real account quota, remote Host
+connection or owner visual approval is claimed.
+
+Manual native crops (1440/640px, English, 100% zoom, light/dark, synthetic account):
+[1440 light Before](assets/assistant-usage-1446/before-1440-light.png) /
+[After](assets/assistant-usage-1446/after-1440-light.png),
+[1440 dark Before](assets/assistant-usage-1446/before-1440-dark.png) /
+[After](assets/assistant-usage-1446/after-1440-dark.png),
+[640 light Before](assets/assistant-usage-1446/before-640-light.png) /
+[After](assets/assistant-usage-1446/after-640-light.png),
+[640 dark Before](assets/assistant-usage-1446/before-640-dark.png) /
+[After](assets/assistant-usage-1446/after-640-dark.png).
+[Capture procedure](assets/assistant-usage-1446/capture.browser.js) excludes unrelated
+Host labels and paths; all account values use `example.invalid` fixtures.
+[Capture metadata and image hashes](assets/assistant-usage-1446/capture-metadata.json)
+record the baseline and fixture conditions.
+
+## Business account usage (#1453)
+
+The existing Codex account/usage projection also supports Business snapshots whose
+`primary` and `secondary` windows are null. Alongside period windows, each shared
+rate-limit bucket can contain `planType`, `individualLimit` (limit, used,
+remainingPercent, resetsAt), `credits` (hasCredits, unlimited, balance), and
+`spendControlReached`. Host explicitly projects only these display fields; numeric
+strings in limit/used/balance become finite numbers, preserving decimal usage until
+rendering. No provider identifiers are copied or added to fixtures or logs. Both
+multi-bucket and single-bucket responses use the same conversion. Existing official
+RPCs, target-Host ownership, 60-second cache and notification invalidation are unchanged.
+
+Settings and the Context tooltip share `AssistantRateLimits`: **Individual limit**
+shows rounded integer usage/limit, used percentage derived from remainingPercent
+(or usage/limit when remainingPercent is absent), and the existing compact local
+reset time. Remaining percentage is a separate short line. Credit status is
+**Credits available**, **No credits** or **Unlimited credits**, with the balance
+when supplied; no currency/unit is invented. A reached spending limit adds a short
+bold warning. The plan type accompanies the bucket name. Period windows remain
+visible when present, including alongside individual limits. A successful snapshot
+without any usable quota/credit/spending information says **No usage information**;
+lookup failures still say **Unavailable**. All new wording is bundled in English/Korean.
+The current Tooltip and its max-w-md width, typography and surface tokens are reused.
+
+Regression evidence: before implementation, the added Business fixture produced
+only `{name: 'Codex', windows: []}` and the shared renderer showed only the Codex
+heading; both existing targeted tests failed. The updated provider and shell checks
+cover the owner-reported null-window/string-number shape, multi/single-bucket
+responses, period/individual coexistence, rounding, credit states/balance, warning
+and empty information. The assistant browser scenario supplements its period-limit
+hover check with the Business fields and row-clipping check. Tests and captures use
+fake accounts and values only; real Business quota, backend timing and owner visual
+approval are not established by these fixtures.
+
+Manual native crops (1440/640px, English, light/dark, fixed date, synthetic Business
+account; warning and balance deliberately enabled to show those states):
+[1440 light Before](assets/assistant-usage-1453/before-1440-light.png) /
+[After](assets/assistant-usage-1453/after-1440-light.png),
+[1440 dark Before](assets/assistant-usage-1453/before-1440-dark.png) /
+[After](assets/assistant-usage-1453/after-1440-dark.png),
+[640 light Before](assets/assistant-usage-1453/before-640-light.png) /
+[After](assets/assistant-usage-1453/after-640-light.png),
+[640 dark Before](assets/assistant-usage-1453/before-640-dark.png) /
+[After](assets/assistant-usage-1453/after-640-dark.png).
+[Capture procedure](assets/assistant-usage-1453/capture.browser.js) and
+[metadata/hashes](assets/assistant-usage-1453/capture-metadata.json) record fixture
+conditions. Captures exclude unrelated Host identity and local paths.
