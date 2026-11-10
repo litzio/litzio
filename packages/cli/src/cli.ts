@@ -275,7 +275,7 @@ const COMMANDS: CommandSpec[] = [
     name: "host",
     group: "Serve",
     summary: "Manage Desktop-local remote Host registrations",
-    usage: `${brand.cliCommand} host list|register <origin> <label>|rename <hostId> <label>|remove <hostId>|connect <hostId>|status <hostId>`,
+    usage: `${brand.cliCommand} host list|check <origin>|register <origin> <label>|rename <hostId> <label>|remove <hostId>|connect <hostId>|status <hostId>`,
     details: ["JSON results. Registration requires Desktop restart; probes do not change window connections. Removal refuses without Desktop work/recovery protection."],
   },
   {

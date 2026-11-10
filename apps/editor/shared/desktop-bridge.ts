@@ -64,6 +64,7 @@ export type DesktopBridge = {
   resetPlan?(): Promise<import("./app-reset.ts").AppResetPlan>;
   resetApp?(removeFolders: boolean, revision: string): Promise<RestartCheck>;
   registeredHosts(): Promise<{ hosts: RegisteredHost[]; allowedHostIds: string[]; productVersion: string; cliRemovalProtectionWarning?: boolean }>;
+  checkHost(origin: string): Promise<Awaited<ReturnType<typeof import("../server/remote-host-registry.ts").checkRemoteHost>>>;
   registerHost(origin: string, label: string): Promise<void>;
   renameHost(hostId: string, label: string): Promise<void>;
   removeHost(hostId: string): Promise<void>;
