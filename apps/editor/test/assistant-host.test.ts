@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,6 +65,36 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
   }
 });
 
+test("question metadata and answers use the same HTTP and explicit-Host CLI conversation operations", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-question-http-"));
+  const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  const host = createAssistantHost(null, path.join(root, "assistant.json"), { agent });
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
+  await listenForFetch(server);
+  const origin = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const post = async (body: unknown) => (await fetch(`${origin}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json", Connection: "close" }, body: JSON.stringify(body) })).json() as Promise<any>;
+  const c = await post({ action: "send", message: "Ask about travel", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const questions = [{ title: "예시 여행 계획에서 어떤 여행 방식을 선호하시나요?", options: ["휴식 중심", "관광 중심", "음식 탐방"] }];
+  await agent.client.request("fixture/async-question", { threadId: c.id, itemId: "http-travel-question", questions });
+  const snapshot = await (await fetch(`${origin}/api/assistant/conversations?id=${c.id}`, { headers: { Connection: "close" } })).json() as any;
+  const record = snapshot.turns[0].items.find((item: any) => item.id === "http-travel-question").question;
+  assert.deepEqual(record.sourceQuestions, questions);
+  assert.equal(snapshot.userInput.requestId, record.requestId);
+  const answerFile = path.join(root, "answer.json");
+  writeFileSync(answerFile, JSON.stringify({ turnId: record.turnId, requestId: record.requestId, answers: { "0": { answers: ["음식 탐방"] } } }));
+  const output: string[] = [];
+  const stdout = t.mock.method(process.stdout, "write", ((value: string) => { output.push(value); return true; }) as typeof process.stdout.write);
+  try {
+    assert.equal(await runCliAsync(["assistant", "answer", c.id, "--file", answerFile, "--host", origin]), 0);
+    assert.equal(JSON.parse(output.pop()!).turns[0].items.find((item: any) => item.id === "http-travel-question").question.status, "answered");
+    await agent.client.request("fixture/finish", { threadId: c.id });
+    await post({ action: "resume", id: c.id });
+    assert.equal(await runCliAsync(["assistant", "conversation", c.id, "--host", origin]), 0);
+    assert.deepEqual(JSON.parse(output.pop()!).turns[0].items.find((item: any) => item.id === "http-travel-question").question.answers, { "0": { answers: ["음식 탐방"] } });
+  } finally { stdout.mock.restore(); }
+});
+
 test("unavailable provider rejects new work with a reason; settings do not close admitted conversations", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-ai-lifetime-"));
   const log = path.join(root, "provider.jsonl");
@@ -76,12 +106,17 @@ test("unavailable provider rejects new work with a reason; settings do not close
   await host.invoke("configure", settings);
   const conversation = await host.invoke("assistantConversation", { action: "send", message: "Question", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort });
   const id = conversation.id, turn = conversation.turns[0];
+  await connection.client.request("fixture/async-question", { threadId: id, itemId: "provider-switch-question", questions: [{ title: "Choose before switching", options: ["A", "B"] }] });
   const pid = JSON.parse(readFileSync(log, "utf8").split("\n")[0]!).pid as number;
   assert.equal(typeof pid, "number");
   t.mock.method(connection, "diagnostics", async (provider?: "codex" | "copilot") => ({ provider: provider ?? "codex", connected: false, path: null, version: null, checkedAt: Date.now(), error: "Fixture provider unavailable" }));
   await host.invoke("configure", { ...settings, permissionMode: "read-only" });
+  assert.equal(conversation.userInput?.requestId, "provider-switch-question");
   t.mock.method(connection, "models", async () => ({ provider: "copilot" as const, updatedAt: Date.now(), models: [{ id: "auto", model: "auto", displayName: "Auto", description: "Fixture", defaultReasoningEffort: "medium", supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Fixture" }] }] }));
   await host.invoke("configure", { ...settings, provider: "copilot", model: "auto" });
+  assert.equal(conversation.userInput, undefined);
+  assert.equal(turn.status, "inProgress", "provider defaults do not end an admitted turn");
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions[0].question.status, "expired", "provider changes persist closure of the previous provider's questions");
   assert.doesNotThrow(() => process.kill(pid, 0));
   assert.equal((await host.invoke("assistantConversations", { id })).turns[0], turn);
   await assert.rejects(host.invoke("assistantConversation", { action: "send", message: "New work", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }), /AI provider copilot is unavailable: Fixture provider unavailable/);

@@ -66,7 +66,8 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         }
         return history().send(args, currentSettings, args.displayClient );
       }
-      if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
+      if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers, args.displayClient);
+      if (args.action === "question-visible") return history().questionVisible(args.id, args.turnId, args.requestId, args.displayClient);
       if (args.action === "interrupt") return history().interrupt(args.id);
       throw new Error("Unknown conversation action.");
   };
@@ -83,6 +84,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         if (!model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort)) throw new Error(`AI reasoningEffort: allowed values for ${next.model}: ${model.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(", ") || "none available"}.`);
       }
       if (closed) throw new Error("The Assistant Host is closing.");
+      if (selected !== current.provider) conversations?.expireProviderQuestions(current.provider);
       return configure(next);
     }
     if (!Object.hasOwn(assistantOperations, operation)) throw new Error("Unknown assistant operation.");
@@ -98,7 +100,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const close = () => {
     closed = true;
-    conversations?.display.cancel();
+    conversations?.close();
     return closing ??= Promise.resolve(agent?.close());
   };
   return { invoke, route, close };

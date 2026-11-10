@@ -15,12 +15,22 @@ export type AssistantConversationInfo = { id: string; provider?: AiProvider; per
 export type AssistantSkill = { name: string; path: string; description: string };
 export type AssistantSkills = { skills: AssistantSkill[]; errors: { path: string; message: string }[] };
 export type AssistantFileReference = { path: string; name: string; kind: string };
-export type AssistantConversationItem = { id: string; submissionId?: string; userMessageSource?: "host" | "provider-live" | "provider-history"; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; references?: AssistantFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
+export type AssistantConversationItem = { id: string; submissionId?: string; userMessageSource?: "host" | "provider-live" | "provider-history"; kind: "user" | "assistant" | "reasoning" | "tool" | "plan" | "question"; text: string; question?: AssistantQuestionRecord; questionAnswer?: { requestId: string | number; turnId: string; answers: AssistantUserInputAnswers }; references?: AssistantFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
 export type AssistantUserInput = { requestId: string | number; turnId: string; questions: {
   id: string; header: string; question: string; isOther: boolean; isSecret: boolean;
   options: { label: string; description: string }[] | null;
 }[] };
 export type AssistantUserInputAnswers = Record<string, { answers: string[] }>;
+/** Conversation-owned interaction metadata. Provider message text remains provider-owned. */
+export type AssistantQuestionRecord = AssistantUserInput & {
+  delivery: "blocking" | "async";
+  status: "pending" | "sending" | "answered" | "expired" | "unknown";
+  sourceQuestions?: { title: string; options: string[] | null }[];
+  answers?: AssistantUserInputAnswers;
+  error?: string;
+  requiresDisplayAck?: boolean;
+  displayed?: boolean;
+};
 export type AssistantConversationTurn = { id: string; status: string; items: AssistantConversationItem[]; error?: string };
 export type AssistantConversation = AssistantConversationInfo & { turns: AssistantConversationTurn[]; userInput?: AssistantUserInput; model: string; reasoningEffort: string;
   copilot?: AiCopilotOptions;

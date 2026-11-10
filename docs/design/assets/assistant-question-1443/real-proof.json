@@ -1,0 +1,72 @@
+{
+  "kind": "sanitized real Host and browser verification",
+  "date": "2026-11-10",
+  "codexVersion": "0.167.0",
+  "model": "gpt-6-luna",
+  "reasoningEffort": "low",
+  "observations": [
+    {
+      "kind": "render-ack",
+      "result": {
+        "acknowledged": true
+      }
+    },
+    {
+      "kind": "tool-result",
+      "success": true,
+      "contentItems": [
+        {
+          "type": "inputText",
+          "text": "{\"accepted\":true,\"questionId\":\"question-exec-09252e14-29ea-4548-81b8-68a10813750f\"}"
+        }
+      ]
+    },
+    {
+      "kind": "answer",
+      "statusBefore": "inProgress",
+      "requestId": "question-exec-09252e14-29ea-4548-81b8-68a10813750f",
+      "answers": {
+        "0": {
+          "answers": [
+            "음식 탐방"
+          ]
+        },
+        "1": {
+          "answers": [
+            "아이와 쉬는 시간을 넣어 주세요."
+          ]
+        }
+      }
+    }
+  ],
+  "sourceQuestions": [
+    {
+      "title": "예시 여행 계획에서 어떤 여행 방식을 선호하시나요?",
+      "options": [
+        "휴식 중심",
+        "관광 중심",
+        "음식 탐방"
+      ]
+    },
+    {
+      "title": "일정에 넣을 요청을 직접 입력해 주세요.",
+      "options": null
+    }
+  ],
+  "status": "answered",
+  "answers": {
+    "0": {
+      "answers": [
+        "음식 탐방"
+      ]
+    },
+    "1": {
+      "answers": [
+        "아이와 쉬는 시간을 넣어 주세요."
+      ]
+    }
+  },
+  "reopenedModelReply": [
+    "RECEIVED: 음식 탐방 / 아이와 쉬는 시간을 넣어 주세요."
+  ]
+}
