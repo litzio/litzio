@@ -64,6 +64,8 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     const base = { plugin: "fixture", review: "text", root, bundleRef: bundle.bundleRef, generation: "g1" };
     assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, images: [{ ...data.images[0], path: "../outside.png" }] }));
     const image = await reviews.execute({ ...base, action: "read", kind: "image", pageNo: 1 }); assert.equal(image.data.width, 1);
+    const snapshot = await reviews.execute({ ...base, action: "read", kind: "snapshot", pageNo: 1 });
+    assert.deepEqual(snapshot.snapshot.pages, data.pages, "continuous layout receives metadata, not all page images");
     const read = () => reviews.execute({ ...base, action: "read", kind: "proposals" });
     const mutate = async (action: string, proposalId?: string) => reviews.execute({ ...base, action, proposalId, requestId: randomUUID(), baseline: (await read()).baseline });
     await assert.rejects(reviews.execute({ ...base, action: "read", root: os.tmpdir() }));

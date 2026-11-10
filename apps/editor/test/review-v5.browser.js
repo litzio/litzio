@@ -3,8 +3,46 @@ async (page, { expect, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(page.url().split('/').slice(0, 3).join('/') + '/test/fixtures/review-ui/index.html');
   await page.getByRole('button', {name:'Generated comparison',exact:true}).click();
-  await expect(page.locator('.review-page img')).toBeVisible();
+  await expect(page.locator('.review-page img').first()).toBeVisible();
   await expect(page.getByText('Data unavailable.',{exact:true})).toBeHidden();
+  await expect(page.getByTestId('opening-reads')).toHaveText('1');
+  await expect(page.locator('.review-source-sheet')).toHaveCount(200);
+  // Page geometry is present, but image requests must remain local to the viewport.
+  await expect(page.locator('[data-page-no="200"] img')).toHaveCount(0);
+  await page.getByRole('button',{name:'Page 1: Page checked',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Saving review progress');
+  const sourceScroll = page.locator('.review-page-scroll');
+  await sourceScroll.hover();
+  await page.mouse.wheel(0,4000);
+  await expect.poll(()=>sourceScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(0);
+  await expect(page.locator('[data-page-no="1"] img')).toHaveCount(0);
+  await expect(page.locator('[data-page-no="200"] img')).toHaveCount(0);
+
+  await expect(page.locator('.review-image-loading')).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Saving review progress');
+  await page.getByRole('button',{name:'Complete progress',exact:true}).click();
+  await expect(page.getByRole('status')).toBeHidden();
+  const readScroll = page.locator('.review-read');
+  const middlePage = page.getByRole('spinbutton',{name:'Go to page',exact:true});
+  await middlePage.fill('80'); await middlePage.press('Enter');
+  await expect.poll(()=>readScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(0);
+  await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+  const beforeReverse = await sourceScroll.evaluate(e=>e.scrollTop);
+  await readScroll.hover(); await page.mouse.wheel(0,300);
+  await expect.poll(()=>sourceScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(beforeReverse);
+  await page.getByRole('button',{name:'Sync scrolling',exact:true}).click();
+  const readingTop = await readScroll.evaluate(e=>e.scrollTop);
+  const sourceTop = await sourceScroll.evaluate(e=>e.scrollTop);
+  await sourceScroll.hover(); await page.mouse.wheel(0,300);
+  await expect.poll(()=>sourceScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(sourceTop);
+  expect(await readScroll.evaluate(e=>e.scrollTop)).toBe(readingTop);
+  await expect(page.getByRole('button',{name:'Previous page',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Next page',exact:true})).toHaveCount(0);
+  const pageNumber = page.getByRole('spinbutton',{name:'Go to page',exact:true});
+  await pageNumber.fill('100'); await pageNumber.press('Enter');
+  await expect(page.locator('[data-page-no="100"] img')).toBeVisible();
+  await expect(page.locator('[data-page-no="200"] img')).toHaveCount(0);
+
   await page.reload();
   const source = page.getByRole('region', { name: 'Source page' });
   const region = page.getByRole('button', { name: 'Sentence · Supported', exact: true });
@@ -36,9 +74,50 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('button', { name: 'Previous page', exact: true }).click();
   await expect(source.getByRole('img')).toHaveAttribute('alt', 'Source page 1');
   const read = page.locator('.review-read');
+  await page.getByRole('button',{name:'Refresh data',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+  await expect.poll(()=>read.evaluate(el=>{
+    const headings=[...el.querySelectorAll('.tiptap h1,.tiptap h2,.tiptap h3,.tiptap h4,.tiptap h5,.tiptap h6')],cues=[...el.querySelectorAll('.heading-level')];
+    if (headings.length !== cues.length) return Infinity;
+    return Math.max(...headings.map((heading,index)=>Math.abs(heading.getBoundingClientRect().top+parseFloat(getComputedStyle(heading).lineHeight)/2-cues[index].getBoundingClientRect().top-cues[index].getBoundingClientRect().height/2)));
+  })).toBeLessThan(2);
+
   await region.click();
   await expect(region).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.review-highlights > div')).toHaveCount(1);
+  await expect(page.locator('.review-wires path')).toHaveCount(2);
+  await expect(page.locator('.review-wires path[data-selected="false"]')).toHaveCount(1);
+  const correspondence = page.locator('.review-wires path[data-selected="true"]');
+  const textColor = await region.evaluate(el=>getComputedStyle(el).borderColor);
+  const headingColor = await page.getByRole('button',{name:'Heading · Supported',exact:true}).evaluate(el=>getComputedStyle(el).borderColor);
+  expect(textColor).not.toBe(headingColor);
+  await expect(page.getByRole('button',{name:'Divider · Decoration',exact:true})).toHaveAttribute('data-kind','unmapped');
+  const checkWire = async () => {
+    await expect(correspondence).toHaveCount(1);
+    await expect.poll(async()=>{
+      const point = await correspondence.evaluate(path=>{const p=path.getPointAtLength(0);const value=new DOMPoint(p.x,p.y).matrixTransform(path.getScreenCTM());return {x:value.x,y:value.y};});
+      const box=await region.boundingBox();
+      return Math.max(Math.abs(point.x-box.x-box.width),Math.abs(point.y-box.y-box.height/2));
+    }).toBeLessThan(2);
+  };
+  await checkWire();
+  await page.getByRole('button',{name:'Zoom in',exact:true}).click();
+  await expect(correspondence).toHaveCount(0); // The selected region's right edge is outside the source viewport.
+  await page.getByRole('button',{name:'Fit to width',exact:true}).click();
+  await checkWire();
+  await page.setViewportSize({width:1200,height:1000});
+  await checkWire();
+  await page.setViewportSize({width:1440,height:1000});
+  await checkWire();
+
+  const sourceViewport=page.locator('.review-page-scroll');
+  const sourceStart=await sourceViewport.evaluate(element=>element.scrollTop);
+  await sourceViewport.hover(); await page.mouse.wheel(0,100);
+  await expect.poll(()=>sourceViewport.evaluate(element=>element.scrollTop)).toBeGreaterThan(sourceStart);
+  await checkWire();
+  await page.mouse.wheel(0,-100);
+  await expect.poll(()=>sourceViewport.evaluate(element=>element.scrollTop)).toBe(sourceStart);
+  await checkWire();
   const previousScroll = await read.evaluate(e => e.scrollTop);
   await region.click();
   expect(await read.evaluate(e => e.scrollTop)).toBe(previousScroll);

@@ -223,6 +223,14 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     resize.observe(host);
     // A minimum-height paper can stay fixed while fonts, images or NodeViews resize the content.
     resize.observe(editor.view.dom);
+    // A reread can replace React NodeViews with the same final outer height.
+    // Measure after their DOM commits, even when ResizeObserver sees no net resize.
+    let layoutFrame = 0;
+    const mutations = new MutationObserver(() => {
+      cancelAnimationFrame(layoutFrame);
+      layoutFrame = requestAnimationFrame(update);
+    });
+    mutations.observe(editor.view.dom, { childList: true, subtree: true });
     // Settings can move the content without resizing either the paper or editor.
     const settings = host.querySelector(".document-settings");
     if (settings) resize.observe(settings);
@@ -247,6 +255,8 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       window.removeEventListener("blur", windowBlur);
       window.removeEventListener("focus", windowFocus);
       resize.disconnect();
+      mutations.disconnect();
+      cancelAnimationFrame(layoutFrame);
       window.removeEventListener("mousemove", hover);
       editor.view.dom.removeEventListener("beforeinput", input, true);
       editor.view.dom.removeEventListener("keydown", keydown, true);

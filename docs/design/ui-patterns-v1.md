@@ -293,6 +293,12 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 
 ## P10 메뉴와 선택 도구
 
+#1435의 공용 원본 대조는 기존 PageSurface의 Button과 BlockHandles의 제목 수준
+표시를 재사용한다. 연속 배치의 페이지 이동은 공통 number Input과 Enter 제출을 사용하고 이전/다음 버튼은 두지 않는다. ‘스크롤 동기화’와 페이지 머리의 확인 상태는 각각 독립적인 공통 Button의
+`aria-pressed` 토글이며 필수 단일 선택 ChoiceGroup으로 바꾸지 않는다. 확인 버튼은 원본 이미지
+바깥에 두고 저장 중·실패는 기존 review status/Notice를 쓴다. [현재 대조 계약](plugin-stage1-v1.md#연속-원본-대조-1435)을 따른다.
+
+
 비서 입력창의 `@` 파일 후보와 `/` Codex 스킬 후보는 같은 inline listbox,
 Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시하고 선택하면
 `$name`과 경로 칩을 추가한다. 설치·활성화 메뉴는 없다.

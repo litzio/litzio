@@ -111,11 +111,18 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
   no space within the established gutter. In Edit they change neither text rectangles
   nor document scroll height. The row's
   visible insertion/drag handles take precedence over its cue, including keyboard focus
-  and an open block menu. The comparison reserves a constant 48px inspection gutter,
+  and an open block menu. The shared review comparison (#1435) reuses `showHeadingLevels` and reserves a constant 48px inspection gutter,
   with 20px from the cue's right edge to the text edge and 12px to the ordinary expanded
-  block outline. Its heading connectors approach above the gutter, then curve to the
-  measured block edge without crossing the cue. Source boxes are unchanged; reading
-  positions and scroll correspondence recompute from the resulting text layout.
+  block outline. Connectors leave the source horizontally to its pane edge, then use a single smooth curve.
+  Heading endpoints use the first-line top or bottom edge toward the source, clearing depth cues
+  without a large above-gutter detour. Source boxes are unchanged; reading
+  positions and scroll correspondence recompute from the resulting text layout. Continuous source pages
+  keep page-specific check controls outside the PNG. Continuous navigation uses a compact current-page
+  number Input and total, with Enter to jump, rather than previous/next buttons. All visible correspondence
+  lines remain thin; the selected correspondence is thicker and its document block is highlighted. The generated comparison fills its tab height
+  and scrolls each pane internally rather than fixing the reading area to 520px. BlockHandles
+  remeasures after React NodeView child commits on reread, even if the paper and editor return
+  to the same final outer height; existing cue geometry and hover/handle priority remain shared.
 
 - Frontmatter title (#786) keeps the existing H1-line-height minimum slot. The small empty
   hint's line box matches that slot and centers vertically; empty-state height is explicit

@@ -1,0 +1,411 @@
+{
+  "status": "verified; final source captures before feature commit",
+  "date": "2026-11-10",
+  "browser": "Chrome 157.0.8103.40, persistent profile",
+  "viewports": [
+    [
+      1440,
+      1000
+    ],
+    [
+      640,
+      1000
+    ]
+  ],
+  "zoomPercent": 100,
+  "dpr": 1,
+  "themes": {
+    "1440": "English Light",
+    "640": "Korean Dark"
+  },
+  "identity": "Host account masked at capture; no absolute paths in public artifacts",
+  "conversion": {
+    "doclingServe": "1.32.0",
+    "docling": "2.124.0",
+    "doclingCore": "2.93.0"
+  },
+  "inputs": {
+    "synthetic-1page": "81a76cd7270a637517000122c3e69331cd53233e5896f38822252f2db4666563",
+    "synthetic-8page": "188740c68b77c534ce0a6e14aff25fb9ed9fb17f7f21e556cb18ef5a22584024"
+  },
+  "notVerified": [
+    "200-page real document performance",
+    "complex PDF conversion fidelity",
+    "packaged Desktop"
+  ],
+  "files": {
+    "after-1440.png": "0b7432b924b3b39459be4e90e441167e4a8125d08c2fa9f80e0e4a15bdf1fe33",
+    "after-640.png": "88f199d8a6edc17e9ea06f4c4db387eb846be8f0e5a5f1db812135cd283c6806",
+    "before-1440.png": "77a953fcc02ff13000c6ff0dce9e583d429069146ef2adbf41d623b8da60dbda",
+    "before-640.png": "7edc677e5f61cb2b5d97adc9214f49ae9fb947a922f7e0d6ce0614a1fe898d15",
+    "boundary-1440.png": "80aa83c3c9cc979f27f6649f13e8805ab7ba8ac2f19fe4f9d80a23ae307f758a",
+    "boundary-640.png": "7b576e01cae9e71ed7fd4f64c5a3b48e9eafcaae078612415971c27e3d4ef3ce",
+    "long-1440.png": "c1891f6bc0095be8db3f9f8264de350a4b36503b4fa6c67c10a786a128a2f897",
+    "long-640.png": "7e01918ce6bd412efa4694562bf4a2711b2eaaaad35d0c871b73bcc8bc144259",
+    "sync-off-1440.png": "62f231d78070262604f41bf1a6216c345ea7cbd5360ce2676e1bfec5d112875b",
+    "sync-off-640.png": "5d289ad43ed87bcc3ad5219359cdb3bc7baadb5385b74ff8e309b5a4e6b3e157"
+  },
+  "baseHead": "27804e3ee8036d2bb506f01a95ea5c336f5a2616",
+  "firstEntry": {
+    "before": {
+      "action": "generated-compare",
+      "status": 400,
+      "error": "Generated document operation in progress"
+    },
+    "after": "same real 1-page archive passes with only shared opening Promise fix"
+  },
+  "headingCues": {
+    "beforeMaxErrorPx": 208.996875,
+    "afterMaxErrorLessThanPx": 2,
+    "cause": "same-height React NodeView replacement needed post-commit remeasurement"
+  },
+  "singlePageMeasurements": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 9,
+      "selectedWires": 1
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 8,
+      "selectedWires": 1
+    }
+  ],
+  "longPageMeasurements": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 7,
+      "selectedWires": 1
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 6,
+      "selectedWires": 1
+    }
+  ],
+  "minimumCategoryContrast": 3.8080923057943306,
+  "sourceFiles": {
+    "apps/editor/src/review/compare-geometry.ts": "7b4b0c56d7f655873a773d7fe7de5a4d63cacdaad1740571f8f781e40aa2742d",
+    "apps/editor/src/review/ContinuousSource.tsx": "4c72ad042f2fb9868832e477f99301b29781452586e5632ec5eb75b76b2fe267",
+    "apps/editor/src/review/GeneratedComparison.tsx": "025c7877d064005a5c6c361b4fff7f8b3b065353561c3dc0921fcab9f2d8fe34",
+    "apps/editor/src/review/review-kinds.ts": "1a9c68866610085293a1f6f1c8e4beaa4321a49de5689ee6804f1a14fea235e9",
+    "apps/editor/src/review/review.css": "c8b22d9a12a695f20302fa619749231da4219c4e6ebbbd04e63880e0fd85d37c",
+    "apps/editor/src/review/ReviewRenderer.tsx": "dcdca706813edcb1563fc6d5fe2de6b86ec9a7289f37a493c695142d729f1dce",
+    "apps/editor/src/review/ReviewViewPage.tsx": "7d65e8a81570c716adf07879c110a0c26855150ea7cead9096ea637f67984253",
+    "apps/editor/src/BlockHandles.tsx": "5c0f684af2c7fe026544602a1c275e324a4957221f9a8bff547fd573e5d04176",
+    "apps/editor/src/styles/tokens.css": "bb832e4fd11b909630662d07b21e80c79ecea15071edb890711a099a169e6644"
+  },
+  "captureReadiness": "PNGs loaded and every drawn wire start matches a visible source-region edge within 2px; no fixed delay"
+}
