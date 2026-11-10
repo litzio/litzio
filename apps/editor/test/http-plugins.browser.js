@@ -17,8 +17,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   };
   // Manual comparison evidence exercises only comparison; automatic HTTP still runs
-  // the entire registration/OneDrive/Jira contract below. The add-plugin picker
-  // can reset its draft on a settings refresh, independently of comparison.
+  // the entire registration/OneDrive/Jira contract below.
   if (!(screenshots && pluginFixture.docling?.realFile && pluginFixture.docling?.comparisonCapture)) {
   let detectedFolders = [pluginFixture.folder, pluginFixture.otherFolder];
   let holdEnabled = false, releaseEnabled;
@@ -135,6 +134,20 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await page.unrouteAll({ behavior: "wait" });
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   await page.getByTestId("folder-path").fill(pluginFixture.directory);
+  // Deliver the same list refresh used after settings changes while the user is
+  // editing the picker. A changed description proves the refreshed React UI committed.
+  await page.route("**/api/plugins", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
+    const value = await response.json();
+    value.plugins.find(plugin => plugin.id === "litzio.onedrive").description = "Refreshed during plugin draft";
+    await route.fulfill({ response, json: value });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  await expect(page.locator('section[aria-label="OneDrive"] .settings-description').first()).toHaveText("Refreshed during plugin draft");
+  await expect(page.getByTestId("folder-path")).toHaveValue(pluginFixture.directory);
+  await expect(page.getByTestId("folder-path")).toBeFocused();
+  await page.unrouteAll({ behavior: "wait" });
   await page.getByTestId("folder-open").click();
   await expect(page.getByTestId("folder-path")).not.toBeVisible();
   await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).toBeEnabled();
@@ -271,8 +284,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await page.keyboard.press("Escape");
   await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(0);
   await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
+  await openSettings();
+  await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  await expect(page.getByRole("dialog", { name: "Drive fixture", exact: true })).not.toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "The selected plugin is no longer available." })).toBeVisible();
+  await page.keyboard.press("Escape");
   }
   // Actual detachable community artifact, same Host and CLI, one fake service.
   const docling = pluginFixture.docling;
