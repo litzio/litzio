@@ -21,12 +21,17 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   let resumes = 0;
   await page.route('**/api/assistant/conversations*', route => {
     if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'resume') resumes++;
+    if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'send') {
+      const submissionId = route.request().postDataJSON().submissionId;
+      conversation.turns[0].items.unshift({ id: 'user', kind: 'user', text: 'Create a document', submissionId });
+      return route.fulfill({ json: { submission: { id: submissionId, status: 'accepted' }, conversation } });
+    }
     return route.fulfill({ json: route.request().method() === 'GET' && !route.request().url().includes('?id=') ? [conversation] : conversation });
   });
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root + sep); await page.getByTestId('folder-open').click();
   await page.getByRole('treeitem', { name: 'a.md', exact: true }).click(); await expect(activeDocument(page)).toContainText('Goal');
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   const panel = page.getByTestId('assistant-panel');
   await expect(panel.getByRole('textbox')).toBeEnabled();
   await panel.getByRole('textbox').fill('Create a document'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
@@ -43,7 +48,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await expect(activeDocument(page)).toContainText('Goal');
   if (screenshots) await page.screenshot({ path: 'tmp/931-result-evidence/result-1440-light-en.png' });
   await panel.getByRole('button', { name: 'Close assistant' }).click();
-  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled(); expect(resumes).toBeGreaterThan(0); await expect(cards).toHaveCount(3);
   await card('a.md').getByRole('button', { name: 'Undo creation' }).click();
   await expect(card('a.md')).toContainText('Created file deleted');
@@ -61,7 +66,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await expect.poll(async () => (await recoveryRecords(page)).filter(record => record.path === paths[1]).map(record => record.recoveryText).join('')).toContain('unsaved change');
   await page.reload();
   await page.getByRole('button', { name: 'Not now', exact: true }).click();
-  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
   await panel.getByRole('button', { name: 'Conversation history' }).click();
   await panel.getByRole('button', { name: /Create a document/ }).click();
@@ -94,7 +99,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark'); await page.locator('[data-tab-id="settings"] .document-tab-close').click();
-  await page.getByRole('button', { name: '비서', exact: true }).click(); await expect(panel.getByRole('textbox')).toBeEnabled();
+  await page.getByRole('button', { name: /^비서(?: — |$)/ }).click(); await expect(panel.getByRole('textbox')).toBeEnabled();
   if (screenshots) await page.screenshot({ path: 'tmp/931-result-evidence/result-1440-dark-ko.png' });
   await page.setViewportSize({ width: 640, height: 1000 });
   expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -107,7 +112,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
     await panel.getByRole('button', { name: '비서 닫기' }).click();
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await page.getByTestId('theme').selectOption('light'); await page.locator('[data-tab-id="settings"] .document-tab-close').click();
-    await page.getByRole('button', { name: '비서', exact: true }).click();
+    await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
     await expect(panel.getByRole('textbox')).toBeEnabled();
     await page.screenshot({ path: 'tmp/931-result-evidence/result-640-light-ko.png' });
   }

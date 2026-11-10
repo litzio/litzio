@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-10",
+  "browser": "persistent Chrome via pnpm browser:test",
+  "beforePanelCommit": "c433d53d639c15cf4974cbeb20f38e8ec60f3e31",
+  "fixture": "held response; synthetic user message and rejection",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "language": "en",
+      "theme": "light"
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "language": "ko",
+      "theme": "dark"
+    }
+  ],
+  "images": "Native panel screenshots at 100% zoom; unrelated shell excluded",
+  "sha256": {
+    "after-1440-rejected.png": "9bf1b57de3105309634cb537d9184243cf7a0f1729bbcd9a65fcc21ad6313eb4",
+    "after-1440.png": "e3783faa93e9cb8ba86b7195c72d94cc1fac3eb96dce7e864e11c75c9cb7bd25",
+    "after-640-rejected.png": "7e82e765edfa4f06f5eef2e3fb2508481f398e88005a4a9148e192c356f7f265",
+    "after-640.png": "35e95152a3631efed1e2552e15cd627dfcdccf0c5d649437520064f2fa9bdf70",
+    "before-1440.png": "cc823819af68fcdcaeaad3aa6e9ce314cc789ee73dc27bafaeb57c92168e2c6f",
+    "before-640.png": "1f470a1d3981b944bc110b6f336a9c99dec462b04e088f5b432f290913fe0821"
+  },
+  "afterReview": "Provider history proof, restore lineage and explicit local discard; same held-response fixture"
+}

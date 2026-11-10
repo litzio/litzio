@@ -9,8 +9,9 @@ async (page, { expect, screenshots, brand }) => {
   await page.route('**/api/assistant/conversations*', r => {
     if (r.request().method() === 'POST') {
       const input = r.request().postDataJSON();
-      conversation = { id, provider: 'codex', title: '합성 로그 연결 시험', folders: [], createdAt: 1, updatedAt: 1, model: 'gpt-6-luna', reasoningEffort: 'low', turns: [{ id: 'turn', status: 'completed', items: [{ id: 'user', kind: 'user', text: input.message }, { id: 'assistant', kind: 'assistant', text: '합성 시험 대화입니다. 공급자 원본은 외부 앱에서 확인할 수 있습니다.' }] }] };
+      conversation = { id, provider: 'codex', title: '합성 로그 연결 시험', folders: [], createdAt: 1, updatedAt: 1, model: 'gpt-6-luna', reasoningEffort: 'low', turns: [{ id: 'turn', status: 'completed', items: [{ id: 'user', kind: 'user', submissionId: input.submissionId, text: input.message }, { id: 'assistant', kind: 'assistant', text: '합성 시험 대화입니다. 공급자 원본은 외부 앱에서 확인할 수 있습니다.' }] }] };
     }
+    if (r.request().method() === 'POST' && r.request().postDataJSON().submissionId) return r.fulfill({ json: { submission: { id: r.request().postDataJSON().submissionId, status: 'accepted' }, conversation } });
     return r.fulfill({ json: conversation ?? [] });
   });
   await page.setViewportSize({ width: 640, height: 1000 });

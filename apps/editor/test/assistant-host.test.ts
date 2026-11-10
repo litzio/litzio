@@ -179,3 +179,69 @@ test("assistant shutdown rejects a send still waiting for plugin startup before 
   release(); await sending;
   assert.equal(diagnostics.mock.callCount(), 0, "no provider resources may be created after close");
 });
+
+
+test("submission IDs survive event-before-response, duplicate sends and uncertain acceptance", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-submission-"));
+  const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
+    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent });
+  t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const input = { action: "send", submissionId: "submission-first", message: "Same message", folders: [root], model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const originalRequest = agent.client.request.bind(agent.client);
+  let release!: () => void, observed!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const observation = new Promise<void>(resolve => { observed = resolve; });
+  agent.client.on("notification", (method, params) => { if (method === "item/completed" && params.item?.type === "userMessage") observed(); });
+  const delayed = t.mock.method(agent.client, "request", async (method: string, params: any) => {
+    const result = await originalRequest(method, params);
+    if (method === "turn/start") await gate;
+    return result;
+  });
+  const sending = host.invoke("assistantConversation", input);
+  const duplicate = host.invoke("assistantConversation", input);
+  await observation;
+  const early = await host.invoke("assistantConversations", { submissionId: input.submissionId });
+  assert.equal(early.submission.status, "accepted", "provider observation identifies acceptance before RPC returns");
+  release();
+  const first = await sending;
+  await duplicate;
+  delayed.mock.restore();
+  assert.equal(first.submission.status, "accepted");
+  const id = first.conversation.id;
+  const users = () => first.conversation.turns.flatMap((turn: any) => turn.items).filter((item: any) => item.kind === "user");
+  assert.equal(users().length, 1);
+  assert.equal(users()[0].submissionId, input.submissionId);
+  assert.equal(first.submission.itemId, users()[0].id);
+  await host.invoke("assistantConversation", input);
+  assert.equal(users().length, 1, "the same ID never calls the provider twice");
+  const steer = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-steer" });
+  assert.equal(steer.submission.status, "accepted");
+  assert.equal(users().length, 2, "identical text with a new ID is a separate steer");
+  assert.equal((await host.invoke("assistantConversations", { submissionId: input.submissionId })).conversation.id, id);
+  const rejected = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-rejected", reasoningEffort: "invalid" });
+  assert.equal(rejected.submission.status, "rejected");
+  const original = agent.client.request.bind(agent.client);
+  t.mock.method(agent.client, "request", async (method: string, params: any) => {
+    if (method === "turn/steer") throw new Error("Response lost");
+    return original(method, params);
+  });
+  const uncertain = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-uncertain" });
+  assert.equal(uncertain.submission.status, "unknown");
+  assert.equal((await host.invoke("assistantConversations", { submissionId: "submission-uncertain" })).submission.status, "unknown");
+  assert.equal((await host.invoke("assistantConversations", { submissionId: "not-seen" })).submission.status, "unknown");
+  // The reverse order is valid too: RPC accepts first, then the provider user item arrives.
+  let providerInput: any;
+  t.mock.method(agent.client, "request", async (method: string, params: any) => {
+    if (method === "turn/steer") { providerInput = params; return { turnId: first.conversation.turns[0].id }; }
+    return original(method, params);
+  });
+  const late = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-late-item" });
+  assert.equal(late.submission.status, "accepted");
+  assert.equal(late.submission.itemId, undefined);
+  agent.client.emit("notification", "item/completed", { threadId: id, turnId: first.conversation.turns[0].id,
+    item: { id: "late-user", type: "userMessage", content: providerInput.input } });
+  const reconciled = await host.invoke("assistantConversations", { submissionId: "submission-late-item" });
+  assert.equal(reconciled.submission.itemId, "late-user");
+  assert.equal(users().at(-1).submissionId, "submission-late-item");
+});
