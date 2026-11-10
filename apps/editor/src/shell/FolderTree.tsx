@@ -2,7 +2,7 @@ import { useWorkspaceExtensions } from "../review/workspace-entries.ts";
 import { getHostClient } from "../host-client.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
 import { useGeneratedConnections } from "../review/generated-connections.ts";
-import { comparisonPath, type ComparisonTarget } from "../review/GeneratedComparison.tsx";
+import type { ComparisonTarget } from "../review/GeneratedComparison.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { FileActionDialog, type FileAction, type FileActionHandler } from "./FileActionDialog.tsx";
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
@@ -266,7 +266,7 @@ export function FolderTree({ onCompare, onCopyPath, decoration,  onAddToChat, on
         returnFocus={previewReturn} onClose={() => setPreview(undefined)} /> : null}
       <Dialog open={choices.length > 0} onOpenChange={open => { if (!open) setChoices([]); }}>
         <DialogContent><DialogHeader><DialogTitle>{i18n.t("Open source comparison")}</DialogTitle></DialogHeader>
-          {choices.map(target => <Button key={"workspace" in target ? `${target.plugin}/${target.job}/${target.workspace}` : target.document} variant="ghost" className="justify-start" onClick={() => { setChoices([]); onCompare?.(target); }}>{comparisonPath(target)}{"workspace" in target ? ` · ${target.plugin}/${target.job}` : ""}</Button>)}
+          {choices.map(target => <Button key={"workspace" in target ? `${target.plugin}/${target.job}/${target.workspace}` : target.document} variant="ghost" className="justify-start" onClick={() => { setChoices([]); onCompare?.(target); }}>{"workspace" in target ? target.workspace : target.document}{"workspace" in target ? ` · ${target.plugin}/${target.job}` : ""}</Button>)}
         </DialogContent>
       </Dialog>
       {tree.nodes.get(tree.root)?.entries.length === 0 ? <p className="sidebar-folder-empty" hidden={!tree.sectionExpanded}>{i18n.t("No files or folders")}</p> : null}

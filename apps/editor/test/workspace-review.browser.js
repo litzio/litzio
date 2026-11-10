@@ -10,7 +10,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await page.setViewportSize({width:1440,height:900});
   await openFolderPicker(page);await page.getByTestId('folder-path').fill(root);await page.getByTestId('folder-open').click();
   const row=()=>page.getByTestId('sidebar').getByRole('treeitem',{name:workspace,exact:true});
-  const open=async()=>{await row().focus();await row().press('Enter');await expect(page.locator('.review-renderer')).toBeVisible();await expect(page.locator('.review-region').first()).toBeEnabled();};
+  const open=async()=>{await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});await row().focus();await row().press('Enter');await expect(page.locator('.review-renderer')).toBeVisible();await page.locator('.review-region').first().waitFor({state:'visible'});await expect(page.locator('.review-region').first()).toBeEnabled();await expect(page.locator('.review-image-loading')).toHaveCount(0);};
   await open();
   await expect(page.getByRole('button',{name:'Open document',exact:true})).toHaveCount(0);
   const state=await docling.review('workspace-read',base);
@@ -47,9 +47,10 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   cold=await docling.restartWorkspaceHost();await page.reload();await open();
   await expect(page.getByRole('button',{name:'Page 1: Page checked',exact:true})).toHaveAttribute('aria-pressed','true');
   const exportButton=()=>page.getByRole('button',{name:'Export current state…',exact:true});
+  const chooseTheme=async theme=>{if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:/^Color mode:/}).click();await expect(page.locator('html')).toHaveAttribute('data-theme',theme);};
   if(screenshots){
     for(const theme of ['light','dark']){
-      await page.evaluate(theme=>localStorage.setItem('litzio.theme',theme),theme);await page.reload();await open();await expect.poll(pageRegions).toEqual(regions);
+      await chooseTheme(theme);await expect.poll(pageRegions).toEqual(regions);
       await page.screenshot({path:`docs/design/assets/docling-workspace-p1b/compare-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     }
   }
@@ -58,7 +59,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await expect(page.getByRole('button',{name:'Open document',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Close',exact:true}).last().click();
   if(screenshots){for(const theme of ['light','dark']){
-    await page.evaluate(theme=>localStorage.setItem('litzio.theme',theme),theme);await page.reload();await open();
+    await chooseTheme(theme);
     await exportButton().click();await expect(page.getByText('Replace the existing document',{exact:true})).toBeVisible();
     await page.screenshot({path:`docs/design/assets/docling-workspace-p1b/export-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     await page.getByRole('button',{name:'Close',exact:true}).last().click();
@@ -70,5 +71,10 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await expect(page.getByRole('button',{name:'Open document',exact:true})).toBeVisible();expect(requests).toHaveLength(1);expect(requests[0].overwrite).toBe(true);
   const after=await docling.review('workspace-read',base);expect(after.baseline).toBe(persisted.baseline);expect(after.snapshot.source).toBe(persisted.snapshot.source);
   expect(sourceBeforeExport).not.toBe(persisted.baseline);
+  // End this observer before its owned Host shuts down; drain page routes already in flight.
+  await page.getByRole('button',{name:'Close',exact:true}).last().click();
+  await page.locator('[data-tab-id^="comparison-"] .document-tab-close').click();
+  await expect(page.locator('.review-renderer')).toHaveCount(0);
+  await page.unrouteAll({behavior:'wait'});
   return {fileless:true,coldHostHandoff:true,restart:true,explicitExport:true,overwriteConfirmation:true,documentRevision:after.documentRevision};
 }

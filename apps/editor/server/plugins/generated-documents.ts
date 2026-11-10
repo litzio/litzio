@@ -76,7 +76,7 @@ export class GeneratedDocuments {
         const source = resolve(path.resolve(path.dirname(document), link.source));
         if (target && target !== document && target !== source) continue;
         const provider = this.declaration(link.plugin, link.job); provider.assertCurrent();
-        if (!provider.comparison) continue;
+        if (!provider.comparison || provider.workspace) continue;
         documents.push({ root, document: path.relative(root, document).split(path.sep).join("/"), source: path.relative(root, source).split(path.sep).join("/"), plugin: link.plugin, job: link.job, ...(target ? { match: target === document ? "document" as const : "source" as const } : {}) });
       } catch { /* Unavailable, malformed or out-of-Root connections are not actionable. */ }
     }

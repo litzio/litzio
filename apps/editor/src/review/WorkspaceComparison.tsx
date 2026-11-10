@@ -20,9 +20,11 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
     const send=(body:Record<string,unknown>)=>{
       const work=tail.then(async()=>{
         if(["workspace-compare","workspace-image"].includes(String(body.action))&&body.baseline)body={...body,baseline:baseline.current};
+        if(body.action==="workspace-regenerate")pending=String(body.requestId);
         const response=await client.request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body.action==="workspace-status"?body:{...target,...body}),signal:controller.signal});
         const value=await response.json();controller.signal.throwIfAborted();
         if(!response.ok || body.action!=="workspace-status"&&(value.error || value.receipt&&value.receipt.outcome!=="success"))throw new Error(value.error??i18n.t("Data unavailable."));
+        if(body.action==="workspace-regenerate")pending=undefined;
         return value;
       });tail=work.then(()=>{},()=>{});return work;
     };
@@ -43,7 +45,7 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
         sources[`review-asset:${image.revision}`]=images.get(image.revision)!;
       }
       const snapshot={...value.snapshot,state:value.cacheState==="created-version"?"stale":value.state,workspaceBaseline:baseline.current,contentRevision:value.contentRevision,progress,imageSources:sources};
-     failed=false;setReady(true);return snapshot;
+      failed=false;setReady(true);return snapshot;
       } catch(error) {setProblem(error instanceof Error?error.message:String(error));throw error;}
     };
     setAdapter({read,async loadPage(snapshot,pageNo){
@@ -63,7 +65,7 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
     return()=>{controller.abort();request.current=undefined;};
   },[client,target.root,target.workspace,target.plugin,target.job]);
   const view:ReviewView={kind:"litzio-view",schemaVersion:2,catalog:"litzio-v2",profile:"review",title:target.workspace,refresh:"manual",sources:{review:{plugin:target.plugin,review:"compare",bundleRef:`${target.workspace}:${epoch}`}},layout:{component:"Panel",direction:"vertical",children:[{component:"SourceDocumentCompare",title:i18n.t("Source comparison"),source:"review"}]}};
-  return <>{problem&&<Notice tone="warning">{problem}</Notice>}{adapter&&<ReviewRenderer view={view} adapter={adapter} actions={<>{regenerate&&<Button variant="outline" size="sm" disabled={!!pendingCount.current} onClick={()=>{mark(true);void request.current!({action:"workspace-regenerate",baseline:baseline.current,requestId:crypto.randomUUID()}).then(value=>{baseline.current=value.baseline;setRegenerate(false);setEpoch(epoch=>epoch+1);}).catch(error=>setProblem(String(error.message))).finally(()=>mark(false));}}>{i18n.t("Regenerate review snapshot")}</Button>}<Button variant="outline" size="sm" disabled={!ready||regenerate||!!pendingCount.current} onClick={()=>{setProblem("");setDialog(true);}}>{i18n.t("Export current state…")}</Button></>} />}
+  return <>{problem&&<Notice tone="warning">{problem}</Notice>}{adapter&&<ReviewRenderer view={view} adapter={adapter} actions={<>{regenerate&&<Button variant="outline" size="sm" disabled={!!pendingCount.current} onClick={()=>{const id=crypto.randomUUID();mark(true);void request.current!({action:"workspace-regenerate",baseline:baseline.current,requestId:id}).then(value=>{baseline.current=value.baseline;setRegenerate(false);setEpoch(epoch=>epoch+1);}).catch(error=>{setReady(false);setRegenerate(false);setProblem(`${error.message} · Request: ${id}`);}).finally(()=>mark(false));}}>{i18n.t("Regenerate review snapshot")}</Button>}<Button variant="outline" size="sm" disabled={!ready||regenerate||!!pendingCount.current} onClick={()=>{setProblem("");setDialog(true);}}>{i18n.t("Export current state…")}</Button></>} />}
     {dialog&&<WorkspaceExport onOpen={onOpen} isDirty={isDirty} onClose={()=>setDialog(false)} onRequest={async body=>{mark(true);try{return await request.current!(body.action==="workspace-status"?body:{...body,baseline:baseline.current});}finally{mark(false);}}} />}</>;
 }
 

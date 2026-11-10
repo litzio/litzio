@@ -17,7 +17,8 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   const comparisonHosts = [], previewHosts = [], assetRequests = [], connectionReads = [];
   await page.route('**/fixture/remote/api/reviews', route => {
     const input = route.request().postDataJSON();
-    expect(input.action).toBe('generated-find');
+    expect(['generated-find','workspace-find']).toContain(input.action);
+    if(input.action==='workspace-find'){expect(input.root === root || input.root.startsWith(root + sep)).toBe(true);return route.fulfill({json:{providers:[],targets:[]}});}
     expect(input.root === root || input.root.startsWith(root + sep)).toBe(true);
     connectionReads.push(input.root);
     return route.fulfill({ json: { documents: [], receipt: { requestId: `00000000-0000-4000-8000-${String(connectionReads.length).padStart(12, '0')}`, operation: 'review.find', version: 1, scope: input.root, outcome: 'success' } } });
@@ -120,11 +121,6 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   });
   await page.route('**/fixture/remote/api/folder-places', route => route.fulfill({ json: { places: [{ kind: 'home', name: 'Fixture home', path: root }] } }));
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
-  await page.route('**/fixture/remote/api/reviews',route=>{
-    const body=route.request().postDataJSON();
-    if(body.action!=="workspace-find"||body.root!==root)throw new Error("Unexpected remote review operation");
-    return route.fulfill({json:{providers:[]}});
-  });
   let remoteAvailable = true;
   await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash', identity: { runAs: 'WORKSTATION\\local-user' } } }));
   await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash', identity: { runAs: 'remote-user' } } } : { status: 503, json: { error: 'Fixture unreachable' } }));

@@ -247,6 +247,7 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     if (raw.mode === "workspace-prepare" && !raw.progress) builds++;
     if (raw.mode === "workspace-read") reads++;
     if (raw.mode === fail) throw new Error("Injected provider failure");
+    if (fail === "seal-report" && raw.mode === "workspace-seal") raw.sealInput.items.find((item:any)=>item.targets.length).targets[0].documentHash="0".repeat(64);
     const result = await workspaceOperation(raw);
     if (raw.mode === "workspace-prepare" && entered) { entered(); await new Promise<void>(resolve => { hold = resolve; }); }
     if (fail === "race" && raw.mode === "workspace-seal") writeFileSync(file, original);
@@ -295,7 +296,7 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     for (const entry of ["sourcePdf","documentJson","manifestBytes"]) assert.deepEqual(progressed[entry],initial[entry]);
     assert.deepEqual(progress.snapshot,snapshot);
     const before = readFileSync(file);
-    for (const mode of ["workspace-prepare","workspace-seal","mixed"]) {
+    for (const mode of ["workspace-prepare","workspace-seal","mixed","seal-report"]) {
       fail=mode; const failed=await write("workspace-patch",patch); assert.equal(failed.receipt.outcome,"failure",JSON.stringify(failed));
       assert.deepEqual(readFileSync(file),before,"failed candidate cannot publish ledger or cache");
     }

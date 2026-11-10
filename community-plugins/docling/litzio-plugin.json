@@ -610,6 +610,9 @@
             "snapshot": {
               "type": "object"
             },
+            "sealInput": {
+              "type": "object"
+            },
             "ref": {
               "type": "string"
             }

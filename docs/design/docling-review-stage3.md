@@ -4,6 +4,7 @@
 - Last verified: 2026-11-10 — `d25aef81`의 SDK·Docling·Host 소스 및 기존 계약 대조. 아래 재측정은 별도 Codex CLI 실험이며 제품 비서·저장·화면 실행 검증이 아니다.
 - Verification v3: 2026-11-10 — #1466 병합 기준 `08b8a98b`에서 페이지 조각 및 공식 Docling Core 기반 렌즈 입력을 추가 비교. 제품 코드는 변경하지 않는다.
 - Decision / verification: 2026-11-10 — #1467 병합 기준 `eb9eda51`의 변환·replay·Host·Core target을 대조하고 소유자의 기본 검사·완료·구조 수정 범위 결정을 반영했다. 기존 Docling 변환 검사 1개 통과. 새 AI 측정·제품 기능 구현은 하지 않았다.
+- P1b verification: 2026-11-11 — 내부 snapshot 대조·이미지 material·중간 export·8.3 별칭·실제 daemon 재시작을 검사했다. 아래 P1b 절에 실행 범위와 미확인 조건을 기록한다.
 - Scope: [#1462](https://github.com/litzio/litzio/issues/1462) 소유자 결정·설계안·변환 검토·구현 분할 계획과 누적 입력 방식 측정. 초기 설계 PR은 구현·SDK 변경·기존 문서 migration을 하지 않았다. 아래 P1a/P1b 절은 이후 구현 범위이며 나머지 Draft를 완료로 바꾸지 않는다. 개발 및 하위 PR base는 `feature/docling-stage3`; master 반영에는 소유자 승인과 독립 리뷰·merge queue 검사가 필요하다.
 - Authority: [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0020](../adr/0020-plugin-architecture.md), [현재 플러그인 계약](plugin-stage1-v1.md). 아래 2026-11-10 소유자 결정은 #1462의 방향과 범위를 확정하며, 세부 필드·작업 이름·미구현 PR 계획은 Draft다. Implemented 선언이 아니다.
 
@@ -561,10 +562,12 @@ Host RSS 시작 290,668,544 bytes, 5ms sampling peak 935,182,336, process high-w
 
 기존 in-process plugins/reviews/generated-documents 검사에 embedded source·잘못된 target·손상 cache/ledger·missing image 자리·image hash·current export 기본 이름/충돌/덮어쓰기·archive 불변을 보완했다. `workspace-review`는 기존 browser suite/HTTP fixture의 새 user-flow scenario다. 기존 `http-plugins`는 workspace:false의 명시 legacy fixture로 일반 generated-document/K1 보호를 유지하고, 현재 unmodified Docling workspace 선언은 새 scenario가 검증한다. Linux/Windows HTTP CI 목록에 같은 scenario를 연결하며 timeout·fault 분류·기존 단언을 줄이지 않는다. 재시작 증거는 in-process Host 재생성으로 대신할 수 없어 기존 production CLI daemon 시작/명시 종료 helper를 함께 사용한다. LSR 촬영 scenario 51.6초(복구 검사 포함 실행 전체 1.3분)였고 CI는 작은 합성 자료의 같은 동작을 검사한다. 같은 workspace의 읽기만 진행 중 작업을 기다린 뒤 baseline을 다시 검증하며 쓰기는 배타적으로 거부한다. 실제 SDK artifact→CLI patch→기존 renderer의 effective 종류→확인 저장→새 실제 Host의 재등록/재시작 뒤 다시 열기→동일 문서/영역·확인→current export와 overwrite 확인을 검증한다. cold Host는 같은 PC의 별도 상태·프로세스 수명으로 만들고 browser review 요청을 그 Host로 proxy한다. 실제 원격 PC/네트워크 인계 증거는 아니다.
 
-Windows 별도 수락은 실제 8.3 짧은 Root와 파일명으로 같은 snapshot/baseline·provider 발견·canonical 기본 export 이름·공유 admission lock을 확인했다. 짧은 alias로 진행 저장한 뒤 긴 경로의 이전 baseline을 거부했고 원본 PDF/JSON bytes를 대조했다. 로컬 unrestricted Host의 실제 SDK provider 검사이며 Root 제한을 우회한 것이 아니다. 제한된 Root의 전체 alias 철자 허용 범위를 확장하지 않았다.
+Windows 별도 수락은 Windows FileSystemObject가 반환한 실제 8.3 짧은 Root와 파일명으로 같은 snapshot/baseline·provider 발견·canonical 기본 export 이름·공유 admission lock을 확인했다. 짧은 alias로 진행 저장한 뒤 긴 경로의 이전 baseline을 거부했고 원본 PDF/JSON bytes를 대조했다. 로컬 unrestricted Host의 실제 SDK provider 검사이며 Root 제한을 우회한 것이 아니다. 제한된 Root의 전체 alias 철자 허용 범위를 확장하지 않았다.
 
 1440px Light/Dark의 [대조 Light](assets/docling-workspace-p1b/compare-1440-light.png) / [Dark](assets/docling-workspace-p1b/compare-1440-dark.png), [내보내기 확인 Light](assets/docling-workspace-p1b/export-1440-light.png) / [Dark](assets/docling-workspace-p1b/export-1440-dark.png)와 [촬영 정보·해시](assets/docling-workspace-p1b/verification.json)를 보관한다. LSR 13쪽의 기존 원본 PDF/JSON hash를 재사용한 실제 내부 snapshot 화면이며 재변환/충실도 승인·소유자의 시각 승인이 아니다. 기존 외부 문서 대조 gallery가 공통 renderer의 기준이고, workspace 열기는 이전 UI에 없던 진입이므로 동일 workspace 상태의 Before 화면을 만들지 않았다. 계정 표시는 마스킹한다.
 
 큰 실제 PDF·workspace 장시간 timeout·다른 PC의 실제 인계·실제 AI 이미지 분석은 미검증으로 남긴다. P1a의 300쪽 합성 비용을 실제 큰 PDF 성능으로 바꾸지 않는다. 최종 완료 검사/승인/final export는 P11 범위다. 직접 시작한 임시 Host·SDK worker·browser는 종료하고 process 잔류를 확인한다.
 
 P1b 통합 중 master의 #1468(공용 생성 문서 대조 진입)·#1455(좁은 탐색기 overlay)를 병합했다. App/FolderTree는 workspace와 기존 생성 문서 모두 같은 대조 탭·탐색기 닫기·복수 대상 Dialog를 사용한다. locales/renderer는 새 export 행동과 기존 재생성 안내를 함께 유지하고, CLI는 generated-find와 workspace action을 모두 유지했다. browser fixture·preview guard는 두 공용 발견 읽기만 허용하고 기존 fault·mutation 단언을 유지했다. 계약/UI 문서의 양쪽 절도 보존했다.
+
+2026-11-11 최종 LSR 수락은 workspace scenario 51.8초, 기존 복구 포함 2개 검사 전체 1.4분으로 통과했다. 앱 초기 복원 완료 후 Enter로 열고 기존 준비 대기를 사용했다. 실제 테마 버튼으로 동일 상태를 촬영했다. 관찰 탭·진행 중 route를 먼저 종료하고 소유 daemon을 종료해 배경 읽기의 종료 경쟁을 제거했다. timeout·콘솔 오류 분류·기능 단언은 완화하지 않았다. seal은 prepare의 불투명 report를 최종 targets에 결합하며 converter를 다시 실행하지 않는다. 손상 report 거부와 원본 보존을 기존 workspace 검사에서 확인했다.

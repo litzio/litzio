@@ -138,7 +138,7 @@ export class ReviewWorkspaces {
         const authored = await authorDocument(build.authoring, bindings);
         expected = { source: authored.source, documentRevision: authored.documentRevision, inputs: authored.inputs, contentRevision: plan.contentRevision,
           adapterVersion: plan.adapterVersion, authoringContract: REVIEW_AUTHORING_CONTRACT, images: imageRefs };
-        await call("workspace-seal", candidate, { snapshot: expected, resultFile });
+        await call("workspace-seal", candidate, { snapshot: expected, sealInput: plan.sealInput, resultFile });
       }
       const prepared = workspaceStateSchema.parse(await call("workspace-read", candidate));
       if (!prepared.snapshot || prepared.cacheState !== "current") throw new Error("Candidate has no current validated snapshot");

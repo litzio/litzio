@@ -855,6 +855,7 @@ function EditorApp() {
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
   function openComparison(hostId: string, target: ComparisonTarget) {
+    if (!tabsRestored || operationRef.current || busy || continuation) { setNotice({key:"Wait for the current operation to finish."}); return; }
     if (sidebarOverlay) closeSidebar();
     const comparison:ComparisonTarget="workspace" in target ? {root:target.root,workspace:target.workspace,plugin:target.plugin,job:target.job} : {root:target.root,document:target.document};
     const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && comparisonPath(tab.comparison) === comparisonPath(comparison));

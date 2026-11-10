@@ -75,14 +75,22 @@ export async function workspaceOperation(input) {
         return { key: image.key, ref: original.pointer, revision, mime: image.mime };
       });
       await writeCandidate(input, bytes);
-      return { build: authored.document, imageRefs, contentRevision: contentRevision(archive, record), adapterVersion: WORKSPACE_ADAPTER_VERSION };
+      return { build: authored.document, sealInput: authored.report, imageRefs, contentRevision: contentRevision(archive, record), adapterVersion: WORKSPACE_ADAPTER_VERSION };
     }
   } else if (input.mode === "workspace-seal") {
     const snapshot = workspaceSnapshotSchema.parse({ ...input.snapshot, cacheKey: cacheKey(input.snapshot) });
     if (snapshot.contentRevision !== contentRevision(archive, record) || snapshot.adapterVersion !== WORKSPACE_ADAPTER_VERSION || snapshot.authoringContract !== REVIEW_AUTHORING_CONTRACT) throw new Error("Mixed workspace input");
     // Bind source-format correspondence to the final Host canonical targets, without storing images again.
-    const authored = await convertDocument(archive.document, archive.manifest.document.sha256, record.patches);
-    const correspondence = authored.bindReport({ revision: snapshot.documentRevision, inputs: snapshot.inputs });
+    const report = input.sealInput;
+    if (report?.sourceHash !== archive.manifest.document.sha256 || !Array.isArray(report.items)) throw new Error("Prepared correspondence required");
+    const targets = new Map(snapshot.inputs.flatMap(item => item.targets).map(target => [JSON.stringify(target.path), target]));
+    const bind = values => values.map(value => {
+      const target = targets.get(JSON.stringify(value.path));
+      if (!target || value.documentHash !== report.documentHash || value.documentRevision !== report.documentRevision) throw new Error("Mixed prepared correspondence");
+      return target;
+    });
+    const correspondence = { ...report, documentRevision: snapshot.documentRevision, documentHash: snapshot.documentRevision,
+      items: report.items.map(item => ({ ...item, targets: bind(item.targets), ...(item.cells ? {cells:item.cells.map(cell => ({...cell,targets:bind(cell.targets)}))} : {}) })) };
     const { source, ...saved } = snapshot;
     const metadata = { ...saved, correspondence, integrity: hash(JSON.stringify([source, saved, correspondence])) };
     bytes = rewriteReview(archive, archive.reviewBytes, new Map([["current/document.md", Buffer.from(source)], ["current/snapshot.json", Buffer.from(JSON.stringify(metadata))]]));
