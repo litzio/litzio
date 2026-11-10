@@ -3227,6 +3227,21 @@ persistent Chrome ran all 97 Editor scenarios in eight sequential shards with
 `LITZIO_TEST_LAYOUT_SCOPE=full`: 8/8 passed, 2069.5 seconds total. This covers the queue's
 Editor browser scope, not packaged Desktop or external services.
 
+Command Center queue follow-up (2026-11-10): [PR CI](https://github.com/litzio/litzio/actions/runs/42785763527)
+and [queue CI](https://github.com/litzio/litzio/actions/runs/42786967180) used the same
+full-layout shard and identical source tree. The local 97/97 run and PR CI passed;
+queue CI failed the 1024px centering assertion. Its trace places the two separate
+coordinate reads immediately after resize; the failure capture shows the resulting
+search correctly centered. The old trace does not record the measured rectangles. A temporary
+local probe held media-query delivery until between those reads and reproduced a
+76px false error, while each layout's same-frame geometry had 0px error. The probe
+was removed. The existing scenario now waits for the shared responsive mode and reads
+both rectangles in one browser evaluation. The search-area centering contract, less
+than 1px tolerance, clipping assertions, widths and timeouts remain unchanged. This
+corrects the measurement race; it does not change product layout. Local full-layout
+`command-center`, `layout-rules` and `editor-shell` passed (3/3, about two minutes),
+along with workspace typecheck and documentation checks.
+
 ## Multiple Host shell (#1174 PR4)
 
 Under [ADR-0018](../adr/0018-desktop-remote-hosts.md), the shell consumes the injectable

@@ -223,6 +223,10 @@ scroll margin. The accessible Outline heading remains visually hidden; overlay p
 Desktop reserves native caption-button width using CSS `env(titlebar-area-x)` and
 `env(titlebar-area-width)`; ordinary browser tabs reserve no width. The full-width title strip carries that reservation independently of Outline state; search shrinks or becomes an icon within the remaining width. Tab-row actions remain below it. Title-strip empty areas are drag regions and
 interactive descendants are no-drag. No fixed caption-button width is used in production.
+The Command Center entry centers in that remaining title-strip search area (`.top-bar`),
+after the Explorer brand/rail and before any native caption reservation. This applies
+in both docked and overlay layouts; the Assistant action reserves equal space on both
+sides of search so it does not move that center.
 
 Figure metadata (#757) is anchored to the full Figure and caption, below by default and above
 on collision, with its width/height capped to the owning group's available viewport. Single-group
