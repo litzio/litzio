@@ -5,6 +5,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Search, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { splitDocumentPath } from "./document-path.ts";
+import type { AssistantButtonStatus } from "./AssistantPanel.tsx";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 
 export type DocumentView = "read" | "visual" | "source";
 
@@ -16,12 +18,15 @@ type TopBarProps = {
   hostLabel?: string;
   onAssistant?(): void;
   assistantOpen?: boolean;
+  assistantStatus?: AssistantButtonStatus;
 };
 
 /** Shared title-strip search. Document actions belong to the owning tab row. */
-export function TopBar({ onOpenCommandCenter, documentPath, location = [], hostLabel, onAssistant, assistantOpen }: TopBarProps) {
+export function TopBar({ onOpenCommandCenter, documentPath, location = [], hostLabel, onAssistant, assistantOpen, assistantStatus }: TopBarProps) {
   useTranslation();
   const { name } = splitDocumentPath(documentPath);
+  const statusLabel = assistantStatus ? i18n.t(assistantStatus === "working" ? "Working…" : assistantStatus === "completed" ? "Completed (unread)" : "Needs your attention") : undefined;
+  const assistantLabel = statusLabel ? `${i18n.t("Assistant")} — ${statusLabel}` : i18n.t("Assistant");
   const commandButton = useRef<HTMLButtonElement>(null);
   const commandName = useRef<HTMLSpanElement>(null);
   const commandShortcut = useRef<HTMLElement>(null);
@@ -72,9 +77,12 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], hostL
         </span>
         <kbd ref={commandShortcut} aria-hidden="true">{COMMAND_CENTER_SHORTCUT.label}</kbd>
       </Button>
-      {onAssistant ? <Button variant="ghost" size="sm" className="assistant-trigger" aria-label={i18n.t("Assistant")} aria-expanded={assistantOpen}
-        aria-keyshortcuts={ASSISTANT_SHORTCUT.aria} title={`${i18n.t("Assistant")} (${ASSISTANT_SHORTCUT.label})`}
-        onMouseDown={event => { if (event.button === 0) event.preventDefault(); }} onClick={onAssistant}><MessageSquare /><span>{i18n.t("Assistant")}</span></Button> : null}
+      {onAssistant ? <Tooltip><TooltipTrigger render={<Button variant="ghost" size="sm" className="assistant-trigger" aria-label={assistantLabel} aria-expanded={assistantOpen}
+        aria-keyshortcuts={ASSISTANT_SHORTCUT.aria} data-status={assistantStatus} />}
+        onMouseDown={event => { if (event.button === 0) event.preventDefault(); }} onClick={onAssistant}>
+        <MessageSquare /><span className="assistant-trigger-label">{i18n.t("Assistant")}</span>
+        {assistantStatus ? <span className="assistant-status agent-dot" aria-hidden="true" /> : null}
+      </TooltipTrigger><TooltipContent>{assistantLabel} ({ASSISTANT_SHORTCUT.label})</TooltipContent></Tooltip> : null}
     </header>
   );
 }
