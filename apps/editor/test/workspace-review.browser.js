@@ -76,5 +76,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await page.locator('[data-tab-id^="comparison-"] .document-tab-close').click();
   await expect(page.locator('.review-renderer')).toHaveCount(0);
   await page.unrouteAll({behavior:'wait'});
+  await docling.cli(['plugins','disable','community.docling']);
+  await docling.cli(['plugins','unregister','community.docling']);
   return {fileless:true,coldHostHandoff:true,restart:true,explicitExport:true,overwriteConfirmation:true,documentRevision:after.documentRevision};
 }

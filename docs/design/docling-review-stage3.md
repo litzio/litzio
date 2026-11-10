@@ -571,3 +571,5 @@ Windows 별도 수락은 Windows FileSystemObject가 반환한 실제 8.3 짧은
 P1b 통합 중 master의 #1468(공용 생성 문서 대조 진입)·#1455(좁은 탐색기 overlay)를 병합했다. App/FolderTree는 workspace와 기존 생성 문서 모두 같은 대조 탭·탐색기 닫기·복수 대상 Dialog를 사용한다. locales/renderer는 새 export 행동과 기존 재생성 안내를 함께 유지하고, CLI는 generated-find와 workspace action을 모두 유지했다. browser fixture·preview guard는 두 공용 발견 읽기만 허용하고 기존 fault·mutation 단언을 유지했다. 계약/UI 문서의 양쪽 절도 보존했다.
 
 2026-11-11 최종 LSR 수락은 workspace scenario 51.8초, 기존 복구 포함 2개 검사 전체 1.4분으로 통과했다. 앱 초기 복원 완료 후 Enter로 열고 기존 준비 대기를 사용했다. 실제 테마 버튼으로 동일 상태를 촬영했다. 관찰 탭·진행 중 route를 먼저 종료하고 소유 daemon을 종료해 배경 읽기의 종료 경쟁을 제거했다. timeout·콘솔 오류 분류·기능 단언은 완화하지 않았다. seal은 prepare의 불투명 report를 최종 targets에 결합하며 converter를 다시 실행하지 않는다. 손상 report 거부와 원본 보존을 기존 workspace 검사에서 확인했다.
+
+최초 Linux HTTP CI에서는 workspace scenario의 Docling 활성 등록이 다음 K1 scenario까지 남아 기존 32px fixture 아이콘 단언이 실패했다. workspace scenario가 등록한 플러그인을 명시 disable/unregister하도록 정리했고 기존 아이콘·Root escape 단언을 유지했다. 같은 순서의 workspace-review→plugin-jobs 및 복구 3개를 Windows에서 2.0분으로 재통과했다. 화면·자료·저장 경로 변경은 없으며 기존 촬영 근거를 유지한다.
