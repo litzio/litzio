@@ -1,6 +1,17 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Discard message": "Discard message",
+  "Discard this local copy without cancelling or resending the message.": "Discard this local copy without cancelling or resending the message.",
+
+  "Needs confirmation": "Needs confirmation",
+  "Sending…": "Sending…",
+  "Sent": "Sent",
+  "Restore to input": "Restore to input",
+  "Restore after clearing your current draft.": "Restore after clearing your current draft.",
+  "Check conversation": "Check conversation",
+  "Check acceptance without sending this message again.": "Check acceptance without sending this message again.",
+
   "Fit to width": "Fit to width",
   "No image available. Showing regions only.": "No image available. Showing regions only.",
   "Data is out of date. Open newly verified comparison data to continue.": "Data is out of date. Open newly verified comparison data to continue.",
@@ -1271,6 +1282,17 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Discard message": "메시지 버리기",
+  "Discard this local copy without cancelling or resending the message.": "전송을 취소하거나 다시 보내지 않고 이 로컬 사본을 버립니다.",
+
+  "Needs confirmation": "확인 필요",
+  "Sending…": "전송 중…",
+  "Sent": "전송됨",
+  "Restore to input": "입력으로 복원",
+  "Restore after clearing your current draft.": "작성 중인 입력을 비운 뒤 복원할 수 있습니다.",
+  "Check conversation": "대화 확인",
+  "Check acceptance without sending this message again.": "메시지를 다시 보내지 않고 수락 여부를 확인합니다.",
+
   "Fit to width": "너비에 맞춤",
   "No image available. Showing regions only.": "원본을 표시할 수 없습니다. 영역만 표시합니다.",
   "Data is out of date. Open newly verified comparison data to continue.": "자료가 변경되었습니다. 대조를 닫고 다시 여세요.",
