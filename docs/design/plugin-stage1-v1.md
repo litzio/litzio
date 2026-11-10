@@ -558,11 +558,11 @@ snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(ch
 
 기존 SDK manifest 검사에 comparison의 최소 버전·기여 누락 거부를 보완했다. 기존 generated-documents 검사는 문서/수정 목록을 건드리지 않는 진행 저장, 이전 baseline·저장 중 외부 변경 거부와 같은 requestId status를 확인한다. 기존 reviews 검사는 staged PNG hash·Root 상대 자료·stale 거부와 K4 bundle 보존을 확인한다. 기존 generated-documents 검사에 느린 진행 저장과 동시에 읽는 경우의 publication 순서를 보완했다. 서로 다른 결함은 저장 지연이 탐색을 막거나 서로 다른 revision의 snapshot을 섞는 것이며, 주 검증 계층은 subprocess 없는 Host 작업이다. Docling 낮은 계층은 좌표 원점 변환·없는 targets·진행 범위·중복 거부와 원본 PDF/JSON/manifest의 byte 보존을 보호한다. 새 subprocess·suite·전수 조합은 추가하지 않았다.
 
-기존 http-plugins의 대표 경로에서 공개 SDK→K1→완료 행동→기존 PNG 이미지→양방향 선택과 다른 페이지 reveal→확인 저장→CLI compare→탭 재진입의 연결을 검사했다(HTTP 복구 포함 2개, 약 2.4분). focus/selection이 한 클릭에서 연속 발생해도 같은 baseline 검증을 공유하고 최신 선택을 유지한다. 합성 PDF/Docling JSON fixture의 연결 검증이며 변환 정확도 증거가 아니다. 기존 review-v5, layout-rules·quiet-document도 통과했다. Host/review/플러그인 대상 43개, SDK 10개, CLI remote-host 6개와 typecheck·CLI/Editor production build·docs/diff 검사를 통과했다.
+기존 http-plugins의 대표 경로에서 공개 SDK→K1→완료 행동→기존 PNG 이미지→양방향 선택과 다른 페이지 reveal→확인 저장→CLI compare→탭 재진입의 연결을 검사했다(HTTP 복구 포함 2개, 약 2.4분). focus/selection이 한 클릭에서 연속 발생해도 같은 baseline 검증을 공유하고 최신 선택을 유지한다. 합성 PDF/Docling JSON fixture의 연결 검증이며 변환 정확도 증거가 아니다. 기존 review-v5, layout-rules·quiet-document도 통과했다. Host/review/플러그인 대상 45개, SDK 11개, CLI remote-host 6개와 typecheck·CLI/Editor production build·docs/diff 검사를 통과했다.
 
-수동 검토는 `fixtures/create-acceptance.py`의 한 페이지 PDF를 실제 docling-serve 1.32.0 고정 프로필로 변환한 약 38KB 보관 파일을 사용했다. 원본 대조·확인 저장과 최소 640px 페이지 가로 넘침 부재를 확인했다. 컨테이너는 중지했으며 다른 컨테이너를 조작하지 않았다. 코드/수식 인식 품질·원본과의 의미 동등성은 보증하지 않는다. 서버 지연은 자동 회귀에 넣지 않았다.
+초기 보조 검토는 `fixtures/create-acceptance.py`의 한 페이지 PDF를 실제 docling-serve 1.32.0으로 변환해 수행했다. 최종 수락·표시 방식 비교는 아래의 보관 NIST 11쪽/합성 1쪽을 사용했다. 원본 대조·확인 저장과 최소 640px 페이지 가로 넘침 부재를 확인했다. 컨테이너는 중지했으며 다른 컨테이너를 조작하지 않았다. 코드/수식 인식 품질·원본과의 의미 동등성은 보증하지 않는다. 서버 지연은 자동 회귀에 넣지 않았다.
 
-`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`을 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PageSurface와 내부 스크롤을 사용하며, 640px의 문서 최소 폭 440px는 기존 두 Editor 그룹과 같은 기준이다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
+`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`, `LITZIO_DOCLING_COMPARE_PAGE=5`를 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 최종 전후 캡처는 같은 NIST 입력·완료 작업을 사용한다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PageSurface와 내부 스크롤을 사용하며, 640px의 문서 최소 폭 440px는 기존 두 Editor 그룹과 같은 기준이다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
 
 | 화면 | 변경 전 | 변경 후 |
 | --- | --- | --- |
@@ -581,7 +581,7 @@ snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(ch
 | B: pdf.js 직접 canvas + bbox | 2486;1806 / 586;455 | 2351ms | 49.07 / 9.51; 6.95MB / 24KB | 생산 코드 +326/-74, 22파일; 새 의존성 0; PDF 자료/SDK 필드 추가. 한 파일 인계 가능. PDF crop/rotation과 Docling 좌표 일치 필요 |
 | B: pdf.js→PNG→기존 img 자리 | E2E 미측정; PNG encode+decode 중앙 25.9 / 14.8ms 추가 | 미측정 | B와 동일 | 공용 PDF 전달 계약은 여전히 필요. 완성 시제품의 LOC는 미측정; 추가 PNG 변환/상태 필요 |
 
-첫 진입과 합성 표시에서 A가 빠르고, NIST warmed 중앙의 차이는 103ms(첫 표시)·233ms(전환)였다. 차이가 작을 때 코드와 계약이 적은 안을 우선해 A를 선택했다. 시제품 B→A 전환은 생산 코드 9파일 +43/-61로, PDF 표시 helper·PDF SDK/Host 자료 경로를 버리는 비용도 포함한다. 새 의존성과 플러그인 전용 Core/Host 분기는 없다. 두 문서의 페이지는 Rotate=0, CropBox=MediaBox이고 NIST 마지막 쪽은 가로 방향이다. 회전·다른 crop 좌표계의 실측은 없다. A는 서버의 같은 페이지 크기로 bbox를 비례 표시하며 NIST 5쪽 넓은 표와 합성 표의 실제 대응을 아래 캡처에서 확인했다. 원본과의 문서 전체 의미 동등성을 뜻하지 않는다.
+첫 진입과 합성 표시에서 A가 빠르고, NIST warmed 중앙의 차이는 103ms(첫 표시)·233ms(전환)였다. 차이가 작을 때 코드와 계약이 적은 안을 우선해 A를 선택했다. 시제품 B→A 전환은 생산 코드 9파일 +43/-61로, PDF 표시 helper·PDF SDK/Host 자료 경로를 버리는 비용도 포함한다. 최종 성능·비동기 저장 보완까지 포함한 생산 코드는 22파일 +414/-94다. 이 추가 비용은 A/B에 공통인 생성 문서 읽기·기록 저장 경로다. 새 의존성과 플러그인 전용 Core/Host 분기는 없다. 두 문서의 페이지는 Rotate=0, CropBox=MediaBox이고 NIST 마지막 쪽은 가로 방향이다. 회전·다른 crop 좌표계의 실측은 없다. A는 서버의 같은 페이지 크기로 bbox를 비례 표시하며 NIST 5쪽 넓은 표와 합성 표의 실제 대응을 아래 캡처에서 확인했다. 원본과의 문서 전체 의미 동등성을 뜻하지 않는다.
 
 공통 지연 원인은 페이지마다 전체 봉투/JSON을 검증·복사하고 SDK authoring과 대응을 재계산한 뒤, 진행 저장 후 다시 compare를 호출하던 경로였다. Host가 전후 hash 검사하는 source revision별로 활성화 수명의 원본 한 개와 같은 원본 hash/patches의 authoring을 재사용하고, 패치 복사에서 불변 pages를 제외했다. 기록 재작성은 검증된 원본 PDF/JSON/manifest의 hash를 다시 확인하며 불변 항목을 그대로 pack한다. 외부 변경이면 캐시를 버리며 공식 revision 검사·전체 교체를 유지한다. NIST 동일 경로 5회에서 첫 표시 중앙 1909→960ms, 페이지 1→2 중앙 2584→1099ms였다.
 
@@ -590,3 +590,5 @@ snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(ch
 PNG 실험은 NIST의 원본 7,943,538B→무손실 optimize 4,808,043B, 72dpi 축소 2,665,556B; 합성은 232,539→133,676/88,406B였다. Pillow의 두 최적화를 합친 시간은 2.98초/0.15초이며 실제 서버 72dpi 변환 시간은 미측정이다. 좌표 비례 배치는 같지만 72dpi는 확대 시 작은 표 글자가 흐려진다. 원본 JSON/ImageRef를 재인코딩하지 않고 기존 144dpi를 유지한다. 남은 비용은 수백 MB 전체 교체와 디스크 IO다. 향후 선택지는 생성 시 낮은 images_scale의 품질 수락, 보관 전 서버 PNG 압축 개선, 또는 PDF 직접 표시를 다시 비교하는 것이며 이 PR에서 저장 형식을 재설계하지 않는다.
 
 [측정 원자료](assets/docling-1408/measurements.json)에는 반복값과 미측정을 구분했다. 서버 지연·성능 측정을 CI의 고정 시간 단언으로 추가하지 않았다. 기존 Host 검사의 저장/읽기 admission·publication 순서와 기존 대표 브라우저의 저장 중 이동·실패 표시를 보완하며 새 subprocess·무거운 suite는 추가하지 않는다.
+
+[NIST 넓은 표 1440px](assets/docling-1408/after-1440.png) · [NIST 한국어 Dark 640px](assets/docling-1408/after-640.png) · [보충 합성 표 1440px](assets/docling-1408/synthetic-1440.png)

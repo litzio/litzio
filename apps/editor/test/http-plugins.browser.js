@@ -303,7 +303,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       await expect(page.getByTestId("folder-path")).not.toBeVisible();
       docling.setRealInput();
       const started = await docling.cli(["plugins","start",id,"--input",docling.jobInput]);
-      await expect.poll(async () => (await docling.cli(["plugins","status",started.job.requestId])).job.state).toBe("completed");
+      // Manual real-document capture waits for the actual terminal K1 state;
+      // conversion/authoring duration is measured separately, not a 5s fixture assertion.
+      let completed;
+      do {
+        completed = (await docling.cli(["plugins","status",started.job.requestId])).job;
+        if (completed.state === "running") await new Promise(resolve => setTimeout(resolve,250));
+      } while (completed.state === "running");
+      expect(completed.state).toBe("completed");
       const result = (await docling.cli(["plugins","result",started.job.requestId])).job.result;
       const current = await docling.review("read",result.comparison);
       await docling.review("progress",{...result.comparison,baseline:current.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),progress:{checkedPages:[],lastPage:docling.comparisonPage}});

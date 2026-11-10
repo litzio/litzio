@@ -144,6 +144,18 @@
       "capacitySaveMs": 4310,
       "navigatedDuringSave": true,
       "navigationRequestedDuringSave": true
+    },
+    {
+      "document": "synthetic",
+      "variant": "A-after",
+      "first": [
+        939,
+        387,
+        387,
+        397,
+        368
+      ],
+      "next": []
     }
   ],
   "pngOptimization": [
@@ -192,5 +204,11 @@
       "pdf.js to img E2E",
       "server conversion at images_scale=1"
     ]
+  },
+  "finalProductionCode": {
+    "files": 22,
+    "added": 414,
+    "deleted": 94,
+    "note": "Includes shared performance, sequential progress saving, and coherent reads; comparison table counts the pre-optimization prototypes"
   }
 }
