@@ -232,6 +232,25 @@ async (page, { openDocument, expect, screenshots }) => {
     await page.getByRole('button', { name: '개요', exact: true }).click();
     await tabs.nth(1).click();
     await expect(tables.getByRole('button').first()).toHaveText('Table 1. Measured results');
+    // #1455: both navigation overlays stay reachable; Explorer Escape does not dismiss
+    // the document panel. The modal Assistant keeps its higher stacking/inert boundary.
+    const explorer = page.locator('.sidebar-collapse');
+    await explorer.click();
+    await expect(page.locator('.sidebar--overlay')).toBeVisible();
+    expect(await page.evaluate(() => {
+      const sidebar=document.querySelector('.sidebar'),panel=document.querySelector('.document-panel');
+      const hit=n=>{const r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));};
+      return hit(sidebar)&&hit(panel);
+    })).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(explorer).toBeFocused();
+    await expect(panel).toBeVisible();
+    await explorer.click();
+    await page.locator('.assistant-trigger').click();
+    await expect(page.locator('.assistant-panel--overlay')).toBeVisible();
+    expect(await page.getByTestId('sidebar').evaluate(n=>n.inert)).toBe(true);
+    await page.locator('.assistant-panel').getByRole('button',{name:'비서 닫기',exact:true}).click();
+    await expect(page.getByTestId('sidebar')).not.toHaveAttribute('inert');
   } finally {
     await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'en'));
   }

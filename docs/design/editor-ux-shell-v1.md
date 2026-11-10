@@ -3155,6 +3155,53 @@ retain their draft and scroll state. The command center also provides Save as
 template… for a saved native document. The [template contract](document-templates-v1.md#editor-gallery-phase-2)
 owns card preview, name errors, folder access and creation behavior.
 
+## Narrow Explorer overlay (#1455)
+
+Explorer and Assistant use the existing 1100px Assistant boundary through the shared
+Adjustable value `--layout-navigation-overlay-breakpoint` in `styles/tokens.css`.
+This preserves their existing wide docking at 1440px without adding another breakpoint;
+the Document panel retains its independent 89rem boundary. Below 1100px Explorer
+starts collapsed, including on reload and every transition from a wide window. Opening
+it overlays the document from the title strip to the bottom, with the existing width,
+surface and shadow. The document keeps all space beside the 48px control rail (592px at
+the minimum 640px window); Explorer expansion consumes no extra document width.
+
+File activation (local or remote, including PDF), outside pointer and Escape dismiss the
+overlay and return focus to its toggle. A subsequently activated document or outside
+control may take focus through its normal action. Portalled menus/dialogs keep their
+own dismissal boundary and do not collapse Explorer underneath their return target.
+The tree stays mounted; folder expansion and scroll state remain. Wide-window user
+collapse/expand choices survive narrow-window use; overlay choices do not replace them.
+Both navigation overlays reuse z-index 4; the later-painted right Document panel wins
+any overlap. At 640px their default widths leave both usable. Assistant remains modal
+above them at z-index 20 and makes the underlying shell inert. No new Host operation,
+document meaning or CLI interaction is introduced.
+
+Manual review: persistent Windows Chrome, Korean, 100% zoom, DPR 1, 1000px height,
+default product fonts and Plum palette; source baseline `ba5589eb`. Fixture Host identity
+is synthetic. Screenshots contain no local path or real account. Captures are separate
+from automatic assertions and owner visual approval.
+
+| State | Before Light / Dark | After Light / Dark |
+| --- | --- | --- |
+| 1440px docked | [Light](assets/narrow-explorer-1455/before-1440-light.png) / [Dark](assets/narrow-explorer-1455/before-1440-dark.png) | [Light](assets/narrow-explorer-1455/after-1440-light.png) / [Dark](assets/narrow-explorer-1455/after-1440-dark.png) |
+| 640px default | [Light](assets/narrow-explorer-1455/before-640-default-light.png) / [Dark](assets/narrow-explorer-1455/before-640-default-dark.png) | [Light](assets/narrow-explorer-1455/after-640-default-light.png) / [Dark](assets/narrow-explorer-1455/after-640-default-dark.png) |
+| 640px Explorer open | [Light](assets/narrow-explorer-1455/before-640-open-light.png) / [Dark](assets/narrow-explorer-1455/before-640-open-dark.png) | [Light](assets/narrow-explorer-1455/after-640-open-light.png) / [Dark](assets/narrow-explorer-1455/after-640-open-dark.png) |
+| 640px document tab + Outline | [Light](assets/narrow-explorer-1455/before-640-document-panel-light.png) / [Dark](assets/narrow-explorer-1455/before-640-document-panel-dark.png) | [Light](assets/narrow-explorer-1455/after-640-document-panel-light.png) / [Dark](assets/narrow-explorer-1455/after-640-document-panel-dark.png) |
+
+`folder-navigation` checks narrow entry, unchanged document bounds, Escape/outside/file
+activation and focus, 1099/1100px boundary and wide choice restoration. `panel-lists`
+checks simultaneous navigation overlays and Assistant's modal priority. Existing
+`layout-rules` checks retain all 640px geometry assertions, dismissing the intentional
+overlay before operating the covered document gutter and reopening for sidebar geometry.
+These extend existing scenarios because the new risk is browser layout/focus integration;
+they add no subprocess or exhaustive theme matrix. Manual captures use a temporary
+scenario body via `pnpm browser:test ... --screenshots`, restored before automated runs.
+The capture-only `folder-navigation` body omits its expected HTTP-error exercises, so
+the runner reports those missing expected failures; this is not an automated regression
+pass. The restored four-scenario run passed (about 2.5 minutes). Visual review confirmed
+unchanged 1440px docking and bounded controls/scroll surfaces in both themes at 640px.
+
 ## Multiple Host shell (#1174 PR4)
 
 Under [ADR-0018](../adr/0018-desktop-remote-hosts.md), the shell consumes the injectable

@@ -74,6 +74,8 @@
   --layout-command-center-list-height: 24rem;
   /* Expanded sidebar: its width, and its width at window widths of 1024px and below. */
   --layout-sidebar-width: 15rem;
+  /* Explorer and Assistant reuse the existing Assistant docking boundary. */
+  --layout-navigation-overlay-breakpoint: 1100px;
   /* User resizing bounds in px; preserve at least 440px beside Explorer. */
   --layout-sidebar-min-width: 200px;
   --layout-sidebar-max-width: 280px;

@@ -11,6 +11,8 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
   const open = async path => {
     await page.setViewportSize({width:1440,height:1000});
     await openPath(page, path);
+    const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
+    if(await expand.isVisible()) await expand.click();
     await page.getByRole('button', {name:'More actions', exact:true}).click();
     await page.getByRole('menuitem', {name:'Close folder', exact:true}).click();
     await page.evaluate(async () => {
@@ -103,6 +105,8 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(await page.getByTestId('current-file').getAttribute('title') === scratch(name), 'Wrong file');
     // Keep the existing visual-review state: a loaded document with no folder displayed.
+    const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
+    if(await expand.isVisible()) await expand.click();
     await page.getByRole('button', {name:'More actions', exact:true}).click();
     await page.getByRole('menuitem', {name:'Close folder', exact:true}).click();
     await page.evaluate(async () => {
@@ -773,6 +777,9 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
   await page.getByTestId('save').evaluate(async n => {
     await Promise.all(n.getAnimations().map(animation => animation.finished));
   });
+  // Explorer now starts collapsed at narrow widths; expose its label for the same contrast check.
+  const expandExplorer=page.getByRole('button',{name:'Expand Explorer',exact:true});
+  if(await expandExplorer.isVisible()) await expandExplorer.click();
   const contrast=await page.evaluate(()=>{
     const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
     const context=canvas.getContext('2d');

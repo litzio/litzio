@@ -5,6 +5,8 @@ import type { Editor } from "@tiptap/core";
 /** Follow the empty-state entry or an opened folder's menu, retaining its focus return target. */
 export async function openFolderPicker(page: Page, language = "en"): Promise<void> {
   const sidebar = page.getByTestId("sidebar");
+  const expand = sidebar.getByRole("button", { name: language === "ko" ? "탐색기 펼치기" : "Expand Explorer", exact: true });
+  if (await expand.isVisible()) await expand.click();
   const name = language === "ko" ? "폴더 열기…" : "Open folder…";
   const folders = sidebar.getByTestId("folder");
   if (await folders.count()) {

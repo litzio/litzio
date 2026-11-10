@@ -7,6 +7,36 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await page.reload();
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
+  // #1455: entering the shared narrow navigation layout starts closed; expansion must
+  // leave the document geometry unchanged. The wide explicit choice survives round trips.
+  const explorerToggle = page.locator('.sidebar-collapse');
+  await page.setViewportSize({width:1440,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
+  await explorerToggle.click();
+  await page.setViewportSize({width:640,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  const mainBox = await page.locator('.app-main').boundingBox();
+  await explorerToggle.click();
+  await expect(page.locator('.sidebar--overlay')).toBeVisible();
+  await expect.poll(() => page.locator('.app-main').boundingBox()).toEqual(mainBox);
+  await page.keyboard.press('Escape');
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await expect(explorerToggle).toBeFocused();
+  await explorerToggle.click();
+  await page.locator('.app-brand').click();
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await page.setViewportSize({width:1440,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await explorerToggle.click();
+  await page.setViewportSize({width:1099,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await page.setViewportSize({width:1100,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
+  await page.setViewportSize({width:640,height:900});
+  await page.reload();
+  await ready();
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await page.setViewportSize({width:1440,height:900});
   const origin = page.url().split('/').slice(0, 3).join('/');
   const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
@@ -219,6 +249,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     }
     if (state === 'several') for (const width of [1440, 640]) {
       await page.setViewportSize({width, height:720});
+      if(await explorerToggle.getAttribute('aria-expanded') === 'false') await explorerToggle.click();
       // Docking changes the TopBar's width after the media-query state update. Do not
       // cache coordinates from the preceding layout for the one-physical-click check.
       await page.getByTestId('document-panel').waitFor({state:width >= 1424 ? 'visible' : 'hidden'});
@@ -502,6 +533,15 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await ready();
   result.opensDocument = await row('index.md').getAttribute('aria-current') === 'page';
 
+  await page.setViewportSize({width:640,height:900});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await explorerToggle.click();
+  await row('index.md').click();
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
+  await expect(explorerToggle).toBeFocused();
+  await page.setViewportSize({width:1280,height:720});
+  await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
+
   // A folder expands in place and only it is listed; its entries sit one level deeper.
   const guidesPath = [folder, 'guides'].join(sep);
   folderRequests.length = 0;
@@ -733,6 +773,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await page.waitForFunction(() => document.querySelector('[data-testid="current-file"]')?.title.endsWith('index.md'));
   await ready();
   await page.setViewportSize({width:640, height:812});
+  if(await explorerToggle.getAttribute('aria-expanded') === 'false') await explorerToggle.click();
   await toggle.click();
   await item('New document…').click();
   const filename = page.getByTestId('new-file-name');
@@ -989,6 +1030,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     await section.getByTitle([folder, name].join(sep), {exact:true}).waitFor();
     for (const width of [1440, 1024, 640]) {
       await page.setViewportSize({width, height:812});
+      if(await explorerToggle.getAttribute('aria-expanded') === 'false') await explorerToggle.click();
       await page.mouse.move(width - 2, 2);
       const geometry = await section.evaluate(async (element, name) => {
         await document.fonts.ready;
