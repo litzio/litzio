@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Regeneration required. Recreate the document from its source and reopen comparison.": "Regeneration required. Recreate the document from its source and reopen comparison.",
+  "Open source comparison": "Open source comparison",
   "Inspect the folder again before moving it to Trash.": "Inspect the folder again before moving it to Trash.",
   "The folder changed or could not be fully checked. Close this dialog and confirm again.": "The folder changed or could not be fully checked. Close this dialog and confirm again.",
   "Folder contents could not be fully checked. Moving to Trash is unavailable.": "Folder contents could not be fully checked. Moving to Trash is unavailable.",
@@ -1329,6 +1331,8 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Regeneration required. Recreate the document from its source and reopen comparison.": "다시 만들기 필요. 원본에서 문서를 다시 만든 뒤 대조를 여세요.",
+  "Open source comparison": "원본 대조 열기",
   "Inspect the folder again before moving it to Trash.": "폴더를 휴지통으로 이동하기 전에 다시 확인하세요.",
   "The folder changed or could not be fully checked. Close this dialog and confirm again.": "폴더가 변경되었거나 전체 내용을 확인하지 못했습니다. 창을 닫고 다시 확인하세요.",
   "Folder contents could not be fully checked. Moving to Trash is unavailable.": "폴더 전체 내용을 확인하지 못해 휴지통으로 이동할 수 없습니다.",

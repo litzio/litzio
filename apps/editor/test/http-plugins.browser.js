@@ -1,4 +1,20 @@
-async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument }) => {
+async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument, waitForExplorerLayout }) => {
+  const captureEntries = screenshots;
+  if (pluginFixture.docling?.entryCaptureOnly) screenshots = false;
+  // Manual visual review only; automatic assertions do not depend on these images.
+  const captureEntry = async (name, widths = [1440]) => {
+    if (!captureEntries) return;
+    const viewport = page.viewportSize();
+    const originalTheme = await page.evaluate(() => document.documentElement.dataset.theme);
+    for (const width of widths) for (const theme of ["light", "dark"]) {
+      await page.setViewportSize({width,height:1000});
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+      await page.mouse.move(0,0);
+      await page.screenshot({path:`docs/design/assets/compare-entry-1465/${name}-${width}-${theme}.png`, mask:[page.locator(".sidebar-host-account"),page.locator(".sidebar-folder-header"),page.locator(".document-location"),page.getByLabel("Opened folder",{exact:true})],maskColor:"#a1a1aa"});
+    }
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, originalTheme);
+    await page.setViewportSize(viewport);
+  };
 
   const secretSaves = [];
   let listRequests = 0;
@@ -17,8 +33,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   };
   const expandExplorer=page.getByRole('button',{name:/^(Expand Explorer|탐색기 펼치기)$/});
+  const showExplorer = async () => {
+    await waitForExplorerLayout(page);
+    if (await expandExplorer.isVisible()) await expandExplorer.click();
+  };
   const openScreen = async name => {
-    if(await expandExplorer.isVisible()) await expandExplorer.click();
+    await showExplorer();
     await page.locator('.sidebar').getByRole('button',{name,exact:true}).click();
   };
   // Manual comparison evidence exercises only comparison; automatic HTTP still runs
@@ -645,6 +665,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
     await expect(page.locator("[data-slot=tooltip-content]")).toContainText("Direct edits will be overwritten");
     await page.mouse.move(0, 0);
+    // The saved document's entry point shares the existing comparison and stale guard.
+    await expect(generatedWarning.getByRole("button", { name: "Compare source", exact: true })).toBeVisible();
+    await captureEntry("document", [1440,640]);
+    await generatedWarning.getByRole("button", { name: "Compare source", exact: true }).click();
+    await expect(page.locator(".review-renderer").filter({ visible: true }).locator(".review-page img").first()).toBeVisible();
+    await page.getByRole("tab", { name: "Source comparison", exact: true }).locator("..").getByRole("button").click();
     // The warning must allow the ordinary editor's Save, then regeneration can replace
     // the explicitly reread revision. Patch semantics are covered below the UI layer.
     await page.getByTestId("view-visual").click();
@@ -652,6 +678,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await page.keyboard.press("End"); await page.keyboard.type(" Direct edit.");
     await page.getByTestId("save").click();
     await expect(page.getByTestId("status")).toHaveAttribute("data-operation", "saved");
+    await generatedWarning.getByRole("button", { name: "Compare source", exact: true }).click();
+    await expect(page.locator(".review-renderer").filter({ visible: true })).toContainText("Regeneration required");
+    await page.getByRole("tab", { name: "Source comparison", exact: true }).locator("..").getByRole("button").click();
     const reviewInput = { root: pluginFixture.folder, document: "docling-cli.md" };
     const review = await docling.review("read", reviewInput);
     expect(review.state).toBe("externally-modified");
@@ -736,9 +765,53 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(comparison.locator('[data-page-no="2"]')).toBeInViewport();
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    // CLI and Explorer use Host connections, independent of the source extension.
+    await page.setViewportSize({width:captureEntries ? 1440 : 640,height:1000});
+    await showExplorer();
+    const found = await docling.review("find", {root:pluginFixture.folder,path:"sample.docling"});
+    expect(found.documents.some(item => item.document === resultPath)).toBe(true);
+    const sourceRow = page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:/^sample\.docling$/})});
+    await expect(sourceRow).toBeVisible();
+    await sourceRow.click({button:"right"});
+    const compareMenu = page.getByRole("menuitem",{name:"Open source comparison",exact:true});
+    await expect(compareMenu).toBeVisible();
+    await captureEntry("source-menu");
+    await compareMenu.click();
+    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
+    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    await showExplorer();
+    await sourceRow.focus(); await sourceRow.press("Enter");
+    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
+    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    if (!captureEntries) await expect(expandExplorer).toBeVisible();
+    await showExplorer();
+    // A second output must offer a choice rather than silently selecting a document.
+    docling.setDocumentInput(false, "docling-additional.md");
+    const secondOutput = await docling.cli(["plugins","start",id,"--input",docling.jobInput]);
+    await expect.poll(async () => (await docling.cli(["plugins","status",secondOutput.job.requestId])).job.state).toBe("completed");
+    await expect(page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:/^docling-additional\.md$/})})).toBeVisible();
+    await sourceRow.click({button:"right"});
+    await expect(page.getByRole("menuitem",{name:`Open source comparison · ${resultPath}`,exact:true})).toBeVisible();
+    // The portal can paint before focus arrives; Escape on the tree closes its overlay.
+    await expect.poll(() => page.getByRole("menu").evaluate(menu => menu.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toBeHidden();
+    await showExplorer();
+    await sourceRow.dblclick();
+    await page.getByRole("dialog",{name:"Open source comparison",exact:true}).getByRole("button",{name:resultPath,exact:true}).click();
+    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
+    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+    await showExplorer();
+    const documentRow = page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:resultPath})});
+    await documentRow.click({button:"right"});
+    await captureEntry("document-menu");
+    await page.getByRole("menuitem",{name:"Open source comparison",exact:true}).click();
+    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
+    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
     await page.setViewportSize({width:1280,height:720});
     await openScreen('Docling');
     docling.setDocumentInput(true);
+    await captureEntry("dashboard-existing-jobs");
     const failure = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
     await expect.poll(async () => (await docling.cli(["plugins", "status", failure.job.requestId])).job.state).toBe("failed");
     expect((await docling.cli(["plugins", "status", failure.job.requestId])).job.result).toBeUndefined();
