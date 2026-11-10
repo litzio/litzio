@@ -1,5 +1,5 @@
 // Real Core-backed scratch fixture; run with pnpm browser:test layout-rules.
-async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, expect }) => {
+async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, expect, waitForExplorerLayout }) => {
   page.setDefaultTimeout(15000);
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0,3).join('/');
@@ -269,6 +269,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   // The less frequent width toggle remains available in the file menu.
   for(const width of [640]) {
     await page.setViewportSize({width,height:800});
+    await waitForExplorerLayout(page);
     for(const collapsed of [false,true]) {
       if(await page.locator('.sidebar-collapse').getAttribute('aria-expanded') === String(collapsed)) await page.locator('.sidebar-collapse').click();
       await page.evaluate(()=>document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0));

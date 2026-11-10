@@ -3213,6 +3213,20 @@ columns restore the same horizontal-overflow/last-column checks. No pass criteri
 timeout is reduced. The Assistant stacking check uses fixture settings/models/diagnostics,
 without requiring a provider account.
 
+Queue follow-up (2026-11-10): both the [passing PR run](https://github.com/litzio/litzio/actions/runs/42777652115)
+and [failed queue run](https://github.com/litzio/litzio/actions/runs/42778881526) ran
+`file-preview` in the same full-layout shard. The queue trace shows the 640px resize
+returning before the matchMedia/React commit: Expand Explorer was still reported hidden,
+then the tree disappeared between row focus and Enter. Browser navigation now waits for
+the shell's responsive mode to match the shared breakpoint before inspecting expansion.
+Keyboard preview still opens Explorer with Enter and checks actual focus; its draft,
+selection, Undo and dialog assertions and existing timeouts remain unchanged.
+The same resize/read pattern was checked across common folder navigation, file actions,
+visual states, document scroll, Assistant, Desktop and layout scenarios. Local Windows
+persistent Chrome ran all 97 Editor scenarios in eight sequential shards with
+`LITZIO_TEST_LAYOUT_SCOPE=full`: 8/8 passed, 2069.5 seconds total. This covers the queue's
+Editor browser scope, not packaged Desktop or external services.
+
 ## Multiple Host shell (#1174 PR4)
 
 Under [ADR-0018](../adr/0018-desktop-remote-hosts.md), the shell consumes the injectable

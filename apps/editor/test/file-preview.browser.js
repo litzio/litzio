@@ -1,5 +1,5 @@
 // Actual folder/media Host requests; document state remains owned by the same editor instance.
-async (page, { openDocument, screenshots, expect }) => {
+async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
   page.setDefaultTimeout(10000);
   const longDialogFailures = [];
   const longDialogLayouts = [];
@@ -12,9 +12,10 @@ async (page, { openDocument, screenshots, expect }) => {
   await page.getByRole('tab', {name:'document.md', exact:true, selected:true}).waitFor();
   const row = name => page.getByTestId('sidebar').getByRole('treeitem', { name, exact: true });
   // Keyboard preview actions retain the short metadata draft; outside pointer clicks complete it.
-  const activate = async target => { await target.focus(); await target.press('Enter'); };
+  const activate = async target => { await target.focus(); await expect(target).toBeFocused(); await target.press('Enter'); };
   const dialogFocus = () => page.waitForFunction(() => document.querySelector('[data-slot="dialog-content"]')?.contains(document.activeElement));
   const activateRow = async name => {
+    await waitForExplorerLayout(page);
     const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
     if(await expand.isVisible()) await activate(expand);
     await activate(row(name)); await dialogFocus();
@@ -150,7 +151,8 @@ async (page, { openDocument, screenshots, expect }) => {
       await page.getByTestId('ui-language').selectOption(language);
       await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await page.getByRole('tab',{name:'reading.pdf',exact:true}).click();
-      if (width === 640) await page.getByRole('button',{name:'탐색기 접기',exact:true}).click();
+      const collapse=page.getByRole('button',{name:'탐색기 접기',exact:true});
+      if (width === 640 && await collapse.isVisible()) await collapse.click();
       await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
       await expect.poll(() => sheet.evaluate(el => el.getBoundingClientRect().width)).toBeLessThan(width);
       await page.screenshot({path:`tmp/file-preview-capture/pdf-${width}.png`});

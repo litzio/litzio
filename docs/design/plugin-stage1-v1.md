@@ -275,6 +275,21 @@ K1 호출은 등록 시 manifest의 start/status/stop read·write 효과를 기�
 
 K1 완료의 선택 `jobUpdate.review`는 SDK `completedReviewSchema`를 따른다. review, bundle(generation/documentRevision/documentHash/sourceRevision와 선택 mappingRevision), pages, 선택 mapping, images(ref/Root 상대 path/SHA-256 revision)를 전달한다. sourceRevision은 K1 입력 파일 SHA-256, documentRevision/hash는 Core canonical 출력 revision이다. Host는 문서 생성 후 모든 자료를 검증하고 `result.bundle`에 Host 발급 bundleRef/documentRef를 공개한다. Root·generation·revision·이미지 검증 실패 시 bundle은 공개하지 않으며 이미 생성된 결과 문서를 보존하고 uncertain으로 남긴다. 완료 전 자료는 공개하지 않는다.
 
+영역의 선택 필드 `kind`는 공통 `reviewRegionKindSchema`/`ReviewRegionKind`의
+`heading | text | list | table | formula | picture | footnote | code`다(#1457).
+분류할 수 없으면 생략하며 다른 문자열·null은 SDK 검증에서 거부한다. 기존 자유 문자열
+`category`는 필수 표시 근거로 보존하며 소비자가 종류로 해석하지 않는다. 공급자별 분류 대응은
+각 플러그인에 둔다. 이 추가도 미공개 SDK 0.4.0에 함께 포함하므로 버전을 올리지 않는다.
+0.4.0 범위를 허용하는 기존 comparison 계약을 사용하고, 생략한 공급자는 대응 문서 블록의 종류로
+표시한다. 이미 공개한 SDK 계약 버전에 기능을 소급 추가하지 않는다.
+
+#1457 검증은 기존 SDK 검사에 선택 kind 보존·잘못된 값 거부를, 기존 review 검사에 kind 우선·
+블록 fallback·공급자 category 비해석·미대응/미지원 회색을 보완한다. Docling의 기존 comparison
+검사에서 category 보존과 종류 변환을 확인한다. 실제 docling-serve 1.32.0의 기존 합성 1쪽 결과를
+현재 Host·SDK로 연 [1440px Light 캡처](assets/review-region-kind-1457/after-1440.png)는
+master `9ca2cf35`의 #1435 캡처와 PNG 바이트가 동일하다([해시와 측정](assets/review-region-kind-1457/verification.json)).
+기존 팔레트·선·배치가 유지됨을 확인했으며 새 외부 변환이나 대규모 문서 수락 검사는 아니다.
+
 `POST /api/reviews`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. image kind는 PNG만 지원하며 다른 이미지 형식은 거부한다. PDF 원본은 아래 SDK 0.4.0의 별도 pdf 자료를 사용한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
 
 변경에는 requestId(UUID), baseline과 선택 proposalId/input을 더한다. baseline은 문서·제안 revision과 원본/map revision이다. Host는 plugin 실행 전과 commit 직전에 문서·원본·이미지를 재검사하고 bundle별 동시 변경을 거부한다. binding ID/version·가용성·artifact 신뢰를 매번 확인하며 일반 operation invoke로 review binding을 호출할 수 없다. propose 결과는 Core ReviewProposal의 pending만 허용하고 target snapshot·baseline을 검사하며 기여의 action 제한을 유지한다. reject는 문서를 바꾸지 않는다.
@@ -774,10 +789,10 @@ fixture의 회색 영역 [1440 Light](assets/review-compare-1435/unmapped-1440-l
 기존 number input의 min/max/step·native form 검증을 쓰며 한 글자 입력마다 이동하지 않는다.
 현재 페이지 값은 viewport의 첫 근처 페이지를 쓰고 입력 중인 초안은 덮어쓰지 않는다.
 
-영역과 연결선의 종류는 원본 category(heading/title/section_header, text/paragraph/caption,
-list/list_item, table, formula/equation, picture/figure/image, footnote/endnote, code)와 Core target 종류를
-사용한다. 실제 target 블록이 없거나 제외·미지원·장식 상태이면 회색 unmapped다. 특정 플러그인 이름
-분기나 원본 parser는 없다. 원본 category·상태 이름을 영역의 hover/keyboard focus 안내와 title에
+영역과 연결선의 종류는 공통 영역 `kind`를 먼저 사용하고 생략 시 대응된 Litzio 블록 종류를
+사용한다. 실제 target 블록이 없거나 제외·미지원·장식 상태이면 kind와 관계없이 회색 unmapped다.
+Docling의 section_header/list_item/code_block 등의 분류 대응은 community-plugins/docling에만
+두며, 편집기는 공급자의 category를 해석하지 않는다(#1457). 원본 category·상태 이름을 영역의 hover/keyboard focus 안내와 title에
 남겨 색만으로 뜻을 전하지 않는다. 모든 보이는 대응선은 항상 표시하며 선택된 선의 굵기와 블록
 강조로 선택을 별도로 구분한다. 전체 anchor는 layout이 바뀔 때 계산해 보관하고, 스크롤 중에는
 페이지 DOM geometry를 페이지당 한 번 읽고 보이는 페이지의 선만 만든다.

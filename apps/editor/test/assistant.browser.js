@@ -1,4 +1,4 @@
-async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture, screenshots, brand }) => {
+async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture, screenshots, brand, waitForExplorerLayout }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   await page.reload();
   // Regression: activate in Korean, then switch to English without reactivation.
@@ -891,6 +891,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   // A closed narrow-window assistant stays mounted to retain its conversation.
   // Reload must observe the real discard prompt, not that hidden dialog.
   await page.setViewportSize({ width: 640, height: 1000 });
+  await waitForExplorerLayout(page);
   const expandExplorer = page.getByRole('button', { name: 'Expand Explorer', exact: true });
   if (await expandExplorer.isVisible()) await expandExplorer.click();
   await expect.poll(() => page.evaluate(() => {

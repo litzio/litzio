@@ -2,7 +2,7 @@
 // update notifications and the restart check the Desktop app asks before installing. The browser
 // Editor without the bridge shows common recovery Settings only. Updater behavior itself is tested in apps/desktop.
 // pnpm browser:test desktop-updates
-async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
+async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForExplorerLayout }) => {
   page.setDefaultTimeout(15000);
   const check = (value, message) => { if (!value) throw new Error(message); };
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -204,6 +204,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
           if (await toggle.getAttribute('aria-pressed') !== String(panelOpen)) await toggle.click();
 
           for (const collapsed of [false, true]) {
+            await waitForExplorerLayout(page);
             const sidebar = page.getByRole('button', {name:collapsed ? 'Collapse Explorer' : 'Expand Explorer', exact:true});
             if (await sidebar.isVisible()) await sidebar.click();
             // Wait for the measured header height used by overlay placement, not a fixed delay.
@@ -619,6 +620,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   for (const language of ['en', 'ko']) {
     for (const width of [1440, 640]) {
       await page.setViewportSize({width, height:900});
+      await waitForExplorerLayout(page);
       const expand = page.getByRole('button',{name:language === 'en' ? 'Expand Explorer' : '탐색기 펼치기',exact:true});
       if (await expand.isVisible()) await expand.click();
       await page.getByRole('button',{name:language === 'en' ? 'Settings' : '설정',exact:true}).click();
