@@ -192,6 +192,27 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 
 복구 결과는 두 artifact 모두 validate·등록·신뢰·활성화 후 실제 HTTP Host에서 조회/변환을 실행했다. query는 기본/추가 조건·표·선택적 연결 설정/비밀키와 healthCheck, file은 `.txt`→`.upper`·K1 세 작업·파일별 진행/결과를 유지했다. 임시 browser scenario를 기존 `pnpm browser:test` runner와 persistent Chrome으로 실행하고 원래 scenario 파일은 복원했다. [조회 1440px](assets/plugin-templates-1397/query-1440.png) / [한국어 다크 640px](assets/plugin-templates-1397/query-640.png), [파일 1440px](assets/plugin-templates-1397/file-1440.png) / [한국어 다크 640px](assets/plugin-templates-1397/file-640.png)에서 상단 입력·전체 폭 결과·정렬·줄바꿈·표 내부 스크롤을 확인했다. 기존 공통 QueryInputs·DataTable·PluginJobPanel을 사용하며 새 UI 예외는 없다. 계정·Root 선택은 mask했다. 외부 서비스·배포·secret 저장·소유자 시각 승인은 이 실행으로 검증하지 않았다. 상세 요청과 최초 실패·후속 결과는 PR에 기록한다.
 
+
+### 기준 모델 재검증 (#1421)
+
+2026-11-10 소유자 결정으로 비서 플러그인 제작 검증은 Codex `gpt-6.1-terra`, 추론 강도 `high`를 기준으로 한다. 다른 실제 AI 응답 확인은 AGENTS.md의 `gpt-6-luna`/`low` 기본값을 유지한다.
+
+격리된 Host·데이터 폴더와 열린 폴더 권한에서 실제 제품 `AssistantConversations`·번들 제작 안내·`manage_plugins`로 조회와 파일 처리를 각각 한 번 실행했다. 요청은 [PR #1418](https://github.com/litzio/litzio/pull/1418)의 문장을 그대로 사용하고 새 artifact 경로만 바꿨다. 외부 서비스·자격 증명은 사용하지 않았다. HTTP origin을 비서에게 제공하지 않았으므로 비서는 실제 조회·변환을 미확인으로 보고했고, 검증자가 같은 생성 artifact를 격리 HTTP Host에 올려 공통 화면에서 직접 실행했다.
+
+| 항목 | Luna low (#1418) | Terra high (#1421) |
+| --- | --- | --- |
+| 조회 첫 요청 | validate·등록·신뢰·활성 성공, 설정/비밀키 제거 | validate·등록·신뢰·활성 성공, 선언 보존 |
+| 파일 첫 요청 | scope/screens/K1 입력 누락으로 validate 실패 | validate·등록·신뢰·활성 성공, 선언 보존 |
+| 후속 요청 | 조회 1회, 파일 2회(선언 복구·staging 쓰기 수정) | 조회 0회, 파일 0회 |
+| 공통 화면 실행 | 후속 복구 뒤 조회 3행·파일 완료 | 첫 요청 산출물 그대로 조회 2행·파일 완료 |
+| 사람이 artifact/화면 수정 | 없음 | 없음 |
+
+Terra의 두 결과는 SDK 정규화 후 템플릿과 contributes가 동일했다. 조회의 선택적 workspace 설정·제목을 가진 token 비밀키·healthCheck·views/screens, 파일의 host scope·start/status/stop 전체 K1 입력(output/resultFile 포함)·jobs/screens를 보존했다. 두 host.js도 현재 템플릿과 byte 단위로 같았고, 파일 manifest의 표시 이름만 비서가 바꿨다. 두 validate 결과는 `valid:true`, `errors:[]`였으며 등록·신뢰·활성·실행 중 상태를 확인했다. 두 turn에서 각각 PowerShell 읽기 도구 한 번이 failed로 관측되었으나 각각 같은 turn에서 node_repl로 읽고 완료했다. 실패 원인은 확정하지 않았다. 사용자 후속 요청이나 artifact 복구는 없었다.
+
+`pnpm browser:test plugin-columns --screenshots`의 임시 시나리오로 persistent Chrome과 OS 할당 포트의 실제 HTTP Host를 사용했다(1개 통과, 약 10초). 시나리오는 실행 후 복원했고 커밋하지 않았다. 공통 QueryInputs·DataTable에서 예제 두 행, PluginJobPanel에서 완료·진행 1/1·example.upper 결과를 확인했다. 저장 결과는 `HELLO EXAMPLE`과 줄바꿈이며 원본 `Hello example`과 줄바꿈은 보존됐다. 1440px English/light [조회](assets/plugin-authoring-1421/query-1440.png)와 [파일](assets/plugin-authoring-1421/file-1440.png)의 입력·표 정렬, 여백, 잘림을 직접 검토했다. 계정·Root 선택은 mask했다. 기존 공통 화면을 그대로 사용하며 새 UI 예외는 없다.
+
+이는 모델별 한 번씩의 관측이며 모델 우열의 통제 실험이 아니다. Terra에는 #1418 실패 이후 선언 보존·staging 쓰기가 보강된 현재 번들 안내가 제공됐다. 새 안내 보완이나 재시험은 필요하지 않았다. secret 저장·실제 외부 연결·대용량 처리·다른 OS·패키지 Desktop과 소유자의 직접 시각 승인은 미검증이다. 요청 원문·대화·harness·manifest 비교는 로컬 임시 근거로 보관하며 로컬 식별자가 있는 원문과 재생성 가능한 대형 근거는 커밋하지 않는다.
+
 ## 작업 실패 공개 분류 (#1233)
 
 SDK `PluginOperationError(kind)` 또는 같은 `kind` 속성의 예외로 `auth`(인증 확인), `forbidden`(권한 문의), `not_found`(주소·ID 확인), `unavailable`(나중에 재시도), `timeout`(연결 확인), `failed`(설정·대상 확인)를 전달한다. HTTP 상태 매핑은 플러그인이 담당한다. 알 수 없는 kind, 일반 예외와 출력 검증 실패는 `failed`다. 하위 프로세스 제한 시간 초과는 `timeout`, 그 외 프로세스 실패는 `failed`다.
