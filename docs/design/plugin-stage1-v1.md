@@ -550,7 +550,7 @@ production CSP는 유지하며 설정 검증은 Host에서 수행한다. 브라�
 
 snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(checkedPages/lastPage)를 함께 반환한다. 최초 진입은 lastPage를 사용한다. 문서 블록 선택은 대응 영역이 있는 페이지로 이동한다. 없는 대응은 없는 것으로 표시한다. 오른쪽은 기존 DocumentEditor readOnly preview의 저장된 문서이며 열린 편집 탭의 draft를 참조하지 않는다. 선택 전·페이지 읽기·저장·다시 읽기에서 현재 baseline을 검사하고 불일치나 저장 실패 뒤 대응/확인 행동을 막는다. 다시 읽은 새 generation만 탐색한다. K4 제안/승인 부품은 이 대조 layout에 넣지 않는다.
 
-`review progress --input <file> --host <origin> --json`은 같은 dispatcher의 `generated-progress`다. 입력은 root/document, read/compare가 반환한 generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:number[],lastPage:number|null}`다. provider의 `mode:progress`는 기록만 변경한 전체 source를 Host staging 파일에 쓴다. Host는 source/document/link baseline을 재검사하고 공식 전체 파일 교체 후 연결의 generatedFrom만 갱신한다. 문서와 final targets를 재생성하지 않는다. 화면은 확인 저장을 접수 순서대로 처리하며 저장 완료를 기다리지 않고 다음 페이지를 읽는다. 저장 중에는 상태를 표시하고 대응 선택을 막는다. Host는 progress 교체를 준비하는 동안 이전의 일관된 baseline으로 읽기를 허용하고, 실제 교체 전에 그 읽기가 끝날 때까지 기다린다. 교체 중 새 읽기는 새 baseline을 기다린다. 수정·재생성 등 다른 쓰기의 배타성은 유지한다. 결과는 progressSaved/baseline/receipt이고 실패는 명시적으로 반환한다. 응답 유실은 같은 generated-status를 읽고 자동 재전송하지 않는다. source 교체 후 연결 저장 실패는 progressSaved와 regeneration-required를 돌려준다. 문서 재생성은 기존 regenerate 작업이다.
+`review progress --input <file> --host <origin> --json`은 같은 dispatcher의 `generated-progress`다. 입력은 root/document, read/compare가 반환한 generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:number[],lastPage:number|null}`다. provider의 `mode:progress`는 기록만 변경한 전체 source를 Host staging 파일에 쓴다. Host는 source/document/link baseline을 재검사하고 공식 전체 파일 교체 후 연결의 generatedFrom만 갱신한다. 문서와 final targets를 재생성하지 않는다. 화면은 확인 저장을 접수 순서대로 처리하며 저장 완료를 기다리지 않고 다음 페이지를 읽는다. 저장 중에는 상태를 표시하고 대응 선택을 막는다. 대조 탭 닫기·창 unload·Desktop 재시작은 기존 작업 중 보호를 재사용해 대기 중 기록을 취소하지 않는다. Host는 progress 교체를 준비하는 동안 이전의 일관된 baseline으로 읽기를 허용하고, 실제 교체 전에 그 읽기가 끝날 때까지 기다린다. 교체 중 새 읽기는 새 baseline을 기다린다. 수정·재생성 등 다른 쓰기의 배타성은 유지한다. 결과는 progressSaved/baseline/receipt이고 실패는 명시적으로 반환한다. 응답 유실은 같은 generated-status를 읽고 자동 재전송하지 않는다. source 교체 후 연결 저장 실패는 progressSaved와 regeneration-required를 돌려준다. 문서 재생성은 기존 regenerate 작업이다.
 
 최종 inputs는 Host 연결 자료에 보관되며 최대 4MiB다. 검수 기록은 source 파일에만 있다. source 하나를 옮겨 기존 generated-open/새 K1 생성을 수행하면 새 연결/출력 revision과 대응을 얻고 확인 위치를 이어간다. 이전 `.docling` 파일의 호환은 지원 범위가 아니다. 이전 review의 PNG 계약과 K4 변경 경계는 유지한다.
 
@@ -581,7 +581,7 @@ snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(ch
 | B: pdf.js 직접 canvas + bbox | 2486;1806 / 586;455 | 2351ms | 49.07 / 9.51; 6.95MB / 24KB | 생산 코드 +326/-74, 22파일; 새 의존성 0; PDF 자료/SDK 필드 추가. 한 파일 인계 가능. PDF crop/rotation과 Docling 좌표 일치 필요 |
 | B: pdf.js→PNG→기존 img 자리 | E2E 미측정; PNG encode+decode 중앙 25.9 / 14.8ms 추가 | 미측정 | B와 동일 | 공용 PDF 전달 계약은 여전히 필요. 완성 시제품의 LOC는 미측정; 추가 PNG 변환/상태 필요 |
 
-첫 진입과 합성 표시에서 A가 빠르고, NIST warmed 중앙의 차이는 103ms(첫 표시)·233ms(전환)였다. 차이가 작을 때 코드와 계약이 적은 안을 우선해 A를 선택했다. 시제품 B→A 전환은 생산 코드 9파일 +43/-61로, PDF 표시 helper·PDF SDK/Host 자료 경로를 버리는 비용도 포함한다. 최종 성능·비동기 저장 보완까지 포함한 생산 코드는 22파일 +414/-94다. 이 추가 비용은 A/B에 공통인 생성 문서 읽기·기록 저장 경로다. 새 의존성과 플러그인 전용 Core/Host 분기는 없다. 두 문서의 페이지는 Rotate=0, CropBox=MediaBox이고 NIST 마지막 쪽은 가로 방향이다. 회전·다른 crop 좌표계의 실측은 없다. A는 서버의 같은 페이지 크기로 bbox를 비례 표시하며 NIST 5쪽 넓은 표와 합성 표의 실제 대응을 아래 캡처에서 확인했다. 원본과의 문서 전체 의미 동등성을 뜻하지 않는다.
+첫 진입과 합성 표시에서 A가 빠르고, NIST warmed 중앙의 차이는 103ms(첫 표시)·233ms(전환)였다. 차이가 작을 때 코드와 계약이 적은 안을 우선해 A를 선택했다. 시제품 B→A 전환은 생산 코드 9파일 +43/-61로, PDF 표시 helper·PDF SDK/Host 자료 경로를 버리는 비용도 포함한다. 최종 성능·비동기 저장 보완까지 포함한 생산 코드는 22파일 +421/-96다. 이 추가 비용은 A/B에 공통인 생성 문서 읽기·기록 저장 경로다. 새 의존성과 플러그인 전용 Core/Host 분기는 없다. 두 문서의 페이지는 Rotate=0, CropBox=MediaBox이고 NIST 마지막 쪽은 가로 방향이다. 회전·다른 crop 좌표계의 실측은 없다. A는 서버의 같은 페이지 크기로 bbox를 비례 표시하며 NIST 5쪽 넓은 표와 합성 표의 실제 대응을 아래 캡처에서 확인했다. 원본과의 문서 전체 의미 동등성을 뜻하지 않는다.
 
 공통 지연 원인은 페이지마다 전체 봉투/JSON을 검증·복사하고 SDK authoring과 대응을 재계산한 뒤, 진행 저장 후 다시 compare를 호출하던 경로였다. Host가 전후 hash 검사하는 source revision별로 활성화 수명의 원본 한 개와 같은 원본 hash/patches의 authoring을 재사용하고, 패치 복사에서 불변 pages를 제외했다. 기록 재작성은 검증된 원본 PDF/JSON/manifest의 hash를 다시 확인하며 불변 항목을 그대로 pack한다. 외부 변경이면 캐시를 버리며 공식 revision 검사·전체 교체를 유지한다. NIST 동일 경로 5회에서 첫 표시 중앙 1909→960ms, 페이지 1→2 중앙 2584→1099ms였다.
 
@@ -589,6 +589,8 @@ snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(ch
 
 PNG 실험은 NIST의 원본 7,943,538B→무손실 optimize 4,808,043B, 72dpi 축소 2,665,556B; 합성은 232,539→133,676/88,406B였다. Pillow의 두 최적화를 합친 시간은 2.98초/0.15초이며 실제 서버 72dpi 변환 시간은 미측정이다. 좌표 비례 배치는 같지만 72dpi는 확대 시 작은 표 글자가 흐려진다. 원본 JSON/ImageRef를 재인코딩하지 않고 기존 144dpi를 유지한다. 남은 비용은 수백 MB 전체 교체와 디스크 IO다. 향후 선택지는 생성 시 낮은 images_scale의 품질 수락, 보관 전 서버 PNG 압축 개선, 또는 PDF 직접 표시를 다시 비교하는 것이며 이 PR에서 저장 형식을 재설계하지 않는다.
 
-[측정 원자료](assets/docling-1408/measurements.json)에는 반복값과 미측정을 구분했다. 서버 지연·성능 측정을 CI의 고정 시간 단언으로 추가하지 않았다. 기존 Host 검사의 저장/읽기 admission·publication 순서와 기존 대표 브라우저의 저장 중 이동·실패 표시를 보완하며 새 subprocess·무거운 suite는 추가하지 않는다.
+[측정 원자료](assets/docling-1408/measurements.json)에는 반복값과 미측정을 구분했다. 서버 지연·성능 측정을 CI의 고정 시간 단언으로 추가하지 않았다. 기존 Host 검사의 저장/읽기 admission·publication 순서와 기존 대표 브라우저의 저장 중 이동·닫기 보호·실패 표시를 보완하며 새 subprocess·무거운 suite는 추가하지 않는다.
 
 [NIST 넓은 표 1440px](assets/docling-1408/after-1440.png) · [NIST 한국어 Dark 640px](assets/docling-1408/after-640.png) · [보충 합성 표 1440px](assets/docling-1408/synthetic-1440.png)
+
+비동기 기록 저장 중 대조 탭을 닫으면 아직 전송하지 않은 기록이 취소되는 경로를 대표 브라우저에서 먼저 재현했다. 기존 작업 중 닫기·beforeunload/재시작 보호를 재사용해 수정하고 같은 경로의 닫기 시도를 보완했다. CLI에는 창 수명 동작을 추가하지 않는다.

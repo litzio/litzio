@@ -581,6 +581,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     try {
       await comparison.getByRole("button",{name:"Mark page checked",exact:true}).click();
       await expect(comparison.getByText("Saving review progress…",{exact:true})).toBeVisible();
+      await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
+      await expect(comparison).toBeVisible();
       await comparison.getByRole("button",{name:"Next page",exact:true}).click();
       await expect(comparison).toContainText("Page 2 / 2");
       await comparison.getByRole("button",{name:"Mark page checked",exact:true}).click();

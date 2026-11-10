@@ -207,8 +207,8 @@
   },
   "finalProductionCode": {
     "files": 22,
-    "added": 414,
-    "deleted": 94,
+    "added": 421,
+    "deleted": 96,
     "note": "Includes shared performance, sequential progress saving, and coherent reads; comparison table counts the pre-optimization prototypes"
   }
 }

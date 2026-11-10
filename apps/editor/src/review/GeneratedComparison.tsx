@@ -6,8 +6,10 @@ import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 
 export type ComparisonTarget = { root: string; document: string };
-export function GeneratedComparison({ client, target, onOpen }: { client: HostClient; target: ComparisonTarget; onOpen(path: string): void }) {
+export function GeneratedComparison({ client, target, onOpen, onPending }: { client: HostClient; target: ComparisonTarget; onOpen(path: string): void; onPending?(pending: boolean): void }) {
   const open = useRef(onOpen); open.current = onOpen;
+  const pendingChanged = useRef(onPending); pendingChanged.current = onPending;
+  const pendingWrites = useRef(0);
   const [adapter, setAdapter] = useState<ReviewAdapter>();
   useEffect(() => {
     const controller = new AbortController(); let first = true, path: string | undefined, pending: string | undefined;
@@ -39,6 +41,7 @@ export function GeneratedComparison({ client, target, onOpen }: { client: HostCl
       if (checked !== undefined && snapshot.page) { if (checked) checkedPages.add(snapshot.page.pageNo); else checkedPages.delete(snapshot.page.pageNo); }
       progress = {checkedPages:[...checkedPages].sort((a,b)=>a-b),lastPage:pageNo};
       const next = progress; saving++;
+      if (!pendingWrites.current++) pendingChanged.current?.(true);
       const work = tail.then(async () => {
         pending = crypto.randomUUID();
         const saved = await request({action:"generated-progress",requestId:pending,baseline,progress:next});
@@ -47,7 +50,7 @@ export function GeneratedComparison({ client, target, onOpen }: { client: HostCl
       tail = work;
       try { await work; return {...snapshot,generatedBaseline:baseline,progress}; }
       catch (error) { failed = true; throw error; }
-      finally { saving--; }
+      finally { saving--; if (!--pendingWrites.current) pendingChanged.current?.(false); }
     }, async act() { throw new Error("Read-only comparison"); }, openDocument() { if (path) open.current(path); } });
     return () => controller.abort();
   }, [client,target.root,target.document]);
