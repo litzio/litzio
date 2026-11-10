@@ -11,10 +11,15 @@ export function readReview(bytes) {
 }
 
 /** Exact expected values and inverse patches belong to this source format, never to Host/Core. */
-export function correctionValue(document, patch) {
-  const match = /^#\/(texts|tables|pictures|groups|key_value_items|form_items)\/(\d+)$/.exec(patch.self_ref ?? "");
+export function originalReviewTarget(document, locator) {
+  const match = /^#\/(texts|tables|pictures|groups|key_value_items|form_items)\/(0|[1-9]\d*)$/.exec(locator.self_ref ?? "");
   const item = match && document[match[1]]?.[Number(match[2])];
-  if (!item) throw new Error("Unknown correction target");
+  if (!item || item.self_ref !== locator.self_ref || locator.cell !== undefined && locator.cell !== null &&
+      (match[1] !== "tables" || !Number.isInteger(locator.cell) || locator.cell < 0 || !item.data?.table_cells?.[locator.cell])) throw new Error("Unknown original review target");
+  return item;
+}
+export function correctionValue(document, patch) {
+  const item = originalReviewTarget(document, patch);
   if (patch.type === "text") return item.text;
   if (patch.type === "cell") return item.data?.table_cells?.[patch.cell]?.text;
   if (patch.type === "exclude") return item.__reviewExcluded === true;

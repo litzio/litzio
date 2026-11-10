@@ -14,11 +14,13 @@ export const reviewGroupTargetSchema = z.strictObject({
   patch: z.strictObject({ expectedBefore: z.unknown(), expectedContentRevision: hash, operations: z.array(opaque).max(2000), after: z.unknown(), supported: z.boolean(), deferredReason: text.nullable() })
     .refine(patch => patch.supported ? patch.operations.length > 0 && patch.deferredReason === null : patch.deferredReason !== null, "Executable patches or an explicit deferral reason required"),
   inspection: reviewInspectionStateSchema,
-  proposal: z.enum(["proposed", "approved", "rejected"]),
+  proposal: z.enum(["proposed", "approved", "rejected", "superseded"]),
   result: z.enum(["applied", "regeneration-required", "uncertain"]).nullable(),
   resolved: z.boolean(),
-  history: z.array(z.strictObject({ id, action: z.enum(["approved", "rejected", "undone"]), at: z.iso.datetime(), human: humanReviewSchema, requestId: z.uuid(),
-    result: z.enum(["applied", "regeneration-required", "uncertain"]).nullable(), inverseOperations: z.array(opaque).max(2000), undoOf: id.nullable() })).max(10000),
+  history: z.array(z.strictObject({ id, action: z.enum(["approved", "rejected", "undone", "superseded"]), at: z.iso.datetime(), human: humanReviewSchema.nullable(), requestId: z.uuid(),
+    result: z.enum(["applied", "regeneration-required", "uncertain"]).nullable(), inverseOperations: z.array(opaque).max(2000), undoOf: id.nullable(),
+    supersededBy: z.strictObject({ groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique) }).optional(),
+  }).refine(event => event.action === "superseded" ? event.human === null && !!event.supersededBy : event.human !== null && !event.supersededBy, "Supersede links and human decisions are separate evidence")).max(10000),
 });
 export const reviewGroupSchema = z.strictObject({
   id, reasonCode: id, reason: text, provider: id, providerVersion: id, sourceRevision: hash, contentRevision: hash,
@@ -51,13 +53,38 @@ export type ReviewGroupTarget = z.infer<typeof reviewGroupTargetSchema>;
 export const emptyReviewLedger = (): ReviewLedger => ({ version: 1, revision: "initial", inventory: null, groups: [], inspections: [], checks: [], comparisons: [], approval: null });
 
 export const reviewLedgerChangeSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("groups-propose"), groups: z.array(reviewGroupSchema).min(1).max(1000) }),
+  z.strictObject({ kind: z.literal("groups-propose"), groups: z.array(reviewGroupSchema).min(1).max(1000),
+    supersedes: z.array(z.strictObject({ groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique), replacementGroupId: id })).max(1000).default([]) }),
   ...(["groups-approve", "groups-reject", "groups-undo"] as const).map(kind => z.strictObject({ kind: z.literal(kind), groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique), remainderGroupId: id.optional(), human: humanReviewSchema, resolvesIssue: z.boolean().default(false) })),
   z.strictObject({ kind: z.literal("inspection"), records: z.array(inspection).max(1000), comparisons: z.array(bodyComparison).max(1000) }),
   z.strictObject({ kind: z.literal("required-checks"), inventory: reviewLedgerSchema.shape.inventory.optional(), records: z.array(checkRecord).max(1000) }),
   z.strictObject({ kind: z.literal("completion"), human: humanReviewSchema }),
 ]);
 export type ReviewLedgerChange = z.infer<typeof reviewLedgerChangeSchema>;
+
+/** A run ID denotes one evolving run. Never fall back to an older success, even across revisions. */
+function latestComparisons(ledger: ReviewLedger) {
+  return new Map(ledger.comparisons.map(comparison => [comparison.runId, comparison]));
+}
+function validApprovedComparison(ledger: ReviewLedger, record: z.infer<typeof checkRecord>, contentRevision: string) {
+  const run = record.runId ? latestComparisons(ledger).get(record.runId) : undefined, approval = record.approvedRun;
+  const covers = (scope: z.infer<typeof reviewScopeSchema>, expected: z.infer<typeof reviewScopeSchema>) =>
+    expected.pages.every(page => scope.pages.includes(page)) && expected.targets.every(target => scope.targets.includes(target));
+  return !!(record.contentRevision === contentRevision && approval?.contentRevision === contentRevision && run?.contentRevision === contentRevision &&
+    run.state === "compared" && run.selected && !run.withdrawn && covers(run.scope, approval.scope) &&
+    record.targetIds.every(id => approval.scope.targets.includes(id) && run.scope.targets.includes(id) &&
+      ledger.inventory?.requiredChecks.find(check => check.id === id)?.pages.every(page => approval.scope.pages.includes(page) && run.scope.pages.includes(page))));
+}
+
+// Locator objects stay opaque. Structural equality also prevents changing an ID or object-key order to evade duplicates.
+function locatorIdentity(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(locatorIdentity).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>`${JSON.stringify(key)}:${locatorIdentity(item)}`).join(",")}}`;
+  return JSON.stringify(value) ?? "undefined";
+}
+function sameTarget(a: z.infer<typeof reviewGroupSchema>, target: ReviewGroupTarget, b: z.infer<typeof reviewGroupSchema>, other: ReviewGroupTarget) {
+  return a.provider === b.provider && a.sourceRevision === b.sourceRevision && (target.id === other.id || locatorIdentity(target.locator) === locatorIdentity(other.locator));
+}
 
 /** Snapshot validity and unsettled requests are supplied by the common Host, not inferred from a cache's existence. */
 export function evaluateReviewCompletion(ledger: ReviewLedger, contentRevision: string, snapshotHash: string | null, current: boolean) {
@@ -69,13 +96,16 @@ export function evaluateReviewCompletion(ledger: ReviewLedger, contentRevision: 
     const covered = (key: "pages" | "targets", value: number | string) => [...runs].reverse().find(i => (i.scope[key] as (string | number)[]).includes(value))?.state === "no-issue";
     if (!inventory.pages.every(p => covered("pages", p)) || !inventory.targets.every(t => covered("targets", t))) incomplete.push(`lens-incomplete:${lens}`);
   }
-  if (ledger.groups.some(g => g.targets.some(t => !t.resolved || t.inspection !== "no-issue" || t.result === "uncertain" || t.result === "regeneration-required"))) incomplete.push("open-or-uncertain-groups");
-  if (inventory?.requiredChecks.some(c => [...ledger.checks].reverse().find(r => r.contentRevision === contentRevision && r.targetIds.includes(c.id))?.result !== "no-issue")) incomplete.push("required-checks-incomplete");
-  const comparisons = [...new Map(ledger.comparisons.filter(c => c.contentRevision === contentRevision).map(c => [c.runId, c])).values()];
+  if (ledger.groups.some(g => g.targets.some(t => t.proposal !== "superseded" && (!t.resolved || t.inspection !== "no-issue" || t.result === "uncertain" || t.result === "regeneration-required")))) incomplete.push("open-or-uncertain-groups");
+  if (inventory?.requiredChecks.some(c => {
+    const record = [...ledger.checks].reverse().find(r => r.contentRevision === contentRevision && r.targetIds.includes(c.id));
+    return record?.result !== "no-issue" || record.method === "approved-comparison" && !validApprovedComparison(ledger, record, contentRevision);
+  })) incomplete.push("required-checks-incomplete");
+  const comparisons = [...latestComparisons(ledger).values()].filter(c => c.contentRevision === contentRevision);
   const selected = comparisons.filter(c => c.selected && !c.withdrawn);
   if (selected.some(c => c.state !== "compared")) incomplete.push("selected-comparison-incomplete");
   if (!current || !snapshotHash) incomplete.push("snapshot-not-current-or-request-unsettled");
-  const comparedPages = new Set(comparisons.filter(c => c.state === "compared").flatMap(c => c.scope.pages));
+  const comparedPages = new Set(comparisons.filter(c => c.state === "compared" && !c.withdrawn).flatMap(c => c.scope.pages));
   return { ready: !incomplete.length, incomplete, contentRevision, snapshotHash, ledgerRevision: ledger.revision,
     notComparedPages: inventory?.pages.filter(p => !comparedPages.has(p)) ?? [],
     approved: !incomplete.length && ledger.approval?.ledgerRevision === ledger.revision && ledger.approval.contentRevision === contentRevision && ledger.approval.snapshotHash === snapshotHash };
@@ -97,6 +127,26 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
   if (change.kind === "groups-propose") {
     for (const group of change.groups) {
       if (ledger.groups.some(g => g.id === group.id) || group.contentRevision !== context.contentRevision || group.splitFrom !== null || group.targets.some(t => t.proposal !== "proposed" || t.history.length || t.result !== null || t.resolved || t.patch.expectedContentRevision !== context.contentRevision)) throw new Error("Invalid new review group");
+      if (change.groups.filter(g => g.id === group.id).length !== 1) throw new Error("Duplicate new group identity");
+    }
+    let supersededCount = 0;
+    for (const replacement of change.supersedes) {
+      const old = ledger.groups.find(group => group.id === replacement.groupId), next = change.groups.find(group => group.id === replacement.replacementGroupId);
+      if (!old || !next || old.reasonCode !== next.reasonCode) throw new Error("Supersede requires an existing group and a same-reason replacement");
+      for (const targetId of replacement.targetIds) {
+        const target = old.targets.find(target => target.id === targetId);
+        if (!target || target.proposal !== "proposed") throw new Error("Only open proposed targets may be superseded");
+        const matches = next.targets.filter(other => sameTarget(old, target, next, other) && locatorIdentity(target.locator) === locatorIdentity(other.locator));
+        if (matches.length !== 1) throw new Error("Replacement must preserve the superseded target identity");
+        target.proposal = "superseded"; target.resolved = true;
+        target.history.push({ id: `${context.revision}/superseded-${supersededCount++}`, action: "superseded", at: context.at, human: null, requestId: context.requestId,
+          result: null, inverseOperations: [], undoOf: null, supersededBy: { groupId: next.id, targetIds: matches.map(target => target.id) } });
+      }
+    }
+    for (const group of change.groups) {
+      for (const [index, target] of group.targets.entries()) {
+        if (group.targets.slice(0,index).some(other => sameTarget(group,target,group,other)) || ledger.groups.some(old => old.reasonCode === group.reasonCode && old.targets.some(other => other.proposal === "proposed" && sameTarget(group,target,old,other)))) throw new Error("Duplicate open target for the same reason; explicitly supersede it");
+      }
       ledger.groups.push(group);
     }
   } else if (change.kind === "inspection") {
@@ -123,7 +173,7 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
     }
     for (const record of change.records) {
       if (record.contentRevision !== context.contentRevision || record.targetIds.some(id => !ledger.inventory?.requiredChecks.some(c => c.id === id))) throw new Error("Unknown or stale required check");
-      if (record.method === "approved-comparison" && (!record.runId || !record.approvedRun || record.approvedRun.contentRevision !== context.contentRevision || record.targetIds.some(id => !record.approvedRun!.scope.targets.includes(id)) || !ledger.comparisons.some(c => c.runId === record.runId && c.contentRevision === context.contentRevision && c.state === "compared" && record.targetIds.every(id => c.scope.targets.includes(id))))) throw new Error("Completed approved comparison required");
+      if (record.method === "approved-comparison" && !validApprovedComparison(ledger, record, context.contentRevision)) throw new Error("Completed approved comparison required at the latest run state and current revision");
       if (record.method === "direct" && (record.runId || record.approvedRun)) throw new Error("Direct check cannot claim a comparison run");
       ledger.checks.push(record);
     }

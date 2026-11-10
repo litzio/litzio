@@ -304,11 +304,27 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
         patch:{expectedBefore:[textBefore],expectedContentRevision:progress.contentRevision,operations:[{type:"text",self_ref:"#/texts/4",text:"P2 approved text"}],after:["P2 approved text"],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}]
     }]}});
     assert.equal(grouped.receipt.outcome,"success",JSON.stringify(grouped));assert.deepEqual(grouped.snapshot,snapshot);
+    const missingGroup=structuredClone(grouped.ledger.groups[0]);
+    missingGroup.id="missing-source";missingGroup.representativeTargetId="missing";missingGroup.targets[0].id="missing";
+    missingGroup.targets[0].locator={self_ref:"#/texts/999999"};
+    missingGroup.targets[0].evidence[0].scope.targets=["missing"];
+    missingGroup.targets[0].patch={...missingGroup.targets[0].patch,operations:[],supported:false,deferredReason:"Unsupported correction"};
+    const beforeMissing=readFileSync(file);
+    const missing=await write("workspace-review-change",{change:{kind:"groups-propose",groups:[missingGroup]}});
+    assert.equal(missing.receipt.outcome,"failure","even a deferred proposal must address an existing original source");
+    assert.deepEqual(readFileSync(file),beforeMissing);
     const groupApproved=await write("workspace-review-change",{change:{kind:"groups-approve",groupId:"docling-text",targetIds:["t4"],human,resolvesIssue:true}});
     assert.equal(groupApproved.receipt.outcome,"success",JSON.stringify(groupApproved));assert.match(groupApproved.snapshot.source,/P2 approved text/);
     const groupUndone=await write("workspace-review-change",{change:{kind:"groups-undo",groupId:"docling-text",targetIds:["t4"],human}});
     assert.equal(groupUndone.receipt.outcome,"success",JSON.stringify(groupUndone));assert.deepEqual(groupUndone.record.patches.slice(0,groupApproved.record.patches.length),groupApproved.record.patches);
     assert.equal(groupUndone.snapshot.source,snapshot.source);assert.equal(groupUndone.ledger.groups[0].targets[0].proposal,"proposed");
+    const refreshed=structuredClone(grouped.ledger.groups[0]);refreshed.id="docling-refreshed";refreshed.contentRevision=groupUndone.contentRevision;
+    refreshed.targets[0].patch.expectedContentRevision=groupUndone.contentRevision;
+    const replaced=await write("workspace-review-change",{change:{kind:"groups-propose",groups:[refreshed],supersedes:[{groupId:"docling-text",targetIds:["t4"],replacementGroupId:refreshed.id}]}});
+    assert.equal(replaced.receipt.outcome,"success",JSON.stringify(replaced));assert.equal(replaced.ledger.groups[0].targets[0].proposal,"superseded");
+    assert.deepEqual(replaced.ledger.groups[0].targets[0].history.map((event:any)=>event.action),["approved","undone","superseded"]);
+    const reapplied=await write("workspace-review-change",{change:{kind:"groups-approve",groupId:refreshed.id,targetIds:["t4"],human,resolvesIssue:true}});
+    assert.equal(reapplied.receipt.outcome,"success",JSON.stringify(reapplied));assert.match(reapplied.snapshot.source,/P2 approved text/);
     const afterGroups=archive.readDoclingArchive(readFileSync(file));
     for (const entry of ["sourcePdf","documentJson","manifestBytes"]) assert.deepEqual(afterGroups[entry],initial[entry]);
     const before = readFileSync(file);

@@ -323,3 +323,15 @@ source-format patch입니다. expectedBefore/after는 operations 순서의 값 �
 
 완료 판단/승인 모델과 CLI만 추가하며 화면·AI 실행·렌즈 inventory 자동 추출·공식 export gate는 후속 단계입니다.
 uncertain receipt 뒤에는 동일 requestId의 workspace-status와 workspace read를 마칠 때까지 쓰기가 차단됩니다.
+
+
+교정으로 revision이 바뀌어 남은 제안이 stale이거나 Undo로 다시 열린 경우, 현재 자료로 새 묶음을 제안하고
+`change.supersedes:[{groupId,targetIds,replacementGroupId}]`를 함께 보냅니다. replacementGroupId는 같은
+`review groups propose` 요청의 새 groups ID입니다. 기존 proposed 대상은 이력과 새 묶음 링크를 가진
+superseded 상태로 보존되고, 새 묶음은 별도로 승인합니다. 이전 승인·거절을 덮어쓰거나 revision 검사를
+완화하지 않습니다. 같은 이유의 같은 열린 대상은 명시 대체 없이 중복 제안할 수 없습니다. 다른 이유는 각각
+처리해야 합니다. 미지원 제안도 실제 원본 대상이어야 하며, 존재하지 않는 locator는 저장 전에 거부합니다.
+
+그림·표의 approved-comparison 확인과 최종 완료는 참조 run의 최신 상태를 현재 revision에서 다시 검증합니다.
+과거 성공 후 최신 상태가 partial/철회/다른 revision이면 확인 근거가 되지 않습니다. 선택 본문 대조를 철회해도
+그림·표는 새 직접 확인 또는 유효한 새 대조로 처리해야 합니다.

@@ -35,6 +35,8 @@ export const workspaceRequestSchema = z.discriminatedUnion("action", [
 ]);
 /** P5 adapter contract only: these use the same dispatcher schema, with no AI registration in P2.
  * Human confirmation is required for approve/reject/undo/completion and cannot be synthesized by an assistant.
+ * Propose accepts change.supersedes [{groupId,targetIds,replacementGroupId}] through that same schema and CLI;
+ * it closes only open proposals with linked history, and grants no approval or relaxed revision check.
  */
 export const REVIEW_LEDGER_OPERATIONS = { version: 1, scope: "workspace", inputSchema: z.toJSONSchema(workspaceRequestSchema),
   assistant: { propose: "workspace-review-change:groups-propose", read: "workspace-groups-read", inspection: "workspace-inspection", requiredChecks: "workspace-required-checks", completion: "workspace-completion" },

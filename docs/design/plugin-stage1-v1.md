@@ -872,18 +872,36 @@ canonical snapshot 검증·단일 파일 교체·receipt를 소유한다. provid
 
 묶음은 이유·provider/version·source/content revision·대표/선정 이유와 개별 대상의 opaque locator,
 페이지/영역·before·해시가 있는 자료 근거·patch 예상 전후/revision·지원/보류 이유를 보존한다.
-검사(`not-inspected/uncertain/no-issue`), 판단(`proposed/approved/rejected`), 적용 결과
+검사(`not-inspected/uncertain/no-issue`), 판단(`proposed/approved/rejected/superseded`), 적용 결과
 (`applied/regeneration-required/uncertain`)는 별도 필드다. 사람 판단은 `{actor,reason,confirmed:true}`와
 정확한 targetIds가 필요하다. 일부 대상만 처리하려면 새 `remainderGroupId`를 명시하며 남은
 대상을 그 묶음으로 옮기고 `splitFrom`과 모든 이력을 유지한다. 거절의 `resolvesIssue:false`는
 알려진 문제를 닫지 않는다. Undo는 승인 event를 지우지 않고 `undoOf`/`undone`을 추가하여 다시 연다.
 과거 event의 requestId는 Host receipt 조회 참조이며 daemon 재시작 뒤 실행 권한이 아니다.
 
+교정 후 stale인 제안이나 Undo로 다시 열린 제안은 승인 revision 검사를 완화하지 않는다.
+현재 revision의 근거로 새 묶음을 propose하면서 `change.supersedes:[{groupId,targetIds,replacementGroupId}]`를
+함께 지정한다. replacementGroupId는 같은 요청의 새 groups 중 하나다. 기존 대상은 proposed(Undo 재개 포함)여야
+하며 이미 승인·거절·대체된 대상은 거부한다. provider/source revision·reasonCode와 opaque locator가 같은 새
+대상으로만 대체할 수 있다. 이전 대상과 기존 이력은 유지하고 `proposal:superseded`와 새 묶음/대상 ID를 담은
+`superseded` event의 `supersededBy`를 추가한다. 이는 사람 승인 event가 아니므로 human은 null이다.
+대체된 대상만 열린 문제/완료 판정에서 제외하며 새 제안은 여전히 사람 승인이 필요하다.
+
+동일 provider/source revision에서 target ID 또는 구조적으로 같은 opaque locator가 겹치고 reasonCode가 같은
+열린 proposed 대상은 명시 대체 없이 중복 저장할 수 없다. target ID를 바꾸거나 locator의 object key 순서를
+바꿔도 이 정책을 우회하지 않는다. 다른 reasonCode의 문제는 동시에 남길 수 있으며 각각 처리해야 완료된다.
+CLI `review groups propose`와 비서 propose 계약은 동일한 change/schema를 전달한다. 별도 자동 재승인 작업은 없다.
+
 inventory는 content revision·페이지/항목·렌즈 목록과 모든 그림/표 source 의무를 받는다. 추출은
 P4다. `required-checks`는 정확한 targetIds·content revision·직접 확인 또는 승인 대조 run의
 범위/완료/결과 반영과 사람 근거·결과를 기록한다. 이미지 열기나 렌즈 0후보는 확인 event가 아니다.
 같은 revision의 최신 검사/대조 run 상태와 대상별 최신 확인 결과를 사용하고 이전 성공으로
 실패/판단 불가를 숨기지 않는다. 원본 의무를 inventory 갱신으로 제거할 수 없다.
+approved-comparison의 수락과 매 완료 계산은 모두 같은 runId의 **마지막 기록**을 먼저 고른 뒤 현재 content
+revision·compared/selected·철회 없음·승인/실제 페이지와 대상 범위를 검사한다. 최신 상태가 미완료·철회됐거나
+다른 revision이면 이전 compared로 되돌아가 확인을 인정하지 않는다. 이미 저장한 필수 확인도 run의 최신 근거가
+무효가 되면 완료를 막는다. 본문 대조 철회 후에도 그림·표의 확인 의무는 남으며 직접 확인 또는 유효한 새 대조로
+처리해야 한다. 철회된 run은 현재 compared 페이지에도 포함하지 않는다.
 
 완료 결과는 `ready/incomplete/contentRevision/snapshotHash/ledgerRevision/notComparedPages/approved`다.
 현재 전체 inventory·렌즈 coverage, 열린/판단 불가 묶음 0, 필수 확인 처리, 현재 canonical snapshot과
@@ -904,6 +922,8 @@ patch 이전 항목은 보존하고 Undo inverse를 ordered patches 뒤에 추�
 locator와 expected-after를 확인하며 Undo 역연산도 각 영향 값이 승인 뒤의 예상값인지 확인한다.
 기존 네 patch로 원상 표현할 수 없는 kind는 거부한다. source-format 원본 inventory의 그림·표
 누락, 완전하다고 주장한 7개 렌즈/페이지/항목 누락을 거부한다. 과거 archive/record migration은 없다.
+Docling 제안 수락 시에도 provider가 모든 원본 locator의 item(지정한 실제 cell 포함) 존재를 검증한다.
+지원 불가/보류 제안도 이 검사를 생략하지 않는다. SDK·Host는 self_ref나 Docling 배열을 해석하지 않는다.
 
 검증 계층·실행 범위와 미확인 조건은 [P2 기록](docling-review-stage3.md#p2-공용-묶음저장-경계)을 따른다.
 

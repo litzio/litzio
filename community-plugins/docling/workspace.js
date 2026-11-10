@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { REVIEW_AUTHORING_CONTRACT, workspaceSnapshotSchema, updateReviewLedger } from "@litzio/plugin-sdk";
 import { readDoclingArchive, rewriteReview } from "./archive.js";
-import { readReview, applyCorrections, reviewItems, setProgress, comparison, correctionValue, inverseCorrection } from "./review.js";
+import { readReview, applyCorrections, reviewItems, setProgress, comparison, correctionValue, inverseCorrection, originalReviewTarget } from "./review.js";
 import { convertDocument } from "./document.js";
 
 // Adapter semantics, not the plugin package version or whole-workspace revision.
@@ -63,7 +63,10 @@ export async function workspaceOperation(input) {
     let metadataOnly = !!input.progress;
     if (input.change) {
       if (!state.snapshot || state.cacheState !== "current") throw new Error("Current snapshot required");
-      if (input.change.kind === "groups-propose" && input.change.groups.some(group => group.sourceRevision !== archive.manifest.document.sha256)) throw new Error("Mixed group source revision");
+      if (input.change.kind === "groups-propose") {
+        if (input.change.groups.some(group => group.sourceRevision !== archive.manifest.document.sha256)) throw new Error("Mixed group source revision");
+        for (const group of input.change.groups) for (const target of group.targets) originalReviewTarget(archive.document, target.locator);
+      }
       if (input.change.kind === "required-checks" && input.change.inventory) {
         const inventory = input.change.inventory;
         const sources = ["pictures", "tables"].flatMap(kind => (archive.document[kind] ?? []).map(item => ({ ref: item.self_ref, kind: kind === "pictures" ? "picture" : "table" })));

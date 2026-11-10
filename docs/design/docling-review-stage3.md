@@ -612,3 +612,37 @@ Chrome HTTP 복구+플러그인 2개가 2.9분에 통과했다. 첫 실행은 �
 오류 artifact를 확인한 뒤 새 format 3 / plugin 0.0.10 단언으로 갱신했다. 기존 fault/복구 단언은 유지했다.
 UI 소스 변경·새 시각 승인·실제 AI 호출은 없다. 마지막 snapshot 전체 hash 보호는 위 저장 경계 검사에서
 본문이 같은 다른 cache binding의 승인 무효화를 직접 확인했다.
+
+
+### P2 독립 리뷰 수정 — 명시 대체와 최신 대조 근거
+
+PR #1474의 독립 리뷰 REQUEST_CHANGES에 따라 승인 revision 검사는 유지하고 명시 supersede를 추가했다.
+`groups-propose`에 `supersedes:[{groupId,targetIds,replacementGroupId}]`를 전달하면 같은 요청의 현재 revision
+제안이 기존 열린 proposed 대상(Undo로 다시 열린 대상 포함)을 대체한다. 기존 대상과 승인/Undo 이력은
+삭제하지 않고 새 묶음/대상 링크를 담은 superseded event를 추가하며, 완료의 열린 문제 계산에서는 제외한다.
+승인·거절된 대상의 대체와 다른 source/locator/reason으로의 대체는 거부한다. 새 묶음 승인은 별도로 사람에게 받는다.
+
+동일 provider/source의 같은 target ID 또는 opaque locator·같은 reasonCode인 열린 제안은 대체 지정 없이
+중복 저장할 수 없다. 다른 reasonCode는 허용하되 각각 처리해야 한다. 부분 분리한 나머지도 같은 전이를
+사용한다. CLI `review groups propose`와 비서 도구 계약은 동일 change/schema를 사용하며 실제 AI 연결은 P5다.
+
+approved-comparison 필수 확인은 runId의 마지막 기록을 먼저 선택한 뒤 현재 revision·완료·선택·철회 없음과
+정확한 승인/실제 페이지·대상 범위를 확인한다. 수락 시뿐 아니라 기존 확인을 사용하는 매 완료 계산에서도
+다시 검사한다. 최신 partial/철회/다른 revision을 과거 compared로 덮지 않는다. 본문 대조를 철회해도 그림·표
+확인 의무는 유지되며 새 직접 확인 또는 유효한 대조가 있어야 완료된다. Docling provider는 제안 수락 때
+원본 item/지정 cell의 실재를 검사하며 보류·미지원 제안도 예외가 아니다. SDK/Host에는 형식 해석을 넣지 않았다.
+
+수정 전 head cde0ad55에서 추가한 대표 회귀 7건이 모두 실패함을 먼저 확인했다: SDK의 A 승인→B 대체/승인,
+부분 승인 후 remainder 대체/승인, Undo→대체/재승인은 supersedes 계약 부재로 실패했다. 중복 제안과 철회 run
+필수 확인은 거부되지 않았고, 기존 확인을 둔 완료 판정은 ready:true였다. Docling 저장 검사는 존재하지 않는
+미지원 대상 제안의 receipt:success 때문에 실패했다. 이후 같은 단언으로 수정을 검증한다.
+
+새 결함의 주된 보호는 SDK 순수 전이/완료 검사 6건(세 흐름·중복 정책·필수 확인 수락·기존 확인 재검증)과 기존
+Docling 저장 검사의 원본 대상 부재 거부다. 세 흐름은 서로 다른 stale 진입점이며 전수 조합은 아니다.
+기존 일반 provider의 CLI subprocess 1회를 supersede 제안 전달/JSON 확인으로 바꾸고 기존 Docling 저장 검사에
+Undo→대체→재승인 통합을 보완했다. 새 daemon·AI·브라우저 scenario나 subprocess는 추가하지 않았다.
+
+
+수정 후 SDK 19개, 기존 plugins/generated-documents 50개(58.0초), SDK/Editor/CLI typecheck,
+docs/boundaries·diff 검사가 통과했다. 실제 CLI supersede 요청과 Docling Undo→대체→재승인을 포함한다.
+기존 fault·stale·원본/이력 보존 단언은 유지했으며 Windows 경로·UI·브라우저 동작은 변경하지 않았다.

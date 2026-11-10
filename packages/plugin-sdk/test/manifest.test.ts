@@ -2,6 +2,84 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyReviewLedger, updateReviewLedger, evaluateReviewCompletion, reviewLedgerSchema, reviewLedgerChangeSchema } from "../src/index.ts";
 
+function reviewScenario() {
+  let ledger = emptyReviewLedger(), content = 1, sequence = 0;
+  const hash = () => content.toString(16).padStart(64,"0");
+  const human = { actor:"person",reason:"Checked exact revised target",confirmed:true };
+  const context = () => ({contentRevision:hash(),snapshotHash:hash(),current:true,requestId:"dc76af39-193b-4da6-b6c4-08ff5ef8ac26",revision:`r${++sequence}`,at:"2026-11-11T00:00:00Z",apply(){content++;return [{restore:true}];},undo(){content++;}});
+  const change = (value:unknown) => ledger = updateReviewLedger(ledger,reviewLedgerChangeSchema.parse(value),context());
+  const group = (id:string, targets:string[], reasonCode="text") => ({id,reasonCode,reason:"Observed difference",provider:"fixture",providerVersion:"1",sourceRevision:"a".repeat(64),contentRevision:hash(),createdAt:"2026-11-11T00:00:00Z",runId:`run-${id}`,representativeTargetId:targets[0],representativeReason:"Exact evidence",splitFrom:null,
+    targets:targets.map(id=>({id,locator:{ref:id},pages:[1],regions:[],before:["old"],evidence:[{observation:"Source differs",materialRef:"page",materialHash:hash(),inspector:"fixture",scope:{pages:[1],targets:[id]}}],patch:{expectedBefore:["old"],expectedContentRevision:hash(),operations:[{ref:id,text:"new"}],after:["new"],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}))});
+  const decide = (kind:string,groupId:string,targetIds:string[],extra={}) => change({kind,groupId,targetIds,human,resolvesIssue:true,...extra});
+  return {get ledger(){return ledger;},hash,human,context,change,group,decide};
+}
+
+for (const scenario of ["remaining", "split", "undo"] as const) test(`review supersede preserves history and restores approval after ${scenario}`, () => {
+  const s=reviewScenario();
+  s.change({kind:"groups-propose",groups:scenario==="split"?[s.group("ab",["a","b"])]:[s.group("a",["a"]),s.group("b",["b"])]});
+  s.decide("groups-approve",scenario==="split"?"ab":"a",["a"],scenario==="split"?{remainderGroupId:"b"}:{});
+  const oldGroup=scenario==="undo"?"a":"b", target=scenario==="undo"?"a":"b";
+  if(scenario==="undo")s.decide("groups-undo","a",["a"]);
+  assert.throws(()=>s.decide("groups-approve",oldGroup,[target]),/stale/);
+  const history=structuredClone(s.ledger.groups.find(g=>g.id===oldGroup)!.targets[0]!.history);
+  s.change({kind:"groups-propose",groups:[s.group("replacement",[target])],supersedes:[{groupId:oldGroup,targetIds:[target],replacementGroupId:"replacement"}]});
+  const old=s.ledger.groups.find(g=>g.id===oldGroup)!.targets[0]!;
+  assert.equal(old.proposal,"superseded");assert.deepEqual(old.history.slice(0,history.length),history);
+  assert.deepEqual((old.history.at(-1) as any).supersededBy,{groupId:"replacement",targetIds:[target]});
+  s.decide("groups-approve","replacement",[target]);
+  assert.equal(s.ledger.groups.find(g=>g.id==="replacement")!.targets[0]!.result,"applied");
+  if(scenario==="undo")s.decide("groups-reject","b",["b"]);
+  assert.equal(evaluateReviewCompletion(s.ledger,s.hash(),s.hash(),true).incomplete.includes("open-or-uncertain-groups"),false);
+  assert.throws(()=>s.change({kind:"groups-propose",groups:[s.group("invalid",[target])],supersedes:[{groupId:"replacement",targetIds:[target],replacementGroupId:"invalid"}]}),/open proposed/);
+});
+
+test("review duplicate targets require explicit supersede within the same reason",()=>{
+  const s=reviewScenario();s.change({kind:"groups-propose",groups:[s.group("first",["a"])]});
+  assert.throws(()=>s.change({kind:"groups-propose",groups:[s.group("duplicate",["a"])]}),/Duplicate open/);
+  const alias=s.group("alias",["alias"]);alias.targets[0]!.locator={ref:"a"};
+  assert.throws(()=>s.change({kind:"groups-propose",groups:[alias]}),/Duplicate open/);
+  const reassigned=s.group("reassigned",["a"]);reassigned.targets[0]!.locator={ref:"other"};
+  assert.throws(()=>s.change({kind:"groups-propose",groups:[reassigned],supersedes:[{groupId:"first",targetIds:["a"],replacementGroupId:"reassigned"}]}),/preserve.*identity/);
+  s.change({kind:"groups-propose",groups:[s.group("different-reason",["a"],"structure")]});
+  s.decide("groups-reject","first",["a"]);
+  assert.throws(()=>s.change({kind:"groups-propose",groups:[s.group("replace-rejected",["a"])],supersedes:[{groupId:"first",targetIds:["a"],replacementGroupId:"replace-rejected"}]}),/open proposed/);
+  assert.ok(evaluateReviewCompletion(s.ledger,s.hash(),s.hash(),true).incomplete.includes("open-or-uncertain-groups"));
+  s.decide("groups-reject","different-reason",["a"]);
+  assert.equal(evaluateReviewCompletion(s.ledger,s.hash(),s.hash(),true).incomplete.includes("open-or-uncertain-groups"),false);
+});
+
+function comparedReviewScenario() {
+  const s=reviewScenario(), hash=s.hash(), scope={pages:[1],targets:["figure"]};
+  const lenses=["text","structure","reading","formula","table","picture","decoration"];
+  s.change({kind:"required-checks",inventory:{contentRevision:hash,pages:[1],targets:["figure"],lenses,requiredChecks:[{id:"figure",kind:"picture",locator:{ref:"original"},pages:[1],regions:[],disposition:"supported",derivedFrom:["original"]}],complete:true},records:[]});
+  s.change({kind:"inspection",records:lenses.map(lens=>({lens,runId:lens,contentRevision:hash,scope,state:"no-issue",evidence:"Complete coverage"})),comparisons:[{runId:"image",contentRevision:hash,scope,state:"compared",selected:true,withdrawn:null}]});
+  const record={targetIds:["figure"],contentRevision:hash,result:"no-issue",method:"approved-comparison",human:s.human,runId:"image",approvedRun:{requestId:s.context().requestId,scope,contentRevision:hash,completed:true,resultRecorded:true},at:"2026-11-11T00:00:00Z"};
+  const withdraw=()=>s.change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope,state:"partial",selected:false,withdrawn:s.human}]});
+  return {s,record,withdraw};
+}
+test("required confirmation rejects a withdrawn or incomplete latest comparison despite older success",()=>{
+  const {s,record,withdraw}=comparedReviewScenario();
+  s.change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:s.hash(),scope:{pages:[1],targets:["figure"]},state:"partial",selected:true,withdrawn:null}]});
+  assert.throws(()=>s.change({kind:"required-checks",records:[record]}),/Completed approved/);
+  withdraw();
+  assert.throws(()=>s.change({kind:"required-checks",records:[record]}),/Completed approved/);
+});
+test("completion revalidates existing required confirmations against the latest run",()=>{
+  const {s,record,withdraw}=comparedReviewScenario();s.change({kind:"required-checks",records:[record]});s.change({kind:"completion",human:s.human});
+  withdraw();
+  const completion=evaluateReviewCompletion(s.ledger,s.hash(),s.hash(),true);
+  assert.equal(completion.ready,false);assert.ok(completion.incomplete.includes("required-checks-incomplete"));
+  assert.deepEqual(completion.notComparedPages,[1]);
+  assert.throws(()=>s.change({kind:"completion",human:s.human}),/conditions/);
+  const otherRevision=structuredClone(s.ledger);otherRevision.comparisons.at(-1)!.contentRevision="b".repeat(64);
+  assert.equal(evaluateReviewCompletion(otherRevision,s.hash(),s.hash(),true).ready,false,"latest run from another revision cannot revive older success");
+  assert.throws(()=>updateReviewLedger(otherRevision,reviewLedgerChangeSchema.parse({kind:"required-checks",records:[record]}),s.context()),/Completed approved/);
+  s.change({kind:"required-checks",records:[{...record,method:"direct",runId:null,approvedRun:null}]});
+  s.change({kind:"completion",human:s.human});
+  assert.equal(evaluateReviewCompletion(s.ledger,s.hash(),s.hash(),true).approved,true,"a new direct check satisfies the retained picture obligation");
+  assert.deepEqual(evaluateReviewCompletion(s.ledger,s.hash(),s.hash(),true).notComparedPages,[1]);
+});
+
 test("portable review completion keeps inspection, required confirmation and optional comparison separate", () => {
   const hash = "a".repeat(64), human = { actor: "person", reason: "Confirmed exact scope", confirmed: true as const };
   const context = { contentRevision: hash, snapshotHash: hash, current: true, requestId: "dc76af39-193b-4da6-b6c4-08ff5ef8ac26", revision: "r1", at: "2026-11-11T00:00:00Z", apply: () => [], undo() {} };
