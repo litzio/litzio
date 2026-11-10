@@ -24,6 +24,7 @@ test("portable review completion keeps inspection, required confirmation and opt
   assert.equal(evaluateReviewCompletion(ledger,hash,hash,false).ready,false);
   change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope:{pages:[1],targets:["figure"]},state:"partial",selected:true,withdrawn:null}]});
   assert.equal(ledger.approval,null); assert.ok(evaluateReviewCompletion(ledger,hash,hash,true).incomplete.includes("selected-comparison-incomplete"));
+  assert.throws(()=>change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope:{pages:[1],targets:["figure"]},state:"not-compared",selected:false,withdrawn:null}]}),/withdrawal requires human/);
   change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope:{pages:[1],targets:["figure"]},state:"compared",selected:true,withdrawn:null}]});
   assert.equal(evaluateReviewCompletion(ledger,hash,hash,true).ready,true,"a later completed run supersedes its earlier partial status");
   change({kind:"required-checks",records:[{targetIds:["figure"],contentRevision:hash,result:"uncertain",method:"direct",human,runId:null,approvedRun:null,at:context.at}]});

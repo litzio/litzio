@@ -103,7 +103,12 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
     if ([...change.records, ...change.comparisons].some(r => r.contentRevision !== context.contentRevision)) throw new Error("Stale inspection");
     const inventory = ledger.inventory;
     if (!inventory || change.records.some(r => !inventory.lenses.includes(r.lens) || r.scope.pages.some(p => !inventory.pages.includes(p)) || r.scope.targets.some(t => !inventory.targets.includes(t)))) throw new Error("Inspection outside declared inventory");
-    ledger.inspections.push(...change.records); ledger.comparisons.push(...change.comparisons);
+    for (const next of change.comparisons) {
+      const previous = [...ledger.comparisons].reverse().find(c => c.runId === next.runId && c.contentRevision === context.contentRevision);
+      if (previous?.selected && !previous.withdrawn && !next.withdrawn && (!next.selected || previous.scope.pages.some(p => !next.scope.pages.includes(p)) || previous.scope.targets.some(t => !next.scope.targets.includes(t)))) throw new Error("Selected comparison withdrawal requires human evidence");
+      ledger.comparisons.push(next);
+    }
+    ledger.inspections.push(...change.records);
   } else if (change.kind === "required-checks") {
     if (change.inventory !== undefined) {
       if (!change.inventory || change.inventory.contentRevision !== context.contentRevision) throw new Error("Current inventory required");
