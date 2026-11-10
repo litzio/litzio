@@ -1,5 +1,5 @@
 {
-  "status": "verified; final source captures before feature commit",
+  "status": "verified; final follow-up source captures before commit",
   "date": "2026-11-10",
   "browser": "Chrome 157.0.8103.40, persistent profile",
   "viewports": [
@@ -34,18 +34,38 @@
     "packaged Desktop"
   ],
   "files": {
-    "after-1440.png": "0b7432b924b3b39459be4e90e441167e4a8125d08c2fa9f80e0e4a15bdf1fe33",
-    "after-640.png": "88f199d8a6edc17e9ea06f4c4db387eb846be8f0e5a5f1db812135cd283c6806",
+    "after-1440-dark.png": "e8861c7c6bf8929ee06faecb6802791b7d218a5a2f8c3f9d0e6f73de3588b182",
+    "after-1440.png": "ba8a1647b1d281a224100de599ed4bfa22e05a43cf57230be5251812f65c80ec",
+    "after-640-light.png": "61028ec7c10708dad2ee7e8decb9e923506eaf13c02c14105fe715d4f026a45f",
+    "after-640.png": "cf7495f6b3e7db4888e5a4572edc8cedddce1f0890ac055488c046b34605fa9e",
     "before-1440.png": "77a953fcc02ff13000c6ff0dce9e583d429069146ef2adbf41d623b8da60dbda",
     "before-640.png": "7edc677e5f61cb2b5d97adc9214f49ae9fb947a922f7e0d6ce0614a1fe898d15",
-    "boundary-1440.png": "80aa83c3c9cc979f27f6649f13e8805ab7ba8ac2f19fe4f9d80a23ae307f758a",
-    "boundary-640.png": "7b576e01cae9e71ed7fd4f64c5a3b48e9eafcaae078612415971c27e3d4ef3ce",
-    "long-1440.png": "c1891f6bc0095be8db3f9f8264de350a4b36503b4fa6c67c10a786a128a2f897",
-    "long-640.png": "7e01918ce6bd412efa4694562bf4a2711b2eaaaad35d0c871b73bcc8bc144259",
-    "sync-off-1440.png": "62f231d78070262604f41bf1a6216c345ea7cbd5360ce2676e1bfec5d112875b",
-    "sync-off-640.png": "5d289ad43ed87bcc3ad5219359cdb3bc7baadb5385b74ff8e309b5a4e6b3e157"
+    "boundary-1440-dark.png": "33216bed0d7a1d947104fc2463eb119eb0f0f83144d252bd88d13fa5c2831d8a",
+    "boundary-1440.png": "326172e46ce0c6ccb47263e77fccc05ba33d74f5e95ece6c9e09b9fdfe911e7d",
+    "boundary-640-light.png": "f9ac8b4656b49ba550b80491d3e25098cc7ef64bf3da4c52bad29f473f2960b6",
+    "boundary-640.png": "4b3ba6fe7e0712c10dcc9f465eb3438909dc6b59f24196937b3f3b2a68d362a9",
+    "long-1440-dark.png": "4e4a78f3443dd469b550f3880006411afcf024bb0f005f0f69a082e9437d3797",
+    "long-1440.png": "b612b37f3bb773ac2ba0f8311027668b211e3d313853661a72b8836180099f17",
+    "long-640-light.png": "8e23a24d606b7b22f13c3c14061cfb5c5069f7f8109e0e4630bfec51da0d9366",
+    "long-640.png": "5c06cd88910de63164605347e890ee32af54adae5a777254be833bc852283149",
+    "sync-off-1440-dark.png": "ef6fa837aa372cb4d2ea363c3dca71efa822eb0792891f3c2b2d3dc67f7a23a8",
+    "sync-off-1440.png": "df27e0b446b5762d40d844389df8c6716ee05f72d3aac633aca8e2d3b1fcae3d",
+    "sync-off-640-light.png": "437bb0bf44eea6f31fe460491557522831bed11e3038483b574326145be58ae0",
+    "sync-off-640.png": "439df67fbe28776f9b7a8623ae2752af2eb199e16c91670f75e799cef0dc8bf5",
+    "unmapped-1440-dark.png": "c64b9fffeed7d211b8481736bb9f47e99df1a9c1dedd5c561c41fcaf5971e3a1",
+    "unmapped-1440-light.png": "4bb448d3a504761432072f594f535545a38bddb49440ad3a22b1a25b78fc8aff",
+    "unmapped-640-dark.png": "a0051c8d5ead54a0e70510cc02d549ef181207d294daad731caa9bcd66a22b3d",
+    "unmapped-640-light.png": "4988531c4d704ed1ccbe0581961c70e7dd664c531089059360599e7318fc9d31",
+    "zoom-200-1440-dark.png": "85dd427661487e921fc52f628694b1f987839349f1bb519ec0e303338e11a704",
+    "zoom-200-1440-light.png": "0f14df505d9f1dee4932d3c666b1881ae19c4e0a1de3ac45f20fa7ce5fc5de05",
+    "zoom-200-640-dark.png": "f7f9151229c5485d42cc613c18fb369f1aa06b4ca2797aae03a69e181234eb93",
+    "zoom-200-640-light.png": "36770d31a5a2bc0d4d66e8a5b87996c07507d87043aaa48562fff5d078601fe6",
+    "zoom-50-1440-dark.png": "08f25d10c0d965a00be6c304955959cbbabb694dbe3ab1a839de39ed28d427f0",
+    "zoom-50-1440-light.png": "8e72f8d20cee3c043698f0f1179e671ba8c052c3e5c56acfeef8dd029ce50013",
+    "zoom-50-640-dark.png": "72baa4b01b456944b4a9fb0ec9df074bf35c90622d79d2f1dd11391d47811aea",
+    "zoom-50-640-light.png": "4e1cb519dc121bdd41cf41f086a2a55aba5d79b8d80f77779a87718cae80b6b1"
   },
-  "baseHead": "27804e3ee8036d2bb506f01a95ea5c336f5a2616",
+  "baseHead": "65a14fb873c449f2e43119defcddf1fd5cd1c8c9",
   "firstEntry": {
     "before": {
       "action": "generated-compare",
@@ -64,6 +84,10 @@
       "width": 1440,
       "height": 1000,
       "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
       "kinds": [
         {
           "kind": "heading",
@@ -140,13 +164,367 @@
       ],
       "sourceBottom": 984,
       "documentBottom": 984,
-      "visibleWires": 9,
+      "visibleWires": 10,
+      "selectedWires": 1
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 10,
       "selectedWires": 1
     },
     {
       "width": 640,
       "height": 1000,
       "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 5,
+      "selectedWires": 1
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(154, 187, 255)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 5.297150080979154
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(109, 214, 199)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 5.817421476090953
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(155, 206, 145)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 5.590199565552252
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(196, 168, 255)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 5.061411430328744
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(221, 163, 213)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 5.007173938896996
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(239, 192, 121)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 5.961798143863342
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.515686 0.786275 0.890196)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 5.499159466067596
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.901961 0.696078 0.654902)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 5.418800429270675
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(195, 202, 213)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 6.088202991962285
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 4,
+      "selectedWires": 1
+    }
+  ],
+  "longPageMeasurements": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
+      "kinds": [
+        {
+          "kind": "heading",
+          "source": "rgb(49, 95, 212)",
+          "wire": "rgb(49, 95, 212)",
+          "sourceContrast": 5.647939125749528,
+          "sourceWireContrast": 3.8080923057943306,
+          "uiWireContrast": 3.8080923057943306
+        },
+        {
+          "kind": "text",
+          "source": "rgb(7, 111, 101)",
+          "wire": "rgb(7, 111, 101)",
+          "sourceContrast": 6.050605476353916,
+          "sourceWireContrast": 3.9936151962020343,
+          "uiWireContrast": 3.9936151962020343
+        },
+        {
+          "kind": "list",
+          "source": "rgb(52, 109, 56)",
+          "wire": "rgb(52, 109, 56)",
+          "sourceContrast": 6.1936428264966,
+          "sourceWireContrast": 3.985025113782669,
+          "uiWireContrast": 3.985025113782669
+        },
+        {
+          "kind": "table",
+          "source": "rgb(112, 65, 189)",
+          "wire": "rgb(112, 65, 189)",
+          "sourceContrast": 6.603997399046844,
+          "sourceWireContrast": 4.263529328185769,
+          "uiWireContrast": 4.263529328185769
+        },
+        {
+          "kind": "formula",
+          "source": "rgb(138, 63, 133)",
+          "wire": "rgb(138, 63, 133)",
+          "sourceContrast": 6.7085183106481745,
+          "sourceWireContrast": 4.317656275455759,
+          "uiWireContrast": 4.317656275455759
+        },
+        {
+          "kind": "picture",
+          "source": "rgb(135, 87, 23)",
+          "wire": "rgb(135, 87, 23)",
+          "sourceContrast": 6.165898414036117,
+          "sourceWireContrast": 3.9659541753886307,
+          "uiWireContrast": 3.9659541753886307
+        },
+        {
+          "kind": "footnote",
+          "source": "color(srgb 0.109804 0.403922 0.613725)",
+          "wire": "color(srgb 0.109804 0.403922 0.613725)",
+          "sourceContrast": 6.052685283661392,
+          "sourceWireContrast": 3.9884351569842478,
+          "uiWireContrast": 3.9884351569842478
+        },
+        {
+          "kind": "code",
+          "source": "color(srgb 0.535294 0.294118 0.305882)",
+          "wire": "color(srgb 0.535294 0.294118 0.305882)",
+          "sourceContrast": 6.638656717968964,
+          "sourceWireContrast": 4.1941757271356295,
+          "uiWireContrast": 4.1941757271356295
+        },
+        {
+          "kind": "unmapped",
+          "source": "rgb(82, 97, 107)",
+          "wire": "rgb(84, 92, 104)",
+          "sourceContrast": 6.400579932523359,
+          "sourceWireContrast": 3.9941321490676134,
+          "uiWireContrast": 4.160061159395938
+        }
+      ],
+      "sourceBottom": 984,
+      "documentBottom": 984,
+      "visibleWires": 8,
+      "selectedWires": 1
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 32,
+      "panelTop": 133,
+      "documentOverflow": 0,
       "kinds": [
         {
           "kind": "heading",
@@ -225,13 +603,15 @@
       "documentBottom": 984,
       "visibleWires": 8,
       "selectedWires": 1
-    }
-  ],
-  "longPageMeasurements": [
+    },
     {
-      "width": 1440,
+      "width": 640,
       "height": 1000,
       "dpr": 1,
+      "theme": "light",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
       "kinds": [
         {
           "kind": "heading",
@@ -308,13 +688,17 @@
       ],
       "sourceBottom": 984,
       "documentBottom": 984,
-      "visibleWires": 7,
+      "visibleWires": 3,
       "selectedWires": 1
     },
     {
       "width": 640,
       "height": 1000,
       "dpr": 1,
+      "theme": "dark",
+      "toolbarHeight": 72,
+      "panelTop": 173,
+      "documentOverflow": 0,
       "kinds": [
         {
           "kind": "heading",
@@ -391,21 +775,80 @@
       ],
       "sourceBottom": 984,
       "documentBottom": 984,
-      "visibleWires": 6,
+      "visibleWires": 3,
       "selectedWires": 1
     }
   ],
   "minimumCategoryContrast": 3.8080923057943306,
   "sourceFiles": {
-    "apps/editor/src/review/compare-geometry.ts": "7b4b0c56d7f655873a773d7fe7de5a4d63cacdaad1740571f8f781e40aa2742d",
-    "apps/editor/src/review/ContinuousSource.tsx": "4c72ad042f2fb9868832e477f99301b29781452586e5632ec5eb75b76b2fe267",
+    "apps/editor/src/review/compare-geometry.ts": "ce2510ee8d67c76c581d36dfe36dd2cf45aff4ab5c8ec3474351e4683518e273",
+    "apps/editor/src/review/ContinuousSource.tsx": "4226842c1909f3df09b9bf2f4752de4fdf7bf21079a66b88453c0858c36e1317",
     "apps/editor/src/review/GeneratedComparison.tsx": "025c7877d064005a5c6c361b4fff7f8b3b065353561c3dc0921fcab9f2d8fe34",
     "apps/editor/src/review/review-kinds.ts": "1a9c68866610085293a1f6f1c8e4beaa4321a49de5689ee6804f1a14fea235e9",
-    "apps/editor/src/review/review.css": "c8b22d9a12a695f20302fa619749231da4219c4e6ebbbd04e63880e0fd85d37c",
-    "apps/editor/src/review/ReviewRenderer.tsx": "dcdca706813edcb1563fc6d5fe2de6b86ec9a7289f37a493c695142d729f1dce",
+    "apps/editor/src/review/review.css": "ee29684dfa6f0a3c39892ac9db06bb553f5a90c87172bb7100cdcd6e10f060a8",
+    "apps/editor/src/review/ReviewRenderer.tsx": "58cb3974b61bf99f85d92f773c9e1845452bbdaa0561ccda145b43474db8de7d",
     "apps/editor/src/review/ReviewViewPage.tsx": "7d65e8a81570c716adf07879c110a0c26855150ea7cead9096ea637f67984253",
     "apps/editor/src/BlockHandles.tsx": "5c0f684af2c7fe026544602a1c275e324a4957221f9a8bff547fd573e5d04176",
-    "apps/editor/src/styles/tokens.css": "bb832e4fd11b909630662d07b21e80c79ecea15071edb890711a099a169e6644"
+    "apps/editor/src/styles/tokens.css": "dd96a360d0a7a3dceaf28acccdf341fe22f35efcb43e7f9be70a9606a77d730c",
+    "apps/editor/src/locales.ts": "3fb178f7e0d5cfd41fdbbe22fdbcbbda49a51125c02539eec895d93c3ebbc1d3",
+    "apps/editor/test/fixtures/review-ui/fixture.tsx": "865cb1e7a8bc3dc259d4dd45a41e9b4d4918ece7aff440899a4683cb084235d0"
   },
-  "captureReadiness": "PNGs loaded and every drawn wire start matches a visible source-region edge within 2px; no fixed delay"
+  "captureReadiness": "PNGs loaded and every drawn wire start matches a visible source-region edge within 2px; no fixed delay",
+  "captureMatrix": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "language": "en"
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "language": "en"
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "language": "ko"
+    },
+    {
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "language": "ko"
+    }
+  ],
+  "followup": {
+    "toolbar": "one row at 1440; two rows at 640; shared Input/native preset list and Button/Tooltip controls",
+    "checkedCount": "check icon and count; checked/total meaning in keyboard/hover Tooltip and accessible name",
+    "documentOverflowPx": 0,
+    "zoom": {
+      "presets": [
+        "Page width",
+        50,
+        75,
+        100,
+        150,
+        200
+      ],
+      "range": [
+        25,
+        400
+      ],
+      "wheelPercentagePointStep": 10,
+      "percentBasis": "page metadata width, same as the existing PDF viewer",
+      "persistence": "mounted comparison only",
+      "page100ReadsDuringZoom": 1,
+      "sourceAnchorRatioErrorLessThan": 0.01,
+      "currentPngReloaded": false
+    },
+    "panRegression": {
+      "before": "visible source region button disappeared after high-zoom horizontal pan",
+      "cause": "nearby observer watched a pane-width sheet instead of the overflowing image layout box",
+      "after": "same regression passes; source wire endpoint error less than 2px"
+    },
+    "manualSetupCondition": "Two capture attempts stopped before comparison in the existing add-plugin picker when its draft was reset. Manual capture now scopes directly to comparison; automatic registration/OneDrive/Jira assertions and timeouts remain unchanged."
+  }
 }

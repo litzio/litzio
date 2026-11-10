@@ -120,7 +120,15 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
   keep page-specific check controls outside the PNG. Continuous navigation uses a compact current-page
   number Input and total, with Enter to jump, rather than previous/next buttons. All visible correspondence
   lines remain thin; the selected correspondence is thicker and its document block is highlighted. The generated comparison fills its tab height
-  and scrolls each pane internally rather than fixing the reading area to 520px. BlockHandles
+  and scrolls each pane vertically rather than fixing the reading area to 520px. One command row
+  combines filename, checked count (Tooltip/accessibility description), page Input/total, one editable
+  zoom Input with native presets, sync,
+  open and refresh; it wraps to at most two rows at 640px. The repeated comparison heading is
+  accessibility-only. Prose wraps to its pane width without the two-editor-group 440px minimum;
+  wide tables, code and equations retain their own block scrolling. Source zoom changes only PNG
+  display width and preserves the current page position; 100% uses the page metadata width, and
+  Page width fits the pane. Ctrl+wheel changes by 10 percentage points within 25–400% without
+  browser zoom. The existing geometry hooks remeasure correspondence after zoom. BlockHandles
   remeasures after React NodeView child commits on reread, even if the paper and editor return
   to the same final outer height; existing cue geometry and hover/handle priority remain shared.
 

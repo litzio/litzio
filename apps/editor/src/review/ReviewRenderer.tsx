@@ -1,11 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Check, X, Undo2, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Check, X, Undo2, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, ArrowDownUp } from "lucide-react";
 import type { EditableDocument } from "@litzio/core";
 import type { ReviewView, ReviewBundle, ReviewPage, ReviewMapping, ReviewProposal, ReviewBaseline } from "@litzio/core/views-v2";
 import { i18n } from "../i18n.ts";
 import { DocumentEditor } from "../DocumentEditor.tsx";
 import type { ReadingPosition } from "../document-reading.ts";
 import { Button } from "../components/ui/button.tsx";
+import { Input } from "../components/ui/input.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import "./review.css";
@@ -86,17 +87,55 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
     </div></div>
   </section>;
 }
-export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable }: { snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void }) {
+export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable, title, toolbarActions }: { snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void; title?: string; toolbarActions?: ReactNode }) {
   const [sources, setSources] = useState<string[]>([]), [targets, setTargets] = useState<string[]>([]);
   const [positions, setPositions] = useState<ReadingPosition>({ blocks: [], height: 0 });
   const scroll = useRef<HTMLDivElement>(null), content = useRef<HTMLDivElement>(null), source = useRef<HTMLDivElement>(null);
   const compare = useRef<HTMLDivElement>(null), wireId = useId();
   const [sync,setSync] = useState(true), [jump,setJump] = useState<{pageNo:number}>();
+  const [zoom,setZoom] = useState<number | "fit">("fit"), [zoomDraft,setZoomDraft] = useState<string>(i18n.t("Page width"));
+  const zoomValue = useRef<number | "fit">("fit");
+  const zoomAnchor = useRef<{pane:HTMLElement;page:HTMLElement;y:number;offset:number;x:number;screenY:number} | undefined>(undefined);
+  const changeZoom = (next:number | "fit") => {
+    const pane=source.current?.querySelector<HTMLElement>(".review-page-scroll");
+    const page=pane?.querySelector<HTMLElement>(`[data-page-no="${s.page?.pageNo}"] .review-page`);
+    if (pane && page) {
+      const bounds=pane.getBoundingClientRect(),image=page.getBoundingClientRect(),screenY=Math.min(80,pane.clientHeight/3),y=bounds.top+screenY-image.top;
+      zoomAnchor.current={pane,page,y:Math.max(0,y)/image.height,offset:Math.min(0,y),x:Math.min(1,Math.max(0,(bounds.left+pane.clientWidth/2-image.left)/image.width)),screenY};
+    }
+    zoomValue.current=next;setZoom(next);setZoomDraft(next === "fit" ? i18n.t("Page width"):`${next}%`);
+  };
+  const commitZoom = (value:string) => {
+    const number=Number(value.trim().replace(/%$/,""));
+    changeZoom(value === i18n.t("Page width") ? "fit":value.trim() && Number.isFinite(number) ? Math.min(400,Math.max(25,number)):zoomValue.current);
+  };
+  const zoomChanged = useRef(changeZoom);zoomChanged.current=changeZoom;
+  const [pageDraft,setPageDraft] = useState(String(s.page?.pageNo ?? 1)), [editingPage,setEditingPage] = useState(false);
+  useEffect(()=>{if (!editingPage) setPageDraft(String(s.page?.pageNo ?? 1));},[s.page?.pageNo,editingPage]);
   const continuous = !!loadPage && !!s.pages;
   const navigate = (pageNo:number) => { if (continuous) setJump({pageNo}); else onPage(pageNo); };
   const [unmapped, setUnmapped] = useState(false);
   const valid = !disabled && coherent(s);
-  const wires = useCompareGeometry(compare,content,s,positions,sources,targets,valid,continuous && sync);
+  const wires = useCompareGeometry(compare,content,s,positions,sources,targets,valid,continuous && sync,zoom);
+  useLayoutEffect(()=>{
+    const anchor=zoomAnchor.current;zoomAnchor.current=undefined;if (!anchor) return;
+    const bounds=anchor.pane.getBoundingClientRect(),image=anchor.page.getBoundingClientRect();
+    anchor.pane.scrollTop+=image.top+anchor.y*image.height+anchor.offset-bounds.top-anchor.screenY;
+    anchor.pane.scrollLeft+=image.left+anchor.x*image.width-bounds.left-anchor.pane.clientWidth/2;
+  },[zoom]);
+  useEffect(()=>{
+    const element=source.current;if (!element || !continuous) return;
+    const wheel=(event:WheelEvent)=>{
+      if (!event.ctrlKey || !event.deltaY) return;
+      event.preventDefault();
+      const page=element.querySelector<HTMLElement>(`[data-page-no="${s.page?.pageNo}"] .review-page`),width=Number(page?.dataset.sourceWidth);
+      if (!page || !width) return;
+      const current=zoomValue.current === "fit" ? Math.round((page?.getBoundingClientRect().width ?? width)/width*100):zoomValue.current;
+      zoomChanged.current(Math.min(400,Math.max(25,current+(event.deltaY<0 ? 10:-10))));
+    };
+    element.addEventListener("wheel",wheel,{passive:false});
+    return ()=>element.removeEventListener("wheel",wheel);
+  },[continuous,s.page?.pageNo]);
   useEffect(() => { setSources([]); setTargets([]); setUnmapped(false); }, [s.documentHash, s.bundle.sourceRevision, disabled]);
   const selectionEpoch = useRef(0);
   const selectSource = async (id: string) => {
@@ -129,8 +168,19 @@ export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled
     const region = container?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (container && region) { const a = container.getBoundingClientRect(), b = region.getBoundingClientRect(); reveal(container, container.scrollTop + b.top-a.top, b.height); }
   }, [sources]);
-  return <>{continuous && <div className="review-toolbar"><Button variant={sync ? "secondary":"outline"} aria-pressed={sync} onClick={()=>setSync(value=>!value)}><Check className={sync ? undefined:"invisible"} />{i18n.t("Sync scrolling")}</Button></div>}<div className="review-compare" ref={compare}>
-    <div ref={source}>{continuous ? <ContinuousSource snapshot={s} loadPage={loadPage!} selected={sources} disabled={disabled || !valid} saving={!!selectionDisabled} jump={jump} onSelect={selectSource} onVisible={onPage} onCheck={onCheck!} onUnavailable={onUnavailable!} /> : <PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid || selectionDisabled} />}</div>
+  const checkedDescription = i18n.t("{{checked}} of {{total}} pages checked",{checked:s.progress?.checkedPages.length ?? 0,total:s.pageCount});
+  return <>{continuous && <div className="review-toolbar review-compare-toolbar" aria-label={i18n.t("Source comparison")}>
+    <span className="review-file" title={title ?? s.documentPath}>{title ?? s.documentPath}</span>
+    <Tooltip><TooltipTrigger render={<span className="review-progress" tabIndex={0} aria-label={checkedDescription} />}><Check aria-hidden="true" />{s.progress?.checkedPages.length ?? 0}</TooltipTrigger><TooltipContent>{checkedDescription}</TooltipContent></Tooltip>
+    <form className="review-page-jump" onSubmit={event=>{event.preventDefault();const page=Number(pageDraft);if (Number.isInteger(page) && page>=1 && page<=s.pageCount) setJump({pageNo:page});}}>
+      <span>{i18n.t("Page")}</span><Input className="review-page-number shrink-0" type="number" min={1} max={s.pageCount} step={1} required disabled={disabled || !valid} aria-label={i18n.t("Go to page")} title={i18n.t("Press Enter to go to page.")} value={pageDraft} onFocus={()=>setEditingPage(true)} onBlur={()=>setEditingPage(false)} onChange={event=>setPageDraft(event.target.value)} style={{width:`calc(${Math.max(2,String(s.pageCount).length+1)}ch + var(--space-6) + var(--size-icon-slot))`}} /><span>/ {s.pageCount}</span>
+    </form>
+    <Input className="review-zoom" list={`${wireId}-zoom`} aria-label={i18n.t("Source zoom")} title={i18n.t("Source zoom (25–400%)")} value={zoomDraft} onChange={event=>{const value=event.target.value;setZoomDraft(value);if ([i18n.t("Page width"),"50%","75%","100%","150%","200%"].includes(value)) commitZoom(value);}} onBlur={event=>commitZoom(event.target.value)} onKeyDown={event=>{if (event.key === "Enter") {event.preventDefault();commitZoom(event.currentTarget.value);}}} />
+    <datalist id={`${wireId}-zoom`}>{[i18n.t("Page width"),"50%","75%","100%","150%","200%"].map(value=><option value={value} key={value} />)}</datalist>
+    <Tooltip><TooltipTrigger render={<Button variant={sync ? "secondary":"outline"} size="icon" aria-label={i18n.t("Sync scrolling")} aria-pressed={sync} onClick={()=>setSync(value=>!value)} />}><ArrowDownUp /></TooltipTrigger><TooltipContent>{i18n.t("Sync scrolling")}</TooltipContent></Tooltip>
+    {toolbarActions}
+  </div>}<div className="review-compare" ref={compare}>
+    <div ref={source}>{continuous ? <ContinuousSource snapshot={s} loadPage={loadPage!} selected={sources} disabled={disabled || !valid} saving={!!selectionDisabled} zoom={zoom} jump={jump} onSelect={selectSource} onVisible={onPage} onCheck={onCheck!} onUnavailable={onUnavailable!} /> : <PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid || selectionDisabled} />}</div>
     <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0}>
       <div className="review-reading-content" ref={content}>
         <DocumentEditor readOnly preview showHeadingLevels document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} />
@@ -251,18 +301,21 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     } catch { if (token === epoch.current) setState("uncertain"); }
     finally { if (token === epoch.current) busy.current = false; }
   };
-  return <div ref={host} className="review-renderer" data-generated={!!adapter.saveProgress}><header className="review-toolbar"><h2>{view.title}</h2>{unverifiable
+  const combined = !!adapter.saveProgress && !!adapter.loadPage && !!snapshot?.pages;
+  const controls = unverifiable
       ? <Tooltip><TooltipTrigger render={<Button variant="outline" onClick={adapter.openDocument} />}>Open result document</TooltipTrigger><TooltipContent>{REVIEW_UNAVAILABLE_GUIDANCE}</TooltipContent></Tooltip>
-      : <><Button variant="outline" onClick={adapter.openDocument}>{i18n.t("Open document")}</Button><Button variant="outline" disabled={savingProgress || state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{unresolved ? "Check request status" : i18n.t("Refresh data")}</Button></>}</header>
+      : <><Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={i18n.t("Open document")} onClick={adapter.openDocument} />}>{combined ? <ExternalLink />:i18n.t("Open document")}</TooltipTrigger><TooltipContent>{i18n.t("Open document")}</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={unresolved ? "Check request status":i18n.t("Refresh data")} disabled={savingProgress || state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)} />}>{combined ? <RefreshCw />:unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipTrigger><TooltipContent>{unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipContent></Tooltip>
+        {savingProgress && <span role="status">{i18n.t("Saving review progress…")}</span>}</>;
+  return <div ref={host} className="review-renderer" data-generated={!!adapter.saveProgress}>{!combined && <header className="review-toolbar"><h2>{view.title}</h2>{controls}</header>}
     {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? i18n.t("Refreshing data…") : state === "loading" ? i18n.t("Loading data…") : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : i18n.t("Data unavailable.")}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
-    {adapter.saveProgress && snapshot?.page && <div className="review-toolbar"><span>{snapshot.progress?.checkedPages.length ?? 0} / {snapshot.pageCount}</span>{savingProgress && <span role="status">{i18n.t("Saving review progress…")}</span>}</div>}
     {progressError && <Notice tone="warning">{i18n.t("Review progress could not be saved. Refresh data before continuing.")}</Notice>}
     {stale && <Notice tone="warning">{i18n.t("Data is out of date. Open newly verified comparison data to continue.")}</Notice>}
     {!wide && !adapter.saveProgress && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
     {snapshot && (wide || adapter.saveProgress) && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
-      <h3>{child.title}</h3>
+      <h3 className={combined && child.component === "SourceDocumentCompare" ? "sr-only":undefined}>{child.title}</h3>
       {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n,true)} />}
-      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} disabled={disabled} selectionDisabled={savingProgress} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
+      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} title={view.title} toolbarActions={combined ? controls:undefined} disabled={disabled} selectionDisabled={savingProgress} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
         if (disabled || busy.current) return;
         const pages = new Set(snapshot.progress?.checkedPages);
         if (checked) pages.add(pageNo); else pages.delete(pageNo);

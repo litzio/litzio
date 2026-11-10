@@ -619,7 +619,7 @@ snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(ch
 
 초기 보조 검토는 `fixtures/create-acceptance.py`의 한 페이지 PDF를 실제 docling-serve 1.32.0으로 변환해 수행했다. 최종 수락·표시 방식 비교는 아래의 보관 NIST 11쪽/합성 1쪽을 사용했다. 원본 대조·확인 저장과 최소 640px 페이지 가로 넘침 부재를 확인했다. 컨테이너는 중지했으며 다른 컨테이너를 조작하지 않았다. 코드/수식 인식 품질·원본과의 의미 동등성은 보증하지 않는다. 서버 지연은 자동 회귀에 넣지 않았다.
 
-`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`, `LITZIO_DOCLING_COMPARE_PAGE=5`를 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 최종 전후 캡처는 같은 NIST 입력·완료 작업을 사용한다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PageSurface와 내부 스크롤을 사용하며, 640px의 문서 최소 폭 440px는 기존 두 Editor 그룹과 같은 기준이다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
+`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`, `LITZIO_DOCLING_COMPARE_PAGE=5`를 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 최종 전후 캡처는 같은 NIST 입력·완료 작업을 사용한다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PageSurface와 내부 스크롤을 사용하며, 당시 640px 문서의 최소 폭은 440px였으며, 현재 패널 폭 줄바꿈은 아래 #1435에서 이를 대체한다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
 
 | 화면 | 변경 전 | 변경 후 |
 | --- | --- | --- |
@@ -666,8 +666,27 @@ PNG 실험은 NIST의 원본 7,943,538B→무손실 optimize 4,808,043B, 72dpi �
 억제한다. 순서가 뒤바뀌거나 같은 대상인 anchor는 스크롤을 역전시키지 않는다. 양쪽 viewport에 보이는 모든 대응을 얇은 SVG 연결선으로 항상 표시하고, 선택한 대응의 선은 굵게 하며 대응 문서 블록을 강조한다. viewport 밖 endpoint는 숨긴다. 스크롤·확대·패널 resize·문서 layout
 변화에서 다시 측정하고, 연결선은 원본 패널 끝까지 수평으로 나간 뒤 단일 곡선으로 잇는다. 제목은 원본 쪽 첫 줄의 위/아래 가장자리에 연결해 H1–H6 배지를 피하며, gutter 위로 크게 돌아가지 않는다.
 문서 제목 수준은 새 표시 대신 `DocumentEditor showHeadingLevels`/`BlockHandles`를 그대로 쓴다.
-대조 화면은 남은 탭 높이를 채우며 페이지와 문서는 각각 내부에서 스크롤한다. 기존 두 그룹과
-같이 문서의 440px 최소 읽기 폭과 가로 내부 스크롤을 유지한다.
+대조 화면은 남은 탭 높이를 채우며 페이지와 문서는 각각 내부에서 세로 스크롤한다.
+문서 본문은 패널 폭으로 줄바꿈하며 최소 440px 폭을 강제하지 않는다. 넓은 표·코드·수식은
+기존 블록 내부 가로 스크롤을 사용하고 문서 패널 전체를 옆으로 스크롤하지 않는다.
+파일명·확인 개수·현재 페이지 입력/전체·확대·스크롤 동기화·문서 열기·새로고침을 하나의
+공통 도구 막대에 둔다. 1440px에서는 한 줄, 640px에서는 최대 두 줄로 접는다. 확인 진행은
+Check 아이콘과 개수만 표시하고 전체 쪽수 대비 의미는 hover/keyboard Tooltip과 접근성 이름으로
+설명해 페이지 이동의 분수와 중복하지 않는다. 조작 아이콘도 같은 Button·Tooltip을 재사용한다.
+‘원본 대조’ 제목은 작업 탭과 접근성 section 이름으로 유지하고 화면 안에 반복하지 않는다.
+
+원본 배율은 열린 대조 component가 소유하며 저장하지 않는다. 공통 Input의 native datalist를
+사용한 한 칸에서 ‘페이지 너비’·50%·75%·100%·150%·200%를 선택하거나 숫자를 직접 입력한다.
+직접 숫자는 Enter/blur로 적용하고 25~400% 범위 밖은 가장 가까운 경계값으로 맞춘다.
+100%는 기존 PDF 읽기 화면처럼 페이지 metadata의 기준 폭이며 ‘페이지 너비’는 원본 패널에
+맞춘 폭이다. 기존 PNG의 CSS 표시 폭만 바꾸고 배율용 이미지/서버 요청·renderer는 추가하지 않는다.
+원본 패널의 Ctrl+wheel은 기본 브라우저 확대를 막고(passive:false, preventDefault) 10%p씩
+조절한다. 페이지 너비에서 시작하면 현재 표시 비율을 정수로 환산한 뒤 조절한다. 일반 wheel은
+기존 스크롤을 유지한다. 변경 전 현재 페이지의 좌표 비율과 화면 위치를 기억해 같은 위치를
+복원하며 연결선·동기 anchor·nearby 관찰은 새 geometry를 쓴다. 새로 근처가 된 페이지는 기존
+lazy 읽기 경로를 쓰지만 보고 있던 페이지 PNG를 배율 때문에 다시 읽지 않는다. 근처 관찰은
+확대한 이미지의 배치 상자를 대상으로 하므로 가로로 이동해도 보이는 이미지의 영역이 사라지지 않는다.
+
 
 저장 계약의 `checkedPages`/`lastPage`와 접수 순서, 저장 중 표시·닫기 보호·실패 후 새로 읽기
 경계는 유지한다. 스크롤만으로 페이지를 확인 처리하지 않는다. 각 페이지 확인 토글은
@@ -703,10 +722,31 @@ production 대조는 같은 변수와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`,
 [1440px](assets/review-compare-1435/sync-off-1440.png) /
 [640px](assets/review-compare-1435/sync-off-640.png)에 남겼다.
 원본 PNG가 도착하고 모든 선의 시작점이 보이는 원본 영역 가장자리와 2px 이내로 맞는 상태를 기다린 뒤 캡처했으며, 페이지 확인 버튼·제목 배지와 연결선의 겹침, 하단의 앱 여백,
-본문 줄바꿈, dark 대비와 내부 스크롤을 직접 점검했다. 640px의 문서 가로 스크롤은 기존 440px
-최소 읽기 폭을 유지한 결과다. 공통 Button·Check 아이콘·Notice·Read/BlockHandles·inspection gutter와
+본문 줄바꿈, dark 대비와 블록 내부 스크롤을 직접 점검했다. 소유자의 캡처 검토 후 도구 막대와
+640px 본문 폭과 원본 배율을 보완하고 두 폭 모두 Light/Dark 캡처를 갱신했다. 미지원·제외·장식 영역은 별도
+fixture의 회색 영역 [1440 Light](assets/review-compare-1435/unmapped-1440-light.png) /
+[1440 Dark](assets/review-compare-1435/unmapped-1440-dark.png) /
+[640 Light](assets/review-compare-1435/unmapped-640-light.png) /
+[640 Dark](assets/review-compare-1435/unmapped-640-dark.png)에서 확인한다. 공통 Button·Check 아이콘·Notice·Read/BlockHandles·inspection gutter와
 테마 토큰을 사용했으며 새 공통 컨트롤 예외는 없다. 계정 표시는 캡처 시 가렸고 절대 경로를 담지 않았다.
 [촬영 정보와 해시](assets/review-compare-1435/verification.json)를 함께 보존한다. 소유자 시각 승인을 대신하지 않는다.
+
+상단 정리·본문 폭 보완 후 네 조합의 실제 결과를 보존한다. `after`는 1쪽,
+`long`·`boundary`·`sync-off`는 8쪽의 중간 페이지다. 50%·200%는 같은 1쪽 결과에서
+기존 PNG의 배율만 바꾼 [1440 Light 50%](assets/review-compare-1435/zoom-50-1440-light.png) /
+[200%](assets/review-compare-1435/zoom-200-1440-light.png),
+[1440 Dark 50%](assets/review-compare-1435/zoom-50-1440-dark.png) /
+[200%](assets/review-compare-1435/zoom-200-1440-dark.png),
+[640 Light 50%](assets/review-compare-1435/zoom-50-640-light.png) /
+[200%](assets/review-compare-1435/zoom-200-640-light.png),
+[640 Dark 50%](assets/review-compare-1435/zoom-50-640-dark.png) /
+[200%](assets/review-compare-1435/zoom-200-640-dark.png)에 남겼다.
+
+| 폭 | 1쪽 Light / Dark | 긴 문서 Light / Dark | 페이지 경계 Light / Dark |
+| --- | --- | --- | --- |
+| 1440px | [Light](assets/review-compare-1435/after-1440.png) / [Dark](assets/review-compare-1435/after-1440-dark.png) | [Light](assets/review-compare-1435/long-1440.png) / [Dark](assets/review-compare-1435/long-1440-dark.png) | [Light](assets/review-compare-1435/boundary-1440.png) / [Dark](assets/review-compare-1435/boundary-1440-dark.png) |
+| 640px | [Light](assets/review-compare-1435/after-640-light.png) / [Dark](assets/review-compare-1435/after-640.png) | [Light](assets/review-compare-1435/long-640-light.png) / [Dark](assets/review-compare-1435/long-640.png) | [Light](assets/review-compare-1435/boundary-640-light.png) / [Dark](assets/review-compare-1435/boundary-640.png) |
+
 
 
 실제 1쪽 결과의 확인 저장 후 제목 배지를 추가 계측했을 때 표/코드 NodeView 아래 배지가

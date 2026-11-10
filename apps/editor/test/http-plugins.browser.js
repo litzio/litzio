@@ -16,6 +16,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   };
+  // Manual comparison evidence exercises only comparison; automatic HTTP still runs
+  // the entire registration/OneDrive/Jira contract below. The add-plugin picker
+  // can reset its draft on a settings refresh, independently of comparison.
+  if (!(screenshots && pluginFixture.docling?.realFile && pluginFixture.docling?.comparisonCapture)) {
   let detectedFolders = [pluginFixture.folder, pluginFixture.otherFolder];
   let holdEnabled = false, releaseEnabled;
   const heldEnabled = new Promise(resolve => { releaseEnabled = resolve; });
@@ -269,6 +273,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
+  }
   // Actual detachable community artifact, same Host and CLI, one fake service.
   const docling = pluginFixture.docling;
   const id = "community.docling";
@@ -315,16 +320,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       const result = (await docling.cli(["plugins","result",started.job.requestId])).job.result;
       const current = await docling.review("read",result.comparison);
       await docling.review("progress",{...result.comparison,baseline:current.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),progress:{checkedPages:[],lastPage:docling.comparisonPage}});
-      for (const width of [1440,640]) {
+      for (const width of [1440,640]) for (const theme of ["light","dark"]) {
+        const captureSuffix = (width === 1440 && theme === "light") || (width === 640 && theme === "dark") ? String(width):`${width}-${theme}`;
         await page.setViewportSize({width,height:1000});
-        await page.evaluate(width => {localStorage.setItem("litzio.uiLanguage",width === 640 ? "ko":"en");localStorage.setItem("litzio.theme",width === 640 ? "dark":"light");},width);
+        await page.evaluate(({width,theme}) => {localStorage.setItem("litzio.uiLanguage",width === 640 ? "ko":"en");localStorage.setItem("litzio.theme",theme);},{width,theme});
         await page.reload();
         await page.locator(".sidebar").getByRole("button",{name:"Docling",exact:true}).click();
         const panel = page.getByTestId("plugin-job-panel");
         const row = panel.getByRole("row").filter({has:page.getByRole("cell",{name:"real.docling",exact:true})}).first();
         await expect(row.getByRole("status")).toHaveText(width === 640 ? "완료":"Completed");
         if (docling.comparisonBefore) {
-          await page.screenshot({path:`tmp/docling-1408/before-${width}.png`,mask:[page.locator(".sidebar-host-account"),panel.getByLabel(width===640?"열린 폴더":"Opened folder",{exact:true})]});
+          await page.screenshot({path:`tmp/docling-1408/before-${captureSuffix}.png`,mask:[page.locator(".sidebar-host-account"),panel.getByLabel(width===640?"열린 폴더":"Opened folder",{exact:true})]});
         } else {
           const firstRead = page.waitForResponse(response => response.url().endsWith('/api/reviews') && response.request().postDataJSON()?.action === 'generated-compare');
           await row.getByRole("button",{name:width===640?"원본 대조":"Compare source",exact:true}).click();
@@ -355,6 +361,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
           await expect.poll(()=>sheet.locator("img").evaluate(image=>image.complete && image.naturalWidth>0)).toBe(true);
           const heading = sheet.getByRole('button',{name:docling.comparisonPage === 1 ? 'table · Supported':'section_header · Supported',exact:true}).first();
           if (await heading.count()) { await heading.click(); await expect(compare.locator('.review-wires path[data-selected="true"]')).not.toHaveCount(0); }
+          // Keep the first-page heading and prose visible in narrow review evidence.
+          if (width === 640 && docling.comparisonPage === 1) await compare.locator(".review-read").evaluate(element=>{element.scrollTop=0;});
           expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
           await expect(compare.locator(".review-image-loading")).toHaveCount(0);
           const measured = await compare.evaluate(element=>{
@@ -369,19 +377,31 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
               const source=resolve(`--id-color-review-source-${kind}`),wire=resolve(`--id-color-review-${kind}`);
               return {kind,source,wire,sourceContrast:contrast(source,paper),sourceWireContrast:contrast(blended(source,paper),paper),uiWireContrast:contrast(blended(wire,bg),bg)};
             });
-            return {width:innerWidth,height:innerHeight,dpr:devicePixelRatio,kinds,sourceBottom:element.querySelector('.review-source').getBoundingClientRect().bottom,documentBottom:element.querySelector('.review-read').getBoundingClientRect().bottom,visibleWires:element.querySelectorAll('.review-wires path').length,selectedWires:element.querySelectorAll('.review-wires path[data-selected="true"]').length};
+            return {width:innerWidth,height:innerHeight,dpr:devicePixelRatio,theme:document.documentElement.dataset.theme,toolbarHeight:element.querySelector(".review-compare-toolbar").getBoundingClientRect().height,panelTop:element.querySelector(".review-read").getBoundingClientRect().top,documentOverflow:element.querySelector(".review-read").scrollWidth-element.querySelector(".review-read").clientWidth,kinds,sourceBottom:element.querySelector('.review-source').getBoundingClientRect().bottom,documentBottom:element.querySelector('.review-read').getBoundingClientRect().bottom,visibleWires:element.querySelectorAll('.review-wires path').length,selectedWires:element.querySelectorAll('.review-wires path[data-selected="true"]').length};
           });
           expect(measured.kinds.every(kind=>Math.min(kind.sourceContrast,kind.sourceWireContrast,kind.uiWireContrast)>=3),JSON.stringify(measured.kinds)).toBe(true);
+          expect(measured.documentOverflow).toBeLessThan(2);
           measurements.push(measured);
           await waitForWires();
-          await page.screenshot({path:`docs/design/assets/review-compare-1435/${docling.comparisonPage > 1 ? "long":"after"}-${width}.png`,mask:[page.locator(".sidebar-host-account")]});
+          await page.screenshot({path:`docs/design/assets/review-compare-1435/${docling.comparisonPage > 1 ? "long":"after"}-${captureSuffix}.png`,mask:[page.locator(".sidebar-host-account")]});
+          if (docling.comparisonPage === 1) {
+            const zoom=compare.getByRole('combobox',{name:width===640?'원본 배율':'Source zoom',exact:true});
+            for (const percent of [50,200]) {
+              await zoom.fill(`${percent}%`); await zoom.press('Enter');
+              await expect(zoom).toHaveValue(`${percent}%`);
+              await expect(compare.locator('.review-image-loading')).toHaveCount(0);
+              await waitForWires();
+              await page.screenshot({path:`docs/design/assets/review-compare-1435/zoom-${percent}-${width}-${theme}.png`,mask:[page.locator('.sidebar-host-account')]});
+            }
+            await zoom.fill(width===640?'페이지 너비':'Page width'); await zoom.press('Enter');
+          }
           if (docling.comparisonPage > 1) {
             const sourceScroll = compare.locator('.review-page-scroll');
             await sourceScroll.hover(); await page.mouse.wheel(0,550);
             await expect.poll(()=>sourceScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(0);
             await expect(compare.locator(".review-image-loading")).toHaveCount(0);
             await waitForWires();
-            await page.screenshot({path:`docs/design/assets/review-compare-1435/boundary-${width}.png`,mask:[page.locator('.sidebar-host-account')]});
+            await page.screenshot({path:`docs/design/assets/review-compare-1435/boundary-${captureSuffix}.png`,mask:[page.locator('.sidebar-host-account')]});
             await compare.getByRole('button',{name:width===640?'스크롤 동기화':'Sync scrolling',exact:true}).click();
             const reading = compare.locator('.review-read');
             const before = await reading.evaluate(e=>e.scrollTop);
@@ -390,7 +410,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
             expect(await reading.evaluate(e=>e.scrollTop)).toBe(before);
             await expect(compare.locator(".review-image-loading")).toHaveCount(0);
             await waitForWires();
-            await page.screenshot({path:`docs/design/assets/review-compare-1435/sync-off-${width}.png`,mask:[page.locator('.sidebar-host-account')]});
+            await page.screenshot({path:`docs/design/assets/review-compare-1435/sync-off-${captureSuffix}.png`,mask:[page.locator('.sidebar-host-account')]});
           }
 
         }

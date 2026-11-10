@@ -22,7 +22,7 @@ export function scrollPosition(points:[number,number][],value:number,reverse=fal
 }
 /** All endpoints use the same measured coordinates as reading highlights and PNG regions. */
 type Wire = {key:string;d:string;kind:ReviewKind;selected:boolean;paperEdge:number};
-export function useCompareGeometry(host:RefObject<HTMLDivElement|null>,content:RefObject<HTMLDivElement|null>,s:ReviewSnapshot,positions:ReadingPosition,sources:string[],targets:string[],valid:boolean,sync:boolean) {
+export function useCompareGeometry(host:RefObject<HTMLDivElement|null>,content:RefObject<HTMLDivElement|null>,s:ReviewSnapshot,positions:ReadingPosition,sources:string[],targets:string[],valid:boolean,sync:boolean,zoom:number | "fit") {
   const [wires,setWires]=useState<Wire[]>([]);
   const suppression = useRef(new Map<HTMLElement,number>());
   useLayoutEffect(()=>{
@@ -87,6 +87,6 @@ export function useCompareGeometry(host:RefObject<HTMLDivElement|null>,content:R
     if (left.firstElementChild) observer.observe(left.firstElementChild);
     root.addEventListener("load",invalidate,true);schedule();
     return ()=>{root.removeEventListener("scroll",scroll,true);root.removeEventListener("load",invalidate,true);observer.disconnect();cancelAnimationFrame(frame);};
-  },[host,content,s,positions,sources,targets,valid,sync]);
+  },[host,content,s,positions,sources,targets,valid,sync,zoom]);
   return wires;
 }

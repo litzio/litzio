@@ -9,6 +9,48 @@ async (page, { expect, screenshots }) => {
   await expect(page.locator('.review-source-sheet')).toHaveCount(200);
   // Page geometry is present, but image requests must remain local to the viewport.
   await expect(page.locator('[data-page-no="200"] img')).toHaveCount(0);
+  // One compact command row; narrow prose wraps while the wide table scrolls locally.
+  const toolbar = page.locator('.review-compare-toolbar');
+  const checkNarrowLayout = async width => {
+    await page.setViewportSize({width,height:1000});
+    await expect.poll(()=>page.locator('.review-read').evaluate(element=>element.scrollWidth-element.clientWidth)).toBeLessThan(2);
+    await expect.poll(()=>toolbar.evaluate(element=>{
+      const height=element.querySelector('button').getBoundingClientRect().height;
+      return element.getBoundingClientRect().height/(height+parseFloat(getComputedStyle(element).rowGap));
+    })).toBeLessThanOrEqual(width===640 ? 2:1);
+    const text = page.locator('.review-read .paragraph').first();
+    expect(await text.evaluate(element=>element.scrollWidth-element.clientWidth)).toBeLessThan(2);
+    if (width===640) await expect.poll(()=>page.locator('.review-read .table-scroll').evaluate(element=>element.scrollWidth-element.clientWidth)).toBeGreaterThan(0);
+    const paragraph = page.getByRole('button',{name:'Sentence · Supported',exact:true});
+    await paragraph.click();
+    await expect.poll(()=>page.locator('.review-wires path[data-selected="true"]').evaluateAll(paths=>{
+      const target=document.querySelector('.review-read .paragraph').getBoundingClientRect();
+      if (!paths.length) return Infinity;
+      const path=paths[0],point=path.getPointAtLength(path.getTotalLength()),actual=new DOMPoint(point.x,point.y).matrixTransform(path.getScreenCTM());
+      return Math.max(Math.abs(actual.x-target.left),Math.abs(actual.y-target.top-Math.min(target.height/2,24)));
+    })).toBeLessThan(2);
+  };
+  await checkNarrowLayout(640);
+  await checkNarrowLayout(1440);
+  // At high zoom, horizontal panning must keep the visible image's region controls.
+  const zoomEarly = page.getByRole('combobox',{name:'Source zoom',exact:true});
+  await zoomEarly.fill('400%'); await zoomEarly.press('Enter');
+  await page.locator('.review-page-scroll').evaluate(element=>{element.scrollLeft=element.scrollWidth-element.clientWidth;});
+  const pannedRegion = page.getByRole('button',{name:'Sentence · Supported',exact:true});
+  await expect(pannedRegion).toBeVisible();
+  await expect.poll(()=>page.locator('.review-wires path[data-selected="true"]').evaluateAll(paths=>{
+    const region=document.querySelector('[data-page-no="1"] [data-region-id="text"]');
+    if (!paths.length || !region) return Infinity;
+    const box=region.getBoundingClientRect(),path=paths[0],point=path.getPointAtLength(0),actual=new DOMPoint(point.x,point.y).matrixTransform(path.getScreenCTM());
+    return Math.max(Math.abs(actual.x-box.right),Math.abs(actual.y-box.top-box.height/2));
+  })).toBeLessThan(2);
+  await zoomEarly.fill('Page width'); await zoomEarly.press('Enter');
+  const progressCount = page.getByLabel('0 of 200 pages checked',{exact:true});
+  await toolbar.getByRole('spinbutton').focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(progressCount).toBeFocused();
+  await expect(page.getByText('0 of 200 pages checked',{exact:true})).toBeVisible();
+  await toolbar.getByRole('spinbutton').focus();
   await page.getByRole('button',{name:'Page 1: Page checked',exact:true}).click();
   await expect(page.getByRole('status')).toContainText('Saving review progress');
   const sourceScroll = page.locator('.review-page-scroll');
@@ -17,6 +59,7 @@ async (page, { expect, screenshots }) => {
   await expect.poll(()=>sourceScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(0);
   await expect(page.locator('[data-page-no="1"] img')).toHaveCount(0);
   await expect(page.locator('[data-page-no="200"] img')).toHaveCount(0);
+
 
   await expect(page.locator('.review-image-loading')).toHaveCount(0);
   await expect(page.getByRole('status')).toContainText('Saving review progress');
@@ -42,6 +85,49 @@ async (page, { expect, screenshots }) => {
   await pageNumber.fill('100'); await pageNumber.press('Enter');
   await expect(page.locator('[data-page-no="100"] img')).toBeVisible();
   await expect(page.locator('[data-page-no="200"] img')).toHaveCount(0);
+
+  const zoom = page.getByRole('combobox',{name:'Source zoom',exact:true});
+  const anchor = () => sourceScroll.evaluate(element=>{
+    const page=element.querySelector('[data-page-no="100"] .review-page').getBoundingClientRect();
+    return (element.getBoundingClientRect().top+80-page.top)/page.height;
+  });
+  const beforeZoom = await anchor();
+  await expect(page.getByTestId('page-100-reads')).toHaveText('1');
+  for (const percent of ['50%','200%','10','500','67.5']) {
+    await zoom.fill(percent); await zoom.press('Enter');
+    const expected = Math.min(400,Math.max(25,Number(percent.replace('%',''))));
+    await expect(zoom).toHaveValue(`${expected}%`);
+    await expect.poll(()=>page.locator('[data-page-no="100"] .review-page').evaluate(element=>element.getBoundingClientRect().width)).toBeCloseTo(600*expected/100,0);
+    await expect.poll(()=>anchor().then(value=>Math.abs(value-beforeZoom))).toBeLessThan(.01);
+    await expect(page.getByTestId('page-100-reads')).toHaveText('1');
+  }
+  const browserWidth = await page.evaluate(()=>innerWidth);
+  await sourceScroll.hover(); await page.keyboard.down('Control');
+  try { await page.mouse.wheel(0,-100); } finally { await page.keyboard.up('Control'); }
+  await expect(zoom).toHaveValue('77.5%');
+  expect(await page.evaluate(()=>innerWidth)).toBe(browserWidth);
+  await expect.poll(()=>anchor().then(value=>Math.abs(value-beforeZoom))).toBeLessThan(.01);
+  await sourceScroll.hover(); await page.keyboard.down('Control');
+  try { await page.mouse.wheel(0,100); } finally { await page.keyboard.up('Control'); }
+  await expect(zoom).toHaveValue('67.5%');
+  await zoom.fill('Page width'); await zoom.press('Enter');
+  await expect.poll(()=>anchor().then(value=>Math.abs(value-beforeZoom))).toBeLessThan(.01);
+  await expect(page.getByTestId('page-100-reads')).toHaveText('1');
+
+  if (screenshots) {
+    await pageNumber.fill('1'); await pageNumber.press('Enter');
+    for (const width of [1440,640]) for (const theme of ['light','dark']) {
+      await page.setViewportSize({width,height:1000});
+      await page.locator('html').evaluate((element,theme)=>{element.dataset.theme=theme;},theme);
+      const unknown = page.getByRole('button',{name:'Unknown region · Unsupported · Unsupported content',exact:true});
+      await expect(unknown).toBeVisible(); await unknown.click(); await unknown.focus();
+      await expect(unknown).toHaveAttribute('data-kind','unmapped');
+      await expect(page.getByText('No matching content.',{exact:true})).toBeVisible();
+      await page.screenshot({path:`docs/design/assets/review-compare-1435/unmapped-${width}-${theme}.png`});
+    }
+    await page.setViewportSize({width:1440,height:1000});
+    await page.locator('html').evaluate(element=>{element.dataset.theme='light';});
+  }
 
   await page.reload();
   const source = page.getByRole('region', { name: 'Source page' });
