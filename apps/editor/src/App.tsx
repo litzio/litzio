@@ -1,4 +1,4 @@
-import { GeneratedComparison, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
+import { GeneratedComparison, comparisonPath, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
@@ -91,6 +91,9 @@ const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 // Below the docking width of styles.css the Document panel starts closed and overlays the
 // document; at and above it the panel docks. Independent of the narrow sidebar (64rem).
 const PANEL_OVERLAY_LAYOUT = "(width < 89rem)";
+// CSS custom properties cannot be used in media queries. Both navigation surfaces consume
+// this adjustable token through matchMedia and expose their layout as shell classes.
+const navigationOverlayLayout = () => `(width < ${getComputedStyle(globalThis.document.documentElement).getPropertyValue("--layout-navigation-overlay-breakpoint").trim()})`;
 // 640px supported viewport - 200px narrow Explorer; two groups plus their boundary.
 const SPLIT_MIN_WIDTH = 440 * 2 + 1;
 
@@ -111,26 +114,51 @@ function EditorApp() {
   const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
   const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
   const [assistantSize, setAssistantSize] = useState(assistantWidth);
-  const [assistantOverlay, setAssistantOverlay] = useState(() => matchMedia("(width < 1100px)").matches);
+  const [assistantOverlay, setAssistantOverlay] = useState(() => matchMedia(navigationOverlayLayout()).matches);
   const assistantReturn = useRef<HTMLElement | null>(null);
   const closeAssistant = () => { setAssistantOpen(false); requestAnimationFrame(() => assistantReturn.current?.focus({ preventScroll: true })); };
   const toggleAssistant = () => {
     if (assistantOpen) closeAssistant();
     else { assistantReturn.current = globalThis.document.activeElement as HTMLElement; setAssistantOpen(true); }
   };
-  useEffect(() => {
-    const media = matchMedia("(width < 1100px)"); const change = () => setAssistantOverlay(media.matches);
-    media.addEventListener("change", change); return () => media.removeEventListener("change", change);
-  }, []);
   const newFileButton = useRef<HTMLElement | null>(null);
   const newFolderButton = useRef<HTMLElement>(null);
   // Open folder… returns focus to the control that opened it.
   const dialogReturnFocus = useRef<HTMLElement | null>(null);
   // Retain Host start information when the last tab closes.
   const [start, setStart] = useState<DocumentStartResponse | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const sidebarOverlay = assistantOverlay;
+  const [sidebarOpen, setSidebarOpen] = useState(() => !matchMedia(navigationOverlayLayout()).matches);
+  const dockedSidebarOpen = useRef(true);
+  const chooseSidebarOpen = (open: boolean) => {
+    if (!sidebarOverlay) dockedSidebarOpen.current = open;
+    setSidebarOpen(open);
+  };
   const sidebarToggle = useRef<HTMLButtonElement>(null);
   const sidebarFocus = useRef<"sidebar" | null>(null);
+  const closeSidebar = () => { sidebarFocus.current = "sidebar"; setSidebarOpen(false); };
+  useEffect(() => {
+    const media = matchMedia(navigationOverlayLayout());
+    const change = () => {
+      if (media.matches && globalThis.document.activeElement?.closest('.sidebar')) sidebarFocus.current = "sidebar";
+      setAssistantOverlay(media.matches);
+      setSidebarOpen(media.matches ? false : dockedSidebarOpen.current);
+    };
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, []);
+  useEffect(() => {
+    if (!sidebarOverlay || !sidebarOpen || assistantOpen) return;
+    const outside = (event: PointerEvent) => {
+      const target = event.target;
+      // Portalled menus/dialogs belong to their own focus boundary, including Explorer actions.
+      if (!(target instanceof Element) || target.closest('.sidebar, .ui-portal, [role="dialog"], [role="menu"]')) return;
+      if ([...globalThis.document.querySelectorAll('[role="menu"], [role="dialog"]')].some(element => element.getClientRects().length)) return;
+      closeSidebar();
+    };
+    window.addEventListener("pointerdown", outside);
+    return () => window.removeEventListener("pointerdown", outside);
+  }, [sidebarOverlay, sidebarOpen, assistantOpen]);
   useLayoutEffect(() => {
     const target = sidebarFocus.current === "sidebar" ? sidebarToggle.current : null;
     sidebarFocus.current = null;
@@ -216,6 +244,7 @@ function EditorApp() {
     window.addEventListener("open-plugin-screen", open); return () => window.removeEventListener("open-plugin-screen", open);
   });
   function openScreen(screen: ViewScreen & {hostId: string}) {
+    if (sidebarOverlay) closeSidebar();
     const id = `screen-${screen.plugin}-${screen.id}`;
     const next = {id,hostId:screen.hostId,root:(screen.hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(screen.hostId))[0]??"",screen,label:screen.title};
     setViewTabs(previous => previous.some(tab => tab.id === id) ? previous.map(tab => tab.id === id && tab.hostId !== screen.hostId ? next : tab) : [...previous,next]);
@@ -232,7 +261,7 @@ function EditorApp() {
   const galleryFocused = activeId === "templates";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.comparison?.document ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? (tab.comparison ? comparisonPath(tab.comparison) : undefined) ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -701,6 +730,7 @@ function EditorApp() {
   const settingsReturnTab = useRef<string | null>(null);
   function openSettingsTab(): void {
     if (operationRef.current || settingsDisabled) return;
+    if (sidebarOverlay) closeSidebar();
     if (activeId !== "settings") settingsReturnTab.current = activeId;
     if (assistantOverlay) setAssistantOpen(false);
     settingsFocusRequested.current = true;
@@ -772,7 +802,18 @@ function EditorApp() {
       placeTab(id, group, hostId);
       return "";
     }
-    if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
+    if (!/\.(md|txt)$/i.test(requestedPath)) {
+      if (operationRef.current || busy || fileOperationPending || continuation) return i18n.t("Wait for the current operation to finish.");
+      const root = (hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(hostId)).find(root => folderChain(root, requestedPath).length > 0);
+      if (root) {
+        try {
+          const response=await getHostClient(hostId).request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"workspace-find",root,path:requestedPath})});
+          const value=await response.json();
+          if(response.ok && value.targets?.length===1){ const {root,workspace,plugin,job}=value.targets[0];openComparison(hostId,{root,workspace,plugin,job});return ""; }
+        } catch { return i18n.t("Data unavailable."); }
+      }
+      return i18n.t("Only .md and .txt files can be opened.");
+    }
     if (operationRef.current || fileOperationPending || sessions.current.get(navigation.groups.find(item => item.id === group)?.active ?? "")?.busyRef.current || continuation) return i18n.t("Wait for the current operation to finish.");
     markStartupOverride({ hostId, path: requestedPath });
     const existing = openedTab(tabs, requestedPath, hostId);
@@ -808,16 +849,23 @@ function EditorApp() {
   }
   function openTemplateGallery(): void {
     if (busy || continuation) return;
+    if (sidebarOverlay) closeSidebar();
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
-  function openComparison(hostId: string, comparison: ComparisonTarget) {
-    const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && tab.comparison.document === comparison.document);
+  function openComparison(hostId: string, target: ComparisonTarget) {
+    if (!tabsRestored || operationRef.current || busy || continuation) { setNotice({key:"Wait for the current operation to finish."}); return; }
+    if (sidebarOverlay) closeSidebar();
+    const comparison:ComparisonTarget="workspace" in target ? {root:target.root,workspace:target.workspace,plugin:target.plugin,job:target.job} : {root:target.root,document:target.document};
+    const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && comparisonPath(tab.comparison) === comparisonPath(comparison));
     const id = existing?.id ?? `comparison-${++nextId.current}`;
     setViewTabs(previous => previous.some(t => t.id === id) ? previous : [...previous,{id,hostId,root:comparison.root,comparison,label:i18n.t("Source comparison")}]);
     placeTab(id);
   }
+  // DocumentTab reports session changes to App; keep its event prop stable across those renders.
+  const comparisonEntry = useRef(openComparison); comparisonEntry.current = openComparison;
+  const openGeneratedComparison = useCallback((hostId: string, target: ComparisonTarget) => comparisonEntry.current(hostId, target), []);
   function openPluginJobs(): void {
     const hostId = viewTabs.find(tab => tab.id === activeId)?.hostId ?? session?.hostId ?? LOCAL_HOST_ID;
     const id = `plugin-jobs-${hostId}`;
@@ -895,7 +943,7 @@ function EditorApp() {
       const listed = await requestFolder(root);
       const parent = folders.open(listed, openedPath);
       if (parent) {
-        setSidebarOpen(true);
+        chooseSidebarOpen(true);
         setNotice({ key: "Already inside the opened folder {{name}}.", values: { name: splitDocumentPath(parent).name || parent } });
         if (!createAfterOpen) {
           if (folderDialog) pendingFolderFocus.current = listed.root;
@@ -1205,7 +1253,7 @@ function EditorApp() {
       keywords: ["outline", "개요"], run: () => { outlineToggle.current?.focus(); toggleOutline(); } },
     { id: "sidebar", kind: "command", label: i18n.t(sidebarOpen ? "Collapse Explorer" : "Expand Explorer"), icon: PanelLeft,
       keywords: ["sidebar", "사이드바"], takesFocus: true,
-      run: () => { sidebarFocus.current = "sidebar"; setSidebarOpen(value => !value); } },
+      run: () => { sidebarFocus.current = "sidebar"; chooseSidebarOpen(!sidebarOpen); } },
     { id: "table-wrap", kind: "command", label: i18n.t("This document’s tables: wrap long text"), icon: FileText,
       detail: i18n.t(tableWrap ? "Current: wrap" : "Current: single line"), disabled: !tableWrapPath || busy,
       run: () => { setTableWrap(tableWrapPath, !tableWrap, session?.hostId); } },
@@ -1241,10 +1289,10 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
-      <Sidebar onCopyPath={path => void copyPath(path)}
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+      <Sidebar onCompare={openComparison} onCopyPath={path => void copyPath(path)}
         documentHostId={activePdf?.hostId ?? session?.hostId ?? LOCAL_HOST_ID}
-        onHostOpen={(hostId, path) => openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); })}
+        onHostOpen={(hostId, path) => { if (sidebarOverlay) closeSidebar(); return openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); }); }}
         onHostCreate={(hostId, client, path, root) => createFile(path, { hostId, client, root })}
         createdDocumentFocus={() => editorRef.current?.getFocusTarget() ?? null}
         onHostDirty={(hostId, path) => { const tab = openedTab(tabs, path, hostId); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
@@ -1256,10 +1304,12 @@ function EditorApp() {
         isFileDirty={path => { const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path })); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
         open={sidebarOpen}
+        overlay={sidebarOverlay}
+        onClose={closeSidebar}
         documentPath={activePdf?.pdf ?? openedPath}
         toggleRef={sidebarToggle}
         onToggle={() => {
-          setSidebarOpen((value) => !value);
+          chooseSidebarOpen(!sidebarOpen);
         }}
         onOpenFolder={(returnFocus) => {
           dialogReturnFocus.current = returnFocus;
@@ -1283,9 +1333,10 @@ function EditorApp() {
         onToggleFolder={folders.toggle}
         onToggleSection={folders.toggleSection}
         onOpenDocument={(path) => {
+          if (sidebarOverlay) closeSidebar();
           void openFolderDocument(path);
         }}
-        onOpenRight={path => { if (canSplit) void openFolderDocument(path, rightGroup).then(opened => { if (opened) setCommandFileFocus(path); }); }}
+        onOpenRight={path => { if (canSplit) { if (sidebarOverlay) closeSidebar(); void openFolderDocument(path, rightGroup).then(opened => { if (opened) setCommandFileFocus(path); }); } }}
         openRightDisabled={!canSplit || busy || Boolean(continuation)}
         onRevealFolder={desktop?.openFolderInExplorer ? path => {
           void (async () => {
@@ -1310,7 +1361,7 @@ function EditorApp() {
       <div className="app-titlebar" ref={titlebar}>
         <div className="app-brand">
           <img data-brand-light="" src={appIcon} alt={productName(i18n.language)} /><img data-brand-dark="" src={darkIcon} alt={productName(i18n.language)} />
-          {sidebarOpen ? <span aria-hidden="true">{productName(i18n.language)}</span> : null}
+          {sidebarOpen && !sidebarOverlay ? <span aria-hidden="true">{productName(i18n.language)}</span> : null}
         </div>
         <div className="top-bar-container">
           <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={activePdf?.pdf ?? openedPath}
@@ -1403,7 +1454,8 @@ function EditorApp() {
             return <DocumentTab client={tab.client} hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
               report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : remoteImageRename} onReveal={revealDocument}
-              onCompare={compareExternal} />;
+              comparisonRoot={(tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)).find(root => folderChain(root, tab.file.path).length > 0) ?? splitDocumentPath(tab.file.path).directory}
+              onOpenComparison={openGeneratedComparison} onCompare={compareExternal} />;
           })}
           {viewTabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
@@ -1412,7 +1464,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
+              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} isDirty={path => { const existing=openedTab(tabs,path,tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
 
             </div>;
           })}

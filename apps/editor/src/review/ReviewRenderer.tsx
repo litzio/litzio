@@ -4,6 +4,7 @@ import type { EditableDocument } from "@litzio/core";
 import type { ReviewView, ReviewBundle, ReviewPage, ReviewMapping, ReviewProposal, ReviewBaseline } from "@litzio/core/views-v2";
 import { i18n } from "../i18n.ts";
 import { DocumentEditor } from "../DocumentEditor.tsx";
+import { ReviewImageSourcesContext } from "../node-views/figure-view.tsx";
 import type { ReadingPosition } from "../document-reading.ts";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
@@ -22,7 +23,8 @@ export type ReviewSnapshot = {
   generatedBaseline?: { sourceRevision: string; documentRevision: string | null; linkRevision: string | null };
   bundle: ReviewBundle; page?: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
   pages?: ReviewPage[];
-  document: EditableDocument; documentRevision: string; documentHash: string; documentPath: string;
+  document: EditableDocument; documentRevision: string; documentHash: string; documentPath?: string;
+  workspaceBaseline?: string; contentRevision?: string; imageSources?: Record<string,string>;
   regionPages?: Record<string, number>;
   baseline: ReviewBaseline; pageCount: number; imageUrl?: string; progress?: { checkedPages: number[]; lastPage: number | null };
   unresolved?: ReviewPendingChange[];
@@ -36,7 +38,7 @@ export type ReviewAdapter = {
   act(action: ReviewAction, proposal: ReviewProposal, baseline: ReviewBaseline): Promise<void>;
   verify?(snapshot: ReviewSnapshot): Promise<void>;
   saveProgress?(snapshot: ReviewSnapshot, pageNo: number, checked?: boolean): Promise<ReviewSnapshot>;
-  openDocument(): void;
+  openDocument?(): void;
 };
 function documentCoherent(s: ReviewSnapshot) {
   const b = s.bundle;
@@ -112,7 +114,7 @@ export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled
   const zoomChanged = useRef(changeZoom);zoomChanged.current=changeZoom;
   const [pageDraft,setPageDraft] = useState(String(s.page?.pageNo ?? 1)), [editingPage,setEditingPage] = useState(false);
   useEffect(()=>{if (!editingPage) setPageDraft(String(s.page?.pageNo ?? 1));},[s.page?.pageNo,editingPage]);
-  const continuous = !!loadPage && !!s.pages;
+  const continuous = !!loadPage && !!s.pages?.length;
   const navigate = (pageNo:number) => { if (continuous) setJump({pageNo}); else onPage(pageNo); };
   const [unmapped, setUnmapped] = useState(false);
   const valid = !disabled && coherent(s);
@@ -184,7 +186,7 @@ export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled
     <div ref={source}>{continuous ? <ContinuousSource snapshot={s} loadPage={loadPage!} selected={sources} disabled={disabled || !valid} saving={!!selectionDisabled} compact={compact} zoom={zoom} jump={jump} onSelect={selectSource} onVisible={onPage} onCheck={onCheck!} onUnavailable={onUnavailable!} /> : <PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid || selectionDisabled} />}</div>
     <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0}>
       <div className="review-reading-content" ref={content}>
-        <DocumentEditor readOnly preview showHeadingLevels document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} />
+        <ReviewImageSourcesContext.Provider value={s.imageSources}><DocumentEditor key={s.documentHash} readOnly preview showHeadingLevels document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} /></ReviewImageSourcesContext.Provider>
         <div className="review-highlights" aria-hidden="true">{positions.blocks.filter(b => targets.includes(b.key)).map(b => <div key={b.key} data-kind={blockKind(s.document.blocks.find(block=>JSON.stringify(block.path)===b.key))} style={{ top: b.top, height: b.height }} />)}</div>
       </div>
     </section><svg className="review-wires" aria-hidden="true"><defs>{wires.map((wire,index)=><linearGradient key={wire.key} id={`${wireId}-${index}`} gradientUnits="userSpaceOnUse" x1={wire.paperEdge} x2={wire.paperEdge+1} y1={0} y2={0}><stop offset="0" style={{stopColor:`var(--id-color-review-source-${wire.kind})`}} /><stop offset="1" style={{stopColor:`var(--id-color-review-${wire.kind})`}} /></linearGradient>)}</defs>{wires.map((wire,index)=><path key={wire.key} d={wire.d} data-kind={wire.kind} data-selected={wire.selected} style={{stroke:`url(#${wireId}-${index})`}} />)}</svg></div>{unmapped && <Notice>{i18n.t("No matching content.")}</Notice>}{!disabled && !valid && <Notice tone="warning">{!s.mapping ? "Correspondence unavailable. Source-to-document navigation is disabled."
@@ -250,7 +252,7 @@ export function ReviewDetail({ proposal: p, document, baseline, disabled, onActi
     })}</div></section>;
 }
 /** Mount with a new key on Host/source changes. Adapter is scoped to that mounted source. */
-export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: ReviewAdapter }) {
+export function ReviewRenderer({ view, adapter, actions, unavailableMessage }: { view: ReviewView; adapter: ReviewAdapter; actions?: ReactNode; unavailableMessage?: string }) {
   const [snapshot, setSnapshot] = useState<ReviewSnapshot>(), [selected, setSelected] = useState<string>();
   const [state, setState] = useState<"loading" | "ready" | "refreshing" | "unavailable" | "uncertain">("loading");
   const verification = useRef<Promise<boolean> | undefined>(undefined);
@@ -302,14 +304,14 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     } catch { if (token === epoch.current) setState("uncertain"); }
     finally { if (token === epoch.current) busy.current = false; }
   };
-  const combined = !!adapter.saveProgress && !!adapter.loadPage && !!snapshot?.pages;
+  const combined = !!adapter.saveProgress && !!adapter.loadPage && !!snapshot?.pages?.length;
   const controls = unverifiable
-      ? <Tooltip><TooltipTrigger render={<Button variant="outline" onClick={adapter.openDocument} />}>Open result document</TooltipTrigger><TooltipContent>{REVIEW_UNAVAILABLE_GUIDANCE}</TooltipContent></Tooltip>
-      : <><Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={i18n.t("Open document")} onClick={adapter.openDocument} />}>{combined ? <ExternalLink />:i18n.t("Open document")}</TooltipTrigger><TooltipContent>{i18n.t("Open document")}</TooltipContent></Tooltip>
+      ? <Tooltip><TooltipTrigger render={<Button variant="outline" disabled={!adapter.openDocument} onClick={adapter.openDocument} />}>Open result document</TooltipTrigger><TooltipContent>{REVIEW_UNAVAILABLE_GUIDANCE}</TooltipContent></Tooltip>
+      : <>{adapter.openDocument && <Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={i18n.t("Open document")} onClick={adapter.openDocument} />}>{combined ? <ExternalLink />:i18n.t("Open document")}</TooltipTrigger><TooltipContent>{i18n.t("Open document")}</TooltipContent></Tooltip>}
         <Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={unresolved ? "Check request status":i18n.t("Refresh data")} disabled={savingProgress || state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)} />}>{combined ? <RefreshCw />:unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipTrigger><TooltipContent>{unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipContent></Tooltip>
-        {savingProgress && <span role="status">{i18n.t("Saving review progress…")}</span>}</>;
+        {actions}{savingProgress && <span role="status">{i18n.t("Saving review progress…")}</span>}</>;
   return <div ref={host} className="review-renderer" data-generated={!!adapter.saveProgress}>{!combined && <header className="review-toolbar"><h2>{view.title}</h2>{controls}</header>}
-    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? i18n.t("Refreshing data…") : state === "loading" ? i18n.t("Loading data…") : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : i18n.t("Data unavailable.")}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
+    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? i18n.t("Refreshing data…") : state === "loading" ? i18n.t("Loading data…") : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : unavailableMessage ?? i18n.t("Data unavailable.")}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
     {progressError && <Notice tone="warning">{i18n.t("Review progress could not be saved. Refresh data before continuing.")}</Notice>}
     {stale && <Notice tone="warning">{i18n.t("Data is out of date. Open newly verified comparison data to continue.")}</Notice>}
     {!wide && !adapter.saveProgress && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}

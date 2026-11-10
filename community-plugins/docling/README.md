@@ -1,6 +1,6 @@
 # Docling community plugin
 
-#1462 P1a는 아래 **단일 작업공간 Host·CLI 기반**까지 구현합니다. 기존 K1 `.docling→문서` 화면은 아직 외부 `.md`를 만드는 기존 경로입니다. 새 workspace reader의 대조 renderer·이미지 자료 읽기·중간 export 연결은 P1b이며 P1 전체 완료가 아닙니다.
+#1462 P1은 `.docling`을 단일 검수 작업공간으로 사용합니다. 플러그인을 신뢰·활성화한 뒤 Explorer에서 `.docling`을 더블클릭하거나 Enter로 열면 외부 `.md` 없이 원본과 내부 문서를 대조합니다. 일반 `.md`·assets는 사람이 “현재 상태로 내보내기”를 실행할 때만 만듭니다. 이 동작은 검수 완료 승인이 아닙니다. 아래 과거 K1 설명은 일반 generated-document 경로의 이력이며 현재 Docling 진입은 마지막 P1b 절을 따릅니다.
 
 소유자 개인 작업을 위한 실험 플러그인입니다. Litzio 공식 공급·기본 활성 플러그인이 아닙니다. #1391 지정 커뮤니티로 앱에 포함됩니다. 이 디렉터리만 독립 저장소로 옮길 수 있으며 pnpm workspace에 속하지 않습니다.
 
@@ -42,9 +42,9 @@ CI 경로 정책은 이 새 경로를 미분류(full)로 취급합니다. 기존
 
 플러그인 버전은 **0.0.7**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 1`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
 
-작업 패널과 healthCheck의 최소 공개 계약에 따라 `requiresSdk: ">=0.3.0 <1.0.0"`을 선언합니다.
+현재 artifact는 대조·workspace 계약을 포함하는 `requiresSdk: ">=0.4.0 <1.0.0"`을 선언합니다.
 
-## 두 작업으로 분리 (#1322 범위 정정)
+## 과거 K1 두 작업 (#1322 범위 정정)
 
 PDF 원본 보관과 Litzio 문서 만들기는 별도 K1 작업입니다. 한 요청에 파일 하나를 처리합니다.
 
@@ -274,3 +274,24 @@ open은 캐시가 없거나 손상됐을 때 준비하고 이미 무결한 캐�
 patch는 staging에서 후보 ledger→replay→Host 공식 작성/이미지 검증→캐시 seal→후보 재검증을 끝낸 뒤 live baseline을 재확인하고 `.docling` 한 번으로 교체합니다. 중간 실패·충돌은 기존 ledger·캐시를 함께 보존합니다. progress는 같은 경로로 전체 archive를 교체하되 cache bytes/key/targets를 보존하고 문서를 재작성하지 않습니다. Host는 ZIP을 해석하지 않습니다. provider가 자료/후보를 제공하며 Host가 Core canonical source와 실제 block targets·revision을 검증합니다. 파일 identity에 따른 admission과 공식 file-commit은 기존 경로를 재사용합니다.
 
 receipt와 status는 daemon 수명입니다. 응답 유실은 같은 requestId status로 확인하며 자동 재전송하지 않습니다. 재시작 후 status는 unknown이고 파일을 다시 읽습니다. 결과에 export 이력·Host generated-document connection은 생성하지 않습니다. 새 경로에서 외부 `.md`·assets가 생기지 않으며 기존 K1은 P1b 전까지 별도 기존 동작입니다.
+
+
+## 내부 대조·이미지·중간 내보내기 (#1462 P1b)
+
+현재 `create-document` 선언의 `workspace:true`는 workspace provider 발견에 쓰며 K1 시작은 거부합니다. 사이드바 K1 패널에는 PDF→`.docling`만 남깁니다. 기존 generated-document Host/SDK는 다른 일반 파일 provider용으로 유지합니다. 플러그인이 꺼져 있거나 해당 provider가 없으면 일반 파일 미리보기를 유지하며 열기만으로 신뢰/활성화하지 않습니다.
+
+기존 ReviewRenderer는 실제 파일 path 없이 canonical snapshot을 표시합니다. 오른쪽 그림의 `review-asset:<sha256>`는 Host가 읽고 hash·MIME·이미지 형식을 검사한 일시 data URL로만 표시합니다. 내부 source의 identity나 bytes를 바꾸지 않습니다. 왼쪽은 원본 페이지 PNG와 effective patch 결과의 종류/영역·동일 snapshot의 최종 targets입니다. `current/snapshot.json`의 correspondence와 canonical source를 같은 integrity hash로 묶고 진행 저장에서 그대로 보존합니다. 생성 계약이 다른 캐시는 생성 당시 문서만 읽고 새 대응을 추측하지 않습니다. 화면에서 명시적으로 다시 만든 뒤 대조/진행 저장/내보내기를 사용합니다.
+
+공용 `POST /api/reviews` 및 `litzio review <action> --input <json> --host <origin> --json`에 다음을 추가합니다.
+
+| action | 입력 / 결과 |
+| --- | --- |
+| `workspace-find` | `{root,path?}` → 활성 workspace provider의 `{plugin,job,accept}` 또는 해당 파일의 workspace 대상·baseline. 앱의 파일 열기는 Host 결과를 사용하며 plugin 이름·`.docling` 분기를 넣지 않음 |
+| `workspace-compare` | 공통 workspace 입력 + 선택 pageNo/baseline → 내부 문서·페이지·대응·progress·workspaceBaseline·새 scoped bundle/document refs. 파일 path 없음 |
+| `workspace-image` | 공통 입력 + baseline/ref(SHA-256) → archive 소유 그림의 mime/base64/revision. 임의 경로나 URL을 받지 않음 |
+| `workspace-export-check` | 공통 입력 + baseline/output? → 실제 출력 path·Root 상대 이름·현재 targetRevision(null이면 없음). 쓰기 없음 |
+| `workspace-export` | 공통 입력 + baseline/requestId, `mode:"current"`, output?, targetRevision, overwrite → 일반 `.md` path/revision·receipt. 기본 이름 `<원래 파일명>-검수중.md`. 기존 파일은 현재 revision과 명시 overwrite:true가 모두 필요 |
+
+중간 export는 현재 canonical source에 Core `updateMediaReferences`를 적용하고 기존 공식 이미지 게시·문서 검증/쓰기 경로를 사용합니다. 새 파일은 exclusive create, 덮어쓰기는 revision-checked commit입니다. 충돌은 assets를 만들기 전에 먼저 검사하며, 그 뒤 실패하면 기존 공식 이미지 게시 정책처럼 이미 게시된 assets가 남을 수 있습니다. source archive·review 기록·generated-document connection·export 이력/최신 여부는 쓰지 않습니다. 완료 표시도 추가하지 않습니다. UI는 같은 Host에 열린 출력 문서의 미저장 변경을 거부하고, 충돌 시 다시 검사한 revision에 대해 사람이 checkbox로 덮어쓰기를 확인해야 합니다. 응답 유실에는 같은 requestId status만 읽으며 자동 재전송하지 않습니다.
+
+실제 browser의 cold Host 재등록/재시작·확인 기록과 같은 source/대응, CLI·Windows 8.3 분할 및 시각 근거는 [P1b 검증 기록](../../docs/design/docling-review-stage3.md#p1b-내부-대조이미지명시-export)을 따릅니다. 큰 실제 PDF·workspace 장시간 timeout·실제 원격 PC 인계와 비서 이미지 분석은 이번 수락 범위에서 미검증입니다. 공식 완료 gate는 P11, 실제 AI 검사 연결은 P5입니다.

@@ -1,5 +1,5 @@
 // Computed state combinations on the real UI; screenshot-only review stays outside this test.
-async (page, { withBlockHover, reloadDocument, recoveryRecords, expect }) => {
+async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForExplorerLayout }) => {
   const themes = [];
   for (const theme of ['light', 'dark']) {
   const check = (value, message) => { if (!value) throw Error(message); };
@@ -379,6 +379,9 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect }) => {
   };
   for (const width of [1440,640]) {
     await page.setViewportSize({width,height:1000});
+    await waitForExplorerLayout(page);
+    const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
+    if(await expand.isVisible()) await expand.click();
     const files = await rows('.sidebar-tree-item', 'files');
     if(width===640) {
       await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();

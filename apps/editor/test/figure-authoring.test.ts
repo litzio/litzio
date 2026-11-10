@@ -503,6 +503,7 @@ test("Host address applies to API and rendered media without entering serialized
   assert.equal(resolveFigureSource("./assets/a.svg", "/root/a.md", target), media);
   assert.ok(renderPlainMarkdown("![Diagram](./assets/a.svg)", "/root/a.md", target).includes(media));
   assert.equal(resolveFigureSource("https://example.com/a.svg", "/root/a.md"), "https://example.com/a.svg");
+  assert.equal(resolveFigureSource("review-asset:" + "a".repeat(64)), "");
   const after = serialize(document);
   assert.equal(after, before);
   assert.match(after, /figure\} \.\/assets\/a.svg/);

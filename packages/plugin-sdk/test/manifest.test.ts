@@ -31,6 +31,9 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
     jobs: [{ ...nativeJob, generatedDocument: "prepare", comparison: "compare" }],
     reviews: [{ id: "compare", title: "Compare", read: {operation:"example.demo.prepare",version:1} }] } };
   assert.ok(validateManifest(comparison));
+  const workspace={...comparison,contributes:{...comparison.contributes,jobs:[{...comparison.contributes.jobs[0],workspace:true}]}};
+  assert.equal(validateManifest(workspace).contributes.jobs[0].resultKind,"native-document");
+  assert.throws(()=>validateManifest({...workspace,contributes:{...workspace.contributes,jobs:[{...nativeJob,workspace:true}]}}),/workspaces require/);
   assert.throws(() => validateManifest({...comparison,requiresSdk:"^0.3.0"}),/Comparison requires/);
   assert.throws(() => validateManifest({...comparison,contributes:{...comparison.contributes,reviews:[]}}),/Comparison requires/);
   assert.throws(() => validateManifest({ ...generated, requiresSdk: "^0.1.0" }), /Generated documents require SDK/);

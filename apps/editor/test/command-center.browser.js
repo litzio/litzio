@@ -1,6 +1,6 @@
 // The command center only dispatches existing shell actions. These checks protect its focus,
 // keyboard/modal handoff, active-tab targeting and real file Save/Reload integration.
-async (page, { openPath, waitForActivePath, activeDocument, screenshots = false }) => {
+async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayout, screenshots = false }) => {
   page.setDefaultTimeout(10000);
   const check = (ok, message) => { if (!ok) throw Error(message); };
   const origin = page.url().split('/').slice(0,3).join('/');
@@ -630,10 +630,15 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
   // The top-center entry and popup stay usable with panels and at narrow width.
   for (const width of [1440,1280,1024,768,640]) {
     await page.setViewportSize({width,height:900});
+    await waitForExplorerLayout(page);
     const trigger = page.getByRole('button',{name:'Find documents and commands',exact:true});
-    const box = await trigger.boundingBox();
-    const bar = await page.locator('.top-bar').boundingBox();
-    check(box && bar && Math.abs(box.x+box.width/2-(bar.x+bar.width/2)) < 1, `Center entry not centered at ${width}`);
+    // Read one layout: separate protocol calls can straddle the responsive shell commit.
+    const { box, bar } = await trigger.evaluate(n => ({
+      box: n.getBoundingClientRect().toJSON(),
+      bar: n.closest('.top-bar')?.getBoundingClientRect().toJSON(),
+    }));
+    check(box && bar && Math.abs(box.x+box.width/2-(bar.x+bar.width/2)) < 1,
+      `Center entry not centered at ${width}: ${JSON.stringify({box,bar})}`);
     check(box.x>=0 && box.x+box.width<=width, `Center entry clipped at ${width}`);
     if (screenshots) await page.screenshot({path:`tmp/command-center/center-${width}.png`});
     await trigger.click(); await waitForInput();

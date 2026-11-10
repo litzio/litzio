@@ -820,10 +820,92 @@ Docling의 section_header/list_item/code_block 등의 분류 대응은 community
 
 입력은 `{root,workspace,plugin,job}`이며 workspace는 Root 상대 실제 파일이다. read 외 쓰기는 전체 파일 SHA-256 baseline과 UUID requestId를 요구한다. patch는 opaque patches 목록, progress는 기존 generatedProgressSchema를 추가한다. status는 requestId만 받는다. 출력은 record/items와 nullable snapshot, cacheState(`missing/invalid/current/created-version`), live baseline, receipt/saved, 별도 content/document revision과 Core read model이다. 완료 판정은 아직 `not-evaluated`이며 캐시 유효성으로 대체하지 않는다. archive 내부 경로·가짜 문서 경로·export connection은 없다. 비서 `read_review_document`는 열린 폴더의 같은 read를 사용하며 쓰거나 prepare하지 않는다.
 
-provider mode `workspace-read`는 영속 snapshot을 검증해 반환한다. `workspace-prepare`는 Host-created resultFile에 후보 source를 쓰고 의미 변경/준비 때 `{build:{authoring,images},imageRefs,contentRevision,adapterVersion}`를 반환한다. imageRefs는 기존 원본 바이트를 가리키는 `{key,ref,revision,mime}`이며 Host가 build 이미지와 대조한다. Host는 기존 SDK/Core authorDocument와 공용 이미지 검증을 사용해 안정적인 `review-asset:<sha256>` binding으로 canonical source와 final input targets를 작성한다. `workspace-seal`은 Host가 전달한 snapshot을 후보 파일의 파생 항목에 저장한다. Host는 후보를 다시 읽어 source hash·canonical round-trip·실제 block paths·target revision 및 Host 작성 결과와의 동일성을 확인한 뒤 원본 baseline을 재검사하고 단일 source 교체로 commit한다. 실패 전 원본은 수정하지 않는다. 결과가 불확실하면 status 확인을 요구하고 자동 재실행하지 않는다. 임시 candidate는 명시 파일 삭제와 빈 directory 제거로 정리한다.
+provider mode `workspace-read`는 영속 snapshot을 검증해 반환한다. `workspace-prepare`는 Host-created resultFile에 후보 source를 쓰고 의미 변경/준비 때 `{build:{authoring,images},imageRefs,contentRevision,adapterVersion}`를 반환한다. imageRefs는 기존 원본 바이트를 가리키는 `{key,ref,revision,mime}`이며 Host가 build 이미지와 대조한다. Host는 기존 SDK/Core authorDocument와 공용 이미지 검증을 사용해 안정적인 `review-asset:<sha256>` binding으로 canonical source와 final input targets를 작성한다. `workspace-prepare`의 선택 `sealInput`은 provider 소유의 불투명 중간 자료이며 Host가 `workspace-seal`에 그대로 돌려준다. `workspace-seal`은 Host가 전달한 snapshot을 후보 파일의 파생 항목에 저장한다. Docling은 같은 replay의 report를 final targets에 재결합하므로 seal에서 converter를 다시 호출하지 않는다. Host는 후보를 다시 읽어 source hash·canonical round-trip·실제 block paths·target revision 및 Host 작성 결과와의 동일성을 확인한 뒤 원본 baseline을 재검사하고 단일 source 교체로 commit한다. 실패 전 원본은 수정하지 않는다. 결과가 불확실하면 status 확인을 요구하고 자동 재실행하지 않는다. 임시 candidate는 명시 파일 삭제와 빈 directory 제거로 정리한다.
 
 progress는 생성 호출 없이 캐시 source/key/targets를 그대로 보존하며 전체 파일만 교체한다. 동일 filesystem identity는 기존 generated-document와 같은 admission set으로 보호한다. read가 파일을 쓰지 않는다. open은 current/created-version 캐시를 바꾸지 않으며 누락·손상 때만 준비한다. 이전 생성 계약 캐시의 새 변경은 명시 regenerate를 요구한다. Host request receipt는 재시작 복원하지 않으며 영속 캐시·ledger를 다시 검증한다.
 
 Docling format 2는 원본 PDF/JSON/manifest와 review.json에 두 파생 cache entries를 추가한다. key는 immutable JSON hash·patches content revision·adapter 의미 버전·Core authoring/serialization 계약·이미지 binding을 포함하고 workspace 전체 hash·진행 정보는 제외한다. 생성 계약의 버전은 패키지 버전과 별도다. 이미지 바이트는 기존 JSON에 보존하고 cache에 복제하지 않는다. 원본/ledger 손상은 파생 캐시에서 역복구하지 않는다. 과거 archive migration은 없다.
 
-이 PR은 P1a 저장/읽기 기반이다. 기존 K1 외부 문서 생성과 generated 비교 화면은 유지되며 새 workspace 대조/material/중간 export는 P1b이다. 기존 source-first generated 작업을 새 원자적 workspace 저장으로 혼동하지 않는다. 새 renderer·공식 완료 export는 구현하지 않았다. Host/CLI 실제 호출·측정 범위와 미확인 항목은 [3단계 P1a 기록](docling-review-stage3.md#p1a-저장읽기-기반-구현과-측정)에 남긴다.
+P1a 제출 시점에는 저장/읽기 기반과 기존 K1 외부 문서 생성만 있었다. 현재 workspace 대조/material/중간 export와 Docling K1 전환은 아래 P1b 절을 따른다. 기존 source-first generated 작업을 새 원자적 workspace 저장으로 혼동하지 않는다. 새 renderer·공식 완료 export는 구현하지 않았다. Host/CLI 실제 호출·측정 범위와 미확인 항목은 [3단계 P1a 기록](docling-review-stage3.md#p1a-저장읽기-기반-구현과-측정)에 남긴다.
+
+
+## Review workspace 대조·중간 export (#1462 P1b)
+
+SDK 0.4.0의 native-document provider 선언은 `workspace:true`를 선택할 수 있다. generatedDocument/comparison 선언이 필요하며 workspace-only 진입으로 K1 start는 거부한다. 기존 provider 선언을 재사용해 별도 plugin 전용 backend를 만들지 않는다. `workspace-find {root,path?}`는 활성 provider의 accept/대상을 Root 범위에서 읽고 receipt를 반환한다. Explorer는 이 선언으로 기존 파일 preview와 workspace 대조 열기를 구분하며 문서 편집 열기는 유지한다. #1465의 공용 대조 작업 탭 진입 방식을 사용하고 workspace 참조와 실제 Markdown 참조는 구분한다. 두 provider가 같은 파일에 맞으면 임의로 하나를 실행하지 않는다.
+
+`workspace-compare`는 공통 workspace 입력과 pageNo/baseline 선택 값을 받는다. provider의 `workspace-material`은 Host-created PNG staging 파일과 effective pages/mapping을 제공하고 Host는 기존 PluginReviews의 publication·revision·실제 Core targets·PNG 검증을 재사용한다. 내부 canonical source를 실제 workspace 파일과 별도 embedded reader로 제공하며 파일을 풀거나 가짜 .md를 만들지 않는다. snapshot에 documentPath가 없고 새 scoped bundle/document refs가 있다. workspace 전체 revision 변경은 scoped 읽기를 stale로 만든다. embedded review는 일반 K4 Core 승인/Undo 쓰기를 받지 않는다.
+
+`workspace-image {baseline,ref}`는 snapshot이 선언한 SHA-256 이미지 한 건만 읽는다. provider가 준 mime/base64를 Host가 original binding·hash·이미지 검증과 대조하고 UI는 read-only image context에서 일시 data URL로 표시한다. canonical identity와 archive 소유 bytes는 유지하고 외부 assets/중복 cache image는 만들지 않는다. 페이지와 그림은 같은 Root/provider/workspace baseline으로 검증하며 페이지 geometry·대응·문서 revision이 다른 응답은 UI가 거부한다. 생성 계약이 다른 cache는 old source만 읽고 새 대응을 계산하지 않으며 명시 regenerate 후 대조/진행/내보내기를 허용한다.
+
+`workspace-export-check`는 baseline/output?로 일반 파일의 path·상대 이름·targetRevision을 읽는다. `workspace-export`는 baseline/requestId, mode:current, output?, targetRevision와 overwrite를 받는다. CLI는 같은 action 이름의 `review <action> --input ... --host ... --json`이다. 기본 이름은 canonical workspace 파일명의 `-검수중.md`이며 Windows 짧은 alias 이름을 기본 이름으로 내보내지 않는다. 같은 파일/Root 밖/비Markdown 출력과 stale target은 거부한다. 기존 파일은 명시 overwrite와 정확한 revision이 필요하다. UI는 열린 출력 문서의 미저장 변경을 거부한다.
+
+export는 검증한 내부 source를 Core media-reference operation으로 변환하고 공용 image asset publication·canonical 문서 쓰기를 사용한다. source·ledger·connection/export 기록을 저장하지 않고 completion:not-evaluated다. 이미지/문서 충돌·실패는 기존 official write path 결과이며 이미 게시된 assets를 별도 rollback/삭제하지 않는다. request status는 daemon 수명이며 UI는 응답 유실 때 동일 UUID를 조회하고 재전송하지 않는다. final mode/완료 gate는 제공하지 않는다.
+
+Docling adapter는 `current/snapshot.json`에 final correspondence를 추가해 source와 함께 hash로 고정한다. key의 adapter 의미 버전도 바꾼다. P1a 캐시는 이전 계약 결과로 보존·읽고 명시적으로 다시 만든다. 이미지가 없던 그림은 converter의 빈 이미지 자리/손실 기록으로 보존하며 외부 imageUrl로 오인해 전체 workspace를 거부하지 않는다. 실제 검증 범위·Windows 8.3·시각 근거는 [P1b 기록](docling-review-stage3.md#p1b-내부-대조이미지명시-export)을 따른다.
+
+workspace 선언은 K1 시작과 기존 generated-document 연결/재생성으로 외부 문서를 만들지 않는다. 같은 provider의 검수는 workspace 작업을 사용하고 일반 문서는 명시 current export로만 만든다. 같은 workspace 작업 중 읽기는 대기한 뒤 revision을 다시 검증하며, 쓰기는 기존 배타적 admission과 baseline 충돌을 유지한다.
+
+## 생성 문서 대조 진입점 (#1465)
+
+문서의 기존 플러그인 관리 Notice는 연결된 작업이 `comparison`을 선언하고 현재 활성화된 경우
+공통 ghost sm Button ‘원본 대조’를 제공한다. 저장된 문서를 기존 GeneratedComparison 탭에서 연다.
+편집 중 초안은 대조에 넣지 않으며, 저장된 원본·문서 revision 불일치는 기존 Host의 재생성
+거부를 그대로 사용하고 ‘다시 만들기 필요’를 표시한다. 없어진 원본 파일도 재생성이 필요한 것으로 안내한다.
+
+공용 `POST /api/reviews`의 `generated-find`와
+`review find --input <file> --host <origin> --json`은 `{root,path?}`를 받는다.
+`path`는 Root 상대 원본 또는 생성 문서 경로이며 생략하면 그 Root의 연결을 찾는다.
+결과 `documents:[{root,document,source,plugin,job,match?}]`에서 document/source는 Root 상대이고,
+path 조회의 match(document/source)는 canonical identity로 판정해 Windows 경로 별칭도 같은 문서로 찾는다.
+receipt는 `operation:review.find`, `version:1`, 대상 Root scope와 success를 반환한다.
+Host의 연결 파일에 canonical `documentPath`를 저장해 역방향 조회한다. 플러그인 원본 확장자를
+추측하거나 원본을 parse하지 않고, 조회 중 플러그인 작업을 실행하지 않는다. 다른 Root,
+잘못된 연결 identity, 읽을 수 없는 기록, 꺼진 기여와 comparison 없는 작업은 결과에서 제외한다.
+재시작 뒤에도 연결을 찾으며, 바뀐 byte의 유효성은 실제 대조를 여는 기존 revision 검사에서 판정한다.
+과거 연결 기록 migration은 제공하지 않는다.
+닫힌 대조의 인접 페이지 읽기가 Host에서 진행 중이면 새 read/compare는 그 읽기가 끝난 뒤
+현재 baseline으로 처리한다. 읽기 때문에 재열기를 ‘작업 중’으로 거부하지 않으며 쓰기의
+배타성·진행 저장의 기존 publication 순서는 유지한다. 이 대기는 Host 활성 요청만 소유한다.
+
+탐색기는 같은 작업으로 찾은 생성 문서·원본에 기존 ContextMenu ‘원본 대조 열기’를 제공한다.
+연결된 원본은 클릭으로 선택하고 더블클릭·Enter로 대조를 연다. 같은 원본에 문서가 여러 개면
+메뉴에 문서별 행동을 표시하고, 원본 열기는 기존 Dialog/Button으로 문서를 선택한다.
+생성 문서 자체의 일반 열기는 문서 편집을 유지한다. 좁은 창에서 대조를 열면 #1455의 기존 탐색 규칙처럼 Explorer overlay를 닫으며 선택 Dialog·Host 범위는 유지한다. 조회·문서·대조 모두 대상 Host client를
+사용하며 브라우저 PC 파일이나 로컬 Host로 fallback하지 않는다. 화면/폴더 재진입·새 목록·
+기여 변경에서 조회를 갱신하며 별도 문서 DB나 플러그인별 화면을 만들지 않는다.
+
+‘최근 검수 문서’의 진행률 목록은 이번 범위에 포함하지 않는다. 현재 기본 query Table의
+`linkField`는 HTTP(S) URL만 열고 대조 행동 binding이 없다. generated-read의 `record`는
+플러그인 소유의 opaque 값이며 확인 페이지·전체 쪽 수의 공용 목록 schema도 없다.
+이를 Host가 Docling 필드로 해석하거나 조회마다 페이지 PNG를 생성해 진행률을 얻지 않는다.
+최소 대안은 보존된 작업 이력의 기존 결과 문서·원본 대조 행동이다.
+진행률은 대조 화면의 실제 페이지별 확인 상태에서 확인한다.
+
+
+### #1465 검증·화면 근거
+
+기존 Host generated-documents 검사는 재시작 후 양방향 조회·Root 범위·잘못된 연결·comparison
+미선언 제외·Windows 경로 별칭과 stale/없어진 원본, 대기 중 읽기의 재열기와 쓰기 거부를 확인한다.
+기존 HTTP 플러그인 검사는 문서 안내·두 메뉴·원본 Enter·복수 출력 더블클릭 선택과 확인 기록 복원,
+저장 후 재생성 안내를 확인한다. 기존 복구·재연결·Save/Reload·충돌 단언을 유지한다.
+새 suite 없이 기존 CLI·브라우저 harness를 사용하며, 복수 출력은 합성 작업 fixture의 출력 이름만 달리한다.
+
+수동 캡처는 `LITZIO_COMPARE_ENTRY_CAPTURE=1`을 지정한 `pnpm browser:test http-plugins --screenshots`의 persistent Windows Chrome,
+영어·100% zoom·합성 Docling 자료와 전용 localhost Host다. Before는 master `745a88db`의
+App/DocumentTab/FolderTree UI 소스만 같은 현재 Host·fixture 위에 복원해 촬영한 수동 비교다.
+Before의 새 진입점 단언은 촬영 동작으로 대체했고 최종 소스·단언은 복원했다.
+새 진입점을 포함한 최종 HTTP 검증과 Before 촬영을 구분한다.
+계정·Root 제목·폴더 선택은 가렸으며 소유자의 시각 승인을 대신하지 않는다.
+
+| 화면 | Before Light / Dark | After Light / Dark |
+| --- | --- | --- |
+| 문서 안내 1440px | [Light](assets/compare-entry-1465/before-document-1440-light.png) / [Dark](assets/compare-entry-1465/before-document-1440-dark.png) | [Light](assets/compare-entry-1465/document-1440-light.png) / [Dark](assets/compare-entry-1465/document-1440-dark.png) |
+| 원본 메뉴 1440px | [Light](assets/compare-entry-1465/before-source-menu-1440-light.png) / [Dark](assets/compare-entry-1465/before-source-menu-1440-dark.png) | [Light](assets/compare-entry-1465/source-menu-1440-light.png) / [Dark](assets/compare-entry-1465/source-menu-1440-dark.png) |
+| 생성 문서 메뉴 1440px | [Light](assets/compare-entry-1465/before-document-menu-1440-light.png) / [Dark](assets/compare-entry-1465/before-document-menu-1440-dark.png) | [Light](assets/compare-entry-1465/document-menu-1440-light.png) / [Dark](assets/compare-entry-1465/document-menu-1440-dark.png) |
+| 기존 대시보드 목록 1440px | [Light](assets/compare-entry-1465/before-dashboard-existing-jobs-1440-light.png) / [Dark](assets/compare-entry-1465/before-dashboard-existing-jobs-1440-dark.png) | [Light](assets/compare-entry-1465/dashboard-existing-jobs-1440-light.png) / [Dark](assets/compare-entry-1465/dashboard-existing-jobs-1440-dark.png) |
+| 문서 안내 640px | [Light](assets/compare-entry-1465/before-document-640-light.png) / [Dark](assets/compare-entry-1465/before-document-640-dark.png) | [Light](assets/compare-entry-1465/document-640-light.png) / [Dark](assets/compare-entry-1465/document-640-dark.png) |
+
+Notice 안 버튼 정렬·줄바꿈, 메뉴 행동·테마 대비와 가로 넘침 부재를 확인한다.
+최근 검수 진행률 목록을 추가한 화면이 아니며 기존 작업 목록의 최소 대안을 촬영했다.
+[촬영 정보·파일 해시](assets/compare-entry-1465/verification.json)에 환경과 범위를 남긴다.
+실제 Docling 서비스의 변환 품질·원격 네트워크·설치형 Desktop 수락은 미확인이다.

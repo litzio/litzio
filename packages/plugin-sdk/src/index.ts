@@ -26,7 +26,7 @@ const operation = z.strictObject({ id, version: z.number().int().positive(), eff
 const extension = z.string().regex(/^\.[a-z0-9]+$/);
 const jobFields = { id, title: z.string().min(1), accept: z.array(extension).min(1), start: id, status: id, stop: id };
 const jobContributionSchema = z.discriminatedUnion("resultKind", [
-  z.strictObject({ ...jobFields, resultKind: z.literal("native-document"), generatedDocument: id.optional(), comparison: id.optional() }),
+  z.strictObject({ ...jobFields, resultKind: z.literal("native-document"), generatedDocument: id.optional(), comparison: id.optional(), workspace: z.boolean().optional() }),
   z.strictObject({ ...jobFields, resultKind: z.literal("file"), resultExtension: extension }),
 ]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
@@ -67,6 +67,7 @@ export function validateManifest(input: unknown): PluginManifest {
   if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
   if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.secretUses.length) throw new Error("Unsupported contribution: dataViews, generatedUi and secretUses");
   for (const job of m.contributes.jobs) {
+    if (job.resultKind === "native-document" && job.workspace && (!job.comparison || !job.generatedDocument)) throw new Error("Review workspaces require a generated provider and comparison");
     if (job.resultKind === "native-document" && job.generatedDocument) {
       if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Generated documents require SDK 0.3.0 or later");
       const provider = m.contributes.operations.find(op => op.id === job.generatedDocument);

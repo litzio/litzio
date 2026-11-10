@@ -1,9 +1,12 @@
 # UI 결정표와 실행 예제
 
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 보관 소스를 가리키는 플러그인·Docling 과거 캡처/검증은 당시 기록이며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 재개된 플러그인·workspace 계약은 [플러그인 1단계](plugin-stage1-v1.md)를 따른다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 파일 없는 검수 snapshot을 대조·중간 내보내기한다 (#1462 P1b) | 기존 comparison 작업 탭·명시 export Dialog | ReviewRenderer/DocumentEditor readOnly preview·Dialog/Input/Button/checkbox | 내부 source/이미지·effective 대응, 실제 파일 열기는 export 결과만, revision/overwrite·미저장 보호 | [P1b](docling-review-stage3.md#p1b-내부-대조이미지명시-export) | 기존 공통 구현, 새 token/control 예외 없음. 완료 승인/final export는 후속 |
+
+| 생성 문서에서 대조를 다시 연다 (#1465) | 기존 문서 안내·탐색기 | warning Notice + ghost sm Button, ContextMenu + PanelRightOpen, 여러 문서는 기존 Dialog/Button | Host 연결을 조회해 기존 대조 탭 열기·재생성 안내 | [생성 문서 진입점](plugin-stage1-v1.md#생성-문서-대조-진입점-1465) | 새 화면 종류 없음. 최근 검수 진행률 목록은 공용 schema/binding 부재로 미제공 |
 | Desktop 창을 숨기거나 완전 종료한다 (#1448) | Windows 트레이 | Electron Tray/Menu + 기존 brand icon·native dialog | 열기·종료, 최초 백그라운드 안내·설정 보존, 종료 시 작업 중단 안내와 기존 미저장 보호 | [Desktop 트레이 계약](desktop-distribution-v1.md#close-to-tray-1448) | 소유자가 승인한 OS 표면으로 renderer 공통 부품 밖이다. 창은 같은 편집 세션을 유지하며 실제 native 시각·패키지 수락은 미확인 |
 | 비서 질문에 답하고 기록을 확인한다 (#1443) | 기존 대화 본문, 과정 밖 | AssistantQuestion + native fieldset/radio + 공용 Input/Button | 선택·직접 입력, 렌더 확인 뒤 수락, 답변 후 같은 카드에 기록 | [질문 계약](main-agent-v1.md#async-questions-and-answer-history-1443) | 기존 대화·질문 소유권 유지. 현재 Copilot ACP 연결은 미지원 명시 |
 | 비서의 작업 과정과 새 내용을 읽는다 (#1436/#1440) | 기존 대화 패널 | native details/summary + outline sm Button + Lucide ArrowDown | 과정 기본 접힘·머리에 현재 단계, 위로 읽을 때 위치 유지·새 내용 알림·명시적 하단 이동 | [읽기·진행 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440) | 사용자 질문·선택·확인은 과정 밖에 표시. 화면 내부 interaction이며 Host 상태·CLI 작업 추가 없음 |
@@ -35,6 +38,12 @@
 문서의 읽기 여백과 앱 조작 밀도를 구별한다. 문맥 속성은 대상과 연결하고, AI 보조 작업은 문서와 함께 확인하며, 전역 설정의 전체 화면을 작은 속성 폼에 복제하지 않는다. 규범은 [Direction](editor-visual-language-v1.md#direction)과 [Alignment and ownership](editor-layout-rules-v1.md#alignment-and-ownership)에 있다. 큰 배치 변경은 실제 화면에서 검토한다.
 
 ## 공통 규칙
+
+### 최소 폭 검수 (#1455)
+
+640px은 최소 지원 폭이다. 검수 기준은 **깨지지 않음**(의도하지 않은 겹침·잘림·조작 불가 없음)이며, 1440px과 같은 동시 정보량이나 배치 완성도를 요구하지 않는다. 여러 패널을 나란히 보는 화면은 좁은 폭에서 기본 동작과 넓은 창 권장 안내만 보장한다. 의도한 탐색기·비서·문서 패널 오버레이는 각 닫기·포커스 계약을 따른다. 캡처는 1440px이 기본이며 640px은 배치가 바뀌는 변경에서만 남긴다. 이미 있는 640px 자동 검사와 단언은 유지한다. [소유자 결정 #1455](https://github.com/litzio/litzio/issues/1455), [레이아웃 계약](editor-layout-rules-v1.md#supported-viewport-and-input)을 따른다.
+
+탐색기는 기존 Sidebar·Button·Tooltip·트리와 문서 패널의 fixed overlay·shadow 토큰을 재사용한다. 비서와 같은 1100px 경계(공용 Adjustable value)를 쓰며 넓은 창의 도킹 선택은 보존한다. 새 공통 표면이나 상호작용 예외는 없다. [동작과 캡처](editor-ux-shell-v1.md#narrow-explorer-overlay-1455).
 
 [shadcn 공식 스킬](https://github.com/shadcn-ui/ui/blob/main/skills/shadcn/SKILL.md)에서 현재 Base UI·제품 토큰 구성과 맞는 항목만 채택한다. 스킬은 설치하지 않으며 레지스트리 기본 외형을 가져오지 않는다. Litzio의 기존 권한 문서가 우선한다.
 

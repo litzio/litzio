@@ -1,3 +1,4 @@
+import type { ComparisonTarget } from "../review/GeneratedComparison.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
 import { i18n } from "../i18n.ts";
 import { useTranslation } from "react-i18next";
@@ -24,7 +25,7 @@ export function HostHeading({ hostId }: { hostId: string }) {
   return <div className="host-heading"><span className="sidebar-tree-name">{hostLabel(hostId)}</span><Tooltip><TooltipTrigger render={<span tabIndex={0} />}><HostStatus runtime={hostRegistry.get(hostId)} showDetails={false} compact /></TooltipTrigger><TooltipContent>{hostRegistry.get(hostId).reason ?? hostRegistry.get(hostId).warning ?? hostRegistry.list().find(host => host.hostId === hostId)?.origin}</TooltipContent></Tooltip></div>;
 }
 
-export function HostExplorer({ onCopyPath, onAddToChat, hostId, documentPath, isFileDirty, onOpen, onFileAction, onCreate, createdDocumentFocus, disabled }: { onCopyPath?(path: string): void; onAddToChat?(path: string, returnFocus: HTMLElement): void; onCreate(client: HostClient, path: string, root?: string): Promise<string>; createdDocumentFocus?(): HTMLElement | null; hostId: string; documentPath: string; isFileDirty(path: string): boolean; onOpen(path: string): Promise<void>; onFileAction: FileActionHandler; disabled: boolean }) {
+export function HostExplorer({ onCompare, onCopyPath, onAddToChat, hostId, documentPath, isFileDirty, onOpen, onFileAction, onCreate, createdDocumentFocus, disabled }: { onCompare?(target: ComparisonTarget): void; onCopyPath?(path: string): void; onAddToChat?(path: string, returnFocus: HTMLElement): void; onCreate(client: HostClient, path: string, root?: string): Promise<string>; createdDocumentFocus?(): HTMLElement | null; hostId: string; documentPath: string; isFileDirty(path: string): boolean; onOpen(path: string): Promise<void>; onFileAction: FileActionHandler; disabled: boolean }) {
   useTranslation();
   const client = getHostClient(hostId);
   const [problem, setProblem] = useState("");
@@ -63,7 +64,7 @@ export function HostExplorer({ onCopyPath, onAddToChat, hostId, documentPath, is
     <HostHeading hostId={hostId} />
     {!folders.trees.length ? <div className="sidebar-empty"><Button className="w-full justify-start" size="sm" variant="ghost" disabled={disabled} onClick={event => { returnFocus.current = event.currentTarget; setPicker(true); }}><FolderOpen />{i18n.t("Open folder…")}</Button></div> : null}
     {problem ? <p role="alert">{problem}</p> : null}
-    {folders.trees.map(tree => <FolderTree onCopyPath={onCopyPath} key={tree.root} tree={tree} onAddToChat={onAddToChat} documentPath={documentPath}
+    {folders.trees.map(tree => <FolderTree onCompare={onCompare} onCopyPath={onCopyPath} key={tree.root} tree={tree} onAddToChat={onAddToChat} documentPath={documentPath}
       isFileDirty={isFileDirty} fileActionsDisabled={disabled}
       onFileAction={async (...args) => { try { return await onFileAction(...args); } finally { folders.refreshParents(args[2].path); } }}
       onNew={(button, path) => beginCreate("file", tree.root, button, path)}

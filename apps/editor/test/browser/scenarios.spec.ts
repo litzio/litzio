@@ -1,3 +1,4 @@
+import { startOwnedDaemon } from "./owned-daemon.ts";
 import { cpSync } from "node:fs";
 import { executeFolderTrash } from "../../server/file-operations.ts";
 import { createServer } from "node:http";
@@ -16,7 +17,7 @@ import { classifyConsoleErrors } from "./console-errors.ts";
 import { finishScenarioDiagnostics, savedSourceAssertion } from "./diagnostics.ts";
 import { hideFloatingNotifications, FILE_ACTIONS_ROOT, prepareBrowserFixtures, REPOSITORY_ROOT, SOURCE_DIRS } from "./fixtures.ts";
 import { NOTIFICATION_SCENARIOS, STABLE_SCENARIOS } from "./scenarios.ts";
-import { showNotifications, activeDocument, openFolderPicker, openDocument, openPath, reloadDocument, waitForActivePath, waitForEditorFocus } from "./navigation.ts";
+import { showNotifications, activeDocument, waitForExplorerLayout, openFolderPicker, openDocument, openPath, reloadDocument, waitForActivePath, waitForEditorFocus } from "./navigation.ts";
 import { withBlockHover } from "./hover.ts";
 import { recoveryRecords } from "./recovery-records.ts";
 import { inputEventScript } from "./input-event-script.ts";
@@ -183,7 +184,7 @@ for (const name of scenarios) {
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { reviewArchive?: boolean; directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; benchmark?: boolean; benchmarkVariant?: string; benchmarkDocument?: string; comparisonCapture?: boolean; comparisonBefore?: boolean; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; review(action: string, data: unknown): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { reviewArchive?: boolean; directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; benchmark?: boolean; benchmarkVariant?: string; benchmarkDocument?: string; comparisonCapture?: boolean; entryCaptureOnly?: boolean; restartWorkspaceHost():Promise<string>; comparisonBefore?: boolean; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean, output?: string): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; review(action: string, data: unknown): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -265,7 +266,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     let doclingFailure = false, conversionRequests = 0, submissions = 0, conversionState = "success", taskId = "", receivedFields: Record<string, FormDataEntryValue[]> = {};
     let jiraFault = 0, jiraRedirects = 0, jiraLarge = false;
     const jiraSearches: { jql: string; startAt: number }[] = [];
-    const doclingServer = name === "http-plugins" ? createServer(async (request, response) => {
+    const doclingServer = ["http-plugins","workspace-review"].includes(name) ? createServer(async (request, response) => {
       if (request.url === "/jira/rest/api/2/myself") {
         const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
         response.writeHead(status, { "Content-Type": "application/json" });
@@ -338,6 +339,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     }) : undefined;
     if (doclingServer) await new Promise<void>(resolve => doclingServer.listen(0, "127.0.0.1", resolve));
     const doclingAddress = doclingServer?.address();
+    let workspaceHost: Awaited<ReturnType<typeof startOwnedDaemon>> | undefined;
+    const workspaceData=path.join(REPOSITORY_ROOT,"tmp",`workspace-host-${randomUUID()}`);
     const docling = doclingServer && doclingAddress && typeof doclingAddress !== "string" ? {
       directory: path.join(REPOSITORY_ROOT, "tmp/http-host-a/docling-artifact"),
       input: path.join(REPOSITORY_ROOT, "tmp/docling-input.json"),
@@ -345,11 +348,23 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       comparisonPage: Number(process.env.LITZIO_DOCLING_COMPARE_PAGE ?? 1),
       comparisonWidth: Number(process.env.LITZIO_DOCLING_COMPARE_WIDTH ?? 0),
       comparisonCapture: process.env.LITZIO_DOCLING_COMPARE_CAPTURE === "1",
+      entryCaptureOnly: process.env.LITZIO_COMPARE_ENTRY_CAPTURE === "1",
       comparisonBefore: process.env.LITZIO_DOCLING_COMPARE_BEFORE === "1",
       realFile: screenshots && process.env.LITZIO_DOCLING_REAL_ARCHIVE ? "real.docling" : undefined,
       beforeFile: screenshots && process.env.LITZIO_DOCLING_BEFORE ? "docling-before.md" : undefined,
       setRealInput() {
         writeFileSync(this.jobInput, JSON.stringify({ job: "create-document", root: pluginFolder, file: "real.docling", output: "docling-real.md" }));
+      },
+      async restartWorkspaceHost() {
+        await workspaceHost?.close();
+        workspaceHost=await startOwnedDaemon(workspaceData,[pluginFolder,this.directory]);
+        const post=async(body:unknown)=>{const r=await fetch(workspaceHost!.url+"/api/plugins",{method:"POST",headers:{Origin:workspaceHost!.url,"Content-Type":"application/json"},body:JSON.stringify(body)});const value=await r.json();if(!r.ok)throw new Error(value.error);return value;};
+        const {plugins}=await post({action:"list"});
+        if(plugins.some((p:any)=>p.id==="community.docling"&&p.running))await post({action:"disable",id:"community.docling"});
+        await post({action:"register",directory:this.directory});const registered=await post({action:"list"});
+        await post({action:"trust",id:"community.docling",registrationId:registered.plugins.find((p:any)=>p.id==="community.docling").registrationId});
+        await post({action:"enable",id:"community.docling"});
+        return workspaceHost!.url;
       },
       async repeatReal() {
         const assets = path.join(pluginFolder, "assets");
@@ -367,8 +382,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         conversionState = mode;
         writeFileSync(this.fileJobInput, JSON.stringify({ job: "convert-pdf", root: pluginFolder, file: "source.pdf", output: `pdf-${mode}.docling` }));
       },
-      setDocumentInput(invalid: boolean) {
-        writeFileSync(this.jobInput, JSON.stringify({ job: "create-document", root: pluginFolder, file: invalid ? "invalid.docling" : "sample.docling", output: "docling-repeated.md" }));
+      setDocumentInput(invalid: boolean, output = "docling-repeated.md") {
+        writeFileSync(this.jobInput, JSON.stringify({ job: "create-document", root: pluginFolder, file: invalid ? "invalid.docling" : "sample.docling", output }));
       },
       conversionRequests() { return conversionRequests; },
       submissions() { return submissions; },
@@ -400,6 +415,14 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     } : undefined;
     if (docling) {
       cpSync(path.join(REPOSITORY_ROOT, "community-plugins/docling"), docling.directory, { recursive: true });
+      if(name === "http-plugins") {
+        // Preserve the generic legacy generated-document/K1 regression. Workspace behavior is
+        // exercised with the unmodified current manifest by workspace-review, in this same suite.
+        const manifestPath=path.join(docling.directory,"litzio-plugin.json"),manifest=JSON.parse(readFileSync(manifestPath,"utf8"));
+        Object.assign(manifest.contributes.jobs.find((job:any)=>job.id==="create-document"),{workspace:false,title:"문서 만들기"});
+        manifest.contributes.screens[0].jobs=["convert-pdf","create-document"];
+        writeFileSync(manifestPath,JSON.stringify(manifest));
+      }
       if (docling.realFile) cpSync(process.env.LITZIO_DOCLING_REAL_ARCHIVE!, path.join(pluginFolder, docling.realFile));
       if (docling.beforeFile) cpSync(process.env.LITZIO_DOCLING_BEFORE!, path.join(pluginFolder, docling.beforeFile));
       const { readDoclingArchive } = await import(new URL("../../../../community-plugins/docling/archive.js", import.meta.url).href);
@@ -427,7 +450,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       expect(decoded.manifest.result.sha256).toBe(createHash("sha256").update(rawResult).digest("hex"));
       expect(decoded.manifest.profile).toEqual(PDF_PROFILE);
       expect(decoded.manifest.version).toBe(2);
-      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.8");
+      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.9");
       expect(decoded.manifest.images[0].sha256).toBe(createHash("sha256").update(png).digest("hex"));
       conversionState = "failure";
       await expect(convertPdfToArchive({ file: source, serverUrl })).rejects.toThrow(/task fixture-2/);
@@ -514,7 +537,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       await page.reload();
       await page.getByTestId("folder").filter({ has: page.getByRole("treeitem", { name: "trash-target", exact: true }) }).waitFor();
     };
-    try { result = await scenario(page, { folderAliasRoot, changeFolderContents: () => appendFileSync(path.join(FILE_ACTIONS_ROOT, "trash-target", "inside.md"), "\nExternal folder change.\n"), enableFolderTrash, pluginFixture: { ...pluginFixture, docling, jira, realSnapshot, reviewDocument: name === "plugin-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
+    try { result = await scenario(page, { folderAliasRoot, changeFolderContents: () => appendFileSync(path.join(FILE_ACTIONS_ROOT, "trash-target", "inside.md"), "\nExternal folder change.\n"), enableFolderTrash, pluginFixture: { ...pluginFixture, docling, jira, realSnapshot, reviewDocument: name === "plugin-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, waitForExplorerLayout, withBlockHover, bibliographyFixture,
       folderFixture: {
         change: (mode: string) => {
           const dir = path.join(REPOSITORY_ROOT, "tmp/folder-navigation/guides");
@@ -533,7 +556,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       // Simulate an external deletion of this one disposable file. The fixture resets it afterward.
       removeTabFixture: source => { const file = path.join(REPOSITORY_ROOT, "tmp/document-tabs/technical-1.md"); if (source === undefined) unlinkSync(file); else writeFileSync(file, source); },
     });
-    } finally { if (doclingServer) await new Promise<void>((resolve, reject) => doclingServer.close(error => error ? reject(error) : resolve())); }
+    } finally { await workspaceHost?.close(); if (doclingServer) await new Promise<void>((resolve, reject) => doclingServer.close(error => error ? reject(error) : resolve())); }
     if (result !== undefined) {
       const resultPath = test.info().outputPath("scenario-result.json");
       writeFileSync(resultPath, JSON.stringify(result, null, 2));
