@@ -1,4 +1,4 @@
-async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument, enableFolderTrash } = {}) => {
+async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPicker, screenshots = false, fileActionsRoot, expect, recoveryRecords, activeDocument, enableFolderTrash, waitForExplorerLayout } = {}) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const root = fileActionsRoot;
   const sep = root.includes('\\') ? '\\' : '/';
@@ -137,6 +137,7 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
   const metadata = [];
   for (const width of [1440, 640]) {
     await page.setViewportSize({width, height:900});
+    await waitForExplorerLayout(page);
     const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});
     if (await expand.isVisible()) await expand.click();
     await chooseTheme(width === 640 ? 'dark' : 'light');

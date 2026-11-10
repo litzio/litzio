@@ -37,6 +37,8 @@ type SidebarProps = {
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
   open: boolean;
+  overlay?: boolean;
+  onClose?(): void;
   documentPath: string;
   onWidth(value: number): void;
   onToggle(): void;
@@ -73,7 +75,7 @@ type SidebarProps = {
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onCopyPath, documentHostId = "local", onHostCreate, createdDocumentFocus, onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  onCopyPath, documentHostId = "local", onHostCreate, createdDocumentFocus, onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "light", onThemeChange, contributions = [], onAddToChat,
 }: SidebarProps) {
@@ -97,7 +99,12 @@ export function Sidebar({
   }, only.root, () => content.current?.querySelector<HTMLButtonElement>('[data-folder-menu]') ?? null)
     : [{ id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => onOpenFolder(content.current) }];
   return (
-    <nav className={`sidebar${open ? "" : " sidebar--collapsed"}`} aria-label={i18n.t("Application")} data-testid="sidebar">
+    <nav className={`sidebar${open ? "" : " sidebar--collapsed"}${overlay && open ? " sidebar--overlay" : ""}`} aria-label={i18n.t("Application")} data-testid="sidebar"
+      onKeyDown={event => {
+        if (overlay && open && event.key === "Escape" && !event.defaultPrevented && !event.nativeEvent.isComposing && event.currentTarget.contains(event.target as Node)) {
+          event.preventDefault(); event.stopPropagation(); onClose?.();
+        }
+      }}>
       {open && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
       <div className="sidebar-header">
         {open ? <span className="product">{i18n.t("Explorer")}</span> : null}

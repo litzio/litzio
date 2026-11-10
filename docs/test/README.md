@@ -376,7 +376,7 @@ A change to the Editor's look or a new visible control states which [Visual Lang
 
 Litzio keeps one stylesheet; comparison captures do not need a runtime old/new theme toggle. Record the actual HEAD, viewport, DPR/zoom, scroll/interaction state and font environment. CSS studies and mockups are not product Before images.
 
-Use 1440px and 640px as the default comparison widths under [ADR-0010](../adr/0010-supported-viewport-and-input.md). Follow the [Windows browser/session rules](../contributing/windows-browser-automation.md), and close processes started for the comparison. Captures are manual evidence, not screenshot assertions or owner visual approval.
+Use 1440px as the default comparison width under [ADR-0010](../adr/0010-supported-viewport-and-input.md) and owner decision #1455; add 640px captures when layout changes there. At the minimum width, check for unintended overlap, clipping and unreachable controls; side-by-side multi-panel screens guarantee basic operation and wider-window guidance. Keep existing automated 640px assertions. Follow the [Windows browser/session rules](../contributing/windows-browser-automation.md), and close processes started for the comparison. Captures are manual evidence, not screenshot assertions or owner visual approval.
 
 ## Native document boundary
 

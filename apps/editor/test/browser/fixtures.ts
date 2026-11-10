@@ -59,7 +59,9 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "native.md", create: () => nativeSource("Native stays Core-backed.\n") },
   ], scenarios: ["text-mode"] },
   "selection-toolbar": { files: [{ name: "overlays.md", create: () => nativeSource(
-    "# Overlay positioning\n\n" + Array.from({ length: 12 }, (_, i) => `Opening paragraph ${i}. Ordinary document content.\n\n`).join("") +
+    // Keep the anchor below the initial viewport even with the full-width narrow document,
+    // so scrolling can place it at the bottom edge without clamping scrollTop to zero.
+    "# Overlay positioning\n\n" + Array.from({ length: 14 }, (_, i) => `Opening paragraph ${i}. Ordinary document content.\n\n`).join("") +
     "Select this [linked text](https://example.com/original) near the viewport edge. Note[^detail].\n\n" +
     "## Click destination\n\nExisting reference {eq}`eq-overlay` and citation {cite}`missing`.\n\n" +
     Array.from({ length: 25 }, (_, i) => `Following paragraph ${i}. Ordinary document content.\n\n`).join("") +

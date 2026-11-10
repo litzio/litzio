@@ -36,6 +36,12 @@
 
 ## 공통 규칙
 
+### 최소 폭 검수 (#1455)
+
+640px은 최소 지원 폭이다. 검수 기준은 **깨지지 않음**(의도하지 않은 겹침·잘림·조작 불가 없음)이며, 1440px과 같은 동시 정보량이나 배치 완성도를 요구하지 않는다. 여러 패널을 나란히 보는 화면은 좁은 폭에서 기본 동작과 넓은 창 권장 안내만 보장한다. 의도한 탐색기·비서·문서 패널 오버레이는 각 닫기·포커스 계약을 따른다. 캡처는 1440px이 기본이며 640px은 배치가 바뀌는 변경에서만 남긴다. 이미 있는 640px 자동 검사와 단언은 유지한다. [소유자 결정 #1455](https://github.com/litzio/litzio/issues/1455), [레이아웃 계약](editor-layout-rules-v1.md#supported-viewport-and-input)을 따른다.
+
+탐색기는 기존 Sidebar·Button·Tooltip·트리와 문서 패널의 fixed overlay·shadow 토큰을 재사용한다. 비서와 같은 1100px 경계(공용 Adjustable value)를 쓰며 넓은 창의 도킹 선택은 보존한다. 새 공통 표면이나 상호작용 예외는 없다. [동작과 캡처](editor-ux-shell-v1.md#narrow-explorer-overlay-1455).
+
 [shadcn 공식 스킬](https://github.com/shadcn-ui/ui/blob/main/skills/shadcn/SKILL.md)에서 현재 Base UI·제품 토큰 구성과 맞는 항목만 채택한다. 스킬은 설치하지 않으며 레지스트리 기본 외형을 가져오지 않는다. Litzio의 기존 권한 문서가 우선한다.
 
 - Dialog에 `DialogTitle`을 둔다. 시각적으로 숨길 때는 `sr-only`를 사용한다([현재 Dialog 구성](../../apps/editor/src/components/ui/dialog.tsx), [단축키 제목](../../apps/editor/src/shell/KeyboardShortcutsDialog.tsx)).

@@ -431,12 +431,15 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.keyboard.press('Escape');
   await page.setViewportSize({width:640, height:720});
   await initial.hover();
-  for (let i = 0; i < 10; i++) await initial.getByRole('button', {name:'Append column', exact:true}).click();
+  // The collapsed Explorer leaves 464px of table space; fourteen columns still force
+  // the same overflow/last-column scenario that twelve columns exercised before #1455.
+  const appendedColumns = 12;
+  for (let i = 0; i < appendedColumns; i++) await initial.getByRole('button', {name:'Append column', exact:true}).click();
   await initial.locator('.table-scroll').evaluate(scroll => { scroll.scrollLeft = 0; });
   await assertTopActions(initial);
   await initial.locator('.table-scroll').evaluate(scroll => { scroll.scrollLeft = scroll.scrollWidth; });
   await assertTopActions(initial);
-  const last = initial.getByRole('button', {name:'Column L actions', exact:true});
+  const last = initial.getByRole('button', {name:'Column N actions', exact:true});
   await last.click();
   result.narrowGeometry = await initial.evaluate(block => {
     const table = block.querySelector('table');
@@ -454,13 +457,13 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
       }) &&
       document.documentElement.scrollWidth <= innerWidth;
   });
-  result.menuWithinViewport = await page.getByRole('menu', {name:'Column L actions', exact:true}).evaluate(menu => {
+  result.menuWithinViewport = await page.getByRole('menu', {name:'Column N actions', exact:true}).evaluate(menu => {
     const r = menu.getBoundingClientRect();
     return r.left >= 0 && r.right <= innerWidth && r.top >= document.querySelector('.app-header').getBoundingClientRect().bottom && r.bottom <= innerHeight;
   });
   await page.keyboard.press('Escape');
   await initial.locator('td').first().click();
-  for (let i = 0; i < 10; i++) await page.keyboard.press('Control+z');
+  for (let i = 0; i < appendedColumns; i++) await page.keyboard.press('Control+z');
   await page.setViewportSize({width:1280, height:720});
   result.toolsNeverPersist = !JSON.stringify(await page.evaluate(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.getJSON())).includes('data-current-cell');
 
