@@ -1781,9 +1781,15 @@ atomic conversation index additionally stores these interaction records because
 provider history does not retain Litzio's rendering acknowledgement or structured
 answer relation. Provider turns/text remain provider-owned. Explicit resume merges
 question records into provider history by turn/item ID. Blocking callbacks cannot
-survive daemon restart and become expired; async questions can remain pending after
-the originating turn completes and across restart. Interrupt explicitly expires
-pending questions. Historical answered/expired/uncertain cards are read-only.
+survive daemon restart and become expired. Every pending question, blocking or
+async, closes with its originating turn on completion, interruption or failure.
+The same conversation-index write persists that closure. Interrupt saves it even
+when completion already occurred and no further provider notification will arrive.
+Changing the default provider closes and saves the previous provider's pending
+questions without terminating its admitted turns. Resume normalizes pending
+questions whose originating turn is no longer in progress and saves the normalized
+records. A later active turn cannot revive them. Closed cards have no answer inputs
+and show **Response ended / 응답 종료됨**. Answered/uncertain cards remain read-only.
 Secret blocking answers are masked in the index; the actual answer goes only to
 the original provider callback.
 
@@ -1791,10 +1797,9 @@ The existing `assistantConversation { action: "answer", id, turnId, requestId,
 answers }` validates exact own keys and one nonempty answer per question. It
 consumes the pending interaction before dispatch, preventing duplicate delivery.
 A blocking answer uses its exact RPC id. An async answer uses the existing
-`turn/steer` with the active turn's expected ID; if work has completed, the explicit
-answer starts a continuation in the same conversation. The answering window's
-display client is retained for subsequent Host-tool questions (CLI answers have
-no rendering client). Its user message carries
+`turn/steer` with the originating active turn's expected ID. Answers to completed,
+stopped or failed turns are rejected; they never start a continuation. Its user
+message carries
 `Litzio question answers (JSON)` with origin IDs, question text and answers. Host
 retains that relation rather than displaying an unlabelled answer or raw JSON.
 A failed/unknown async send is not automatically replayed. Explicit history resume
@@ -1840,8 +1845,13 @@ not the user's attention, reading or answer.
 ### Provider scope and validation
 
 Codex: fake stdio/HTTP/CLI and browser tests cover metadata, exact question IDs,
-choices/free text, active-turn steering, completed-turn continuation, index/history
-merge, restart, display acknowledgement, timeout and duplicate/stale handling.
+choices/free text, active-turn steering, index/history merge, restart, display
+acknowledgement, timeout and duplicate/stale handling. The P2 review regression
+first failed with an expired in-memory question still pending on disk. Existing
+tests now cover completion followed immediately by interrupt, interrupt without
+a subsequent provider notification, multiple pending questions on terminal error,
+disconnect/provider change, and normalization of a stale pending record on resume.
+No answer to those closed questions can start another turn.
 The metadata test failed before implementation: the item was `assistant` instead
 of `question`. Existing blocking/prototype-key/expiry checks remain.
 

@@ -101,12 +101,17 @@ test("unavailable provider rejects new work with a reason; settings do not close
   await host.invoke("configure", settings);
   const conversation = await host.invoke("assistantConversation", { action: "send", message: "Question", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort });
   const id = conversation.id, turn = conversation.turns[0];
+  await connection.client.request("fixture/async-question", { threadId: id, itemId: "provider-switch-question", questions: [{ title: "Choose before switching", options: ["A", "B"] }] });
   const pid = JSON.parse(readFileSync(log, "utf8").split("\n")[0]!).pid as number;
   assert.equal(typeof pid, "number");
   t.mock.method(connection, "diagnostics", async (provider?: "codex" | "copilot") => ({ provider: provider ?? "codex", connected: false, path: null, version: null, checkedAt: Date.now(), error: "Fixture provider unavailable" }));
   await host.invoke("configure", { ...settings, permissionMode: "read-only" });
+  assert.equal(conversation.userInput?.requestId, "provider-switch-question");
   t.mock.method(connection, "models", async () => ({ provider: "copilot" as const, updatedAt: Date.now(), models: [{ id: "auto", model: "auto", displayName: "Auto", description: "Fixture", defaultReasoningEffort: "medium", supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Fixture" }] }] }));
   await host.invoke("configure", { ...settings, provider: "copilot", model: "auto" });
+  assert.equal(conversation.userInput, undefined);
+  assert.equal(turn.status, "inProgress", "provider defaults do not end an admitted turn");
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions[0].question.status, "expired", "provider changes persist closure of the previous provider's questions");
   assert.doesNotThrow(() => process.kill(pid, 0));
   assert.equal((await host.invoke("assistantConversations", { id })).turns[0], turn);
   await assert.rejects(host.invoke("assistantConversation", { action: "send", message: "New work", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }), /AI provider copilot is unavailable: Fixture provider unavailable/);

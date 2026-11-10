@@ -581,7 +581,11 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
   await ask("finished"); await connection.client.request("fixture/finish", { threadId: c.id });
   assert.equal(c.userInput, undefined); assert.throws(() => answer("finished"), /expired/);
   await conversations.send({ ...input, id: c.id }, settings);
-  await ask("interrupted"); await conversations.interrupt(c.id);
+  await ask("interrupted");
+  const originalRequest = connection.client.request.bind(connection.client);
+  const interruptRpc = t.mock.method(connection.client, "request", async (method: string, params: unknown) => method === "turn/interrupt" ? {} : originalRequest(method, params));
+  try { await conversations.interrupt(c.id); } finally { interruptRpc.mock.restore(); }
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.find((record: any) => record.question.requestId === "interrupted").question.status, "expired", "interrupt persists closure even when no turn/completed notification follows");
   assert.equal(c.userInput, undefined); assert.throws(() => answer("interrupted"), /expired/);
   await conversations.send({ ...input, id: c.id }, settings);
   await ask("disconnected"); await connection.close();
@@ -589,7 +593,7 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
 });
 
 
-test("async questions retain provider metadata, deliver correlated answers to the active turn and survive reopen", async t => {
+test("async questions retain metadata and answered history while ended questions stay closed on reopen", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-async-question-")), log = path.join(root, "rpc.jsonl");
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
   const conversations = new AssistantConversations(connection, new RootAccess([root]));
@@ -624,20 +628,45 @@ test("async questions retain provider metadata, deliver correlated answers to th
   assert.deepEqual(restored.sourceQuestions, questions);
   await conversations.send({ id: c.id, message: "Ask another question", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
   await connection.client.request("fixture/async-question", { threadId: c.id, itemId: "later-question", questions });
+  await connection.client.request("fixture/async-question", { threadId: c.id, itemId: "second-pending-question", questions });
   await connection.client.request("fixture/finish", { threadId: c.id });
+  assert.equal(conversations.current(c.id).userInput, undefined, "completion closes every pending question in the turn");
+  assert.ok(conversations.current(c.id).turns.at(-1)!.items.filter(item => item.question).every(item => item.question!.status === "expired"));
+  await conversations.interrupt(c.id);
+  assert.equal(conversations.current(c.id).turns.at(-1)!.items.find(item => item.id === "later-question")!.question!.status, "expired");
+  const saved = JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"));
+  assert.equal(saved[0].questions.find((record: any) => record.itemId === "later-question").question.status, "expired", "interrupt after completion must persist question expiry without another provider notification");
+  const stopped = await conversations.resume(c.id, settings);
+  assert.equal(stopped.userInput, undefined, "explicit reopen cannot revive a stopped question");
+  assert.throws(() => conversations.answer(c.id, stopped.turns.at(-1)!.id, "later-question", answers), /expired/);
   await connection.close();
+  // Recreate the stale pending index from the reviewer's completed-turn race.
+  saved[0].questions.find((record: any) => record.itemId === "later-question").question.status = "pending";
+  writeFileSync(path.join(connection.cwd, "conversations.json"), JSON.stringify(saved));
   restarted = new ProviderConnections(connection.cwd, { bin: process.execPath, args: [fakeServer, log] });
   const history = new AssistantConversations(restarted, new RootAccess([root]));
   const resumed = await history.resume(c.id, settings);
-  assert.equal(resumed.userInput?.requestId, "later-question", "async questions outlive a completed turn and daemon restart");
+  assert.equal(resumed.userInput, undefined, "a stopped question must stay closed after daemon restart");
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.find((record: any) => record.itemId === "later-question").question.status, "expired", "restoration persists normalized completed-turn questions");
   assert.deepEqual((resumed.turns.flatMap(turn => turn.items).find(item => item.id === "travel-question") as any).question.answers, answers);
-  await history.answer(c.id, resumed.userInput!.turnId, "later-question", answers);
-  assert.equal(resumed.turns.at(-1)!.status, "inProgress", "an explicit answer starts a continuation after completion");
+  assert.throws(() => history.answer(c.id, resumed.turns.at(-1)!.id, "later-question", answers), /expired/);
+  assert.equal(resumed.turns.at(-1)!.status, "completed", "answering a closed question cannot start a new turn");
   const ordinary = 'Litzio question answers (JSON):\n{"turnId":"missing","requestId":"missing","answers":{"0":{"answers":["example"]}}}';
   await history.send({ id: c.id, message: ordinary, folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
-  const ordinaryItem = resumed.turns.at(-1)!.items.at(-1)!;
+  const ordinaryItem = resumed.turns.at(-1)!.items.find(item => item.kind === "user")!;
   assert.equal(ordinaryItem.questionAnswer, undefined, "unmatched user-authored JSON is not hidden as an answer record");
   assert.equal(ordinaryItem.text, ordinary);
+  assert.throws(() => history.answer(c.id, resumed.turns[1]!.id, "later-question", answers), /expired/, "another active turn must not revive an old question");
+  for (const itemId of ["failed-question", "second-failed-question"]) await restarted.client.request("fixture/async-question", { threadId: c.id, itemId, questions });
+  await restarted.client.request("fixture/fail", { threadId: c.id });
+  assert.equal(resumed.turns.at(-1)!.status, "failed");
+  assert.equal(resumed.userInput, undefined);
+  assert.ok(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.filter((record: any) => record.itemId.includes("failed-question")).every((record: any) => record.question.status === "expired"), "a terminal error persists all question expiries without turn/completed");
+  await history.send({ id: c.id, message: "Disconnect during a question", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  await restarted.client.request("fixture/async-question", { threadId: c.id, itemId: "disconnected-question", questions });
+  await restarted.close();
+  assert.equal(resumed.userInput, undefined);
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions.find((record: any) => record.itemId === "disconnected-question").question.status, "expired");
 });
 
 test("Host question tool accepts a confirmed conversation renderer and reports hidden-window failure", async t => {
@@ -662,11 +691,10 @@ test("Host question tool accepts a confirmed conversation renderer and reports h
   assert.equal(failed.result.success, false);
   assert.equal(JSON.parse(failed.result.contentItems[0].text).accepted, false);
   assert.match(JSON.parse(failed.result.contentItems[0].text).error, /No Litzio window confirmed/);
-  await connection.client.request("fixture/finish", { threadId: c.id });
   await conversations.answer(c.id, q.turnId, q.requestId, { "0": { answers: ["A"] } }, "answer-window");
-  const followupReply = ask("Follow-up after a completed turn");
+  const followupReply = ask("Follow-up during the same turn");
   for (let attempt = 0; !c.userInput && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
-  assert.ok(c.userInput, "an answer continuation retains its rendering client for follow-up questions");
+  assert.ok(c.userInput, "the active turn retains its rendering client for follow-up questions");
   conversations.questionVisible(c.id, c.userInput.turnId, c.userInput.requestId, "answer-window");
   assert.equal((await followupReply).result.success, true);
 });

@@ -31,7 +31,7 @@ export function AssistantQuestion({ question, disabled, submit }: { question: As
       </>}
     </fieldset>)}
     {waiting ? <Button type="submit" size="sm" disabled={disabled || sending || !question.questions.every(q => values.get(q.id)?.trim())}>{i18n.t("Submit answers")}</Button>
-      : <p role="status">{i18n.t(status === "answered" ? "Answered" : status === "expired" ? "Question expired" : status === "sending" ? "Sending…" : "Answer delivery needs confirmation")}</p>}
+      : <p role="status">{i18n.t(status === "answered" ? "Answered" : status === "expired" ? "Response ended" : status === "sending" ? "Sending…" : "Answer delivery needs confirmation")}</p>}
     {record?.error ? <p role="alert">{i18n.t(record.error, { defaultValue: record.error })}</p> : null}
   </form>;
 }

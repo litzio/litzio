@@ -77,6 +77,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         if (!model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort)) throw new Error(`AI reasoningEffort: allowed values for ${next.model}: ${model.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(", ") || "none available"}.`);
       }
       if (closed) throw new Error("The Assistant Host is closing.");
+      if (selected !== current.provider) conversations?.expireProviderQuestions(current.provider);
       return configure(next);
     }
     if (!Object.hasOwn(assistantOperations, operation)) throw new Error("Unknown assistant operation.");

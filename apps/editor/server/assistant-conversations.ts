@@ -74,6 +74,7 @@ export class AssistantConversations {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
         this.loaded.delete(conversation.id); this.scopes.delete(conversation.id);
         for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
+        if (this.expireQuestion(conversation)) this.save(conversation);
       }
     });
     connection.copilot.permission = request => this.copilotPermission(request);
@@ -136,9 +137,9 @@ export class AssistantConversations {
     connection.client.on("disconnected", (message: string) => {
       this.display.cancel();
       for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
-      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") this.expireQuestion(conversation);
-      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") for (const turn of conversation.turns) {
-        if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
+      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
+        if (this.expireQuestion(conversation)) this.save(conversation);
       }
     });
   }
@@ -187,7 +188,9 @@ export class AssistantConversations {
       if (question && validQuestionAnswers(question, reply.answers)) { question.status = "answered"; question.answers = recordedAnswers(question, reply.answers); delete question.error; }
       else delete item.questionAnswer;
     }
+    for (const turn of conversation.turns) if (turn.status !== "inProgress") this.expireQuestion(conversation, turn.id);
     this.refreshQuestion(conversation);
+    if (conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }
   async providerLog(id: string, provider: unknown) {
     const info = this.list().find(entry => entry.id === id);
@@ -374,15 +377,29 @@ export class AssistantConversations {
     this.display.cancel();
     for (const pending of this.questionDisplays.values()) { clearTimeout(pending.timer); pending.reject?.(new Error("Question display was cancelled.")); }
   }
-  private expireQuestion(conversation: AssistantConversation, includeAsync = false) {
-    for (const item of conversation.turns.flatMap(turn => turn.items)) if (item.question?.status === "pending" && (includeAsync || item.question.delivery === "blocking")) item.question.status = "expired";
-    this.answers.delete(conversation.id); this.refreshQuestion(conversation);
-    if (includeAsync) for (const pending of this.questionDisplays.values()) if (pending.conversation === conversation.id) pending.reject?.(new Error("Question display was cancelled."));
+  private expireQuestion(conversation: AssistantConversation, turnId?: string, blockingOnly = false) {
+    let changed = false;
+    for (const item of conversation.turns.flatMap(turn => turn.items)) {
+      const q = item.question;
+      if (q?.status !== "pending" || turnId !== undefined && q.turnId !== turnId || blockingOnly && q.delivery !== "blocking") continue;
+      q.status = "expired"; changed = true;
+      if (q.delivery === "blocking") this.answers.delete(conversation.id);
+    }
+    this.refreshQuestion(conversation);
+    for (const pending of this.questionDisplays.values()) if (pending.conversation === conversation.id && pending.question.status === "expired") pending.reject?.(new Error("Question display was cancelled."));
+    return changed;
+  }
+  expireProviderQuestions(provider: AssistantSettings["provider"]) {
+    for (const conversation of this.conversations.values()) if ((conversation.provider ?? "codex") === provider && this.expireQuestion(conversation)) this.save(conversation);
   }
   answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers, displayClient?: string) {
     const conversation = this.current(id), question = conversation.turns.find(turn => turn.id === turnId)?.items.find(item => item.question?.requestId === requestId)?.question;
     const respond = this.answers.get(id);
-    if (!question || question.status !== "pending" || question.requiresDisplayAck && !question.displayed || question.delivery === "blocking" && (!respond || !conversation.turns.some(turn => turn.id === turnId && turn.status === "inProgress"))) throw new Error("Question expired.");
+    if (!conversation.turns.some(turn => turn.id === turnId && turn.status === "inProgress")) {
+      if (this.expireQuestion(conversation, turnId)) this.save(conversation);
+      throw new Error("Question expired.");
+    }
+    if (!question || question.status !== "pending" || question.requiresDisplayAck && !question.displayed || question.delivery === "blocking" && !respond) throw new Error("Question expired.");
     if (!validQuestionAnswers(question, answers)) throw new Error("Invalid question answers.");
     if (question.delivery === "async") return this.answerAsync(conversation, question, answers, displayClient);
     question.status = "answered";
@@ -409,7 +426,8 @@ export class AssistantConversations {
   }
   async interrupt(id: string) {
     const conversation = this.current(id), turn = conversation.turns.find(turn => turn.status === "inProgress");
-    this.expireQuestion(conversation, true);
+    this.expireQuestion(conversation);
+    this.save(conversation);
     this.display.cancel(id);
     if (turn && conversation.provider === "copilot") {
       const client = await this.connection.copilot.connect();
@@ -494,7 +512,10 @@ export class AssistantConversations {
         turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
         if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
       }
-    }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => { this.scopes.delete(id); });
+    }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => {
+      this.scopes.delete(id);
+      if (this.expireQuestion(conversation, turn.id)) this.save(conversation);
+    });
     return conversation;
   }
   private async prepareCopilotLaunch(effort: string, settings: AssistantSettings) {
@@ -553,7 +574,7 @@ export class AssistantConversations {
     const conversation = this.conversations.get(params.threadId);
     if (!conversation) return;
     if (method === "serverRequest/resolved") {
-      if (conversation.userInput?.requestId === params.requestId) this.expireQuestion(conversation);
+      if (conversation.userInput?.requestId === params.requestId && this.expireQuestion(conversation, undefined, true)) this.save(conversation);
       return;
     }
     if (method === "thread/tokenUsage/updated") {
@@ -566,7 +587,7 @@ export class AssistantConversations {
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
-      else { this.display.cancel(params.threadId); this.scopes.delete(params.threadId); if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
+      else { this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
       if (params.turn.error) turn.error = permissionError(params.turn.error.message);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
@@ -579,6 +600,7 @@ export class AssistantConversations {
         const index = turn.items.findIndex(value => value.id === item.id);
         if (index < 0) turn.items.push(item);
         else { if (item.question && turn.items[index]!.question) item.question = turn.items[index]!.question; turn.items[index] = item; }
+        if (turn.status !== "inProgress") this.expireQuestion(conversation, turnId);
         this.refreshQuestion(conversation);
         if (item.question) this.save(conversation);
       }
@@ -589,8 +611,8 @@ export class AssistantConversations {
     } else if (method === "turn/plan/updated") {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
-    } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
-    if (method === "turn/completed" && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
+    } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
+    if ((method === "turn/completed" || method === "error" && !params.willRetry) && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }
 }
 const CONTEXT = "Litzio read-only context (JSON):\n";

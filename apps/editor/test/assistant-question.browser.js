@@ -67,12 +67,19 @@ async (page, { expect, brand }) => {
   await pending.getByLabel('Your answer').fill('아이와 쉬는 시간을 넣어 주세요.');
   await pending.getByRole('button', { name: 'Submit answers' }).click();
   await expect(panel.locator('[data-question-status="answered"]')).toHaveCount(2);
+  addQuestion('ended-question');
+  conversation.turns[0].items.at(-1).question.status = 'expired'; refreshInput();
   conversation.turns[0].status = 'completed';
+  const ended = panel.locator('[data-question-status="expired"]');
+  await expect(ended).toContainText('Response ended');
+  await expect(ended.locator('input, button')).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Conversation history' })).toBeEnabled();
   await panel.getByRole('button', { name: 'Conversation history' }).click();
   await panel.getByRole('button', { name: /Travel planning/ }).click();
   await expect.poll(() => resumes).toBeGreaterThan(0);
   await expect(panel.locator('[data-question-status="answered"]').last()).toContainText('아이와 쉬는 시간을 넣어 주세요.');
+  await expect(ended).toContainText('Response ended');
+  await expect(ended.locator('input, button')).toHaveCount(0);
   await page.setViewportSize({ width: 640, height: 1000 });
   expect(await panel.locator('.assistant-question').last().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
 }

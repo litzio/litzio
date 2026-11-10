@@ -98,6 +98,11 @@ createInterface({ input: process.stdin }).on("line", line => {
     }
     persist(); send({ id, result: method === "turn/start" ? { turn } : { turnId: turn.id } }); return;
   }
+  if (method === "fixture/fail") {
+    const turn = threads[params.threadId].turns.at(-1); turn.status = "failed"; persist();
+    notify("error", { threadId: params.threadId, turnId: turn.id, willRetry: false, error: { message: "Fixture terminal failure" } });
+    send({ id, result: {} }); return;
+  }
   if (method === "turn/interrupt" || method === "fixture/finish") {
     const thread = threads[params.threadId], turn = thread.turns.at(-1);
     if (method === "fixture/finish" && typeof params.finalText === "string") for (const item of turn.items.filter(item => item.type === "agentMessage")) item.text = params.finalText;
