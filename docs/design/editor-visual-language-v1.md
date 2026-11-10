@@ -80,6 +80,12 @@ The encoded native-select chevron is a deliberate literal exception: data-URL SV
 
 Document and UI share `Pretendard Variable → Pretendard → Noto Sans KR → Apple SD Gothic Neo → Malgun Gothic → Segoe UI → sans-serif`. The document stack aliases UI but has independent size/spacing tokens. Embedded controls retain UI typography. English and Korean use the same tokens.
 
+The shared comparison at content widths up to 640px uses compact reading type: the existing
+14px body token with the 1.5 body line height, and existing 18/16/15/14px tokens for H1–H6.
+This is a comparison-only reading role; ordinary document typography stays unchanged. It
+reserves more width for prose, preserves ordinary word boundaries and uses emergency wrapping
+only for overlong single tokens ([comparison contract](plugin-stage1-v1.md#연속-원본-대조-1435)).
+
 Pretendard `1.3.9` is bundled through its official variable dynamic-subset CSS; Vite serves WOFF2 assets. All upstream ranges remain available, with upstream `font-display: swap` and weight range; fallback may appear during load or for unsupported glyphs. `--font-feature-sans: "cv08"` gives capital I its serifs in document/UI. KaTeX and code fonts are unaffected. Refresh the [OFL notice](../../apps/editor/public/licenses/Pretendard-OFL.txt) from the same version when updating.
 
 | Role | Size / line height / treatment |

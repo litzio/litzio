@@ -4,12 +4,13 @@ import type { ReviewPage } from "@litzio/core/views-v2";
 import type { ReviewAdapter, ReviewSnapshot } from "./ReviewRenderer.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { i18n } from "../i18n.ts";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 
 const status = {supported:"Supported",unsupported:"Unsupported",decoration:"Decoration",excluded:"Excluded"};
 /** Page geometry is cheap metadata; PNGs and region controls exist only near the viewport. */
-export function ContinuousSource({snapshot:s, loadPage, selected, disabled, saving, zoom, jump, onSelect, onVisible, onCheck, onUnavailable}: {
+export function ContinuousSource({snapshot:s, loadPage, selected, disabled, saving, compact, zoom, jump, onSelect, onVisible, onCheck, onUnavailable}: {
   snapshot: ReviewSnapshot; loadPage: NonNullable<ReviewAdapter["loadPage"]>; selected: string[]; disabled: boolean; saving: boolean;
-  zoom: number | "fit"; jump?: {pageNo:number}; onSelect(id:string):void; onVisible(page:number):void; onCheck(page:number,checked:boolean):void; onUnavailable():void;
+  compact: boolean; zoom: number | "fit"; jump?: {pageNo:number}; onSelect(id:string):void; onVisible(page:number):void; onCheck(page:number,checked:boolean):void; onUnavailable():void;
 }) {
   const pane = useRef<HTMLDivElement>(null);
   const kinds = useMemo(()=>regionKinds(s),[s]);
@@ -75,7 +76,7 @@ export function ContinuousSource({snapshot:s, loadPage, selected, disabled, savi
         <div className="review-page" data-source-width={p.width} style={{width:zoom === "fit" ? "100%":p.width*zoom/100,aspectRatio:`${p.width}/${p.height}`}}>
           {!images[p.pageNo] && near.includes(p.pageNo) && <span className="review-image-loading">{i18n.t("Loading data…")}</span>}
           {images[p.pageNo] && <img src={images[p.pageNo]} alt={`Source page ${p.pageNo}`} onError={onUnavailable} />}
-          {near.includes(p.pageNo) && images[p.pageNo] && p.regions.map(r=>{const [x1,y1,x2,y2]=r.bbox;return <Button key={r.id} variant="ghost" className="review-region p-0 rounded-none" data-region-id={r.id} data-kind={kinds.get(r.id) ?? "unmapped"} title={`${r.category} · ${status[r.status]}${kinds.get(r.id) === "unmapped" ? ` · ${i18n.t("No matching content.")}`:""}`} aria-description={kinds.get(r.id) === "unmapped" ? i18n.t("No matching content."):undefined} aria-label={`${r.category} · ${status[r.status]}${r.reason ? ` · ${r.reason}`:""}`} aria-pressed={selected.includes(r.id)} disabled={disabled || saving} style={{left:`${x1/p.width*100}%`,top:`${(p.origin === "TOPLEFT" ? y1:p.height-y2)/p.height*100}%`,width:`${(x2-x1)/p.width*100}%`,height:`${(y2-y1)/p.height*100}%`}} onClick={()=>onSelect(r.id)}><span>{r.category} · {status[r.status]}</span></Button>;})}
+          {near.includes(p.pageNo) && images[p.pageNo] && p.regions.map(r=>{const [x1,y1,x2,y2]=r.bbox;return <Tooltip key={r.id} disabled={!compact}><TooltipTrigger render={<Button variant="ghost" className="review-region p-0 rounded-none" data-region-id={r.id} data-kind={kinds.get(r.id) ?? "unmapped"} title={compact ? undefined:`${r.category} · ${status[r.status]}${kinds.get(r.id) === "unmapped" ? ` · ${i18n.t("No matching content.")}`:""}`} aria-description={kinds.get(r.id) === "unmapped" ? i18n.t("No matching content."):undefined} aria-label={`${r.category} · ${status[r.status]}${r.reason ? ` · ${r.reason}`:""}`} aria-pressed={selected.includes(r.id)} disabled={disabled || saving} style={{left:`${x1/p.width*100}%`,top:`${(p.origin === "TOPLEFT" ? y1:p.height-y2)/p.height*100}%`,width:`${(x2-x1)/p.width*100}%`,height:`${(y2-y1)/p.height*100}%`}} onClick={()=>onSelect(r.id)}><span>{r.category} · {status[r.status]}</span></Button>} /><TooltipContent>{r.category} · {status[r.status]}{r.reason ? ` · ${r.reason}`:""}{kinds.get(r.id) === "unmapped" ? ` · ${i18n.t("No matching content.")}`:""}</TooltipContent></Tooltip>;})}
         </div>
       </div>)}</div>
     </div>

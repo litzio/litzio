@@ -1,5 +1,5 @@
 {
-  "status": "verified; final follow-up source captures before commit",
+  "status": "verified; narrow reading correction captures before commit",
   "date": "2026-11-10",
   "browser": "Chrome 157.0.8103.40, persistent profile",
   "viewports": [
@@ -36,36 +36,36 @@
   "files": {
     "after-1440-dark.png": "e8861c7c6bf8929ee06faecb6802791b7d218a5a2f8c3f9d0e6f73de3588b182",
     "after-1440.png": "ba8a1647b1d281a224100de599ed4bfa22e05a43cf57230be5251812f65c80ec",
-    "after-640-light.png": "61028ec7c10708dad2ee7e8decb9e923506eaf13c02c14105fe715d4f026a45f",
-    "after-640.png": "cf7495f6b3e7db4888e5a4572edc8cedddce1f0890ac055488c046b34605fa9e",
+    "after-640-light.png": "21202fbe7a78a308b1e5a7a33eb37743f3c58fa3a229cc25dab1a340183d9d3e",
+    "after-640.png": "96b1ff9dc14e9642cf85a3014620d1833dee4c35d1765a429daa8c33a34e40e0",
     "before-1440.png": "77a953fcc02ff13000c6ff0dce9e583d429069146ef2adbf41d623b8da60dbda",
     "before-640.png": "7edc677e5f61cb2b5d97adc9214f49ae9fb947a922f7e0d6ce0614a1fe898d15",
     "boundary-1440-dark.png": "33216bed0d7a1d947104fc2463eb119eb0f0f83144d252bd88d13fa5c2831d8a",
     "boundary-1440.png": "326172e46ce0c6ccb47263e77fccc05ba33d74f5e95ece6c9e09b9fdfe911e7d",
-    "boundary-640-light.png": "f9ac8b4656b49ba550b80491d3e25098cc7ef64bf3da4c52bad29f473f2960b6",
-    "boundary-640.png": "4b3ba6fe7e0712c10dcc9f465eb3438909dc6b59f24196937b3f3b2a68d362a9",
+    "boundary-640-light.png": "a315f7a96501e4502d19ee62a462f047abdc9e3a75895461178478633e52d980",
+    "boundary-640.png": "660f0c35aca831deeabaafd54a151987392a8b86275b463b20f92e41a19e6bf6",
     "long-1440-dark.png": "4e4a78f3443dd469b550f3880006411afcf024bb0f005f0f69a082e9437d3797",
     "long-1440.png": "b612b37f3bb773ac2ba0f8311027668b211e3d313853661a72b8836180099f17",
-    "long-640-light.png": "8e23a24d606b7b22f13c3c14061cfb5c5069f7f8109e0e4630bfec51da0d9366",
-    "long-640.png": "5c06cd88910de63164605347e890ee32af54adae5a777254be833bc852283149",
+    "long-640-light.png": "499290544aa108a7053fbe041d4a2e490f35a21f095b95d3c810a07d4ce37a78",
+    "long-640.png": "2049bf38fe26f7685f7b465e9fd3538f13346cafc35d5d6eb0bbc33709f4fd37",
     "sync-off-1440-dark.png": "ef6fa837aa372cb4d2ea363c3dca71efa822eb0792891f3c2b2d3dc67f7a23a8",
     "sync-off-1440.png": "df27e0b446b5762d40d844389df8c6716ee05f72d3aac633aca8e2d3b1fcae3d",
-    "sync-off-640-light.png": "437bb0bf44eea6f31fe460491557522831bed11e3038483b574326145be58ae0",
-    "sync-off-640.png": "439df67fbe28776f9b7a8623ae2752af2eb199e16c91670f75e799cef0dc8bf5",
+    "sync-off-640-light.png": "a315f7a96501e4502d19ee62a462f047abdc9e3a75895461178478633e52d980",
+    "sync-off-640.png": "660f0c35aca831deeabaafd54a151987392a8b86275b463b20f92e41a19e6bf6",
     "unmapped-1440-dark.png": "c64b9fffeed7d211b8481736bb9f47e99df1a9c1dedd5c561c41fcaf5971e3a1",
     "unmapped-1440-light.png": "4bb448d3a504761432072f594f535545a38bddb49440ad3a22b1a25b78fc8aff",
-    "unmapped-640-dark.png": "a0051c8d5ead54a0e70510cc02d549ef181207d294daad731caa9bcd66a22b3d",
-    "unmapped-640-light.png": "4988531c4d704ed1ccbe0581961c70e7dd664c531089059360599e7318fc9d31",
+    "unmapped-640-dark.png": "71bde540066e76da87673d44db0457e40347af05824eaed845836dc2772c5ba3",
+    "unmapped-640-light.png": "1144bd28704bb19d6a5f3b3570f7f37dbc707f3aa67fa9790f0c70c6321e9873",
     "zoom-200-1440-dark.png": "85dd427661487e921fc52f628694b1f987839349f1bb519ec0e303338e11a704",
     "zoom-200-1440-light.png": "0f14df505d9f1dee4932d3c666b1881ae19c4e0a1de3ac45f20fa7ce5fc5de05",
-    "zoom-200-640-dark.png": "f7f9151229c5485d42cc613c18fb369f1aa06b4ca2797aae03a69e181234eb93",
-    "zoom-200-640-light.png": "36770d31a5a2bc0d4d66e8a5b87996c07507d87043aaa48562fff5d078601fe6",
+    "zoom-200-640-dark.png": "37cf77915560d94d1ede3ed0241de6789bd0638fca4c2f9026c0de12467f26dc",
+    "zoom-200-640-light.png": "a9392cf3f6a6f00a6a616d4d1618861f5c9216a07944efdf47854c285ea85c70",
     "zoom-50-1440-dark.png": "08f25d10c0d965a00be6c304955959cbbabb694dbe3ab1a839de39ed28d427f0",
     "zoom-50-1440-light.png": "8e72f8d20cee3c043698f0f1179e671ba8c052c3e5c56acfeef8dd029ce50013",
-    "zoom-50-640-dark.png": "72baa4b01b456944b4a9fb0ec9df074bf35c90622d79d2f1dd11391d47811aea",
-    "zoom-50-640-light.png": "4e1cb519dc121bdd41cf41f086a2a55aba5d79b8d80f77779a87718cae80b6b1"
+    "zoom-50-640-dark.png": "267e630675edbdfaccabad0731fd157f1777b02d83d9866f892dba326e8489b9",
+    "zoom-50-640-light.png": "612d78910622b8872e7a5fb41921bb5162522311551515be7723d0627ea6caac"
   },
-  "baseHead": "65a14fb873c449f2e43119defcddf1fd5cd1c8c9",
+  "baseHead": "9b9e8be693fe88ebaf4a49b52a75a226f45964fa",
   "firstEntry": {
     "before": {
       "action": "generated-compare",
@@ -255,6 +255,11 @@
       "selectedWires": 1
     },
     {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
       "width": 640,
       "height": 1000,
       "dpr": 1,
@@ -338,10 +343,15 @@
       ],
       "sourceBottom": 984,
       "documentBottom": 984,
-      "visibleWires": 5,
+      "visibleWires": 11,
       "selectedWires": 1
     },
     {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
       "width": 640,
       "height": 1000,
       "dpr": 1,
@@ -425,7 +435,7 @@
       ],
       "sourceBottom": 984,
       "documentBottom": 984,
-      "visibleWires": 4,
+      "visibleWires": 11,
       "selectedWires": 1
     }
   ],
@@ -605,6 +615,11 @@
       "selectedWires": 1
     },
     {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
       "width": 640,
       "height": 1000,
       "dpr": 1,
@@ -688,10 +703,15 @@
       ],
       "sourceBottom": 984,
       "documentBottom": 984,
-      "visibleWires": 3,
+      "visibleWires": 7,
       "selectedWires": 1
     },
     {
+      "readingWidth": 294,
+      "sourceWidth": 98,
+      "bodyFontSize": 14,
+      "headingFontSize": 18,
+      "ordinaryHeadingWordMaxFragments": 1,
       "width": 640,
       "height": 1000,
       "dpr": 1,
@@ -775,23 +795,23 @@
       ],
       "sourceBottom": 984,
       "documentBottom": 984,
-      "visibleWires": 3,
+      "visibleWires": 7,
       "selectedWires": 1
     }
   ],
   "minimumCategoryContrast": 3.8080923057943306,
   "sourceFiles": {
     "apps/editor/src/review/compare-geometry.ts": "ce2510ee8d67c76c581d36dfe36dd2cf45aff4ab5c8ec3474351e4683518e273",
-    "apps/editor/src/review/ContinuousSource.tsx": "4226842c1909f3df09b9bf2f4752de4fdf7bf21079a66b88453c0858c36e1317",
+    "apps/editor/src/review/ContinuousSource.tsx": "454a6347a95a5d318fde0aeb06450c9d2a86f8b182787c2210134541a43a0bd8",
     "apps/editor/src/review/GeneratedComparison.tsx": "025c7877d064005a5c6c361b4fff7f8b3b065353561c3dc0921fcab9f2d8fe34",
     "apps/editor/src/review/review-kinds.ts": "1a9c68866610085293a1f6f1c8e4beaa4321a49de5689ee6804f1a14fea235e9",
-    "apps/editor/src/review/review.css": "ee29684dfa6f0a3c39892ac9db06bb553f5a90c87172bb7100cdcd6e10f060a8",
-    "apps/editor/src/review/ReviewRenderer.tsx": "58cb3974b61bf99f85d92f773c9e1845452bbdaa0561ccda145b43474db8de7d",
+    "apps/editor/src/review/review.css": "0714e55f0802569ee1509955472ef5c008fb53a435107b5413b8b78936c3aa15",
+    "apps/editor/src/review/ReviewRenderer.tsx": "53ac9a79fe12ea8fac1ea017a1f63817173f8ebb37c9f4cc63c787b9bd9a318d",
     "apps/editor/src/review/ReviewViewPage.tsx": "7d65e8a81570c716adf07879c110a0c26855150ea7cead9096ea637f67984253",
     "apps/editor/src/BlockHandles.tsx": "5c0f684af2c7fe026544602a1c275e324a4957221f9a8bff547fd573e5d04176",
     "apps/editor/src/styles/tokens.css": "dd96a360d0a7a3dceaf28acccdf341fe22f35efcb43e7f9be70a9606a77d730c",
-    "apps/editor/src/locales.ts": "3fb178f7e0d5cfd41fdbbe22fdbcbbda49a51125c02539eec895d93c3ebbc1d3",
-    "apps/editor/test/fixtures/review-ui/fixture.tsx": "865cb1e7a8bc3dc259d4dd45a41e9b4d4918ece7aff440899a4683cb084235d0"
+    "apps/editor/src/locales.ts": "74ccccd84710ba4dc1dc37dea0cbef82b009ef885b8dd1d41c15b34d46136d95",
+    "apps/editor/test/fixtures/review-ui/fixture.tsx": "98025520dfaea59513bf9b0d5a6127bc9a817970c87b25791c32f73587abd650"
   },
   "captureReadiness": "PNGs loaded and every drawn wire start matches a visible source-region edge within 2px; no fixed delay",
   "captureMatrix": [
@@ -850,5 +870,39 @@
       "after": "same regression passes; source wire endpoint error less than 2px"
     },
     "manualSetupCondition": "Two capture attempts stopped before comparison in the existing add-plugin picker when its draft was reset. Manual capture now scopes directly to comparison; automatic registration/OneDrive/Jira assertions and timeouts remain unchanged."
+  },
+  "narrowReadingCorrection": {
+    "previousHead": "9b9e8be693fe88ebaf4a49b52a75a226f45964fa",
+    "policy": "Owner decision #1455: basic operations without clipping or overlap; advise a wider window for side-by-side comparison. No Explorer overlay changes.",
+    "advice": "Wide window advised / 넓은 창 권장; shared Tooltip in the existing command row",
+    "contentWidthThreshold": 640,
+    "sourceDocumentRatio": [
+      1,
+      3
+    ],
+    "bodyFontPx": 14,
+    "headingFontPx": [
+      18,
+      16,
+      15,
+      14,
+      14,
+      14
+    ],
+    "paneInsetPx": 4,
+    "beforeOrdinaryWordFragmentCounts": [
+      2,
+      2
+    ],
+    "afterOrdinaryWordFragmentCounts": [
+      1,
+      1
+    ],
+    "ordinaryBodyPhraseLines": 1,
+    "longTokenWraps": true,
+    "fontsReadyBeforeMeasurement": true,
+    "kindDescription": "Shared Tooltip/Portal avoids clipping in the narrow source thumbnail.",
+    "wideCaptureHead": "9b9e8be693fe88ebaf4a49b52a75a226f45964fa",
+    "wideCapturesUnchanged": true
   }
 }

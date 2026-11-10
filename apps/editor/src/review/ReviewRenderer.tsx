@@ -87,7 +87,7 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
     </div></div>
   </section>;
 }
-export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable, title, toolbarActions }: { snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void; title?: string; toolbarActions?: ReactNode }) {
+export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable, title, toolbarActions, compact = false }: { snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void; title?: string; toolbarActions?: ReactNode; compact?: boolean }) {
   const [sources, setSources] = useState<string[]>([]), [targets, setTargets] = useState<string[]>([]);
   const [positions, setPositions] = useState<ReadingPosition>({ blocks: [], height: 0 });
   const scroll = useRef<HTMLDivElement>(null), content = useRef<HTMLDivElement>(null), source = useRef<HTMLDivElement>(null);
@@ -179,8 +179,9 @@ export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled
     <datalist id={`${wireId}-zoom`}>{[i18n.t("Page width"),"50%","75%","100%","150%","200%"].map(value=><option value={value} key={value} />)}</datalist>
     <Tooltip><TooltipTrigger render={<Button variant={sync ? "secondary":"outline"} size="icon" aria-label={i18n.t("Sync scrolling")} aria-pressed={sync} onClick={()=>setSync(value=>!value)} />}><ArrowDownUp /></TooltipTrigger><TooltipContent>{i18n.t("Sync scrolling")}</TooltipContent></Tooltip>
     {toolbarActions}
+    {compact && <Tooltip><TooltipTrigger render={<span className="review-wide-hint" tabIndex={0} />}>{i18n.t("Wide window advised")}</TooltipTrigger><TooltipContent>{i18n.t("Use a wider window for side-by-side comparison.")}</TooltipContent></Tooltip>}
   </div>}<div className="review-compare" ref={compare}>
-    <div ref={source}>{continuous ? <ContinuousSource snapshot={s} loadPage={loadPage!} selected={sources} disabled={disabled || !valid} saving={!!selectionDisabled} zoom={zoom} jump={jump} onSelect={selectSource} onVisible={onPage} onCheck={onCheck!} onUnavailable={onUnavailable!} /> : <PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid || selectionDisabled} />}</div>
+    <div ref={source}>{continuous ? <ContinuousSource snapshot={s} loadPage={loadPage!} selected={sources} disabled={disabled || !valid} saving={!!selectionDisabled} compact={compact} zoom={zoom} jump={jump} onSelect={selectSource} onVisible={onPage} onCheck={onCheck!} onUnavailable={onUnavailable!} /> : <PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid || selectionDisabled} />}</div>
     <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0}>
       <div className="review-reading-content" ref={content}>
         <DocumentEditor readOnly preview showHeadingLevels document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} />
@@ -261,8 +262,8 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
   const opening = useRef<{ adapter: ReviewAdapter; bundleRef: string; result: Promise<ReviewSnapshot> } | undefined>(undefined);
   latest.current = snapshot;
   const [savingProgress, setSavingProgress] = useState(false), [progressError, setProgressError] = useState(false);
-  const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), epoch = useRef(0), busy = useRef(false);
-  useEffect(() => { const observer = new ResizeObserver(entries => setWide(entries[0].contentRect.width >= 1024)); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
+  const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), [compact,setCompact] = useState(false), epoch = useRef(0), busy = useRef(false);
+  useEffect(() => { const observer = new ResizeObserver(entries => {setWide(entries[0].contentRect.width >= 1024);setCompact(entries[0].contentRect.width <= 640);}); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
   useEffect(() => { const token = ++epoch.current; busy.current = true; saving.current = 0; refreshAfterSave.current = false; setSavingProgress(false); setProgressError(false); setState("loading"); setSnapshot(undefined); setSelected(undefined);
     if (opening.current?.adapter !== adapter || opening.current.bundleRef !== view.sources.review.bundleRef) opening.current = { adapter, bundleRef: view.sources.review.bundleRef, result: adapter.read(1) };
     opening.current.result.then(s => { if (epoch.current === token) { setSnapshot(s); setState(adapter.pending ? "uncertain" : "ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState(adapter.pending ? "uncertain" : "unavailable"); busy.current = false; } });
@@ -315,7 +316,7 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     {snapshot && (wide || adapter.saveProgress) && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
       <h3 className={combined && child.component === "SourceDocumentCompare" ? "sr-only":undefined}>{child.title}</h3>
       {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n,true)} />}
-      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} title={view.title} toolbarActions={combined ? controls:undefined} disabled={disabled} selectionDisabled={savingProgress} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
+      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} compact={compact} title={view.title} toolbarActions={combined ? controls:undefined} disabled={disabled} selectionDisabled={savingProgress} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
         if (disabled || busy.current) return;
         const pages = new Set(snapshot.progress?.checkedPages);
         if (checked) pages.add(pageNo); else pages.delete(pageNo);

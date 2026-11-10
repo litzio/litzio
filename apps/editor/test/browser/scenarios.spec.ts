@@ -343,6 +343,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       input: path.join(REPOSITORY_ROOT, "tmp/docling-input.json"),
       settings: path.join(REPOSITORY_ROOT, "tmp/docling-settings.json"),
       comparisonPage: Number(process.env.LITZIO_DOCLING_COMPARE_PAGE ?? 1),
+      comparisonWidth: Number(process.env.LITZIO_DOCLING_COMPARE_WIDTH ?? 0),
       comparisonCapture: process.env.LITZIO_DOCLING_COMPARE_CAPTURE === "1",
       comparisonBefore: process.env.LITZIO_DOCLING_COMPARE_BEFORE === "1",
       realFile: screenshots && process.env.LITZIO_DOCLING_REAL_ARCHIVE ? "real.docling" : undefined,

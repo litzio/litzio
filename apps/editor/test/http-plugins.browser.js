@@ -320,7 +320,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       const result = (await docling.cli(["plugins","result",started.job.requestId])).job.result;
       const current = await docling.review("read",result.comparison);
       await docling.review("progress",{...result.comparison,baseline:current.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),progress:{checkedPages:[],lastPage:docling.comparisonPage}});
-      for (const width of [1440,640]) for (const theme of ["light","dark"]) {
+      for (const width of docling.comparisonWidth ? [docling.comparisonWidth]:[1440,640]) for (const theme of ["light","dark"]) {
         const captureSuffix = (width === 1440 && theme === "light") || (width === 640 && theme === "dark") ? String(width):`${width}-${theme}`;
         await page.setViewportSize({width,height:1000});
         await page.evaluate(({width,theme}) => {localStorage.setItem("litzio.uiLanguage",width === 640 ? "ko":"en");localStorage.setItem("litzio.theme",theme);},{width,theme});
@@ -365,6 +365,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
           if (width === 640 && docling.comparisonPage === 1) await compare.locator(".review-read").evaluate(element=>{element.scrollTop=0;});
           expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
           await expect(compare.locator(".review-image-loading")).toHaveCount(0);
+          await page.evaluate(()=>document.fonts.ready);
           const measured = await compare.evaluate(element=>{
             const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const context=canvas.getContext('2d');
             const rgb=color=>{context.clearRect(0,0,1,1);context.fillStyle=color;context.fillRect(0,0,1,1);return [...context.getImageData(0,0,1,1).data].slice(0,3);};
@@ -377,10 +378,19 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
               const source=resolve(`--id-color-review-source-${kind}`),wire=resolve(`--id-color-review-${kind}`);
               return {kind,source,wire,sourceContrast:contrast(source,paper),sourceWireContrast:contrast(blended(source,paper),paper),uiWireContrast:contrast(blended(wire,bg),bg)};
             });
-            return {width:innerWidth,height:innerHeight,dpr:devicePixelRatio,theme:document.documentElement.dataset.theme,toolbarHeight:element.querySelector(".review-compare-toolbar").getBoundingClientRect().height,panelTop:element.querySelector(".review-read").getBoundingClientRect().top,documentOverflow:element.querySelector(".review-read").scrollWidth-element.querySelector(".review-read").clientWidth,kinds,sourceBottom:element.querySelector('.review-source').getBoundingClientRect().bottom,documentBottom:element.querySelector('.review-read').getBoundingClientRect().bottom,visibleWires:element.querySelectorAll('.review-wires path').length,selectedWires:element.querySelectorAll('.review-wires path[data-selected="true"]').length};
+            const reading=element.querySelector('.review-read'),body=reading.querySelector('.paragraph'),heading=reading.querySelector('h1.heading');
+            const ordinaryWordFragments=[];
+            if (heading) {
+              const walker=document.createTreeWalker(heading,NodeFilter.SHOW_TEXT);let node;
+              while (node=walker.nextNode()) for (const match of node.textContent.matchAll(/\b[A-Za-z]{2,12}\b/g)) {
+                const range=document.createRange();range.setStart(node,match.index);range.setEnd(node,match.index+match[0].length);ordinaryWordFragments.push(range.getClientRects().length);
+              }
+            }
+            return {readingWidth:reading.getBoundingClientRect().width,sourceWidth:element.querySelector('.review-source').getBoundingClientRect().width,bodyFontSize:body && parseFloat(getComputedStyle(body).fontSize),headingFontSize:heading && parseFloat(getComputedStyle(heading).fontSize),ordinaryHeadingWordMaxFragments:Math.max(0,...ordinaryWordFragments),width:innerWidth,height:innerHeight,dpr:devicePixelRatio,theme:document.documentElement.dataset.theme,toolbarHeight:element.querySelector(".review-compare-toolbar").getBoundingClientRect().height,panelTop:element.querySelector(".review-read").getBoundingClientRect().top,documentOverflow:element.querySelector(".review-read").scrollWidth-element.querySelector(".review-read").clientWidth,kinds,sourceBottom:element.querySelector('.review-source').getBoundingClientRect().bottom,documentBottom:element.querySelector('.review-read').getBoundingClientRect().bottom,visibleWires:element.querySelectorAll('.review-wires path').length,selectedWires:element.querySelectorAll('.review-wires path[data-selected="true"]').length};
           });
           expect(measured.kinds.every(kind=>Math.min(kind.sourceContrast,kind.sourceWireContrast,kind.uiWireContrast)>=3),JSON.stringify(measured.kinds)).toBe(true);
           expect(measured.documentOverflow).toBeLessThan(2);
+          if (width === 640) expect(measured.ordinaryHeadingWordMaxFragments).toBe(1);
           measurements.push(measured);
           await waitForWires();
           await page.screenshot({path:`docs/design/assets/review-compare-1435/${docling.comparisonPage > 1 ? "long":"after"}-${captureSuffix}.png`,mask:[page.locator(".sidebar-host-account")]});

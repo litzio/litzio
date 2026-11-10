@@ -29,6 +29,8 @@ export const en = {
 
   "Fit to width": "Fit to width",
   "Page width": "Page width",
+  "Wide window advised": "Wide window advised",
+  "Use a wider window for side-by-side comparison.": "Use a wider window for side-by-side comparison.",
   "Source zoom": "Source zoom",
   "Source zoom (25–400%)": "Source zoom (25–400%)",
   "No image available. Showing regions only.": "No image available. Showing regions only.",
@@ -1340,6 +1342,8 @@ export const ko: Record<keyof typeof en, string> = {
 
   "Fit to width": "너비에 맞춤",
   "Page width": "페이지 너비",
+  "Wide window advised": "넓은 창 권장",
+  "Use a wider window for side-by-side comparison.": "나란히 비교하려면 넓은 창을 권장합니다.",
   "Source zoom": "원본 배율",
   "Source zoom (25–400%)": "원본 배율(25~400%)",
   "No image available. Showing regions only.": "원본을 표시할 수 없습니다. 영역만 표시합니다.",

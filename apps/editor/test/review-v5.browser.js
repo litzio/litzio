@@ -13,14 +13,39 @@ async (page, { expect, screenshots }) => {
   const toolbar = page.locator('.review-compare-toolbar');
   const checkNarrowLayout = async width => {
     await page.setViewportSize({width,height:1000});
+    await page.evaluate(()=>document.fonts.ready);
     await expect.poll(()=>page.locator('.review-read').evaluate(element=>element.scrollWidth-element.clientWidth)).toBeLessThan(2);
     await expect.poll(()=>toolbar.evaluate(element=>{
       const height=element.querySelector('button').getBoundingClientRect().height;
       return element.getBoundingClientRect().height/(height+parseFloat(getComputedStyle(element).rowGap));
     })).toBeLessThanOrEqual(width===640 ? 2:1);
+    if (width===640) await expect(page.getByText('Wide window advised',{exact:true})).toBeVisible();
+    else await expect(page.getByText('Wide window advised',{exact:true})).toBeHidden();
     const text = page.locator('.review-read .paragraph').first();
     expect(await text.evaluate(element=>element.scrollWidth-element.clientWidth)).toBeLessThan(2);
-    if (width===640) await expect.poll(()=>page.locator('.review-read .table-scroll').evaluate(element=>element.scrollWidth-element.clientWidth)).toBeGreaterThan(0);
+    if (width===640) {
+      await expect.poll(()=>page.locator('.review-read .table-scroll').evaluate(element=>element.scrollWidth-element.clientWidth)).toBeGreaterThan(0);
+      // The fixture reserves the real narrow Explorer width, not an empty full-width tab.
+      const typography = await page.locator('.review-read').evaluate(element=>{
+        const heading=element.querySelector('h1.heading'),second=element.querySelector('h2.heading'),body=element.querySelector('.paragraph');
+        const fragments=(root,text)=>{
+          const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;
+          while (node=walker.nextNode()) {
+            const start=node.textContent.indexOf(text);if (start<0) continue;
+            const range=document.createRange();range.setStart(node,start);range.setEnd(node,start+text.length);return range.getClientRects().length;
+          }
+          return Infinity;
+        };
+        return {body:parseFloat(getComputedStyle(body).fontSize),h1:parseFloat(getComputedStyle(heading).fontSize),h2:parseFloat(getComputedStyle(second).fontSize),words:['Conversion','acceptance'].map(word=>fragments(heading,word)),phrase:fragments(body,'Conversion acceptance retains'),longToken:fragments(body,'https://example.test/verylongunbrokentokenfornarrowcomparisonpanels'),readingWidth:element.clientWidth,sourceWidth:document.querySelector('.review-source').clientWidth};
+      });
+      expect(typography.words).toEqual([1,1]);
+      expect(typography.phrase).toBe(1);
+      expect(typography.longToken).toBeGreaterThan(1);
+      expect(typography.h1).toBeLessThanOrEqual(typography.body*1.5);
+      expect(typography.h1).toBeGreaterThan(typography.h2);
+      expect(typography.h2).toBeGreaterThan(typography.body);
+      expect(typography.readingWidth).toBeGreaterThan(typography.sourceWidth);
+    }
     const paragraph = page.getByRole('button',{name:'Sentence · Supported',exact:true});
     await paragraph.click();
     await expect.poll(()=>page.locator('.review-wires path[data-selected="true"]').evaluateAll(paths=>{
@@ -121,6 +146,7 @@ async (page, { expect, screenshots }) => {
       await page.locator('html').evaluate((element,theme)=>{element.dataset.theme=theme;},theme);
       const unknown = page.getByRole('button',{name:'Unknown region · Unsupported · Unsupported content',exact:true});
       await expect(unknown).toBeVisible(); await unknown.click(); await unknown.focus();
+      if (width === 640) { await page.mouse.move(0,0); await unknown.hover(); await expect(page.getByText('Unknown region · Unsupported · Unsupported content · No matching content.',{exact:true})).toBeVisible(); }
       await expect(unknown).toHaveAttribute('data-kind','unmapped');
       await expect(page.getByText('No matching content.',{exact:true})).toBeVisible();
       await page.screenshot({path:`docs/design/assets/review-compare-1435/unmapped-${width}-${theme}.png`});

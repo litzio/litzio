@@ -125,7 +125,15 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
   zoom Input with native presets, sync,
   open and refresh; it wraps to at most two rows at 640px. The repeated comparison heading is
   accessibility-only. Prose wraps to its pane width without the two-editor-group 440px minimum;
-  wide tables, code and equations retain their own block scrolling. Source zoom changes only PNG
+  wide tables, code and equations retain their own block scrolling. At comparison content widths of
+  640px or less, source/document columns use 1:3 and compact reading type reuses the existing
+  14px body and 18/16/15/14px heading tokens. Ordinary words wrap at word boundaries; only
+  overlong single tokens use emergency wrapping. The 48px inspection gutter remains fixed,
+  and no split handle is introduced. Narrow pane insets use the existing 4px spacing token;
+  source kind descriptions use the shared Tooltip/Portal outside the thumbnail clipping boundary.
+  Per [owner decision #1455](https://github.com/litzio/litzio/issues/1455), the 640px guarantee is
+  usable basic controls without overlap or clipping; a short shared Tooltip advises a wider
+  window for side-by-side comparison. Explorer overlay work remains separate. Source zoom changes only PNG
   display width and preserves the current page position; 100% uses the page metadata width, and
   Page width fits the pane. Ctrl+wheel changes by 10 percentage points within 25–400% without
   browser zoom. The existing geometry hooks remeasure correspondence after zoom. BlockHandles
