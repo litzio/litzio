@@ -1,6 +1,9 @@
 import { useWorkspaceExtensions } from "../review/workspace-entries.ts";
 import { getHostClient } from "../host-client.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
+import { useGeneratedConnections } from "../review/generated-connections.ts";
+import { comparisonPath, type ComparisonTarget } from "../review/GeneratedComparison.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { FileActionDialog, type FileAction, type FileActionHandler } from "./FileActionDialog.tsx";
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
@@ -28,6 +31,7 @@ type FolderTreeProps = {
   onToggleFolder(path: string): void;
   onToggleSection(): void;
   onOpenDocument(path: string): void;
+  onCompare?(target: ComparisonTarget): void;
   onOpenRight?(path: string): void;
   openRightDisabled?: boolean;
   onNew?(button: HTMLElement, path?: string): void;
@@ -63,7 +67,7 @@ function pathActions(path: string, root: string, copy?: (path: string) => void):
 }
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+export function FolderTree({ onCompare, onCopyPath, decoration,  onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -96,6 +100,12 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
   }, [tree, fileAction]);
   const [focused, setFocused] = useState<string>();
   const [preview, setPreview] = useState<TreeItem>();
+  const connections = useGeneratedConnections(getHostClient(tree.hostId), onCompare ? tree.root : "", tree.nodes);
+  const [choices, setChoices] = useState<ComparisonTarget[]>([]);
+  const connected = (file: string, sourceOnly = false) => {
+    const relative = file.slice(tree.root.replace(/[\\/]+$/, "").length).replace(/^[\\/]+/, "").replaceAll("\\", "/");
+    return connections.filter(item => item.source === relative || !sourceOnly && item.document === relative);
+  };
   const previewReturn = useRef<HTMLElement | null>(null);
   // One tab stop: the item last focused, else the open document, else the first item.
   const tabStop = [focused, documentPath].find(path => items.some(item => item.entry.path === path)) ?? items[0]?.entry.path;
@@ -105,10 +115,18 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
       try {
         const response=await getHostClient(tree.hostId).request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"workspace-find",root:tree.root,path:item.entry.path})});
         const result=await response.json();
-        if(response.ok&&result.targets?.length){onOpenDocument(item.entry.path);return;}
+        if(response.ok&&result.targets?.length&&onCompare){
+          if(result.targets.length===1)onCompare(result.targets[0]);else setChoices(result.targets);
+          return;
+        }
       } catch { /* A file without an available provider retains the ordinary preview. */ }
     }
+    const linked = connected(item.entry.path, true);
     if (item.entry.kind === "folder") onToggleFolder(item.entry.path);
+    else if (linked.length && onCompare) {
+      if (linked.length === 1) onCompare(linked[0]!);
+      else setChoices(linked);
+    }
     else if (item.entry.kind === "document" || /\.pdf$/i.test(item.entry.path) || workspace(item.entry.path)) onOpenDocument(item.entry.path);
     else {
       previewReturn.current = rows.current.get(item.entry.path) ?? null;
@@ -199,8 +217,8 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
               aria-selected={folder ? entry.path === focused : undefined}
               aria-current={!folder && entry.path === documentPath ? "page" : undefined}
               onFocus={() => setFocused(entry.path)}
-              onClick={() => {if(!workspace(entry.path))activate(item);}}
-              onDoubleClick={()=>{if(workspace(entry.path))activate(item);}}
+              onClick={() => { if (!workspace(entry.path) && !connected(entry.path, true).length) void activate(item); }}
+              onDoubleClick={() => { if (workspace(entry.path) || connected(entry.path, true).length) void activate(item); }}
             >
               {folder ? <span className="sidebar-tree-chevron" aria-hidden="true"><ChevronRight /></span>
                 : <Icon className="sidebar-tree-icon" aria-hidden="true" />}
@@ -222,6 +240,8 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
           );
           if (folder) return <ContextMenu key={entry.path} trigger={row} actions={folderMenu} disabled={fileActionsDisabled} />;
           const actions: ContextMenuAction[] = [
+            ...(workspace(entry.path) && onCompare ? [{id:"compare-workspace",label:i18n.t("Open source comparison"),icon:<PanelRightOpen aria-hidden="true" />,run:()=>{void activate(item);}}] : []),
+            ...connected(entry.path).map(target => ({ id: `compare-${target.document}`, label: connected(entry.path).length > 1 ? `${i18n.t("Open source comparison")} · ${target.document}` : i18n.t("Open source comparison"), icon: <PanelRightOpen aria-hidden="true" />, run: () => onCompare?.(target) })),
             ...(onAddToChat ? [{ id: "add-to-chat", label: i18n.t("Add to chat"), icon: <FileText aria-hidden="true" />, run: () => onAddToChat(entry.path, rows.current.get(entry.path)!) }] : []),
             ...(entry.kind === "document" && onOpenRight ? [{ id: "open-right", label: i18n.t("Open to the right"), icon: <PanelRightOpen aria-hidden="true" />, disabled: openRightDisabled, run: () => onOpenRight(entry.path) }] : []),
             ...pathActions(entry.path, tree.root, onCopyPath),
@@ -244,6 +264,11 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
         }} /> : null}
       {preview ? <FilePreviewDialog key={preview.entry.path} entry={preview.entry} root={tree.root}
         returnFocus={previewReturn} onClose={() => setPreview(undefined)} /> : null}
+      <Dialog open={choices.length > 0} onOpenChange={open => { if (!open) setChoices([]); }}>
+        <DialogContent><DialogHeader><DialogTitle>{i18n.t("Open source comparison")}</DialogTitle></DialogHeader>
+          {choices.map(target => <Button key={"workspace" in target ? `${target.plugin}/${target.job}/${target.workspace}` : target.document} variant="ghost" className="justify-start" onClick={() => { setChoices([]); onCompare?.(target); }}>{comparisonPath(target)}{"workspace" in target ? ` · ${target.plugin}/${target.job}` : ""}</Button>)}
+        </DialogContent>
+      </Dialog>
       {tree.nodes.get(tree.root)?.entries.length === 0 ? <p className="sidebar-folder-empty" hidden={!tree.sectionExpanded}>{i18n.t("No files or folders")}</p> : null}
     </section>
   );

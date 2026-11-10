@@ -11,7 +11,7 @@ import { i18n } from "../i18n.ts";
 export type WorkspaceTarget = {root:string;workspace:string;plugin:string;job:string};
 export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {client:HostClient;target:WorkspaceTarget;onPending?(pending:boolean):void;onOpen(path:string):void;isDirty?(path:string):boolean}) {
   const [adapter,setAdapter]=useState<ReviewAdapter>(),[dialog,setDialog]=useState(false),[ready,setReady]=useState(false),[problem,setProblem]=useState(""),[regenerate,setRegenerate]=useState(false),[epoch,setEpoch]=useState(0);
-  const baseline=useRef<string | undefined>(undefined), latest=useRef<ReviewSnapshot | undefined>(undefined), pendingCount=useRef(0), pendingChanged=useRef(onPending);pendingChanged.current=onPending;
+  const baseline=useRef<string | undefined>(undefined), pendingCount=useRef(0), pendingChanged=useRef(onPending);pendingChanged.current=onPending;
   const request=useRef<(body:Record<string,unknown>)=>Promise<any>>(undefined);
   const mark=(busy:boolean)=>{if(busy){if(!pendingCount.current++)pendingChanged.current?.(true);}else if(!--pendingCount.current)pendingChanged.current?.(false);};
   useEffect(()=>{
@@ -43,7 +43,7 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
         sources[`review-asset:${image.revision}`]=images.get(image.revision)!;
       }
       const snapshot={...value.snapshot,state:value.cacheState==="created-version"?"stale":value.state,workspaceBaseline:baseline.current,contentRevision:value.contentRevision,progress,imageSources:sources};
-      latest.current=snapshot;failed=false;setReady(true);return snapshot;
+     failed=false;setReady(true);return snapshot;
       } catch(error) {setProblem(error instanceof Error?error.message:String(error));throw error;}
     };
     setAdapter({read,async loadPage(snapshot,pageNo){

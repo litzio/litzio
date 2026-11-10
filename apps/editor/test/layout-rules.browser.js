@@ -1,5 +1,5 @@
 // Real Core-backed scratch fixture; run with pnpm browser:test layout-rules.
-async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, expect }) => {
+async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, expect, waitForExplorerLayout }) => {
   page.setDefaultTimeout(15000);
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0,3).join('/');
@@ -158,7 +158,13 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
     for(const width of (fullLayout ? [1440,1424,1423,1280,1279,1025,1024,768,705,704,640] : [1440,1424,1423,1280,1279,1025,1024,705,704,640])) {
       await page.setViewportSize({width,height:1000});
       for(const collapsed of (fullLayout || width===1440 || width===640 ? [false,true] : [false])) {
-        if(collapsed) await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();
+        // Each narrow entry starts closed. Keep both historical geometry states explicit.
+        await expect.poll(() => page.locator('.app-shell').evaluate(n=>n.classList.contains('app-shell--navigation-overlay'))).toBe(width<1100);
+        if(await page.locator('.sidebar-collapse').getAttribute('aria-expanded') === String(collapsed)) await page.locator('.sidebar-collapse').click();
+        // An intentional Explorer overlay covers the left document gutter. Exercise that
+        // gutter after dismissal, then reopen for the unchanged expanded-navigation checks.
+        const reopenOverlay = width<1100 && !collapsed;
+        if(reopenOverlay) await page.locator('.sidebar-collapse').click();
         await page.mouse.move(width-2,2);
         await page.evaluate(()=>{document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0);document.activeElement?.blur();});
         const rest=await page.locator('.block-controls').evaluateAll(nodes=>nodes.map(n=>({opacity:getComputedStyle(n).opacity,pointer:getComputedStyle(n).pointerEvents})));
@@ -179,18 +185,19 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
         if(controlsBox.x+controlsBox.width>=contentExtent.x)throw Error('Expanded extent covers the gutter');
         if(await controls.evaluate(n=>getComputedStyle(n).opacity)!=='1') throw Error('Gutter disappears between block and button');
         const after=(await paragraph.boundingBox()).x;
+        if(reopenOverlay) await page.locator('.sidebar-collapse').click();
         const headerOverlap=await page.locator('.top-bar').evaluate(header=>{
           const controls=[...document.querySelectorAll('.command-center-trigger,.top-bar-actions button,.document-status')].map(n=>({name:n.getAttribute('aria-label')||n.textContent.trim(),r:n.getBoundingClientRect()})).filter(({r})=>r.width>0&&r.height>0);
           return controls.flatMap((a,i)=>controls.slice(i+1).filter(b=>Math.min(a.r.right,b.r.right)-Math.max(a.r.left,b.r.left)>0.5&&Math.min(a.r.bottom,b.r.bottom)-Math.max(a.r.top,b.r.top)>0.5).map(b=>`${a.name} / ${b.name}`));
         });
         if(headerOverlap.length)throw Error(`TopBar controls overlap at ${width}px: ${headerOverlap.join(', ')}`);
-        const result=await page.evaluate(({collapsed,width})=>{
+        const result=await page.evaluate(({collapsed,width,controlsBox})=>{
           const required=s=>{const n=document.querySelector(s);if(!n)throw Error(`Missing required ${s}`);return n;};
           const rect=s=>required(s).getBoundingClientRect();
           const main=rect('.app-main'),column=rect('.document-scroll[data-active="true"] .document-column'),doc=rect('[data-document-tab][data-active=true] .document-editor');
           const selectors=['.heading','.paragraph','.table-block','.figure','.equation','.admonition'];
           const starts=selectors.map(s=>rect('[data-document-tab][data-active=true] .document-editor '+s).left);
-          const controls=rect('.block-controls.visible');
+          const controls={right:controlsBox.x+controlsBox.width};
           const standard=rect('[data-testid="save"]').height;
           const compactSelectors=['.sidebar-header button','[data-document-tab][data-active=true] .figure-edit','[data-document-tab][data-active=true] .equation-edit',...(collapsed?[]:['.sidebar-folder-actions button'])];
           const compact=compactSelectors.flatMap(selector=>{
@@ -244,7 +251,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
           const shellOverflow=['.app-shell','.sidebar','.app-main','.top-bar','.document-scroll[data-active="true"] .document-column','[data-document-tab][data-active=true] .document','[data-document-tab][data-active=true] .document-editor','.figure','.equation','.table-block'].filter(s=>{const r=rect(s);return r.left<0||r.right>innerWidth+1;});
           const center=rect('.command-center-trigger'), actions=rect('.top-bar-actions');
           return {width,collapsed,header:rect('.app-titlebar').height,headerWidth:rect('.top-bar-container').width,commandCenterDelta:Math.abs(center.left+center.width/2-(rect('.top-bar').left+rect('.top-bar').width/2)),centerBottom:center.bottom,actionsTop:actions.top,sidebarHeader:rect('.sidebar-header').height,centerDelta:Math.abs(main.left+main.width/2-column.left-column.width/2),blockDelta:Math.max(...starts)-Math.min(...starts),gutterGap:doc.left-controls.right,standard,compact,icons:icons?.map(r=>({x:r.x,w:r.width,h:r.height}))??null,rowIcons,labels,sidebarWidth,expectedSidebar,panelWidth,expectedPanel,body,headings,caption,table,expectedTypeValues,shellOverflow};
-        },{collapsed,width});
+        },{collapsed,width,controlsBox});
         const matchesType=(actual,expected)=>Math.abs(actual.size-expected.size)<0.1&&Math.abs(actual.line-expected.line)<0.1;
         const expected=result.expectedTypeValues;
         const fail=result.centerDelta>1||result.blockDelta>1||result.gutterGap<11||Math.abs(before-after)>0.5||result.standard!==32||result.compact.some(h=>h!==28)||result.shellOverflow.length||!matchesType(result.body,expected.body)||result.headings.some((t,i)=>!matchesType(t,expected.headings[i])||t.weight!==expected.headings[i].weight)||!matchesType(result.caption,expected.caption)||!matchesType(result.table,expected.table)||Math.abs(result.sidebarWidth-result.expectedSidebar)>0.5||Math.abs(result.panelWidth-result.expectedPanel)>0.5||(!collapsed&&(Math.max(...result.labels)-Math.min(...result.labels)>1||!result.rowIcons.length||Math.max(...result.rowIcons)-Math.min(...result.rowIcons)>1||result.icons.some(i=>i.w!==16||i.h!==16)));
@@ -262,9 +269,9 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   // The less frequent width toggle remains available in the file menu.
   for(const width of [640]) {
     await page.setViewportSize({width,height:800});
+    await waitForExplorerLayout(page);
     for(const collapsed of [false,true]) {
-      if(collapsed) await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();
-      else if(await page.getByRole('button',{name:'Expand Explorer',exact:true}).count()) await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
+      if(await page.locator('.sidebar-collapse').getAttribute('aria-expanded') === String(collapsed)) await page.locator('.sidebar-collapse').click();
       await page.evaluate(()=>document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0));
       const narrow=await page.evaluate(()=>{
         // Visual/Source is one segmented control: its track is measured as a single control.

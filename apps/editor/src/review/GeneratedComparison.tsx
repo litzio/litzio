@@ -16,7 +16,9 @@ function LegacyComparison({client,target,onOpen,onPending}: {client:HostClient;t
   const pendingChanged = useRef(onPending); pendingChanged.current = onPending;
   const pendingWrites = useRef(0);
   const [adapter, setAdapter] = useState<ReviewAdapter>();
+  const [regenerationRequired, setRegenerationRequired] = useState(false);
   useEffect(() => {
+    setRegenerationRequired(false);
     const controller = new AbortController(); let first = true, path: string | undefined, pending: string | undefined;
     let baseline: ReviewSnapshot["generatedBaseline"], progress: ReviewSnapshot["progress"], tail = Promise.resolve(), saving = 0, failed = false;
     let transport = Promise.resolve();
@@ -37,6 +39,7 @@ function LegacyComparison({client,target,onOpen,onPending}: {client:HostClient;t
       const status = "action" in body && body.action === "generated-status";
       const response = await client.request("/api/reviews", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({...(!status ? target : {}),...body}), signal: controller.signal });
       const value = await response.json(); controller.signal.throwIfAborted();
+      if (!status) setRegenerationRequired(value.state === "regeneration-required");
       const definitive = value.receipt?.outcome === "success" || status && (value.receipt?.outcome === "failure" || value.state === "unknown");
       if (!response.ok || !definitive) throw new Error(value.error ?? "Comparison unavailable");
       return value;
@@ -85,5 +88,5 @@ function LegacyComparison({client,target,onOpen,onPending}: {client:HostClient;t
     return () => controller.abort();
   }, [client,target.root,target.document]);
   const view: ReviewView = { kind:"litzio-view",schemaVersion:2,catalog:"litzio-v2",profile:"review",title:target.document,refresh:"manual",sources:{review:{plugin:"generated",review:"compare",bundleRef:"generated"}},layout:{component:"Panel",direction:"vertical",children:[{component:"SourceDocumentCompare",title:i18n.t("Source comparison"),source:"review"}]}};
-  return adapter ? <ReviewRenderer view={view} adapter={adapter} /> : <Notice>{i18n.t("Loading data…")}</Notice>;
+  return adapter ? <ReviewRenderer view={view} adapter={adapter} unavailableMessage={regenerationRequired ? i18n.t("Regeneration required. Recreate the document from its source and reopen comparison.") : undefined} /> : <Notice>{i18n.t("Loading data…")}</Notice>;
 }

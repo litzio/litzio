@@ -1,5 +1,5 @@
 // Actual folder/media Host requests; document state remains owned by the same editor instance.
-async (page, { openDocument, screenshots, expect }) => {
+async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
   page.setDefaultTimeout(10000);
   const longDialogFailures = [];
   const longDialogLayouts = [];
@@ -12,17 +12,26 @@ async (page, { openDocument, screenshots, expect }) => {
   await page.getByRole('tab', {name:'document.md', exact:true, selected:true}).waitFor();
   const row = name => page.getByTestId('sidebar').getByRole('treeitem', { name, exact: true });
   // Keyboard preview actions retain the short metadata draft; outside pointer clicks complete it.
-  const activate = async target => { await target.focus(); await target.press('Enter'); };
+  const activate = async target => { await target.focus(); await expect(target).toBeFocused(); await target.press('Enter'); };
   const dialogFocus = () => page.waitForFunction(() => document.querySelector('[data-slot="dialog-content"]')?.contains(document.activeElement));
-  const activateRow = async name => { await activate(row(name)); await dialogFocus(); };
+  const activateRow = async name => {
+    await waitForExplorerLayout(page);
+    const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
+    if(await expand.isVisible()) await activate(expand);
+    await activate(row(name)); await dialogFocus();
+  };
   const dialog = () => page.locator('[data-slot="dialog-content"]');
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
   const snapshot = () => editor.evaluate(el => ({ json: JSON.stringify(el.editor.getJSON()), selection: el.editor.state.selection.toJSON(), undo: el.editor.can().undo() }));
   let documentReads = 0, writes = 0, leaks = 0;
   page.on('request', request => {
     if (request.url().includes('/api/document?')) documentReads++;
-    const scopedReviewRead=request.method()==='POST'&&new URL(request.url()).pathname==='/api/reviews'&&request.postDataJSON()?.action==='workspace-find'&&request.postDataJSON()?.root===root;
-    if (['PUT','POST','DELETE'].includes(request.method())&&!scopedReviewRead) writes++;
+    // Connection discovery is a Root-scoped read on the shared POST dispatcher.
+    // Every other mutation-shaped request remains forbidden during preview.
+    const connectionRead = request.method() === 'POST' && request.url().split('?')[0] === origin + '/api/reviews'
+      && ['generated-find','workspace-find'].includes(request.postDataJSON()?.action);
+    if (connectionRead) check(request.postDataJSON().root === root, 'Preview connection discovery escaped its opened folder');
+    else if (['PUT','POST','DELETE'].includes(request.method())) writes++;
     if (request.url().includes('preview-leak') || request.url().includes('svg11.dtd')) leaks++;
   });
   for (const name of ['archive.zip', 'README']) {
@@ -147,7 +156,8 @@ async (page, { openDocument, screenshots, expect }) => {
       await page.getByTestId('ui-language').selectOption(language);
       await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await page.getByRole('tab',{name:'reading.pdf',exact:true}).click();
-      if (width === 640) await page.getByRole('button',{name:'탐색기 접기',exact:true}).click();
+      const collapse=page.getByRole('button',{name:'탐색기 접기',exact:true});
+      if (width === 640 && await collapse.isVisible()) await collapse.click();
       await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
       await expect.poll(() => sheet.evaluate(el => el.getBoundingClientRect().width)).toBeLessThan(width);
       await page.screenshot({path:`tmp/file-preview-capture/pdf-${width}.png`});

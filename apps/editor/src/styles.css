@@ -72,6 +72,17 @@ button {
   --shell-sidebar: var(--layout-sidebar-rail-width);
 }
 
+/* The Explorer rail remains available; expansion overlays instead of narrowing the document. */
+.app-shell--navigation-overlay { --shell-sidebar: var(--layout-sidebar-rail-width); }
+.app-shell--navigation-overlay .app-brand { justify-content: center; padding-inline: 0; }
+.app-shell .sidebar--overlay {
+  position: fixed;
+  left: 0;
+  width: var(--sidebar-effective-width);
+  z-index: 4;
+  box-shadow: var(--shadow-overlay);
+}
+
 /* A closed document panel takes no width; the TopBar Outline toggle opens it. */
 .app-shell--panel-closed {
   --shell-panel: 0px;

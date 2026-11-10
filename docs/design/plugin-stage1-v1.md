@@ -844,3 +844,68 @@ export는 검증한 내부 source를 Core media-reference operation으로 변환
 Docling adapter는 `current/snapshot.json`에 final correspondence를 추가해 source와 함께 hash로 고정한다. key의 adapter 의미 버전도 바꾼다. P1a 캐시는 이전 계약 결과로 보존·읽고 명시적으로 다시 만든다. 이미지가 없던 그림은 converter의 빈 이미지 자리/손실 기록으로 보존하며 외부 imageUrl로 오인해 전체 workspace를 거부하지 않는다. 실제 검증 범위·Windows 8.3·시각 근거는 [P1b 기록](docling-review-stage3.md#p1b-내부-대조이미지명시-export)을 따른다.
 
 workspace 선언은 K1 시작과 기존 generated-document 연결/재생성으로 외부 문서를 만들지 않는다. 같은 provider의 검수는 workspace 작업을 사용하고 일반 문서는 명시 current export로만 만든다. 같은 workspace 작업 중 읽기는 대기한 뒤 revision을 다시 검증하며, 쓰기는 기존 배타적 admission과 baseline 충돌을 유지한다.
+
+## 생성 문서 대조 진입점 (#1465)
+
+문서의 기존 플러그인 관리 Notice는 연결된 작업이 `comparison`을 선언하고 현재 활성화된 경우
+공통 ghost sm Button ‘원본 대조’를 제공한다. 저장된 문서를 기존 GeneratedComparison 탭에서 연다.
+편집 중 초안은 대조에 넣지 않으며, 저장된 원본·문서 revision 불일치는 기존 Host의 재생성
+거부를 그대로 사용하고 ‘다시 만들기 필요’를 표시한다. 없어진 원본 파일도 재생성이 필요한 것으로 안내한다.
+
+공용 `POST /api/reviews`의 `generated-find`와
+`review find --input <file> --host <origin> --json`은 `{root,path?}`를 받는다.
+`path`는 Root 상대 원본 또는 생성 문서 경로이며 생략하면 그 Root의 연결을 찾는다.
+결과 `documents:[{root,document,source,plugin,job,match?}]`에서 document/source는 Root 상대이고,
+path 조회의 match(document/source)는 canonical identity로 판정해 Windows 경로 별칭도 같은 문서로 찾는다.
+receipt는 `operation:review.find`, `version:1`, 대상 Root scope와 success를 반환한다.
+Host의 연결 파일에 canonical `documentPath`를 저장해 역방향 조회한다. 플러그인 원본 확장자를
+추측하거나 원본을 parse하지 않고, 조회 중 플러그인 작업을 실행하지 않는다. 다른 Root,
+잘못된 연결 identity, 읽을 수 없는 기록, 꺼진 기여와 comparison 없는 작업은 결과에서 제외한다.
+재시작 뒤에도 연결을 찾으며, 바뀐 byte의 유효성은 실제 대조를 여는 기존 revision 검사에서 판정한다.
+과거 연결 기록 migration은 제공하지 않는다.
+닫힌 대조의 인접 페이지 읽기가 Host에서 진행 중이면 새 read/compare는 그 읽기가 끝난 뒤
+현재 baseline으로 처리한다. 읽기 때문에 재열기를 ‘작업 중’으로 거부하지 않으며 쓰기의
+배타성·진행 저장의 기존 publication 순서는 유지한다. 이 대기는 Host 활성 요청만 소유한다.
+
+탐색기는 같은 작업으로 찾은 생성 문서·원본에 기존 ContextMenu ‘원본 대조 열기’를 제공한다.
+연결된 원본은 클릭으로 선택하고 더블클릭·Enter로 대조를 연다. 같은 원본에 문서가 여러 개면
+메뉴에 문서별 행동을 표시하고, 원본 열기는 기존 Dialog/Button으로 문서를 선택한다.
+생성 문서 자체의 일반 열기는 문서 편집을 유지한다. 좁은 창에서 대조를 열면 #1455의 기존 탐색 규칙처럼 Explorer overlay를 닫으며 선택 Dialog·Host 범위는 유지한다. 조회·문서·대조 모두 대상 Host client를
+사용하며 브라우저 PC 파일이나 로컬 Host로 fallback하지 않는다. 화면/폴더 재진입·새 목록·
+기여 변경에서 조회를 갱신하며 별도 문서 DB나 플러그인별 화면을 만들지 않는다.
+
+‘최근 검수 문서’의 진행률 목록은 이번 범위에 포함하지 않는다. 현재 기본 query Table의
+`linkField`는 HTTP(S) URL만 열고 대조 행동 binding이 없다. generated-read의 `record`는
+플러그인 소유의 opaque 값이며 확인 페이지·전체 쪽 수의 공용 목록 schema도 없다.
+이를 Host가 Docling 필드로 해석하거나 조회마다 페이지 PNG를 생성해 진행률을 얻지 않는다.
+최소 대안은 보존된 작업 이력의 기존 결과 문서·원본 대조 행동이다.
+진행률은 대조 화면의 실제 페이지별 확인 상태에서 확인한다.
+
+
+### #1465 검증·화면 근거
+
+기존 Host generated-documents 검사는 재시작 후 양방향 조회·Root 범위·잘못된 연결·comparison
+미선언 제외·Windows 경로 별칭과 stale/없어진 원본, 대기 중 읽기의 재열기와 쓰기 거부를 확인한다.
+기존 HTTP 플러그인 검사는 문서 안내·두 메뉴·원본 Enter·복수 출력 더블클릭 선택과 확인 기록 복원,
+저장 후 재생성 안내를 확인한다. 기존 복구·재연결·Save/Reload·충돌 단언을 유지한다.
+새 suite 없이 기존 CLI·브라우저 harness를 사용하며, 복수 출력은 합성 작업 fixture의 출력 이름만 달리한다.
+
+수동 캡처는 `LITZIO_COMPARE_ENTRY_CAPTURE=1`을 지정한 `pnpm browser:test http-plugins --screenshots`의 persistent Windows Chrome,
+영어·100% zoom·합성 Docling 자료와 전용 localhost Host다. Before는 master `745a88db`의
+App/DocumentTab/FolderTree UI 소스만 같은 현재 Host·fixture 위에 복원해 촬영한 수동 비교다.
+Before의 새 진입점 단언은 촬영 동작으로 대체했고 최종 소스·단언은 복원했다.
+새 진입점을 포함한 최종 HTTP 검증과 Before 촬영을 구분한다.
+계정·Root 제목·폴더 선택은 가렸으며 소유자의 시각 승인을 대신하지 않는다.
+
+| 화면 | Before Light / Dark | After Light / Dark |
+| --- | --- | --- |
+| 문서 안내 1440px | [Light](assets/compare-entry-1465/before-document-1440-light.png) / [Dark](assets/compare-entry-1465/before-document-1440-dark.png) | [Light](assets/compare-entry-1465/document-1440-light.png) / [Dark](assets/compare-entry-1465/document-1440-dark.png) |
+| 원본 메뉴 1440px | [Light](assets/compare-entry-1465/before-source-menu-1440-light.png) / [Dark](assets/compare-entry-1465/before-source-menu-1440-dark.png) | [Light](assets/compare-entry-1465/source-menu-1440-light.png) / [Dark](assets/compare-entry-1465/source-menu-1440-dark.png) |
+| 생성 문서 메뉴 1440px | [Light](assets/compare-entry-1465/before-document-menu-1440-light.png) / [Dark](assets/compare-entry-1465/before-document-menu-1440-dark.png) | [Light](assets/compare-entry-1465/document-menu-1440-light.png) / [Dark](assets/compare-entry-1465/document-menu-1440-dark.png) |
+| 기존 대시보드 목록 1440px | [Light](assets/compare-entry-1465/before-dashboard-existing-jobs-1440-light.png) / [Dark](assets/compare-entry-1465/before-dashboard-existing-jobs-1440-dark.png) | [Light](assets/compare-entry-1465/dashboard-existing-jobs-1440-light.png) / [Dark](assets/compare-entry-1465/dashboard-existing-jobs-1440-dark.png) |
+| 문서 안내 640px | [Light](assets/compare-entry-1465/before-document-640-light.png) / [Dark](assets/compare-entry-1465/before-document-640-dark.png) | [Light](assets/compare-entry-1465/document-640-light.png) / [Dark](assets/compare-entry-1465/document-640-dark.png) |
+
+Notice 안 버튼 정렬·줄바꿈, 메뉴 행동·테마 대비와 가로 넘침 부재를 확인한다.
+최근 검수 진행률 목록을 추가한 화면이 아니며 기존 작업 목록의 최소 대안을 촬영했다.
+[촬영 정보·파일 해시](assets/compare-entry-1465/verification.json)에 환경과 범위를 남긴다.
+실제 Docling 서비스의 변환 품질·원격 네트워크·설치형 Desktop 수락은 미확인이다.

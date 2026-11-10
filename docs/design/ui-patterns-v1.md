@@ -859,3 +859,14 @@ No common interaction exception or new persistent chrome was introduced.
 ## Workspace 대조·중간 내보내기 (#1462 P1b)
 
 공용 원본 대조 패턴은 기존 ReviewRenderer의 source pages/Read/연결·확인과 Button/Tooltip/Notice를 재사용한다. 문서 파일이 없는 내부 snapshot은 “문서 열기”를 숨기고 현재 상태 내보내기를 제공한다. 출력 선택/충돌 확인은 P12의 Dialog/Input/Button/checkbox를 재사용하고 미저장 열린 대상을 거부한다. 새 token/control 예외는 없다. [P1b 동작과 시각 근거](docling-review-stage3.md#p1b-내부-대조이미지명시-export)를 따른다. 완료 승인 화면은 이 구현에 포함하지 않는다.
+
+## 생성 문서 대조 진입 (#1465)
+
+기존 문서 관리 경고(Notice/Tooltip) 옆에 ghost sm Button을 배치하고 폭이 부족하면
+같은 안내 안에서 줄바꿈한다. 탐색기는 기존 ContextMenu와 PanelRightOpen 아이콘,
+여러 연결 선택은 Dialog/Button을 재사용한다. PluginJobs/PluginJobPanel의 완료 결과 행동과
+같은 GeneratedComparison 탭·Host client·저장 revision 검사를 사용한다. 새 표면 종류·토큰이나
+플러그인별 예외는 없다. 범위와 최근 검수 목록의 미지원 이유는
+[구현 계약](plugin-stage1-v1.md#생성-문서-대조-진입점-1465)을 따른다.
+
+화면 근거와 범위는 [1440px Light/Dark 및 640px 문서 안내 전후](plugin-stage1-v1.md#1465-검증화면-근거)를 따른다.

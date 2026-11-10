@@ -566,3 +566,5 @@ Windows 별도 수락은 실제 8.3 짧은 Root와 파일명으로 같은 snapsh
 1440px Light/Dark의 [대조 Light](assets/docling-workspace-p1b/compare-1440-light.png) / [Dark](assets/docling-workspace-p1b/compare-1440-dark.png), [내보내기 확인 Light](assets/docling-workspace-p1b/export-1440-light.png) / [Dark](assets/docling-workspace-p1b/export-1440-dark.png)와 [촬영 정보·해시](assets/docling-workspace-p1b/verification.json)를 보관한다. LSR 13쪽의 기존 원본 PDF/JSON hash를 재사용한 실제 내부 snapshot 화면이며 재변환/충실도 승인·소유자의 시각 승인이 아니다. 기존 외부 문서 대조 gallery가 공통 renderer의 기준이고, workspace 열기는 이전 UI에 없던 진입이므로 동일 workspace 상태의 Before 화면을 만들지 않았다. 계정 표시는 마스킹한다.
 
 큰 실제 PDF·workspace 장시간 timeout·다른 PC의 실제 인계·실제 AI 이미지 분석은 미검증으로 남긴다. P1a의 300쪽 합성 비용을 실제 큰 PDF 성능으로 바꾸지 않는다. 최종 완료 검사/승인/final export는 P11 범위다. 직접 시작한 임시 Host·SDK worker·browser는 종료하고 process 잔류를 확인한다.
+
+P1b 통합 중 master의 #1468(공용 생성 문서 대조 진입)·#1455(좁은 탐색기 overlay)를 병합했다. App/FolderTree는 workspace와 기존 생성 문서 모두 같은 대조 탭·탐색기 닫기·복수 대상 Dialog를 사용한다. locales/renderer는 새 export 행동과 기존 재생성 안내를 함께 유지하고, CLI는 generated-find와 workspace action을 모두 유지했다. browser fixture·preview guard는 두 공용 발견 읽기만 허용하고 기존 fault·mutation 단언을 유지했다. 계약/UI 문서의 양쪽 절도 보존했다.

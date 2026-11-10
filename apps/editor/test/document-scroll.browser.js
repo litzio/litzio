@@ -1,5 +1,5 @@
 // Container-specific boundaries; existing navigation/authoring scenarios keep their assertions.
-async (page, { openPath, expect, screenshots }) => {
+async (page, { openPath, expect, screenshots, waitForExplorerLayout }) => {
   await page.setViewportSize({width:1440, height:900});
   const origin = page.url().split('/').slice(0, 3).join('/');
   const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
@@ -140,6 +140,7 @@ async (page, { openPath, expect, screenshots }) => {
     await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'ready');
     for (const width of [1440, 640]) {
       await page.setViewportSize({width, height:900});
+      await waitForExplorerLayout(page);
       if (width === 640) await page.getByTestId('document-panel').waitFor({state:'hidden'});
       for (const sidebar of ['open', 'closed']) {
         const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});

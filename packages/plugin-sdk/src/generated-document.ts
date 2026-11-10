@@ -10,6 +10,7 @@ export const generatedInputsSchema = z.array(z.strictObject({ key: id, targets: 
 export const generatedDocumentLinkSchema = z.strictObject({ plugin: id, job: id, source: id, generatedFrom: hash.nullable(), generatedRevision: hash.nullable(), inputs: generatedInputsSchema.optional() });
 const common = { root: id, document: id };
 export const generatedDocumentRequestSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("generated-find"), root: id, path: id.optional() }),
   z.strictObject({ ...common, action: z.literal("generated-open"), plugin: id, job: id, source: id, baseline: generatedDocumentBaselineSchema, requestId: z.uuid() }),
   z.strictObject({ ...common, action: z.literal("generated-read") }),
   z.strictObject({ ...common, action: z.literal("generated-compare"), pageNo: z.number().int().positive().optional() }),
