@@ -29,7 +29,7 @@ CI quality는 문서 전용 PR과 merge group에서 문서·checker tests, diff/
 
 ```bash
 pnpm editor                          # 별도 터미널, 개발 서버
-pnpm browser:test                    # stable 전체
+pnpm browser:test                    # stable 전체, 실행별 빈 포트의 소유 서버
 pnpm browser:test save-session       # 관련 시나리오만 선택
 pnpm browser:test --shard=1/8         # CI의 8개 shard 중 하나
 ```
@@ -291,7 +291,7 @@ HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filte
 
 ## Windows Desktop regression
 
-Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 6개로 실행한다: unit foundation·editor 두 묶음(`desktop`; foundation은 SDK·OneDrive·boundary·Core·File commit·CLI·Desktop, editor는 Editor/Host), published beta.6(`desktop && update`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`; uninstall은 `update`). 각 설치 검사의 정리 단언과 `fullLayout`/`fullLifecycle` 범위를 유지하며, 필수 aggregate는 선택된 모든 job 모두의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
+Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit foundation·editor 두 묶음(`desktop`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`). 대표 제거(silent empty·user·foreign)는 package job에서 항상 실행한다. 전체 제거는 기존 설치 경로 분류의 `fullRemoval`로 선택하며 설치·업데이트 코드, 공유 빌드 입력과 unknown 변경에서 실행한다. Published beta.6는 릴리스 전 검사에만 남기고, 모든 release 모드에서 Published·Stable·Beta·전체 제거를 실행해 게시를 차단한다. PR·merge queue의 clean package·Save/Reload·crash recovery·reset과 Beta 대표 설치 보호는 유지한다. 필수 aggregate는 선택된 모든 job의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
 
 공개 beta.6 fixture는 `GH_TOKEN`이 있으면 GitHub Releases asset API에 인증하여 다운로드하고, 토큰이 없으면 공개 URL을 사용한다. 두 경로 모두 기존 크기·SHA-256·업데이트 SHA-512 검증과 HTTP 504 재시도 횟수를 유지한다. 인증 여부와 요청 URL은 Actions 로그에 남기며 토큰은 출력하지 않는다. 다운로드 캐시의 실제 경로·키·master 저장 정책은 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다.
 

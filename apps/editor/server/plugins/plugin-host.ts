@@ -1,3 +1,4 @@
+import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { designatedPluginDirectories } from "./designated-plugins.ts";
 import { PLUGIN_REGISTRATION_CHANGED, inputHintResultSchema, inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
@@ -329,7 +330,7 @@ export class PluginHost {
       return { ...publicOperationError(error, op.effect), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
+  invoke(action: string, args: { template?: "greet" | "query" | "file"; id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action.startsWith("job-")) return this.jobs.execute({ action, ...args });
     if (action === "input-hint") {
@@ -350,7 +351,7 @@ export class PluginHost {
     const run = this.serial.then(async () => {
       let id = args.id!;
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
-      if (action === "scaffold") return { ...scaffoldPlugin(args.directory!, id, this.access, creationScope), receipt: receipt("success") };
+      if (action === "scaffold") return { ...scaffoldPlugin(args.directory!, id, this.access, creationScope, args.template), receipt: receipt("success") };
       if (action === "validate") {
         const errors: { file: string; line: number | null; column: number | null; kind: string }[] = []; let manifestId: string | undefined;
         let file = "artifact";
@@ -425,7 +426,10 @@ export class PluginHost {
               for (const [key, field] of Object.entries(properties ?? {})) message = message.replaceAll(`'${key}'`, `'${field.title ?? key}'`);
               return message;
             }).join("; ");
-            throw new Error(`Invalid settings: ${detail ?? "Invalid value"}`);
+            throw new PluginSettingsError(`Invalid settings: ${detail ?? "Invalid value"}`, (validate.errors ?? []).map(error => ({
+              keyword: error.keyword,
+              path: error.keyword === "required" ? `${error.instancePath}/${String(error.params.missingProperty).replaceAll("~", "~0").replaceAll("/", "~1")}` : error.instancePath,
+            })));
           }
           await this.changeConfiguration(id, () => { r.settings = structuredClone(args.settings!); });
         } else throw new Error("Unknown plugin management action");

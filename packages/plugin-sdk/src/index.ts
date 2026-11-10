@@ -152,7 +152,7 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("secret-status"), id }),
   z.strictObject({ action: z.literal("secret-delete"), id, name: id }),
   z.strictObject({ action: z.literal("list") }),
-  z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1), id }),
+  z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1), id, template: z.enum(["greet", "query", "file"]).optional() }),
   z.strictObject({ action: z.literal("validate"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("register"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("trust"), id, registrationId: z.uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/).optional() }),

@@ -151,7 +151,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
           if (alive && document.visibilityState === "visible") setConversation(next);
         }
       }
-      catch (error) { if (alive && document.visibilityState === "visible") setProblem((error as Error).message); }
+      catch (error) { if (alive && document.visibilityState === "visible") setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); }
       polling = false;
       schedule();
     };
@@ -175,7 +175,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     if (pending) return;
     const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
     setPending(true); setProblem("");
-    try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem((error as Error).message); } finally { if (isCurrent()) setPending(false); }
+    try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); } finally { if (isCurrent()) setPending(false); }
   };
   const send = () => run(async isCurrent => {
     if (active && provider === "copilot") return;
@@ -356,7 +356,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
             </div>;
           })}
           {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
-          {turn.error ? <p role="alert">{turn.error}</p> : null}
+          {turn.error ? <p role="alert">{i18n.t(turn.error, { defaultValue: turn.error })}</p> : null}
           {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
             <CopyButton iconOnly text={turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n\n")} label={i18n.t("Copy answer")} />
           </div> : null}
@@ -421,8 +421,8 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         {copilot?.reasoningEfforts?.length !== 0 && <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={[i18n.t(effortHelp), currentEffortHelp].filter(Boolean).join(" ")} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={effort} options={(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => ({ value: value.reasoningEffort, label: i18n.t(value.reasoningEffort as MessageKey) })) ?? []} onSelect={setEffort} />}
 
         <AssistantChoice label={i18n.t("Write access")} value={i18n.t(permissionMode === "full-access" ? "Full access" : permissionMode === "read-only" ? "Read-only" : "Opened folders")}
-          help={i18n.t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={permissionMode} options={[
-            { value: "opened-folders", label: i18n.t("Opened folders") }, { value: "read-only", label: i18n.t("Read-only") }, { value: "full-access", label: i18n.t("Full access") },
+          help={i18n.t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.") + (models?.fullAccessAllowed === false ? ` ${i18n.t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : "")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={permissionMode} options={[
+            { value: "opened-folders", label: i18n.t("Opened folders") }, { value: "read-only", label: i18n.t("Read-only") }, { value: "full-access", label: i18n.t("Full access"), disabled: models?.fullAccessAllowed === false },
           ]} onSelect={value => setPermissionMode(value as AssistantSettings["permissionMode"])} />
 
         {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
@@ -472,17 +472,15 @@ function hasSkillToken(text: string, name: string) { return text.split(/\s+/).in
 /** Direct choices reuse the existing menu and item interaction. */
 function AssistantChoice({ label, value, help, disabled, visible, choiceOpen, onOpenChange, selected, options, onSelect }: {
   label: string; value: string; help: string; disabled: boolean; visible: boolean; choiceOpen: string | null; onOpenChange(open: string | null): void;
-  selected: string; options: { value: string; label: string }[]; onSelect(value: string): void;
+  selected: string; options: { value: string; label: string; disabled?: boolean }[]; onSelect(value: string): void;
 }) {
   const open = choiceOpen === label;
   const change = (value: boolean) => onOpenChange(value ? label : null);
   useEffect(() => { if (!visible) change(false); }, [visible]);
   return <DropdownMenu open={open && visible && !disabled} onOpenChange={change}>
-    <Tooltip disabled={open}><TooltipTrigger render={<span tabIndex={disabled ? 0 : undefined} />}>
-      <DropdownMenuTrigger disabled={disabled} render={<Button type="button" variant="outline" size="sm" aria-label={i18n.t("{{name}} settings", { name: label })} />}>{value || label}</DropdownMenuTrigger>
-    </TooltipTrigger><TooltipContent className="assistant-choice-help pointer-events-none">{label}: {help}</TooltipContent></Tooltip>
+    <Tooltip disabled={open}><TooltipTrigger render={<DropdownMenuTrigger disabled={disabled} render={<Button type="button" variant="outline" size="sm" aria-label={i18n.t("{{name}} settings", { name: label })} />} />}>{value || label}</TooltipTrigger><TooltipContent className="assistant-choice-help pointer-events-none">{label}: {help}</TooltipContent></Tooltip>
     <DropdownMenuContent side="top" align="start" aria-label={label} className="assistant-choices">
-      {options.map(option => <DropdownMenuItem key={option.value} aria-current={selected === option.value ? "true" : undefined} onClick={() => onSelect(option.value)}>
+      {options.map(option => <DropdownMenuItem disabled={option.disabled} key={option.value} aria-current={selected === option.value ? "true" : undefined} onClick={() => onSelect(option.value)}>
         <Check aria-hidden="true" style={{ visibility: selected === option.value ? "visible" : "hidden" }} />{option.label}
       </DropdownMenuItem>)}
     </DropdownMenuContent>

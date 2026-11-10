@@ -202,13 +202,25 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
-  const manifest = { schemaVersion: 1, id: "litzio.onedrive", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string" } }, additionalProperties: false } };
+  const manifest = { schemaVersion: 1, id: "litzio.onedrive", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string", minLength: 1 }, nested: { type: "object", properties: { value: { type: "string" } }, required: ["value"] } }, additionalProperties: false } };
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
   writeFileSync(path.join(directory, "host.js"), `export function activate(c){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return c.settings.label ?? "done"}},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
   const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [] });
   try {
     await host.invoke("register", { directory });
+    await assert.rejects(host.invoke("settings", { id: manifest.id, settings: { label: 42 } }), (error: any) => {
+      assert.match(error.message, /Invalid settings/);
+      assert.deepEqual(error.settingsIssues, [{ keyword: "type", path: "/label" }]);
+      return true;
+    });
+    for (const [settings, keyword, fieldPath] of [[{ label: "" }, "minLength", "/label"], [{ nested: {} }, "required", "/nested/value"]] as const) {
+      await assert.rejects(host.invoke("settings", { id: manifest.id, settings }), (error: any) => {
+        assert.deepEqual(error.settingsIssues, [{ keyword, path: fieldPath }]); return true;
+      });
+    }
+    const rejected = await executePluginTool(host, { action: "settings", id: manifest.id, settings: { label: 42 } }, () => {});
+    assert.equal(rejected.error, "Plugin management failed; inspect plugin status.");
     const collision = path.join(root, "collision"); mkdirSync(collision);
     writeFileSync(path.join(collision, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     writeFileSync(path.join(collision, "host.js"), "throw new Error('Must not import conflicting plugin')");
@@ -1260,4 +1272,44 @@ test("designated distribution payload check rejects a missing runtime file", asy
   const { unlinkSync } = await import("node:fs");
   unlinkSync(path.join(root, "community-plugins", "docling", "conversion.js"));
   assert.throws(() => assertDesignatedPluginPayload(root), /conversion.js/);
+});
+
+
+test("authoring: query and file templates validate and run through the shared Host", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-templates-"));
+  const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
+  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
+  try {
+    assert.throws(() => host.invoke("scaffold", { directory: path.join(root, "bad"), id: "local.bad", template: "unknown" as any }));
+    assert.equal(existsSync(path.join(root, "bad")), false);
+    for (const template of ["query", "file"] as const) {
+      const id = `local.${template}`, directory = path.join(root, template);
+      const created = await executePluginTool(host, { action: "scaffold", directory, id, template }, () => {}, scope);
+      assert.equal(created.error, undefined);
+      assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
+      await host.invoke("register", { directory });
+      await host.invoke("trust", { id, registrationId: (await host.list()).find(p => p.id === id)!.registrationId });
+      await host.invoke("enable", { id });
+      if (template === "query") {
+        assert.equal(((await host.invokeOperation(`${id}.connection`, {})).result as any).ok, true);
+        assert.deepEqual((await host.invokeOperation(`${id}.search`, { status: "완료" })).result, { rows: [{ title: "회의 기록", status: "완료" }], total: 1, truncated: false });
+        await host.invoke("settings", { id, settings: { workspace: "데모" } });
+        await host.invoke("reload", { id });
+        assert.deepEqual((await host.invokeOperation(`${id}.connection`, {})).result, { ok: true, message: "데모 연결을 확인했습니다." });
+      } else {
+        writeFileSync(path.join(root, "sample.txt"), "Hello world");
+        const batch: any = await host.invoke("job-start-many", { plugin: id, job: "convert", root, files: ["sample.txt"] });
+        const requestId = batch.files[0].requestId;
+        let result: any;
+        for (let i = 0; i < 100; i++) {
+          result = await host.invoke("job-status", { requestId });
+          if (result.job.state !== "running") break;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        assert.equal(result.job.state, "completed", JSON.stringify(result));
+        assert.equal(readFileSync(path.join(root, "sample.upper"), "utf8"), "HELLO WORLD");
+        assert.equal(readFileSync(path.join(root, "sample.txt"), "utf8"), "Hello world");
+      }
+    }
+  } finally { await host.close(); }
 });

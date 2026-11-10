@@ -108,3 +108,7 @@ native-document job의 선택 comparison 선언과 완료 result 참조에서 �
 
 
 동일 합성 조회의 수동 캡처 비교: [1440px 전](assets/query-results-1394/before-1440.png) / [후](assets/query-results-1394/after-1440.png), [한국어 다크 640px 전](assets/query-results-1394/before-640.png) / [후](assets/query-results-1394/after-640.png). 머리행 수직 중심·입력 여백·면 구분·표 내부 스크롤과 한국어 줄바꿈을 확인했다. 기존 공통 표 갤러리의 정렬·필터 패턴과 일치하며 합성 카탈로그·행/localhost 확인은 실제 외부 Jira 성공이나 소유자의 시각 승인을 뜻하지 않는다.
+
+## 새 플러그인의 시작점 (#1397)
+
+[비서 제작 키트](plugin-stage1-v1.md#비서-제작-키트)의 `query`·`file` scaffold가 위 공통 조회·파일 처리 화면 선언을 생성한다. 화면 종류를 선택하는 새 manifest 필드는 없으며 기존 `views`·`screens`·`jobs`를 쓴다. 완성 화면 세 종류와 제목·행동·입력·결과의 공통 기준은 [UI 패턴](ui-patterns-v1.md#플러그인-공통-화면과-제작-기준-1397)을 따른다. 플러그인 작성자는 예제 데이터/처리와 표시 이름을 바꾸고 배치는 앱에 맡긴다.

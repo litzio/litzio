@@ -178,8 +178,8 @@ Each UI change saves a complete snapshot through the existing sequential request
 as `workspaceWrite.writableRoots`, uses `readOnly`, or disables the sandbox with
 `dangerFullAccess`. Host path checks run before
 passing folder/document context to Codex. The dedicated cwd remains Codex's
-workspace; OS temporary write exceptions and network access are disabled in
-the restricted turn policies. Approval policy is `never`; unsupported client requests are
+workspace; OS temporary write exceptions remain disabled. Opened folders enables network access;
+read-only keeps network access disabled. Approval policy is `never`; unsupported client requests are
 rejected, rather than opening an unimplemented approval dialog. User Codex
 configuration, MCP servers and login remain inherited. The existing-document
 rule is an agent instruction, not a new document-edit enforcement system.
@@ -1113,8 +1113,8 @@ only. The settings hide Codex skills and diagnostics. No context limit is inferr
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
 Only read/edit requests carrying absolute paths inside those folders and Host
 Roots can receive the returned `allow_once` option. Edits additionally require
-`opened-folders`; `read-only` denies them. Missing paths, execution, network and
-unknown requests are cancelled in restricted access. The owner-approved `full-access`
+`opened-folders`; `read-only` denies them. Fetch (URL/network) requests receive allow_once in opened-folders and are denied in read-only.
+Missing paths on read/edit, execution and unknown requests are cancelled in restricted access. The owner-approved `full-access`
 value instead selects an allow_once (or allow_always) response for every active-turn
 request, including tool execution, paths outside opened folders and URLs. Like Paseo,
 Host sends `allow_all=on` when advertised; Agent/Plan remains the selected session
@@ -1131,7 +1131,7 @@ full-access; no migration of earlier saved settings is included.
 
 UI uses the shared SettingsSelect for provider/model/effort/language/permission mode.
 Providers have no enable switches; all defaults save automatically. Permission mode defaults to
-opened-folders and also offers read-only and Full access. A native hover description
+opened-folders and also offers read-only and Full access. A shared hover/keyboard-focus Tooltip description
 explains each permission mode and the Copilot containment limitation; Full access removes the Codex sandbox and automatically approves tools,
 paths and network access; no permanent warning is shown. Codex full-access turns use
 `sandboxPolicy: {type:"dangerFullAccess"}` and `approvalPolicy:"never"`; steering keeps
@@ -1419,3 +1419,28 @@ Historical: this view-generation material/provenance path was removed in #1341. 
 The app supplies its registered Host identity and opaque Root IDs from existing folder listings. The Host recomputes each ID from filesystem identity and checks the existing opened-folder boundary before reading attached saved files. These bytes and completed public tool results are bounded read-only context, separate from the human transcript. Unsaved editor content is not sent. Corrections retain the initial snapshot and selected model. Cards, document views and plugin screens share provenance and complete-row inspection; source opening rechecks Root identity before using the existing document-open path and its unsaved-work protection. Display identities are not authentication or factual verification.
 
 Ordinary attachment and tool-result delivery does not depend on optional dynamic-view text capture. Codex localImage and Copilot path references are preserved for images. Capture failures are described separately as unavailable view context while ordinary sends and completed reads keep their original results. Generate/propose still reject unsupported or oversized text snapshots explicitly; view limits never become ordinary document-read limits.
+
+
+### Organization permission requirements (#1416)
+
+The Codex model catalog reads the official `configRequirements/read` request and exposes only
+whether `allowedSandboxModes` permits `danger-full-access`; no organization identifiers are returned.
+Settings and composer disable Full access with a reason in the existing permission Tooltip.
+Servers that report an unsupported method keep the choice available. A turn-start rejection
+for DangerFullAccess outside the allowed sandbox set is replaced with a plain organization-policy
+message advising Opened folders or Read-only. No automatic retry or policy override occurs.
+The composer retains its draft on rejection and existing conversation history remains available.
+Requirements can change after discovery; the turn rejection remains authoritative.
+
+Protocol reference: [official app-server admin requirements](https://learn.chatgpt.com/docs/app-server#read-admin-requirements-configrequirementsread).
+
+Verification: Host tests cover workspaceWrite network enabled with unchanged roots/temp exclusions,
+read-only network disabled, Copilot fetch allowed only in opened-folders with edit boundaries and
+shell denial retained, requirements discovery/fallback, sanitized rejection and same-conversation retry.
+The representative assistant browser scenario checks disabled Full access and Tab-focus network/policy
+help using the shared Tooltip and existing selection controls (no new interaction exception).
+[Permission Tooltip capture](assets/permissions-1416/permission-tooltip.png) is a synthetic local fixture.
+One real gpt-6-luna/low turn completed, but all three shell commands (localhost HTTP GET,
+inside write, outside write) failed before execution with `CreateProcessAsUserW failed: 5`.
+No HTTP hit or file creation occurred; actual network success and sandbox write containment remain
+unverified on this PC. The organization-managed account path is fixture-only; no such account was available.

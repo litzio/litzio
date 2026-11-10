@@ -6,12 +6,13 @@ import path from 'node:path';
 import test from 'node:test';
 import { load } from 'js-yaml';
 import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-policy.mjs';
+import { removalScenarios } from '../apps/desktop/test/packaged/uninstall-scenarios.ts';
 import { HTTP_SCENARIOS } from '../apps/editor/test/browser/scenarios.ts';
 const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
 const expected = (quality, browser, http, desktop, update, smartquotes = false, fullLayout = update) =>
-  ({ quality, browser, http, desktop, update, fullLifecycle: update, fullLayout, smartquotes, reused: false });
+  ({ quality, browser, http, desktop, update, fullLifecycle: update, fullRemoval: update, fullLayout, smartquotes, reused: false });
 const full = expected(true, true, true, true, true, true);
 test('merge_group payloads apply the same path rules as PRs to the entire group diff', async () => {
   const cases = [
@@ -26,8 +27,8 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
     [['apps/editor/src/components/ui/settings.tsx'], expected(true, true, true, true, false, false, true)],
     [['apps/editor/shared/assistant.ts'], expected(true, true, true, true, false, false, true)],
     [['apps/editor/server/assistant-host.ts'], expected(true, true, true, true, false)],
-    [['apps/editor/package.json'], expected(true, true, true, true, false, false, true)],
-    [['apps/editor/package.json'], expected(true, true, true, true, false, false, true)],
+    [['apps/editor/package.json'], { ...expected(true, true, true, true, false, false, true), fullRemoval: true }],
+    [['apps/editor/package.json'], { ...expected(true, true, true, true, false, false, true), fullRemoval: true }],
     [['.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs'], expected(false, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/SKILL.md'], expected(false, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/agents/openai.yaml'], expected(false, false, false, false, false)],
@@ -36,7 +37,7 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
     [['.agents/other/config.json'], expected(true, true, true, true, true, false)],
     [['unknown/config.json'], expected(true, true, true, true, true, false)],
     [['apps/editor/document/fixture.md'], expected(true, true, true, true, false)],
-    [['apps/editor/shared/desktop-bridge.ts'], { ...expected(true, true, true, true, true), fullLifecycle: false }],
+    [['apps/editor/shared/desktop-bridge.ts'], { ...expected(true, true, true, true, true), fullLifecycle: false, fullRemoval: false }],
   ];
   for (const [paths, jobs] of cases) {
     const git = args => {
@@ -204,7 +205,7 @@ const response = runs => async (url, options) => {
 test('only a successful same-SHA merge_group run in this workflow permits master push reuse', async () => {
   assert.deepEqual(await successfulQueueRun({ ...apiInputs, fetchRuns: response([successful]) }), successful);
   const result = await executionPolicy('push', { ref: 'refs/heads/master' }, { ...apiInputs, fetchRuns: response([successful]) });
-  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, fullLayout: false, smartquotes: false, reused: true });
+  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, fullRemoval: false, fullLayout: false, smartquotes: false, reused: true });
   for (const candidate of [null, { ...successful, event: 'pull_request' }, { ...successful, head_sha: base },
     { ...successful, conclusion: 'failure' }, { ...successful, conclusion: 'cancelled' },
     { ...successful, status: 'in_progress' }, { ...successful, html_url: undefined }]) {
@@ -259,11 +260,11 @@ test('aggregate accepts unselected skips but rejects failed, cancelled or skippe
   const defaults = { CHANGES_RESULT: 'success', QUALITY_RESULT: 'success', BROWSER_SELECTED: 'false', BROWSER_RESULT: 'skipped',
     HTTP_SELECTED: 'false', HTTP_RESULT: 'skipped', DESKTOP_SELECTED: 'false', DESKTOP_RESULT: 'skipped',
     CACHE_SELECTED: 'false', CACHE_RESULT: 'skipped',
-    ...Object.fromEntries(['UNIT', 'PUBLISHED', 'STABLE', 'BETA'].flatMap(name => [[`DESKTOP_${name}_SELECTED`, 'false'], [`DESKTOP_${name}_RESULT`, 'skipped']])) };
+    ...Object.fromEntries(['UNIT', 'STABLE', 'BETA'].flatMap(name => [[`DESKTOP_${name}_SELECTED`, 'false'], [`DESKTOP_${name}_RESULT`, 'skipped']])) };
   const run = env => spawnSync(bash, ['-c', script], { env: { ...process.env, ...defaults, ...env }, encoding: 'utf8' });
   assert.equal(run({}).status, 0, 'docs group');
   assert.equal(run({ CACHE_SELECTED: 'true', CACHE_RESULT: 'success' }).status, 0, 'reused push');
-  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'DESKTOP_UNIT', 'DESKTOP_PUBLISHED', 'DESKTOP_STABLE', 'DESKTOP_BETA', 'CACHE']) {
+  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'DESKTOP_UNIT', 'DESKTOP_STABLE', 'DESKTOP_BETA', 'CACHE']) {
     assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: 'success' }).status, 0);
     for (const result of ['failure', 'cancelled', 'skipped']) {
       assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: result }).status, 1, `${name}: ${result}`);
@@ -329,27 +330,26 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
   assert.equal(ci.jobs.changes.outputs.fullLifecycle, '${{ steps.policy.outputs.fullLifecycle }}');
   const steps = Object.values(ci.jobs).flatMap(job => job.steps ?? []);
   const allUpdates = steps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
-  const published = allUpdates.find(step => step.env?.LITZIO_TEST_PUBLISHED_BASE === '1');
-  assert.equal(published.if, "needs.changes.outputs.update == 'true'");
-  assert.equal(published.env.GH_TOKEN, '${{ github.token }}');
-  assert.equal(ci.jobs['desktop-published'].needs, 'changes');
+  assert.ok(!allUpdates.some(step => step.env?.LITZIO_TEST_PUBLISHED_BASE));
+  assert.equal(ci.jobs['desktop-published'], undefined);
+  assert.ok(!ci.jobs['quality-and-browser'].needs.includes('desktop-published'));
   const updates = allUpdates.filter(step => !step.env?.LITZIO_TEST_PUBLISHED_BASE);
   assert.equal(updates[0].if, "needs.changes.outputs.fullLifecycle == 'true'");
   assert.equal(updates[1].if, "needs.changes.outputs.update == 'true'");
   assert.equal(updates[1].env.LITZIO_TEST_UPDATE_CHANNEL, 'beta');
   const removal = steps.find(step => step.run === 'pnpm --filter @litzio/desktop test:uninstall');
-  assert.equal(removal.if, "needs.changes.outputs.update == 'true'");
+  assert.equal(removal.if, undefined);
   assert.equal(removal.env.LITZIO_TEST_LIFECYCLE_SCOPE,
-    "${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}");
+    "${{ needs.changes.outputs.fullRemoval == 'true' && 'full' || 'representative' }}");
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   const releaseSteps = Object.values(release.jobs).flatMap(job => job.steps ?? []);
   const fullUpdates = releaseSteps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
   assert.equal(fullUpdates.length, 3);
   const fullPublished = fullUpdates.find(step => step.env?.LITZIO_TEST_PUBLISHED_BASE === '1');
-  assert.deepEqual(fullPublished.env, published.env);
+  assert.deepEqual(fullPublished.env, { LITZIO_TEST_PUBLISHED_BASE: '1', GH_TOKEN: '${{ github.token }}' });
   const sameSource = fullUpdates.filter(step => !step.env?.LITZIO_TEST_PUBLISHED_BASE);
   assert.equal(sameSource.length, 2);
-  assert.ok(fullUpdates.every(step => !step.if));
+  assert.ok(fullUpdates.every(step => !step.if && !step['continue-on-error']));
   assert.equal(sameSource[0].env?.LITZIO_TEST_UPDATE_CHANNEL, undefined);
   assert.equal(sameSource[1].env.LITZIO_TEST_UPDATE_CHANNEL, 'beta');
   const fullRemoval = releaseSteps.find(step => step.run === 'pnpm --filter @litzio/desktop test:uninstall');
@@ -402,4 +402,53 @@ test('layout scope promotes shell/native/style and unknown inputs independently 
     assert.equal(job.env?.LITZIO_TEST_LAYOUT_SCOPE, undefined);
     for (const step of job.steps ?? []) assert.equal(step.env?.LITZIO_TEST_LAYOUT_SCOPE, undefined);
   }
+});
+
+test('removal combinations default to full and all remain mandatory in release verification', () => {
+  const full = removalScenarios();
+  assert.deepEqual(full.map(({ silent, fault }) => `${silent ? 'silent' : 'interactive'}-${fault}`), [
+    'interactive-owner', 'interactive-foreign', 'interactive-helper', 'interactive-environment',
+    'silent-empty', 'silent-user', 'silent-owner', 'silent-foreign', 'silent-helper', 'silent-environment',
+  ]);
+  const representative = removalScenarios('representative');
+  assert.deepEqual(representative, ['empty', 'user', 'foreign'].map(fault => ({ silent: true, fault })));
+  assert.deepEqual(removalScenarios('unknown'), full);
+  for (const event of ['pull_request', 'merge_group']) {
+    for (const file of ['apps/editor/src/App.tsx', 'packages/core/src/write.ts']) {
+      assert.equal(selectJobs(event, [file]).fullRemoval, false);
+    }
+    for (const file of ['apps/desktop/installer/cli.nsh', 'packages/cli/scripts/build.ts',
+      'apps/editor/vite.config.ts', 'apps/editor/package.json', 'pnpm-lock.yaml', 'unknown/new-input']) {
+      assert.equal(selectJobs(event, [file]).fullRemoval, true, file);
+      assert.deepEqual(removalScenarios(selectJobs(event, [file]).fullRemoval ? 'full' : 'representative'), full);
+    }
+  }
+  // Direct build tooling and copied sample payload are installation inputs even without update selection.
+  for (const event of ['pull_request', 'merge_group']) {
+    for (const input of ['packages/cli/scripts/plugin-sdk.ts',
+      'apps/editor/server/plugins/designated-plugins.ts',
+      'apps/editor/server/plugins/artifact-digest.mjs', 'apps/editor/samples/en/converter-control.md']) {
+      for (const paths of [[input], [input, 'apps/desktop/src/host-protocol.ts']]) {
+        const jobs = selectJobs(event, paths);
+        assert.equal(jobs.fullRemoval, true, `${event}: ${paths.join(' + ')}`);
+        assert.equal(jobs.update, paths.length > 1, 'retain existing Beta selection');
+        assert.equal(jobs.fullLifecycle, false, 'do not broaden Stable selection');
+      }
+    }
+  }
+  const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
+  const build = release.jobs.build;
+  const removal = build.steps.find(step => step.run === 'pnpm --filter @litzio/desktop test:uninstall');
+  assert.equal(build.if, undefined);
+  for (const env of [release.env, build.env, removal.env]) {
+    assert.equal(env?.LITZIO_TEST_LIFECYCLE_SCOPE, undefined);
+  }
+  assert.equal(removal.if, undefined);
+  assert.equal(removal['continue-on-error'], undefined);
+  assert.ok(release.jobs.publish.needs.includes('build'));
+  assert.ok(!release.jobs.publish.if.includes('always()'));
+  assert.equal(build['continue-on-error'], undefined);
+  // The actual E2E iterates this full list; new combinations automatically run in release.
+  const source = readFileSync(new URL('../apps/desktop/test/packaged/uninstall.e2e.ts', import.meta.url), 'utf8');
+  assert.ok(source.includes('of removalScenarios(process.env.LITZIO_TEST_LIFECYCLE_SCOPE)'));
 });

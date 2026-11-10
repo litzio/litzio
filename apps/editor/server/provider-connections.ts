@@ -61,7 +61,19 @@ export class ProviderConnections {
       const result: { data: AiModel[]; nextCursor: string | null } = await this.client.request("model/list", { cursor, includeHidden: false });
       models.push(...result.data); cursor = result.nextCursor;
     } while (cursor);
-    return { provider: "codex", models, updatedAt: Date.now() };
+    const fullAccessAllowed = await this.fullAccessAllowed();
+    return { provider: "codex", models, updatedAt: Date.now(), ...(fullAccessAllowed !== undefined ? { fullAccessAllowed } : {}) };
+  }
+  async fullAccessAllowed(): Promise<boolean | undefined> {
+    try {
+      const result = await this.client.request("configRequirements/read", {});
+      const modes = result.requirements?.allowedSandboxModes;
+      return Array.isArray(modes) ? modes.includes("danger-full-access") : undefined;
+    } catch (error) {
+      // Older app-servers may not implement requirements discovery. Turn errors remain authoritative.
+      if (/method.*not found|unknown.*method|unsupported.*method/i.test((error as Error).message)) return undefined;
+      throw error;
+    }
   }
   async diagnostics(provider: AiProvider = "codex"): Promise<AssistantDiagnostics> {
     if (provider === "copilot") {

@@ -51,6 +51,10 @@ operation invoke <pluginId.operationId> --input <json> --host <origin> --json
 
 settings는 --file 없이 현재 일반 설정을 조회한다. 일반 설정과 secret 저장·삭제는 활성 상태에서도 받으며, 저장 후 기존 reload 경로로 새 값을 적용한다. 해당 플러그인의 K1 작업이 running 또는 uncertain이면 변경 전에 이유를 반환하고 기존 값을 보존한다(비활성 상태도 동일). 검사부터 저장·reload까지 신규 작업 접수를 차단하며 기존 drain·uncertain/no-replay 수명은 바꾸지 않는다. reload 실패 시 저장된 새 값은 유지하고 기존 reload 오류·비활성 상태로 남는다. 디스크 artifact 변경 뒤에는 기존 켜기 또는 reload의 ID·작업 이름 충돌·등록 신뢰 검증을 거쳐 새 설정으로 실행한다. 등록 신뢰는 유지하며 공식 번들 artifact 검증은 그대로 유지한다. 설정 UI는 기존 Settings 콘텐츠·Button·Input·SettingsSwitch·Dialog를 재사용한다. 목록은 Hosts 설정의 host-summary 행, 공통 settings-switch·Notice·Tooltip·Dialog와 HostStatus의 점/톤 스타일을 재사용한다. 이름·공식/커뮤니티 배지 하나·설명을 왼쪽에 묶고 활성 토글은 같은 행 오른쪽 끝에 둔다. 플러그인 상태는 오류·사용할 수 없음 등 문제만 표시하고 정상 실행·꺼짐은 스위치로 표현한다. 폴더 감지 상태는 folderSources를 선언한 플러그인만 표시하며 계정은 `계정: 라벨 (출처)`로 표시한다. 상단은 한 줄 경고와 상세 Tooltip이다. 목록은 공급 책임·활성과 오류를 구별하고 설정 창 상세 정보는 만든 곳·신뢰 여부·현재 artifact digest를 표시한다. 비서는 별도 `manage_plugins` 도구로 같은 Host 함수를 호출한다. Codex dynamic tools에 연결하며 관리별 승인 질문 없이 실행한다. 작업·대상 ID·성공/실패를 기존 대화 도구 활동 항목과 도구 결과에 남긴다. 도구 결과는 Codex 대화 이력에서도 확인할 수 있다. 활동 기록에는 설정값·secret·artifact 예외 원문을 넣지 않는다. display 도구의 범위는 확대하지 않는다. 기존 Copilot adapter에는 새 도구 공급을 추가하지 않는다.
 
+일반 설정 검증 실패는 Host가 validator keyword와 JSON Pointer 필드 경로를 settingsIssues로 전달한다. required는 누락된 필드 경로를 포함한다. CLI의 기존 영어 상세 오류와 비서의 일반 실패 결과는 유지한다. 앱은 영어 원문을 해석하지 않고 locale의 쉬운 오류 문구로 해당 필드에 표시한다. 알려지지 않은 오류는 고정된 일반 문구로 표시한다. 기존 FieldError·Input을 재사용하며 공통 UI 예외는 없다.
+
+시각 확인: [640px 한국어 오류](assets/plugin-settings-1407/error-640-ko.png). 합성 설정 fixture이며 외부 서비스 연결 성공의 증거는 아니다.
+
 #1320 화면 확인: 기존 설정 Dialog·Input·SettingsSwitch·Button·Notice를 재사용하며 공통 패턴 예외는 없다. 활성 상태 입력을 같은 fixture로 수정 전·후 확인했다. [1440px 이전](assets/plugin-settings-1320/before-1440.png) / [이후](assets/plugin-settings-1320/after-1440.png), [한국어 Dark 640px 이전](assets/plugin-settings-1320/before-640.png) / [이후](assets/plugin-settings-1320/after-640.png). 행 정렬·여백·잘림·한국어 줄바꿈을 수동 확인했다. Host 검사에서 running·uncertain 변경 거부와 원본 보존, 기존 secret 비노출을 검증하며 HTTP 브라우저 검사는 활성 일반 설정 UI/CLI와 secret UI 저장·CLI 삭제 후 새 실행값을 확인한다. 실제 외부 서비스 연결 성공의 증거는 아니다.
 
 ## OneDrive
@@ -175,13 +179,40 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 
 ## 비서 제작 키트
 
-`scaffold`는 대상 Host의 새 절대 디렉터리에 manifest·package.json·ESM host.js와 편집기 타입 힌트를 생성한다. 생성 직전 Host RootAccess의 새 경로 검사를 적용한다. 비서 호출은 turn의 opened folders와 Host Root를 모두 검사하며 read-only turn·열린 폴더 없는 turn을 거부한다. full-access도 이 공용 생성 경로의 Root/열린 폴더 제약을 생략하지 않는다. 부모 디렉터리는 존재해야 하며, 이미 있는 디렉터리(빈 디렉터리 포함)는 거부하고 덮어쓰지 않는다. 최소 greet 읽기 작업과 inline 입력·출력 schema 예시를 포함한다. 대상 Host SDK_VERSION 요구, 패키지/manifest 버전 일치와 community 계층을 사용하며 자동 등록·신뢰·실행은 하지 않는다.
+`scaffold`는 대상 Host의 새 절대 디렉터리에 manifest·package.json·ESM host.js와 편집기 타입 힌트를 생성한다. 생성 직전 Host RootAccess의 새 경로 검사를 적용한다. 비서 호출은 turn의 opened folders와 Host Root를 모두 검사하며 read-only turn·열린 폴더 없는 turn을 거부한다. full-access도 이 공용 생성 경로의 Root/열린 폴더 제약을 생략하지 않는다. 부모 디렉터리는 존재해야 하며, 이미 있는 디렉터리(빈 디렉터리 포함)는 거부하고 덮어쓰지 않는다. 기존 scaffold 입력에 선택적 `template: greet | query | file`을 받으며 생략 시 greet다. CLI `plugins scaffold <directory> --id <id> [--template greet|query|file]`와 비서 `manage_plugins`가 같은 공용 작업을 사용한다. greet는 화면 없는 간단한 작업 하나로 충분할 때 쓴다. query는 연결 설정·확인, 표시 이름을 가진 선택적 비밀키, 기본/추가 조건과 결과 표를 제공한다. 외부 서비스 없이 예제 데이터로 실행하며 연결 값이 없으면 고정 안내를 준다. file은 `.txt` 대문자 변환과 `.upper` 파일 결과, 시작·상태·중단, 파일별 진행을 기존 K1으로 제공한다. 두 템플릿의 주석은 데이터/변환 교체 지점을 알린다. `settingsSchema.required`는 사용하지 않고 화면 배치는 기존 공통 화면에 맡긴다. 새 화면 종류 선언이나 workflow engine은 없다. 대상 Host SDK_VERSION 요구, 패키지/manifest 버전 일치와 community 계층을 사용하며 자동 등록·신뢰·실행은 하지 않는다.
 
 `validate`는 artifact 경계·manifest/SDK 범위·버전·JSON Schema 컴파일과 entry 구문, 선언 작업과 literal handler 일치를 검사한다. 결과는 `valid`, 원문 없는 `errors`(고정 파일 역할, 1-based 줄/열 또는 위치 불명 null, 고정 오류 종류), 검사 한계와 Host receipt다. 실패는 failure receipt와 CLI 종료 코드 1로 반환한다. 코드를 import/실행하지 않으며 등록 상태도 바꾸지 않는다. JSON/JavaScript/schema/parser/fs 예외 원문·stack·파일 내용·사용자 정의 handler 이름을 진단에 복사하지 않는다. 같은 정리된 결과를 비서 도구와 CLI가 반환하고, 활동에는 결과 요약만 남긴다. 정적 검사를 위해 entry는 named `export function activate`의 직접 return 객체 안에 하나의 literal `operations` 객체와 literal 함수 handler를 둔다. 동적 등록은 검증 불가 오류다. 정적으로 알려진 JSON 반환값은 출력 schema와 비교하지만, 계산된 반환값·activation·dispose 동작은 실제 enable/invoke/reload에서만 검증된다. validate 통과는 실행 성공의 보증이 아니다.
 
 `manage_plugins`도 scaffold/validate를 같은 정의로 호출한다. register 활동에는 인자로 받지 않는 실제 manifest ID를 결과에서 가져와 남긴다. validation 오류는 결과에서 읽되 활동 요약에는 원문을 쓰지 않는다. Codex의 각 대화 turn에 앱 번들의 제한된 제작 스킬을 문맥으로 제공한다(전역 Codex 스킬 설치 없음). 스킬은 SDK·manifest·공용 작업/schema 예시, 파일 수정 권한·secret 비노출, validate/register/trust/enable/invoke 및 수정 후 validate/reload/invoke 절차와 금지 항목을 설명한다. master에 병합된 secret 선언과 사용자 설정 UI 입력·읽기 전용 context.secrets, 읽기 작업 rowSchema, K1 jobs 바인딩·상태·결과 열기를 안내한다. generatedUi/views/dataViews/secretUses 확장은 계속 예시로 제공하지 않는다. Copilot 도구 공급 범위는 그대로다.
 
 자동 검사는 기존 Host 플러그인 테스트에서 생성→정적 검증→등록→신뢰→활성→호출→수정→재검증→신뢰→reload→결과 변경을 같은 Host로 확인한다. 이 subprocess 사례는 실제 캐시 교체·daemon 무재시작을 보호한다. handler 누락·미선언 handler·잘못된 schema·literal 출력 불일치와 비실행·덮어쓰기 거부도 확인한다.
+
+### 제작 템플릿 실행 확인 (#1397)
+
+2026-11-10 실제 제품 비서(Codex gpt-6-luna, low)에 외부 서비스 없는 조회·파일 처리 제작을 각각 맡겼다. 첫 조회 결과는 설정/비밀키를 제거했고 첫 파일 결과는 manifest 필수 선언을 누락하여 validate에 실패했다. 선언을 보존하도록 후속 요청했고, 파일 실행에서 비서가 추가한 exclusive-create 쓰기가 이미 존재하는 Host staging 파일에 실패하여 추가로 수정 요청했다. 비서가 직접 복구했으며 검증자가 artifact나 화면을 수동 수정하지 않았다. 이 관측을 번들 제작 안내의 선언 보존·staging 쓰기 설명에 반영했다. 첫 시도만으로 제작 성공한 증거로 해석하지 않는다.
+
+복구 결과는 두 artifact 모두 validate·등록·신뢰·활성화 후 실제 HTTP Host에서 조회/변환을 실행했다. query는 기본/추가 조건·표·선택적 연결 설정/비밀키와 healthCheck, file은 `.txt`→`.upper`·K1 세 작업·파일별 진행/결과를 유지했다. 임시 browser scenario를 기존 `pnpm browser:test` runner와 persistent Chrome으로 실행하고 원래 scenario 파일은 복원했다. [조회 1440px](assets/plugin-templates-1397/query-1440.png) / [한국어 다크 640px](assets/plugin-templates-1397/query-640.png), [파일 1440px](assets/plugin-templates-1397/file-1440.png) / [한국어 다크 640px](assets/plugin-templates-1397/file-640.png)에서 상단 입력·전체 폭 결과·정렬·줄바꿈·표 내부 스크롤을 확인했다. 기존 공통 QueryInputs·DataTable·PluginJobPanel을 사용하며 새 UI 예외는 없다. 계정·Root 선택은 mask했다. 외부 서비스·배포·secret 저장·소유자 시각 승인은 이 실행으로 검증하지 않았다. 상세 요청과 최초 실패·후속 결과는 PR에 기록한다.
+
+
+### 기준 모델 재검증 (#1421)
+
+2026-11-10 소유자 결정으로 비서 플러그인 제작 검증은 Codex `gpt-6.1-terra`, 추론 강도 `high`를 기준으로 한다. 다른 실제 AI 응답 확인은 AGENTS.md의 `gpt-6-luna`/`low` 기본값을 유지한다.
+
+격리된 Host·데이터 폴더와 열린 폴더 권한에서 실제 제품 `AssistantConversations`·번들 제작 안내·`manage_plugins`로 조회와 파일 처리를 각각 한 번 실행했다. 요청은 [PR #1418](https://github.com/litzio/litzio/pull/1418)의 문장을 그대로 사용하고 새 artifact 경로만 바꿨다. 외부 서비스·자격 증명은 사용하지 않았다. HTTP origin을 비서에게 제공하지 않았으므로 비서는 실제 조회·변환을 미확인으로 보고했고, 검증자가 같은 생성 artifact를 격리 HTTP Host에 올려 공통 화면에서 직접 실행했다.
+
+| 항목 | Luna low (#1418) | Terra high (#1421) |
+| --- | --- | --- |
+| 조회 첫 요청 | validate·등록·신뢰·활성 성공, 설정/비밀키 제거 | validate·등록·신뢰·활성 성공, 선언 보존 |
+| 파일 첫 요청 | scope/screens/K1 입력 누락으로 validate 실패 | validate·등록·신뢰·활성 성공, 선언 보존 |
+| 후속 요청 | 조회 1회, 파일 2회(선언 복구·staging 쓰기 수정) | 조회 0회, 파일 0회 |
+| 공통 화면 실행 | 후속 복구 뒤 조회 3행·파일 완료 | 첫 요청 산출물 그대로 조회 2행·파일 완료 |
+| 사람이 artifact/화면 수정 | 없음 | 없음 |
+
+Terra의 두 결과는 SDK 정규화 후 템플릿과 contributes가 동일했다. 조회의 선택적 workspace 설정·제목을 가진 token 비밀키·healthCheck·views/screens, 파일의 host scope·start/status/stop 전체 K1 입력(output/resultFile 포함)·jobs/screens를 보존했다. 두 host.js도 현재 템플릿과 byte 단위로 같았고, 파일 manifest의 표시 이름만 비서가 바꿨다. 두 validate 결과는 `valid:true`, `errors:[]`였으며 등록·신뢰·활성·실행 중 상태를 확인했다. 두 turn에서 각각 PowerShell 읽기 도구 한 번이 failed로 관측되었으나 각각 같은 turn에서 node_repl로 읽고 완료했다. 실패 원인은 확정하지 않았다. 사용자 후속 요청이나 artifact 복구는 없었다.
+
+`pnpm browser:test plugin-columns --screenshots`의 임시 시나리오로 persistent Chrome과 OS 할당 포트의 실제 HTTP Host를 사용했다(1개 통과, 약 10초). 시나리오는 실행 후 복원했고 커밋하지 않았다. 공통 QueryInputs·DataTable에서 예제 두 행, PluginJobPanel에서 완료·진행 1/1·example.upper 결과를 확인했다. 저장 결과는 `HELLO EXAMPLE`과 줄바꿈이며 원본 `Hello example`과 줄바꿈은 보존됐다. 1440px English/light [조회](assets/plugin-authoring-1421/query-1440.png)와 [파일](assets/plugin-authoring-1421/file-1440.png)의 입력·표 정렬, 여백, 잘림을 직접 검토했다. 계정·Root 선택은 mask했다. 기존 공통 화면을 그대로 사용하며 새 UI 예외는 없다.
+
+이는 모델별 한 번씩의 관측이며 모델 우열의 통제 실험이 아니다. Terra에는 #1418 실패 이후 선언 보존·staging 쓰기가 보강된 현재 번들 안내가 제공됐다. 새 안내 보완이나 재시험은 필요하지 않았다. secret 저장·실제 외부 연결·대용량 처리·다른 OS·패키지 Desktop과 소유자의 직접 시각 승인은 미검증이다. 요청 원문·대화·harness·manifest 비교는 로컬 임시 근거로 보관하며 로컬 식별자가 있는 원문과 재생성 가능한 대형 근거는 커밋하지 않는다.
 
 ## 작업 실패 공개 분류 (#1233)
 

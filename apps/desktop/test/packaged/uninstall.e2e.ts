@@ -10,6 +10,7 @@ import { cliDaemon, desktopRecord, assertExited, assertNoDiscovery } from "./dae
 import { CliIntegration } from "../../src/cli-integration.ts";
 import { windowsEnvironment } from "../../src/windows-environment.ts";
 import { brand } from "../../../../brand.ts";
+import { removalScenarios } from "./uninstall-scenarios.ts";
 import { installedUninstallCommand } from "./installed-app.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -42,12 +43,8 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
     // A stale snapshot must fail without overwriting the longer value.
     await assert.rejects(environment.write(original, original), /User PATH changed/);
     assert.deepEqual((await environment.read()).user, longPath);
-    for (const silent of [false, true]) for (const fault of ["empty", "user", "owner", "foreign", "helper", "environment"] as const) {
+    for (const { silent, fault } of removalScenarios(process.env.LITZIO_TEST_LIFECYCLE_SCOPE)) {
       const healthy = fault === "empty" || fault === "user";
-      if (healthy && !silent) continue;
-      // Full is the default for direct invocation and release verification.
-      if (process.env.LITZIO_TEST_LIFECYCLE_SCOPE === "representative" &&
-        (!silent || !["empty", "user", "foreign"].includes(fault))) continue;
       const label = `${silent ? "silent" : "interactive"}-${fault}`;
       const install = path.join(work, label);
       const setup = spawnSync(installer, ["/S", `/D=${install}`], { timeout: 60_000, encoding: "utf8" });
