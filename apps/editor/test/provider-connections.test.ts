@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
 import { ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
-import { RootAccess, fileErrorMessage } from "../server/file-access.ts";
+import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
@@ -251,10 +251,11 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(start.input[2], { type: "localImage", path: path.join(root, "image.png") });
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
   assert.deepEqual(JSON.parse(rpc.find(item => item.method === "turn/steer").params.input[1].text.split("(JSON):\n")[1]), { ...JSON.parse(start.input[1].text.split("(JSON):\n")[1]), userMessage: "Only summarize." });
-  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root, plugins.authoringDirectory], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  const canonicalPlugins = path.join(canonicalFilePath(root), "data", "plugins");
+  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root, canonicalPlugins], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
   const noFolders = await conversations.send({ message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
   const noFolderStart = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start").at(-1).params;
-  assert.deepEqual(noFolderStart.sandboxPolicy.writableRoots, [plugins.authoringDirectory]);
+  assert.deepEqual(noFolderStart.sandboxPolicy.writableRoots, [canonicalPlugins]);
   assert.deepEqual(noFolders.folders, []);
   await conversations.interrupt(noFolders.id);
   assert.equal(existsSync(plugins.authoringDirectory), false, "sandbox path checks must not create the plugins folder");

@@ -179,11 +179,13 @@ scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc,
 
 ## 비서 제작 키트
 
-Verification #1434: 2026-11-10 — Host 기본 제작 위치의 생성·등록·실제 subprocess 호출·수정/reload, 열린 폴더 없는 turn의 sandbox 요청, 읽기 전용 거부·명시 경로 범위, hostPaths의 개발/배포/환경 override와 CLI 전달 fixture, 전체 typecheck·production build 확인. 실제 AI 제작·원격 Host 통신·설치형 앱 실행은 미검증. Windows 정션 경계와 폴더 없는 읽기 전용 validate 비생성 검사를 먼저 실패시킨 뒤 수정 후 통과를 확인했다. 생성 대상 정션의 이탈 거부와 sandbox의 정션 경로 제외도 추가로 확인했다. 재리뷰에서는 lstat 뒤·RootAccess 채택 직전·mkdir 직후·첫 파일 쓰기 직후 정션 교체를 주입한 Windows 검사를 수정 전 실패→수정 후 통과로 확인했다.
+Verification #1434: 2026-11-10 — Host 기본 제작 위치의 생성·등록·실제 subprocess 호출·수정/reload, 열린 폴더 없는 turn의 sandbox 요청, 읽기 전용 거부·명시 경로 범위, hostPaths의 개발/배포/환경 override와 CLI 전달 fixture, 전체 typecheck·production build 확인. 실제 AI 제작·원격 Host 통신·설치형 앱 실행은 미검증. Windows 정션 경계와 폴더 없는 읽기 전용 validate 비생성 검사를 먼저 실패시킨 뒤 수정 후 통과를 확인했다. 생성 대상 정션의 이탈 거부와 sandbox의 정션 경로 제외도 추가로 확인했다. 재리뷰에서는 lstat 뒤·RootAccess 채택 직전·mkdir 직후·첫 파일 쓰기 직후 정션 교체를 주입한 Windows 검사를 수정 전 실패→수정 후 통과로 확인했다. 8.3 짧은 TEMP에서 queue 실패를 로컬 재현한 뒤, native realpath 기반 기대값·교체 주입 기준과 별칭 validate 경계를 고쳤다. 같은 TEMP의 Windows Editor 단위 분할은 512개 통과·Linux 전용 1개 skip으로 종료했으며 정션 교체/파일 보존 단언은 유지했다.
 
 `scaffold`는 대상 Host의 새 디렉터리에 manifest·package.json·ESM host.js와 편집기 타입 힌트를 생성한다. `directory` 생략 시 `hostPaths().plugins`(templates와 같은 사용자 데이터 base의 `plugins/`) 아래 플러그인 ID를 이름으로 새 폴더를 만든다. 필요한 기본 부모 폴더는 scaffold 쓰기 시점에만 Host가 준비하며 이름이 이미 있으면 빈 폴더도 거부하고 덮어쓰지 않는다. 원격 Host는 그 Host의 데이터 위치를 쓰며 개발 실행의 `.litzio-dev`와 `LITZIO_DATA_DIR`도 기존 hostPaths 규칙을 따른다. 문서 폴더의 기존 artifact를 옮기지는 않는다.
 
 비서의 `opened-folders` turn은 이 기본 plugins 폴더를 추가 쓰기 위치로 받아 열린 문서 폴더 없이도 기본 scaffold·파일 수정·validate·등록·신뢰·활성·호출을 이어 갈 수 있다. Host는 plugins 폴더의 링크·정션을 거부하고, 사용자 데이터 폴더와 plugins 폴더의 실제 경로를 대조한 뒤 앱 소유 RootAccess 경계를 별도로 고정한다. 생성 대상도 같은 실제 경로 경계로 검사하며, 기본 scaffold와 이 폴더의 validate는 문서 Host Root 밖에서도 허용한다. sandbox는 plugins의 realpath를 한 번 구해 데이터 폴더 realpath 아래 기대한 plugins 경로와 플랫폼 경로 규칙으로 정확히 같을 때만 그 기대 경로 문자열을 넣는다. realpath가 반환한 다른 경로를 그대로 전달하지 않으며, 다르거나 링크·정션이면 plugins를 writableRoots에서 제외한다. 아직 없으면 기존 조상의 실제 경로 아래 새 경로만 계산한다. turn 준비·validate는 데이터 폴더나 plugins 폴더를 만들지 않는다. 문서 도구의 opened folders 범위는 넓히지 않는다. read-only turn의 scaffold와 파일 수정은 계속 거부한다. full-access sandbox와 scaffold의 기존 Root/열린 폴더 제약은 바꾸지 않는다. `directory`를 명시하면 기존 Host RootAccess의 새 경로 검사와 비서 turn의 열린 폴더 검사를 모두 적용한다. 명시 경로의 부모는 존재해야 하며 기존 디렉터리는 덮어쓰지 않는다. scaffold는 대상 폴더를 비재귀 mkdir로 만든 직후 실제 대상 경로가 기대한 경로와 같은지 확인하고, 각 파일을 wx로 배타 생성한 직후 다시 대상 realpath를 확인한다. 불일치는 오류로 보고하며 이미 만든 파일·폴더를 자동 삭제하지 않는다.
+
+데이터 폴더 위쪽의 Windows 8.3 짧은 이름·대소문자·정션 별칭은 native realpath로 정규화하여 허용한다. 기본 생성 결과와 sandbox의 추가 쓰기 경로는 데이터 폴더 realpath 아래 plugins 정규 경로를 사용하며, validate는 설정 경로와 정규 경로를 같은 제작 경계로 검사한다. plugins 자체와 하위 생성 대상의 링크·정션 거부는 유지한다.
 
 같은 사용자 계정의 로컬 프로세스가 검사와 쓰기 사이 아주 짧은 순간에 경로를 바꾸는 잔여 경쟁은 컨셉 단계 원칙에 따라 이번 범위 밖이다.
 

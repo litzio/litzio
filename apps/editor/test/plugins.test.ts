@@ -265,7 +265,7 @@ test("local artifact trust, activation, admission, drain, settings persistence a
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ProviderConnections } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
-import { RootAccess } from "../server/file-access.ts";
+import { canonicalFilePath, RootAccess } from "../server/file-access.ts";
 test("Codex management runs without approval and exposes activity in the existing tool result", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-activity-"));
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
@@ -658,7 +658,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     const created = await executePluginTool(host, { action: "scaffold", id }, e => activity.push(e), scope);
     assert.equal(created.activity.outcome, "success");
     assert.ok("result" in created);
-    assert.equal((created.result as any).directory, directory);
+    assert.equal((created.result as any).directory, canonicalFilePath(directory));
     await assert.rejects(host.invoke("scaffold", { id }), /EEXIST/);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
     assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.4.0 <1.0.0");
@@ -810,7 +810,7 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
     const defaultResult = await executePluginTool(host, { action: "scaffold", id: "local.default" }, () => {}, scope);
     assert.equal(defaultResult.activity.outcome, "success");
     assert.ok("result" in defaultResult);
-    assert.equal((defaultResult.result as any).directory, path.join(authoringDirectory, "local.default"));
+    assert.equal((defaultResult.result as any).directory, canonicalFilePath(path.join(authoringDirectory, "local.default")));
     await assert.rejects(host.invoke("scaffold", { directory: path.join(authoringDirectory, "explicit"), id: "local.explicit" }), /outside/);
 
     const directory = path.join(opened, "valid");
@@ -859,7 +859,7 @@ test("default scaffold rejects an existing plugins junction before writing outsi
 
 test("authoring refuses deterministic junction replacements between checking and use", async t => {
   for (const phase of ["sandbox-stat", "root-adoption", "after-mkdir", "after-write"]) await t.test(phase, async t => {
-    const root = fs.realpathSync(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-swap-")));
+    const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-swap-")));
     const data = path.join(root, "data"), plugins = path.join(data, "plugins"), templates = path.join(data, "templates"), outside = path.join(root, "outside");
     for (const folder of [data, plugins, templates, outside]) mkdirSync(folder);
     const id = "local.swap", artifact = path.join(plugins, id), held = path.join(root, "held");
@@ -915,6 +915,34 @@ test("authoring refuses deterministic junction replacements between checking and
       for (const folder of [plugins, templates, data, root]) if (existsSync(folder)) rmdirSync(folder);
     }
   });
+});
+
+test("authoring accepts aliases above the data folder and validates canonical and configured paths", async t => {
+  const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-parent-")));
+  const data = path.join(root, "real-data"), alias = path.join(root, "data-alias"), documents = path.join(root, "documents");
+  mkdirSync(data); mkdirSync(documents);
+  symlinkSync(data, alias, process.platform === "win32" ? "junction" : "dir");
+  const configured = path.join(process.platform === "win32" ? alias.toUpperCase() : alias, "plugins");
+  const expected = path.join(canonicalFilePath(data), "plugins"), id = "local.alias", artifact = path.join(expected, id);
+  const access = new RootAccess([documents]);
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: configured });
+  t.after(async () => {
+    await host.close(); rmSync(alias);
+    if (existsSync(artifact)) {
+      for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+      rmdirSync(artifact);
+    }
+    if (existsSync(expected)) rmdirSync(expected);
+    for (const folder of [documents, data, root]) rmdirSync(folder);
+  });
+  assert.equal(host.authoringPath(), expected);
+  assert.equal(existsSync(expected), false);
+  const created = await executePluginTool(host, { action: "scaffold", id }, () => {}, { access, folders: null, permissionMode: "opened-folders" });
+  assert.equal(created.activity.outcome, "success"); assert.ok("result" in created);
+  assert.equal((created.result as any).directory, artifact);
+  for (const directory of [artifact, path.join(configured, id)]) {
+    assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
+  }
 });
 
 test("read-only validation never creates a missing plugins directory or its data parent", async t => {

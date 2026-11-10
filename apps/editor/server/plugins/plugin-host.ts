@@ -93,6 +93,7 @@ export class PluginHost {
       ancestor = parent;
     }
     if (!statSync(ancestor).isDirectory()) throw new Error("Plugin data parent must be a directory");
+    // Native realpath expands Windows 8.3 names and resolves aliases above the data folder.
     const data = path.join(canonicalFilePath(ancestor), ...missing);
     const directory = path.join(data, path.basename(this.authoringDirectory));
     const entry = lstatSync(directory, { throwIfNoEntry: false });
@@ -395,8 +396,11 @@ export class PluginHost {
         const errors: { file: string; line: number | null; column: number | null; kind: string }[] = []; let manifestId: string | undefined;
         let file = "artifact";
         try {
-          const access = inside(this.authoringDirectory, path.resolve(args.directory!)) ? this.authoringAccess() : this.access;
-          const a = this.artifact(accessPath(args.directory!, access), current => { file = current; }); manifestId = a.manifest.id;
+          const requested = path.resolve(args.directory!), expected = this.authoringPath();
+          const authored = inside(this.authoringDirectory, requested) || expected !== undefined && inside(expected, requested);
+          const access = authored ? this.authoringAccess() : this.access;
+          const directory = authored ? canonicalFilePath(requested) : requested;
+          const a = this.artifact(accessPath(directory, access), current => { file = current; }); manifestId = a.manifest.id;
           errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: "host entry", ...issue })));
         } catch (error) {
           // Read only numeric location metadata. Parser/Ajv/Zod/fs messages may contain source or secret values.
