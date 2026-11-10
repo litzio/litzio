@@ -6,6 +6,7 @@ import { i18n } from "../i18n.ts";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent } from "react";
 import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
 import { fileDeletion } from "../host-capabilities.ts";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
@@ -148,6 +149,20 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
         {items.map(item => {
           const { entry } = item;
           const folder = entry.kind === "folder";
+          const choose = (action: FileAction) => {
+            actionReturn.current = rows.current.get(entry.path) ?? null;
+            setFileAction({ action, item });
+          };
+          const trashUnavailable = fileDeletion(tree.hostId) !== "trash";
+          const deleteFolder: ContextMenuAction = { id: "delete-folder", label: i18n.t("Delete folder…"), icon: <Trash2 aria-hidden="true" />, danger: true,
+            disabled: fileActionsDisabled || trashUnavailable, disabledReason: trashUnavailable ? i18n.t("Folder deletion requires OS Trash. This Host does not provide it.") : undefined, run: () => choose("delete") };
+          const folderMenu = folderActions({
+            onNew: onNew ? target => onNew(target, entry.path) : undefined,
+            onNewFolder: onNewFolder ? target => onNewFolder(target, entry.path) : undefined,
+            onOpenFolder, onRevealFolder, onRefresh, onClose,
+          }, entry.path, () => rows.current.get(entry.path) ?? null)
+            .filter(action => action.id === "new" || action.id === "new-folder" || action.id === "reveal")
+            .concat(pathActions(entry.path, tree.root, onCopyPath), deleteFolder);
           const expanded = folder && tree.expanded.has(entry.path);
           // Text files and Markdown without a native marker open in text mode.
           const foreign = entry.kind === "document" && entry.native === false;
@@ -158,7 +173,7 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
               key={entry.path}
               ref={row => { if (row) rows.current.set(entry.path, row); else rows.current.delete(entry.path); }}
               role="treeitem"
-              className={`sidebar-tree-item${folder && onRevealFolder ? " sidebar-tree-item--actions" : ""}`}
+              className={`sidebar-tree-item${folder ? " sidebar-tree-item--actions" : ""}`}
               data-foreign={foreign || undefined}
               data-path={entry.path}
               style={{ "--tree-depth": item.depth + 1 } as CSSProperties}
@@ -178,26 +193,22 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
               {folder ? <span className="sidebar-tree-chevron" aria-hidden="true"><ChevronRight /></span>
                 : <Icon className="sidebar-tree-icon" aria-hidden="true" />}
               <span className="sidebar-tree-name">{entry.name}</span>
-              {folder && onRevealFolder ? <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label={i18n.t("More actions for {{name}}", { name: entry.name })} />}
+              {folder ? <DropdownMenu>
+                <DropdownMenuTrigger tabIndex={-1} render={<Button variant="ghost" size="icon-xs" aria-label={i18n.t("More actions for {{name}}", { name: entry.name })} />}
                   onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis /></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-                  <DropdownMenuItem onClick={() => onRevealFolder(entry.path)}>
-                    <FolderOpen aria-hidden="true" />{i18n.t("Open in File Explorer")}</DropdownMenuItem>
+                  {folderMenu.filter(action => action.visible !== false).map(action => {
+                    const menuItem = <DropdownMenuItem key={action.id} aria-disabled={action.disabled || undefined}
+                      disabled={action.disabled && !action.disabledReason} closeOnClick={!action.disabled}
+                      className={`${action.danger ? "text-destructive" : ""} ${action.disabledReason ? "opacity-50" : ""}`}
+                      onClick={() => { if (!action.disabled) action.run(); }}>{action.icon}{action.label}</DropdownMenuItem>;
+                    return action.disabledReason ? <Tooltip key={action.id}><TooltipTrigger render={menuItem} /><TooltipContent>{action.disabledReason}</TooltipContent></Tooltip> : menuItem;
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu> : null}
             </li>
           );
-          if (folder) return <ContextMenu key={entry.path} trigger={row} actions={folderActions({
-            onNew: onNew ? target => onNew(target, entry.path) : undefined,
-            onNewFolder: onNewFolder ? target => onNewFolder(target, entry.path) : undefined,
-            onOpenFolder, onRevealFolder, onRefresh, onClose,
-          }, entry.path, () => rows.current.get(entry.path) ?? null)
-            .filter(action => action.id === "new" || action.id === "new-folder" || action.id === "reveal").concat(pathActions(entry.path, tree.root, onCopyPath))} />;
-          const choose = (action: FileAction) => {
-            actionReturn.current = rows.current.get(entry.path) ?? null;
-            setFileAction({ action, item });
-          };
+          if (folder) return <ContextMenu key={entry.path} trigger={row} actions={folderMenu} disabled={fileActionsDisabled} />;
           const actions: ContextMenuAction[] = [
             ...(onAddToChat ? [{ id: "add-to-chat", label: i18n.t("Add to chat"), icon: <FileText aria-hidden="true" />, run: () => onAddToChat(entry.path, rows.current.get(entry.path)!) }] : []),
             ...(entry.kind === "document" && onOpenRight ? [{ id: "open-right", label: i18n.t("Open to the right"), icon: <PanelRightOpen aria-hidden="true" />, disabled: openRightDisabled, run: () => onOpenRight(entry.path) }] : []),
@@ -209,11 +220,13 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
         })}
       </ul>
       {fileAction ? <FileActionDialog action={fileAction.action} entry={fileAction.item.entry}
+        root={tree.root} hostId={tree.hostId}
         trash={tree.hostId !== "local" || fileDeletion(tree.hostId) === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
-        returnFocus={actionReturn} onClose={() => setFileAction(undefined)} onExecute={async name => {
+        returnFocus={actionReturn} onClose={() => setFileAction(undefined)} onExecute={async (name, identity) => {
           const index = items.findIndex(item => item.entry.path === fileAction.item.entry.path);
-          const next = await onFileAction(fileAction.action, tree.root, fileAction.item.entry, name);
-          const focus = fileAction.action === "rename" ? next : (items[index + 1] ?? items[index - 1])?.entry.path;
+          const next = await onFileAction(fileAction.action, tree.root, fileAction.item.entry, name, identity);
+          const surviving = items.filter(item => item.entry.path !== fileAction.item.entry.path && !item.entry.path.startsWith(fileAction.item.entry.path + (fileAction.item.entry.path.includes("\\") ? "\\" : "/")));
+          const focus = fileAction.action === "rename" ? next : (surviving.find(item => items.indexOf(item) > index) ?? surviving.at(-1))?.entry.path;
           actionReturn.current = focus ? rows.current.get(focus) ?? null : section.current?.querySelector<HTMLButtonElement>(".sidebar-folder-toggle") ?? null;
           pendingFocus.current = focus ?? null;
         }} /> : null}

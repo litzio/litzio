@@ -1,3 +1,4 @@
+import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
@@ -12,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
 import { ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
-import { RootAccess, fileErrorMessage } from "../server/file-access.ts";
+import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
@@ -42,9 +43,14 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 1);
   const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "high" };
-  const input = { provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
+  const input = { submissionId: "copilot-submission", provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
   await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
-  const conversation = await conversations.send(input, settings);
+  const accepted = await conversations.submit(input, () => conversations.send(input, settings));
+  const conversation = accepted.conversation!;
+  assert.equal(accepted.submission.status, "accepted");
+  assert.equal(accepted.submission.itemId, conversation.turns[0]!.items[0]!.id);
+  assert.equal(conversation.turns[0]!.items[0]!.submissionId, input.submissionId);
+  await conversations.submit(input, () => { throw new Error("Duplicate reached provider"); });
   assert.equal(conversation.turns.length, 1, "ACP selector updates must not create transcript turns");
   const turn = conversation.turns[0]!;
   await t.test("response and permission arrive over the child stdio", async () => {
@@ -70,10 +76,30 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "shell", kind: "execute" } }), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
-    await conversations.send({ ...input, id: conversation.id, message: "FAIL THIS TURN" }, settings);
+    const failedInput = { ...input, id: conversation.id, submissionId: "copilot-prompt-failed", message: "FAIL THIS TURN" };
+    await conversations.submit(failedInput, () => conversations.send(failedInput, settings));
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     assert.equal(conversation.turns.at(-1)!.status, "failed");
     assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
+    assert.equal(conversation.turns.at(-1)!.items[0]!.userMessageSource, "host", "a Host row is not provider persistence proof");
+    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown");
+    assert.equal(conversations.submission(failedInput.submissionId).submission.turnFailed, true);
+    const resumedFailure = await conversations.resume(conversation.id, settings);
+    assert.equal(resumedFailure.turns.flatMap(turn => turn.items).some(item => item.submissionId === failedInput.submissionId), false);
+    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown", "missing provider history must not erase uncertainty");
+    assert.ok(resumedFailure.turns.flatMap(turn => turn.items).filter(item => item.kind === "user").every(item => item.userMessageSource === "provider-history"));
+    const client = await connection.copilot.connect(), load = client.loadSession.bind(client);
+    const prompt = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(message => message.method === "session/prompt").params.prompt[0];
+    const replay = t.mock.method(client, "loadSession", async (params: Parameters<typeof client.loadSession>[0]) => {
+      const result = await load(params);
+      connection.copilot.emit("update", { sessionId: params.sessionId, update: { sessionUpdate: "user_message_chunk", content: prompt } });
+      return result;
+    });
+    const recorded = await conversations.resume(conversation.id, settings);
+    const persisted = recorded.turns.flatMap(turn => turn.items).find(item => item.submissionId === input.submissionId)!;
+    assert.equal(persisted.userMessageSource, "provider-history");
+    assert.equal(persisted.text, input.message);
+    replay.mock.restore();
   });
   assert.equal(conversations.list()[0]!.provider, "copilot");
   assert.equal(JSON.stringify(conversation).includes("Litzio plugin authoring skill"), false);
@@ -178,7 +204,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] });
-  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  const plugins = new PluginHost(path.join(root, "plugins.json"), { authoringDirectory: path.join(root, "data", "plugins") });
+  t.after(() => plugins.close());
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), plugins);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
@@ -193,6 +221,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const conversation = await conversations.send(input, settings);
   assert.equal(JSON.stringify(conversation).includes("Litzio plugin authoring skill"), false);
   assert.deepEqual(streamed, ["Checking the opened ", "Checking the opened document."]);
+  assert.equal(conversation.turns[0]!.items.find(item => item.kind === "user")!.userMessageSource, "provider-live");
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "reasoning").map(item => item.text), ["Checking the opened document.\nChecking folders.", ""]);
   assert.equal(conversation.turns[0]!.status, "inProgress");
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
@@ -222,7 +251,25 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(start.input[2], { type: "localImage", path: path.join(root, "image.png") });
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
   assert.deepEqual(JSON.parse(rpc.find(item => item.method === "turn/steer").params.input[1].text.split("(JSON):\n")[1]), { ...JSON.parse(start.input[1].text.split("(JSON):\n")[1]), userMessage: "Only summarize." });
-  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  const canonicalPlugins = path.join(canonicalFilePath(root), "data", "plugins");
+  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root, canonicalPlugins], networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  const noFolders = await conversations.send({ message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  const noFolderStart = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start").at(-1).params;
+  assert.deepEqual(noFolderStart.sandboxPolicy.writableRoots, [canonicalPlugins]);
+  assert.deepEqual(noFolders.folders, []);
+  await conversations.interrupt(noFolders.id);
+  assert.equal(existsSync(plugins.authoringDirectory), false, "sandbox path checks must not create the plugins folder");
+  mkdirSync(path.dirname(plugins.authoringDirectory));
+  symlinkSync(root, plugins.authoringDirectory, process.platform === "win32" ? "junction" : "dir");
+  try {
+    const startsBefore = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    await conversations.send({ id: noFolders.id, message: "Create a plugin", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+    const starts = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(item => item.method === "turn/start");
+    assert.equal(starts.length, startsBefore.length + 1);
+    assert.deepEqual(starts.at(-1).params.sandboxPolicy.writableRoots, [], "an unsafe plugins directory is omitted from writableRoots");
+    await conversations.interrupt(noFolders.id);
+  } finally { rmSync(plugins.authoringDirectory); }
+
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
@@ -236,6 +283,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const resumed = new AssistantConversations(resumedConnection, new RootAccess([root]));
     const history = await resumed.resume(conversation.id, { ...settings, provider: "copilot", permissionMode: "read-only" });
     assert.equal(history.provider, "codex");
+    assert.ok(history.turns.flatMap(turn => turn.items).filter(item => item.kind === "user").every(item => item.userMessageSource === "provider-history"));
     assert.equal(history.permissionMode, "read-only", "UI snapshots must expose only the bounded grant before sending");
     assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
     assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);

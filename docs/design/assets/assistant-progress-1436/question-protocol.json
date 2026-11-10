@@ -1,0 +1,21 @@
+{
+  "kind": "sanitized real-provider observation, not a UI fixture",
+  "date": "2026-11-10",
+  "codexVersion": "0.167.0",
+  "model": "gpt-6-luna",
+  "reasoningEffort": "low",
+  "observedItem": {
+    "type": "agentMessage",
+    "phase": "final_answer",
+    "delivery": "async",
+    "text": "예시 여행 계획에서 어떤 여행 방식을 선호하시나요?\n- 휴식 중심\n- 관광 중심\n- 음식 탐방",
+    "questions": [{
+      "title": "예시 여행 계획에서 어떤 여행 방식을 선호하시나요?",
+      "options": ["휴식 중심", "관광 중심", "음식 탐방"]
+    }]
+  },
+  "serverRequestsObserved": [],
+  "hostUserInputObserved": false,
+  "turnStatus": "completed",
+  "limitations": ["accepted:true tool result was not observed", "no structured answer submission or provider answer receipt was possible", "the original report's fully invisible question was not reproduced; text was preserved"]
+}

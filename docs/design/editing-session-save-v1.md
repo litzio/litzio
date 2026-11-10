@@ -91,6 +91,23 @@ Text editing has no CLI command because it adds no document semantic operation.
 The shared Host remains stateless, using existing revision checks, temporary sibling
 and rename in `packages/file-commit`; no daemon, backend state or autosave is added.
 
+## Child-folder Trash (#1401)
+
+Folder Trash refuses while any descendant tab in this window has applied unsaved changes,
+property drafts or restored work. It names those documents and asks for Save first; it does
+not offer discard. Saved descendant tabs close only after a successful Host receipt. Local
+recovery cleanup captures record/writer generations and asks the Host to verify their actual
+filesystem membership before moving. It deletes only captured unchanged records and writers
+whose exact locators are in the successful Host receipt. Native realpath plus directory dev/ino
+handles junction aliases without merging NTFS `k` and `K`. Missing/unidentifiable paths,
+other Hosts, unrelated directories and newer record/writer generations remain untouched.
+All this window's Host recorders are suspended during the request, with surviving sessions
+resumed afterwards; no lexical prefix or case-folding authorizes folder cleanup. On refusal
+or an uncertain result, tabs/records remain available. Recovery
+storage failure after disk success remains visible. The CLI cannot inspect another window's
+drafts or clear its browser-local storage. Other windows follow the existing file-deletion
+boundary. [Explorer behavior](editor-ux-shell-v1.md#child-folder-trash-1401).
+
 ## File deletion and rename (#505 / #504 PR A)
 
 Confirmed file deletion closes its open tab, discards applied edits/property drafts and deletes

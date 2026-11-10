@@ -8,18 +8,52 @@ import { JOB_START_FAILURE_MESSAGES, JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BY
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 import { createAuthoredDocumentFile } from "../document-authoring.ts";
+import { JobHistory, retainJobHistory } from "./job-history.ts";
 
 type Record = { sourceRevision?: string; effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 class StartRefused extends Error {
   constructor(readonly reason: JobStartFailure) { super(JOB_START_FAILURE_MESSAGES[reason.kind] + (reason.path ? ` ${reason.path}` : "")); }
 }
-/** Daemon-lifetime observations only; no queue, scheduler or replay ledger. */
+/** Host-owned history; live observations never resume after restart. */
 export class PluginJobs {
   private records = new Map<string, Record>();
+  private archived = new Map<string, JobSnapshot>();
+  private history?: JobHistory;
+  private needsPersistence = false;
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
     private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string; errorKind?: PluginErrorKind }>,
     private effect: (name: string) => "read" | "write", private publishReview?: (plugin: string, root: string, file: string, source: string, data: unknown) => NonNullable<JobSnapshot["result"]>["bundle"],
-    private registerGenerated?: (plugin: string, job: string, root: string, source: string, file: string, revision: string, sourceRevision: string, inputs?: NonNullable<JobSnapshot["result"]>["inputs"]) => void) {}
+    private registerGenerated?: (plugin: string, job: string, root: string, source: string, file: string, revision: string, sourceRevision: string, inputs?: NonNullable<JobSnapshot["result"]>["inputs"]) => void,
+    historyFile?: string) {
+    if (historyFile) {
+      this.history = new JobHistory(historyFile);
+      for (const job of this.history.load()) {
+        if (job.state === "uncertain") Object.assign(job, this.failure({ kind: "unavailable" }, "write"));
+        this.archived.set(job.requestId, job);
+      }
+    }
+  }
+  private save() {
+    const liveRequestIds = new Set([...this.records.values()].filter(record => !record.detached).map(record => record.snapshot.requestId));
+    const jobs = retainJobHistory(this.snapshots(), liveRequestIds);
+    const retained = new Set(jobs.map(job => job.requestId));
+    for (const id of [...this.records.keys(), ...this.archived.keys()]) {
+      if (retained.has(id)) continue;
+      this.records.delete(id); this.archived.delete(id);
+    }
+    this.needsPersistence = true;
+    this.history?.save(jobs, liveRequestIds);
+    this.needsPersistence = false;
+  }
+  hasActive(plugin: string) {
+    return [...this.records.values()].some(record => record.snapshot.plugin === plugin && ["running", "uncertain"].includes(record.snapshot.state));
+  }
+  private checkResult(job: JobSnapshot) {
+    if (job.state !== "completed" || !job.result) throw new Error("Result is not available before completion");
+    const file = accessPath(job.result.path, this.access);
+    new RootAccess([accessPath(job.root, this.access)]).resolve(file);
+    if (!statSync(file).isFile() || createHash("sha256").update(readFileSync(file)).digest("hex") !== job.result.revision) throw new Error("Job result changed; inspect the current file before opening it");
+  }
   private async call(record: Record, operation: string) {
     const value = await this.invoke(`${record.snapshot.plugin}.${operation}`, record.input);
     if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
@@ -68,6 +102,8 @@ export class PluginJobs {
     }
     if (update.state !== "running") this.cleanup(record);
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
+    else if (update.state === "uncertain") record.finishedAt ??= Date.now();
+    else record.finishedAt = undefined;
     const failure = update.state === "failed" || update.state === "uncertain";
     Object.assign(current, { state: update.state, phase: failure ? (update.state === "failed" ? "Failed" : "Observation lost") : update.phase, progress: update.progress,
       ...(failure ? this.failure({ kind: update.errorKind }, update.state === "uncertain" && record.uncertainWrite ? "write" : effect) : { errorKind: undefined, error: undefined }) });
@@ -78,7 +114,7 @@ export class PluginJobs {
   }
   private observe(record: Record, operation: string) {
     // A streamed commit yields; serialize observations so Stop/status cannot publish twice.
-    return record.observations = (record.observations ?? Promise.resolve()).then(() => this.observeNow(record, operation));
+    return record.observations = (record.observations ?? Promise.resolve()).catch(() => {}).then(() => this.observeNow(record, operation)).finally(() => this.save());
   }
   private async observeNow(record: Record, operation: string) {
     if (record.detached || ["completed", "failed", "stopped"].includes(record.snapshot.state)) return;
@@ -98,6 +134,7 @@ export class PluginJobs {
       if (operation === record.binding.start && (failure.errorKind === "timeout" || (cause as { startContract?: boolean })?.startContract)) failure.error += " " + JOB_START_CONTRACT_MESSAGE;
       Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...failure,
         ...(operation === record.binding.start ? { startFailure: { kind: "start_failed" } } : {}) });
+      record.finishedAt ??= Date.now();
     }
   }
   private async startMany(input: { plugin: string; job: string; root: string; files: string[]; requestIds?: string[] }): Promise<{ files: BatchJobResult[]; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string } }> {
@@ -116,10 +153,11 @@ export class PluginJobs {
   }
   async execute(raw: unknown) {
     const input = jobRequestSchema.parse(raw);
+    if (this.needsPersistence) this.save();
     if (input.action === "job-start-many") return this.startMany(input);
     if (input.action === "job-list") return this.list(input.plugin);
     if (input.action === "job-start") {
-      if (this.records.has(input.requestId)) throw new Error("Duplicate requestId; query status instead");
+      if (this.records.has(input.requestId) || this.archived.has(input.requestId)) throw new Error("Duplicate requestId; query status instead");
       const binding = this.declaration(input.plugin, input.job);
       const root = accessPath(input.root, this.access);
       const boundary = new RootAccess([root]);
@@ -131,8 +169,10 @@ export class PluginJobs {
       if (!statSync(file).isFile() || !binding.accept.includes(path.extname(file).toLowerCase())) throw new StartRefused({ kind: "unsupported_input" });
       const desired = input.output ?? defaultJobOutput(binding, input.file);
       let output = accessPath(relative(desired, true), this.access, true);
-      const occupied = (candidate: string) => existsSync(candidate) || [...this.records.values()].some(record =>
-        (process.platform === "win32" ? record.input.output.toLowerCase() === candidate.toLowerCase() : record.input.output === candidate) && ["running", "uncertain"].includes(record.snapshot.state));
+      const occupied = (candidate: string) => existsSync(candidate) || this.snapshots().some(job => {
+        const output = job.output && path.join(job.root, job.output);
+        return output && (process.platform === "win32" ? output.toLowerCase() === candidate.toLowerCase() : output === candidate) && ["running", "uncertain"].includes(job.state);
+      });
       // Same -N convention as createImageAsset. No await before records.set: allocation
       // and reservation are atomic within this daemon, including parallel batches.
       for (let sequence = 2; occupied(output); sequence++) {
@@ -154,33 +194,47 @@ export class PluginJobs {
       }
       record.snapshot.output = path.relative(root, output).split(path.sep).join("/");
       this.records.set(input.requestId, record);
+      try { this.save(); }
+      catch (error) { this.records.delete(input.requestId); this.cleanup(record); throw error; }
       record.pending = this.observe(record, binding.start);
       await record.pending;
       return this.response(record, input.action);
     }
     const record = this.records.get(input.requestId);
-    if (!record) throw new Error("Unknown requestId on this daemon. Do not automatically restart the job.");
-    if (input.action === "job-result" && record.snapshot.state !== "completed") throw new Error("Result is not available before completion");
+    if (!record) {
+      const job = this.archived.get(input.requestId);
+      if (!job) throw new Error("Unknown requestId on this Host. Do not automatically restart the job.");
+      if (input.action === "job-result") this.checkResult(job);
+      return this.responseSnapshot(structuredClone(job), input.action);
+    }
+    if (input.action === "job-result") this.checkResult(record.snapshot);
     if (input.action === "job-stop") await this.stop(record);
     if (input.action === "job-status" && !record.snapshot.result && !record.detached && ["running", "uncertain"].includes(record.snapshot.state)) {
       await this.observe(record, record.binding.status);
     }
     return this.response(record, input.action);
   }
-  private snapshot(record: Record) {
-    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
+  private snapshot(record: Record): JobSnapshot {
+    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, finishedAt: record.finishedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
+  }
+  private snapshots() {
+    return [...this.archived.values(), ...[...this.records.values()].map(record => this.snapshot(record))].sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
   }
   list(plugin?: string) {
     jobRequestSchema.parse({ action: "job-list", ...(plugin ? { plugin } : {}) });
-    return { jobs: [...this.records.values()].filter(record => !plugin || record.snapshot.plugin === plugin).reverse().map(record => this.snapshot(record)),
+    return { jobs: structuredClone(this.snapshots().filter(job => !plugin || job.plugin === plugin)), ...(this.history?.warning ? { warning: this.history.warning } : {}),
       receipt: { requestId: randomUUID(), operation: "plugins.job-list", version: 1, scope: "host", outcome: "success" } };
   }
   private response(record: Record, action: string) {
-    return { job: this.snapshot(record), receipt: { requestId: record.snapshot.requestId, operation: `plugins.${action}`, version: 1, scope: record.snapshot.root, outcome: record.snapshot.state === "uncertain" ? "uncertain" : "success" } };
+    return this.responseSnapshot(this.snapshot(record), action);
+  }
+  private responseSnapshot(job: JobSnapshot, action: string) {
+    return { job, receipt: { requestId: job.requestId, operation: `plugins.${action}`, version: 1, scope: job.root, outcome: job.state === "uncertain" ? "uncertain" : "success" } };
   }
   private stop(record: Record) {
     if (!["running", "uncertain"].includes(record.snapshot.state)) return Promise.resolve();
     record.snapshot.stopRequested = true;
+    this.save();
     if (record.detached) return Promise.resolve();
     return record.stopping ??= this.observe(record, record.binding.stop);
   }
@@ -191,8 +245,10 @@ export class PluginJobs {
       record.detached = true;
       this.cleanup(record);
       record.uncertainWrite = true;
+      record.finishedAt ??= Date.now();
       Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...this.failure({ kind: "unavailable" }, "write") });
     }
+    this.save();
   }
   async close(plugin?: string) {
     const records = [...this.records.values()].filter(record => !plugin || record.snapshot.plugin === plugin);

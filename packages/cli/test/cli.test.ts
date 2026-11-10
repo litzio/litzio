@@ -27,7 +27,8 @@ import {
   numberingReport,
 } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
-import { runCli } from "../src/cli.ts";
+import { runCli, runCliAsync } from "../src/cli.ts";
+import { handleDocumentRequest } from "../../../apps/editor/server/document-api.ts";
 import { versionText } from "../src/version.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 
@@ -41,6 +42,51 @@ process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 
 after(() => rmSync(fixtures, { recursive: true, force: true }));
 const fixture = path.join(fixtures, "document.md");
+
+test("folder-trash CLI shares Host receipts, inspection and unavailable-trash refusal", async t => {
+  const root = path.join(fixtures, "folder-cli"); mkdirSync(root);
+  const child = path.join(root, "child"); mkdirSync(child);
+  writeFileSync(path.join(child, "keep.txt"), "keep");
+  let available = false;
+  let disconnect = false;
+  let calls = 0;
+  const server = createServer((req, res) => void handleDocumentRequest(req, res, () => res.end(), null, Infinity,
+    available ? target => { calls++; fs.renameSync(target, target + ".moved"); if (disconnect) req.socket.destroy(); } : undefined));
+  await listenForFetch(server);
+  t.after(() => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  const address = server.address() as { port: number };
+  const args = ["folder-trash", child, "--root", root, "--host", `http://127.0.0.1:${address.port}`, "--json"];
+  let stdout = "";
+  const originalWrite = process.stdout.write.bind(process.stdout);
+  t.mock.method(process.stdout, "write", (text: string | Uint8Array) => {
+    // Node's test runner sends binary IPC frames during awaited I/O; retain them.
+    if (typeof text !== "string") return originalWrite(text);
+    stdout += text; return true;
+  });
+  assert.equal(await runCliAsync(args), 1);
+  assert.equal(JSON.parse(stdout).receipt.source, "unchanged");
+  available = true; stdout = "";
+  assert.equal(await runCliAsync([...args, "--check"]), 0);
+  assert.equal(JSON.parse(stdout).fileCount, 1);
+  const confirmedRevision = JSON.parse(stdout).revision;
+  assert.equal(fs.existsSync(child), true);
+  writeFileSync(path.join(child, "keep.txt"), "updated"); stdout = "";
+  assert.equal(await runCliAsync([...args, "--revision", confirmedRevision]), 1);
+  assert.equal(JSON.parse(stdout).receipt.outcome, "refused");
+  assert.equal(calls, 0, "a stale CLI confirmation never reaches the adapter");
+  stdout = "";
+  assert.equal(await runCliAsync(args), 0);
+  assert.equal(JSON.parse(stdout).receipt.source, "moved");
+  assert.equal(readFileSync(path.join(root, "child.moved", "keep.txt"), "utf8"), "updated");
+  mkdirSync(child); writeFileSync(path.join(child, "keep.txt"), "interrupted");
+  fs.renameSync(path.join(root, "child.moved"), path.join(root, "first-move"));
+  disconnect = true; stdout = "";
+  assert.equal(await runCliAsync(args), 1);
+  assert.equal(JSON.parse(stdout).receipt.outcome, "uncertain");
+  assert.equal(calls, 2, "an interrupted mutation must not be replayed");
+  assert.equal(readFileSync(path.join(root, "child.moved", "keep.txt"), "utf8"), "interrupted");
+  t.mock.restoreAll();
+});
 
 test("direct CLI edits warn for Host-managed generated documents and still save normally", () => {
   const file = path.join(fixtures, "managed.md"); writeFileSync(file, nativeSource("# Imported\n"));
@@ -653,7 +699,7 @@ test("litzio help exits successfully", () => {
     }
     const help = args.length === 0 ? result.stderr : result.stdout;
     const expectedGroups: Record<string, string[]> = {
-      "Create and inspect": ["compare", "create", "inspect", "templates"],
+      "Create and inspect": ["compare", "create", "folder-trash", "inspect", "templates"],
       "Check": ["check"],
       "Edit — batch": ["apply-batch"],
       "Edit — insert blocks": ["insert-block", "insert-heading", "insert-admonition", "insert-quote", "insert-divider", "insert-equation", "insert-figure", "insert-list", "insert-code-block"],

@@ -1,4 +1,4 @@
-// Browser Host hides the OS action; a Desktop capability enables root and child menus.
+// Folder menus are common; only the Desktop capability enables the OS Explorer action.
 async (page, { openFolderPicker, screenshots = false, expect }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const source = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/document', { headers: { Connection: "close" } })).json();
@@ -12,10 +12,18 @@ async (page, { openFolderPicker, screenshots = false, expect }) => {
   };
   await open();
   const folder = page.getByTestId('folder');
+  const closeMenu = async () => {
+    await page.getByRole('menu').and(page.locator(':focus-within')).waitFor();
+    await page.keyboard.press('Escape');
+    await page.getByRole('menu').waitFor({state:'hidden'});
+  };
   await folder.getByRole('button', {name:'More actions', exact:true}).click();
   await expect(page.getByRole('menuitem', {name:'Open in File Explorer', exact:true})).toHaveCount(0);
-  await page.keyboard.press('Escape');
-  await expect(folder.getByRole('button', {name:'More actions for guides', exact:true})).toHaveCount(0);
+  await closeMenu();
+  await folder.getByRole('button', {name:'More actions for guides', exact:true}).click();
+  await expect(page.getByRole('menuitem', {name:'Open in File Explorer', exact:true})).toHaveCount(0);
+  await expect(page.getByRole('menuitem', {name:'Delete folder…', exact:true})).toHaveAttribute('aria-disabled','true');
+  await closeMenu();
   await page.addInitScript(() => {
     window.__explorer = { calls: [], roots: [], fail: false };
     window.litzioDesktop = {

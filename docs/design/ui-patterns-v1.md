@@ -109,6 +109,15 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 
 ## P07 입력 오류와 알림 센터
 
+#1439 K1 이력 손상 경고는 PluginJobs·PluginJobPanel 모두 기존 폼 문맥의
+`Notice tone="error"`와 지역화 문구를 사용한다. 원본 보존·빈 이력 시작을 알리며
+새 알림 표면·control·토큰 예외는 없다([K1 보존 계약](plugin-stage1-v1.md#host-작업-이력-보존-1439)).
+
+#1424의 [비서 상단 상태](main-agent-v1.md#assistant-button-status-1424)는 기존 Button·Tooltip과
+상태 토큰을 사용한다. 닫힌 패널의 작업·읽지 않은 완료·확인/답변 필요를 작은 모양과
+접근성 이름으로 구별한다. 완료는 패널을 열어 확인하며, 질문과 실패의 실제 복구 동작은
+비서 패널에 남는다. 알림 센터·OS 알림·소리로 복제하지 않는다.
+
 #1292 비서 공통 작업 환경·공급자 진단은 일반 label/값에 UI 14/20,
 경로·프로토콜에 mono metadata 12/16을 사용한다. 공급자 연결 실패와 설정 요청 실패는
 기존 `Notice tone="error"`로 표시하며 특정 입력의 오류로 재분류하지 않는다.
@@ -298,6 +307,11 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 `aria-pressed` 토글이며 필수 단일 선택 ChoiceGroup으로 바꾸지 않는다. 확인 버튼은 원본 이미지
 바깥에 두고 저장 중·실패는 기존 review status/Notice를 쓴다. [현재 대조 계약](plugin-stage1-v1.md#연속-원본-대조-1435)을 따른다.
 
+#1401의 하위 폴더 삭제는 기존 ContextMenu·DropdownMenu의 같은 대상별 행동 목록과
+danger 항목을 공유한다. 휴지통 미지원 항목은 실행을 막고 hover·focus Tooltip으로 이유를
+설명한다. 트리의 단일 Tab 정지점을 유지하며 키보드는 기존 Shift+F10/Menu 경로를 쓴다.
+U23 폴더 메뉴와 U24 파일 삭제를 함께 대조했고, 다른 메뉴를 위한 새 registry나 interaction은
+추가하지 않았다. [현재 계약·검증](editor-ux-shell-v1.md#child-folder-trash-1401).
 
 비서 입력창의 `@` 파일 후보와 `/` Codex 스킬 후보는 같은 inline listbox,
 Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시하고 선택하면
@@ -362,6 +376,14 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 기존 버튼으로 시작한다([계약·전후 캡처](main-agent-v1.md#last-conversation-and-history-list-974)).
 
 ## P12 모달·파일·복구·설정 범위
+
+#1401은 U23의 폴더 메뉴에서 U24의 기존 DangerConfirmation을 연다. 일반 파일 삭제,
+생성 Undo와 Settings의 복구 삭제·Host 제거에서 쓰는 Cancel 초기 focus·pending 방지·
+살아남는 항목으로 복귀를 유지한다. 폴더는 미저장 문서를 버리는 선택 없이 저장을 요구한다.
+저장된 탭·복구 정리는 성공 receipt 뒤에만 수행하고 실패·불확실 결과는 보존한다.
+한국어 다크 1440/640px 캡처를 수동 검토했고, `file-actions`·`recovery-storage`에서
+취소·미저장 거부·저장 후 닫기와 Host/폴더 경계의 복구 정리를 확인했다.
+[현재 계약·캡처](editor-ux-shell-v1.md#child-folder-trash-1401).
 
 - **#1285 현재 구현·검증:** 설정 → 저장·복구의 [앱 초기화](app-reset-v1.md)는 기존 Settings·`DangerConfirmation`을 재사용한다. U16의 복구 삭제 및 Host 제거와 같은 Cancel 초기 focus·복귀를 유지하며, 삭제/유지 범위와 실제 경로·빈 폴더 옵션은 확인 모달 안에 둔다. 기존 일반 파일 삭제/복구의 의미는 바꾸지 않는다. 로컬 browser의 native bridge stand-in으로 확인/취소·실제 Editor pending-work 거부 연결을 검사하고 1440px Light·640px 한국어 Dark 캡처를 검토했다. 실제 파일 삭제/종료는 별도 fixture/helper 계층, 실제 Electron 경로는 Windows CI에 둔다.
 
@@ -769,3 +791,17 @@ description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장�
 | 연결 설정 | PluginSettings, 표시 이름·설정·비밀키·연결 확인 | [설정 계약](plugin-stage1-v1.md)과 [UI 결정표](ui-decision-table-v1.md) |
 
 제목은 대상을 식별하고 설명은 목적·조건을 보충하여 같은 뜻을 반복하지 않는다. 현재 단계의 주 행동은 동사로 명확히 표시한다. 필수 입력은 보이고 드문 선택 조건은 접되 적용값을 요약한다([입력 접기](plugin-screens-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370)). 비활성 버튼에는 이유와 해결 행동을 알린다. 표는 조회 시점과 조회 범위를 알린다([결과 범위](plugin-stage1-v1.md#플러그인-조회-표-열과-결과-범위-1351)). 개발용 식별자는 표시 이름으로 쓰지 않는다. 같은 작업 유형은 같은 저장·오류·완료 행동을 따르며, 개별 플러그인에서 배치·저장 경로나 오류 행동을 재구현하지 않는다. 치수·토큰 및 기존 P01–P12 규칙은 위 연결을 그대로 따른다.
+
+## 비서의 읽기 위치와 작업 과정 (#1436/#1440)
+
+기존 도킹 패널·native details/summary·outline sm Button·Lucide ArrowDown을 재사용한다.
+대화·제출·상단 상태의 소유자는 그대로이며, 화면 내부의 접힘·스크롤 추적만 추가한다.
+작업 과정은 진행 중에도 접히고 머리에 현재 단계만 짧게 표시한다. 질문·선택지와 필요한
+사용자 행동은 항상 과정 밖에 남긴다. 새 내용은 읽던 위치를 덮어쓰지 않으며 하단 이동을
+명시적으로 제공한다. 공용 조회 폼의 접기(#1370)처럼 입력을 숨기는 방식은 적용하지 않는다.
+상단 비서 버튼(#1424)의 답변 필요 우선순위와 기존 AssistantQuestion을 함께 확인한다.
+
+같은 UI 선택은 기존 U22 설정의 Button/Tooltip 및 패널의 native details와 대조했다.
+공통 palette·spacing·control 치수 예외는 없다. 제품 동작·시각 근거 및 별도 서버 문제인
+#1443의 진단 범위는 [비서 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440)을 따른다.
+캡처는 localhost 합성이며 소유자 시각 승인을 대신하지 않는다.

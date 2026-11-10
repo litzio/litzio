@@ -94,6 +94,9 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   "inline-document-settings": { files: [{ name: "short.md", create: () => nativeSource(
     "# Short settings\n\n## Section\n\nFirst paragraph.\n\n| Name | Value |\n| --- | --- |\n| A | 1 |\n") }], scenarios: ["inline-document-settings"] },
   "file-actions": { files: [
+    { name: "trash-target/inside.md", create: () => nativeSource("# Inside folder\n\nKeep my work.\n") },
+    { name: "trash-target/image.svg", create: () => document("diagram.svg").create() },
+    { name: "trash-reference.md", create: () => nativeSource(":::{figure} ./trash-target/image.svg\n\nFolder image.\n:::\n") },
     { name: "a.md", create: () => nativeSource("# File actions\n\nAlpha.\n") },
     { name: "b.md", create: () => nativeSource("# Second\n\nBeta.\n") },
     { name: "race-delete.md", create: () => nativeSource("# Delete race\n\nPending.\n") },

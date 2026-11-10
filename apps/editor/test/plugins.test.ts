@@ -1,8 +1,11 @@
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { canonicalFilePath } from "../server/file-access.ts";
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
 import { rowSchema, completedReviewSchema } from "@litzio/plugin-sdk";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
@@ -264,14 +267,64 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ProviderConnections } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
-test("Codex management runs without approval and exposes activity in the existing tool result", async () => {
+test("Codex plugin tools share Host reads, enforce turn permission and restore metadata-only activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-activity-"));
-  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
-  const host = new PluginHost(path.join(root, "plugins.json"));
+  const log = path.join(root, "provider.jsonl"), secret = "synthetic-plugin-tool-PAT-private";
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] }, undefined, { packaged: false, checkoutRoot: root });
+  const host = new PluginHost(path.join(root, "plugins.json"), { secrets: { supported: true, async read() { return secret; }, async set() {}, async status() { return true; }, async delete() {} } });
   const conversations = new AssistantConversations(connection, new RootAccess([root]), host);
   try {
     const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+    const directory = lifecycleFixture(root, "fixture.lookup", `export function activate(c){return {operations:{
+      read:({mode})=>{if(mode==='auth')throw Object.assign(Error(c.secrets.pat),{kind:'auth'});if(mode==='invalid')return 7;return mode==='empty'?[]:['output-only-marker',c.secrets.pat]},
+      echo:()=>({[c.secrets.pat]:'echoed as key',value:c.secrets.pat}),
+      nested:()=>[{safe:{['prefix-'+c.secrets.pat+'-suffix']:[{value:c.secrets.pat}]}}],
+      connection:()=>({ok:true,message:'Connected'}), hidden:()=>{throw Error('must not run')}, write:()=>{throw Error('must not run')}
+    },status:()=>({available:true,message:'Ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+    const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+    const operation = { version: 1, scope: "host", effect: "read", inputSchema: { type: "object" }, outputSchema: {} };
+    manifest.requiresSdk = ">=0.4.0 <1.0.0";
+    manifest.secrets = [{ id: "pat", title: "Access token", scope: "connection", required: true }];
+    manifest.contributes = { healthCheck: "connection", operations: [
+      { ...operation, id: "read", assistant: true, inputSchema: { type: "object", properties: { mode: { type: "string" }, query: { type: "string" } }, required: ["mode"], additionalProperties: false }, outputSchema: { type: "array", items: { type: "string" } } },
+      { ...operation, id: "connection", outputSchema: { type: "object" } }, { ...operation, id: "hidden" }, { ...operation, id: "write", effect: "write", assistant: true },
+      { ...operation, id: "echo", assistant: true, outputSchema: { type: "object", additionalProperties: { type: "string" } } },
+      { ...operation, id: "nested", assistant: true, outputSchema: { type: "array", items: { type: "object" } } },
+    ] };
+    writeFileSync(manifestFile, JSON.stringify(manifest));
+    await host.invoke("register", { directory });
+    await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId });
+    await host.invoke("enable", { id: manifest.id });
     const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
+    const start = readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).find(entry => entry.method === "thread/start");
+    assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "invoke_plugin_operation"));
+    const invoke = async (operation: string, input: unknown, id = conversation.id) => {
+      const response: any = await connection.client.request("fixture/tool", { threadId: id, tool: "invoke_plugin_operation", arguments: { operation, input } });
+      return { success: response.result.success, ...JSON.parse(response.result.contentItems[0].text) };
+    };
+    const health = await invoke("fixture.lookup.connection", {});
+    assert.equal(health.success, true); assert.deepEqual(health.result, { ok: true, message: "Connected" });
+    const read = await invoke("fixture.lookup.read", { mode: "success", query: "input-only-marker" });
+    assert.equal(read.success, true); assert.deepEqual(read.result, ["output-only-marker", "[secret]"]);
+    assert.equal(read.receipt.scope, "host"); assert.equal(read.receipt.outcome, "success");
+    const empty = await invoke("fixture.lookup.read", { mode: "empty" });
+    assert.equal(empty.success, true); assert.deepEqual(empty.result, []);
+    const auth = await invoke("fixture.lookup.read", { mode: "auth" });
+    assert.equal(auth.success, false); assert.equal(auth.errorKind, "auth"); assert.equal(auth.receipt.outcome, "failure");
+    for (const name of ["echo", "nested"]) {
+      const refused = await invoke(`fixture.lookup.${name}`, {});
+      assert.equal(refused.success, false, "Secret-bearing dynamic keys must not reach the provider");
+      assert.equal(refused.errorKind, "failed"); assert.equal(refused.receipt.outcome, "failure");
+      assert.ok(!("result" in refused)); assert.equal(JSON.stringify(refused).includes(secret), false);
+    }
+    for (const name of ["hidden", "write"]) {
+      const denied = await invoke(`fixture.lookup.${name}`, {});
+      assert.equal(denied.success, false); assert.equal(denied.errorKind, "forbidden"); assert.equal(denied.activity.outcome, "refused");
+    }
+    for (const input of [{ mode: "invalid" }, { mode: 1 }]) {
+      const invalid = await invoke("fixture.lookup.read", input);
+      assert.equal(invalid.success, false); assert.equal(invalid.errorKind, "failed"); assert.ok(!("result" in invalid));
+    }
     for (const action of ["list", "scaffold", "reload"]) {
       const response: any = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: action === "list" ? { action } : action === "scaffold" ? { action, directory: path.join(root, "scaffolded"), id: "local.fixture" } : { action, id: "missing.plugin" } });
       assert.equal(conversations.current(conversation.id).userInput, undefined);
@@ -282,6 +335,22 @@ test("Codex management runs without approval and exposes activity in the existin
     await connection.client.request("fixture/finish", { threadId: conversation.id });
     const restored = await conversations.resume(conversation.id, settings);
     assert.ok(restored.turns.flatMap(t => t.items).some(item => item.text === "plugins.reload (missing.plugin): failure"));
+    const activity = restored.turns.flatMap(t => t.items).filter(item => item.text.startsWith("invoke_plugin_operation"));
+    assert.ok(activity.some(item => item.text.includes("fixture.lookup.read") && item.status === "failed"));
+    const recorded = JSON.stringify(activity);
+    assert.match(recorded, /requestId/);
+    assert.ok(activity.every(item => Number.isFinite(JSON.parse(item.toolResult!.contentItems[0]!.text!).activity.at)));
+    assert.doesNotMatch(recorded, /input-only-marker|output-only-marker|synthetic-plugin-tool-PAT-private/);
+    assert.equal(readFileSync(log, "utf8").includes(secret), false);
+    const readOnly = { ...settings, permissionMode: "read-only" as const };
+    const restricted = await conversations.send({ message: "Inspect only", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, readOnly, "window-a");
+    for (const name of ["read", "connection"]) {
+      const denied = await invoke(`fixture.lookup.${name}`, { mode: "success" }, restricted.id);
+      assert.equal(denied.success, false); assert.equal(denied.errorKind, "forbidden"); assert.equal(denied.activity.outcome, "refused");
+    }
+    await connection.client.request("fixture/finish", { threadId: restricted.id });
+    await host.invoke("disable", { id: manifest.id });
+    await assert.rejects(host.invokeAssistantOperation("fixture.lookup.read", { mode: "success" }), (error: any) => error.kind === "unavailable");
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -646,11 +715,18 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
 
 test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh reload", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-"));
-  const host = new PluginHost(path.join(root, "state.json")), directory = path.join(root, "greeting"), id = "local.greeting";
+  const documents = path.join(root, "documents"); mkdirSync(documents);
+  const authoringDirectory = path.join(root, "data", "plugins"), id = "local.greeting", directory = path.join(authoringDirectory, id);
+  const access = new RootAccess([documents]);
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory });
   const activity: any[] = [];
-  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
+  const scope = { folders: null, access, permissionMode: "opened-folders" };
   try {
-    await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
+    const created = await executePluginTool(host, { action: "scaffold", id }, e => activity.push(e), scope);
+    assert.equal(created.activity.outcome, "success");
+    assert.ok("result" in created);
+    assert.equal((created.result as any).directory, canonicalFilePath(directory));
+    await assert.rejects(host.invoke("scaffold", { id }), /EEXIST/);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
     assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.4.0 <1.0.0");
     assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
@@ -777,7 +853,8 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
   mkdirSync(allowed); mkdirSync(opened);
   const access = new RootAccess([allowed]);
   const assistant = createPluginService(access, path.join(root, "plugins.json"));
-  const host = new PluginHost(path.join(root, "turn-plugins.json"), { access });
+  const authoringDirectory = path.join(root, "data", "plugins");
+  const host = new PluginHost(path.join(root, "turn-plugins.json"), { access, authoringDirectory });
   const scope = { access, folders: new RootAccess([opened]), permissionMode: "opened-folders" };
   const activities: unknown[] = [];
   try {
@@ -792,10 +869,167 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
     await attempt(path.join(opened, "readonly"), { ...scope, permissionMode: "read-only" });
     await attempt(path.join(opened, "no-scope"), undefined);
     await attempt(outside, { ...scope, permissionMode: "full-access" });
+    for (const turnScope of [undefined, { ...scope, folders: null, permissionMode: "read-only" }, { ...scope, folders: null, permissionMode: "full-access" }]) {
+      const denied = await executePluginTool(host, { action: "scaffold", id: "local.denied" }, () => {}, turnScope);
+      assert.equal(denied.activity.outcome, "failure");
+      assert.equal(existsSync(path.join(authoringDirectory, "local.denied")), false);
+    }
+    const defaultResult = await executePluginTool(host, { action: "scaffold", id: "local.default" }, () => {}, scope);
+    assert.equal(defaultResult.activity.outcome, "success");
+    assert.ok("result" in defaultResult);
+    assert.equal((defaultResult.result as any).directory, canonicalFilePath(path.join(authoringDirectory, "local.default")));
+    await assert.rejects(host.invoke("scaffold", { directory: path.join(authoringDirectory, "explicit"), id: "local.explicit" }), /outside/);
+
     const directory = path.join(opened, "valid");
     const result = await executePluginTool(host, { action: "scaffold", directory, id: "local.valid" }, e => activities.push(e), scope);
     assert.equal(result.activity.outcome, "success"); assert.equal(existsSync(path.join(directory, "host.js")), true);
   } finally { await assistant.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("default scaffold rejects an existing plugins junction before writing outside its directory", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-junction-"));
+  const data = path.join(root, "data"), outside = path.join(root, "outside"), documents = path.join(root, "documents");
+  for (const directory of [data, outside, documents]) mkdirSync(directory);
+  const directory = path.join(data, "plugins"), id = "local.escape";
+  t.after(() => {
+    // Only exact fixture files and empty directories; never traverse a junction for cleanup.
+    if (existsSync(directory)) rmSync(directory);
+    for (const target of [data, outside]) {
+      const artifact = path.join(target, id);
+      if (existsSync(artifact)) {
+        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+        rmdirSync(artifact);
+      }
+    }
+    for (const folder of [documents, outside, data, root]) rmdirSync(folder);
+  });
+  const access = new RootAccess([documents]);
+  for (const target of [data, outside]) {
+    symlinkSync(target, directory, process.platform === "win32" ? "junction" : "dir");
+    const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: directory });
+    try {
+      const result = await executePluginTool(host, { action: "scaffold", id }, () => {}, { access, folders: null, permissionMode: "opened-folders" });
+      assert.equal(result.activity.outcome, "failure");
+      assert.equal(existsSync(path.join(target, id)), false);
+      await assert.rejects(host.invoke("scaffold", { id }), /link/);
+    } finally { await host.close(); rmSync(directory); }
+  }
+  mkdirSync(directory);
+  const leaf = path.join(directory, id);
+  symlinkSync(outside, leaf, process.platform === "win32" ? "junction" : "dir");
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: directory });
+  try {
+    await assert.rejects(host.invoke("scaffold", { id }), /outside/);
+    assert.equal(existsSync(path.join(outside, "host.js")), false);
+  } finally { await host.close(); rmSync(leaf); rmdirSync(directory); }
+});
+
+test("authoring refuses deterministic junction replacements between checking and use", async t => {
+  for (const phase of ["sandbox-stat", "root-adoption", "after-mkdir", "after-write"]) await t.test(phase, async t => {
+    const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-swap-")));
+    const data = path.join(root, "data"), plugins = path.join(data, "plugins"), templates = path.join(data, "templates"), outside = path.join(root, "outside");
+    for (const folder of [data, plugins, templates, outside]) mkdirSync(folder);
+    const id = "local.swap", artifact = path.join(plugins, id), held = path.join(root, "held");
+    const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: plugins });
+    let swapped = false, rootReads = 0;
+    const swap = (directory: string, target: string) => {
+      fs.renameSync(directory, held);
+      symlinkSync(target, directory, process.platform === "win32" ? "junction" : "dir");
+      swapped = true;
+    };
+    const lstat = fs.lstatSync, realpath = process.platform === "win32" ? fs.realpathSync.native : fs.realpathSync, mkdir = fs.mkdirSync, write = fs.writeFileSync;
+    const adoptRoot = (...args: any[]) => {
+      // The first two plugin realpath reads are prechecks; the third adopts RootAccess.
+      if (args[0] === plugins && ++rootReads === 3 && !swapped) swap(plugins, outside);
+      return Reflect.apply(realpath, fs, args);
+    };
+    const replacement = phase === "sandbox-stat" ? t.mock.method(fs, "lstatSync", ((...args: any[]) => {
+      const stat = Reflect.apply(lstat, fs, args);
+      if (args[0] === plugins && !swapped) swap(plugins, templates);
+      return stat;
+    }) as typeof fs.lstatSync) : phase === "root-adoption" ? process.platform === "win32"
+      ? t.mock.method(fs.realpathSync, "native", adoptRoot as typeof fs.realpathSync.native)
+      : t.mock.method(fs, "realpathSync", adoptRoot as typeof fs.realpathSync)
+    : phase === "after-mkdir" ? t.mock.method(fs, "mkdirSync", ((...args: any[]) => {
+      const result = Reflect.apply(mkdir, fs, args);
+      if (args[0] === artifact && !swapped) swap(artifact, outside);
+      return result;
+    }) as typeof fs.mkdirSync) : t.mock.method(fs, "writeFileSync", ((...args: any[]) => {
+      const result = Reflect.apply(write, fs, args);
+      if (path.dirname(String(args[0])) === artifact && !swapped) swap(artifact, outside);
+      return result;
+    }) as typeof fs.writeFileSync);
+    syncBuiltinESMExports();
+    try {
+      if (phase === "sandbox-stat") assert.equal(host.authoringPath(), undefined);
+      else await assert.rejects(host.invoke("scaffold", { id }));
+      assert.equal(swapped, true, "the real directory must be replaced at the intended boundary");
+      assert.equal(existsSync(path.join(outside, "host.js")), false);
+      assert.equal(existsSync(path.join(outside, id, "host.js")), false);
+      if (phase === "after-write") assert.equal(existsSync(path.join(held, "litzio-plugin.json")), true, "failure must leave the created file for inspection");
+    } finally {
+      replacement.mock.restore(); syncBuiltinESMExports(); await host.close();
+      // Remove only this fixture's links, known files and empty directories.
+      const link = phase === "sandbox-stat" || phase === "root-adoption" ? plugins : artifact;
+      if (swapped) rmSync(link);
+      for (const folder of [path.join(outside, id), outside, held, artifact]) {
+        if (!existsSync(folder)) continue;
+        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) {
+          const target = path.join(folder, file); if (existsSync(target)) rmSync(target);
+        }
+        rmdirSync(folder);
+      }
+      for (const folder of [plugins, templates, data, root]) if (existsSync(folder)) rmdirSync(folder);
+    }
+  });
+});
+
+test("authoring accepts aliases above the data folder and validates canonical and configured paths", async t => {
+  const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-parent-")));
+  const data = path.join(root, "real-data"), alias = path.join(root, "data-alias"), documents = path.join(root, "documents");
+  mkdirSync(data); mkdirSync(documents);
+  symlinkSync(data, alias, process.platform === "win32" ? "junction" : "dir");
+  const configured = path.join(process.platform === "win32" ? alias.toUpperCase() : alias, "plugins");
+  const expected = path.join(canonicalFilePath(data), "plugins"), id = "local.alias", artifact = path.join(expected, id);
+  const access = new RootAccess([documents]);
+  const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: configured });
+  t.after(async () => {
+    await host.close(); rmSync(alias);
+    if (existsSync(artifact)) {
+      for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+      rmdirSync(artifact);
+    }
+    if (existsSync(expected)) rmdirSync(expected);
+    for (const folder of [documents, data, root]) rmdirSync(folder);
+  });
+  assert.equal(host.authoringPath(), expected);
+  assert.equal(existsSync(expected), false);
+  const created = await executePluginTool(host, { action: "scaffold", id }, () => {}, { access, folders: null, permissionMode: "opened-folders" });
+  assert.equal(created.activity.outcome, "success"); assert.ok("result" in created);
+  assert.equal((created.result as any).directory, artifact);
+  for (const directory of [artifact, path.join(configured, id)]) {
+    assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
+  }
+});
+
+test("read-only validation never creates a missing plugins directory or its data parent", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-readonly-"));
+  const data = path.join(root, "missing-data"), directory = path.join(data, "plugins");
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: directory });
+  t.after(async () => {
+    await host.close();
+    if (existsSync(directory)) rmdirSync(directory);
+    if (existsSync(data)) rmdirSync(data);
+    rmdirSync(root);
+  });
+  const result = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
+  assert.equal(result.activity.outcome, "failure");
+  assert.equal(existsSync(directory), false);
+  assert.equal(existsSync(data), false);
+  mkdirSync(data);
+  const existingData = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
+  assert.equal(existingData.activity.outcome, "failure");
+  assert.equal(existsSync(directory), false);
 });
 
 test("validation diagnostics never expose source values through Host, assistant, CLI or logs", async t => {
@@ -838,8 +1072,12 @@ test("validation diagnostics never expose source values through Host, assistant,
 
 
 test("short secrets preserve keys and leave the plugin scope on replacement, deletion and unregister", async () => {
-  const { safePluginValue } = await import("../server/plugins/secret-redaction.ts");
+  const { assertNoPluginSecrets, safePluginValue } = await import("../server/plugins/secret-redaction.ts");
   assert.deepEqual(safePluginValue({ id: "id", defaultCandidate: ["secret-long", "a.b"] }, ["id", "secret", "secret-long", "a.b"]), { id: "[secret]", defaultCandidate: ["[secret]", "[secret]"] });
+  // Keep key names intact, but refuse publication if a key or non-string scalar
+  // still contains an actual secret, including characters escaped in JSON text.
+  for (const [value, secret] of [[{ id: "safe" }, "id"], [{ outer: [{ 'quoted"key': "safe" }] }, 'quoted"key'], [[123], "123"], [true, "true"], [null, "null"]] as const)
+    assert.throws(() => assertNoPluginSecrets(safePluginValue(value, [secret]), [secret]), /Plugin result contains a secret/);
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-redaction-scope-")), values = new Map<string, string>();
   const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) values.delete(key); } };
   const host = new PluginHost(path.join(root, "state.json"), { secrets: store });

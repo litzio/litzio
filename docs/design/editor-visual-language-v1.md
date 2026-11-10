@@ -120,7 +120,7 @@ References read like links without box/fill: content-link color, underline on ho
 
 Settings → Appearance & language, the footer toggle beside Settings, and two Command Center choices share Light / Dark (#1042). With no saved choice, startup resolves the OS theme once and stores that explicit choice. Later OS changes do not change it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles. Images retain original pixels; KaTeX inherits text.
 
-User theme changes use a short 160ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
+User and assistant theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
 
 External blocking [theme-init.js](../../apps/editor/public/theme-init.js) resolves theme/page before styles/app bundle; it temporarily sets native `color-scheme` without duplicating colors. Runtime applies theme/accent before React UI. [Desktop appearance](desktop-distribution-v1.md#appearance-595) owns native resolution/bridge and first-window background; no Host theme persistence is added.
 
@@ -137,6 +137,13 @@ Destructive Buttons use danger text/border on `surface`, then `surface-danger` o
 Controls/overlays change state without decorative transitions, pressed movement or enter/exit animation. Save retains its reduced-motion-aware progress spinner; theme changes have the whole-screen exception above. Action menu rows use shared line icons/text/separators; destructive rows use danger text/icons and enabled `surface-danger` hover. Disabled rows have no hover fill. [Menu behavior](editor-ux-shell-v1.md#unified-action-menus-516) and [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) own roles/navigation.
 
 ## State rules
+
+The [assistant button status](main-agent-v1.md#assistant-button-status-1424) (#1424)
+uses the existing 6px `agent-dot` slot as an absolute decoration inside the ghost
+button: outlined `text-muted` circle for work, filled accent circle for unread
+completion, warning square for attention. Shape and localized Tooltip/accessibility
+name supplement color. The indicator reserves no layout space, introduces no
+animation, and does not change the control variant or size.
 
 These are independent axes. Visual interactions never write document attributes.
 

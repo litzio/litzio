@@ -200,9 +200,13 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   assert.equal(await runCliAsync(["plugins", "scaffold", "C:/host/greeting", "--id", "local.greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.equal(await runCliAsync(["plugins", "validate", "C:/host/greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.deepEqual(bodies, [{ action: "scaffold", directory: "C:/host/greeting", id: "local.greeting" }, { action: "validate", directory: "C:/host/greeting" }]);
+  await runCliAsync(["plugins", "scaffold", "--id", "local.default", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.deepEqual(bodies.at(-1), { action: "scaffold", id: "local.default" });
   for (const template of ["greet", "query", "file"]) {
     await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", template, "--host", "http://127.0.0.1:5180", "--json"]);
     assert.deepEqual(bodies.at(-1), { action: "scaffold", directory: "C:/host/example", id: "local.example", template });
+    await runCliAsync(["plugins", "scaffold", "--id", "local.example", "--template", template, "--host", "http://127.0.0.1:5180", "--json"]);
+    assert.deepEqual(bodies.at(-1), { action: "scaffold", id: "local.example", template });
   }
   const count = bodies.length;
   await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", "unknown", "--host", "http://127.0.0.1:5180", "--json"]);
