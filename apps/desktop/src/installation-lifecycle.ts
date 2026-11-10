@@ -3,6 +3,41 @@ import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { daemonDirectory, readDaemonRecord, type DaemonRecord } from "../../editor/server/daemon-state.ts";
 
+/** Private WM_APP intent, followed by ordinary WM_CLOSE (also works with pre-tray builds). */
+export const INSTALLATION_CLOSE_MESSAGE = 0x8148;
+
+// MainWindowHandle omits hidden windows. Enumerate the same top-level Electron windows
+// for both discovery and close; no title/visibility dependency and no image-name termination.
+const windowApi = `Add-Type @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class DesktopWindows {
+  delegate bool EnumProc(IntPtr h, IntPtr p);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr p);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder name, int size);
+  [DllImport("user32.dll", SetLastError=true)] static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
+  [DllImport("user32.dll", SetLastError=true)] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+  public static IntPtr[] Find(uint owner) {
+    var found = new List<IntPtr>();
+    EnumWindows((h, p) => { uint pid; GetWindowThreadProcessId(h, out pid);
+      var name = new StringBuilder(256); GetClassName(h, name, name.Capacity);
+      if (pid == owner && name.ToString() == "Chrome_WidgetWin_1") found.Add(h);
+      return true;
+    }, IntPtr.Zero);
+    return found.ToArray();
+  }
+  public static void Close(IntPtr h) {
+    IntPtr result;
+    if (SendMessageTimeout(h, ${INSTALLATION_CLOSE_MESSAGE}, IntPtr.Zero, IntPtr.Zero, 2, 2000, out result) == IntPtr.Zero)
+      throw new Exception("Desktop installation exit intent was not delivered.");
+    if (!PostMessage(h, 0x0010, IntPtr.Zero, IntPtr.Zero)) throw new Exception("Desktop WM_CLOSE was not delivered.");
+  }
+}
+'@; `;
+
 export type InstalledProcess = { pid: number; started: string; command: string; window: boolean; executable?: string };
 export interface InstallationPort {
   processes(): InstalledProcess[];
@@ -26,8 +61,8 @@ export function installationPort(executable: string): InstallationPort {
   };
   return {
     processes: () => JSON.parse(ps(
-      "$name = $inputText; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq $name } | ForEach-Object { " +
-      "@{ pid = $_.ProcessId; executable = $_.ExecutablePath; started = [string]$_.CreationDate.ToUniversalTime().Ticks; command = $_.CommandLine; window = ((Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue).MainWindowHandle -ne 0) } })", path.basename(executable)))
+      windowApi + "$name = $inputText; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq $name } | ForEach-Object { " +
+      "@{ pid = $_.ProcessId; executable = $_.ExecutablePath; started = [string]$_.CreationDate.ToUniversalTime().Ticks; command = $_.CommandLine; window = ([DesktopWindows]::Find($_.ProcessId).Length -ne 0) } })", path.basename(executable)))
       // A live image whose alias disappeared is uncertain, not evidence of another install.
       .filter((p: InstalledProcess) => p.pid !== process.pid && p.executable && realpathSync.native(p.executable).toLowerCase() === target),
     records: () => (["stable", "beta", "development"] as const).flatMap(channel => {
@@ -35,10 +70,10 @@ export function installationPort(executable: string): InstallationPort {
       return record && samePath(record.executable) ? [record] : [];
     }),
     closeWindows: processes => { if (processes.length) ps(
-      "$owners = ConvertFrom-Json $inputText; foreach ($owner in $owners) { " +
+      windowApi + "$owners = ConvertFrom-Json $inputText; foreach ($owner in $owners) { " +
       "$current = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $owner.pid); " +
       "if ($current -and $current.ExecutablePath -eq $owner.executable -and [string]$current.CreationDate.ToUniversalTime().Ticks -eq $owner.started) { " +
-      "$p = Get-Process -Id $owner.pid -ErrorAction SilentlyContinue; if ($p) { [void]$p.CloseMainWindow() } } }", JSON.stringify(processes)); },
+      "foreach ($handle in [DesktopWindows]::Find($owner.pid)) { [DesktopWindows]::Close($handle) } } }", JSON.stringify(processes)); },
     recordsRemoved: records => records.every(record => !existsSync(path.join(record.daemonHome, "instance.json")) && !existsSync(path.join(record.daemonHome, "daemon.lock"))),
   };
 }
@@ -55,7 +90,7 @@ export function checkInstallation(port: InstallationPort): DaemonRecord[] {
   return records;
 }
 
-/** WM_CLOSE retains the Editor's unsaved-work confirmation; IPC disconnect stops its daemon. */
+/** Installation intent + WM_CLOSE retains unsaved-work confirmation; IPC disconnect stops its daemon. */
 export async function prepareInstallation(port: InstallationPort): Promise<void> {
   const records = checkInstallation(port);
   port.closeWindows(port.processes().filter(p => p.window));

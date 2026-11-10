@@ -84,7 +84,7 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
       const bridge = window as unknown as { testStopDaemon(): Promise<boolean>; testReconnectDaemon(): Promise<void>; testCheckDaemon(): Promise<void> };
       window.litzioDesktop = {
         registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: "test" }),
-        reportHostWork: async () => {},
+        reportPendingWork: () => {}, reportHostWork: async () => {},
         startup: async () => ({}), setTheme: async () => false, setWindowBackground: async () => {}, setOpenedFolders: async () => {},
         info: async () => ({ version: "test", channel: "stable", updatesSupported: false, update: { phase: "idle" }, seenUpdate: null }),
         onUpdateState: () => () => {}, onRestartCheck: () => () => {},

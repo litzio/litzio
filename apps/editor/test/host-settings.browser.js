@@ -18,7 +18,7 @@ async (page, { expect, screenshots }) => {
       renameHost: async (id, label) => { hosts.find(host => host.hostId === id).label = label; sessionStorage.setItem("host-fixture", JSON.stringify(hosts)); },
       removeHost: async id => { hosts.splice(hosts.findIndex(host => host.hostId === id), 1); sessionStorage.setItem("host-fixture", JSON.stringify(hosts)); },
       restartForHosts: async () => { const result = restartCheck(); window.__restartResult = result; return result; },
-      reportHostWork: async () => { if (window.__failHostWork) throw Error("Error invoking remote method 'desktop:host-work': Error: Invalid Host work summary."); },
+      reportPendingWork: () => {}, reportHostWork: async () => { if (window.__failHostWork) throw Error("Error invoking remote method 'desktop:host-work': Error: Invalid Host work summary."); },
       hostConnection: async () => ({url: location.origin, productVersion: info.version, desktopVersion: info.version}),
       daemonInfo: async () => ({state: window.__desktop.connected ? 'running' : 'unreachable', url:'http://127.0.0.1:25887', launcher:'cli-start', productVersion:'0.2.0', protocolVersion:'1', pid:1234, startedAt:'2026-11-04T00:00:00Z', daemonHome:'C:/temporary/daemon/beta', executable:'C:/Litzio/Litzio.exe', roots:[], nonLoopback:false}),
       checkDaemon: async () => { if (!window.__desktop.connected) throw Error('Disconnected'); },
