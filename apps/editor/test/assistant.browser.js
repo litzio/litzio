@@ -190,7 +190,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const submittedAnswers = [];
   const sent = [], conversations = new Map(), receipts = new Map();
   let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
-  let resumeFailure = false;
+  let resumeFailure = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
   let revealLost = false, receiptGate, releaseReceipt, receiptReads = 0;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
@@ -214,6 +214,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (body.action === 'resume') {
         if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
         selected = conversations.get(body.id);
+        selected.turns = selected.turns.filter(turn => !turn.unrecordedPrompt);
       }
       if (body.action === 'send') {
         sent.push(body);
@@ -232,11 +233,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         }
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
-        turn.items.push({ id: 'user-' + sent.length, kind: 'user', submissionId: body.submissionId, text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
+        turn.items.push({ id: 'user-' + sent.length, kind: 'user', userMessageSource: body.message === 'Prompt lost before provider record' && promptReject ? 'host' : 'provider-history', submissionId: body.submissionId, text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
         if (turn.items.length === 1) turn.items.push({ id: 'summary-' + sent.length, kind: 'reasoning', text: 'Checking the document and opened folders.' },
           { id: 'tool-' + sent.length, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: assistantFixture.document, revision: 'fixture-created-revision' }) }] } },
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
         else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: body.message ? 'Direction updated: focus on the unsaved paragraph.' : 'File reference received.' });
+        if (body.message === 'Prompt lost before provider record' && promptReject) turn.unrecordedPrompt = true;
         selected.tokenUsage = { used: 810, limit: 1000 };
       }
       if (body.action === 'answer') { submittedAnswers.push(body); await answerGate; delete selected.userInput; }
@@ -976,6 +978,44 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }
   await expect(panel.getByRole('button', { name: 'Reasoning effort settings', exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await referenceRow.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
+  await message.fill('Prompt lost before provider record');
+  await message.press('Enter');
+  await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
+  const failedPrompt = selected.turns.at(-1);
+  failedPrompt.status = 'failed'; failedPrompt.error = 'Prompt transport failed before recording';
+  const failedPromptId = sent.at(-1).submissionId;
+  receipts.set(failedPromptId, { submission: { id: failedPromptId, status: 'unknown', conversationId: selected.id, error: failedPrompt.error }, conversation: selected });
+  await expect(panel).toContainText('Prompt transport failed before recording');
+  const sendsBeforeResume = sent.length;
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  await page.getByRole('button', { name: 'Assistant', exact: true }).first().click();
+  await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
+  await expect(message).toBeEnabled();
+  await expect(panel.locator('.assistant-submission')).toContainText('Prompt lost before provider record');
+  await expect(panel.locator('.assistant-submission .assistant-reference')).toContainText('document.md');
+  await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeEnabled();
+  expect(sent.length).toBe(sendsBeforeResume);
+  await message.fill('New draft after prompt failure');
+  await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeDisabled();
+  await message.fill(''); promptReject = false;
+  await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
+  await expect(message).toHaveValue('Prompt lost before provider record');
+  await expect(draftChips).toContainText('document.md');
+  // Clearing a restored draft detaches its lineage; an unrelated accepted send cannot erase it.
+  await message.fill(''); await draftChips.getByRole('button').click();
+  await message.fill('Different request after clearing restored draft'); await message.press('Enter');
+  await expect(panel.locator('.assistant-submission')).toContainText('Prompt lost before provider record');
+  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
+  await expect(message).toHaveValue('Prompt lost before provider record');
+  await expect(draftChips).toContainText('document.md');
+  await message.press('Enter');
+  await expect(panel.locator('.assistant-submission')).toHaveCount(0);
+  await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
+  expect(sent.length).toBe(sendsBeforeResume + 2);
+  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Copilot fixture model', exact: true }).click();
   await panel.getByRole('textbox').fill('Recover supported model');
@@ -985,6 +1025,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('textbox')).toHaveValue('');
   await panel.getByRole('textbox').fill('New draft');
   await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeDisabled();
+  await panel.getByRole('button', { name: 'Discard message', exact: true }).click();
+  await expect(panel.locator('.assistant-submission')).toHaveCount(0);
+  await expect(message).toHaveValue('New draft');
+  await message.fill('Recover supported model'); await message.press('Enter');
+  await expect(panel.getByRole('alert')).toHaveText('Failed');
   await panel.getByRole('textbox').fill('');
   await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
   await expect(panel.getByRole('textbox')).toHaveValue('Recover supported model');
@@ -1007,11 +1052,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.getByText('Reasoning effort: Model, reasoning effort and mode changes apply to the next message. Current model reasoning effort: max.', { exact: true })).toBeVisible();
   await recoveredEffort.click();
   await page.getByRole('menuitem', { name: 'max', exact: true }).click();
-  await panel.getByRole('textbox').press('Enter');
-  await expect(panel.getByRole('textbox')).toHaveValue('');
-  await expect(panel.getByRole('alert')).toHaveText('Failed');
-  expect(sent.at(-1).reasoningEffort).toBe('max');
-  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   await message.fill('New draft through history');
   // Selecting the same history entry must retain a rejected submission's only copy.
   await panel.getByRole('button', { name: 'Conversation history', exact: true }).click();
@@ -1023,6 +1063,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
   await expect(message).toHaveValue('Recover supported model');
 
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.getByRole('textbox')).toHaveValue('');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  expect(sent.at(-1).reasoningEffort).toBe('max');
+  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   await message.fill('Uncertain first');
   const beforeLost = sent.length;

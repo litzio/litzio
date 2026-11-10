@@ -1464,23 +1464,34 @@ Host conversation operation, not a new document semantic operation or CLI comman
 User items expose `submissionId`: Codex carries it in the Host context envelope and
 restores it from both notifications and CLI-owned resumed history; Copilot assigns it
 to its Host user item and includes it in the prompt context for history restoration.
+User items also expose `userMessageSource`: `host` is a Copilot row created before
+prompt dispatch; `provider-live` is a provider event/RPC item; `provider-history`
+is a user message reconstructed by a successfully completed history read.
+Codex sets `provider-history` only from `thread/turns/list` during resume, not from
+live notifications or turn/start results. Copilot sets it only after successful
+ACP loadSession replay, not from the locally created user row or prompt completion.
+Missing source metadata is not preservation proof. A live row or successful prompt
+alone never transfers ownership of the App's only copy to provider history.
 Only the ID connects temporary and observed user rows; equal text never merges them.
 The application hides the temporary row when the observed item has the same ID,
 regardless of whether provider observation/query or POST response arrives first.
 
 Host receipts distinguish pending, accepted, rejected and unknown. Validation/setup
 errors before dispatch to turn/start, turn/steer or ACP prompt are definite rejection.
-An error after dispatch is unknown unless a correlated user item or successful RPC
-proves acceptance; an observed item wins over a lost/error RPC response. Acceptance
-means the message was admitted, not successful completion of the model's work.
+An error after dispatch is unknown unless a provider user item or successful RPC
+proves admission. Admission is separate from preservation in provider history.
+A Copilot prompt error marks its receipt unknown with `turnFailed:true`, including
+when resume later omits the Host-created row. Known failed replayed turns keep that
+failure status. The App retains failure knowledge even if a subsequent query only
+reports admission. A turn failure is never presented as a pre-admission rejection.
 The application's send transport ends after 120 seconds; timeout, connection loss and
 unstructured HTTP errors leave **Needs confirmation**, never **Failed**. It never
 resends automatically. **Check conversation** queries the submission and snapshot.
 A Host receipt not found after restart also stays unknown; absence is not rejection.
 
-The Host retains the first outcome for each submission ID in the `AssistantConversations`
+The Host retains the first submission record for each submission ID in the `AssistantConversations`
 instance for the daemon lifetime, registering synchronously before validation. Concurrent
-and later sends with that ID reuse its result and never call the provider again; the
+and later sends with that ID reuse its current receipt and never call the provider again; the
 first payload owns the ID, so clients must create a fresh ID for a changed message.
 This bounded scope is not durable idempotency or an exactly-once guarantee across Host
 restart, different Hosts, different IDs or direct provider calls. Receipts are memory
@@ -1488,8 +1499,20 @@ only; Litzio still persists only its conversation index, with content owned by C
 
 Message-local **Failed** rows remain visible with **Restore to input**. Restoration
 is disabled when the current draft has any text or reference, protecting new work.
-Unknown rows remain visible with **Check conversation** and the transport error.
-The shared Button (outline/sm), Tooltip and existing transcript/surface tokens implement
+Unknown/unconfirmed rows retain **Check conversation**, **Restore to input** and
+the available error; failed turns expose these actions beside their user message
+as well as after resume. Restoration only fills a draft and never sends it.
+The restored draft carries an explicit ID lineage. Once its new submission is
+admitted without a known turn failure, the original rejected/uncertain copies are
+removed; the replacement copy remains protected until provider-history proof.
+Rejected replacement attempts retain the lineage for a later successful restoration.
+Manually clearing the draft or changing scope detaches this restoration intent.
+**Discard message** explicitly removes one local copy without cancelling provider
+work or resending. It preserves any new draft and invalidates pending queries for
+that view so they cannot resurrect the discarded local row. There is no silent
+capacity eviction of unresolved input. These actions let users retire rejected or
+uncertain copies instead of accumulating them for the entire App lifetime.
+The shared Button (outline/sm for recovery, ghost/sm for discard), Tooltip and existing transcript/surface tokens implement
 these actions; longer action help is in keyboard-accessible tooltips. The existing
 assistant side panel is the selected surface from the UI decision table; no new panel,
 notification, dialog or common interaction is introduced.
@@ -1507,8 +1530,12 @@ selected scope without deleting their content. Returning to the original provide
 new-conversation scope or the original conversation restores unresolved/rejected rows
 and their Check conversation/Restore to input actions. Failed provider lookup does
 not discard them. Closing/reopening the panel, or selecting another Host, retains
-this App-owned memory. Only a correlated user item observed in a conversation
-snapshot retires the local copy after merging. A new draft is never overwritten,
+this App-owned memory. Automatic cleanup requires a correlated `provider-history`
+user item in a non-running, non-failed turn, with no known turn failure on the local
+receipt. Failed/uncertain copies are retained until proof resolves uncertainty or
+the user explicitly restores/discards them; merely observing the Host's Copilot row
+never retires a copy. Successful live turns remain protected until history replay
+confirms preservation. A new draft is never overwritten,
 and none of these navigation/recovery actions automatically resends a message.
 There is no new persistent store: page reload, app restart or App unmount loses this
 memory, so unresolved submissions cannot be recovered locally across those boundaries.
@@ -1522,7 +1549,12 @@ draft, unknown first-send acknowledgement, query recovery without retransmission
 provider choices and panel reopen. Review follow-up additionally covers a rejected
 row surviving history reselection with a new draft, and an uncertain first message
 with references surviving provider unavailability, a delayed old receipt, return
-to its provider and panel reopening, then recovery without retransmission. Host cases
+to its provider and panel reopening, then recovery without retransmission. The
+Copilot prompt-failure case admits a Host row, fails before provider recording,
+resumes without that row and verifies retained text/references/recovery actions,
+new-draft protection, explicit restoration and retirement of the original on new
+admission. Discard preserves a new draft. Host tests separately verify Host versus
+live/history source metadata and an uncertain receipt after a missing replay. Host cases
 cover duplicate IDs, event-before-RPC,
 uncertain RPC failure and both providers. These are synthetic fixtures, not real
 provider latency, model entitlement or user-perceived performance measurements.

@@ -26,7 +26,7 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 
-export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
+export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; restores?: string[]; text: string; references: AssistantFileReference[] };
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
@@ -69,16 +69,20 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
-  const submissionScope = useRef(0);
-  const leaveSubmissionScope = () => { submissionScope.current++; };
+  const submissionScope = useRef(0), restoring = useRef<string[]>([]);
+  const leaveSubmissionScope = () => { submissionScope.current++; restoring.current = []; };
   // Navigation hides other owners' rows without discarding their only local copy.
   const visibleSubmissions = submissions.filter(value => value.hostId === hostId && value.provider === provider &&
     (conversation ? (value.conversationId ?? value.receipt.conversationId) === conversation.id : value.conversationId === undefined));
   const submitted = useRef(visibleSubmissions); submitted.current = visibleSubmissions;
   const applySubmission = (result: AssistantSubmissionResult) => {
-    setSubmissions(previous => previous.map(value => value.receipt.id === result.submission.id ? { ...value,
-      receipt: value.receipt.status === "accepted" && result.submission.status !== "accepted" || value.receipt.status === "unknown" && result.submission.status === "pending"
-        ? value.receipt : { ...result.submission, ...(result.submission.status === "unknown" && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value));
+    setSubmissions(previous => {
+      const accepted = result.submission.status === "accepted" && !result.submission.turnFailed;
+      const restored = accepted ? previous.find(value => value.hostId === hostId && value.receipt.id === result.submission.id)?.restores ?? [] : [];
+      return previous.filter(value => value.hostId !== hostId || !restored.includes(value.receipt.id)).map(value => value.hostId === hostId && value.receipt.id === result.submission.id ? { ...value, restores: accepted ? [] : value.restores,
+        receipt: value.receipt.status === "accepted" && ["pending", "rejected"].includes(result.submission.status) || value.receipt.status === "unknown" && result.submission.status === "pending"
+          ? value.receipt : { ...result.submission, ...(value.receipt.turnFailed ? { turnFailed: true } : {}), ...((result.submission.status === "unknown" || value.receipt.turnFailed) && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value);
+    });
     if (result.conversation) { setConversation(result.conversation); rememberConversation(conversationKey, result.conversation.id); }
   };
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
@@ -146,11 +150,23 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
   }, [open, ready, enabled, setup]);
   useEffect(() => {
     if (!conversation) return;
-    const observed = new Set(conversation.turns.flatMap(turn => turn.items.filter(item => item.kind === "user").map(item => item.submissionId)));
-    if (!observed.size) return;
+    // A live provider event or Host-created row is not evidence of resumable history.
+    const recorded = new Set(conversation.turns.filter(turn => !["failed", "inProgress"].includes(turn.status))
+      .flatMap(turn => turn.items.filter(item => item.kind === "user" && item.userMessageSource === "provider-history").map(item => item.submissionId)));
+    const failed = new Map(conversation.turns.filter(turn => turn.status === "failed")
+      .flatMap(turn => turn.items.filter(item => item.kind === "user").map(item => [item.submissionId, turn.error] as const)));
     setSubmissions(previous => {
-      const retained = previous.filter(value => value.hostId !== hostId || !observed.has(value.receipt.id));
-      return retained.length === previous.length ? previous : retained;
+      const retired = new Set(previous.filter(value => value.hostId === hostId && !value.receipt.turnFailed && recorded.has(value.receipt.id)).map(value => value.receipt.id));
+      const restored = new Set(previous.filter(value => value.hostId === hostId && retired.has(value.receipt.id)).flatMap(value => value.restores ?? []));
+      let changed = false;
+      const retained = previous.filter(value => value.hostId !== hostId || !retired.has(value.receipt.id) && !restored.has(value.receipt.id)).map(value => {
+        if (value.hostId !== hostId || !failed.has(value.receipt.id)) return value;
+        const error = failed.get(value.receipt.id);
+        if (value.receipt.status === "unknown" && value.receipt.turnFailed && value.receipt.error === error) return value;
+        changed = true;
+        return { ...value, receipt: { ...value.receipt, status: "unknown" as const, turnFailed: true, error } };
+      });
+      return changed || retained.length !== previous.length ? retained : previous;
     });
   }, [conversation, hostId, setSubmissions]);
   useEffect(() => {
@@ -220,7 +236,8 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
     const value = message.trim(); if (!value && !references.length) return;
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
-    setSubmissions(previous => [...previous, { hostId, provider, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
+    const restores = restoring.current; restoring.current = [];
+    setSubmissions(previous => [...previous, { hostId, provider, restores, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
     try {
@@ -268,7 +285,12 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
   const removeReference = (path: string) => {
     const skill = references.find(file => file.path === path && file.kind === "skill");
     if (skill) setMessage(value => value.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join(""));
-    setReferences(previous => previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name)));
+    setReferences(previous => {
+      const remaining = previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name));
+      const text = skill ? message.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join("") : message;
+      if (!remaining.length && !text.trim()) restoring.current = [];
+      return remaining;
+    });
   };
   const copilot = conversation?.copilot ?? models?.copilot;
   const effortHelp = copilot?.reasoningEffortSource === "cli"
@@ -300,6 +322,28 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
     return candidate;
   };
   const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
+  const submissionActions = (value: AssistantLocalSubmission, failure?: string) => {
+    const status = failure || value.receipt.status === "accepted" ? "unknown" : value.receipt.status;
+    const error = failure ?? value.receipt.error;
+    return <div className="assistant-submission-status">
+      <span role={status === "rejected" ? "alert" : "status"}>{i18n.t(status === "rejected" ? "Failed" : status === "pending" ? "Sending…" : "Needs confirmation")}</span>
+      {error ? <span>{i18n.t(error, { defaultValue: error })}</span> : null}
+      {status !== "pending" ? <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>
+        <Button variant="outline" size="sm" disabled={!!message || !!references.length || pending} onClick={() => {
+          restoring.current = [value.receipt.id, ...(value.restores ?? [])];
+          setMessage(value.text); setReferences(value.references); input.current?.focus();
+        }}>{i18n.t("Restore to input")}</Button>
+      </TooltipTrigger><TooltipContent>{i18n.t("Restore after clearing your current draft.")}</TooltipContent></Tooltip> : null}
+      {status === "unknown" ? <Tooltip><TooltipTrigger render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void run(async isCurrent => {
+        const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
+        if (isCurrent()) applySubmission(result);
+      })}>{i18n.t("Check conversation")}</TooltipTrigger><TooltipContent>{i18n.t("Check acceptance without sending this message again.")}</TooltipContent></Tooltip> : null}
+      {status !== "pending" ? <Tooltip><TooltipTrigger render={<Button variant="ghost" size="sm" disabled={pending} />} onClick={() => {
+        submissionScope.current++;
+        setSubmissions(previous => previous.filter(item => item.hostId !== hostId || item.receipt.id !== value.receipt.id));
+      }}>{i18n.t("Discard message")}</TooltipTrigger><TooltipContent>{i18n.t("Discard this local copy without cancelling or resending the message.")}</TooltipContent></Tooltip> : null}
+    </div>;
+  };
   return <aside ref={panel} hidden={!open} className={`assistant-panel${overlay ? " assistant-panel--overlay" : ""}`} aria-label={i18n.t("Assistant")}
     role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
     onKeyDown={event => {
@@ -356,7 +400,10 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
-          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>)}
+          {turn.items.filter(item => item.kind === "user").map(item => <div key={item.id}>
+            <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
+            {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
+          </div>)}
           {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
           <div role="group" aria-label={i18n.t("Assistant response")}>
@@ -408,17 +455,7 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
       {!history && visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))).map(value =>
         <div key={value.receipt.id} className="assistant-submission">
           <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips references={value.references} /></p>
-          <div className="assistant-submission-status">
-            <span role={value.receipt.status === "rejected" ? "alert" : "status"}>{i18n.t(value.receipt.status === "rejected" ? "Failed" : value.receipt.status === "unknown" ? "Needs confirmation" : value.receipt.status === "accepted" ? "Sent" : "Sending…")}</span>
-            {value.receipt.error ? <span>{i18n.t(value.receipt.error, { defaultValue: value.receipt.error })}</span> : null}
-            {value.receipt.status === "rejected" ? <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>
-              <Button variant="outline" size="sm" disabled={!!message || !!references.length || pending} onClick={() => { setMessage(value.text); setReferences(value.references); input.current?.focus(); }}>{i18n.t("Restore to input")}</Button>
-            </TooltipTrigger><TooltipContent>{i18n.t("Restore after clearing your current draft.")}</TooltipContent></Tooltip> : value.receipt.status === "unknown" ?
-              <Tooltip><TooltipTrigger render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void run(async isCurrent => {
-                const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
-                if (isCurrent()) applySubmission(result);
-              })}>{i18n.t("Check conversation")}</TooltipTrigger><TooltipContent>{i18n.t("Check acceptance without sending this message again.")}</TooltipContent></Tooltip> : null}
-          </div>
+          {submissionActions(value)}
         </div>)}
       {!history && conversation?.userInput ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
         submit={answers => run(async isCurrent => {
@@ -442,6 +479,7 @@ export function AssistantPanel({ submissions, setSubmissions, onNewHost, setting
       </div> : null}
       <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
+        if (!value && !references.length) restoring.current = [];
         setReferences(previous => previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name)));
         setMessage(value); const match = /(?:^|\s)\/([^\s]*)$/.exec(value.slice(0, end));
         if (match && !mentionOpen) { setSkillCatalog(undefined); setSkillProblem(""); }

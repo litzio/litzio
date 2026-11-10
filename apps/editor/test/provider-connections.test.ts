@@ -75,10 +75,30 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "shell", kind: "execute" } }), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
-    await conversations.send({ ...input, id: conversation.id, message: "FAIL THIS TURN" }, settings);
+    const failedInput = { ...input, id: conversation.id, submissionId: "copilot-prompt-failed", message: "FAIL THIS TURN" };
+    await conversations.submit(failedInput, () => conversations.send(failedInput, settings));
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     assert.equal(conversation.turns.at(-1)!.status, "failed");
     assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
+    assert.equal(conversation.turns.at(-1)!.items[0]!.userMessageSource, "host", "a Host row is not provider persistence proof");
+    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown");
+    assert.equal(conversations.submission(failedInput.submissionId).submission.turnFailed, true);
+    const resumedFailure = await conversations.resume(conversation.id, settings);
+    assert.equal(resumedFailure.turns.flatMap(turn => turn.items).some(item => item.submissionId === failedInput.submissionId), false);
+    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown", "missing provider history must not erase uncertainty");
+    assert.ok(resumedFailure.turns.flatMap(turn => turn.items).filter(item => item.kind === "user").every(item => item.userMessageSource === "provider-history"));
+    const client = await connection.copilot.connect(), load = client.loadSession.bind(client);
+    const prompt = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(message => message.method === "session/prompt").params.prompt[0];
+    const replay = t.mock.method(client, "loadSession", async (params: Parameters<typeof client.loadSession>[0]) => {
+      const result = await load(params);
+      connection.copilot.emit("update", { sessionId: params.sessionId, update: { sessionUpdate: "user_message_chunk", content: prompt } });
+      return result;
+    });
+    const recorded = await conversations.resume(conversation.id, settings);
+    const persisted = recorded.turns.flatMap(turn => turn.items).find(item => item.submissionId === input.submissionId)!;
+    assert.equal(persisted.userMessageSource, "provider-history");
+    assert.equal(persisted.text, input.message);
+    replay.mock.restore();
   });
   assert.equal(conversations.list()[0]!.provider, "copilot");
   assert.equal(JSON.stringify(conversation).includes("Litzio plugin authoring skill"), false);
@@ -198,6 +218,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const conversation = await conversations.send(input, settings);
   assert.equal(JSON.stringify(conversation).includes("Litzio plugin authoring skill"), false);
   assert.deepEqual(streamed, ["Checking the opened ", "Checking the opened document."]);
+  assert.equal(conversation.turns[0]!.items.find(item => item.kind === "user")!.userMessageSource, "provider-live");
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "reasoning").map(item => item.text), ["Checking the opened document.\nChecking folders.", ""]);
   assert.equal(conversation.turns[0]!.status, "inProgress");
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
@@ -241,6 +262,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const resumed = new AssistantConversations(resumedConnection, new RootAccess([root]));
     const history = await resumed.resume(conversation.id, { ...settings, provider: "copilot", permissionMode: "read-only" });
     assert.equal(history.provider, "codex");
+    assert.ok(history.turns.flatMap(turn => turn.items).filter(item => item.kind === "user").every(item => item.userMessageSource === "provider-history"));
     assert.equal(history.permissionMode, "read-only", "UI snapshots must expose only the bounded grant before sending");
     assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
     assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);

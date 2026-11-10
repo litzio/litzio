@@ -31,8 +31,14 @@ export class AssistantConversations {
     const receipt = this.submissions.get(id)?.receipt ?? { id, status: "unknown" as const };
     // Reconcile even when the provider event arrived after a failed/lost RPC response.
     for (const conversation of this.conversations.values()) {
-      const item = conversation.turns.flatMap(turn => turn.items).find(item => item.submissionId === id);
-      if (item) { receipt.status = "accepted"; receipt.conversationId = conversation.id; receipt.itemId = item.id; delete receipt.error; break; }
+      const turn = conversation.turns.find(turn => turn.items.some(item => item.kind === "user" && item.submissionId === id));
+      const item = turn?.items.find(item => item.kind === "user" && item.submissionId === id);
+      if (item) {
+        receipt.conversationId = conversation.id; receipt.itemId = item.id;
+        if (turn!.status === "failed") { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = turn!.error; }
+        else if (item.userMessageSource !== "host") { receipt.status = "accepted"; delete receipt.error; }
+        break;
+      }
     }
     return { submission: { ...receipt }, ...(receipt.conversationId ? { conversation: this.conversations.get(receipt.conversationId) } : {}) };
   }
@@ -44,7 +50,8 @@ export class AssistantConversations {
     const receipt: AssistantSubmission = { id, status: "pending", ...(input.id ? { conversationId: input.id } : {}) };
     // Register before any asynchronous validation or provider work. IDs are never replayed.
     const result = Promise.resolve().then(send).then(conversation => {
-      receipt.status = "accepted"; receipt.conversationId = conversation.id;
+      if (!receipt.turnFailed && (receipt.status !== "unknown" || !receipt.error)) receipt.status = "accepted";
+      receipt.conversationId = conversation.id;
     }, error => {
       if (receipt.status !== "accepted") receipt.status = this.submissions.get(id)?.dispatched ? "unknown" : "rejected";
       receipt.error = (error as Error).message;
@@ -186,6 +193,8 @@ export class AssistantConversations {
       const reasoning = copilotReasoning(session);
       if (conversation.copilot.reasoningEffortSource === "cli" && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
       conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
+      // Only a completed loadSession replay proves the CLI owns these user messages.
+      for (const turn of conversation.turns) for (const item of turn.items) if (item.kind === "user") item.userMessageSource = "provider-history";
       this.loaded.add(id);
       return conversation;
     }
@@ -197,7 +206,7 @@ export class AssistantConversations {
       const page: { data: any[]; nextCursor: string | null } = await this.connection.client.request("thread/turns/list", { threadId: id, cursor, sortDirection: "asc", itemsView: "full" });
       turns.push(...page.data); cursor = page.nextCursor;
     } while (cursor);
-    conversation.turns = turns.map(turnFrom); conversation.model = result.model ?? settings.model;
+    conversation.turns = turns.map(turn => turnFrom(turn, "provider-history")); conversation.model = result.model ?? settings.model;
     conversation.reasoningEffort = result.reasoningEffort ?? settings.reasoningEffort;
     this.conversations.set(id, conversation);
     this.loaded.add(id);
@@ -373,19 +382,24 @@ export class AssistantConversations {
     }
     references = checkedReferences(input.references ?? [], folders, this.access);
     const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references };
-    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
+    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
     this.dispatch(input, conversation);
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
     this.save(conversation);
     // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
-    void client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] }).then(result => {
+    const failedPrompt = (message: string) => {
+      turn.status = "failed"; turn.error = message;
+      const receipt = input.submissionId ? this.submissions.get(input.submissionId)?.receipt : undefined;
+      if (receipt) { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = message; }
+    };
+    void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
       if (turn.status === "inProgress") {
         turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
-        if (turn.status === "failed") turn.error = `Copilot stopped: ${result.stopReason}`;
+        if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
       }
-    }, error => { turn.status = "failed"; turn.error = error.message; }).finally(() => { this.scopes.delete(id); });
+    }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => { this.scopes.delete(id); });
     return conversation;
   }
   private async prepareCopilotLaunch(effort: string, settings: AssistantSettings) {
@@ -421,7 +435,10 @@ export class AssistantConversations {
       if (turn?.status === "inProgress") return;
       const text = update.content.text, marker = text.indexOf("User message:\n");
       const item = itemFrom({ type: "userMessage", id: randomUUID(), content: [{ type: "text", text: marker < 0 ? text : text.slice(marker + "User message:\n".length) }] });
-      if (item) conversation.turns.push({ id: randomUUID(), status: "completed", items: [item] });
+      if (item) {
+        const receipt = item.submissionId ? this.submissions.get(item.submissionId)?.receipt : undefined;
+        conversation.turns.push({ id: randomUUID(), status: receipt?.turnFailed ? "failed" : "completed", ...(receipt?.turnFailed ? { error: receipt.error } : {}), items: [item] });
+      }
       return;
     }
     if (!turn) { turn = { id: randomUUID(), status: "completed", items: [] }; conversation.turns.push(turn); }
@@ -470,7 +487,7 @@ export class AssistantConversations {
   }
 }
 const CONTEXT = "Litzio read-only context (JSON):\n";
-function itemFrom(item: any): AssistantConversationItem | null {
+function itemFrom(item: any, userMessageSource: AssistantConversationItem["userMessageSource"] = "provider-live"): AssistantConversationItem | null {
   if (item.type === "userMessage") {
     const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
     const text: string[] = [];
@@ -493,7 +510,7 @@ function itemFrom(item: any): AssistantConversationItem | null {
       }
       text.push(part.text);
     }
-    return { id: item.id, kind: "user", ...(submissionId ? { submissionId } : {}), text: text.join("\n"), references };
+    return { id: item.id, kind: "user", userMessageSource, ...(submissionId ? { submissionId } : {}), text: text.join("\n"), references };
   }
   if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
   if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };
@@ -519,7 +536,7 @@ function pluginActivityText(item: any): string | null {
   }
   return null;
 }
-function turnFrom(turn: any): AssistantConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map(itemFrom).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }
+function turnFrom(turn: any, userMessageSource: AssistantConversationItem["userMessageSource"] = "provider-live"): AssistantConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map((item: any) => itemFrom(item, userMessageSource)).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }
 
 /** Reuse Explorer visibility at each path segment; never include reference content in input. */
 function checkedReferences(value: string[], folders: string[], access: FileAccess) {
