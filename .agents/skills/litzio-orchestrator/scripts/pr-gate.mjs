@@ -10,16 +10,30 @@ const run = (command, args, options = {}) => execFileSync(command, args, { encod
 const gh = args => run('gh', args);
 const git = args => run('git', args);
 
-const argv = process.argv.slice(2);
-const option = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
-const pr = Number(option('--pr'));
-const enqueue = argv.includes('--enqueue');
-const noteFile = option('--note-file');
-if (!Number.isInteger(pr) || pr <= 0) throw new Error('Usage: pr-gate.mjs --pr <N> [--enqueue --note-file <file>]');
-if (enqueue && !noteFile) throw new Error('--enqueue requires --note-file with the orchestrator record');
+export function ciProblems(checks) {
+  const problems = [];
+  const state = check => check.conclusion || check.state || check.status || '';
+  const pending = checks.filter(check => !state(check) || ['PENDING', 'QUEUED', 'IN_PROGRESS', 'EXPECTED'].includes(state(check)));
+  const failed = checks.filter(check => state(check) && !pending.includes(check) && !['SUCCESS', 'SKIPPED', 'NEUTRAL'].includes(state(check)));
+  const required = checks.filter(check => check.name === 'Core, CLI, Editor, and browser regressions');
+  if (required.length !== 1 || state(required[0]) !== 'SUCCESS') problems.push('required PR aggregate must report SUCCESS for the current head');
+  if (pending.length) problems.push(`checks pending: ${pending.map(check => check.name ?? check.context).join(', ')}`);
+  if (failed.length) problems.push(`checks failed: ${failed.map(check => `${check.name ?? check.context}=${state(check)}`).join(', ')}`);
 
-if (!/github\.com[/:]litzio\/litzio(\.git)?$/.test(git(['remote', 'get-url', 'origin']))) {
-  throw new Error('This script only runs inside the litzio/litzio repository');
+  return problems;
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const option = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
+  const pr = Number(option('--pr'));
+  const enqueue = argv.includes('--enqueue');
+  const noteFile = option('--note-file');
+  if (!Number.isInteger(pr) || pr <= 0) throw new Error('Usage: pr-gate.mjs --pr <N> [--enqueue --note-file <file>]');
+  if (enqueue && !noteFile) throw new Error('--enqueue requires --note-file with the orchestrator record');
+
+  if (!/github\.com[/:]litzio\/litzio(\.git)?$/.test(git(['remote', 'get-url', 'origin']))) {
+    throw new Error('This script only runs inside the litzio/litzio repository');
 }
 const root = git(['rev-parse', '--show-toplevel']);
 
@@ -32,12 +46,7 @@ if (view.isDraft) problems.push('PR is a draft (run `gh pr ready` first)');
 if (view.mergeable === 'CONFLICTING') problems.push('PR conflicts with master');
 
 const checks = view.statusCheckRollup ?? [];
-const state = check => check.conclusion || check.state || check.status || '';
-const pending = checks.filter(check => !state(check) || ['PENDING', 'QUEUED', 'IN_PROGRESS', 'EXPECTED'].includes(state(check)));
-const failed = checks.filter(check => state(check) && !pending.includes(check) && !['SUCCESS', 'SKIPPED', 'NEUTRAL'].includes(state(check)));
-if (!checks.length) problems.push('no CI checks reported for the head');
-if (pending.length) problems.push(`checks pending: ${pending.map(check => check.name ?? check.context).join(', ')}`);
-if (failed.length) problems.push(`checks failed: ${failed.map(check => `${check.name ?? check.context}=${state(check)}`).join(', ')}`);
+problems.push(...ciProblems(checks));
 
 const threads = JSON.parse(gh(['api', 'graphql', '-f',
   `query={repository(owner:"litzio",name:"litzio"){pullRequest(number:${pr}){reviewThreads(first:100){nodes{isResolved}}}}}`]))
@@ -68,3 +77,7 @@ const result = JSON.parse(gh(['api', 'graphql', '-f',
   'query=mutation($id:ID!,$oid:GitObjectID!){enqueuePullRequest(input:{pullRequestId:$id,expectedHeadOid:$oid}){mergeQueueEntry{position state}}}',
   '-f', `id=${view.id}`, '-f', `oid=${view.headRefOid}`]));
 console.log(JSON.stringify(result.data.enqueuePullRequest.mergeQueueEntry));
+
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
