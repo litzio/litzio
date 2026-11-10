@@ -83,7 +83,7 @@ function locatorIdentity(value: unknown): string {
   return JSON.stringify(value) ?? "undefined";
 }
 function sameTarget(a: z.infer<typeof reviewGroupSchema>, target: ReviewGroupTarget, b: z.infer<typeof reviewGroupSchema>, other: ReviewGroupTarget) {
-  return a.provider === b.provider && a.sourceRevision === b.sourceRevision && (target.id === other.id || locatorIdentity(target.locator) === locatorIdentity(other.locator));
+  return target.id === other.id || a.provider === b.provider && a.sourceRevision === b.sourceRevision && locatorIdentity(target.locator) === locatorIdentity(other.locator);
 }
 
 /** Snapshot validity and unsettled requests are supplied by the common Host, not inferred from a cache's existence. */
@@ -136,7 +136,7 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
       for (const targetId of replacement.targetIds) {
         const target = old.targets.find(target => target.id === targetId);
         if (!target || target.proposal !== "proposed") throw new Error("Only open proposed targets may be superseded");
-        const matches = next.targets.filter(other => sameTarget(old, target, next, other) && locatorIdentity(target.locator) === locatorIdentity(other.locator));
+        const matches = next.targets.filter(other => old.provider === next.provider && old.sourceRevision === next.sourceRevision && locatorIdentity(target.locator) === locatorIdentity(other.locator));
         if (matches.length !== 1) throw new Error("Replacement must preserve the superseded target identity");
         target.proposal = "superseded"; target.resolved = true;
         target.history.push({ id: `${context.revision}/superseded-${supersededCount++}`, action: "superseded", at: context.at, human: null, requestId: context.requestId,

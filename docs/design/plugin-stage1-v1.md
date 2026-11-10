@@ -887,7 +887,7 @@ canonical snapshot 검증·단일 파일 교체·receipt를 소유한다. provid
 `superseded` event의 `supersededBy`를 추가한다. 이는 사람 승인 event가 아니므로 human은 null이다.
 대체된 대상만 열린 문제/완료 판정에서 제외하며 새 제안은 여전히 사람 승인이 필요하다.
 
-동일 provider/source revision에서 target ID 또는 구조적으로 같은 opaque locator가 겹치고 reasonCode가 같은
+같은 workspace에서 target ID가 같거나 동일 provider/source revision의 opaque locator가 구조적으로 같고 reasonCode가 같은
 열린 proposed 대상은 명시 대체 없이 중복 저장할 수 없다. target ID를 바꾸거나 locator의 object key 순서를
 바꿔도 이 정책을 우회하지 않는다. 다른 reasonCode의 문제는 동시에 남길 수 있으며 각각 처리해야 완료된다.
 CLI `review groups propose`와 비서 propose 계약은 동일한 change/schema를 전달한다. 별도 자동 재승인 작업은 없다.

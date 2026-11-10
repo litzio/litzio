@@ -36,6 +36,8 @@ for (const scenario of ["remaining", "split", "undo"] as const) test(`review sup
 test("review duplicate targets require explicit supersede within the same reason",()=>{
   const s=reviewScenario();s.change({kind:"groups-propose",groups:[s.group("first",["a"])]});
   assert.throws(()=>s.change({kind:"groups-propose",groups:[s.group("duplicate",["a"])]}),/Duplicate open/);
+  const renamedProvider=s.group("renamed-provider",["a"]);renamedProvider.provider="other";
+  assert.throws(()=>s.change({kind:"groups-propose",groups:[renamedProvider]}),/Duplicate open/);
   const alias=s.group("alias",["alias"]);alias.targets[0]!.locator={ref:"a"};
   assert.throws(()=>s.change({kind:"groups-propose",groups:[alias]}),/Duplicate open/);
   const reassigned=s.group("reassigned",["a"]);reassigned.targets[0]!.locator={ref:"other"};
