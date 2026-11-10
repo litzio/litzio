@@ -476,7 +476,7 @@ test('event selection and aggregate agree on PR and queue Windows checks', () =>
       for (const [id, selected] of [['desktop', 'DESKTOP'], ['desktop-unit', 'DESKTOP_UNIT'],
         ['desktop-stable', 'DESKTOP_STABLE'], ['desktop-beta', 'DESKTOP_BETA'],
         ['http-windows', 'HTTP_WINDOWS'], ['http', 'HTTP'], ['browser', 'BROWSER'], ['quality-unit', 'QUALITY_UNIT']]) {
-        assert.equal(evaluate(jobs[id].if), evaluate(env[`${selected}_SELECTED`]), `${eventName}: ${id}`);
+        assert.equal(String(evaluate(jobs[id].if)), String(evaluate(env[`${selected}_SELECTED`])), `${eventName}: ${id}`);
       }
     }
   }
