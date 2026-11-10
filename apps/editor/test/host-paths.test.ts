@@ -81,7 +81,7 @@ test("each target Host pins history to its own data folder even with a settings 
       process.env.LITZIO_DATA_DIR = path.join(root, name);
       process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(root, "shared-settings-override.json");
       const paths = hostPaths();
-      new JobHistory(paths.jobHistory).save([{ requestId: ids[i], plugin: "fixture.jobs", job: "text", root, startedAt: i, elapsedMs: 10, state: "running", phase: "", stopRequested: false }]);
+      new JobHistory(paths.jobHistory).save([{ requestId: ids[i], plugin: "fixture.jobs", job: "text", root, startedAt: i, elapsedMs: 10, state: "running", effect: "write", phase: "", stopRequested: false }]);
       services.push(createHostServices());
     }
   } finally { process.env = previous; }

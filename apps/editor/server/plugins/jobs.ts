@@ -8,7 +8,7 @@ import { JOB_START_FAILURE_MESSAGES, JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BY
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 import { createAuthoredDocumentFile } from "../document-authoring.ts";
-import { JobHistory, JOB_HISTORY_LIMIT } from "./job-history.ts";
+import { JobHistory, retainJobHistory, type JobHistorySnapshot } from "./job-history.ts";
 
 type Record = { sourceRevision?: string; effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 class StartRefused extends Error {
@@ -17,7 +17,7 @@ class StartRefused extends Error {
 /** Host-owned history; live observations never resume after restart. */
 export class PluginJobs {
   private records = new Map<string, Record>();
-  private archived = new Map<string, JobSnapshot>();
+  private archived = new Map<string, JobHistorySnapshot>();
   private history?: JobHistory;
   private needsPersistence = false;
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
@@ -27,20 +27,21 @@ export class PluginJobs {
     historyFile?: string) {
     if (historyFile) {
       this.history = new JobHistory(historyFile);
-      for (const job of this.history.load()) this.archived.set(job.requestId, job);
+      for (const job of this.history.load()) {
+        if (job.state === "uncertain") Object.assign(job, this.failure({ kind: "unavailable" }, job.effect));
+        this.archived.set(job.requestId, job);
+      }
     }
   }
   private save() {
-    // Keep live work even if it exceeds the retained-history cap. Only the newest
-    // 1000 snapshots are persisted; pruning never cancels an active operation.
-    const jobs = this.snapshots();
-    for (const job of jobs.slice(JOB_HISTORY_LIMIT)) {
-      const record = this.records.get(job.requestId);
-      if (record && !record.detached && ["running", "uncertain"].includes(job.state)) continue;
-      this.records.delete(job.requestId); this.archived.delete(job.requestId);
+    const jobs = retainJobHistory(this.snapshots());
+    const retained = new Set(jobs.map(job => job.requestId));
+    for (const id of [...this.records.keys(), ...this.archived.keys()]) {
+      if (retained.has(id)) continue;
+      this.records.delete(id); this.archived.delete(id);
     }
     this.needsPersistence = true;
-    this.history?.save(this.snapshots());
+    this.history?.save(jobs);
     this.needsPersistence = false;
   }
   hasActive(plugin: string) {
@@ -209,21 +210,22 @@ export class PluginJobs {
     }
     return this.response(record, input.action);
   }
-  private snapshot(record: Record) {
-    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, finishedAt: record.finishedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
+  private snapshot(record: Record): JobHistorySnapshot {
+    return { ...structuredClone(record.snapshot), startedAt: record.startedAt, finishedAt: record.finishedAt, elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt,
+      effect: record.uncertainWrite || record.effects.get(record.binding.start) === "write" ? "write" : "read" };
   }
   private snapshots() {
     return [...this.archived.values(), ...[...this.records.values()].map(record => this.snapshot(record))].sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
   }
   list(plugin?: string) {
     jobRequestSchema.parse({ action: "job-list", ...(plugin ? { plugin } : {}) });
-    return { jobs: structuredClone(this.snapshots().filter(job => !plugin || job.plugin === plugin)), ...(this.history?.warning ? { warning: this.history.warning } : {}),
+    return { jobs: structuredClone(this.snapshots().filter(job => !plugin || job.plugin === plugin).map(({ effect: _effect, ...job }) => job)), ...(this.history?.warning ? { warning: this.history.warning } : {}),
       receipt: { requestId: randomUUID(), operation: "plugins.job-list", version: 1, scope: "host", outcome: "success" } };
   }
   private response(record: Record, action: string) {
     return this.responseSnapshot(this.snapshot(record), action);
   }
-  private responseSnapshot(job: JobSnapshot, action: string) {
+  private responseSnapshot({ effect: _effect, ...job }: JobHistorySnapshot, action: string) {
     return { job, receipt: { requestId: job.requestId, operation: `plugins.${action}`, version: 1, scope: job.root, outcome: job.state === "uncertain" ? "uncertain" : "success" } };
   }
   private stop(record: Record) {

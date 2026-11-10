@@ -16,6 +16,60 @@ import { RootAccess } from "../server/file-access.ts";
 
 const safeWriteAdvice = " Check the target before retrying a write. Query the same requestId; do not resend start.";
 
+test("K1 retention preserves unfinished jobs ahead of newer completed history in memory and on disk", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-retention-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json"), startedAt = Date.now();
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  for (const state of ["completed", "running"] as const) {
+    // Seed history instead of performing 999 redundant filesystem publications.
+    // Two real admissions cross the cap with an older, still-running first job.
+    const entries = Array.from({ length: JOB_HISTORY_LIMIT - 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: startedAt + i, elapsedMs: 10, state, effect: "write", stopRequested: false }));
+    writeFileSync(file, JSON.stringify({ version: 1, jobs: entries }));
+    const jobs = new PluginJobs(new RootAccess([root]), () => binding, async () => ({ result: { state: "running", phase: "Waiting" } }), () => "write", undefined, undefined, file);
+    const first = randomUUID();
+    const now = t.mock.method(Date, "now", () => startedAt - 1000);
+    await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId: first, root, file: "input.txt", output: "first.md" });
+    now.mock.restore();
+    await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId: randomUUID(), root, file: "input.txt", output: "second.md" });
+    const memory = jobs.list().jobs.map(job => job.requestId).sort();
+    const disk = JSON.parse(readFileSync(file, "utf8")).jobs.map((job: { requestId: string }) => job.requestId).sort();
+    assert.deepEqual(disk, memory, "memory and file must retain exactly the same IDs");
+    assert.ok(disk.includes(first), "unfinished work cannot be evicted ahead of completed history");
+    assert.equal(disk.length, state === "completed" ? JOB_HISTORY_LIMIT : JOB_HISTORY_LIMIT + 1);
+    const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => "read", undefined, undefined, file);
+    assert.deepEqual(restarted.list().jobs.map(job => job.requestId).sort(), memory);
+    const value = await restarted.execute({ action: "job-status", requestId: first });
+    assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
+  }
+});
+
+test("K1 restored uncertainty uses the admitted effect and common safe error guidance without replay", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-restored-advice-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json");
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  for (const [startEffect, statusEffect] of [["write", "read"], ["read", "read"], ["read", "write"]] as const) {
+    const effect = startEffect === "write" || statusEffect === "write" ? "write" : "read";
+    if (existsSync(file)) fs.unlinkSync(file);
+    const jobs = new PluginJobs(new RootAccess([root]), () => binding, async () => ({ result: { state: "running", phase: "Private phase" } }), name => name.endsWith(".start") ? startEffect : statusEffect, undefined, undefined, file);
+    const requestId = randomUUID();
+    await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: `${effect}.md` });
+    await jobs.execute({ action: "job-status", requestId });
+    const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => effect === "write" ? "read" : "write", undefined, undefined, file);
+    for (const action of ["job-status", "job-stop"] as const) {
+      const value = await restarted.execute({ action, requestId });
+      assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
+      assert.equal(value.job.errorKind, "unavailable");
+      assert.equal(value.job.error, PLUGIN_ERROR_MESSAGES.unavailable + (effect === "write" ? safeWriteAdvice : ""));
+      assert.deepEqual(value.job, restarted.list().jobs[0]);
+    }
+    assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs[0].effect, effect);
+  }
+});
+
 test("K1 durable history serializes concurrent changes, allowlists fields and never resumes observations", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-history-"));
   t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
@@ -90,7 +144,7 @@ test("K1 damaged history preserves original bytes and retention keeps newest rec
     assert.ok(preserved.includes(".corrupt-")); assert.equal(readFileSync(path.join(root, preserved), "utf8"), bytes);
     assert.deepEqual(JSON.parse(readFileSync(historyFile, "utf8")), { version: 1, jobs: [] });
   }
-  const entries = Array.from({ length: JOB_HISTORY_LIMIT + 2 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, file: "input.txt", startedAt: i, elapsedMs: 100, finishedAt: i + 100, state: "completed", stopRequested: false }));
+  const entries = Array.from({ length: JOB_HISTORY_LIMIT + 2 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, file: "input.txt", startedAt: i, elapsedMs: 100, finishedAt: i + 100, state: "completed", effect: "write", stopRequested: false }));
   writeFileSync(historyFile, JSON.stringify({ version: 1, jobs: [...entries].reverse() }));
   const jobs = open();
   assert.equal(jobs.list().jobs.length, JOB_HISTORY_LIMIT);
