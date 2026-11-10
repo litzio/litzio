@@ -229,7 +229,10 @@ async (page, { openPath, screenshots, expect }) => {
   const countBeforeNote = (await opens()).length;
   await editor.getByTestId('footnote-definition').locator('a').click({modifiers:['Control']});
   await assertOpens(countBeforeNote);
-  if (page.context().pages().length !== pagesBeforeOpening) throw Error('An ignored click opened an unwanted tab');
+  const pagesAfterNote = page.context().pages();
+  if (pagesAfterNote.length !== pagesBeforeOpening) {
+    throw Error(`An ignored click opened an unwanted tab: ${JSON.stringify({ before: pagesBeforeOpening, pages: pagesAfterNote.map(tab => tab.url()), scriptOpens: await opens() })}`);
+  }
   result.externalOpening = true;
 
   // Endnote edit sessions can end on outside focus too; the nested reference form must

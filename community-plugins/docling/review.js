@@ -69,23 +69,25 @@ const regionKinds = new Map([
   ["code", "code"], ["code_block", "code"],
 ]);
 
-/** Correspondence uses only immutable PDF provenance and the final Host targets. */
+/** Page bytes stay immutable; regions, kinds and targets use one replayed effective document. */
 export function comparison(archive, record, report, input) {
   const pages = Object.entries(archive.document.pages ?? {}).map(([key, page]) => ({ generation: input.generation, sourceRevision: input.sourceRevision, pageNo: Number(key), width: page.size.width, height: page.size.height, unit: "pt", origin: "TOPLEFT", regions: [] })).sort((a,b) => a.pageNo-b.pageNo);
   if (!pages.length || pages.some((p,i) => p.pageNo !== i+1)) throw new Error("Expected consecutive PDF pages");
-  const entries = [], effective = new Map(reviewItems(applyCorrections(archive.document, record.patches)).map(i => [i.self_ref,i]));
+  const effective = applyCorrections(archive.document, record.patches);
+  const entries = [], nodes = new Map(["texts", "tables", "pictures", "groups", "key_value_items", "form_items"].flatMap(kind => (effective[kind] ?? []).map(item => [item.self_ref, item])));
   for (const item of report.items) {
-    const original = archive.document[item.self_ref.split("/")[1]]?.[Number(item.self_ref.split("/")[2])], sourceIds = [];
-    for (const [index,prov] of (original?.prov ?? []).entries()) {
+    const current = nodes.get(item.self_ref), sourceIds = [];
+    if (!current) throw new Error("Unknown effective comparison item");
+    for (const [index,prov] of (current.prov ?? []).entries()) {
       const page = pages.find(p => p.pageNo === prov.page_no);
       if (!page) throw new Error("Unknown provenance page");
       const b = prov.bbox, id = `region-${item.self_ref.slice(2).replaceAll("/","-")}-${index}`;
       if (!["TOPLEFT","BOTTOMLEFT"].includes(b.coord_origin)) throw new Error("Unknown coordinate origin");
       const top = b.coord_origin === "TOPLEFT" ? b.t : page.height-b.t, bottom = b.coord_origin === "TOPLEFT" ? b.b : page.height-b.b;
       const bbox = [Math.min(b.l,b.r),Math.min(top,bottom),Math.max(b.l,b.r),Math.max(top,bottom)];
-      const status = effective.get(item.self_ref)?.excluded ? "excluded" : item.status === "furniture" ? "decoration" : item.targets.length ? "supported" : "unsupported";
-      const kind = regionKinds.get(original.label);
-      page.regions.push({id,bbox,category: original.label ?? "item",...(kind ? {kind} : {}),status}); sourceIds.push(id);
+      const status = current.__reviewExcluded ? "excluded" : item.status === "furniture" ? "decoration" : item.targets.length ? "supported" : "unsupported";
+      const kind = regionKinds.get(current.label);
+      page.regions.push({id,bbox,category: current.label ?? "item",...(kind ? {kind} : {}),status}); sourceIds.push(id);
     }
     if (sourceIds.length) entries.push({sourceIds,targets:item.targets});
   }

@@ -7,6 +7,7 @@ import { generatedDocumentLinkSchema, generatedDocumentRequestSchema, generatedD
 import { generatedDocumentLinkPath } from "../generated-document.ts";
 import { createAuthoredDocumentFile, regenerateAuthoredDocumentFile } from "../document-authoring.ts";
 import { RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
+import { ReviewWorkspaces } from "./review-workspaces.ts";
 
 const hash = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
 const revision = (file: string) => existsSync(file) ? hash(file) : null;
@@ -16,10 +17,11 @@ export class GeneratedDocuments {
   private busy = new Set<string>();
   private progressWrites = new Map<string, { readers: number; closing: boolean; done: Promise<void>; release(): void; idle?: () => void }>();
   private requests = new Map<string, unknown>();
+  private workspaces: ReviewWorkspaces;
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => Provider,
     private invoke: (operation: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string }>,
     private publish?: (plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer) => any,
-    private readComparison?: (input: unknown) => Promise<any>) {}
+    private readComparison?: (input: unknown) => Promise<any>) { this.workspaces = new ReviewWorkspaces(access, declaration, invoke, this.busy); }
   private paths(root: string, document: string) {
     root = accessPath(root, this.access);
     const boundary = new RootAccess([root]);
@@ -51,6 +53,7 @@ export class GeneratedDocuments {
     this.saveLink(p.linkFile, { plugin, job, source: path.relative(path.dirname(file), source).split(path.sep).join("/"), generatedFrom: sourceRevision, generatedRevision: documentRevision, ...(inputs ? { inputs: generatedInputsSchema.parse(inputs) } : {}) }, revision(p.linkFile));
   }
   async execute(raw: unknown): Promise<any> {
+    if (raw && typeof raw === "object" && "action" in raw && String(raw.action).startsWith("workspace-")) return this.workspaces.execute(raw);
     const input = generatedDocumentRequestSchema.parse(raw);
     if (input.action === "generated-status") return structuredClone(this.requests.get(input.requestId) ?? { state: "unknown", guidance: "Read the files after a daemon restart; never automatically replay edits." });
     const p = this.paths(input.root, input.document), opening = input.action === "generated-open", writing = !["generated-read", "generated-compare"].includes(input.action);

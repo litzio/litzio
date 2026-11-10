@@ -16,6 +16,15 @@
 
 ## Profile reuse and test isolation
 
+runner가 서버를 시작할 때는 실행마다 OS 임시 폴더 아래 Host 전용 디렉터리를 만든다.
+`LITZIO_DATA_DIR`(플러그인 작업 이력 등), daemon 기록, 플러그인 설정·secret과 비서 작업·설정
+경로를 그 안으로 전달하여 Vite·production HTTP 모두 실행 간 데이터를 공유하지 않는다.
+사용자가 지정한 `LITZIO_DATA_DIR`는 그대로 사용하고 삭제하지 않는다.
+Playwright의 서버 종료 후 runner 종료 시 생성 당시 디렉터리의 실제 경로·파일 식별자를 확인하여
+자신이 만든 디렉터리만 정리한다. 대체·symlink/junction 등으로 소유권 확인에 실패하면 남기고
+오류를 보고한다. `LITZIO_BROWSER_URL`로 붙는 외부 서버의 데이터 경로·수명은 caller 소유다.
+이 Host 데이터 격리는 아래 persistent Chrome profile과 별개이며 profile은 삭제하지 않는다.
+
 browser fixture, HTTP 복구 검사와 shortcut probe는 `brand.ts`의 `appName`에서 임시 경로 prefix `<appName>-browser-profile`을 가져온다(공식 기본값 `litzio-browser-profile`). 그 아래 checkout 경로의 SHA-256 앞 16자리와 선택적 `-edge` suffix로 고정 profile을 구분한다. 같은 브랜드·checkout·채널은 이 profile을 계속 재사용한다.
 
 공통 persistent context에는 `Connection: close`를 설정하지 않는다. Chromium의 문서·asset·fetch

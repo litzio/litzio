@@ -5,6 +5,7 @@ import { convertPdfToArchive } from "./conversion.js";
 import { readDoclingArchive, rewriteReview } from "./archive.js";
 import { convertDocument } from "./document.js";
 import { readReview, applyCorrections, reviewItems, comparison, setProgress } from "./review.js";
+import { workspaceOperation } from "./workspace.js";
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
@@ -122,6 +123,7 @@ export function activate(context) {
     operations: {
       connection: async () => checkConnection(),
       async "generated-document"(input) {
+        if (input.mode.startsWith("workspace-")) return workspaceOperation(input);
         const archive = await load(input);
         const record = readReview(archive.reviewBytes);
         if (input.mode === "patch") {

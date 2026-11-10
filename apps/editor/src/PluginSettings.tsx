@@ -5,7 +5,7 @@ import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
 import { FieldError, Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { PLUGIN_REGISTRATION_CHANGED, healthCheckResultSchema, type HealthCheckResult } from "@litzio/plugin-sdk";
 import { Info, Settings } from "lucide-react";
 import { useHostClient } from "./host-context.tsx";
@@ -21,7 +21,17 @@ export function PluginSettings() {
   const removeButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const client = useHostClient();
+  // FolderDialog initializes its draft when the Host changes, not on list refresh.
+  const browse = useCallback(async (path: string) => { const r = await client.request(`/api/folder-browse?path=${encodeURIComponent(path)}`); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v; }, [client]);
+  const places = useCallback(async () => { const r = await client.request("/api/folder-places"); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v.places; }, [client]);
   const current = plugins.find(p => p.id === selected);
+  useEffect(() => {
+    if (busy || error) return;
+    if (selected && !plugins.some(plugin => plugin.id === selected) || trust && !plugins.some(plugin => plugin.id === trust.id)) {
+      setSelected(undefined); setTrust(undefined); setRemoving(false);
+      setProblem(i18n.t("The selected plugin is no longer available."));
+    }
+  }, [plugins, selected, trust, busy, error]);
   const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
@@ -29,10 +39,9 @@ export function PluginSettings() {
     </Notice>
     <Button ref={addButton} size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} showSidebarHint={false} initialPath="" recent={[]}
-      browse={async path => { const r = await client.request(`/api/folder-browse?path=${encodeURIComponent(path)}`); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v; }}
-      places={async () => { const r = await client.request("/api/folder-places"); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v.places; }}
+      browse={browse} places={places}
       onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
-    {error || problem && !current ? <Notice tone="error">{error || problem}</Notice> : null}
+    {error || problem && !current && !trust ? <Notice tone="error">{error || problem}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} className="settings-section settings-section--stacked host-registration" aria-label={plugin.name ?? plugin.id}>
       <div className="plugin-summary-row">
         <div className="host-summary">
@@ -56,7 +65,7 @@ export function PluginSettings() {
       </div>
       {plugin.status?.accounts.map(account => <p key={account.id} className="settings-description plugin-account">{i18n.t("Account: {{label}} ({{source}})", { label: account.label, source: account.source })}</p>)}
     </section>)}
-    <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, registrationId: trust.registrationId, trust: true }); setTrust(undefined); } catch (e) { if (e instanceof Error && e.message === PLUGIN_REGISTRATION_CHANGED) { setTrust(undefined); setProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED)); } else setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="secondary" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
+    <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, registrationId: trust.registrationId, trust: true }); setTrust(undefined); } catch (e) { if (e instanceof Error && e.message === PLUGIN_REGISTRATION_CHANGED) { setTrust(undefined); setProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED)); } else setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="secondary" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{trust && problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
     <Dialog open={!!current} onOpenChange={open => { if (!open && !busy) setSelected(undefined); }}>
       <DialogContent className="plugin-settings-dialog" finalFocus={addButton}>
         <DialogHeader>
@@ -64,7 +73,7 @@ export function PluginSettings() {
           <p className="settings-status">{current?.version}</p>
           <DialogDescription>{current?.description}</DialogDescription>
         </DialogHeader>
-        {problem ? <Notice tone="error">{problem}</Notice> : null}
+        {current && problem ? <Notice tone="error">{problem}</Notice> : null}
         {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
         {current && !current.bundled ? <div className="settings-actions"><Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button></div> : null}
         <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t("Publisher")}: {current?.publisher?.name ?? current?.id}</p><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>

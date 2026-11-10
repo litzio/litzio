@@ -142,3 +142,6 @@ Editor와 CLI는 Core를 연결하며, 공식 AI 비서는 Host 공용 작업을
 [문서 색인](docs/README.md)에서 현재 계약·설계 결정·릴리스 기록·검증 안내를 찾을 수 있습니다.
 개발·검증·PR 절차는 [CONTRIBUTING](CONTRIBUTING.md), AI agent의 작업 제약은 [AGENTS](AGENTS.md)를 따릅니다. 제안과 문제 보고에는 [이슈 작성 안내](docs/contributing/issues.md)와 [표준 템플릿](https://github.com/litzio/litzio/issues/new/choose)을 사용하세요.
 [MIT License](LICENSE)에 따라 사용·수정·재배포할 수 있습니다.
+
+
+Docling 검수 3단계는 `feature/docling-stage3`에서 진행 중입니다. [P1a](docs/design/docling-review-stage3.md#p1a-저장읽기-기반-구현과-측정)는 단일 `.docling` 내부 canonical 캐시와 Host·CLI 읽기/원자적 저장까지 제공합니다. 기존 `.docling→문서` 화면과 별개이며 작업공간 대조 화면·중간 내보내기는 후속 P1b 범위입니다.
