@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { load } from 'js-yaml';
 import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-policy.mjs';
 import { removalScenarios } from '../apps/desktop/test/packaged/uninstall-scenarios.ts';
@@ -465,6 +466,19 @@ test('event selection and aggregate agree on PR and queue Windows checks', () =>
   assert.equal(jobs['quality-unit'].steps.at(-1).run, jobs['desktop-unit'].steps.at(-1).run);
   for (const id of ['desktop', 'desktop-unit', 'desktop-stable', 'desktop-beta', 'http-windows', 'quality-unit']) {
     assert.ok(jobs['quality-and-browser'].needs.includes(id), id);
+  }
+  // Evaluate real workflow selection expressions against each event's policy outputs.
+  for (const eventName of ['pull_request', 'merge_group', 'push']) {
+    for (const paths of [['docs/test/README.md'], ['apps/editor/src/App.tsx'], ['pnpm-lock.yaml'], []]) {
+      const outputs = Object.fromEntries(Object.entries(selectJobs(eventName, paths)).map(([key, value]) => [key, String(value)]));
+      const context = { github: { event_name: eventName }, needs: { changes: { outputs } } };
+      const evaluate = expression => runInNewContext(expression.replace(/^\$\{\{|\}\}$/g, '').trim(), context);
+      for (const [id, selected] of [['desktop', 'DESKTOP'], ['desktop-unit', 'DESKTOP_UNIT'],
+        ['desktop-stable', 'DESKTOP_STABLE'], ['desktop-beta', 'DESKTOP_BETA'],
+        ['http-windows', 'HTTP_WINDOWS'], ['http', 'HTTP'], ['browser', 'BROWSER'], ['quality-unit', 'QUALITY_UNIT']]) {
+        assert.equal(evaluate(jobs[id].if), evaluate(env[`${selected}_SELECTED`]), `${eventName}: ${id}`);
+      }
+    }
   }
   for (const paths of [undefined, [], ['unknown/new-input'], ['apps/desktop/src/main.ts'], ['apps/editor/src/App.tsx']]) {
     assert.equal(selectJobs('pull_request', paths).desktop, false);
