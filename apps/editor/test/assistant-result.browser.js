@@ -21,6 +21,11 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   let resumes = 0;
   await page.route('**/api/assistant/conversations*', route => {
     if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'resume') resumes++;
+    if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'send') {
+      const submissionId = route.request().postDataJSON().submissionId;
+      conversation.turns[0].items.unshift({ id: 'user', kind: 'user', text: 'Create a document', submissionId });
+      return route.fulfill({ json: { submission: { id: submissionId, status: 'accepted' }, conversation } });
+    }
     return route.fulfill({ json: route.request().method() === 'GET' && !route.request().url().includes('?id=') ? [conversation] : conversation });
   });
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root + sep); await page.getByTestId('folder-open').click();

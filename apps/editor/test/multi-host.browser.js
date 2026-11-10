@@ -1,4 +1,4 @@
-async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
+async (page, { brand, expect, screenshots, recoveryRecords, showNotifications }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
@@ -276,6 +276,8 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   await local.click();
   await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue('Local saved');
   if ((await page.evaluate(() => window.__explorerCalls)).length) throw new Error('Remote paths reached the Desktop shell');
+  // This fixture starts fresh on each Host, independently of earlier assistant scenarios.
+  await page.evaluate(prefix => { for (const key of Object.keys(localStorage)) if (key.startsWith(prefix + '.assistantConversation:')) localStorage.removeItem(key); }, brand.storagePrefix);
   const assistantRequests = [];
   await page.route('**/api/assistant/**', route => { assistantRequests.push(route.request().url()); return route.fulfill({ json: route.request().url().includes('/models') ? { models: [{ id: 'fixture', model: 'fixture', displayName: 'Fixture model', supportedReasoningEfforts: [{ reasoningEffort: 'low' }], defaultReasoningEffort: 'low' }], provider: 'codex' } : route.request().url().includes('/diagnostics') ? { connected: true, account: { type: 'apiKey' } } : { provider: 'codex', permissionMode: 'opened-folders', model: 'fixture', reasoningEffort: 'low' } }); });
   // A consumed local reference must not be replayed when New conversation selects another Host.
@@ -310,10 +312,11 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   await expect(page.getByRole('button', { name: 'Remove reference: same.txt', exact: true })).toHaveCount(1);
   await page.getByRole('button', { name: 'Dismiss error', exact: true }).click();
   let rejectedSend;
-  const rejectSend = route => { rejectedSend = route.request().postDataJSON(); return route.fulfill({ status: 400, json: { error: 'Fixture reference rejected' } }); };
+  const rejectSend = route => { rejectedSend = route.request().postDataJSON(); return route.fulfill({ json: { submission: { id: rejectedSend.submissionId, status: 'rejected', error: 'Fixture reference rejected' } } }); };
   await page.route('**/fixture/remote/api/assistant/conversations', rejectSend);
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
-  await expect(page.getByTestId('assistant-panel').getByRole('alert')).toContainText('Fixture reference rejected');
+  await expect(page.getByTestId('assistant-panel')).toContainText('Fixture reference rejected');
+  await page.getByRole('button', { name: 'Restore to input', exact: true }).click();
   expect(rejectedSend.references).toEqual([path]);
   expect(rejectedSend.folders).toEqual([root]);
   expect(rejectedSend.document).toBeUndefined();

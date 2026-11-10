@@ -1,6 +1,14 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Needs confirmation": "Needs confirmation",
+  "Sending…": "Sending…",
+  "Sent": "Sent",
+  "Restore to input": "Restore to input",
+  "Restore after clearing your current draft.": "Restore after clearing your current draft.",
+  "Check conversation": "Check conversation",
+  "Check acceptance without sending this message again.": "Check acceptance without sending this message again.",
+
   "Additional conditions": "Additional conditions",
   "Columns": "Columns",
   "Column selection could not be saved.": "Column selection could not be saved.",
@@ -1253,6 +1261,14 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Needs confirmation": "확인 필요",
+  "Sending…": "전송 중…",
+  "Sent": "전송됨",
+  "Restore to input": "입력으로 복원",
+  "Restore after clearing your current draft.": "작성 중인 입력을 비운 뒤 복원할 수 있습니다.",
+  "Check conversation": "대화 확인",
+  "Check acceptance without sending this message again.": "메시지를 다시 보내지 않고 수락 여부를 확인합니다.",
+
   "Additional conditions": "추가 조건",
   "Columns": "열 선택",
   "Column selection could not be saved.": "열 선택을 저장하지 못했습니다.",

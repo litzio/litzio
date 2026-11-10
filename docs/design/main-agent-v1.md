@@ -384,8 +384,8 @@ A single nonoverlapping 600ms snapshot poll while the panel is open and the tab
 is visible delivers
 message deltas, tool names/statuses, plans and reasoning **summaries**. Raw
 reasoning content is never included in the UI snapshot. Polling reuses the
-existing JSON transport and adds no streaming infrastructure. It pauses during
-an action, while the tab is hidden, and while Codex is off or setup is incomplete
+existing JSON transport and adds no streaming infrastructure. It continues during
+a pending send (#1417), pauses while the tab is hidden or setup is incomplete
 or failed. Visibility restoration schedules one loop; repeated visibility events
 cannot overlap an in-flight snapshot. It ignores responses after closing/switching
 or while hidden. Running work continues
@@ -1011,7 +1011,7 @@ layout remains unchanged. Current ordinary-Send view behavior follows the
 
 Removable chips above the input show only file names; shared Tooltip exposes the
 full path on hover/focus. No file-type-specific presentation or read indicator is
-used. New conversation clears the draft. Failed sends retain it. A reference-only
+used. New conversation clears the draft. Sending snapshots the draft into a message row; confirmed rejection retains that row with explicit restoration (see #1417 below). A reference-only
 message is valid, including steering an active turn.
 
 Host checks both opened-folder RootAccess and its own access policy. Each relative
@@ -1188,7 +1188,7 @@ therefore restore choices after Auto → a model with different reasoning suppor
 The composer preserves the user's requested effort across Copilot model changes;
 it does not replace it with a catalog default or automatically retry an invalid
 value. The existing choice tooltip reports the provider's current value separately.
-An invalid request retains the message draft and readable error until the user
+An invalid request retains the submitted message row and readable error until the user
 selects an advertised value and sends again.
 
 #1181 verification (2026-11-06): the owner observed Copilot 1.0.105 rejecting an
@@ -1429,7 +1429,7 @@ Settings and composer disable Full access with a reason in the existing permissi
 Servers that report an unsupported method keep the choice available. A turn-start rejection
 for DangerFullAccess outside the allowed sandbox set is replaced with a plain organization-policy
 message advising Opened folders or Read-only. No automatic retry or policy override occurs.
-The composer retains its draft on rejection and existing conversation history remains available.
+A rejected submission retains its message row with an explicit Restore to input action; existing conversation history remains available.
 Requirements can change after discovery; the turn rejection remains authoritative.
 
 Protocol reference: [official app-server admin requirements](https://learn.chatgpt.com/docs/app-server#read-admin-requirements-configrequirementsread).
@@ -1444,3 +1444,86 @@ One real gpt-6-luna/low turn completed, but all three shell commands (localhost 
 inside write, outside write) failed before execution with `CreateProcessAsUserW failed: 5`.
 No HTTP hit or file creation occurred; actual network success and sandbox write containment remain
 unverified on this PC. The organization-managed account path is fixture-only; no such account was available.
+
+
+## Optimistic assistant submissions (#1417)
+
+The composer owns a temporary submission row (text, selected references, target Host and
+conversation) and generates a random `submissionId` before POST. It immediately shows
+that row and clears the composer. New typing/attachments during the request remain a
+separate draft and are never cleared by its response. Reference-only input, first and
+existing conversations, Codex steer and Copilot sends use the same path. Copilot still
+blocks input submission during an active response; there is no follow-up queue.
+
+`assistantConversation` send with `submissionId` returns
+`{submission:{id,status,conversationId?,itemId?,error?},conversation?}`. The existing
+GET/`assistantConversations` accepts `submissionId` to return the same envelope,
+including a first conversation whose POST acknowledgement was lost. Legacy callers
+without a submission ID retain their conversation response. This is the existing
+Host conversation operation, not a new document semantic operation or CLI command.
+User items expose `submissionId`: Codex carries it in the Host context envelope and
+restores it from both notifications and CLI-owned resumed history; Copilot assigns it
+to its Host user item and includes it in the prompt context for history restoration.
+Only the ID connects temporary and observed user rows; equal text never merges them.
+The application hides the temporary row when the observed item has the same ID,
+regardless of whether provider observation/query or POST response arrives first.
+
+Host receipts distinguish pending, accepted, rejected and unknown. Validation/setup
+errors before dispatch to turn/start, turn/steer or ACP prompt are definite rejection.
+An error after dispatch is unknown unless a correlated user item or successful RPC
+proves acceptance; an observed item wins over a lost/error RPC response. Acceptance
+means the message was admitted, not successful completion of the model's work.
+The application's send transport ends after 120 seconds; timeout, connection loss and
+unstructured HTTP errors leave **Needs confirmation**, never **Failed**. It never
+resends automatically. **Check conversation** queries the submission and snapshot.
+A Host receipt not found after restart also stays unknown; absence is not rejection.
+
+The Host retains the first outcome for each submission ID in the `AssistantConversations`
+instance for the daemon lifetime, registering synchronously before validation. Concurrent
+and later sends with that ID reuse its result and never call the provider again; the
+first payload owns the ID, so clients must create a fresh ID for a changed message.
+This bounded scope is not durable idempotency or an exactly-once guarantee across Host
+restart, different Hosts, different IDs or direct provider calls. Receipts are memory
+only; Litzio still persists only its conversation index, with content owned by CLIs.
+
+Message-local **Failed** rows remain visible with **Restore to input**. Restoration
+is disabled when the current draft has any text or reference, protecting new work.
+Unknown rows remain visible with **Check conversation** and the transport error.
+The shared Button (outline/sm), Tooltip and existing transcript/surface tokens implement
+these actions; longer action help is in keyboard-accessible tooltips. The existing
+assistant side panel is the selected surface from the UI decision table; no new panel,
+notification, dialog or common interaction is introduced.
+
+Visible-panel, visible-tab nonoverlapping 600ms polling continues during a pending
+send and queries unresolved submissions as well as conversation snapshots. Closing
+or refreshing the panel invalidates outstanding response handlers without cancelling
+the Host turn; reopening reconciles retained submission rows and preserves the new
+draft. New conversation or explicit history selection discards the local submission
+view. Late handlers cannot restore it. This session-local state is not persisted
+across page reload or Host changes. Existing Codex steer, interruption, model/provider
+locks and daemon lifetime remain unchanged.
+
+Verification extends existing assistant fake Host/browser scenarios and Host/stdio
+tests. The delayed-row browser assertion and missing Host receipt assertion failed
+before implementation. Cases cover first send, steer/reference-only input, one row
+after observation before the POST reply, confirmed rejection/restoration with a new
+draft, unknown first-send acknowledgement, query recovery without retransmission,
+provider choices and panel reopen. Host cases cover duplicate IDs, event-before-RPC,
+uncertain RPC failure and both providers. These are synthetic fixtures, not real
+provider latency, model entitlement or user-perceived performance measurements.
+
+
+Visual evidence uses the persistent Chrome runner with a held send response and
+synthetic message/provider failure, at 1440×1000 English Light and 640×1000 Korean
+Dark, 100% zoom. Images are native panel crops so unrelated OS-account labels are
+excluded. [1440 Before](assets/assistant-send-1417/before-1440.png) /
+[After](assets/assistant-send-1417/after-1440.png),
+[640 Before](assets/assistant-send-1417/before-640.png) /
+[After](assets/assistant-send-1417/after-640.png),
+[1440 rejection](assets/assistant-send-1417/after-1440-rejected.png) /
+[640 rejection](assets/assistant-send-1417/after-640-rejected.png).
+The same [manual capture procedure](assets/assistant-send-1417/capture.browser.js)
+uses the baseline panel for Before and the implementation for After; it is outside
+the stable suite and does not add screenshot-only CI traversal. Text, controls and
+message-local actions remain within the panel at both widths. These captures show
+fixture behavior and layout, not real model speed or a manual owner approval.

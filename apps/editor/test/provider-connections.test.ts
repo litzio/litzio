@@ -42,9 +42,14 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 1);
   const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "high" };
-  const input = { provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
+  const input = { submissionId: "copilot-submission", provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
   await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
-  const conversation = await conversations.send(input, settings);
+  const accepted = await conversations.submit(input, () => conversations.send(input, settings));
+  const conversation = accepted.conversation!;
+  assert.equal(accepted.submission.status, "accepted");
+  assert.equal(accepted.submission.itemId, conversation.turns[0]!.items[0]!.id);
+  assert.equal(conversation.turns[0]!.items[0]!.submissionId, input.submissionId);
+  await conversations.submit(input, () => { throw new Error("Duplicate reached provider"); });
   assert.equal(conversation.turns.length, 1, "ACP selector updates must not create transcript turns");
   const turn = conversation.turns[0]!;
   await t.test("response and permission arrive over the child stdio", async () => {

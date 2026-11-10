@@ -6,7 +6,7 @@ import { templateTools, executeTemplateOperation, templateOperations } from "./d
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInfo, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
+import type { AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInfo, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
@@ -26,6 +26,36 @@ export class AssistantConversations {
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
   private pending = new Set<string>();
+  private submissions = new Map<string, { receipt: AssistantSubmission; result: Promise<AssistantSubmissionResult>; dispatched: boolean }>();
+  submission(id: string): AssistantSubmissionResult {
+    const receipt = this.submissions.get(id)?.receipt ?? { id, status: "unknown" as const };
+    // Reconcile even when the provider event arrived after a failed/lost RPC response.
+    for (const conversation of this.conversations.values()) {
+      const item = conversation.turns.flatMap(turn => turn.items).find(item => item.submissionId === id);
+      if (item) { receipt.status = "accepted"; receipt.conversationId = conversation.id; receipt.itemId = item.id; delete receipt.error; break; }
+    }
+    return { submission: { ...receipt }, ...(receipt.conversationId ? { conversation: this.conversations.get(receipt.conversationId) } : {}) };
+  }
+  submit(input: AssistantConversationInput, send: () => Promise<AssistantConversation>): Promise<AssistantSubmissionResult> {
+    const id = input.submissionId!;
+    if (typeof id !== "string" || !/^[a-zA-Z0-9-]{1,128}$/.test(id)) throw new Error("Invalid submission ID.");
+    const previous = this.submissions.get(id);
+    if (previous) return previous.result.then(() => this.submission(id));
+    const receipt: AssistantSubmission = { id, status: "pending", ...(input.id ? { conversationId: input.id } : {}) };
+    // Register before any asynchronous validation or provider work. IDs are never replayed.
+    const result = Promise.resolve().then(send).then(conversation => {
+      receipt.status = "accepted"; receipt.conversationId = conversation.id;
+    }, error => {
+      if (receipt.status !== "accepted") receipt.status = this.submissions.get(id)?.dispatched ? "unknown" : "rejected";
+      receipt.error = (error as Error).message;
+    }).then(() => this.submission(id));
+    this.submissions.set(id, { receipt, result, dispatched: false });
+    return result;
+  }
+  private dispatch(input: AssistantConversationInput, conversation: AssistantConversation) {
+    const entry = input.submissionId ? this.submissions.get(input.submissionId) : undefined;
+    if (entry) { entry.dispatched = true; entry.receipt.conversationId = conversation.id; }
+  }
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
   private loaded = new Set<string>();
@@ -230,10 +260,11 @@ export class AssistantConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { userMessage: input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
+      this.dispatch(input, conversation);
       if (active) {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
@@ -341,8 +372,9 @@ export class AssistantConversations {
       conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
     }
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { userMessage: input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references };
-    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
+    const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references };
+    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
+    this.dispatch(input, conversation);
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
@@ -442,6 +474,7 @@ function itemFrom(item: any): AssistantConversationItem | null {
   if (item.type === "userMessage") {
     const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
     const text: string[] = [];
+    let submissionId: string | undefined;
     for (const part of item.content ?? []) {
       if (part.type !== "text") continue;
       // Codex's legacy history flattens all text inputs into one string.
@@ -450,6 +483,7 @@ function itemFrom(item: any): AssistantConversationItem | null {
         try {
           const value = JSON.parse(part.text.slice(marker + CONTEXT.length));
           if (value && Array.isArray(value.folders)) {
+            if (typeof value.submissionId === "string") submissionId = value.submissionId;
             if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
             if (typeof value.userMessage === "string") { text.length = 0; text.push(value.userMessage); }
             else if (marker) text.push(part.text.slice(0, marker));
@@ -459,7 +493,7 @@ function itemFrom(item: any): AssistantConversationItem | null {
       }
       text.push(part.text);
     }
-    return { id: item.id, kind: "user", text: text.join("\n"), references };
+    return { id: item.id, kind: "user", ...(submissionId ? { submissionId } : {}), text: text.join("\n"), references };
   }
   if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
   if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };

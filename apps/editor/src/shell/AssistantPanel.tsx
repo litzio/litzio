@@ -9,7 +9,7 @@ import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, Square, Check } from "lucide-react";
-import { ASSISTANT, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
+import { ASSISTANT, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -25,6 +25,8 @@ const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).at
 const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
+
+type LocalSubmission = { receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
 
 type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
@@ -66,6 +68,17 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
   const [setup, setSetup] = useState("");
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
+  const busy = useRef(false);
+  const [submissions, setSubmissions] = useState<LocalSubmission[]>([]);
+  const submissionScope = useRef(0);
+  const clearSubmissions = () => { submissionScope.current++; setSubmissions([]); };
+  const submitted = useRef(submissions); submitted.current = submissions;
+  const applySubmission = (result: AssistantSubmissionResult) => {
+    setSubmissions(previous => previous.map(value => value.receipt.id === result.submission.id ? { ...value,
+      receipt: value.receipt.status === "accepted" && result.submission.status !== "accepted" || value.receipt.status === "unknown" && result.submission.status === "pending"
+        ? value.receipt : { ...result.submission, ...(result.submission.status === "unknown" && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value));
+    if (result.conversation) { setConversation(result.conversation); rememberConversation(conversationKey, result.conversation.id); }
+  };
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
   const referenceCaret = useRef<number | null>(null);
@@ -100,7 +113,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         try { resumed = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id }); }
         catch {
           // A missing or unavailable last thread must not block a fresh conversation.
-          if (alive) { current.current = undefined; setConversation(undefined); rememberConversation(conversationKey, ); setMessage(""); setProblem(""); defaults(value); }
+          if (alive) { current.current = undefined; setConversation(undefined); rememberConversation(conversationKey, ); setProblem(""); defaults(value); }
         }
       }
       if (!alive) return;
@@ -118,6 +131,8 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     }).catch(error => { if (alive) setSetup(error.message); });
     return () => {
       alive = false; initialFocus.current = false; setReady(false);
+      providerVersion.current++; busy.current = false; setPending(false);
+      setSubmissions(previous => previous.map(value => value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
       document.removeEventListener("focusin", cancelInitialFocus);
     };
   }, [open, settingsRevision]);
@@ -128,9 +143,8 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     }
   }, [open, ready, enabled, setup]);
   useEffect(() => {
-    if (!open || !conversation?.id || pending || !ready || !enabled || setup) return;
+    if (!open || !ready || !enabled || setup) return;
     let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
-    const id = conversation.id;
     const schedule = () => {
       if (alive && document.visibilityState === "visible" && !polling && timer === undefined) timer = setTimeout(poll, 600);
     };
@@ -138,6 +152,18 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
       timer = undefined;
       if (!alive || document.visibilityState !== "visible") return;
       polling = true;
+      const scope = submissionScope.current;
+      // Resolve submissions in this same nonoverlapping poll, including a lost first POST.
+      for (const value of submitted.current) {
+        if (value.receipt.status === "rejected" || current.current?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))) continue;
+        try {
+          const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
+          if (alive && scope === submissionScope.current && document.visibilityState === "visible") applySubmission(result);
+        } catch { /* Acceptance stays uncertain; never replay the message. */ }
+        if (!alive || scope !== submissionScope.current) { polling = false; schedule(); return; }
+      }
+      const id = current.current?.id;
+      if (!id || !alive || document.visibilityState !== "visible") { polling = false; schedule(); return; }
       const pollStartedAt = performance.now();
       try { const next = await request<AssistantConversation & DisplaySnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}&displayClient=${encodeURIComponent(displayClient)}`);
         if (alive && document.visibilityState === "visible") {
@@ -162,8 +188,8 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     document.addEventListener("visibilitychange", visibilityChanged);
     schedule();
     return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
-  }, [open, conversation?.id, pending, ready, enabled, setup, settingsRevision, displayClient]);
-  useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation]);
+  }, [open, conversation?.id, ready, enabled, setup, settingsRevision, displayClient]);
+  useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation, submissions]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!pending && resultFocus.current) {
@@ -172,20 +198,27 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     }
   }, [pending, open]);
   const run = async (action: (isCurrent: () => boolean) => Promise<void>) => {
-    if (pending) return;
+    if (busy.current) return;
+    busy.current = true;
     const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
     setPending(true); setProblem("");
-    try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); } finally { if (isCurrent()) setPending(false); }
+    try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); } finally { if (isCurrent()) { busy.current = false; setPending(false); } }
   };
   const send = () => run(async isCurrent => {
-    if (active && provider === "copilot") return;
+    if (!ready || active && provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
-    const document = documentPath ? { path: documentPath } : undefined;
-    const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", displayClient, id: conversation?.id, message: value,
-      provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
-    if (!isCurrent()) return;
-    setConversation(next); rememberConversation(conversationKey, next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
+    const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
+    const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
+    setSubmissions(previous => [...previous, { receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
+    setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
+    try {
+      const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, displayClient, id: conversation?.id, message: value,
+        provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(120_000));
+      if (isCurrent()) applySubmission(result);
+    } catch (error) {
+      if (isCurrent()) setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted" ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
+    }
   });
   const addReference = (file: AssistantFileReference) => {
     setReferences(previous => {
@@ -280,7 +313,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
-        setConversation(undefined); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
+        setConversation(undefined); clearSubmissions(); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
         setModels(catalog); if (settings) defaults(settings);
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
@@ -308,7 +341,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id });
           if (!isCurrent()) return;
-          setConversation(next); rememberConversation(conversationKey, next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
+          setConversation(next); clearSubmissions(); rememberConversation(conversationKey, next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
@@ -361,13 +394,28 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
             <CopyButton iconOnly text={turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n\n")} label={i18n.t("Copy answer")} />
           </div> : null}
         </section>)}
+      {!history && submissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))).map(value =>
+        <div key={value.receipt.id} className="assistant-submission">
+          <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips references={value.references} /></p>
+          <div className="assistant-submission-status">
+            <span role={value.receipt.status === "rejected" ? "alert" : "status"}>{i18n.t(value.receipt.status === "rejected" ? "Failed" : value.receipt.status === "unknown" ? "Needs confirmation" : value.receipt.status === "accepted" ? "Sent" : "Sending…")}</span>
+            {value.receipt.error ? <span>{i18n.t(value.receipt.error, { defaultValue: value.receipt.error })}</span> : null}
+            {value.receipt.status === "rejected" ? <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>
+              <Button variant="outline" size="sm" disabled={!!message || !!references.length || pending} onClick={() => { setMessage(value.text); setReferences(value.references); input.current?.focus(); }}>{i18n.t("Restore to input")}</Button>
+            </TooltipTrigger><TooltipContent>{i18n.t("Restore after clearing your current draft.")}</TooltipContent></Tooltip> : value.receipt.status === "unknown" ?
+              <Tooltip><TooltipTrigger render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void run(async isCurrent => {
+                const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
+                if (isCurrent()) applySubmission(result);
+              })}>{i18n.t("Check conversation")}</TooltipTrigger><TooltipContent>{i18n.t("Check acceptance without sending this message again.")}</TooltipContent></Tooltip> : null}
+          </div>
+        </div>)}
       {!history && conversation?.userInput ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
         submit={answers => run(async isCurrent => {
           const question = conversation.userInput!;
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation.id, turnId: question.turnId, requestId: question.requestId, answers });
           if (isCurrent()) setConversation(next);
         })} /> : null}
-      {!history && !conversation ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
+      {!history && !conversation && !submissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
     </div>
@@ -403,7 +451,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
           onSelect={selection => {
             const selected = selection as "codex" | "copilot";
             void run(async isCurrent => {
-              setReady(false);
+              clearSubmissions(); setReady(false);
               try {
                 const [catalog, diagnostics] = await Promise.all([request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selected}`), request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${selected}`)]);
                 if (!isCurrent()) return;

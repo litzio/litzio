@@ -30,12 +30,14 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     assistantDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).diagnostics(provider(args)),
     assistantEnvironment: () => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).environment(),
     assistantConversations: (args: any) => {
+      if (args.submissionId) return history().submission(args.submissionId);
       if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args));
       const conversation = history().current(args.id);
       return { ...conversation, displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
     assistantConversation: async (args: any): Promise<any> => {
       if (args.action === "provider-log" && Object.keys(args).every(key => ["action", "id", "provider"].includes(key))) return history().providerLog(args.id, args.provider);
+      if (args.action === "send" && args.submissionId !== undefined) return history().submit(args, () => sendConversation(args));
       return sendConversation(args);
     },
   };
