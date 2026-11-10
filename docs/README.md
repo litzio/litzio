@@ -89,7 +89,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | Document | Status | Authority / description |
 | --- | --- | --- |
 | [카탈로그 v2](design/catalog-v2.md) | Draft | #1341 이후 남는 query/InputForm/Table·K2/K3/K4·V5와 후속 수락 경계. 생성·저장·Chart 요구는 종료. |
-| [Docling 검수 3단계](design/docling-review-stage3.md) | Draft | #1462 문제 묶음·비서 전 페이지 검사·완료 조건, 공용 Host/CLI/비서 작업과 플러그인 경계 및 입력 방식 재측정. 구현 계약이 아님. |
+| [Docling 검수 3단계](design/docling-review-stage3.md) | Draft | #1462 단일 .docling 작업공간·내부 canonical .md/대응 캐시·명시 export·기본 렌즈·그림/표 필수 확인·승인 후 이미지 대조·완료 조건, 유효 문서/네 구조 수정·PR 계획. 확정 방향과 미구현 계획을 구분. |
 
 ## UI pattern targets awaiting implementation
 
