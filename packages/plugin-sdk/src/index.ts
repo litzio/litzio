@@ -203,7 +203,7 @@ export const jobUpdateSchema = z.strictObject({
   file: z.strictObject({ path: z.string().min(1) }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; output?: string; startFailure?: JobStartFailure; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; inputs?: import("@litzio/core").AuthoredDocument["inputs"]; comparison?: { root: string; document: string }; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; output?: string; startFailure?: JobStartFailure; startedAt?: number; finishedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; inputs?: import("@litzio/core").AuthoredDocument["inputs"]; comparison?: { root: string; document: string }; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
 export const JOB_BATCH_MAX_FILES = 50;
 export const JOB_START_FAILURE_MESSAGES = {
   result_exists: "The result path already exists or is in use.",

@@ -109,6 +109,10 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 
 ## P07 입력 오류와 알림 센터
 
+#1439 K1 이력 손상 경고는 PluginJobs·PluginJobPanel 모두 기존 폼 문맥의
+`Notice tone="error"`와 지역화 문구를 사용한다. 원본 보존·빈 이력 시작을 알리며
+새 알림 표면·control·토큰 예외는 없다([K1 보존 계약](plugin-stage1-v1.md#host-작업-이력-보존-1439)).
+
 #1424의 [비서 상단 상태](main-agent-v1.md#assistant-button-status-1424)는 기존 Button·Tooltip과
 상태 토큰을 사용한다. 닫힌 패널의 작업·읽지 않은 완료·확인/답변 필요를 작은 모양과
 접근성 이름으로 구별한다. 완료는 패널을 열어 확인하며, 질문과 실패의 실제 복구 동작은

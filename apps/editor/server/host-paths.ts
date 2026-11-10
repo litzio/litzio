@@ -18,6 +18,7 @@ export function hostPaths(run: HostRun = {}, env: NodeJS.ProcessEnv = process.en
     assistantDefaults: (packaged ? DEFAULT_ASSISTANT_SETTINGS : { model: "gpt-6-luna", reasoningEffort: "low" }) as AssistantExecutionSettings,
     templates: path.join(base, "templates"),
     plugins: path.join(base, "plugins"),
+    jobHistory: path.join(base, "plugin-jobs.json"),
     settingsFile: (id: string) => env[`LITZIO_${id.toUpperCase().replaceAll("-", "_")}_SETTINGS_FILE`] ?? path.join(base, `${id}.json`),
     assistant: env.LITZIO_ASSISTANT_CWD ?? path.join(packaged ? path.join(data, brand.folders.desktopData) : base, "assistant"),
   };

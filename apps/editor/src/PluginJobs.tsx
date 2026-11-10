@@ -43,6 +43,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen, onCompare }:
   useEffect(() => {
     void Promise.all([request(), request({ action: "job-list" })]).then(([catalog, history]) => {
       setPlugins(catalog.plugins); setRecent(history.jobs);
+      if (history.warning) setProblem(i18n.t(history.warning));
       const latest = history.jobs.find((item: JobSnapshot) => ["running", "uncertain"].includes(item.state)) ?? history.jobs[0];
       if (latest) { setJob(latest); changeRoot(latest.root); setSelected(`${latest.plugin}/${latest.job}`); }
     }).catch(error => { if (!lifetime.current?.signal.aborted) setProblem(String(error)); });

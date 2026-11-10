@@ -3,8 +3,8 @@ import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { hostPaths } from "./host-paths.ts";
 
 /** Host-owned plugin lifetime and management API, independent of AI providers. */
-export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile = hostPaths().settingsFile("plugins")) {
-  const host = new PluginHost(settingsFile, { access });
+export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile = hostPaths().settingsFile("plugins"), jobHistoryFile?: string) {
+  const host = new PluginHost(settingsFile, { access, jobHistoryFile });
   let ready: Promise<void> | undefined, closing: Promise<void> | undefined;
   let closed = false;
   const start = () => {

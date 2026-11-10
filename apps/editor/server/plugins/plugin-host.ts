@@ -48,7 +48,7 @@ export class PluginHost {
   private designated: { id: string; directory: string }[];
   readonly authoringDirectory: string;
   private authoringRoot?: RootAccess;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[] } = {}) {
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[]; jobHistoryFile?: string } = {}) {
     this.authoringDirectory = options.authoringDirectory ?? hostPaths().plugins;
     this.supply = options.officialPlugins ?? OFFICIAL_PLUGINS;
     this.designated = options.designatedPlugins ?? designatedPluginDirectories();
@@ -80,7 +80,7 @@ export class PluginHost {
       if (!operation) throw new Error("Job operation unavailable");
       return operation.effect;
     }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data),
-    (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs));
+    (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs), options.jobHistoryFile ?? path.join(path.dirname(file), "plugin-jobs.json"));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   /** Check without creating anything, including when the data directory does not exist yet. */
@@ -313,7 +313,7 @@ export class PluginHost {
   }
   /** Block job admission before the first asynchronous store write through reload. */
   private async changeConfiguration(id: string, change: () => Promise<void> | void) {
-    if (this.jobs.list(id).jobs.some(job => job.state === "running" || job.state === "uncertain")) {
+    if (this.jobs.hasActive(id)) {
       throw new Error("Plugin has running or uncertain jobs; settings and secrets were not changed");
     }
     const enabled = this.record(id).enabled;

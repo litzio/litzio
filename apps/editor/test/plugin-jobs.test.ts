@@ -10,10 +10,209 @@ import path from "node:path";
 import { createHostServices } from "../server/host-services.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { PluginJobs } from "../server/plugins/jobs.ts";
+import { JobHistory, retainJobHistory, JOB_HISTORY_LIMIT, JOB_HISTORY_WARNING } from "../server/plugins/job-history.ts";
 import { JOB_FILE_MAX_BYTES, PLUGIN_ERROR_MESSAGES } from "@litzio/plugin-sdk";
 import { RootAccess } from "../server/file-access.ts";
 
 const safeWriteAdvice = " Check the target before retrying a write. Query the same requestId; do not resend start.";
+
+test("K1 restored uncertainty is bounded and a just-finished old request remains queryable", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-archive-cap-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json");
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  for (const state of ["uncertain", "completed"] as const) {
+    const entries = Array.from({ length: JOB_HISTORY_LIMIT + 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: i + 10, finishedAt: i + 20, elapsedMs: 10, state, effect: "write", stopRequested: false }));
+    writeFileSync(file, JSON.stringify({ version: 1, jobs: entries }));
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const jobs = new PluginJobs(new RootAccess([root]), () => binding, async name => ({ result: name.endsWith(".status")
+        ? { state: "completed", phase: "Done", document: { source: "---\nlitzio: 1\n---\n\n# Result\n" } }
+        : { state: "running", phase: "Waiting" } }), () => "write", undefined, undefined, file);
+      const requestId = randomUUID();
+      // A long-running request started before every archived record but finishes now.
+      const now = t.mock.method(Date, "now", () => 1);
+      await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: `${state}-${cycle}.md` });
+      now.mock.restore();
+      const completed = await jobs.execute({ action: "job-status", requestId });
+      assert.ok("job" in completed); assert.equal(completed.job.state, "completed");
+      const result = await jobs.execute({ action: "job-result", requestId });
+      assert.ok("job" in result); assert.ok(result.job.result?.revision);
+      assert.equal(jobs.list().jobs.length, JOB_HISTORY_LIMIT);
+      assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs.length, JOB_HISTORY_LIMIT);
+    }
+  }
+});
+
+test("K1 restored uncertainty always retains safe advice even when saved effect is changed to read", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-forged-effect-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json"), requestId = randomUUID();
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  const jobs = new PluginJobs(new RootAccess([root]), () => binding, async () => ({ result: { state: "running", phase: "Waiting" } }), () => "write", undefined, undefined, file);
+  await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: "result.md" });
+  const saved = JSON.parse(readFileSync(file, "utf8")); saved.jobs[0].effect = "read";
+  writeFileSync(file, JSON.stringify(saved));
+  const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => "read", undefined, undefined, file);
+  for (const action of ["job-status", "job-stop"] as const) {
+    const value = await restarted.execute({ action, requestId });
+    assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
+    assert.equal(value.job.error, PLUGIN_ERROR_MESSAGES.unavailable + safeWriteAdvice);
+    assert.deepEqual(value.job, restarted.list().jobs[0]);
+  }
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs[0].effect, undefined);
+});
+
+test("K1 only current daemon running jobs are exempt in memory and on disk", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-retention-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json"), startedAt = Date.now();
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  for (const state of ["completed", "running"] as const) {
+    // Seed history instead of performing 999 redundant filesystem publications.
+    // Two real admissions cross the cap with an older, still-running first job.
+    const entries = Array.from({ length: JOB_HISTORY_LIMIT - 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: startedAt - 100_000 + i, elapsedMs: 10, state, stopRequested: false }));
+    writeFileSync(file, JSON.stringify({ version: 1, jobs: entries }));
+    const jobs = new PluginJobs(new RootAccess([root]), () => binding, async () => ({ result: { state: "running", phase: "Waiting" } }), () => "write", undefined, undefined, file);
+    const first = randomUUID();
+    const now = t.mock.method(Date, "now", () => startedAt - 200_000);
+    await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId: first, root, file: "input.txt", output: "first.md" });
+    now.mock.restore();
+    await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId: randomUUID(), root, file: "input.txt", output: "second.md" });
+    const memory = jobs.list().jobs.map(job => job.requestId).sort();
+    const disk = JSON.parse(readFileSync(file, "utf8")).jobs.map((job: { requestId: string }) => job.requestId).sort();
+    assert.deepEqual(disk, memory, "memory and file must retain exactly the same IDs");
+    assert.ok(disk.includes(first), "unfinished work cannot be evicted ahead of completed history");
+    assert.equal(disk.length, JOB_HISTORY_LIMIT + 1);
+    const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => "read", undefined, undefined, file);
+    assert.deepEqual(restarted.list().jobs.map(job => job.requestId).sort(), memory.filter(id => id !== entries[0].requestId));
+    const value = await restarted.execute({ action: "job-status", requestId: first });
+    assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
+  }
+  // A fresh completion must retain a result slot even while >1000 live requests
+  // are exempt. Ownership comes from this daemon, never from serialized state.
+  const running = Array.from({ length: JOB_HISTORY_LIMIT + 1 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, startedAt: i, elapsedMs: 10, state: "running" as const, phase: "", stopRequested: false }));
+  const completed = { ...running[0], requestId: randomUUID(), startedAt: 0, finishedAt: startedAt, state: "completed" as const };
+  const live = new Set(running.map(job => job.requestId));
+  const retained = retainJobHistory([...running, completed], live);
+  assert.equal(retained.length, running.length + 1); assert.ok(retained.includes(completed));
+  new JobHistory(file).save([...running, completed], live);
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs.length, retained.length);
+  const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => "read", undefined, undefined, file);
+  assert.equal(restarted.list().jobs.length, JOB_HISTORY_LIMIT);
+  assert.ok(restarted.list().jobs.some(job => job.requestId === completed.requestId));
+});
+
+test("K1 restored uncertainty uses common safe advice regardless of admitted effect without replay", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-restored-advice-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const file = path.join(root, "jobs.json");
+  writeFileSync(path.join(root, "input.txt"), "Input");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  for (const [startEffect, statusEffect] of [["write", "read"], ["read", "read"], ["read", "write"]] as const) {
+    const effect = startEffect === "write" || statusEffect === "write" ? "write" : "read";
+    if (existsSync(file)) fs.unlinkSync(file);
+    const jobs = new PluginJobs(new RootAccess([root]), () => binding, async () => ({ result: { state: "running", phase: "Private phase" } }), name => name.endsWith(".start") ? startEffect : statusEffect, undefined, undefined, file);
+    const requestId = randomUUID();
+    await jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: `${effect}.md` });
+    await jobs.execute({ action: "job-status", requestId });
+    const restarted = new PluginJobs(new RootAccess([root]), () => { throw new Error("no replay"); }, async () => { throw new Error("no replay"); }, () => effect === "write" ? "read" : "write", undefined, undefined, file);
+    for (const action of ["job-status", "job-stop"] as const) {
+      const value = await restarted.execute({ action, requestId });
+      assert.ok("job" in value); assert.equal(value.job.state, "uncertain");
+      assert.equal(value.job.errorKind, "unavailable");
+      assert.equal(value.job.error, PLUGIN_ERROR_MESSAGES.unavailable + safeWriteAdvice);
+      assert.deepEqual(value.job, restarted.list().jobs[0]);
+    }
+    assert.equal(JSON.parse(readFileSync(file, "utf8")).jobs[0].effect, undefined);
+  }
+});
+
+test("K1 durable history serializes concurrent changes, allowlists fields and never resumes observations", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-history-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const historyFile = path.join(root, "jobs.json");
+  writeFileSync(path.join(root, "input.txt"), "private input payload");
+  const binding = { id: "text", title: "Text", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  const ids = [randomUUID(), randomUUID(), randomUUID()];
+  const jobs = new PluginJobs(new RootAccess([root]), () => binding, async (name, raw) => {
+    const input = raw as { requestId: string };
+    return { result: name.endsWith(".status") && input.requestId !== ids[2]
+      ? { state: "completed", phase: "private phase", document: { source: "---\nlitzio: 1\n---\n\n# Private result contents\n" } }
+      : { state: "running", phase: "private phase" } };
+  }, () => "write", undefined, undefined, historyFile);
+  await Promise.all(ids.map((requestId, i) => jobs.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: `result-${i}.md` })));
+  await Promise.all(ids.map(requestId => jobs.execute({ action: "job-status", requestId })));
+  await jobs.execute({ action: "job-stop", requestId: ids[2] });
+  const saved = readFileSync(historyFile, "utf8");
+  assert.ok(!/private|Private|document|secret|error|phase/.test(saved));
+  assert.equal(JSON.parse(saved).jobs.length, ids.length);
+  assert.equal(fs.readdirSync(root).filter(file => file.endsWith(".tmp")).length, 0);
+  let calls = 0;
+  const restored = () => new PluginJobs(new RootAccess([root]), () => { throw new Error("must not resolve old bindings"); }, async () => { calls++; throw new Error("must not replay"); }, () => "write", undefined, undefined, historyFile);
+  const restarted = restored();
+  const list = restarted.list().jobs;
+  assert.equal(list.filter(job => job.state === "completed").length, 2);
+  const uncertain = list.find(job => job.requestId === ids[2])!;
+  assert.equal(uncertain.state, "uncertain"); assert.equal(uncertain.stopRequested, true);
+  for (const action of ["job-status", "job-stop"] as const) {
+    const value = await restarted.execute({ action, requestId: ids[2] });
+    assert.ok("job" in value); assert.deepEqual(value.job, uncertain);
+  }
+  const again = restored();
+  assert.deepEqual(again.list().jobs.find(job => job.requestId === ids[2]), uncertain, "uncertain elapsed time is frozen across restarts");
+  const result = await again.execute({ action: "job-result", requestId: ids[0] });
+  assert.ok("job" in result); assert.equal(result.job.state, "completed");
+  await assert.rejects(again.execute({ action: "job-start", plugin: "fixture.jobs", job: "text", requestId: ids[2], root, file: "input.txt" }), /Duplicate requestId/);
+  assert.equal(calls, 0);
+  assert.equal(again.hasActive("fixture.jobs"), false, "archived uncertainty cannot lock future configuration");
+
+  // A failed history write refuses start before invoking the plugin. Recovery
+  // flushes the current snapshot instead of wedging the observation chain.
+  const save = JobHistory.prototype.save;
+  let failSave = true, invocations = 0;
+  t.mock.method(JobHistory.prototype, "save", function (this: JobHistory, ...args: Parameters<typeof save>) {
+    if (failSave) throw new Error("History storage unavailable");
+    return save.apply(this, args);
+  });
+  const input = { action: "job-start", plugin: "fixture.jobs", job: "text", requestId: randomUUID(), root, file: "input.txt", output: "recovered.md" };
+  await assert.rejects(jobs.execute(input), /History storage unavailable/);
+  assert.ok(!jobs.list().jobs.some(job => job.requestId === input.requestId));
+  failSave = false;
+  const storage = new PluginJobs(new RootAccess([root]), () => binding, async () => { invocations++; return { result: { state: "running", phase: "Accepted" } }; }, () => "write", undefined, undefined, historyFile);
+  await storage.execute(input);
+  failSave = true;
+  await assert.rejects(storage.execute({ action: "job-status", requestId: input.requestId }), /History storage unavailable/);
+  failSave = false;
+  await storage.execute({ action: "job-status", requestId: input.requestId });
+  assert.equal(invocations, 3);
+});
+
+test("K1 damaged history preserves original bytes and retention keeps newest records", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-history-boundary-"));
+  t.after(() => { for (const file of fs.readdirSync(root)) fs.unlinkSync(path.join(root, file)); fs.rmdirSync(root); });
+  const historyFile = path.join(root, "jobs.json");
+  const open = () => new PluginJobs(new RootAccess([root]), () => { throw new Error("unavailable"); }, async () => { throw new Error("no replay"); }, () => "write", undefined, undefined, historyFile);
+  for (const bytes of ["{broken", '{"version":999,"jobs":[]}', '{"version":1,"jobs":[{"requestId":"invalid"}]}']) {
+    writeFileSync(historyFile, bytes);
+    const before = new Set(fs.readdirSync(root));
+    const jobs = open();
+    assert.equal(jobs.list().jobs.length, 0); assert.equal(jobs.list().warning, JOB_HISTORY_WARNING);
+    const preserved = fs.readdirSync(root).find(file => !before.has(file))!;
+    assert.ok(preserved.includes(".corrupt-")); assert.equal(readFileSync(path.join(root, preserved), "utf8"), bytes);
+    assert.deepEqual(JSON.parse(readFileSync(historyFile, "utf8")), { version: 1, jobs: [] });
+  }
+  const entries = Array.from({ length: JOB_HISTORY_LIMIT + 2 }, (_, i) => ({ requestId: randomUUID(), plugin: "fixture.jobs", job: "text", root, file: "input.txt", startedAt: i, elapsedMs: 100, finishedAt: i + 100, state: "completed", effect: "write", stopRequested: false }));
+  writeFileSync(historyFile, JSON.stringify({ version: 1, jobs: [...entries].reverse() }));
+  const jobs = open();
+  assert.equal(jobs.list().jobs.length, JOB_HISTORY_LIMIT);
+  assert.equal(jobs.list().jobs[0].requestId, entries.at(-1)!.requestId);
+  assert.equal(jobs.list().warning, undefined);
+  await assert.rejects(jobs.execute({ action: "job-status", requestId: entries[0].requestId }), /Unknown requestId/);
+  assert.equal(JSON.parse(readFileSync(historyFile, "utf8")).jobs[0].requestId, entries[2].requestId);
+});
 
 test("request IDs use v4 UUIDs without secure-context randomUUID", () => {
   const original = globalThis.crypto;
@@ -154,8 +353,19 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     const restarted = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
     try {
       await restarted.start();
-      assert.equal(restarted.jobs.list("fixture.jobs").jobs.length, 0);
-      await assert.rejects(restarted.jobs.execute({ action: "job-status", requestId: interrupted.requestId }), /Unknown requestId/);
+      assert.ok(restarted.jobs.list("fixture.jobs").jobs.some(job => job.requestId === input.requestId));
+      const restored = await restarted.jobs.execute({ action: "job-status", requestId: interrupted.requestId });
+      assert.ok("job" in restored); assert.equal(restored.job.state, "uncertain");
+      const result = await restarted.jobs.execute({ action: "job-result", requestId: input.requestId });
+      assert.ok("job" in result); assert.deepEqual(result.job.result, { path: completed.result!.path, revision: completed.result!.revision });
+      assert.equal(result.job.finishedAt, completed.finishedAt);
+      await restarted.invoke("unregister", { id: "fixture.jobs" });
+      assert.ok(restarted.jobs.list("fixture.jobs").jobs.some(job => job.requestId === input.requestId));
+      await assert.rejects(restarted.jobs.execute({ action: "job-start", ...interrupted }), /Duplicate requestId/);
+      writeFileSync(completed.result!.path, "Externally changed");
+      await assert.rejects(restarted.jobs.execute({ action: "job-result", requestId: input.requestId }), /changed/);
+      fs.unlinkSync(completed.result!.path);
+      await assert.rejects(restarted.jobs.execute({ action: "job-result", requestId: input.requestId }));
       assert.equal(existsSync(path.join(root, interrupted.output)), false);
     } finally { await restarted.close(); }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
