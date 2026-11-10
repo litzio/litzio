@@ -392,10 +392,13 @@ owning scope or while the tab is hidden. Closing the panel retains observation;
 closed idle conversations stop polling. Running work continues
 when the panel closes. Model and effort are locked while running; a submitted
 message uses `turn/steer` with the expected turn ID. Stop uses `turn/interrupt`
-and retains partial results. Finished work details collapse to one line.
+and retains partial results. Work details default to collapsed even while running;
+the current stage stays in the summary (#1436/#1440, see below). Finished work
+details collapse to one line.
 Reasoning items with an empty or whitespace-only summary are omitted from work
-details, both during streaming and when reopening history. If no other work items
-remain, no disclosure is shown; the running status remains visible. Nonempty
+details, both during streaming and when reopening history. A running turn still
+has its stage summary even without a reasoning summary. If no other work items
+remain in a finished turn, no disclosure is shown. Nonempty
 summaries and tool/plan details retain their existing presentation. Raw reasoning
 is never displayed.
 
@@ -1641,3 +1644,108 @@ The [capture geometry](assets/assistant-status-1424/geometry.json) records a con
 clipping or search/button movement. Resolved state colors against the captured
 header background measure at least 5.75:1 (the outlined work marker uses its border
 color); the dot remains 6px. Pixel-edge antialiasing is not this contrast calculation.
+
+## Assistant reading and progress (#1436, #1440)
+
+The existing Host conversation, turn/item statuses, `userInput` and #1417 submission
+receipts remain authoritative. No new Host state, provider loop or CLI operation
+is introduced: scroll and disclosure are Editor interactions under ADR-0015.
+The existing #1424 observer and attention priority are unchanged.
+
+- The transcript follows new output while at the bottom (2px rounding tolerance).
+  User scrolling away retains the reading position, including within the previous
+  180px follow threshold. Reaching the bottom, explicitly jumping there or sending
+  a message resumes following. Conversation/history navigation starts at the end;
+  hiding/reopening the same panel retains its reading choice. Resize and deferred
+  Markdown/math layout follow only when already following.
+- An outline small Button with ArrowDown appears above the composer while away.
+  Changed conversation content adds “New content”; unchanged polls do not. Its
+  separate row inside the reading area leaves the composer fixed and does not
+  cover transcript content. It never steals keyboard focus.
+- Every active response has a collapsed native details summary, even without a
+  reasoning item: Thinking, Running tool with its existing tool/target description,
+  or Writing answer. A pending question uses the same Needs your attention label
+  as #1424. The summary is one line with overflow ellipsis and a full native title.
+  It exposes status accessibly. Completion/interruption/failure removes the live
+  stage; retained work is labelled Work details. No timer or estimated progress.
+- User expansion/collapse survives incoming snapshots and phase changes for that
+  response. Completion closes it. Toggling details gives the viewport to the
+  reader; it does not scroll a newly expanded process to the bottom automatically.
+- Questions and options remain in AssistantQuestion directly in the transcript,
+  outside every details element. Result receipts, errors and submission actions
+  remain outside too. Supported user-input transport is unchanged. The Host still
+  refuses unsupported approval requests; this change does not add approval support
+  or place actionable requests in the process disclosure.
+
+### Reference study and validation
+
+Paseo source was inspected at `48a1497fc0abb654dde264850d6bf4088ac34ac1`:
+[turn summary](https://github.com/getpaseo/paseo/blob/48a1497fc0abb654dde264850d6bf4088ac34ac1/packages/app/src/agent-stream/turn-collapse/summary-line.tsx),
+[expansion ownership](https://github.com/getpaseo/paseo/blob/48a1497fc0abb654dde264850d6bf4088ac34ac1/packages/app/src/tool-calls/expansion.ts),
+[bottom anchor](https://github.com/getpaseo/paseo/blob/48a1497fc0abb654dde264850d6bf4088ac34ac1/packages/app/src/agent-stream/bottom-anchor-controller.ts),
+and [disclosure hold](https://github.com/getpaseo/paseo/blob/48a1497fc0abb654dde264850d6bf4088ac34ac1/docs/agent-stream-disclosure.md).
+The public lifecycle documentation also identifies AgentStreamView as the common
+rendering surface. In the installed Windows Paseo UI, the active synthetic work
+conversation showed compact collapsed tool rows and a running footer. Scrolling
+up exposed its downward jump button. Expansion retention and re-stick rules above
+are source evidence; they were not fully exercised live in Paseo. No private
+Paseo screenshots are published.
+
+Adopted: compact summaries, explicit disclosure choice, separating following from
+reading, a jump control, and releasing the viewport on disclosure. Not adopted:
+Paseo virtual-list/native anchoring machinery, plugin renderers, separate per-tool
+expansion stores or latest-tool auto-opening. Litzio already has a native transcript
+and response-wide disclosure, and #1440 explicitly requires default collapse.
+
+The existing assistant browser case adds one targeted streaming sequence for
+large one-poll growth, reading within 180px of the end, new-content notification,
+explicit rejoin, phase changes and retained expansion. Existing question choice,
+free text and #1424 attention checks now also verify placement outside details.
+These are client integration risks, so there is no duplicate Core/Host test matrix.
+Shell and token checks remain the existing ones. Localhost fixture success does
+not establish long real conversations, remote transport, Copilot live behavior,
+actual approval interactions or owner visual approval.
+
+Manual product captures (1440px and 640px, Korean, Light/Dark) use the separate
+[capture procedure](assets/assistant-progress-1436/capture.browser.js); the baseline
+is `96f7ede6` and after captures use this PR's implementation. Native panel crops
+exclude local paths and OS identity. Files in the same directory use
+`before/after-{width}-{theme}-{state}.png`: tool, question, reading and expanded.
+The work header, question form and jump control use existing surface/text/border
+roles, Button sizes and spacing tokens; no adjustable preference or new palette.
+
+| Viewport/theme | Before | Collapsed tool | Question | Reading/new content | Expanded |
+| --- | --- | --- | --- | --- | --- |
+| 1440 Light | [Image](assets/assistant-progress-1436/before-1440-light-tool.png) | [Image](assets/assistant-progress-1436/after-1440-light-tool.png) | [Image](assets/assistant-progress-1436/after-1440-light-question.png) | [Image](assets/assistant-progress-1436/after-1440-light-reading.png) | [Image](assets/assistant-progress-1436/after-1440-light-expanded.png) |
+| 1440 Dark | [Image](assets/assistant-progress-1436/before-1440-dark-tool.png) | [Image](assets/assistant-progress-1436/after-1440-dark-tool.png) | [Image](assets/assistant-progress-1436/after-1440-dark-question.png) | [Image](assets/assistant-progress-1436/after-1440-dark-reading.png) | [Image](assets/assistant-progress-1436/after-1440-dark-expanded.png) |
+| 640 Light | [Image](assets/assistant-progress-1436/before-640-light-tool.png) | [Image](assets/assistant-progress-1436/after-640-light-tool.png) | [Image](assets/assistant-progress-1436/after-640-light-question.png) | [Image](assets/assistant-progress-1436/after-640-light-reading.png) | [Image](assets/assistant-progress-1436/after-640-light-expanded.png) |
+| 640 Dark | [Image](assets/assistant-progress-1436/before-640-dark-tool.png) | [Image](assets/assistant-progress-1436/after-640-dark-tool.png) | [Image](assets/assistant-progress-1436/after-640-dark-question.png) | [Image](assets/assistant-progress-1436/after-640-dark-reading.png) | [Image](assets/assistant-progress-1436/after-640-dark-expanded.png) |
+
+Self-review found no header/control overlap or horizontal overflow in these four
+viewport/theme combinations. Opening long details deliberately scrolls within the
+transcript; the question remains outside the disclosure. A baseline capture also
+emitted the existing ResizeObserver undelivered-notifications warning, so that
+warning is not evidence of a regression introduced by this change.
+
+### #1443 protocol diagnosis (not fixed here)
+
+Two actual gpt-6-luna/low calls on Codex 0.167.0 asked the reported travel question.
+The first requested synchronous input and ended with UNAVAILABLE. The second
+requested the title/options async form. Its actual `item/started` and
+`item/completed` carried `agentMessage` with `delivery: "async"` and a structured
+`questions` array. No `item/tool/requestUserInput` server request occurred, no Host
+`userInput` was populated, and the turn completed. The sanitized observed shape
+is in [question-protocol.json](assets/assistant-progress-1436/question-protocol.json).
+
+`assistant-conversations.ts:itemFrom` preserves the message text but drops these
+question/delivery fields. The Host's question/answer callback instead expects a
+server request with correlated requestId/turnId and id/header/question/isOther/
+isSecret/options objects. This is a provider-to-Host contract gap requiring a
+separate shared protocol/answer-lifetime change, not a question hidden in details.
+The text itself remained available. The original fully invisible question and
+`accepted:true` result were not reproduced, and structured answer delivery and
+resumed question/answer history were not established. #1443 stays open; this PR
+neither closes it nor claims the existing synchronous fixture proves async input.
+The [official app-server documentation](https://learn.chatgpt.com/docs/app-server)
+also describes user-input requests as a distinct experimental request; the live
+async item observation above is the evidence for the additional shape.

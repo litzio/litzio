@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 비서의 작업 과정과 새 내용을 읽는다 (#1436/#1440) | 기존 대화 패널 | native details/summary + outline sm Button + Lucide ArrowDown | 과정 기본 접힘·머리에 현재 단계, 위로 읽을 때 위치 유지·새 내용 알림·명시적 하단 이동 | [읽기·진행 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440) | 사용자 질문·선택·확인은 과정 밖에 표시. 화면 내부 interaction이며 Host 상태·CLI 작업 추가 없음 |
 | 닫힌 비서의 작업·완료·답변 필요를 확인한다 (#1424) | 기존 상단 비서 버튼 | ghost sm Button + Tooltip + agent-dot, 기존 text-muted/accent/warning 토큰 | 빈 원은 작업 중, 채운 원은 완료(읽지 않음), 사각형은 확인·답변 필요. 열면 완료를 확인 처리하며 열린 동안 표시는 숨김 | [비서 상태](main-agent-v1.md#assistant-button-status-1424) | 기존 대화·제출 관측을 재사용하며 새 작업 상태·OS 알림·소리 없음 |
 | 조회 폼의 드문 조건을 숨긴다 (#1370) | 기존 조회 폼 | QueryInputs + Button/Input/FieldError | 선택 advanced 입력만 접기·지정값 요약·오류 자동 펼침, 수동 조회 유지 | [추가 조건](ui-patterns-v1.md#공통-조회-폼의-추가-조건-1370) | 새로운 공통 접기 상호작용, JobPanel에는 자동 적용하지 않음 |
 | 플러그인 폴더를 장식한다 (#1366) | 기존 Explorer 폴더 행 | PluginIcon + 기존 16px 아이콘 칸 | 제공 플러그인의 manifest 이미지, 없으면 생략 | FolderTree·Sidebar; 설정·탭과 같은 PluginIcon | 없음 |

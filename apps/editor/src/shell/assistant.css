@@ -7,7 +7,11 @@
 .assistant-context { display: flex; gap: var(--space-2); justify-content: space-between; padding: var(--space-2) var(--space-4); color: var(--id-color-text-muted); font-size: var(--font-size-xs); border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
 .assistant-context span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .assistant-context span:last-child { flex-shrink: 0; }
+.assistant-reading { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .assistant-transcript { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); }
+.assistant-jump { flex-shrink: 0; align-self: center; margin: var(--space-2); max-width: calc(100% - 2 * var(--space-4)); }
+.assistant-steps summary { display: list-item; }
+.assistant-steps summary > span { display: inline-block; max-width: calc(100% - var(--space-5)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .assistant-welcome { padding-block: var(--space-6); color: var(--id-color-text-muted); }
 .assistant-welcome h3, .assistant-history h3 { color: var(--id-color-text); font-size: var(--font-size-sm); }
 .assistant-welcome p, .assistant-history p { line-height: 1.6; }
