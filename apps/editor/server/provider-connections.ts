@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
-import type { AssistantDiagnostics, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
+import type { AssistantDiagnostics, AssistantAccountUsage, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
 import { CodexAppServer } from "./codex-app-server.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions } from "./copilot-acp.ts";
 
@@ -15,9 +15,41 @@ export class ProviderConnections {
   readonly client: CodexAppServer;
   readonly copilot: CopilotAcp;
   readonly templatesDirectory: string;
+  private usageCache?: AssistantAccountUsage;
+  private usageRead?: Promise<AssistantAccountUsage>;
+  private accountRevision = 0;
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}) {
     this.templatesDirectory = hostPaths(run).templates;
     this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env) }); this.copilot = new CopilotAcp(cwd, copilotOptions);
+    this.client.on("notification", method => {
+      // Rate-limit notifications carry only one bucket. Refetch the full snapshot.
+      if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();
+    });
+    this.client.on("disconnected", () => this.invalidateUsage());
+  }
+  private invalidateUsage() { this.accountRevision++; this.usageCache = undefined; }
+  async accountUsage(refresh = false): Promise<AssistantAccountUsage> {
+    if (!refresh && this.usageCache && Date.now() - this.usageCache.checkedAt < 60_000) return this.usageCache;
+    if (this.usageRead) { await this.usageRead; return this.accountUsage(); }
+    const accountRevision = this.accountRevision;
+    this.usageRead = (async () => {
+      this.environment();
+      const [account, limits] = await Promise.allSettled([
+        this.client.request("account/read", { refreshToken: false }), this.client.request("account/rateLimits/read"),
+      ]);
+      const result: AssistantAccountUsage = { provider: "codex", checkedAt: Date.now() };
+      if (account.status === "fulfilled") {
+        const value = account.value.account;
+        // Never forward provider IDs, tokens or unrecognized account fields.
+        result.account = value ? value.type === "chatgpt" ? { type: value.type, email: value.email, planType: value.planType } : { type: value.type } : null;
+      } else result.accountError = account.reason.message;
+      if (limits.status === "fulfilled") result.rateLimits = usageBuckets(limits.value.rateLimitsByLimitId ?? { codex: limits.value.rateLimits });
+      else result.rateLimitsError = limits.reason.message;
+      if (accountRevision === this.accountRevision) this.usageCache = result;
+      return result;
+    })().finally(() => { this.usageRead = undefined; });
+    const result = await this.usageRead;
+    return accountRevision === this.accountRevision ? result : this.accountUsage();
   }
   environment(): AssistantEnvironment {
     mkdirSync(this.cwd, { recursive: true });
@@ -87,14 +119,10 @@ export class ProviderConnections {
     const result: AssistantDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false };
     try { await this.client.connect(); result.connected = true; }
     catch (error) { result.error = String((error as Error).message); return result; }
-    const [account, limits, mcp] = await Promise.allSettled([
-      this.client.request("account/read", { refreshToken: false }), this.client.request("account/rateLimits/read"), this.mcp(),
+    const [usage, mcp] = await Promise.all([
+      this.accountUsage(true), Promise.allSettled([this.mcp()]).then(([result]) => result),
     ]);
-    if (account.status === "fulfilled") result.account = account.value.account; else result.accountError = account.reason.message;
-    if (limits.status === "fulfilled") {
-      const buckets = limits.value.rateLimitsByLimitId ?? { codex: limits.value.rateLimits };
-      result.rateLimits = Object.entries(buckets).map(([name, value]: [string, any]) => ({ name: value.limitName ?? name, windows: [value.primary, value.secondary].filter(Boolean) }));
-    } else result.rateLimitsError = limits.reason.message;
+    Object.assign(result, usage);
     if (mcp.status === "fulfilled") result.mcp = mcp.value; else result.mcpError = mcp.reason.message;
     return result;
   }
@@ -108,6 +136,11 @@ export class ProviderConnections {
     return servers;
   }
   async close() { const results = await Promise.allSettled([this.client.close(), this.copilot.close()]); for (const result of results) if (result.status === "rejected") throw result.reason; }
+}
+
+function usageBuckets(buckets: Record<string, any>): NonNullable<AssistantDiagnostics["rateLimits"]> {
+  return Object.entries(buckets).filter(([, value]) => value).map(([name, value]) => ({ name: value.limitName ?? name,
+    windows: [value.primary, value.secondary].filter(Boolean).map(window => ({ usedPercent: window.usedPercent, windowDurationMins: window.windowDurationMins, resetsAt: window.resetsAt })) }));
 }
 
 export const LITZIO_GUIDE = `---

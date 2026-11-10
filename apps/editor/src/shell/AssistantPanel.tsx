@@ -5,6 +5,7 @@ import { useHostClient, HostContext } from "../host-context.tsx";
 import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
+import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
@@ -593,9 +594,9 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
       </div>
       <div className="assistant-footer">
 
-        <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
+        <AssistantUsageTooltip provider={provider} active={open} context={usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
-        </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
+        </AssistantUsageTooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
         <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
       </div>

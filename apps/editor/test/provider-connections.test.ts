@@ -392,6 +392,49 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.throws(() => process.kill(lines[0].pid, 0));
   await assert.rejects(connection.client.request("model/list"), /closed/);
 });
+test("account usage shares the lazy connection, caches concurrent reads for 60s and refetches notifications without leaking provider fields", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "usage-connection-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  let now = Date.now(); t.mock.method(Date, "now", () => now);
+  const count = () => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(line => line.method === "account/rateLimits/read").length;
+  const [first, concurrent] = await Promise.all([connection.accountUsage(), connection.accountUsage()]);
+  assert.deepEqual(first, concurrent); assert.equal(count(), 1);
+  now += 59_999; await connection.accountUsage(); assert.equal(count(), 1);
+  now++; await connection.accountUsage(); assert.equal(count(), 2);
+  const bucket = (name: string, usedPercent: number) => ({ limitName: name, primary: { usedPercent, windowDurationMins: 300, resetsAt: 1900000000, secret: "hidden" }, secondary: null });
+  await connection.client.request("fixture/usage", { account: { type: "chatgpt", email: "fixture@example.invalid", planType: "plus", id: "hidden-id", accessToken: "hidden-token" },
+    limits: { rateLimitsByLimitId: { codex: bucket("Codex", 45), review: bucket("Review", 12) } } });
+  const updated = await connection.accountUsage();
+  assert.equal(count(), 3);
+  assert.deepEqual(updated.account, { type: "chatgpt", email: "fixture@example.invalid", planType: "plus" });
+  assert.deepEqual(updated.rateLimits?.map(bucket => bucket.windows[0].usedPercent), [45, 12]);
+  assert.doesNotMatch(JSON.stringify(updated), /hidden/);
+  await connection.client.request("fixture/usage", { notification: "account/updated", account: { type: "apiKey", email: "hidden", planType: "hidden" }, limits: {} });
+  assert.deepEqual((await connection.accountUsage()).account, { type: "apiKey" });
+  await connection.client.request("fixture/usage", { notification: "account/updated", account: null, limits: {} });
+  assert.equal((await connection.accountUsage()).account, null);
+  // Account changes while a read is pending must discard that older account.
+  now += 60_000;
+  const originalRequest = connection.client.request.bind(connection.client);
+  let release!: () => void, observed!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const reading = new Promise<void>(resolve => { observed = resolve; });
+  let hold = true;
+  const request = t.mock.method(connection.client, "request", async (method: string, params?: unknown) => {
+    const result = await originalRequest(method, params);
+    if (method === "account/read" && hold) { hold = false; observed(); await held; }
+    return result;
+  });
+  const pending = connection.accountUsage(); await reading;
+  await originalRequest("fixture/usage", { notification: "account/updated", account: { type: "apiKey" }, limits: {} });
+  release(); assert.deepEqual((await pending).account, { type: "apiKey" });
+  request.mock.restore();
+  const lines = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(lines.filter(line => line.method === "initialize").length, 1);
+  assert.equal(lines.some(line => ["model/list", "mcpServerStatus/list"].includes(line.method)), false, "hover reads only account and usage");
+});
+
 test("malformed output, process loss and request timeout reject without replay", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-transport-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));

@@ -800,3 +800,18 @@ description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장�
 공통 palette·spacing·control 치수 예외는 없다. 제품 동작·시각 근거 및 별도 서버 문제인
 #1443의 진단 범위는 [비서 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440)을 따른다.
 캡처는 localhost 합성이며 소유자 시각 승인을 대신하지 않는다.
+
+## Assistant Context account and usage (#1446, P07 / P12)
+
+The existing Context ring keeps its shared hover/keyboard-focus Tooltip. Account
+and quota details appear only during interaction, using current Tooltip colors,
+spacing and borders; no shell/control geometry changes. AI Settings (U22) and the
+assistant panel share `AssistantAccount` / `AssistantRateLimits`, including login
+state, email/plan and minutes/percent-used/reset wording. Failure stays as a short
+Unavailable in this tooltip and does not enter chat errors or disable sending.
+Copilot keeps context only because its current ACP integration has no account
+quota diagnostic. No common interaction exception was introduced.
+
+The [current contract and four same-state Before/After pairs](main-agent-v1.md#context-account-and-usage-1446)
+record Host cache/notification ownership and fixture-only verification limits.
+Captures are manual review evidence, not owner visual approval.

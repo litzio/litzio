@@ -1,0 +1,54 @@
+{
+  "issue": 1446,
+  "baseline": "f77f778f5fc5c802fb1ed266d757c41c7912ee0d",
+  "implementation": "same PR implementation",
+  "viewportWidths": [
+    1440,
+    640
+  ],
+  "viewportHeight": 1000,
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "language": "en",
+  "zoom": "100%",
+  "deviceScaleFactor": 1,
+  "data": "synthetic provider account and quota; no live AI calls",
+  "crop": "native composer and tooltip only; unrelated Host identity excluded",
+  "command": "pnpm browser:test quiet-document --screenshots (temporary manual capture script; original restored)",
+  "images": [
+    {
+      "file": "after-1440-dark.png",
+      "sha256": "4055b6e3f843e775a5c9790c77d266e65da6edca41bfcde639f4761215e8712f"
+    },
+    {
+      "file": "after-1440-light.png",
+      "sha256": "36a9eee83ef08d15b0774ac07af50b65fdc3232c01b69b3709bd6bb420921e91"
+    },
+    {
+      "file": "after-640-dark.png",
+      "sha256": "205c350dc7f3269823f8a768d773455f94f0783e420a30c1761efb1333745508"
+    },
+    {
+      "file": "after-640-light.png",
+      "sha256": "022fee0a86d961cc1813a668c7db0060cf75e5fd6eb406325c5c5e0e70694845"
+    },
+    {
+      "file": "before-1440-dark.png",
+      "sha256": "15aed577f4050c8af13e3f7b7908f36f3acb27901c5f4b2fa566aaf8ff0dd195"
+    },
+    {
+      "file": "before-1440-light.png",
+      "sha256": "ceff7d0a94d6fb8152e86e0795280cd355efe69c0da24a716a3a5adc27b3b5e5"
+    },
+    {
+      "file": "before-640-dark.png",
+      "sha256": "9db7f7ee7c42671ca3c0bd9e4c389daa808ae909bff30ff5bcb6ed761b6ab754"
+    },
+    {
+      "file": "before-640-light.png",
+      "sha256": "8243e3e5ee14350b420b3d7c7f98bc9a311673824f99b4fc049ffdaf2a956cde"
+    }
+  ]
+}

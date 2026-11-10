@@ -29,8 +29,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   });
   await page.route('**/api/assistant/models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : { fullAccessAllowed: false }), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
   await page.route('**/api/assistant/environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
-  await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
-    account: { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } }));
+  let summaryFail = false, summaryAccount = { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, summaryReads = 0;
+  const diagnosticReply = route => {
+    const summary = route.request().url().includes('summary=account-usage');
+    if (summary) {
+      summaryReads++;
+      if (summaryFail) return route.fulfill({ status: 503, json: { error: 'private provider failure must not appear' } });
+    }
+    return route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
+      account: summary ? summaryAccount : { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }, { usedPercent: 12, windowDurationMins: 10080, resetsAt: 1794000000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } });
+  };
+  await page.route('**/api/assistant/diagnostics*', diagnosticReply);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: /^(Settings|설정)$/ }).click();
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
@@ -195,7 +204,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   let revealLost = false, receiptGate, releaseReceipt, receiptReads = 0;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
   await page.unroute('**/api/assistant/diagnostics*');
-  await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
+  await page.route('**/api/assistant/diagnostics*', route => route.request().url().includes('summary=account-usage') ? diagnosticReply(route) : route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
     error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
     account: setupMode === 'login' ? null : { type: 'chatgpt' } } }));
   await page.route('**/api/assistant/conversations*', async route => {
@@ -534,6 +543,34 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByText('Context is nearly full. Start a new conversation soon.', { exact: true })).toBeVisible();
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText('810 / 1,000 tokens · 81%');
+  const contextTooltip = page.locator('[data-slot=tooltip-content]');
+  await expect(contextTooltip).toContainText('chatgpt · example@example.invalid · plus');
+  await expect(contextTooltip).toContainText('300 minutes · 28% used');
+  await expect(contextTooltip).toContainText('10080 minutes · 12% used');
+  await expect(contextTooltip).toContainText('Resets:');
+  await page.mouse.move(0, 0);
+  await expect(contextTooltip).toHaveCount(0);
+  summaryFail = true;
+  await message.focus();
+  const contextRing = panel.getByRole('img', { name: 'Context usage' });
+  for (let tab = 0; tab < 12 && !await contextRing.evaluate(element => element === document.activeElement); tab++) await page.keyboard.press('Tab');
+  await expect(contextRing).toBeFocused();
+  await expect(contextTooltip).toContainText('Unavailable');
+  await expect(contextTooltip).not.toContainText('private provider failure');
+  await expect(panel.getByRole('button', { name: 'Stop response', exact: true })).toBeEnabled();
+  await panel.getByRole('img', { name: 'Context usage' }).blur();
+  await expect(contextTooltip).toHaveCount(0);
+  summaryFail = false; summaryAccount = { type: 'apiKey' };
+  await panel.getByRole('img', { name: 'Context usage' }).hover();
+  await expect(contextTooltip).toContainText('apiKey');
+  await expect(contextTooltip).not.toContainText('Usage and limits');
+  await page.mouse.move(0, 0); await expect(contextTooltip).toHaveCount(0);
+  summaryAccount = null;
+  await panel.getByRole('img', { name: 'Context usage' }).hover();
+  await expect(contextTooltip).toContainText('Codex login is required on the Host.');
+  await expect(contextTooltip).not.toContainText('Usage and limits');
+  await page.mouse.move(0, 0); await expect(contextTooltip).toHaveCount(0);
+  summaryAccount = { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' };
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/running-1440-light-en.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-1440.png' });
   // #1436/#1440: same observer and response, with a large single-poll growth.
@@ -1080,6 +1117,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent.at(-1).reasoningEffort).toBe('high');
   expect(sent.at(-1).id).toBeUndefined();
   expect(sent.at(-1).skills).toEqual([]);
+  const readsBeforeCopilot = summaryReads;
+  await panel.getByRole('img', { name: 'Context usage' }).hover();
+  await expect(page.locator('[data-slot=tooltip-content]')).toBeVisible();
+  await expect(page.locator('[data-slot=tooltip-content]')).not.toContainText('Account');
+  expect(summaryReads).toBe(readsBeforeCopilot);
+  await page.mouse.move(0, 0);
   await expect(panel.getByRole('alert')).toHaveCount(0);
   if (screenshots) {
     await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
