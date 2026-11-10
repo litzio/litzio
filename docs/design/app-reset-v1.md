@@ -1,7 +1,7 @@
 # Complete app reset (#1285)
 
 - Status: Implemented
-- Last verified: 2026-11-06 — Windows 격리 파일/CLI/helper/main 검사, HTTP Host 검사와 persistent Chrome UI 검사 및 1440px·640px 수동 캡처. 실제 설치형 Electron 초기화·재실행 검사는 Windows CI 전용이며 로컬 미실행.
+- Last verified: 2026-11-10 — #1448 queue run 42766806209의 초기화·재실행 성공/정리 실패와 종료 메시지 경로를 코드 대조. 정리 수정의 실제 packaged 검증은 다음 queue 대상이며 로컬 미실행. 기존 파일/CLI/helper/main·HTTP 및 UI 검증은 아래 기록을 따른다.
 - Scope: 로컬 Desktop profile과 Litzio 소유 Host 데이터 초기화. 원격 Host·외부 브라우저·공급자 계정은 삭제하지 않는다.
 - Authority: [#1285](https://github.com/litzio/litzio/issues/1285)의 소유자 결정, [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0016](../adr/0016-shared-local-daemon-host.md), [ADR-0018](../adr/0018-desktop-remote-hosts.md). 관련 현재 계약은 [Desktop distribution](desktop-distribution-v1.md), [HTTP Host](http-host-v1.md), [Editing session and Save](editing-session-save-v1.md)다.
 
@@ -89,5 +89,7 @@ Desktop 경로:
 수동 시각 검토는 persistent Chrome과 native bridge stand-in을 사용했다. 1440px English Light [이전](assets/app-reset-1285/before-1440.png) / [이후](assets/app-reset-1285/after-1440.png) / [확인](assets/app-reset-1285/confirm-1440.png), 640px 한국어 Dark [이전](assets/app-reset-1285/before-640.png) / [이후](assets/app-reset-1285/after-640.png) / [확인](assets/app-reset-1285/confirm-640.png). 정렬·버튼 여백·scroll 접근·가림·한국어 줄바꿈·공통 위험 확인의 초점을 확인했다. 640px의 추가 구역은 기존 설정 scroll로 접근한다. [촬영 body](assets/app-reset-1285/capture.browser.js)는 테스트 폴더에 임시 복사해 `pnpm browser:test app-reset-capture`로만 실행하고 자동 회귀 경로에 넣지 않는다. Host 계정은 fixture 라벨이며 실제 계정명을 공개하지 않는다.
 
 두 번째 packaged CI의 단계 기록은 앱 종료 event 대기에서 실패했으나 새 profile 로그는 재실행을 보여 주었다. Windows에서 Playwright `app.process()`는 `cmd.exe` launcher이므로 main의 실제 PID를 별도로 받아 종료와 새 세대를 판정하도록 고쳤다. 대기 시간이나 데이터 단언은 완화하지 않으며 정리 때 native 프로세스와 launcher의 종료를 모두 확인한다. CI 진단 exact allowlist도 새 `reset-proof.json` 한 항목을 명시하도록 기존 검사를 갱신했다.
+
+#1448의 트레이 전환 뒤 [queue run 42766806209](https://github.com/litzio/litzio/actions/runs/42766806209)는 visible-restart·dataVerified까지 성공하고 정리에서 실패했다. 테스트의 `CloseMainWindow()`는 일반 `WM_CLOSE`만 보내므로 트레이로 숨기는 경로이며, 제거기의 선행 종료 의도(`WM_APP 0x8148`) + `WM_CLOSE`와 다르다. 테스트 정리는 같은 `installationPort.closeWindows`를 재사용하되 fixture의 실행 파일·PID·생성 identity가 일치하는 프로세스 하나만 전달한다. 재실행된 번들 main도 같은 종료 hook을 등록하므로 이 대표 사례가 실제 메시지 전달·소유 daemon 정리·프로세스 종료를 검증한다. 기존 초기화 데이터·새 sample·빈 작업·외부 문서 보존·native 창 표시·main/launcher 종료 단언과 제한시간은 유지하며, 실패 시 강제 정리는 여전히 테스트 실패로 남긴다. 제거기 제품 경로를 변경하거나 일반 닫기를 실제 종료로 되돌리지 않는다. 수정된 정리의 실제 패키지 수락은 후속 queue에서 확인한다.
 
 현재 namespace에 참여하지 않는 외부/구버전의 임의 쓰기나 외부 파일 시스템 조작을 차단한다고 주장하지 않는다. 기존 discovery에 기록된 live owner도 별도로 거부하며, 소유 범위를 확인할 수 없으면 성공 대신 거부한다. 다른 workspace와 프로세스는 초기화나 검증 대상이 아니다.
