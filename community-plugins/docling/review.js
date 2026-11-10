@@ -60,6 +60,15 @@ export function reviewItems(doc) {
   })));
 }
 
+// Provider labels stay here; shared review consumers only see the optional SDK kind.
+const regionKinds = new Map([
+  ["heading", "heading"], ["title", "heading"], ["section_header", "heading"],
+  ["text", "text"], ["paragraph", "text"], ["sentence", "text"], ["caption", "text"],
+  ["list", "list"], ["list_item", "list"], ["table", "table"], ["formula", "formula"], ["equation", "formula"],
+  ["picture", "picture"], ["image", "picture"], ["figure", "picture"], ["footnote", "footnote"], ["endnote", "footnote"],
+  ["code", "code"], ["code_block", "code"],
+]);
+
 /** Correspondence uses only immutable PDF provenance and the final Host targets. */
 export function comparison(archive, record, report, input) {
   const pages = Object.entries(archive.document.pages ?? {}).map(([key, page]) => ({ generation: input.generation, sourceRevision: input.sourceRevision, pageNo: Number(key), width: page.size.width, height: page.size.height, unit: "pt", origin: "TOPLEFT", regions: [] })).sort((a,b) => a.pageNo-b.pageNo);
@@ -75,7 +84,8 @@ export function comparison(archive, record, report, input) {
       const top = b.coord_origin === "TOPLEFT" ? b.t : page.height-b.t, bottom = b.coord_origin === "TOPLEFT" ? b.b : page.height-b.b;
       const bbox = [Math.min(b.l,b.r),Math.min(top,bottom),Math.max(b.l,b.r),Math.max(top,bottom)];
       const status = effective.get(item.self_ref)?.excluded ? "excluded" : item.status === "furniture" ? "decoration" : item.targets.length ? "supported" : "unsupported";
-      page.regions.push({id,bbox,category: original.label ?? "item",status}); sourceIds.push(id);
+      const kind = regionKinds.get(original.label);
+      page.regions.push({id,bbox,category: original.label ?? "item",...(kind ? {kind} : {}),status}); sourceIds.push(id);
     }
     if (sourceIds.length) entries.push({sourceIds,targets:item.targets});
   }

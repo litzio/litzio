@@ -1,10 +1,16 @@
 import type { EditableBlock } from "@litzio/core";
+import type { ReviewRegionKind } from "@litzio/core/views-v2";
 import type { ReviewSnapshot } from "./ReviewRenderer.tsx";
 
-export type ReviewKind = "heading" | "text" | "list" | "table" | "formula" | "picture" | "footnote" | "code" | "unmapped";
-const aliases: Record<string,ReviewKind> = {heading:"heading",title:"heading",section_header:"heading",text:"text",paragraph:"text",sentence:"text",caption:"text",list:"list",list_item:"list",table:"table",formula:"formula",equation:"formula",picture:"picture",image:"picture",figure:"picture",footnote:"footnote",endnote:"footnote",code:"code",code_block:"code"};
+export type ReviewKind = ReviewRegionKind | "unmapped";
 export function blockKind(block: EditableBlock | undefined): ReviewKind {
-  return block ? aliases[block.block] ?? "text" : "unmapped";
+  if (!block) return "unmapped";
+  switch (block.block) {
+    case "heading": case "list": case "table": case "footnote": case "code": return block.block;
+    case "equation": return "formula";
+    case "figure": return "picture";
+    default: return "text";
+  }
 }
 /** Provider category names are evidence; actual correspondence decides whether anything was converted. */
 export function regionKinds(s: ReviewSnapshot): Map<string,ReviewKind> {
@@ -16,6 +22,6 @@ export function regionKinds(s: ReviewSnapshot): Map<string,ReviewKind> {
   }
   return new Map((s.pages ?? (s.page ? [s.page]:[])).flatMap(page=>page.regions.map(region=>{
     const block = mapped.get(region.id);
-    return [region.id,region.status !== "supported" || !block ? "unmapped" : aliases[region.category.toLowerCase().replace(/[\s-]+/g,"_")] ?? blockKind(block)] as const;
+    return [region.id,region.status !== "supported" || !block ? "unmapped" : region.kind ?? blockKind(block)] as const;
   })));
 }

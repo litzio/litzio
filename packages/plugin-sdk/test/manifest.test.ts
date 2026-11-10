@@ -1,7 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateManifest, compileSchema, defaultJobOutput, HEALTH_CHECK_OUTPUT_SCHEMA, healthCheckResultSchema } from "../src/index.ts";
+import { validateManifest, compileSchema, defaultJobOutput, HEALTH_CHECK_OUTPUT_SCHEMA, healthCheckResultSchema, reviewPageSchema } from "../src/index.ts";
 const manifest = () => ({ schemaVersion: 1, id: "example.demo", tier: "community", publisher: { id: "example", name: "Example" }, name: "Demo", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: {} });
+
+test("review regions accept optional shared kinds and reject provider names as kinds", () => {
+  const region = { id: "region", bbox: [0, 0, 10, 10], category: "Provider label", status: "supported" };
+  const page = { generation: "g", sourceRevision: "s", pageNo: 1, width: 100, height: 100, origin: "TOPLEFT", unit: "pt", regions: [region] };
+  assert.deepEqual(reviewPageSchema.parse(page).regions[0], region);
+  for (const kind of ["heading", "text", "list", "table", "formula", "picture", "footnote", "code"]) {
+    assert.deepEqual(reviewPageSchema.parse({ ...page, regions: [{ ...region, kind }] }).regions[0], { ...region, kind });
+  }
+  for (const kind of ["section_header", "decoration", "Heading", "", null, 1]) {
+    assert.equal(reviewPageSchema.safeParse({ ...page, regions: [{ ...region, kind }] }).success, false);
+  }
+});
 test("manifest rejects unsupported extensions, invalid identities, versions and unknown declarations before execution", () => {
   assert.equal(validateManifest(manifest()).id, "example.demo");
   for (const requiresSdk of ["0.1.0", "^0.1.0", "0.2.0", "^0.2.0", ">=0.2.0 <1.0.0", "^0.3.0", "^0.4.0"]) assert.ok(validateManifest({ ...manifest(), requiresSdk }));

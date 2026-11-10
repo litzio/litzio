@@ -10,6 +10,8 @@ import { textRevision } from "@litzio/file-commit";
 import { createReviewAdapter } from "../src/views/review-api.ts";
 import { createHostClient } from "../src/host-client.ts";
 import { reviewViewSchema } from "@litzio/core/views-v2";
+import { regionKinds } from "../src/review/review-kinds.ts";
+import type { ReviewSnapshot } from "../src/review/ReviewRenderer.tsx";
 import { PluginReviews } from "../server/plugins/reviews.ts";
 import { RootAccess, FileAccessError } from "../server/file-access.ts";
 import { nativeSource } from "./helpers/document.ts";
@@ -19,6 +21,24 @@ import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+test("review colors use shared kinds then document blocks, never provider category names", () => {
+  const document = getEditableDocument(parse(nativeSource("# Heading\n\nParagraph.\n")));
+  const regions = [
+    ...["heading", "text", "list", "table", "formula", "picture", "footnote", "code"].map(kind => ({ id: kind, kind, category: "arbitrary provider label", status: "supported" })),
+    ...["section_header", "list_item", "code_block"].map(category => ({ id: category, category, status: "supported" })),
+    { id: "fallback", category: "arbitrary provider label", status: "supported" },
+    ...["unsupported", "excluded", "decoration"].map(status => ({ id: status, kind: "heading", category: "heading", status })),
+    { id: "missing", kind: "heading", category: "heading", status: "supported" },
+  ];
+  const snapshot = {
+    document, pages: [{ regions }], mapping: { entries: regions.filter(r => r.id !== "missing").map(r => ({ sourceIds: [r.id], targets: [{ path: document.blocks[r.id === "fallback" ? 0 : 1].path }] })) },
+  } as ReviewSnapshot;
+  const kinds = regionKinds(snapshot);
+  for (const kind of ["heading", "text", "list", "table", "formula", "picture", "footnote", "code"]) assert.equal(kinds.get(kind), kind);
+  for (const category of ["section_header", "list_item", "code_block"]) assert.equal(kinds.get(category), "text");
+  assert.equal(kinds.get("fallback"), "heading");
+  for (const id of ["unsupported", "excluded", "decoration", "missing"]) assert.equal(kinds.get(id), "unmapped");
+});
 const declaration = { id: "text", title: "Text review", ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: action, version: 1 }])) } as any;
 test("review baseline, Root/Host/generation, serialized writes, conflict and no replay", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "review-")), file = path.join(root, "doc.md"), source = path.join(root, "source.txt");

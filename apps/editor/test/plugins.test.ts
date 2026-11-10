@@ -58,9 +58,16 @@ test("Docling comparison uses immutable provenance, final targets and portable p
   const doc = doclingFixture(), original = JSON.stringify(doc), record = emptyReview();
   doc.texts[1].prov = [{page_no:1,bbox:{l:10,t:800,r:100,b:780,coord_origin:"BOTTOMLEFT"}}];
   doc.texts[0].prov = [{page_no:1,bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
+  const extraRegions = [doc.texts[2], doc.texts[4], doc.texts[5], doc.texts[6], doc.texts[7], doc.texts[8], doc.tables[0], doc.pictures[0]];
+  for (const item of extraRegions) item.prov = doc.texts[0].prov;
   const authored = await convertDocument(doc,"source");
   const material = completedReviewSchema.parse(comparison({document:doc},record,authored.report,{generation:"generation",sourceRevision:"revision",result:{revision:authored.report.documentRevision}}));
   assert.deepEqual(material.pages[0].regions.find(r=>r.id === "region-texts-1-0")!.bbox,[10,42,100,62]);
+  assert.equal(material.pages[0].regions.find(r=>r.id === "region-texts-1-0")!.category, "section_header");
+  assert.equal(material.pages[0].regions.find(r=>r.id === "region-texts-1-0")!.kind, "heading");
+  for (const [id, kind] of [["texts-2", "list"], ["texts-4", "text"], ["texts-5", "code"], ["texts-6", "formula"], ["texts-7", "text"], ["tables-0", "table"], ["pictures-0", "picture"], ["texts-8", undefined]]) {
+    assert.equal(material.pages[0].regions.find(r=>r.id === `region-${id}-0`)!.kind, kind);
+  }
   assert.ok(material.pages[0].regions.some(r=>r.status === "decoration"));
   assert.ok(material.mapping!.entries.some(e=>e.targets.length === 0));
   assert.ok(material.mapping!.entries.some(e=>e.targets.some(t=>t.documentRevision === authored.report.documentRevision)));
@@ -69,6 +76,7 @@ test("Docling comparison uses immutable provenance, final targets and portable p
   assert.throws(()=>setProgress(doc,record,{checkedPages:[2],lastPage:2}),/Invalid/);
   assert.throws(()=>setProgress(doc,record,{checkedPages:[1,1],lastPage:1}),/Invalid/);
   delete doc.texts[1].prov; delete doc.texts[0].prov;
+  for (const item of extraRegions) delete item.prov;
   assert.equal(JSON.stringify(doc),original);
 });
 
