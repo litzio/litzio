@@ -122,7 +122,8 @@ export function executeTemplateOperation(operation: keyof typeof templateOperati
   if (scope.permissionMode !== undefined && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw Object.assign(new Error("Template writes are read-only for this turn."),{errorKind:"forbidden"});
   const requested = (operation === "save" ? value.from : value.path) as string;
   const create = operation === "create";
-  if (scope.folders !== undefined && (!scope.folders || !path.isAbsolute(requested))) throw Object.assign(new Error("An absolute path inside an opened folder is required."),{errorKind:"forbidden"});
+  if (scope.folders !== undefined && !scope.folders) throw Object.assign(new Error("An opened folder is required."),{errorKind:"forbidden"});
+  if (scope.folders !== undefined && !path.isAbsolute(requested)) throw Object.assign(new Error("Use an absolute path inside the current opened folder."),{errorKind:"invalid_input"});
   const file = accessPath(requested, scope.access, create);
   const target = scope.folders ? scope.folders.resolve(file, create) : file;
   if (operation === "save") return saveTemplate({ name: value.name as string, from: target, description: value.description as string | undefined }, scope.access, scope.directory);

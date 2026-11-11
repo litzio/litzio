@@ -464,6 +464,14 @@ test("provider-neutral tool failures expose executable recovery without replayin
   assert.equal(timedOut.remaining.length,1);delete (scope as any).displayClient;
   const invalid=await invoke("read_document",{path:"relative"});
   assert.equal(invalid.errorKind,"invalid_input");assert.equal(invalid.recovery.action,"correct_input");
+  for(const [tool,input] of [["create_document",{path:"report.md",template:"builtin:ai-report"}],["save_template",{from:"source.md",name:"Relative"}]] as const) {
+    const relative=await invoke(tool,input);
+    assert.equal(relative.success,false);assert.equal(relative.errorKind,"invalid_input");
+    assert.equal(relative.recovery.action,"correct_input");assert.match(relative.recovery.instruction,/absolute path.*opened folder/i);
+    const folders=scope.folders;(scope as any).folders=null;
+    const missingFolder=await invoke(tool,tool === "create_document" ? {...input,path:path.join(root,"report.md")} : {...input,from:original});
+    assert.equal(missingFolder.errorKind,"forbidden");scope.folders=folders;
+  }
   const staged=await invoke("stage_document",{path:original});
   const inspected=await invoke("inspect_staged_document",{change:staged.id});
   const args={change:staged.id,copyRevision:inspected.copyRevision,operations:[{command:"insert-block",at:"end",text:"Intended."}]};

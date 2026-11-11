@@ -50,7 +50,9 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 - `conflict`: 사본은 `inspect_staged_document({change})`, 검수는 `read_review_document({path})`, 플러그인 관리는 `manage_plugins({action:"list"})`로 최신 상태를 읽고 재분석한다. 새 revision/baseline/등록 정보를 써서 새 요청을 보낸다.
 - `forbidden`: 필요한 열린 폴더/Full access 또는 서비스 자격·권한, 사람의 검수 결정을 안내한다. 비서가 권한을 바꾸거나 승인 경계를 우회하지 않는다. 읽기 전용 플러그인 도구에 쓰기 권한을 늘려도 private/write 작업은 허용되지 않는다.
 - `unavailable`: 대상·플러그인 목록이나 원래 창의 화면 상태를 안전하게 재조회하고 가능한 공식 경로를 찾는다.
-- `uncertain`: 쓰기를 자동 재실행하지 않는다. 검수는 기존 requestId로 `read_review_request_status`, 플러그인 job은 `job-status`부터 조회한다. 상태 도구가 없는 사본 편집은 사본을 다시 inspect하고 결과를 대조한다. 상태 미발견은 무쓰기 증거가 아니다.
+- `uncertain`: 쓰기를 자동 재실행하지 않는다. 검수는 기존 requestId로 `read_review_request_status`, 플러그인 job은 `job-status`부터 조회한다. 배치 시작은 바깥 receipt ID가 아니라 `files[]` 중 uncertain 작업의 개별 requestId에 대해 `recovery.queries`의 상태 조회를 수행한다. 상태 도구가 없는 사본 편집은 사본을 다시 inspect하고 결과를 대조한다. 상태 미발견은 무쓰기 증거가 아니다.
+
+알려진 후속: 원본 변경 후 사본 재기준화와 수락 시험은 미구현이다. 적용 시 충돌 검사가 원본을 보존하며, 현재 비서는 `read_document`·`inspect_staged_document`로 원본과 제안을 대조하고 사람이 제안을 보존·검토 후 Discard하고 재요청하도록 안내할 수 있다. 비서의 자동 discard·재기준화는 제공하지 않는다.
 
 화면 조작의 기존 최상위 `outcome`도 같은 실패 receipt/errorKind로 매핑한다. `completed`와 `remaining`은 보존하고 충돌·불확실 결과는 `read_screen_context`로 현재 창을 대조한다. 기존 미저장 확인은 사람 결정으로 남으며, 화면 조작 timeout/취소를 성공으로 반환하거나 자동 재실행하지 않는다.
 
