@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -502,4 +502,57 @@ test("provider-neutral tool failures expose executable recovery without replayin
   const ambiguous=await invoke("read_review_document",{path:original});
   assert.equal(ambiguous.errorKind,"invalid_input");assert.equal(ambiguous.candidates.length,2);
   assert.equal(ambiguous.recovery.action,"narrow_candidates");
+});
+
+test("structured creation and pending edits reuse Core batches and report image readiness separately", async t => {
+  const { executeDocumentTool } = await import("../server/assistant-document-tools.ts");
+  const { AssistantChanges } = await import("../server/assistant-changes.ts");
+  const { RootAccess } = await import("../server/file-access.ts");
+  const { parse, serialize, getEditableDocument } = await import("@litzio/core");
+  const root = mkdtempSync(path.join(tmpdir(), "structured-tools-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const access = new RootAccess([root]), changes = new AssistantChanges(path.join(root, ".changes"), access);
+  const scope = { folders: access, access, permissionMode: "opened-folders", changes, conversation: "structured" };
+  const invoke = (name: string, input: unknown, override = {}) => executeDocumentTool(name, input, { ...scope, ...override }) as any;
+  const file = path.join(root, "report.md");
+  writeFileSync(path.join(root, "chart.png"), "synthetic image-file presence fixture");
+  const operations = [
+    { command: "insert-table", at: "end", cells: [["Task", "Status"], ["A", "Done"]], caption: "Weekly work" },
+    { command: "insert-list", at: "end", list: { ordered: false, items: [{ content: [{ kind: "text", text: "Next week" }] }] } },
+    { command: "insert-figure", at: "end", image: "chart.png", caption: "Old chart" },
+    { command: "insert-figure", at: "end", image: "missing.png" },
+    { command: "insert-figure", at: "end", image: "../outside.png" },
+    { command: "insert-equation", at: "end", latex: "x=1" },
+  ];
+  const created = invoke("create_document", { path: file, title: "Weekly report", operations });
+  assert.equal(created.receipt.outcome, "success", JSON.stringify(created));
+  assert.deepEqual(created.readiness.map((entry: any) => entry.status), ["available", "missing_or_unreadable", "unavailable"]);
+  assert.equal(serialize(parse(created.source)), created.source);
+  assert.deepEqual(getEditableDocument(parse(created.source)).blocks.map(block => block.block), ["table", "list", "figure", "figure", "figure", "equation"]);
+  assert.equal(invoke("create_document", { path: file, title: "Conflict", operations }).errorKind, "conflict");
+  const bad = path.join(root, "bad.md");
+  for (const input of [
+    { path: bad, title: "Bad", operations, blocks: [] },
+    { path: bad, title: "Bad", operations: [...operations, { command: "remove-block", at: 99999 }] },
+    { path: bad, title: "Bad", operations: [] },
+  ]) assert.equal(invoke("create_document", input).errorKind, "invalid_input");
+  assert.equal(existsSync(bad), false);
+  assert.equal(invoke("create_document", { path: bad, title: "Bad", operations }, { permissionMode: "read-only" }).errorKind, "forbidden");
+  const staged = invoke("stage_document", { path: file });
+  const before = invoke("inspect_staged_document", { change: staged.id });
+  const figure = before.nodes.find((node: any) => node.type === "figure");
+  const table = before.nodes.find((node: any) => node.type === "table");
+  const cell = before.nodes.find((node: any) => node.type === "cell");
+  const edited = invoke("edit_staged_document", { change: staged.id, copyRevision: before.copyRevision, operations: [
+    { command: "update-figure", path: figure.path.join(","), caption: "Revised chart" },
+    { command: "update-table-caption", path: table.path.join(","), text: "Revised summary" },
+    { command: "update-table-cell", path: cell.path.join(","), text: "Work" },
+    { command: "insert-table", at: "end", cells: [["More"], ["Rows"]] },
+  ] });
+  assert.equal(edited.receipt.outcome, "success", JSON.stringify(edited));
+  assert.equal(readFileSync(file, "utf8"), created.source, "original waits for human Apply");
+  assert.match(readFileSync(staged.copy, "utf8"), /Revised chart/);
+  assert.match(readFileSync(staged.copy, "utf8"), /Revised summary/);
+  assert.match(readFileSync(staged.copy, "utf8"), /Work/);
+  assert.equal(changes.list("structured").length, 1);
 });

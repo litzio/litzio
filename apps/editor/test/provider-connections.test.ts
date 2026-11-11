@@ -1022,6 +1022,15 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const original = path.join(root, "a.md"), source = "---\nlitzio: 1\n---\n\nFirst paragraph.\n\nSecond paragraph.\n";
   writeFileSync(original, source);
   const payload = (result: any) => JSON.parse(result.content[0].text);
+  const structuredPath=path.join(root,"structured-mcp.md");
+  const operations=[{command:"insert-table",at:"end",cells:[["Task","State"],["A","Done"]]},{command:"insert-figure",at:"end",image:"missing.png",caption:"Chart"}];
+  const rejectedStructure=await one.callTool({name:"create_document",arguments:{path:structuredPath,title:"Report",operations:[...operations,{command:"remove-block",at:99999}]}});
+  assert.equal(rejectedStructure.isError,true);assert.equal(payload(rejectedStructure).errorKind,"invalid_input");
+  assert.equal(payload(rejectedStructure).recovery.action,"correct_input");assert.equal(existsSync(structuredPath),false);
+  const structured=await one.callTool({name:"create_document",arguments:{path:structuredPath,title:"Report",operations}});
+  assert.equal(structured.isError,false);assert.equal(payload(structured).receipt.outcome,"success");
+  assert.equal(payload(structured).path,structuredPath);assert.ok(payload(structured).revision);
+  assert.equal(payload(structured).readiness[0].status,"missing_or_unreadable","asset warnings must survive without becoming a document-write failure");
   const stagedResult = await one.callTool({ name: "stage_document", arguments: { path: original } });
   assert.equal(stagedResult.isError, false);
   const staged = payload(stagedResult);
