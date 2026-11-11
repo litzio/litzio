@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { crc32 } from "node:zlib";
 import { PLUGIN_VERSION, DOCLING_FORMAT_VERSION } from "./versions.js";
+import { validateDoclingDocument } from "./schema.js";
 
 // Plugin-owned .docling: ZIP32, stored entries only. No filesystem extraction.
 // Node has no ZIP API; this deliberately supports our small fixed envelope, not general ZIP.
@@ -47,6 +48,7 @@ function validateEntries(entries) {
       !hashPattern.test(manifest.result?.sha256) || !Number.isSafeInteger(manifest.result.bytes)) throw new Error("Invalid .docling manifest");
   if (!Array.isArray(manifest.failedPages) || manifest.failedPages.some(page => !Number.isInteger(page) || page < 1)) throw new Error("Invalid failed pages");
   const documentBytes = entries.get("document.json"), documentJson = documentBytes.toString("utf8"), document = JSON.parse(documentJson);
+  validateDoclingDocument(document);
   if (document?.schema_name !== "DoclingDocument" || document.version !== "1.10.0" || !Array.isArray(document.body?.children) ||
       manifest.document?.sha256 !== sha256(documentBytes) || manifest.document.bytes !== documentBytes.length) throw new Error("Invalid DoclingDocument");
   const sourcePdf = entries.get("source.pdf");
@@ -136,6 +138,7 @@ export function createDoclingArchiveFromResult({ sourceName, sourceBytes, server
   if (lossless.status === "partial_success" && !failedPages.length) throw new Error("Partial conversion has no failed page record");
   const documentJson = JSON.stringify(lossless.document?.json_content);
   const document = JSON.parse(documentJson);
+  validateDoclingDocument(document);
   if (document.schema_name !== "DoclingDocument" || document.version !== "1.10.0") throw new Error("Unsupported document version");
   const images = imagesOf(document);
   const reference = profile.provenance.openapi_sha256, openapiHash = sha256(openapiBytes);

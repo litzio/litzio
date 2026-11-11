@@ -858,6 +858,7 @@ canonical snapshot 검증·단일 파일 교체·receipt를 소유한다. provid
 | `review groups read` | `workspace-groups-read`, 공통 `{root,workspace,plugin,job}` |
 | `review groups propose/approve/reject/undo` | `workspace-review-change`, 공통 입력+baseline/requestId+`change`; CLI가 `change.kind:groups-<action>`만 지정 |
 | `review inspection` | change 없으면 `workspace-inspection`; 있으면 `workspace-review-change`/`kind:inspection` |
+| `review lenses` | 읽기 전용 `workspace-lenses`; 공통 입력. 최초 추출한 원본 렌즈 자료와 적용 범위 |
 | `review required-checks` | change 없으면 `workspace-required-checks`; 있으면 `workspace-review-change`/`kind:required-checks` |
 | `review completion` | change 없으면 `workspace-completion`; 있으면 `workspace-review-change`/`kind:completion` |
 | `review workspace-status` | 기존 `workspace-status {requestId}`. 기존 generated-document status도 유지 |
@@ -892,8 +893,12 @@ Undo도 propose와 같은 열린 중복 검사를 Core 변경 전에 수행하�
 바꿔도 이 정책을 우회하지 않는다. 다른 reasonCode의 문제는 동시에 남길 수 있으며 각각 처리해야 완료된다.
 CLI `review groups propose`와 비서 propose 계약은 동일한 change/schema를 전달한다. 별도 자동 재승인 작업은 없다.
 
-inventory는 content revision·페이지/항목·렌즈 목록과 모든 그림/표 source 의무를 받는다. 추출은
-P4다. `required-checks`는 정확한 targetIds·content revision·직접 확인 또는 승인 대조 run의
+inventory는 content revision·페이지/항목·검사 종류 목록과 모든 그림/표 source 의무를 받는다.
+`lenses`의 각 항목은 `{kind,required,scope:{pages,targets},extracted}`다. inspection의 `lens`는 선언된 kind를 가리킨다.
+완료 계산은 required:true인 종류마다 그 적용 범위만 요구한다. extracted:false는 빈 범위여도 미완료이며,
+정상 추출 후 적용 항목이 없는 범위는 검사할 의무가 없다. required:false 종류의 inspection도 저장하지만 완료 조건에서 제외한다.
+페이지 전체 이미지 검사도 별도 required 종류와 범위 선언만으로 계산에 참여할 수 있으며 렌즈 수·이름은 SDK/Host에 고정하지 않는다.
+`required-checks`는 정확한 targetIds·content revision·직접 확인 또는 승인 대조 run의
 범위/완료/결과 반영과 사람 근거·결과를 기록한다. 이미지 열기나 렌즈 0후보는 확인 event가 아니다.
 같은 revision의 최신 검사/대조 run 상태와 대상별 최신 확인 결과를 사용하고 이전 성공으로
 실패/판단 불가를 숨기지 않는다. 원본 의무를 inventory 갱신으로 제거할 수 없다.
@@ -904,12 +909,31 @@ revision·compared/selected·철회 없음·승인/실제 페이지와 대상 �
 처리해야 한다. 철회된 run은 현재 compared 페이지에도 포함하지 않는다.
 
 완료 결과는 `ready/incomplete/contentRevision/snapshotHash/ledgerRevision/notComparedPages/approved`다.
-현재 전체 inventory·렌즈 coverage, 열린/판단 불가 묶음 0, 필수 확인 처리, 현재 canonical snapshot과
-미확정 요청 0을 각각 검사한다. 선택한 대조가 미완료면 차단하고 선택하지 않은 본문은 미대조로
+현재 inventory·필수 종류별 coverage, 열린/판단 불가 묶음 0, 필수 확인 처리, 현재 canonical snapshot과
+미확정 요청 0을 각각 검사한다. 선택한 대조가 미완료면 보고서상 미완료이고 선택하지 않은 본문은 미대조로
 남긴다. snapshotHash는 workspaceSnapshotSchema로 검증·정규화한 전체 snapshot JSON의 SHA-256이다. 본문 hash가 같아도 대응/생성 계약이 바뀌면 달라진다.
 최종 사람 승인은 ledger/content revision·snapshot hash에 고정하며 이후 ledger 변경은
-승인을 비운다. source 교정·Undo는 이전 coverage를 stale로 만들어 재검사를 요구한다. 공식 export
-gate/UI는 P11이며 현재 export를 완료 export로 바꾸지 않는다.
+승인을 비운다. Docling의 contentRevision은 불변 원본 JSON hash이며 교정·Undo로 원본 렌즈 자료·검사 coverage를 무효화하지 않는다.
+이 계산은 검증 범위 보고서 항목이다. 공식 내보내기 gate는 두지 않는 소유자 결정을 따르며 기존 current export도 완료 조건으로 막지 않는다.
+
+### Docling 원본 렌즈·그림/표 목록 (#1462 4a)
+
+변환 시 사용한 docling-core 2.93.0의 공식 DoclingDocument JSON Schema(document version 1.10.0)를
+플러그인에 고정하고, 생성·열기·변환 경계에서 검증한다. 다른 document version은 명확히 거부한다.
+출처·MIT 라이선스·생성된 TypeScript 타입은 [schema 기록](../../community-plugins/docling/schema/README.md)을 따른다.
+SDK의 기존 compileSchema는 추가 dialect `2020-12`를 지원한다. 원본에는 기본값 삽입이나 정규화를 하지 않는다.
+공식 schema의 Python named regex group 표기만 ECMAScript 표기로 바꿔 컴파일하며 path format은 Python Path의 문자열 annotation으로 취급한다.
+
+새 작업공간 최초 생성 때 불변 JSON에서 제목 목차, 머리말·바닥글, 캡션, 각주, 목록, 페이지 경계,
+수식·표 자료를 한 번 추출해 review.json의 lenses와 ledger.inventory에 저장한다. 읽기·교정·Undo는 추출기를 다시 실행하지 않는다.
+각 자료는 official/auxiliary/scope로 나눈다. 공식 content_layer·label·ownership 참조·읽기 순서·모든 provenance와
+표 원본 cell index·반열림 범위·span·header flags를 보존한다. 반복 띠/각주 prefix 후보는 auxiliary이며
+furniture/footnote로 재분류하지 않는다. 표 중복 점유/미점유 좌표는 관찰값이며 누락 판정이 아니다.
+
+모든 pictures/tables 배열 항목은 도달 여부·렌즈 결과와 관계없이 requiredChecks에 들어간다.
+supported/unsupported/excluded/furniture와 원본 pages/regions를 제공하고 필수 사람 확인 의무는 제거하지 않는다.
+source-evidence는 required:false, 전체 원본 pages/targets 범위로 미리 선언한다. 원문 증거 추출은 4b이며,
+이후 기존 inspection 형식에 결과를 저장한다. 비서 계약에는 workspace-lenses를 정의만 하며 AI 연결·실행은 하지 않는다.
 
 publication 결과가 uncertain이면 파일 identity별 Host 잠금을 유지한다. 같은 requestId status를
 조회한 뒤 검증된 workspace read를 해야 잠금이 풀린다. 다른 requestId 쓰기와 자동 재전송은
@@ -921,7 +945,7 @@ Docling은 format 4 / record 4 / plugin 0.0.11이다. 원본 PDF·JSON·manifest
 
 종류 교정은 독립된 문단·제목만 받는다. 빠진 머리말이나 다른 블록의 캡션은 propose 시 명확한 이유로 거부하며 블록 삽입/캡션 분리는 만들지 않는다. 삭제는 모든 뒤 경로를 갱신하되 원본 항목·영역을 보존해 대조에서 대응 문단 없음을 표시한다. Undo는 승인 때 기록한 before로 기존 Core 연산을 실행하고 삭제 복원도 같은 경로 갱신을 사용한다. 한 묶음의 여러 제외는 한 staging 후보에서 모두 검증하고 한 번 교체한다. 중간 대상 실패는 문서·대응·ledger 전체를 보존한다.
 
-실패 페이지는 manifest와 최초 대응, workspace read의 record.failedPages로 제공한다. 대응 geometry가 있는 실패 쪽은 기존 unsupported 영역과 reason으로 표시하며 없는 원본 geometry·이미지는 추측하지 않는다. 원본 그림·표 inventory와 대상별 근거·사람 판단/필수 확인 기록, 동결된 묶음 전이 모델은 유지한다. SDK·Host는 Docling 배열을 해석하지 않는다. 비차단 공식 내보내기/검증 범위 보고서, 새 검사·비서·화면·직접 편집·나누기/합치기는 후속 단계다.
+실패 페이지는 manifest와 최초 대응, workspace read의 record.failedPages로 제공한다. 대응 geometry가 있는 실패 쪽은 기존 unsupported 영역과 reason으로 표시하며 없는 원본 geometry·이미지는 추측하지 않는다. 원본 그림·표 inventory와 대상별 근거·사람 판단/필수 확인 기록, 동결된 묶음 전이 모델은 유지한다. SDK·Host는 Docling 배열을 해석하지 않는다. 4a의 렌즈·inventory·검사 종류별 검증 범위 계산은 위 현재 계약을 따른다. 공식 내보내기 표시·보고서 화면·원문 증거·비서·직접 편집·나누기/합치기는 후속 단계다.
 
 검증 계층·실행 범위와 미확인 조건은 [P2 기록](docling-review-stage3.md#p2-공용-묶음저장-경계)을 따른다.
 

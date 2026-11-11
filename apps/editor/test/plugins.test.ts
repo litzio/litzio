@@ -22,11 +22,51 @@ import {doclingConverter} from "./docling-fixture.ts";
 
 const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
 
+test("Docling official 1.10.0 schema and source lenses retain every fixed LSR/NIST picture and table", async () => {
+  const {validateDoclingDocument,convertDocument,extractReviewLenses,emptyReview,readReview} = await doclingConverter();
+  for (const name of ["lsr-1.1","nist-sp1108r4"]) {
+    const bytes=readFileSync(new URL(`../../../community-plugins/docling/sample/${name}/converted/document.json`,import.meta.url));
+    const doc=JSON.parse(bytes.toString()), before=JSON.stringify(doc), revision=createHash("sha256").update(bytes).digest("hex");
+    assert.equal(validateDoclingDocument(doc),doc);
+    assert.throws(()=>validateDoclingDocument({...doc,version:"1.9.0"}),/Unsupported DoclingDocument version/);
+    const invalid=structuredClone(doc);delete invalid.name;
+    assert.throws(()=>validateDoclingDocument(invalid),/Invalid DoclingDocument schema/);
+    const badCell=structuredClone(doc);badCell.tables[0].data.table_cells[0].start_row_offset_idx="0";
+    assert.throws(()=>validateDoclingDocument(badCell),/Invalid DoclingDocument schema/);
+    const {report}=await convertDocument(doc,revision), extracted=extractReviewLenses(doc,revision,report);
+    assert.deepEqual(Object.keys(extracted.lenses),["headings","headers-footers","captions","footnotes","lists","page-boundaries","formulas-tables"]);
+    assert.deepEqual(extracted.inventory.requiredChecks.map((item:any)=>item.id).sort(),[...doc.pictures,...doc.tables].map(item=>item.self_ref).sort());
+    assert.deepEqual(extracted.lenses.headings.official.map((item:any)=>item.self_ref).sort(),[...doc.texts,...doc.tables].filter(item=>["title","section_header","document_index"].includes(item.label)).map(item=>item.self_ref).sort());
+    assert.deepEqual(extracted.lenses["formulas-tables"].official.tables[0].table_cells.map(({index,...cell}:any)=>cell),doc.tables[0].data.table_cells);
+    assert.equal(extracted.lenses["page-boundaries"].official.length,Object.keys(doc.pages).length-1);
+    for(const kind of extracted.inventory.lenses.filter((kind:any)=>kind.required)) {
+      assert.equal(kind.extracted,true);
+      assert.deepEqual(kind.scope,extracted.lenses[kind.kind].scope);
+      assert.ok(kind.scope.targets.every((ref:string)=>extracted.inventory.targets.includes(ref)));
+    }
+    assert.deepEqual(extracted.inventory.lenses.find((kind:any)=>kind.kind==="source-evidence"),{kind:"source-evidence",required:false,scope:{pages:extracted.inventory.pages,targets:extracted.inventory.targets},extracted:false});
+    assert.equal(JSON.stringify(doc),before,"schema validation and lens extraction do not normalize source bytes");
+    const record={...emptyReview(),lenses:extracted.lenses};record.ledger.inventory=extracted.inventory;
+    delete record.lenses.headings;
+    assert.equal(readReview(Buffer.from(JSON.stringify(record))).ledger.inventory.lenses.find((kind:any)=>kind.kind==="headings").extracted,false,"lost stored material cannot report successful empty extraction");
+    const dangling=structuredClone(doc);dangling.tables[0].captions=[{$ref:"#/texts/999999"}];
+    assert.throws(()=>extractReviewLenses(dangling,revision,report),/Unresolved lens reference/);
+  }
+  const doc=doclingFixture(), {report}=await convertDocument(doc,"a".repeat(64));
+  // Even source-only furniture, unsupported and excluded items remain human obligations.
+  doc.pictures.push({self_ref:"#/pictures/1",label:"picture",content_layer:"furniture"},{self_ref:"#/pictures/2",label:"picture"});
+  report.items.find((item:any)=>item.self_ref==="#/tables/0").status="excluded";
+  const {inventory}=extractReviewLenses(doc,"a".repeat(64),report);
+  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/tables/0").disposition,"excluded");
+  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/pictures/1").disposition,"furniture");
+  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/pictures/2").disposition,"unsupported");
+});
+
 test("Docling comparison uses immutable provenance, final targets and portable progress only", async () => {
   const {convertDocument,comparison,setProgress,emptyReview} = await doclingConverter();
   const doc = doclingFixture(), original = JSON.stringify(doc), record = emptyReview();
-  doc.texts[1].prov = [{page_no:1,bbox:{l:10,t:800,r:100,b:780,coord_origin:"BOTTOMLEFT"}}];
-  doc.texts[0].prov = [{page_no:1,bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
+  doc.texts[1].prov = [{page_no:1,charspan:[0,1],bbox:{l:10,t:800,r:100,b:780,coord_origin:"BOTTOMLEFT"}}];
+  doc.texts[0].prov = [{page_no:1,charspan:[0,1],bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
   const extraRegions = [doc.texts[2], doc.texts[4], doc.texts[5], doc.texts[6], doc.texts[7], doc.texts[8], doc.tables[0], doc.pictures[0]];
   for (const item of extraRegions) item.prov = doc.texts[0].prov;
   const authored = await convertDocument(doc,"source");
@@ -77,7 +117,7 @@ test("Docling converter preserves source identity, native blocks, shared targets
   assert.match(report.summary, /병합 칸 반복 1/);
   assert.match(report.summary, /다단 헤더 계층 소실 1/);
   assert.doesNotMatch(report.summary, /(?:^| · )표 \d|(?:^| · )[^·]+ 0(?: · |$)/);
-  const plain = { schema_name: "DoclingDocument", body: { children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", text: "Plain paragraph" }] };
+  const plain = { name:"plain", version:"1.10.0", schema_name: "DoclingDocument", body: { self_ref:"#/body", children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", orig:"Plain paragraph", text: "Plain paragraph" }] };
   assert.equal((await convertDocument(plain, "a".repeat(64))).report.summary, "");
   const roles = doclingFixture();
   roles.tables[0].data.table_cells[0].row_header = true;
@@ -105,7 +145,7 @@ test("Docling caption numbers are conservative, kind-specific and duplicate-safe
   }
   const doc = doclingFixture();
   const ref = `#/texts/${doc.texts.length}`;
-  doc.texts.push({ self_ref: ref, label: "caption", text: "Figure 1: Duplicate" });
+  doc.texts.push({ self_ref: ref, label: "caption", orig:"Figure 1: Duplicate", text: "Figure 1: Duplicate" });
   doc.pictures.push({ self_ref: "#/pictures/1", label: "picture", captions: [{ $ref: ref }], children: [{ $ref: ref }] });
   doc.body.children.push({ $ref: "#/pictures/1" });
   const converted = await convertDocument(doc, "a".repeat(64));
@@ -147,15 +187,15 @@ test("Docling converter refuses whole input on limits and invalid graph/grid ins
   await rejects(d => { d.body.children[0].$ref = "#/texts/999"; }, /Invalid source reference/);
   await rejects(d => { d.texts[4].text = "x".repeat(16385); }, /16384/);
   await rejects(d => {
-    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
+    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", orig:"Orphan", text: "Orphan" });
   }, new RegExp(`input limit.*${limits.inputs}`));
   await rejects(d => {
-    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
+    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", orig:"x".repeat(16000), text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
   }, new RegExp(`byte limit.*${limits.bytes}`));
 });
 test("Docling envelope keeps original PDF/JSON hashes independent of the reserved opaque review entry", async () => {
-  const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);
-  const { PDF_PROFILE } = await import(new URL("../../../community-plugins/docling/conversion.js", import.meta.url).href);
+  const archive = await doclingConverter();
+  const { PDF_PROFILE } = await doclingConverter();
   const sourceBytes = Buffer.from("%PDF-1.4 synthetic fixture");
   const bytes = archive.createDoclingArchiveFromResult({ sourceName: "fixture.pdf", sourceBytes, serverVersions: { "docling-serve": "1.32.0" }, openapiBytes: Buffer.from("{}"), profile: PDF_PROFILE,
     task: { id: "fixture", startedAt: "2026-11-09T00:00:00Z", completedAt: "2026-11-09T00:01:00Z" }, resultBody: Buffer.from(JSON.stringify({ status: "success", errors: [], document: { json_content: doclingFixture() } })) });
@@ -181,15 +221,15 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
 
 test("Docling saved document corrections preserve independent proposals, mapping, Undo and atomic storage", async t => {
   const {workspaceOperation,initializeWorkspace}=await doclingConverter();
-  const archive=await import(new URL("../../../community-plugins/docling/archive.js",import.meta.url).href);
-  const {PDF_PROFILE}=await import(new URL("../../../community-plugins/docling/conversion.js",import.meta.url).href);
+  const archive=await doclingConverter();
+  const {PDF_PROFILE}=await doclingConverter();
   const digest=(value:string|Buffer)=>createHash("sha256").update(value).digest("hex");
   const root=mkdtempSync(path.join(os.tmpdir(),"litzio-workspace-")),file=path.join(root,"source.docling");
   const document=doclingFixture();
   document.pictures[0].image={mimetype:"image/png",dpi:72,size:{width:1,height:1},uri:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII="};
   document.pages[1].image=document.pictures[0].image;
   document.texts[1].text=document.texts[4].text; // Earlier identical text must never receive the later paragraph correction.
-  document.texts[4].prov=[{page_no:1,bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
+  document.texts[4].prov=[{page_no:1,charspan:[0,1],bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
   const original=await initializeWorkspace(archive.createDoclingArchiveFromResult({sourceName:"sample.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
     task:{id:"workspace",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"partial_success",errors:[{error_message:"Page 1 failed to parse."}],document:{json_content:document}}))}));
   writeFileSync(file,original);
@@ -226,6 +266,27 @@ test("Docling saved document corrections preserve independent proposals, mapping
   try {
     assert.equal((await read()).cacheState,"current");assert.deepEqual(readFileSync(file),original);
     const opened=await write("workspace-open");assert.equal(opened.cacheState,"current",JSON.stringify(opened));
+    // Actual CLI JSON reads use the common dispatcher and never prepare/write.
+    const {createServer}=await import("node:http"),{spawn}=await import("node:child_process"),{DAEMON_PROTOCOL}=await import("../shared/daemon-version.ts");
+    const server=createServer(async(req,res)=>{
+      res.setHeader("Content-Type","application/json");
+      if(req.url==="/daemon/health"){res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL}));return;}
+      try{let body="";for await(const chunk of req)body+=chunk;res.end(JSON.stringify(await host.execute(JSON.parse(body))));}
+      catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}
+    });
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    try{
+      const input=path.join(root,"cli-input.json"),baselineBytes=readFileSync(file);writeFileSync(input,JSON.stringify(base));
+      for(const action of ["lenses","required-checks"]){
+        const cli=spawn(process.execPath,["--import","tsx",path.resolve("../../packages/cli/src/cli.ts"),"review",action,"--input",input,"--host",`http://127.0.0.1:${(server.address() as {port:number}).port}`,"--json"],{windowsHide:true});
+        let stdout="",stderr="";cli.stdout.on("data",b=>stdout+=b);cli.stderr.on("data",b=>stderr+=b);
+        const exit=await new Promise<number|null>((resolve,reject)=>{cli.on("error",reject);cli.on("close",resolve);});
+        assert.equal(exit,0,stderr+stdout);const result=JSON.parse(stdout);
+        assert.equal(result.receipt.operation,`review.workspace-${action}`);
+        assert.deepEqual(result.lenses,opened.lenses);assert.deepEqual(result.ledger.inventory,opened.ledger.inventory);
+        assert.deepEqual(readFileSync(file),baselineBytes);
+      }
+    }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
     assert.deepEqual(opened.record.failedPages,[1]);assert.match(opened.snapshot.source,/review-asset:/);assert.equal(opened.snapshot.images.length,1);
     const firstCompare=await host.execute({...base,action:"workspace-compare"});assert.equal(firstCompare.state,"ready");
     assert.equal(firstCompare.snapshot.documentHash,opened.documentRevision);
@@ -241,8 +302,10 @@ test("Docling saved document corrections preserve independent proposals, mapping
     }
     const inspectionRevision=opened.contentRevision;
     const required=opened.items.filter((item:any)=>["tables","pictures"].includes(item.kind)).map((item:any)=>({id:item.self_ref,kind:item.kind==="tables"?"table":"picture",locator:{self_ref:item.self_ref},pages:[1],regions:[],disposition:"supported",derivedFrom:[]}));
-    assert.equal((await change({kind:"required-checks",inventory:{contentRevision:inspectionRevision,pages:[1],targets:["body"],lenses:["body"],requiredChecks:required,complete:false},records:required.map((item:any)=>({targetIds:[item.id],contentRevision:inspectionRevision,result:"no-issue",method:"direct",human,runId:null,approvedRun:null,at:new Date().toISOString()}))})).receipt.outcome,"success");
-    const inspected=await change({kind:"inspection",records:[{runId:"original",lens:"body",contentRevision:inspectionRevision,scope:{pages:[1],targets:["body"]},state:"no-issue",evidence:"Original immutable conversion inspected"}],comparisons:[]});
+    assert.equal((await change({kind:"required-checks",records:required.map((item:any)=>({targetIds:[item.id],contentRevision:inspectionRevision,result:"no-issue",method:"direct",human,runId:null,approvedRun:null,at:new Date().toISOString()}))})).receipt.outcome,"success");
+    const inspected=await change({kind:"inspection",records:[{runId:"original",lens:"headings",contentRevision:inspectionRevision,scope:opened.ledger.inventory.lenses.find((kind:any)=>kind.kind==="headings").scope,state:"no-issue",evidence:"Original immutable conversion inspected"},
+      {runId:"evidence",lens:"source-evidence",contentRevision:inspectionRevision,scope:{pages:[1],targets:["#/texts/4"]},state:"uncertain",evidence:"Auxiliary original-text candidate"}],comparisons:[]});
+    assert.equal(inspected.receipt.outcome,"success",JSON.stringify(inspected));
     const textBefore=document.texts[4].text;
     const a=await propose([{type:"text",self_ref:"#/texts/4",text:"Corrected canonical text"}],[textBefore],["Corrected canonical text"]);
     const b=await propose([{type:"kind",self_ref:"#/texts/1",kind:"paragraph"}],[{kind:"heading",level:2}],[{kind:"paragraph"}]);
@@ -255,6 +318,8 @@ test("Docling saved document corrections preserve independent proposals, mapping
     assert.equal(afterText.document.blocks.find((block:any)=>block.block==="heading").text,textBefore);
     const independent=await decide("groups-approve",b.group);assert.equal(independent.receipt.outcome,"success",JSON.stringify(independent));
     assert.deepEqual(independent.ledger.inspections,inspected.ledger.inspections);assert.deepEqual(independent.ledger.checks,inspected.ledger.checks);
+    assert.deepEqual(independent.lenses,opened.lenses,"corrections preserve the original lens extraction");
+    assert.deepEqual(independent.ledger.inventory,opened.ledger.inventory);
     const beforeStale=readFileSync(file);assert.equal((await decide("groups-approve",stale.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale);
     for(const group of [crossKind.group,crossText.group]){assert.equal((await decide("groups-approve",group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale,"another field change at the same target makes a proposal stale");}
     const followupKind=await propose([{type:"kind",self_ref:"#/texts/4",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"kind-followup");
@@ -336,8 +401,8 @@ test("Docling saved document corrections preserve independent proposals, mapping
 
 test("fixed LSR document uses Core corrections through save, cold read, Undo and actual CLI JSON without conversion", async () => {
   const {workspaceOperation,initializeWorkspace}=await doclingConverter();
-  const archive=await import(new URL("../../../community-plugins/docling/archive.js",import.meta.url).href);
-  const {PDF_PROFILE}=await import(new URL("../../../community-plugins/docling/conversion.js",import.meta.url).href);
+  const archive=await doclingConverter();
+  const {PDF_PROFILE}=await doclingConverter();
   const root=mkdtempSync(path.join(os.tmpdir(),"litzio-fixed-lsr-")),file=path.join(root,"lsr.docling");
   const sample=new URL("../../../community-plugins/docling/sample/lsr-1.1/",import.meta.url);
   const json=readFileSync(new URL("converted/document.json",sample),"utf8"),pdf=readFileSync(new URL("LSR-1.1-standards.pdf",sample));
@@ -1694,6 +1759,17 @@ test("designated community supply requires trust, persists across updates and yi
 
 test("designated distribution payload check rejects a missing runtime file", async () => {
   const { DESIGNATED_COMMUNITY_PLUGINS, assertDesignatedPluginPayload } = await import("../server/plugins/designated-plugins.ts");
+  const docling=DESIGNATED_COMMUNITY_PLUGINS.find(item=>item.id==="community.docling")!;
+  const visited=new Set<string>(),missing=new Set<string>();
+  const visit=(file:string)=>{
+    if(!docling.files.includes(file))missing.add(file);
+    if(visited.has(file)||!file.endsWith(".js"))return;visited.add(file);
+    const source=readFileSync(new URL(`../../../community-plugins/docling/${file}`,import.meta.url),"utf8");
+    const refs=[...source.matchAll(/^\s*import\b[^;]*?\bfrom\s+["'](\.[^"']+)["']/gm),...source.matchAll(/new URL\(["'](\.[^"']+)["'],\s*import\.meta\.url\)/g)];
+    for(const ref of refs)visit(path.posix.normalize(path.posix.join(path.posix.dirname(file),ref[1]!)));
+  };
+  visit("host.js");
+  assert.deepEqual([...missing],[],`Docling runtime dependencies missing from designated payload: ${[...missing].join(", ")}`);
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-supply-check-"));
   assert.throws(() => assertDesignatedPluginPayload(root), /community.docling/);
   for (const item of DESIGNATED_COMMUNITY_PLUGINS) {
