@@ -88,7 +88,7 @@ provider model IDs are collapsed, retaining the first name/description.
 The additional #1091 owner decision enables full access for both providers through
 `writeAccess` alone. Copilot follows Paseo's Allow All config (`allow_all=on` after
 selecting Agent/Plan), approves all ACP tool/path/URL permission requests and removes
-`--deny-tool=shell`. `--disable-builtin-mcps` remains. Returning to restricted access
+`--deny-tool=shell`. The #1500 owner amendment (2026-11-11) removes `--disable-builtin-mcps` for all permission modes, allowing Copilot built-in MCP servers under its inherited configuration. Returning to restricted access
 restarts with shell denial and sends `allow_all=off`. Autopilot/Allow All/Auto Accept
 are not separate mode choices. No new CLI launch policy interrupts active turns;
 a conflicting launch change is rejected until they stop. Existing-document text-only
@@ -155,15 +155,22 @@ ACP `session/new`; turns use `session/prompt`, streaming `session/update` and
 Codex feature tasks retain their saved model/effort defaults while Copilot is
 selected. No Copilot model call was made during implementation.
 
-Copilot has no Codex sandbox-policy equivalent. Host answers ACP permissions
-with `allow_once` only for read/edit requests with absolute locations in the
-captured opened folders and operator Roots; edits also require `opened-folders`.
-Restricted access cancels everything else and denies shell tools. #1091 full access
-instead enables allow_all, approves all ACP requests and permits shell tools. Both
-access levels disable built-in MCP servers. This is permission mediation, not an OS filesystem/network sandbox:
-Copilot's inherited settings, preauthorized tools and native execution remain
-provider-controlled. The existing-document AGENTS.md rule remains an instruction.
-Codex skills, account/usage diagnostics, live steering,
-context usage and Litzio dynamic document tools are not emulated for Copilot.
+Copilot has no Codex sandbox-policy equivalent. Under the #1500 owner amendment
+(2026-11-11), Host answers ACP permissions with allow_once for location-bearing
+non-execute file tools only when every absolute location is inside the captured
+opened folders and operator Roots. Read-only permits read/search; opened-folders
+also permits edit/delete/move and other location-bearing file tools. Restricted
+access still denies shell tools and out-of-folder locations; opened-folders fetch
+remains allowed. #1091 full access enables allow_all, approves all ACP requests
+and permits shell tools. The owner also removes the previously unconditional
+built-in MCP disable flag: the old contract recorded that restriction without a
+specific risk rationale. Built-in MCP availability and inherited preauthorization
+remain provider-controlled; this change does not grant arbitrary external MCP
+requests through the Host tool hint. Known Litzio MCP hints require server/tool
+metadata, and actual Host operations independently enforce conversation/turn scope.
+This is permission mediation, not an OS filesystem/network sandbox. The
+existing-document AGENTS.md rule remains an instruction. Codex skill selection,
+account/usage diagnostics and live steering are not emulated for Copilot;
+#1500 supplies the same Litzio Host tools over HTTP MCP.
 See the [implemented Copilot contract](../design/main-agent-v1.md#copilot-conversations-1053)
 for these differences and manual verification.

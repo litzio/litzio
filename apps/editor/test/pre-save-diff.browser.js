@@ -97,6 +97,8 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await dialog().getByRole('button', { name: 'Next change', exact: true }).click();
   check(await visual.locator('[data-visual-change="1"]').first().evaluate(node => node === document.activeElement), 'Visual next did not reveal the paired change');
   await page.keyboard.type('No input'); await page.keyboard.press('Control+z'); await page.keyboard.press('Control+s');
+  // Seed the OS clipboard independently of transient activation from Next change.
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
   await page.evaluate(() => navigator.clipboard.writeText('No pasted input'));
   await page.keyboard.press('Control+v');
   check(JSON.stringify(await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())))) === JSON.stringify(snapshots), 'Read preview mutated');

@@ -239,6 +239,10 @@ export async function handleDocumentRequest(
   try { query = requestQuery(req.url ?? ""); }
   catch (error) { failure(error); return; }
   const url = new URL(req.url ?? "", "http://localhost").pathname;
+  if (url.startsWith("/api/assistant/")) {
+    try { if (await services?.assistant?.http(req, res)) return; }
+    catch (error) { failure(error); return; }
+  }
   if (url === "/api/views") {
     if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
     try {

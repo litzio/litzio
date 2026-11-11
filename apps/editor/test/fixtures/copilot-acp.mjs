@@ -8,6 +8,7 @@ const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", cur
 const sessionState = () => ({ models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions });
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
 let session = 0, pending;
+const prompts = new Map();
 const selectedModels = new Map();
 const optionsFor = id => selectedModels.get(id) === "auto" ? configOptions.filter(option => option.id !== "reasoning") : configOptions;
 createInterface({ input: process.stdin }).on("line", line => {
@@ -52,13 +53,14 @@ createInterface({ input: process.stdin }).on("line", line => {
   }
   else if (method === "session/prompt") {
     if (params.prompt[0].text.includes("FAIL THIS TURN")) { send({ id, error: { code: -32000, message: "Copilot quota fixture failure" } }); return; }
-    pending = { id, sessionId: params.sessionId };
+    pending = { id, sessionId: params.sessionId }; prompts.set(params.sessionId, pending);
     if (process.argv.includes("--fixture-question")) {
       send({ id: "question-unsupported", method: "session/request_user_input", params: { sessionId: params.sessionId, questions: [{ title: "Travel style?", options: ["Rest", "Food"] }] } }); return;
     }
     send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "한글 ACP answer" } } } });
     send({ id: "permission", method: "session/request_permission", params: { sessionId: params.sessionId, toolCall: { toolCallId: "edit", kind: "edit", title: "Write file", locations: [{ path: params.prompt[0].text.match(/"folders":\["([^"]+)"/)?.[1]?.replaceAll("\\\\", "\\") + "/new.txt" }] }, options: [{ optionId: "once", kind: "allow_once", name: "Allow once" }] } });
   } else if (method === "session/cancel") {
-    if (pending) { send({ id: pending.id, result: { stopReason: "cancelled" } }); pending = undefined; }
+    const prompt = prompts.get(params.sessionId);
+    if (prompt) { send({ id: prompt.id, result: { stopReason: "cancelled" } }); prompts.delete(params.sessionId); }
   } else send({ id, error: { code: -32601, message: `Unsupported fixture method: ${method}` } });
 });
