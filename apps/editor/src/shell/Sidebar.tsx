@@ -26,7 +26,7 @@ import type { FolderTreeState } from "./folder-tree.ts";
 
 type SidebarProps = {
   onCopyPath?(path: string): void;
-  registerFolderOpener?(hostId: string, open: (path: string) => Promise<string>): () => void;
+  registerFolderOpener?(hostId: string, open: (path: string) => Promise<string>, control: { roots: string[]; close(path: string): void }): () => void;
   onHostCreate?(hostId: string, client: HostClient, path: string, root?: string): Promise<string>;
   createdDocumentFocus?(): HTMLElement | null;
   documentHostId?: string;
