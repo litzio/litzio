@@ -32,13 +32,14 @@ export type AssistantButtonStatus = "working" | "completed" | "attention" | unde
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
+  onReviewChange(hostId: string, conversation: string, change: string, path: string): void;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
   onReferenceConsumed(request: { hostId: string; path: string }): void;
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ onReviewChange, submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -54,6 +55,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AssistantSettings>();
   const [models, setModels] = useState<AiModels>();
+  const [changes, setChanges] = useState<{id:string;path:string}[]>([]);
   const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
   const [provider, setProvider] = useState<"codex" | "copilot">("codex");
@@ -109,6 +111,14 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     following.current = false;
     requestAnimationFrame(readPosition);
   };
+  useEffect(() => {
+    if (!conversation?.id) { setChanges([]); return; }
+    let live = true;
+    const id = conversation.id;
+    const read = () => { void request<{id:string;path:string}[]>(ASSISTANT.conversationsRoute, { action: "changes-list", id }).then(value => { if (live) setChanges(Array.isArray(value) ? value : []); }).catch(() => {}); };
+    read(); const timer = setInterval(read, 2000);
+    return () => { live = false; clearInterval(timer); };
+  }, [conversation?.id, hostId]);
   const readingScope = `${conversation?.id ?? ""}:${!!history}`;
   useLayoutEffect(jumpToBottom, [readingScope]);
   // Compare visible content, not snapshot identity: unchanged polls are not new output.
@@ -474,6 +484,10 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
       onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
     <div ref={transcriptContent}>
+      {!history && conversation ? changes.map(change => <div key={change.id} className="assistant-result">
+        <strong>{i18n.t("Pending changes")}</strong><span title={change.path}>{pathName(change.path)}</span>
+        <Button size="sm" variant="secondary" onClick={() => onReviewChange(hostId, conversation.id, change.id, change.path)}>{i18n.t("Review")}</Button>
+      </div>) : null}
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id });
@@ -541,7 +555,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
         </div>)}
       {!history && conversation?.userInput && !conversation.turns.some(turn => turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId)) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
         submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
-      {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
+      {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Requested edits wait for your review.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
     </div>
@@ -603,7 +617,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
         {copilot?.reasoningEfforts?.length !== 0 && <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={[i18n.t(effortHelp), currentEffortHelp].filter(Boolean).join(" ")} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={effort} options={(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => ({ value: value.reasoningEffort, label: i18n.t(value.reasoningEffort as MessageKey) })) ?? []} onSelect={setEffort} />}
 
         <AssistantChoice label={i18n.t("Write access")} value={i18n.t(permissionMode === "full-access" ? "Full access" : permissionMode === "read-only" ? "Read-only" : "Opened folders")}
-          help={i18n.t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.") + (models?.fullAccessAllowed === false ? ` ${i18n.t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : "")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={permissionMode} options={[
+          help={i18n.t("Full access removes the sandbox and automatically approves tools, paths and network access. Requested document edits wait for review.") + (models?.fullAccessAllowed === false ? ` ${i18n.t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : "")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={permissionMode} options={[
             { value: "opened-folders", label: i18n.t("Opened folders") }, { value: "read-only", label: i18n.t("Read-only") }, { value: "full-access", label: i18n.t("Full access"), disabled: models?.fullAccessAllowed === false },
           ]} onSelect={value => setPermissionMode(value as AssistantSettings["permissionMode"])} />
 

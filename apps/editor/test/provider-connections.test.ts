@@ -212,7 +212,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
-  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Do not modify existing documents"));
+  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Edit existing documents only after an explicit user edit request"));
   await connection.close();
   for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
 });
@@ -614,7 +614,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["stage_document", "create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }

@@ -1,6 +1,13 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Pending changes": "Pending changes",
+  "Review": "Review",
+  "Discard": "Discard",
+  "Changes applied": "Changes applied",
+  "Changes discarded": "Changes discarded",
+  "Save or close your unsaved edits before applying Assistant changes.": "Save or close your unsaved edits before applying Assistant changes.",
+
   "Check request status": "Check request status",
   "Regenerate review snapshot": "Regenerate review snapshot",
   "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.": "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.",
@@ -382,7 +389,7 @@ export const en = {
   "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.",
   "Model, reasoning effort and mode changes apply to the next message.": "Model, reasoning effort and mode changes apply to the next message.",
   "Current model reasoning effort: {{value}}.": "Current model reasoning effort: {{value}}.",
-  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "Read-only blocks file writes and network access. Opened folders allows network access and writes inside opened folders and Host Roots. OS temporary write exceptions remain disabled. Copilot denies shell requests but has no OS sandbox; inherited preauthorizations may bypass mediation. Full access removes the Codex sandbox and approves tools, paths and network access. Existing documents must still be proposed in text.",
+  "Full access removes the sandbox and automatically approves tools, paths and network access. Requested document edits wait for review.": "Read-only blocks file writes and network access. Opened folders allows network access and writes inside opened folders and Host Roots. OS temporary write exceptions remain disabled. Copilot denies shell requests but has no OS sandbox; inherited preauthorizations may bypass mediation. Full access removes the Codex sandbox and approves tools, paths and network access. Requested document edits wait for review. Copilot requires Full access to edit existing documents; use Codex in Opened folders.",
 
   "{{name}} settings": "{{name}} settings",
   "Copilot diagnostics": "Copilot diagnostics",
@@ -466,7 +473,7 @@ export const en = {
   "Reasoning summary": "Reasoning summary",
   "Steps": "Steps",
   "Ask about your document": "Ask about your document",
-  "Ask about the current document and opened folders. Changes to existing documents are suggested in text.": "Ask about the current document and opened folders. Changes to existing documents are suggested in text.",
+  "Ask about the current document and opened folders. Requested edits wait for your review.": "Ask about the current document and opened folders. Requested edits wait for your review.",
   "Open Assistant settings": "Open Assistant settings",
   "Context is nearly full. Start a new conversation soon.": "Context is nearly full. Start a new conversation soon.",
   "Message assistant": "Message assistant",
@@ -1345,6 +1352,13 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Pending changes": "변경 대기 중",
+  "Review": "검토",
+  "Discard": "버리기",
+  "Changes applied": "변경 적용됨",
+  "Changes discarded": "변경 버림",
+  "Save or close your unsaved edits before applying Assistant changes.": "비서 변경을 적용하기 전에 저장하지 않은 편집을 저장하거나 닫으세요.",
+
   "Check request status": "요청 상태 확인",
   "Regenerate review snapshot": "검수 문서 다시 만들기",
   "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.": "이전 생성 계약의 문서입니다. 대조하거나 확인 기록을 바꾸려면 명시적으로 다시 만드세요.",
@@ -1726,7 +1740,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI 추론 강도는 대화마다 고정됩니다. 강도를 바꾸려면 새 대화를 시작하세요.",
   "Model, reasoning effort and mode changes apply to the next message.": "모델·추론 강도·모드 변경은 다음 메시지에 적용됩니다.",
   "Current model reasoning effort: {{value}}.": "현재 모델의 추론 강도: {{value}}.",
-  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "읽기 전용은 파일 쓰기와 네트워크를 차단합니다. 열린 폴더는 네트워크와 열린 폴더·Host Root 안 쓰기를 허용하며 OS 임시 폴더 쓰기 예외는 허용하지 않습니다. Copilot은 셸 요청을 거부하지만 OS sandbox가 없어 기존 사전 승인이 중재를 우회할 수 있습니다. 전체 접근은 Codex sandbox를 해제하고 도구·경로·네트워크를 승인합니다. 기존 문서는 계속 글로만 제안합니다.",
+  "Full access removes the sandbox and automatically approves tools, paths and network access. Requested document edits wait for review.": "읽기 전용은 파일 쓰기와 네트워크를 차단합니다. 열린 폴더는 네트워크와 열린 폴더·Host Root 안 쓰기를 허용하며 OS 임시 폴더 쓰기 예외는 허용하지 않습니다. Copilot은 셸 요청을 거부하지만 OS sandbox가 없어 기존 사전 승인이 중재를 우회할 수 있습니다. 전체 접근은 Codex sandbox를 해제하고 도구·경로·네트워크를 승인합니다. 요청한 문서 수정은 검토 후 적용합니다. Copilot에서 기존 문서를 수정하려면 전체 접근을 선택하거나 열린 폴더 권한의 Codex를 사용하세요.",
 
   "{{name}} settings": "{{name}} 설정",
   "Copilot diagnostics": "Copilot 진단",
@@ -1810,7 +1824,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Reasoning summary": "추론 요약",
   "Steps": "진행 단계",
   "Ask about your document": "문서에 관해 물어보세요",
-  "Ask about the current document and opened folders. Changes to existing documents are suggested in text.": "현재 문서와 열린 폴더에 관해 질문하세요. 기존 문서의 수정은 글로 제안합니다.",
+  "Ask about the current document and opened folders. Requested edits wait for your review.": "현재 문서와 열린 폴더에 관해 질문하세요. 요청한 수정은 검토 후 적용합니다.",
   "Open Assistant settings": "비서 설정 열기",
   "Context is nearly full. Start a new conversation soon.": "컨텍스트가 거의 찼습니다. 새 대화를 시작하는 것이 좋습니다.",
   "Message assistant": "비서에게 메시지",
