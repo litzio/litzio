@@ -17,9 +17,10 @@ export async function pluginCli(args: string[]): Promise<number> {
       if (!["propose", "read", "approve", "reject", "undo"].includes(tokens[2]!) || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("review groups propose|read|approve|reject|undo --input <json-file> --host <origin> --json");
       const input = JSON.parse(readFileSync(tokens[4]!, "utf8"));
       body = tokens[2] === "read" ? { ...input, action: "workspace-groups-read" } : { ...input, action: "workspace-review-change", change: { ...input.change, kind: `groups-${tokens[2]}` } };
-    } else if (command === "review" && ["inspection", "required-checks", "completion"].includes(action!)) {
-      if (tokens[2] !== "--input" || tokens.length !== 4) throw new Error("review inspection|required-checks|completion --input <json-file> --host <origin> --json");
+    } else if (command === "review" && ["lenses", "inspection", "required-checks", "completion"].includes(action!)) {
+      if (tokens[2] !== "--input" || tokens.length !== 4) throw new Error("review lenses|inspection|required-checks|completion --input <json-file> --host <origin> --json");
       const input = JSON.parse(readFileSync(tokens[3]!, "utf8"));
+      if (action === "lenses" && input.change) throw new Error("review lenses is read-only");
       body = input.change ? { ...input, action: "workspace-review-change", change: { ...input.change, kind: action } } : { ...input, action: `workspace-${action}` };
     } else if (command === "review" && tokens[2] === "--input") {
       if (!["find", "open", "read", "compare", "progress", "patch", "regenerate", "status", "workspace-open", "workspace-read", "workspace-patch", "workspace-progress", "workspace-regenerate", "workspace-status", "workspace-find", "workspace-compare", "workspace-image", "workspace-export-check", "workspace-export"].includes(action!) || tokens.length !== 4) throw new Error("review <action> --input <json-file> --host <origin> --json");

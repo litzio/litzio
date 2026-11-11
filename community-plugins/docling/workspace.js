@@ -9,6 +9,7 @@ import { REVIEW_AUTHORING_CONTRACT, workspaceSnapshotSchema, updateReviewLedger,
 import { readDoclingArchive, rewriteReview } from "./archive.js";
 import { readReview, reviewItems, setProgress, comparison, originalReviewTarget, evidenceMaterial } from "./review.js";
 import { convertDocument } from "./document.js";
+import { extractReviewLenses } from "./lenses.js";
 
 export const WORKSPACE_ADAPTER_VERSION = "docling-document-1/converter-1/mapping-2";
 const hash = value => createHash("sha256").update(value).digest("hex");
@@ -48,7 +49,7 @@ export function workspaceState(archive) {
       if(item.cells)for(const cell of item.cells)try{cell.text=session.value({type:"cell",self_ref:item.self_ref,cell:cell.cell});}catch{}
     }
   }
-  return {record:{...record,failedPages:archive.manifest.failedPages},ledger:record.ledger,items,snapshot,cacheState};
+  return {record:{...record,failedPages:archive.manifest.failedPages},ledger:record.ledger,lenses:record.lenses,items,snapshot,cacheState};
 }
 function save(archive,record,snapshot,correspondence) {
   snapshot=workspaceSnapshotSchema.parse({...snapshot,cacheKey:cacheKey(snapshot)});
@@ -74,7 +75,10 @@ export async function initializeWorkspace(bytes) {
     contentRevision:archive.manifest.document.sha256,adapterVersion:WORKSPACE_ADAPTER_VERSION,authoringContract:REVIEW_AUTHORING_CONTRACT};
   const report=initial.bindReport({inputs:authored.inputs,revision:authored.documentRevision});
   report.failedPages=archive.manifest.failedPages;
-  return save(archive,readReview(archive.reviewBytes),snapshot,report);
+  const record=readReview(archive.reviewBytes), extracted=extractReviewLenses(archive.document,archive.manifest.document.sha256,report);
+  record.lenses=extracted.lenses;
+  record.ledger.inventory=extracted.inventory;
+  return save(archive,record,snapshot,report);
 }
 
 function correctionSession(archive,snapshot,report) {
@@ -337,7 +341,8 @@ export async function workspaceOperation(input) {
     if(input.change.kind==="required-checks" && input.change.inventory){
       const inventory=input.change.inventory,sources=["pictures","tables"].flatMap(kind=>(archive.document[kind]??[]).map(item=>({ref:item.self_ref,kind:kind==="pictures"?"picture":"table"})));
       if(sources.length!==inventory.requiredChecks.length||sources.some(source=>inventory.requiredChecks.filter(check=>check.locator.self_ref===source.ref&&check.kind===source.kind).length!==1))throw new Error("Inventory must retain every original picture and table");
-      if(inventory.complete&&(inventory.lenses.length!==7||!same([...inventory.pages].sort((a,b)=>a-b),Object.keys(archive.document.pages).map(Number).sort((a,b)=>a-b))||state.items.some(item=>!inventory.targets.includes(item.self_ref))))throw new Error("Incomplete lens/page/item inventory");
+      if(inventory.complete&&(!same([...inventory.pages].sort((a,b)=>a-b),Object.keys(archive.document.pages).map(Number).sort((a,b)=>a-b))||state.items.some(item=>!inventory.targets.includes(item.self_ref))))throw new Error("Incomplete lens/page/item inventory");
+      if(record.ledger.inventory.lenses.some(kind=>!inventory.lenses.some(next=>same(kind,next))))throw new Error("Original lens extraction and scope are immutable");
     }
     record.ledger=updateReviewLedger(record.ledger,change,{
       contentRevision:snapshot.contentRevision,snapshotHash:hash(JSON.stringify(state.snapshot)),current:true,
@@ -359,7 +364,13 @@ export async function workspaceOperation(input) {
   session.updateAnchors(record.ledger);
   session.finish();
   const changed=snapshot.documentRevision!==state.snapshot.documentRevision;
-  if(changed){record.checkedPages=[];record.lastPage=null;record.ledger.approval=null;}
+  if(changed){
+    record.checkedPages=[];record.lastPage=null;record.ledger.approval=null;
+    for(const check of record.ledger.inventory?.requiredChecks ?? []) {
+      const mapped=report.items.find(item=>item.self_ref===check.locator.self_ref);
+      check.disposition=mapped?.status==="furniture"?"furniture":mapped?.status==="excluded"?"excluded":mapped?.targets.length?"supported":"unsupported";
+    }
+  }
   const bytes=changed?save(archive,record,snapshot,report):rewriteReview(archive,Buffer.from(JSON.stringify(record)));
   await writeCandidate(input,bytes);
   return changed?{snapshot:workspaceState(readDoclingArchive(bytes)).snapshot}:{preserveSnapshot:true};

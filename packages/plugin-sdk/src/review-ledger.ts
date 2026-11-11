@@ -6,7 +6,8 @@ const opaque = z.record(z.string(), z.unknown());
 const unique = <T>(items: T[]) => new Set(items).size === items.length;
 export const humanReviewSchema = z.strictObject({ actor: id, reason: text, confirmed: z.literal(true) });
 export const reviewInspectionStateSchema = z.enum(["not-inspected", "uncertain", "no-issue"]);
-export const reviewScopeSchema = z.strictObject({ pages: z.array(page).max(10000).refine(unique), targets: z.array(id).max(10000).refine(unique) });
+export const reviewScopeSchema = z.strictObject({ pages: z.array(page).min(1).max(10000).refine(unique), targets: z.array(id).max(10000).refine(unique) });
+const inspectionScope = reviewScopeSchema.extend({ pages: z.array(page).max(10000).refine(unique) });
 const region = z.strictObject({ page, bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]), ref: id });
 export const reviewGroupTargetSchema = z.strictObject({
   id, locator: opaque, pages: z.array(page).max(10000), regions: z.array(region).max(10000), before: z.unknown(),
@@ -33,9 +34,9 @@ export const requiredReviewCheckSchema = z.strictObject({
   id, kind: z.enum(["picture", "table"]), locator: opaque, pages: z.array(page).max(10000), regions: z.array(region).max(10000),
   disposition: z.enum(["supported", "unsupported", "excluded", "furniture"]), derivedFrom: z.array(id).max(10000),
 });
-const inspection = z.strictObject({ runId: id, lens: id, contentRevision: hash, scope: reviewScopeSchema, state: reviewInspectionStateSchema, evidence: text });
+const inspection = z.strictObject({ runId: id, lens: id, contentRevision: hash, scope: inspectionScope, state: reviewInspectionStateSchema, evidence: text });
 export const reviewInspectionKindSchema = z.strictObject({
-  kind: id, required: z.boolean(), scope: reviewScopeSchema, extracted: z.boolean(),
+  kind: id, required: z.boolean(), scope: inspectionScope, extracted: z.boolean(),
 });
 const checkRecord = z.strictObject({ targetIds: z.array(id).min(1).max(10000).refine(unique), contentRevision: hash,
   result: z.enum(["no-issue", "uncertain"]),

@@ -254,15 +254,15 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     }
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=", "base64");
     const syntheticDocument = JSON.parse(readFileSync(path.join(REPOSITORY_ROOT, "community-plugins/docling/fixtures/document.json"), "utf8"));
-    syntheticDocument.texts.push({ self_ref: "#/texts/10", label: "caption", text: "Figure IV: Unreadable number" });
+    syntheticDocument.texts.push({ self_ref: "#/texts/10", label: "caption", orig:"Figure IV: Unreadable number", text: "Figure IV: Unreadable number" });
     syntheticDocument.pictures.push({ self_ref: "#/pictures/1", label: "picture", captions: [{ $ref: "#/texts/10" }], children: [{ $ref: "#/texts/10" }] });
     syntheticDocument.body.children.push({ $ref: "#/pictures/1" });
     syntheticDocument.origin = { binary_hash: "UNSAFE_INTEGER", mimetype: "application/pdf", filename: "source.pdf", uri: null };
     syntheticDocument.pictures[0].image = { uri: "data:image/png;base64," + png.toString("base64"), mimetype: "image/png", dpi: 72, size: { width: 1, height: 1 } };
-    syntheticDocument.pages = {"1":{size:{width:612,height:792}},"2":{size:{width:612,height:792}}};
+    syntheticDocument.pages = {"1":{page_no:1,size:{width:612,height:792}},"2":{page_no:2,size:{width:612,height:792}}};
     for (const page of Object.values(syntheticDocument.pages) as any[]) page.image = syntheticDocument.pictures[0].image;
-    syntheticDocument.texts[4].prov = [{page_no:2,bbox:{l:50,t:710,r:400,b:680,coord_origin:"BOTTOMLEFT"}}];
-    syntheticDocument.texts[1].prov = [{page_no:1,bbox:{l:50,t:40,r:400,b:80,coord_origin:"TOPLEFT"}}];
+    syntheticDocument.texts[4].prov = [{page_no:2,charspan:[0,syntheticDocument.texts[4].text.length],bbox:{l:50,t:710,r:400,b:680,coord_origin:"BOTTOMLEFT"}}];
+    syntheticDocument.texts[1].prov = [{page_no:1,charspan:[0,syntheticDocument.texts[1].text.length],bbox:{l:50,t:40,r:400,b:80,coord_origin:"TOPLEFT"}}];
     const rawResult = JSON.stringify({ status: "success", errors: [], document: { json_content: syntheticDocument } }).replace('"UNSAFE_INTEGER"', "18446744073709551615");
     let doclingFailure = false, conversionRequests = 0, submissions = 0, conversionState = "success", taskId = "", receivedFields: Record<string, FormDataEntryValue[]> = {};
     let jiraFault = 0, jiraRedirects = 0, jiraLarge = false;
@@ -392,7 +392,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       fileJobInput: path.join(REPOSITORY_ROOT, "tmp/docling-file-job.json"),
       queuedJobInput: path.join(REPOSITORY_ROOT, "tmp/docling-queued-job.json"),
       async verifyFile(file: string, sourceName = "source.pdf") {
-        const { readDoclingArchive } = await import(new URL("../../../../community-plugins/docling/archive.js", import.meta.url).href);
+        const { readDoclingArchive } = await doclingConverter();
         const decoded = readDoclingArchive(readFileSync(file));
         expect(decoded.manifest.source.name).toBe(path.basename(sourceName));
         expect(decoded.manifest.source.sha256).toBe(createHash("sha256").update(readFileSync(path.join(pluginFolder, sourceName))).digest("hex"));
@@ -418,8 +418,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       cpSync(path.join(REPOSITORY_ROOT, "community-plugins/docling"), docling.directory, { recursive: true });
       if (docling.realFile) cpSync(process.env.LITZIO_DOCLING_REAL_ARCHIVE!, path.join(pluginFolder, docling.realFile));
       if (docling.beforeFile) cpSync(process.env.LITZIO_DOCLING_BEFORE!, path.join(pluginFolder, docling.beforeFile));
-      const { readDoclingArchive } = await import(new URL("../../../../community-plugins/docling/archive.js", import.meta.url).href);
-      const { convertPdfToArchive, PDF_PROFILE } = await import(new URL("../../../../community-plugins/docling/conversion.js", import.meta.url).href);
+      const { readDoclingArchive } = await doclingConverter();
+      const { convertPdfToArchive, PDF_PROFILE } = await doclingConverter();
       const serverUrl = `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}`;
       const source = path.join(pluginFolder, "source.pdf"), sourceBytes = readFileSync(path.join(REPOSITORY_ROOT, "tmp/http-host-a/fixture/reading.pdf"));
       writeFileSync(source, sourceBytes);

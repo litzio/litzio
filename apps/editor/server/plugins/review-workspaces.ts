@@ -42,7 +42,7 @@ export class ReviewWorkspaces {
     }
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
-    const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
+    const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
     if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
     const unsettled = this.unsettled.get(key);
     if (writing && unsettled) throw new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`);
@@ -77,7 +77,7 @@ export class ReviewWorkspaces {
         ...(state.snapshot ? { document: readModel(state.snapshot.source).document, documentRevision: state.snapshot.documentRevision, contentRevision: state.snapshot.contentRevision } : {}),
         ...(input.action === "workspace-evidence" ? { evidence: evidence ?? readEvidence(state.ledger?.inspections ?? []) } : {}),
         completion: state.ledger ? evaluateReviewCompletion(state.ledger, state.snapshot?.contentRevision ?? "", state.snapshot ? hash(Buffer.from(JSON.stringify(state.snapshot))) : null, state.cacheState === "current" && !this.unsettled.has(key)) : "not-evaluated", saved, receipt: receipt("success") });
-      if (["workspace-read", "workspace-groups-read", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action)) {
+      if (["workspace-read", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action)) {
         // Only an explicit status lookup followed by a validated file reread resolves an uncertain publication.
         check();
         if (unsettled?.checked) this.unsettled.delete(key);

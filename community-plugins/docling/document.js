@@ -1,4 +1,5 @@
 import { authorDocument, DOCUMENT_AUTHORING_LIMITS as limits } from "@litzio/plugin-sdk";
+import { validateDoclingDocument } from "./schema.js";
 
 
 
@@ -23,8 +24,11 @@ export function readCaptionNumber(caption, kind) {
   return { enumerator: number, caption: rest.replace(/^\s*[:.]?\s*/, "") };
 }
 
-/** Interpret Docling only here; the SDK owns document semantics and serialization. */
+/** Interpret Docling only here; the SDK owns document semantics and serialization.
+ * @param {import("./schema/document.js").DoclingDocument} doc
+ */
 export async function convertDocument(doc, sourceHash) {
+  validateDoclingDocument(doc);
   if (doc?.schema_name !== "DoclingDocument" || !Array.isArray(doc.body?.children)) refuse("Invalid DoclingDocument");
   const records = new Map(), inputs = [], images = [], losses = [], visited = new Set(), captionOwners = new Map();
   const note = (ref, kind, detail, extra = {}) => losses.push({ self_ref: ref, kind, detail, ...extra });
