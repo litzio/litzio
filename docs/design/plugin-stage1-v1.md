@@ -816,6 +816,8 @@ Docling의 section_header/list_item/code_block 등의 분류 대응은 community
 
 ## Review workspace 기반 (#1462 P1a)
 
+> 계획 변경: [#1462 2026-11-11](docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인) — Docling 패치·재생성 및 전체 revision 기반 제안 오래됨·완료 gate 계획을 대체한다. 아래 현재 동작 서술은 3단계 전환 구현 때 갱신한다.
+
 미릴리스 SDK 0.4.0의 `workspaceRequestSchema/workspaceStateSchema/workspaceSnapshotSchema`를 추가한다. 기존 native-document job의 read generatedDocument provider를 공용 review dispatcher로만 호출한다. `POST /api/reviews`와 `litzio review workspace-open|workspace-read|workspace-patch|workspace-progress|workspace-regenerate|workspace-status --input <json> --host <origin> --json`은 같은 Host 작업이다. provider는 source 형식을 소유하고 Host는 ZIP·원본 item locator를 해석하지 않는다. OCR/import 검수 자료에도 같은 reader·candidate 계약을 사용할 수 있다.
 
 입력은 `{root,workspace,plugin,job}`이며 workspace는 Root 상대 실제 파일이다. read 외 쓰기는 전체 파일 SHA-256 baseline과 UUID requestId를 요구한다. patch는 opaque patches 목록, progress는 기존 generatedProgressSchema를 추가한다. status는 requestId만 받는다. 출력은 record/items와 nullable snapshot, cacheState(`missing/invalid/current/created-version`), live baseline, receipt/saved, 별도 content/document revision과 Core read model이다. 완료 판정은 아직 `not-evaluated`이며 캐시 유효성으로 대체하지 않는다. archive 내부 경로·가짜 문서 경로·export connection은 없다. 비서 `read_review_document`는 열린 폴더의 같은 read를 사용하며 쓰거나 prepare하지 않는다.
