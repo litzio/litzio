@@ -201,6 +201,9 @@ for (const text of ['A 12.6 µA ≤ ²', 'A 12.5 mA ≤ ²', 'A 12.5 µA < ²', 
 assert(compare(tinyPdf('Alpha beta.'), tinyDoc('Alpha beta. Alpha beta.')).alerts.some(a => a.unsupported.length));
 assert(compare(tinyPdf('Alpha beta.'), tinyDoc('')).alerts.some(a => a.missing.length));
 
+// Reuse only the original bounded comparison and Core projection in the followup.
+export { compare, project };
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 await mkdir(out, { recursive: true });
 const result = { protocol, node: process.version, pdfjs: '5.6.205', cases: [], datasets: [] };
 for (const config of [
@@ -249,3 +252,4 @@ for (const config of [
 result.elapsedMs = performance.now() - started;
 await writeFile(`${out}/result.json`, JSON.stringify(result, null, 2));
 console.log(JSON.stringify({ cases: result.cases.map(c => ({ mode: c.mode, kind: c.kind, case: c.case, detected: c.detected, matched: c.targetBaselineMatchedTokens, tokens: c.targetTokens })), elapsedMs: result.elapsedMs }));
+}

@@ -1,0 +1,21 @@
+{
+  "status": "Frozen before downloading/converting/inspecting the new holdout and before any followup matching",
+  "holdout": "NIST SRM 1643f certificate, https://tsapps.nist.gov/srmext/certificates/1643f.pdf, full PDF (expected 4 pages); stop if not 3-5 pages or fewer than 3 eligible candidates of a kind",
+  "seed": 1463605682,
+  "seedSource": "New crypto.randomBytes(4), recorded before holdout download; the previous experiment used quantiles and no random seed",
+  "sampling": "Mulberry32 Fisher-Yates, 3 without replacement per kind, before baseline matching; independent mutations of the initial Core document. Paragraphs >=80 chars, numeric paragraphs among those, original semantic table cells >=4 chars. Do not filter by match success.",
+  "rules": [
+    "Out of scope: Docling furniture/page_header/page_footer bounding boxes and PDF-only repeated exact edge lines (outer 8%, at least 3 pages) or pure page numbers at that edge.",
+    "Out of scope: Docling picture and formula bounding boxes and corresponding Litzio units; captions stay in scope with their owner.",
+    "In scope: compare each table plus its captions by token multiset, ignoring row/column/caption order; collapse only converter-repeated positions of the same source span, not distinct cells with equal values.",
+    "In scope: Docling-labelled footnotes are an unordered multiset on the same page; their leading numeric/superscript markers follow that rule. Unlabelled inline superscripts remain in body order instead of guessing semantics.",
+    "In scope: fold typographic punctuation and ignore nonnumeric sentence punctuation; preserve numeric decimals/signs, unit case and symbols, slash, percent and comparison/math symbols. Ignore word-joining hyphens only between letter tokens."
+  ],
+  "assignment": "Classify PDF text-item centers using original Docling boxes, 1pt tolerance; precedence furniture > formula > picture > table > caption > footnote > body. Unassigned PDF evidence always remains body. A missing bbox never means drop evidence.",
+  "comparison": "Reuse bounded body LCS, preserving actual Litzio document order; unordered matching is confined to one table/owner or same-page footnotes. Each nonempty LCS gap is an alert; each consecutive unmatched token run in a bag is an alert. Never collapse an entire table/page into one alert.",
+  "coverage": "Count normalized PDF tokens before punctuation folding; exclusive out-of-scope counts by region reason. Report punctuation folding separately. Also count all excluded Docling regions, including regions with zero PDF text. Denominator is available PDF text evidence, not visible page area or all source content.",
+  "injections": "Delete selected paragraph; increment its first digit modulo 10; move paragraph after next eligible paragraph; clear every Litzio position belonging to selected original semantic table cell. Core operations only.",
+  "scoring": "Baseline-delta token evidence: paragraph deletion >=half all target tokens newly missing; numeric change requires newly missing original and newly unsupported changed numeric token; order requires new exact 8-token run on both sides in affected interval; table deletion requires >=half target tokens as new missing token counts within its table. All count baseline alerts as false alarms.",
+  "acceptance": { "minimumDetectedPerKind": 2, "injectedPerKind": 3, "maximumInScopeAlertsPerPage": 1 },
+  "stopping": "One holdout result, no post-result rule/seed/sample tuning; no complex alignment engine or general library. Report failures. Keep the original result unchanged."
+}

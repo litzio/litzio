@@ -1,0 +1,11 @@
+{
+  "note": "Every baseline alert counted as a false alarm by the agreed metric, including genuine extraction differences. No label changes the frozen matcher.",
+  "fingerprint": "29a5e7d707d44892116e37657e84d2fa9398a0c92c699d3681a17836dd29394e",
+  "primaryCauses": {
+    "body-reading-order": [1,5,6,7],
+    "unit-unicode-micro-versus-greek-mu": [3,4,11,12,13,14],
+    "private-use-glyph-order": [2],
+    "numeric-adjacent-hyphen": [8],
+    "reference-list-number-change": [9,10]
+  }
+}

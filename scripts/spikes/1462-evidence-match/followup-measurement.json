@@ -1,0 +1,328 @@
+{
+  "protocolSha256": "f2ceaa97b4ba355ed08071d85009ebfb5b5631bfc4ead0ff9297821247553473",
+  "seed": 1463605682,
+  "pdfSha256": "00e2916aed91e1c1e3b37527dff07f6df78c0331afca79b4a6c196f1d18cad27",
+  "doclingSha256": "6742d3bc0da5fb7b1ea86d98ed554b39776a1afe49af36750ed56006c38a11a7",
+  "litzioSha256": "8e9963fec48815d519faedc0801b2e3185d5471168aabc7631886fdea0f96548",
+  "pages": 4,
+  "coverage": {
+    "denominatorRawPdfTokens": 2131,
+    "inScopeRawPdfTokens": 2079,
+    "inScopePercent": 97.5598310652276,
+    "outsideRawPdfTokens": 52,
+    "outsidePercent": 2.4401689347724074,
+    "byReason": {
+      "furniture": 48,
+      "repeated-edge": 0,
+      "picture": 0,
+      "formula": 4
+    },
+    "punctuationFoldedInScope": 382,
+    "excludedDoclingRegions": [
+      {
+        "ref": "#/texts/18",
+        "page": 1,
+        "reason": "furniture",
+        "pdfRawTokens": 3
+      },
+      {
+        "ref": "#/texts/19",
+        "page": 1,
+        "reason": "furniture",
+        "pdfRawTokens": 5
+      },
+      {
+        "ref": "#/texts/20",
+        "page": 1,
+        "reason": "furniture",
+        "pdfRawTokens": 4
+      },
+      {
+        "ref": "#/texts/25",
+        "page": 2,
+        "reason": "furniture",
+        "pdfRawTokens": 3
+      },
+      {
+        "ref": "#/texts/26",
+        "page": 2,
+        "reason": "furniture",
+        "pdfRawTokens": 5
+      },
+      {
+        "ref": "#/texts/27",
+        "page": 2,
+        "reason": "furniture",
+        "pdfRawTokens": 4
+      },
+      {
+        "ref": "#/texts/36",
+        "page": 3,
+        "reason": "furniture",
+        "pdfRawTokens": 3
+      },
+      {
+        "ref": "#/texts/37",
+        "page": 3,
+        "reason": "furniture",
+        "pdfRawTokens": 5
+      },
+      {
+        "ref": "#/texts/38",
+        "page": 3,
+        "reason": "furniture",
+        "pdfRawTokens": 4
+      },
+      {
+        "ref": "#/texts/43",
+        "page": 4,
+        "reason": "furniture",
+        "pdfRawTokens": 3
+      },
+      {
+        "ref": "#/texts/44",
+        "page": 4,
+        "reason": "furniture",
+        "pdfRawTokens": 5
+      },
+      {
+        "ref": "#/texts/45",
+        "page": 4,
+        "reason": "furniture",
+        "pdfRawTokens": 4
+      },
+      {
+        "ref": "#/texts/9",
+        "page": 1,
+        "reason": "formula",
+        "pdfRawTokens": 4
+      },
+      {
+        "ref": "#/pictures/0",
+        "page": 1,
+        "reason": "picture",
+        "pdfRawTokens": 0
+      }
+    ],
+    "excludedLitzioUnits": 4
+  },
+  "baseline": {
+    "alerts": 14,
+    "perPage": 3.5,
+    "perGroup": {
+      "body": 10,
+      "#/tables/0": 4
+    },
+    "fingerprint": "29a5e7d707d44892116e37657e84d2fa9398a0c92c699d3681a17836dd29394e"
+  },
+  "cases": [
+    {
+      "kind": "paragraph-delete",
+      "case": 1,
+      "path": [
+        14
+      ],
+      "group": "body",
+      "page": 1,
+      "targetTextSha256": "4ad2f01e8bed5b7c8a980f831248216826b15ea3c5d791747247b6c1c06a557f",
+      "tokens": 40,
+      "baselineMatched": 40,
+      "newTargetMissing": 40,
+      "detected": true,
+      "alerts": 15
+    },
+    {
+      "kind": "paragraph-delete",
+      "case": 2,
+      "path": [
+        31
+      ],
+      "group": "body",
+      "page": 3,
+      "targetTextSha256": "f8884ff9eb1d8ffc3bcddfebbbf3575ad2d5e26d17c653e680f3faebb2bfae4b",
+      "tokens": 60,
+      "baselineMatched": 60,
+      "newTargetMissing": 60,
+      "detected": true,
+      "alerts": 15
+    },
+    {
+      "kind": "paragraph-delete",
+      "case": 3,
+      "path": [
+        12
+      ],
+      "group": "body",
+      "page": 1,
+      "targetTextSha256": "ce8cc435e01ed6c031cc81681ed22c6f23fb46d11c34d919f243834326d49563",
+      "tokens": 113,
+      "baselineMatched": 113,
+      "newTargetMissing": 113,
+      "detected": true,
+      "alerts": 15
+    },
+    {
+      "kind": "number-change",
+      "case": 1,
+      "path": [
+        34
+      ],
+      "group": "body",
+      "page": 4,
+      "targetTextSha256": "980296298a6321ca8c4095bb506e58a500e3746882321a69ba01cab9af155504",
+      "tokens": 124,
+      "baselineMatched": 124,
+      "newTargetMissing": 1,
+      "detected": true,
+      "detail": {
+        "oldNumber": "1643",
+        "newNumber": "2643"
+      },
+      "alerts": 15
+    },
+    {
+      "kind": "number-change",
+      "case": 2,
+      "path": [
+        31
+      ],
+      "group": "body",
+      "page": 3,
+      "targetTextSha256": "f8884ff9eb1d8ffc3bcddfebbbf3575ad2d5e26d17c653e680f3faebb2bfae4b",
+      "tokens": 60,
+      "baselineMatched": 60,
+      "newTargetMissing": 1,
+      "detected": true,
+      "detail": {
+        "oldNumber": "100",
+        "newNumber": "200"
+      },
+      "alerts": 15
+    },
+    {
+      "kind": "number-change",
+      "case": 3,
+      "path": [
+        9
+      ],
+      "group": "body",
+      "page": 1,
+      "targetTextSha256": "c7a7142108879f7b432ef0a5a940b7f8989b028f3c9bc69eef61353cf7fde322",
+      "tokens": 141,
+      "baselineMatched": 139,
+      "newTargetMissing": 1,
+      "detected": true,
+      "detail": {
+        "oldNumber": "1643",
+        "newNumber": "2643"
+      },
+      "alerts": 15
+    },
+    {
+      "kind": "paragraph-order",
+      "case": 1,
+      "path": [
+        24
+      ],
+      "group": "body",
+      "page": 2,
+      "targetTextSha256": "ab3e89a881c58c8f947c55dc63e4984a8b8c8c4368a9a46d2f4f90fe48651b66",
+      "tokens": 70,
+      "baselineMatched": 70,
+      "newTargetMissing": 70,
+      "detected": true,
+      "alerts": 16
+    },
+    {
+      "kind": "paragraph-order",
+      "case": 2,
+      "path": [
+        29
+      ],
+      "group": "body",
+      "page": 3,
+      "targetTextSha256": "fdafd441229aab40820bda2c32808eb38c9e1e24404770c3820b89d5099fb8c9",
+      "tokens": 29,
+      "baselineMatched": 29,
+      "newTargetMissing": 29,
+      "detected": true,
+      "alerts": 16
+    },
+    {
+      "kind": "paragraph-order",
+      "case": 3,
+      "path": [
+        34
+      ],
+      "group": "body",
+      "page": 4,
+      "targetTextSha256": "980296298a6321ca8c4095bb506e58a500e3746882321a69ba01cab9af155504",
+      "tokens": 124,
+      "baselineMatched": 124,
+      "newTargetMissing": 124,
+      "detected": true,
+      "alerts": 16
+    },
+    {
+      "kind": "cell-delete",
+      "case": 1,
+      "path": [
+        20,
+        26,
+        5
+      ],
+      "group": "#/tables/0",
+      "page": 2,
+      "targetTextSha256": "91967a115672674114534d6e873dcbe569531a28303745e47ab9b3760b34ef40",
+      "tokens": 1,
+      "baselineMatched": 1,
+      "newTargetMissing": 1,
+      "detected": true,
+      "detail": {
+        "newMissingTargetTokenCounts": 1
+      },
+      "alerts": 15
+    },
+    {
+      "kind": "cell-delete",
+      "case": 2,
+      "path": [
+        20,
+        23,
+        1
+      ],
+      "group": "#/tables/0",
+      "page": 2,
+      "targetTextSha256": "13badab9bc90fd6a15e2b00b6916736af676d3bf6c52de8a06affd9f98348174",
+      "tokens": 1,
+      "baselineMatched": 1,
+      "newTargetMissing": 1,
+      "detected": true,
+      "detail": {
+        "newMissingTargetTokenCounts": 1
+      },
+      "alerts": 15
+    },
+    {
+      "kind": "cell-delete",
+      "case": 3,
+      "path": [
+        20,
+        21,
+        7
+      ],
+      "group": "#/tables/0",
+      "page": 2,
+      "targetTextSha256": "8843d0ae2f238c49c5462dbd9ececcd3ee5ddd341514c8018909de4e8c89a1ee",
+      "tokens": 1,
+      "baselineMatched": 1,
+      "newTargetMissing": 1,
+      "detected": true,
+      "detail": {
+        "newMissingTargetTokenCounts": 1
+      },
+      "alerts": 15
+    }
+  ],
+  "elapsedMs": 2472.9492
+}

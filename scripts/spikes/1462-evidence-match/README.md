@@ -49,3 +49,35 @@ Only the LSR receives injections; the independent NIST 3-page slice measures bas
 noise. Its full JSON is converted unchanged, then the requested pages' output units
 are selected using the converter's report and original provenance. Every PDF text item
 on the selected pages remains eligible. LSR matching uses no Docling provenance.
+
+## One followup holdout
+
+`followup-protocol.json` was frozen before downloading or inspecting the new NIST
+SRM 1643f certificate (4 full pages). Seed `1463605682` was freshly generated with
+`crypto.randomBytes(4)`. The holdout was evaluated once; no post-result tuning was done.
+Its scoped result also fails the noise criterion. The original experiment remains valid.
+
+```powershell
+# Start the existing Docling container and wait for /ready, as above.
+pnpm exec tsx scripts/spikes/1462-evidence-match/followup-prepare.mjs
+pnpm exec tsx --tsconfig scripts/spikes/1462-evidence-match/tsconfig.json scripts/spikes/1462-evidence-match/followup.mjs
+# Stop the container only if this run started it.
+```
+
+Large outputs remain under `tmp/evidence-match/followup/`. `selection.json` is written
+before baseline matching. `followup-measurement.json` retains hashes, exclusion counts,
+all 12 verdicts and timings; `followup-noise-labels.json` classifies all 14 baseline alerts.
+The runner reuses the original bounded LCS and Core projection through two script
+exports. The original runner's command-line entry is guarded to avoid running its
+experiment when those functions are imported; there is no new public library/API.
+
+Scope masks use immutable converter bounding boxes as explicit region classifications,
+not as proof of text correctness. Unassigned PDF items stay in body. Caption ownership
+comes from the original adapter report; independent PDF text inside every retained
+table is still compared even if absent from Docling cells. Source-span copies alone
+are collapsed; distinct equal cells retain multiplicity. A deletion clears all copies
+of the selected semantic cell with existing Core operations. An unordered match is
+limited to one table/owner or same-page labelled footnotes; body order remains checked.
+Unlabelled inline superscripts retain the original behavior, an explicit limitation.
+After mutations, original ownership is rebound by exact Core index shifts, never by
+text similarity or by rerunning the converter on a changed DoclingDocument.
