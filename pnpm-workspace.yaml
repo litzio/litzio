@@ -15,6 +15,8 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - cn@0.4.0
   - fs-extra@11.4.1
+  # Explicit owner-requested security update; do not wait for the release-age window.
+  - electron@44.11.1
 
 packageExtensions:
   # #1147; pair the patched userland import with its runtime dependency.

@@ -12,7 +12,7 @@
 
 ## 준비
 
-- Node.js 24 LTS (`24.21.0` 이상, 24.x)
+- Node.js 24 LTS (`24.22.1` 이상, 24.x)
 - 루트 `package.json`의 `packageManager`에 고정된 pnpm `12.5.1`
 
 ```bash

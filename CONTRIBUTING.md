@@ -8,7 +8,7 @@ Litzio는 **초기 Beta** 단계다. 현재 소스와 공개 버전은 `0.0.2-be
 
 ## Development requirements
 
-- Node.js `>=24.21.0 <25`
+- Node.js `>=24.22.1 <25`
 - pnpm `12.5.1` (`package.json`의 `packageManager`)
 
 ## Setup
@@ -170,7 +170,7 @@ master push 중복 판정은 이 저장소의 `ci.yml` workflow runs API에서 `
 
 Linux Editor 8개 shard와 HTTP browser job은 공식 `mcr.microsoft.com/playwright:v1.64.0-noble` 컨테이너를 **OS 의존성 제공용**으로 사용한다. 이미지의 CJK/Korean 글꼴을 포함한 의존성을 재사용하며 CI에서 apt를 실행하지 않는다. `@playwright/cli`의 transitive 버전과 맞춘 `1.64.0-alpha-1789764292000` 고정은 유지한다([채택 근거](docs/reviews/reduction-2026-10-10.md#단위-6-runner-채택-근거)). 해당 alpha 이미지가 없으므로 이미지에 포함된 stable 브라우저(`/ms-playwright`)는 사용하지 않는다. `PLAYWRIGHT_BROWSERS_PATH=/github/home/.cache/ms-playwright`로 분리하고 lockfile 키의 캐시를 복원한 뒤 `pnpm exec playwright install chromium`만 실행한다. 이 설치는 2분 제한이며 `--with-deps`를 사용하지 않는다. 기존 CI 경로 테스트가 lockfile의 prerelease 꼬리를 제외한 base 버전과 두 Linux 이미지 태그의 일치를 검사한다.
 
-컨테이너는 기본 root 사용자와 `--ipc=host --init`를 사용한다. checkout action의 기본 safe.directory 설정을 유지하고, Node.js `24.21.0`과 pnpm `12.5.1`을 기존 action으로 설정한다. GitHub가 매핑한 HOME과 workspace/temp 경로를 사용하므로 기존 artifact 경로를 유지한다. runner는 headless Chromium이며 xvfb 실행은 필요 없다. Windows job은 기존 설치형 Chrome과 persistent profile을 사용한다. 이 선택은 테스트 판정·재시도·timeout·8개 shard 배정과 docs-only/merge queue 동작을 바꾸지 않는다.
+컨테이너는 기본 root 사용자와 `--ipc=host --init`를 사용한다. checkout action의 기본 safe.directory 설정을 유지하고, Node.js `24.22.2`과 pnpm `12.5.1`을 기존 action으로 설정한다. GitHub가 매핑한 HOME과 workspace/temp 경로를 사용하므로 기존 artifact 경로를 유지한다. runner는 headless Chromium이며 xvfb 실행은 필요 없다. Windows job은 기존 설치형 Chrome과 persistent profile을 사용한다. 이 선택은 테스트 판정·재시도·timeout·8개 shard 배정과 docs-only/merge queue 동작을 바꾸지 않는다.
 
 ## HTTP Host builds
 
@@ -322,3 +322,5 @@ git config core.hooksPath .githooks
 ## License of contributions
 
 By submitting a contribution, you agree that it may be distributed under the [MIT License](LICENSE) used by this repository.
+
+Node 24.22.1은 CVE-2026-111497 수정 하한이며 CI는 24.22.2를 사용한다. 로컬 개발 PC와 별도 CLI/Host의 Node는 사람이 직접 갱신하고 실행 중인 daemon을 재시작해야 한다. Desktop 갱신으로 시스템 Node가 바뀌지는 않는다. [런타임별 영향과 검증 경계](docs/design/http-host-v1.md#node-runtime-security-baseline-2026-11-11)를 참고한다.
