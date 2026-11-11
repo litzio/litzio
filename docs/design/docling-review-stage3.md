@@ -57,7 +57,7 @@
 
 6-2 표시 정리(소유자 후속 지시): 펼침은 native details의 키보드 동작을 유지하되 기본 삼각형 대신 탐색기와 같은 Lucide ChevronRight·아이콘 간격을 사용한다. 목록은 탐색기 sidebar-tree-item의 28px 행/hover/선택 표현을 재사용하며 선택은 한 행에만 표시한다. 같은 실제 교정 종류는 하나의 표시 묶음으로 모으고 개수는 보조 숫자로 둔다(ledger 그룹은 합치지 않는다). 세 패널 머리글은 같은 compact 높이/서체/여백이고 쪽 칸은 좁은 아이콘 접기/펼치기다. Checkbox는 설치된 Base UI와 기존 control 토큰의 공통 부품을 사용하며 native checkbox를 사용하는 다른 화면은 바꾸지 않는다.
 
-쪽 선택 뒤에만 제외 묶음 만들기를 표시하고 선택 사유는 접힌 선택 입력이다. 만들어진 쪽 제외 묶음은 왼쪽 한 행으로 선택해 가운데의 공통 승인/거절/Undo로 전체 대상에 판단한다. 오른쪽에는 판단 버튼·상시 사유 입력을 두지 않는다. 사람 판단 사유는 가운데 action 행의 작은 입력이며, 현재 가능한 상태의 판단 행동만 표시한다. 사용할 수 없는 승인은 primary 면을 쓰지 않는다. Host·저장·기존 교정 작업 경로는 바꾸지 않는다. 기존 workspace-review 검사에 탐색기와 같은 행 높이·단일 선택·세 패널 머리글 정렬, 쪽 선택 전/묶음 생성 후 행동 숨김과 가운데 전체 승인/Undo를 보완했다. 같은 실행 경로에서 사용자 동작을 검사하며 새 subprocess·별도 E2E나 timeout 확대는 없다. 표시 정리 후 workspace-review와 캡처 실행은 각각 HTTP 복구 포함 2개 통과(각 약 1.7분), 전체 typecheck·production build·docs check가 통과했다.
+쪽 선택 뒤에만 제외 묶음 만들기를 표시하고 선택 사유는 접힌 선택 입력이다. 만들어진 쪽 제외 묶음은 왼쪽 한 행으로 선택해 가운데의 공통 승인/거절/Undo로 전체 대상에 판단한다. 오른쪽에는 판단 버튼·상시 사유 입력을 두지 않는다. 사람 판단 사유는 가운데 action 행의 작은 입력이며, 현재 가능한 상태의 판단 행동만 표시한다. 사용할 수 없는 승인은 primary 면을 쓰지 않는다. Host·저장·기존 교정 작업 경로는 바꾸지 않는다. 기존 workspace-review 검사에 탐색기와 같은 행 높이·단일 선택·세 패널 머리글 정렬, 쪽 선택 전/묶음 생성 후 행동 숨김과 가운데 전체 승인/Undo를 보완했다. 같은 실행 경로에서 사용자 동작을 검사하며 새 subprocess·별도 E2E나 timeout 확대는 없다. 표시 정리 후 workspace-review와 캡처 실행은 각각 HTTP 복구 포함 2개 통과(약 1.7~1.8분), 전체 typecheck·production build·docs check가 통과했다. 표시 정리 첫 CI의 visual-tokens 실패는 native action button 두 곳과 literal 입력 폭이었다. 로컬에서 같은 실패를 재현한 뒤 공통 Button과 기존 settings control 폭 토큰으로 수정했고 visual-tokens 4개가 통과했다. 검사 예외·단언·timeout은 바꾸지 않았다.
 
 이 절은 6-2 화면 범위다. 6-3 LSR 13쪽 전체 실측, 실제 AI 응답·탐지 성능·사람 처리 부담 측정은 포함하지 않는다. Docling 재변환은 하지 않는다.
 
