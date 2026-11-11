@@ -327,6 +327,36 @@ test("Docling workspace atomically stores canonical cache and ledger, preserves 
     assert.equal(reapplied.receipt.outcome,"success",JSON.stringify(reapplied));assert.match(reapplied.snapshot.source,/P2 approved text/);
     const afterGroups=archive.readDoclingArchive(readFileSync(file));
     for (const entry of ["sourcePdf","documentJson","manifestBytes"]) assert.deepEqual(afterGroups[entry],initial[entry]);
+    // Existing coverage replayed cell patches and approved text groups separately.
+    // Exercise the complete cell-locator approval path without generic native cell targets.
+    const cellBefore=await read(), sourceTable=document.tables[0], cellIndex=0;
+    const sourceCell=sourceTable.data.table_cells[cellIndex], correctedCell="Approved merged cell";
+    const tableBefore=cellBefore.document.blocks.find((block:any)=>block.block==="table");
+    const expectedRows=tableBefore.rows.map((row:any,rowIndex:number)=>row.cells.map((cell:any,columnIndex:number)=>
+      rowIndex>=sourceCell.start_row_offset_idx && rowIndex<sourceCell.end_row_offset_idx &&
+      columnIndex>=sourceCell.start_col_offset_idx && columnIndex<sourceCell.end_col_offset_idx ? correctedCell : cell.text));
+    const cellProposed=await write("workspace-review-change",{change:{kind:"groups-propose",groups:[{
+      id:"docling-cell",reasonCode:"cell-text",reason:"Original table cell text differs",provider:"community.docling",providerVersion:"0.0.10",
+      sourceRevision:initial.manifest.document.sha256,contentRevision:cellBefore.contentRevision,createdAt:new Date().toISOString(),runId:"manual-cell-test",
+      representativeTargetId:"table0-cell0",representativeReason:"Source span covers both native header cells",splitFrom:null,
+      targets:[{id:"table0-cell0",locator:{self_ref:sourceTable.self_ref,cell:cellIndex},pages:[1],regions:[],before:[sourceCell.text],
+        evidence:[{observation:"Compared original merged span",materialRef:"page-1",materialHash:digest(initial.sourcePdf),inspector:"human",scope:{pages:[1],targets:["table0-cell0"]}}],
+        patch:{expectedBefore:[sourceCell.text],expectedContentRevision:cellBefore.contentRevision,operations:[{type:"cell",self_ref:sourceTable.self_ref,cell:cellIndex,text:correctedCell}],
+          after:[correctedCell],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}]
+    }]}});
+    assert.equal(cellProposed.receipt.outcome,"success",JSON.stringify(cellProposed));
+    assert.deepEqual(cellProposed.snapshot,cellBefore.snapshot,"proposing a cell correction does not change the canonical snapshot");
+    const cellApproved=await write("workspace-review-change",{change:{kind:"groups-approve",groupId:"docling-cell",targetIds:["table0-cell0"],human,resolvesIssue:true}});
+    assert.equal(cellApproved.receipt.outcome,"success",JSON.stringify(cellApproved));assert.equal(cellApproved.saved,true);
+    assert.equal(cellApproved.cacheState,"current");assert.notEqual(cellApproved.documentRevision,cellBefore.documentRevision);
+    assert.equal(cellApproved.ledger.groups.find((group:any)=>group.id==="docling-cell").targets[0].result,"applied");
+    const cellSaved=await read();
+    assert.deepEqual(cellSaved.snapshot,cellApproved.snapshot,"approval persists its regenerated snapshot");
+    const tableAfter=getEditableDocument(parse(cellSaved.snapshot.source)).blocks.find(block=>block.block==="table");
+    assert.ok(tableAfter?.block==="table");
+    assert.deepEqual(tableAfter.rows.map(row=>row.cells.map(cell=>cell.text)),expectedRows,"every covered native cell changes while all other cells, including the empty grid position, stay unchanged");
+    const afterCell=archive.readDoclingArchive(readFileSync(file));
+    for (const entry of ["sourcePdf","documentJson","manifestBytes"]) assert.deepEqual(afterCell[entry],initial[entry]);
     const before = readFileSync(file);
     for (const mode of ["workspace-prepare","workspace-seal","mixed","seal-report"]) {
       fail=mode; const failed=await write("workspace-patch",patch); assert.equal(failed.receipt.outcome,"failure",JSON.stringify(failed));
