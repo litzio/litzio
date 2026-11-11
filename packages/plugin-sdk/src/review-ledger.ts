@@ -118,7 +118,7 @@ export function evaluateReviewCompletion(ledger: ReviewLedger, contentRevision: 
     approved: !incomplete.length && ledger.approval?.ledgerRevision === ledger.revision && ledger.approval.contentRevision === contentRevision && ledger.approval.snapshotHash === snapshotHash };
 }
 
-/** Provider-owned record update. Source-format replay is delegated and never interpreted by the Host or CLI. */
+/** Provider-owned record update. Target-content checks and Core operations are delegated and never interpreted by the Host or CLI. */
 export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerChange, context: {
   contentRevision: string; snapshotHash: string; current: boolean; requestId: string; revision: string; at: string;
   apply(target: ReviewGroupTarget): z.infer<typeof reviewGroupTargetSchema>["history"][number]["inverseOperations"];
@@ -133,7 +133,7 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
   ledger.approval = null; ledger.revision = context.revision;
   if (change.kind === "groups-propose") {
     for (const group of change.groups) {
-      if (ledger.groups.some(g => g.id === group.id) || group.contentRevision !== context.contentRevision || group.splitFrom !== null || group.targets.some(t => t.proposal !== "proposed" || t.history.length || t.result !== null || t.resolved || t.patch.expectedContentRevision !== context.contentRevision)) throw new Error("Invalid new review group");
+      if (ledger.groups.some(g => g.id === group.id) || group.splitFrom !== null || group.targets.some(t => t.proposal !== "proposed" || t.history.length || t.result !== null || t.resolved)) throw new Error("Invalid new review group");
       if (change.groups.filter(g => g.id === group.id).length !== 1) throw new Error("Duplicate new group identity");
     }
     let supersededCount = 0;
@@ -205,7 +205,7 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
       } else {
         if (target.proposal !== "proposed") throw new Error("Target already decided");
         if (action === "approve") {
-          if (!target.patch.supported || target.patch.deferredReason || !target.patch.operations.length || target.patch.expectedContentRevision !== context.contentRevision) throw new Error("Unsupported or stale proposal");
+          if (!target.patch.supported || target.patch.deferredReason || !target.patch.operations.length) throw new Error("Unsupported or stale proposal");
           inverseOperations = context.apply(target); target.result = "applied";
         }
         target.proposal = action === "approve" ? "approved" : "rejected";

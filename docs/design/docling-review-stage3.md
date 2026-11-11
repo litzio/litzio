@@ -18,6 +18,7 @@
 2. **어댑터:** 최초 한 번만 변환해 리치오 문서, 블록→원본(쪽·영역) 대응, 변환 손실 목록, 실패한 페이지를 만든다. 이후 변환기를 다시 부르지 않는다. 지금은 Docling 어댑터만 만들고 두 번째 변환기(MinerU·Word 등)가 실제로 붙을 때 공용 규격을 다듬는다. 범용 어댑터 SDK는 선제 구현하지 않는다.
 3. **원본 대응:** [spike ②](../reviews/1462-spike-block-identity.md)의 방식 A인 경로 기준을 쓴다. Core 연산마다 작은 갱신 함수로 대응을 고친다. 나누기는 같은 원본 영역을 **추정**으로 공유하고 합치기는 영역 합집합, 삭제는 대응을 지우되 원본 증거를 남겨 **대응 문단 없음**으로 보인다. 사람이 에디터에서 자유롭게 크게 고친 블록은 억지로 맞추지 않고 **대응 불확실**로 표시한다. 완벽 추적은 하지 않는다.
 4. **교정과 오래됨:** Core의 경로 기반 글자 수정(`updateNodeTextAtPath`), `convertBlock`, `removeBlock`, `updateTableCell`, `splitParagraph`, `mergeParagraphWithPrevious`를 쓴다. 첫 일치를 찾는 `replaceText`는 대상 교정에 쓰지 않는다. 제안의 오래됨은 전체 문서 revision 대신 제안의 **바꾸기 전 내용이 대상에 그대로 있는지**로 판정한다. A 승인 뒤 무관한 B는 유효하다. Undo는 승인 때 기록한 바꾸기 전 내용으로 되돌린다. 저장의 baseline·revision 충돌 보호는 유지한다.
+   독립 블록이 없는 대상의 종류 교정(빠진 머리말 복원, 캡션→제목 분리)은 블록 삽입 교정이 생기는 후속 단계에서 다룬다.
 5. **검사:** 렌즈는 불변 원본 변환 결과에 최초 한 번 실행하며 교정 때문에 무효화하지 않는다. [spike ①](../reviews/1462-spike-evidence-match.md)의 pdf.js 텍스트 증거↔리치오 문서 양방향 대응은 **보조 후보 탐지**로 쓴다. 두 실험의 주입 오류 합계 24/24 탐지에도 holdout 오경보 3.5건/쪽으로 사전 기준에 미달했다. 후보 목록은 사람에게 보여 주고 숫자·단위 차이를 위에 올린다. 비서 필터링은 6단계 실측 뒤 판단한다. 그림·표 사람 필수 확인과 이미지 대조의 사람 승인·예상량 경계는 유지한다. 첫 지원은 텍스트 레이어가 있는 PDF이며 스캔 PDF는 후속이다.
 6. **완료와 내보내기:** 공식 내보내기를 막는 조건을 두지 않는다. 기존 완료 조건 계산은 **검증 범위 보고서** 항목으로 재사용한다. 화면·CLI로 확인한 그림·표, 이미지 대조 안 한 쪽, 남은 원문 차이 후보, 변환 실패 페이지, 대응 불확실 블록과 한계를 보여 준다. 소유자 지시대로 100% 무결을 당장 목표로 하지 않는다.
 7. **제거 범위:** `review.js`의 `applyCorrections`·`correctionValue`·`inverseCorrection`, `host.js`의 patch/build 재생성 분기, `workspace.js`의 patch 기반 revision·seal 전제와 P2의 문서 전체 revision 기준 오래됨 판정을 걷어낸다. 최초 변환·최초 대응 생성은 유지한다. 개발 단계이므로 기존 `.docling` 호환은 하지 않는다.
@@ -25,6 +26,20 @@
 9. **후속:** 블록 영속 ID(MyST target)는 나중이다. spike ②에서 문단 앞 target의 파싱·저장·재열기·내보내기는 이미 가능했다. 블록 정체성으로 쓰려면 `editable.ts`의 target–본문 연관과 `operations.ts`의 이동·삭제·분할·병합 결합 처리 두 곳을 바꿔야 한다. [#347](https://github.com/litzio/litzio/issues/347)(요구사항·ReqIF) 재개 시 출처 기준을 Docling `self_ref`에서 리치오 블록 ID로 바꾼다. SQLite 저장, 영향 범위 재검사 엔진, Finding 중심 재작성, DOCX 증거도 후속이다.
 
 진행은 **2단계 설계 정리 → 3단계 전환 구현 → 4단계 문제 찾기 → 5단계 비서 국소 제안 → 6단계 최소 화면·제품 실측 → 7단계 보고서·공식 내보내기·나머지 구조 수정**이다. [구현 PR 분할](#구현-pr-분할)의 새 단계 표를 따른다. 두 번째 어댑터와 #347은 별도 결정이다.
+
+## 3단계 전환 구현 기록 — 2026-11-11
+
+이 절은 3단계의 구현·검증 범위다. 나머지 4~7단계는 Draft다. `.docling` format/record 4와 plugin 0.0.11 / SDK 0.5.0으로 전환했다. 최초 생성에서만 기존 어댑터를 실행하고, 이후 글자·종류·제외·칸 교정과 Undo는 저장된 리치오 문서에 Core 연산을 적용한다. source patch/replay, Docling의 외부 K1 문서 재생성·build/seal 분기는 제거했다. generic generated-document provider의 기존 계약은 유지한다.
+
+원본 항목 여러 개가 목록 블록 하나를 공유하는 실제 경우에는 대상 글자를 구별할 수 없어서 최초 대응에 listItem ordinal 하나를 저장한다. 새 어댑터 계층이나 영속 블록 ID는 없다. 삭제 Undo는 승인 때 보관한 Core editable block 내용과 원본 대응 binding으로 기존 typed insert 연산을 실행한다. 새 블록 삽입 교정이나 캡션 분리 기능이 아니다.
+
+기존 fixture의 머리말·캡션 kind 성공 기대는 소유자 승인 범위에 맞춰 propose 거부 회귀로 바꿨다. 기존 source replay·손상 캐시 재생성 테스트도 새 Core 교정·정본 손상 시 보존/거부로 대체했다. Windows 로컬에서는 네 교정 승인→저장→새 Host 읽기→Undo, 독립 제안 승인/동일 값 변경 거부, 묶음 제외의 뒤 경로와 빈 대응, 실패 페이지 기록, 원본 bytes, 후보·rename 실패·중복 requestId·재시작 unknown·읽기 대기/대소문자 alias·명시 export를 검사한다. SDK·Host 기존 일반 provider 테스트는 별도로 유지한다.
+
+고정 LSR `converted/document.json`과 원본 PDF로 네 교정의 저장·재열기·Undo 및 실제 CLI JSON 읽기를 검사했다. 약 14초였으며 실제 변환은 하지 않았다. 고정 record의 원래 API 상태는 unrecorded이므로 검사 내부의 합성 전송 봉투를 실제 변환 성공으로 간주하지 않는다. 새 subprocess 한 개는 실제 CLI stdout JSON과 저장된 Docling 상태의 연결만 검사하며, 실패 주입 조합은 기존 in-process Host 검사에 둔다. NIST 고정본은 병합·보존했지만 이 PR의 교정 수락 범위로 확대하지 않았다.
+
+브라우저는 기존 workspace-review를 사람 승인 공용 CLI 경로로 옮겨 cold Host·진행·이미지·export/덮어쓰기를 확인했다. http-plugins의 제거된 외부 문서 재생성 검사는 workspace 진입·양방향 대응·진행 저장/오류·탭 재진입으로 바꾸며 K1 PDF 작업 수명과 일반 provider 검사는 유지한다. 새 UI 표면·공용 상호작용은 추가하지 않고 기존 ReviewRenderer·unsupported reason을 재사용한다.
+
+1440px 합성 대조 [라이트](assets/docling-workspace-s3/compare-1440-light.png)·[다크](assets/docling-workspace-s3/compare-1440-dark.png), 명시 export [라이트](assets/docling-workspace-s3/export-1440-light.png)·[다크](assets/docling-workspace-s3/export-1440-dark.png)를 보관한다. source PNG가 1px인 합성 자료로 실제 PDF 품질이나 제품 실측이 아니다. 실제 서비스 재변환·AI 호출·원격 PC/설치형 Desktop·4~7단계 제품 수락은 확인하지 않았다.
 
 ## 소유자 결정 — 2026-11-10
 
@@ -559,11 +574,11 @@ S09는 두 표·continued caption이 렌즈 문맥에 있었지만 모델이 놓
 
 ### 구현 PR 분할
 
-2026-11-11 소유자 승인 후 남은 구현 단계다. P1~P11과 구별해 단계 번호로 부른다. 현재 PR은 2단계 설계 정리이며 제품 코드·테스트를 바꾸지 않는다. 후속 구현은 Host 공용 작업과 CLI를 함께 제공하고 필요한 비서 도구도 같은 정의를 쓴다.
+2026-11-11 소유자 승인 후 남은 구현 단계다. P1~P11과 구별해 단계 번호로 부른다. 2단계 설계 정리 뒤 3단계 전환 구현을 진행했으며 실행 근거는 위 3단계 기록을 따른다. 후속 구현은 Host 공용 작업과 CLI를 함께 제공하고 필요한 비서 도구도 같은 정의를 쓴다.
 
 | 단계 | 범위와 검증 경계 |
 | --- | --- |
-| 3단계 전환 구현 | Docling 패치 경로 제거, Core 연산 교정·대응 갱신·대상 내용 기준 오래됨 판정·대응 불확실 표시. 기존 글자·종류·제외·칸 교정 4종을 새 방식으로 동작시키고 실패 페이지를 기록한다. |
+| 3단계 전환 구현 | Docling 패치 경로 제거, Core 연산 교정·대응 갱신·대상 내용 기준 오래됨 판정. 대응 불확실 표시는 6단계에서 다룬다. 기존 글자·종류·제외·칸 교정 4종을 새 방식으로 동작시키고 실패 페이지를 기록한다. |
 | 4단계 문제 찾기 | 공식 schema 검증·그림/표 inventory·검사 종류별 적용 범위를 가진 렌즈와 원문 증거 후보 목록. 7개 렌즈를 코드에 고정하지 않는다. |
 | 5단계 비서 국소 제안 | 의심 지점만 원본 이미지·문맥으로 판단해 제안한다. 승인·Undo는 실제 사람 응답으로만 실행하고 비서 도구에 넣지 않는다. 이미지 대조는 예상량 승인 범위만, 페이지 조각 자료는 공용 `review material`로 제공한다. |
 | 6단계 최소 검수 화면·실측 | 시안 선택 후 LSR 13쪽에서 발견→제안→승인→교정→저장→재열기→출처 역추적→내보내기 전체 흐름을 실측한다. 렌즈 방식과 페이지 조각+이미지 방식 모두 측정하며 첫 제품 수락 조건으로 삼는다. |
@@ -613,7 +628,7 @@ P1의 수락 검증은 다음을 포함한다. 기존 lower-layer/Host 검사와
 
 ## P1a 저장·읽기 기반 구현과 측정
 
-2026-11-10: P1을 저장/읽기 기반 P1a와 대조/material/중간 export 연결 P1b로 분리했다. source-first 외부 문서 저장과 새 단일 archive commit의 실패 경계를 독립 검증하기 위한 분할이다. P1a에는 실제 SDK schema·Host handler·CLI·비서 읽기가 있으며 placeholder 성공은 없다. P1 전체 수락·renderer 검증·중간 export 완료는 아직 아니다. 현재 구현 계약은 [plugin-stage1](plugin-stage1-v1.md#review-workspace-기반-1462-p1a)과 [플러그인 안내](../../community-plugins/docling/README.md#단일-작업공간-hostcli-기반-1462-p1a)를 따른다. 기존 K1의 외부 `.md` 생성은 P1b 전환 전까지 남긴다.
+2026-11-10: P1을 저장/읽기 기반 P1a와 대조/material/중간 export 연결 P1b로 분리했다. source-first 외부 문서 저장과 새 단일 archive commit의 실패 경계를 독립 검증하기 위한 분할이다. P1a에는 실제 SDK schema·Host handler·CLI·비서 읽기가 있으며 placeholder 성공은 없다. P1 전체 수락·renderer 검증·중간 export 완료는 아직 아니다. 현재 구현 계약은 [plugin-stage1](plugin-stage1-v1.md#review-workspace-기반-1462-p1a)과 [플러그인 안내](../../community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다. 기존 K1의 외부 `.md` 생성은 P1b 전환 전까지 남긴다.
 
 P1a는 format 2의 canonical source/final inputs·targets·key/hash/생성 계약/이미지 binding, 단일 archive 원자적 patch 저장과 캐시 보존 progress를 구현한다. read는 prepare하지 않으며 old contract는 생성 당시 결과로 읽고 새 변경 전에 명시 regenerate를 요구한다. 비서와 CLI는 같은 reader를 호출하고 completion은 not-evaluated다. 이미지 bytes/material·새 scoped bundle·ReviewRenderer와 명시 current export는 P1b에 남아 있다. effective region 종류는 현재 네 patch replay 결과로 기존 comparison을 계산하도록 수정했으며 구조 lineage operation은 P7~P10 범위다.
 
@@ -633,7 +648,7 @@ Host RSS 시작 290,668,544 bytes, 5ms sampling peak 935,182,336, process high-w
 
 ## P1b 내부 대조·이미지·명시 export
 
-2026-11-10: `8020e833`(P1a 병합)에서 P1b를 구현했다. `.docling`은 활성 provider의 공용 발견→기존 comparison 작업 탭으로 열고 내부 문서를 읽는다. 기존 ReviewRenderer/DocumentEditor readOnly preview·Button/Notice/Input/Dialog를 재사용하며 “문서 열기”는 실제 문서가 없는 workspace에서 숨긴다. “현재 상태로 내보내기” dialog는 Root 상대 기본 이름·완료가 아님을 표시하고 기존 파일 revision에 대해 명시 덮어쓰기 확인을 받는다. current export 뒤의 실제 파일만 일반 문서로 열 수 있다. 새 UI token·독자 editor·Docling 전용 Core/Host 해석은 없다. 공용 동작과 CLI는 [plugin-stage1](plugin-stage1-v1.md#review-workspace-대조중간-export-1462-p1b), 사용 안내는 [Docling README](../../community-plugins/docling/README.md#내부-대조이미지중간-내보내기-1462-p1b)를 따른다.
+2026-11-10: `8020e833`(P1a 병합)에서 P1b를 구현했다. `.docling`은 활성 provider의 공용 발견→기존 comparison 작업 탭으로 열고 내부 문서를 읽는다. 기존 ReviewRenderer/DocumentEditor readOnly preview·Button/Notice/Input/Dialog를 재사용하며 “문서 열기”는 실제 문서가 없는 workspace에서 숨긴다. “현재 상태로 내보내기” dialog는 Root 상대 기본 이름·완료가 아님을 표시하고 기존 파일 revision에 대해 명시 덮어쓰기 확인을 받는다. current export 뒤의 실제 파일만 일반 문서로 열 수 있다. 새 UI token·독자 editor·Docling 전용 Core/Host 해석은 없다. 공용 동작과 CLI는 [plugin-stage1](plugin-stage1-v1.md#review-workspace-대조중간-export-1462-p1b), 사용 안내는 [Docling README](../../community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다.
 
 공통 embedded review reader가 canonical source·실제 targets·workspace revision을 검증한다. provider가 보관한 final correspondence를 같은 source integrity에 묶어 읽으며 page geometry·종류·대응은 effective 결과를 사용한다. 그림/페이지 bytes는 archive 소유 자료에서 공용 material 읽기로만 제공한다. 검수 읽기는 외부 Markdown/assets를 만들거나 image bytes를 cache에 복제하지 않는다. 이전 생성 계약은 source만 읽고 현재 대응을 추측하지 않으며 명시 재생성을 요구한다. 새 archive 형식 migration은 만들지 않는다.
 
@@ -658,7 +673,7 @@ P1b 통합 중 master의 #1468(공용 생성 문서 대조 진입)·#1455(좁은
 
 2026-11-11: P1b feature base에서 공용 SDK 모델·provider용 ledger 전이/완료 계산과 workspace dispatcher를
 확장했다. 구현 필드·Host/provider 경계·CLI·비서 계약은 [plugin-stage1 P2](plugin-stage1-v1.md#review-문제-묶음검사-기록-1462-p2),
-Docling 입력과 버전은 [플러그인 P2 안내](../../community-plugins/docling/README.md#공용-문제-묶음확인-기록-1462-p2)를 따른다.
+Docling 입력과 버전은 [플러그인 P2 안내](../../community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다.
 이 절은 P2 구현 범위이며 나머지 Draft의 완료 선언이 아니다.
 
 공용 묶음은 개별 근거·expected-before/revision·불투명 patch·판단과 append-only 처리 이력을 가진다.

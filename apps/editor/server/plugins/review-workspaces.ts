@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { authorDocument, parse, serialize, getEditableDocument } from "@litzio/core";
 import { commitFileFromPath, textRevision } from "@litzio/file-commit";
-import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, evaluateReviewCompletion, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
+import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, workspaceSnapshotSchema, evaluateReviewCompletion, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
 import { validatedAuthoringRequest, exportReviewDocumentFile } from "../document-authoring.ts";
 import { validateImage } from "../image-validation.ts";
 import { readModel } from "../document-replay.ts";
@@ -134,9 +134,18 @@ export class ReviewWorkspaces {
       const resultFile = { path: candidate, maxBytes: JOB_FILE_MAX_BYTES };
       const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
         ...("change" in input ? { change: input.change, requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
+      if (typeof plan.rejection === "string") throw new Error(plan.rejection);
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
       const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
-      if (!preserveSnapshot) {
+      if (plan.snapshot) {
+        // Providers may update a saved document through SDK Core operations. Never rebuild it from its source format.
+        const snapshot = workspaceSnapshotSchema.parse(plan.snapshot);
+        validateSnapshot(snapshot);
+        if (original.snapshot && (snapshot.contentRevision !== original.snapshot.contentRevision ||
+            JSON.stringify(snapshot.images) !== JSON.stringify(original.snapshot.images))) throw new Error("Document update changed immutable source bindings");
+        const { cacheKey: _key, ...canonical } = snapshot;
+        expected = canonical;
+      } else if (!preserveSnapshot) {
         const { input: build, images } = validatedAuthoringRequest(plan.build);
         // An internal image identity addresses bytes supplied by the provider, never an external path/URL.
         if (build.authoring.inputs.some(item => item.blocks.some(block => block.kind === "figure" && block.imageAsset === undefined && block.imageUrl !== ""))) throw new Error("Workspace images require stable asset bindings");

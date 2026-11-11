@@ -1,16 +1,16 @@
-import { DOCUMENT_AUTHORING_LIMITS, emptyReviewLedger, reviewLedgerSchema } from "@litzio/plugin-sdk";
+import { emptyReviewLedger, reviewLedgerSchema } from "@litzio/plugin-sdk";
 
-export const emptyReview = () => ({ version: 3, patches: [], checkedPages: [], lastPage: null, approval: null, ledger: emptyReviewLedger() });
+export const emptyReview = () => ({ version: 4, checkedPages: [], lastPage: null, approval: null, ledger: emptyReviewLedger() });
 export function readReview(bytes) {
   const record = bytes === undefined ? emptyReview() : JSON.parse(Buffer.from(bytes).toString("utf8"));
-  if (!record || record.version !== 3 || Object.keys(record).sort().join() !== ["version", "patches", "checkedPages", "lastPage", "approval", "ledger"].sort().join() ||
-      !Array.isArray(record.patches) || record.patches.length > 2000 || !Array.isArray(record.checkedPages) || record.checkedPages.some(p => !Number.isInteger(p) || p < 1) ||
+  if (!record || record.version !== 4 || Object.keys(record).sort().join() !== ["version", "checkedPages", "lastPage", "approval", "ledger"].sort().join() ||
+      !Array.isArray(record.checkedPages) || record.checkedPages.some(p => !Number.isInteger(p) || p < 1) ||
       record.lastPage !== null && (!Number.isInteger(record.lastPage) || record.lastPage < 1) || record.approval !== null) throw new Error("Invalid review record");
   record.ledger = reviewLedgerSchema.parse(record.ledger);
   return record;
 }
 
-/** Exact expected values and inverse patches belong to this source format, never to Host/Core. */
+/** Original evidence identity remains immutable after document corrections. */
 export function originalReviewTarget(document, locator) {
   const match = /^#\/(texts|tables|pictures|groups|key_value_items|form_items)\/(0|[1-9]\d*)$/.exec(locator.self_ref ?? "");
   const item = match && document[match[1]]?.[Number(match[2])];
@@ -18,79 +18,9 @@ export function originalReviewTarget(document, locator) {
       (match[1] !== "tables" || !Number.isInteger(locator.cell) || locator.cell < 0 || !item.data?.table_cells?.[locator.cell])) throw new Error("Unknown original review target");
   return item;
 }
-export function correctionValue(document, patch) {
-  const item = originalReviewTarget(document, patch);
-  if (patch.type === "text") return item.text;
-  if (patch.type === "cell") return item.data?.table_cells?.[patch.cell]?.text;
-  if (patch.type === "exclude") return item.__reviewExcluded === true;
-  if (patch.type === "kind") return { kind: item.label === "section_header" ? "heading" : "paragraph", ...(item.label === "section_header" ? { level: item.level } : {}) };
-  throw new Error("Unsupported correction");
-}
-export function inverseCorrection(document, patch) {
-  const before = correctionValue(document, patch);
-  if (patch.type === "kind") {
-    const [kind, index] = patch.self_ref.slice(2).split("/"), item = document[kind][Number(index)];
-    if (!["text", "section_header"].includes(item.label) || item.content_layer && item.content_layer !== "body") throw new Error("Original kind is not reversibly supported");
-    return { type: "kind", self_ref: patch.self_ref, ...before };
-  }
-  if (patch.type === "exclude") {
-    // A subtree exclusion cannot be reversed with a single flag when children had different prior states.
-    const refs = [patch.self_ref], result = [];
-    for (let i = 0; i < refs.length; i++) {
-      const self_ref = refs[i], [kind, index] = self_ref.slice(2).split("/"), item = document[kind][Number(index)];
-      result.push({ type: "exclude", self_ref, excluded: item.__reviewExcluded === true });
-      for (const child of item.children ?? []) { if (refs.includes(child.$ref)) throw new Error("Invalid correction tree"); refs.push(child.$ref); }
-    }
-    return result;
-  }
-  return { ...patch, text: before };
-}
-/** Replay against a copy. The archived PDF and JSON bytes never change. */
-export function applyCorrections(original, patches = []) {
-  if (!Array.isArray(patches) || patches.length > 2000) throw new Error("Invalid corrections");
-  // Patches cannot address pages. Keep their immutable embedded image bytes out of the replay copy.
-  const { pages, ...content } = original;
-  const doc = structuredClone(content), nodes = new Map();
-  if (pages !== undefined) doc.pages = pages;
-  for (const kind of ["texts", "tables", "pictures", "groups", "key_value_items", "form_items"]) for (const [i, item] of (doc[kind] ?? []).entries()) {
-    if (item.self_ref !== `#/${kind}/${i}`) throw new Error("Invalid self_ref");
-    nodes.set(item.self_ref, { item, kind });
-  }
-  const text = value => typeof value === "string" && value.length <= DOCUMENT_AUTHORING_LIMITS.string && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value);
-  function exclude(ref, excluded, ancestors = new Set()) {
-    const node = nodes.get(ref);
-    if (!node || ancestors.has(ref)) throw new Error("Invalid correction target tree");
-    node.item.__reviewExcluded = excluded;
-    for (const child of node.item.children ?? []) exclude(child.$ref, excluded, new Set([...ancestors, ref]));
-  }
-  for (const patch of patches) {
-    const node = nodes.get(patch?.self_ref);
-    if (!node) throw new Error("Unknown correction target");
-    const fields = { text: ["type", "self_ref", "text"], kind: ["type", "self_ref", "kind", ...(patch.kind === "heading" ? ["level"] : [])],
-      exclude: ["type", "self_ref", "excluded"], cell: ["type", "self_ref", "cell", "text"] }[patch.type];
-    if (!fields || Object.keys(patch).length !== fields.length || fields.some(key => !Object.hasOwn(patch, key))) throw new Error("Invalid correction fields");
-    if (patch.type === "text") {
-      if (node.kind !== "texts" || !text(patch.text)) throw new Error("Expected a text item and Unicode text");
-      node.item.text = patch.text;
-    } else if (patch.type === "kind") {
-      if (node.kind !== "texts" || !["paragraph", "heading"].includes(patch.kind) || patch.kind === "heading" && (!Number.isInteger(patch.level) || patch.level < 1 || patch.level > 6)) throw new Error("Expected paragraph or heading 1–6");
-      node.item.label = patch.kind === "heading" ? "section_header" : "text";
-      node.item.__reviewKind = true;
-      node.item.content_layer = "body";
-      if (patch.kind === "heading") node.item.level = patch.level; else delete node.item.level;
-    } else if (patch.type === "exclude") {
-      if (typeof patch.excluded !== "boolean") throw new Error("Expected exclusion flag");
-      exclude(patch.self_ref, patch.excluded);
-    } else {
-      if (node.kind !== "tables" || !Number.isInteger(patch.cell) || patch.cell < 0 || !node.item.data?.table_cells?.[patch.cell] || !text(patch.text)) throw new Error("Expected original table_cells index and Unicode text");
-      node.item.data.table_cells[patch.cell].text = patch.text;
-    }
-  }
-  return doc;
-}
 export function reviewItems(doc) {
   return ["texts", "tables", "pictures", "groups", "key_value_items", "form_items"].flatMap(kind => (doc[kind] ?? []).map(item => ({
-    self_ref: item.self_ref, kind, label: item.label, excluded: item.__reviewExcluded === true,
+    self_ref: item.self_ref, kind, label: item.label, excluded: false,
     pages: [...new Set((item.prov ?? []).map(p => p.page_no))],
     ...(typeof item.text === "string" ? { text: item.text, ...(item.level !== undefined ? { level: item.level } : {}) } : {}),
     ...(kind === "tables" ? { cells: (item.data?.table_cells ?? []).map((cell, index) => ({ cell: index, text: cell.text })) } : {}),
@@ -106,11 +36,11 @@ const regionKinds = new Map([
   ["code", "code"], ["code_block", "code"],
 ]);
 
-/** Page bytes stay immutable; regions, kinds and targets use one replayed effective document. */
+/** Page bytes stay immutable; regions, kinds and targets use the saved document and its maintained correspondence. */
 export function comparison(archive, record, report, input) {
   const pages = Object.entries(archive.document.pages ?? {}).map(([key, page]) => ({ generation: input.generation, sourceRevision: input.sourceRevision, pageNo: Number(key), width: page.size.width, height: page.size.height, unit: "pt", origin: "TOPLEFT", regions: [] })).sort((a,b) => a.pageNo-b.pageNo);
   if (!pages.length || pages.some((p,i) => p.pageNo !== i+1)) throw new Error("Expected consecutive PDF pages");
-  const effective = applyCorrections(archive.document, record.patches);
+  const effective = archive.document;
   const entries = [], nodes = new Map(["texts", "tables", "pictures", "groups", "key_value_items", "form_items"].flatMap(kind => (effective[kind] ?? []).map(item => [item.self_ref, item])));
   for (const item of report.items) {
     const current = nodes.get(item.self_ref), sourceIds = [];
@@ -122,11 +52,16 @@ export function comparison(archive, record, report, input) {
       if (!["TOPLEFT","BOTTOMLEFT"].includes(b.coord_origin)) throw new Error("Unknown coordinate origin");
       const top = b.coord_origin === "TOPLEFT" ? b.t : page.height-b.t, bottom = b.coord_origin === "TOPLEFT" ? b.b : page.height-b.b;
       const bbox = [Math.min(b.l,b.r),Math.min(top,bottom),Math.max(b.l,b.r),Math.max(top,bottom)];
-      const status = current.__reviewExcluded ? "excluded" : item.status === "furniture" ? "decoration" : item.targets.length ? "supported" : "unsupported";
-      const kind = regionKinds.get(current.label);
-      page.regions.push({id,bbox,category: current.label ?? "item",...(kind ? {kind} : {}),status}); sourceIds.push(id);
+      const status = item.status === "excluded" ? "excluded" : item.status === "furniture" ? "decoration" : item.targets.length ? "supported" : "unsupported";
+      const category = item.label ?? current.label;
+      const kind = regionKinds.get(category);
+      page.regions.push({id,bbox,category: category ?? "item",...(kind ? {kind} : {}),status}); sourceIds.push(id);
     }
     if (sourceIds.length) entries.push({sourceIds,targets:item.targets});
+  }
+  for (const pageNo of report.failedPages ?? []) {
+    const page = pages.find(page => page.pageNo === pageNo);
+    if (page) page.regions.push({id:`failed-page-${pageNo}`,bbox:[0,0,page.width,page.height],category:"변환 실패 페이지",status:"unsupported",reason:"이 쪽의 변환이 실패했습니다. 원본 PDF를 확인하세요."});
   }
   return {review:"compare",bundle:{generation:input.generation,documentRevision:input.result.revision,documentHash:input.result.revision,sourceRevision:input.sourceRevision,mappingRevision:input.generation},pages,images:[],mapping:{generation:input.generation,documentRevision:input.result.revision,documentHash:input.result.revision,sourceRevision:input.sourceRevision,mappingRevision:input.generation,entries}};
 }

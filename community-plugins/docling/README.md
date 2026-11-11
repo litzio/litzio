@@ -1,6 +1,6 @@
 # Docling community plugin
 
-#1462 P1은 `.docling`을 단일 검수 작업공간으로 사용합니다. 플러그인을 신뢰·활성화한 뒤 Explorer에서 `.docling`을 더블클릭하거나 Enter로 열면 외부 `.md` 없이 원본과 내부 문서를 대조합니다. 일반 `.md`·assets는 사람이 “현재 상태로 내보내기”를 실행할 때만 만듭니다. 이 동작은 검수 완료 승인이 아닙니다. 아래 과거 K1 설명은 일반 generated-document 경로의 이력이며 현재 Docling 진입은 마지막 P1b 절을 따릅니다.
+#1462 P1은 `.docling`을 단일 검수 작업공간으로 사용합니다. 플러그인을 신뢰·활성화한 뒤 Explorer에서 `.docling`을 더블클릭하거나 Enter로 열면 외부 `.md` 없이 원본과 내부 문서를 대조합니다. 일반 `.md`·assets는 사람이 “현재 상태로 내보내기”를 실행할 때만 만듭니다. 이 동작은 검수 완료 승인이 아닙니다. 아래 과거 K1 설명은 일반 generated-document 경로의 이력이며 현재 Docling 진입과 교정은 아래 단일 작업공간 교정 절을 따릅니다.
 
 소유자 개인 작업을 위한 실험 플러그인입니다. Litzio 공식 공급·기본 활성 플러그인이 아닙니다. #1391 지정 커뮤니티로 앱에 포함됩니다. 이 디렉터리만 독립 저장소로 옮길 수 있으며 pnpm workspace에 속하지 않습니다.
 
@@ -40,9 +40,9 @@ CI 경로 정책은 이 새 경로를 미분류(full)로 취급합니다. 기존
 
 ## 버전
 
-플러그인 버전은 **0.0.10**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 3`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
+플러그인 버전은 **0.0.11**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 4`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
 
-현재 artifact는 대조·workspace 계약을 포함하는 `requiresSdk: ">=0.4.0 <1.0.0"`을 선언합니다.
+현재 artifact는 대조·workspace 계약을 포함하는 `requiresSdk: ">=0.5.0 <1.0.0"`을 선언합니다.
 
 ## 과거 K1 두 작업 (#1322 범위 정정)
 
@@ -218,7 +218,9 @@ Before는 같은 불변 .docling을 0.0.3 변환기 소스(`e0c30727`)와 공개
 자동 검사는 기존 plugins.test.ts에서 번호 규칙·같은 종류 중복·원본 불변·공용 이미지 전달과 최종 target 연결을, 기존 http-plugins에서 가짜 서버와 실제 이미지 로드·캡션 표시·손실 요약을 보호합니다. 새 suite·서버 subprocess·timeout·retry는 추가하지 않았습니다. 같은 가짜 서버 PNG fixture는 공용 Host의 complete-container 검사에 맞는 CRC 바이트로 바로잡았습니다. 실제 서버 지연은 자동 검사에 넣지 않으며 수동 캡처 경로의 같은 파일 재생성만 별도 실행합니다.
 
 로컬 결과: plugins.test.ts 30개와 변경 후 Docling 대상 5개, typecheck·Editor/CLI build·docs/diff 검사를 통과했습니다. 가짜 서버 http-plugins는 HTTP 복구를 포함해 2개 약 2.2분, 실제 보관 파일 수동 경로는 같은 2개 약 1.2분에 통과했습니다. 두 경로는 같은 checkout의 persistent profile로 순차 실행했고 직접 시작한 격리 Host와 브라우저 세션을 종료했습니다.
-## 검수 기록과 재생성 0.0.5 (#1364)
+## 검수 기록과 재생성 0.0.5 (#1364, Historical)
+
+> 이 절의 source patch·재생성은 3단계에서 제거했습니다. 현재 계약은 아래 단일 작업공간 교정을 따릅니다.
 
 원본 PDF·DoclingDocument 바이트는 `.docling`의 source.pdf·document.json에 유지하고 manifest hash로 검사합니다. `review.json`은 version 3이며 `{version,patches,checkedPages,lastPage,approval,ledger}`를 저장합니다. ledger는 공용 묶음·검사·필수 확인·완료 승인 기록을 소유합니다. 진행 기록은 기존 대조 작업으로 저장하며 P2 공용 CLI에서 완료 조건과 승인 기록을 처리합니다. 공식 export gate와 완료 UI는 P11 범위입니다. 수정 시 확인한 페이지와 마지막 위치를 비웁니다. 별도 검수 기록 파일이나 Markdown 메타데이터를 만들지 않습니다. `.md`와 assets/는 다시 만들 수 있는 결과물입니다.
 
@@ -235,7 +237,9 @@ CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|reg
 
 관리 연결과 마지막 생성 revision은 Host 앱 데이터의 generated-documents.json.d/에 정규화한 문서 경로 identity 기준으로 저장합니다. 검수 기록은 이곳에 복제하지 않습니다. 다른 PC에서는 명시적 open 또는 새 문서 생성이 새 연결을 만듭니다. 문서 이동·이름 변경 후에는 경고가 사라질 수 있으며 자동 추적·연결 이행은 지원하지 않습니다. 직접 편집한 문서는 Editor와 같은 Host 앱 데이터 설정을 쓰는 CLI가 경고하지만 Save는 허용합니다. 최신 baseline을 명시해 다시 만들면 직접 수정한 내용을 대체합니다. 오래된 baseline이나 실행 도중 변경된 파일은 덮어쓰지 않습니다.
 
-## 원본 대조 0.0.7 (#1408)
+## 원본 대조 0.0.7 (#1408, Historical)
+
+> 과거 generated-document 연결 기록입니다. 현재 대조는 아래 단일 작업공간 교정을 따릅니다.
 
 완료된 ‘Litzio 문서 만들기’ 행의 ‘원본 대조’로 연다. 왼쪽은 같은 변환에서 보관한 원본 PDF의 페이지 PNG이며 화면을 열 때 다시 변환하지 않는다. 오른쪽은 저장된 생성 문서다. 원본 영역 또는 문서 블록을 선택해 대응 위치로 이동한다. 없는 대응은 추측하지 않는다. 페이지의 ‘확인함’과 이동 위치는 review.json의 checkedPages·lastPage에 저장한다. patches·approval과 원본 source.pdf/document.json/manifest 바이트는 보존한다. 원본 hash는 저장 전후 검증한다. 재생성은 같은 출력 revision의 최종 targets로 대응을 다시 계산한다.
 
@@ -250,91 +254,34 @@ CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|reg
 [LSR 1.1 합성 PDF와 작성자 기대 구조](sample/lsr-1.1/README.md)를 보관합니다. Docling 출력 정답이나 품질 합격선이 아니며, 플러그인과 함께 배포되는 체험용 샘플입니다.
 
 
-## 단일 작업공간 Host·CLI 기반 (#1462 P1a)
+## 단일 작업공간 교정 (#1462 3단계)
 
-P1a 당시 형식은 `manifest.version:2`였으며 현재 P2는 format 3을 사용합니다. 과거 archive migration은 없습니다. 원본 PDF·JSON·manifest bytes와 hash는 작업공간 저장 전후 그대로 유지합니다. `current/document.md`는 Host의 SDK/Core가 작성한 canonical source, `current/snapshot.json`은 최종 input keys/targets·문서 hash·의미 revision·캐시 key·생성 계약·이미지 binding과 무결성 hash입니다. 원본+ordered patches가 진실이고 두 current 항목은 직접 편집하지 않는 파생 자료입니다. 이미지 바이트는 원본 Docling JSON에 한 번만 있으며 내부 source에는 `review-asset:<sha256>` identity를 바인딩합니다. 외부 파일 경로나 임시 URL이 아닙니다. 실제 이미지 자료와 화면 resolver는 P1b에서 연결합니다.
+plugin 0.0.11 / SDK >=0.5.0 / archive format 4 / review record 4를 사용합니다. 이전 파일 migration은 없습니다. `.docling` 안의 `current/document.md`가 교정본 정본이고 ledger는 사람 판단 이력입니다. 원본 PDF·JSON·manifest bytes는 교정·Undo·진행 저장 전후 불변입니다.
 
-다음 CLI는 같은 `POST /api/reviews` 공용 Host 작업을 호출합니다. 입력 JSON은 artifact 밖에 둡니다.
+PDF 작업은 새 archive를 공개하기 전에 기존 Docling 어댑터를 한 번 실행해 문서·쪽/영역 대응·변환 손실·실패 페이지를 저장합니다. 이후 원본 JSON 패치·replay·build/seal 재생성은 없습니다. 문서나 대응이 손상되면 원본에서 다시 만들지 않습니다. 과거 cache 필드명은 정본이 파생 캐시라는 뜻이 아닙니다. 일반 `.md`와 이미지 assets는 사람이 명시적으로 내보낼 때만 만듭니다.
+
+공통 입력은 `{root,workspace:"a.docling",plugin:"community.docling",job:"create-document"}`입니다. 쓰기는 전체 파일 SHA-256 baseline과 새 UUID requestId를 요구합니다. CLI는 같은 Host `/api/reviews` 작업입니다.
 
 ```sh
-litzio review workspace-open --input open.json --host <origin> --json
 litzio review workspace-read --input read.json --host <origin> --json
-litzio review workspace-patch --input patch.json --host <origin> --json
-litzio review workspace-progress --input progress.json --host <origin> --json
-litzio review workspace-regenerate --input regenerate.json --host <origin> --json
-litzio review workspace-status --input status.json --host <origin> --json
-```
-
-공통 입력은 `{root,workspace:"a.docling",plugin:"community.docling",job:"create-document"}`입니다. read 외 쓰기는 workspace 전체 SHA-256인 `baseline`과 새 UUID `requestId`를 요구합니다. patch는 위의 기존 네 operation 목록 `patches`, progress는 `{checkedPages,lastPage}`를 추가합니다. status는 `{requestId}`만 받습니다. HTTP action 이름은 CLI의 `workspace-*`와 같습니다. 첫 baseline은 파일 SHA-256 또는 read 응답에서 얻습니다.
-
-read는 archive를 변경하지 않고 source·read model·최종 targets와 별도 `documentRevision/contentRevision/cacheState/baseline`을 반환합니다. 비서 `read_review_document`도 동일한 read를 호출하며 열린 폴더 범위를 검사합니다. 내부 archive 경로나 가짜 `.md` 경로는 반환하지 않습니다. 이 단계에는 이미지 바이트 읽기와 scoped 대조 bundle은 아직 없습니다. P2의 ledger가 있는 workspace read는 완료 조건을 계산하며 cacheState를 완료로 간주하지 않습니다. 대조·중간 export의 완료 표시는 P11까지 변경하지 않습니다.
-
-open은 캐시가 없거나 손상됐을 때 준비하고 이미 무결한 캐시가 있으면 쓰지 않습니다. 생성 계약이 다른 무결한 캐시는 `created-version`으로 읽고 open이 조용히 교체하지 않습니다. 새 patch/progress 전 명시 regenerate가 필요합니다. 원본/ledger 손상은 캐시로 복구하지 않습니다. cache key는 원본 JSON hash+ordered patches hash, replay/converter 의미 버전, Core authoring/직렬화 계약 및 이미지 binding으로 계산하며 workspace 전체 hash·페이지 확인·위치는 포함하지 않습니다.
-
-patch는 staging에서 후보 ledger→replay→Host 공식 작성/이미지 검증→캐시 seal→후보 재검증을 끝낸 뒤 live baseline을 재확인하고 `.docling` 한 번으로 교체합니다. 중간 실패·충돌은 기존 ledger·캐시를 함께 보존합니다. progress는 같은 경로로 전체 archive를 교체하되 cache bytes/key/targets를 보존하고 문서를 재작성하지 않습니다. Host는 ZIP을 해석하지 않습니다. provider가 자료/후보를 제공하며 Host가 Core canonical source와 실제 block targets·revision을 검증합니다. 파일 identity에 따른 admission과 공식 file-commit은 기존 경로를 재사용합니다.
-
-receipt와 status는 daemon 수명입니다. 응답 유실은 같은 requestId status로 확인하며 자동 재전송하지 않습니다. 재시작 후 status는 unknown이고 파일을 다시 읽습니다. 결과에 export 이력·Host generated-document connection은 생성하지 않습니다. 새 경로에서 외부 `.md`·assets가 생기지 않으며 기존 K1은 P1b 전까지 별도 기존 동작입니다.
-
-
-## 내부 대조·이미지·중간 내보내기 (#1462 P1b)
-
-현재 `create-document` 선언의 `workspace:true`는 workspace provider 발견에 쓰며 K1 시작은 거부합니다. 사이드바 K1 패널에는 PDF→`.docling`만 남깁니다. 기존 generated-document Host/SDK는 다른 일반 파일 provider용으로 유지합니다. 플러그인이 꺼져 있거나 해당 provider가 없으면 일반 파일 미리보기를 유지하며 열기만으로 신뢰/활성화하지 않습니다.
-
-기존 ReviewRenderer는 실제 파일 path 없이 canonical snapshot을 표시합니다. 오른쪽 그림의 `review-asset:<sha256>`는 Host가 읽고 hash·MIME·이미지 형식을 검사한 일시 data URL로만 표시합니다. 내부 source의 identity나 bytes를 바꾸지 않습니다. 왼쪽은 원본 페이지 PNG와 effective patch 결과의 종류/영역·동일 snapshot의 최종 targets입니다. `current/snapshot.json`의 correspondence와 canonical source를 같은 integrity hash로 묶고 진행 저장에서 그대로 보존합니다. 생성 계약이 다른 캐시는 생성 당시 문서만 읽고 새 대응을 추측하지 않습니다. 화면에서 명시적으로 다시 만든 뒤 대조/진행 저장/내보내기를 사용합니다.
-
-공용 `POST /api/reviews` 및 `litzio review <action> --input <json> --host <origin> --json`에 다음을 추가합니다.
-
-| action | 입력 / 결과 |
-| --- | --- |
-| `workspace-find` | `{root,path?}` → 활성 workspace provider의 `{plugin,job,accept}` 또는 해당 파일의 workspace 대상·baseline. 앱의 파일 열기는 Host 결과를 사용하며 plugin 이름·`.docling` 분기를 넣지 않음 |
-| `workspace-compare` | 공통 workspace 입력 + 선택 pageNo/baseline → 내부 문서·페이지·대응·progress·workspaceBaseline·새 scoped bundle/document refs. 파일 path 없음 |
-| `workspace-image` | 공통 입력 + baseline/ref(SHA-256) → archive 소유 그림의 mime/base64/revision. 임의 경로나 URL을 받지 않음 |
-| `workspace-export-check` | 공통 입력 + baseline/output? → 실제 출력 path·Root 상대 이름·현재 targetRevision(null이면 없음). 쓰기 없음 |
-| `workspace-export` | 공통 입력 + baseline/requestId, `mode:"current"`, output?, targetRevision, overwrite → 일반 `.md` path/revision·receipt. 기본 이름 `<원래 파일명>-검수중.md`. 기존 파일은 현재 revision과 명시 overwrite:true가 모두 필요 |
-
-중간 export는 현재 canonical source에 Core `updateMediaReferences`를 적용하고 기존 공식 이미지 게시·문서 검증/쓰기 경로를 사용합니다. 새 파일은 exclusive create, 덮어쓰기는 revision-checked commit입니다. 충돌은 assets를 만들기 전에 먼저 검사하며, 그 뒤 실패하면 기존 공식 이미지 게시 정책처럼 이미 게시된 assets가 남을 수 있습니다. source archive·review 기록·generated-document connection·export 이력/최신 여부는 쓰지 않습니다. 완료 표시도 추가하지 않습니다. UI는 같은 Host에 열린 출력 문서의 미저장 변경을 거부하고, 충돌 시 다시 검사한 revision에 대해 사람이 checkbox로 덮어쓰기를 확인해야 합니다. 응답 유실에는 같은 requestId status만 읽으며 자동 재전송하지 않습니다.
-
-실제 browser의 cold Host 재등록/재시작·확인 기록과 같은 source/대응, CLI·Windows 8.3 분할 및 시각 근거는 [P1b 검증 기록](../../docs/design/docling-review-stage3.md#p1b-내부-대조이미지명시-export)을 따릅니다. 큰 실제 PDF·workspace 장시간 timeout·실제 원격 PC 인계와 비서 이미지 분석은 이번 수락 범위에서 미검증입니다. 공식 완료 gate는 P11, 실제 AI 검사 연결은 P5입니다.
-
-
-## 공용 문제 묶음·확인 기록 (#1462 P2)
-
-0.0.10은 ZIP format 3과 review record version 3을 함께 사용합니다. 기존 archive migration은 없습니다.
-`review.json.ledger`에 묶음·대상별 판단/승인/Undo 이력, 렌즈 검사 coverage, 모든 그림·표의 필수 확인 inventory와
-실제 확인 기록·선택 본문 대조 범위·최종 사람 승인 기록을 저장합니다. 기존 checkedPages는 위치/진행 정보이며
-필수 확인이나 검사 성공으로 계산하지 않습니다. 원본 PDF/JSON과 과거 patches는 보존하고 Undo는 역패치를 추가합니다.
-
-```sh
 litzio review groups propose --input propose.json --host <origin> --json
-litzio review groups read --input read.json --host <origin> --json
 litzio review groups approve --input approve.json --host <origin> --json
 litzio review groups reject --input reject.json --host <origin> --json
 litzio review groups undo --input undo.json --host <origin> --json
-litzio review inspection --input inspection.json --host <origin> --json
-litzio review required-checks --input checks.json --host <origin> --json
-litzio review completion --input completion.json --host <origin> --json
+litzio review workspace-progress --input progress.json --host <origin> --json
+litzio review workspace-compare --input compare.json --host <origin> --json
+litzio review workspace-status --input status.json --host <origin> --json
 ```
 
-읽기는 공통 workspace 입력만, 쓰기는 baseline/requestId와 `change`를 추가합니다. 예를 들어 승인 change는
-`{groupId,targetIds,human:{actor,reason,confirmed:true},resolvesIssue:true}`입니다. 일부만 결정하면 미처리 대상을
-옮길 새 remainderGroupId도 필요합니다. Docling target locator는 `{self_ref,cell?}`이고 patch operations는 기존 네
-source-format patch입니다. expectedBefore/after는 operations 순서의 값 배열이며 kind 값은 `{kind,level?}`입니다.
-범위·필드·완료 결과는 [공용 P2 계약](../../docs/design/plugin-stage1-v1.md#review-문제-묶음검사-기록-1462-p2)을 따릅니다.
+교정은 저장된 리치오 문서에 기존 Core 의미 연산으로 적용합니다. 글자는 지정 경로, 종류는 독립 문단↔제목, 제외는 대응 블록 삭제, 칸은 원본 셀에 대응하는 모든 native grid 칸입니다. 종류 교정에서 빠진 머리말 복원과 캡션→제목 분리는 propose 시 이유를 밝혀 거부합니다. 블록 삽입 교정은 후속입니다. `workspace-patch`는 사용하지 않으며 Docling이 거부합니다.
 
-완료 판단/승인 모델과 CLI만 추가하며 화면·AI 실행·렌즈 inventory 자동 추출·공식 export gate는 후속 단계입니다.
-uncertain receipt 뒤에는 동일 requestId의 workspace-status와 workspace read를 마칠 때까지 쓰기가 차단됩니다.
+target locator는 `{self_ref,cell?}`입니다. patch.expectedBefore/after는 현재 리치오 값 배열, before는 같은 예상 전 값입니다. 종류 값은 `{kind,level?}`, 제외 값은 `{excluded,blocks}`(Core editable block에서 path를 제외한 내용)입니다. content/expectedContentRevision은 제안 당시 근거이며 전체 문서 revision이 달라졌다는 이유로 승인하지 못하게 하지 않습니다. 실제 대상의 before 값이 바뀌면 승인·Undo를 거부합니다. 원본 대응 경로는 삭제 뒤 당기고 원본 증거는 남겨 “대응 문단 없음”으로 표시합니다. Undo는 승인 당시 before를 되돌리며 같은 대응 갱신을 사용합니다. 한 묶음의 여러 제외는 원자적으로 처리합니다.
 
+공통 Host는 후보 source·canonical round-trip·실제 경로·revision·이미지 binding을 재검증한 뒤 baseline을 확인하고 `.docling` 전체를 한 번 교체합니다. 실패하면 문서·대응·판단 이력을 함께 보존합니다. uncertain 뒤에는 같은 requestId status와 파일 read를 마치기 전까지 쓰기가 차단됩니다. 재시작 뒤 status는 unknown이며 자동 재전송하지 않습니다.
 
-교정으로 revision이 바뀌어 남은 제안이 stale이거나 Undo로 다시 열린 경우, 현재 자료로 새 묶음을 제안하고
-`change.supersedes:[{groupId,targetIds,replacementGroupId}]`를 함께 보냅니다. replacementGroupId는 같은
-`review groups propose` 요청의 새 groups ID입니다. 기존 proposed 대상은 이력과 새 묶음 링크를 가진
-superseded 상태로 보존되고, 새 묶음은 별도로 승인합니다. 이전 승인·거절을 덮어쓰거나 revision 검사를
-완화하지 않습니다. 같은 이유의 같은 열린 대상은 명시 대체 없이 중복 제안할 수 없습니다. 다른 이유는 각각
-처리해야 합니다. 미지원 제안도 실제 원본 대상이어야 하며, 존재하지 않는 locator는 저장 전에 거부합니다.
+검사·그림/표 필수 확인과 사람 판단 이력, 동결된 묶음 모델은 유지합니다. 검사의 contentRevision은 불변 원본 JSON hash여서 교정 때문에 기존 검사 coverage를 무효화하지 않습니다. 실패 페이지는 `record.failedPages`와 최초 대응에 있고 원본 geometry가 있는 쪽은 기존 unsupported reason으로 표시합니다. 자유 편집·대응 불확실 표시·블록 삽입·분할/합치기·새 비서/검사/화면은 이번 단계에 없습니다.
 
-그림·표의 approved-comparison 확인과 최종 완료는 참조 run의 최신 상태를 현재 revision에서 다시 검증합니다.
-과거 성공 후 최신 상태가 partial/철회/다른 revision이면 확인 근거가 되지 않습니다. 선택 본문 대조를 철회해도
-그림·표는 새 직접 확인 또는 유효한 새 대조로 처리해야 합니다.
+대조·이미지·명시 export는 기존 공용 작업을 사용합니다. 이미지 bytes는 원본 JSON에 한 번만 있고 내부 문서는 `review-asset:<sha256>`를 바인딩합니다. 내보내기는 별도 일반 `.md`이며 기존 파일의 revision과 overwrite:true를 확인합니다. 결과는 아직 검수 완료 선언이나 후속 공식 내보내기가 아닙니다. 상세 현재 계약은 [플러그인 1단계](../../docs/design/plugin-stage1-v1.md#review-workspace-기반-1462-p1a), 검증 기록은 [3단계 설계](../../docs/design/docling-review-stage3.md)를 따릅니다.
 
 ## 측정·실험용 고정 변환 결과
 

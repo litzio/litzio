@@ -89,7 +89,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | Document | Status | Authority / description |
 | --- | --- | --- |
 | [카탈로그 v2](design/catalog-v2.md) | Draft | #1341 이후 남는 query/InputForm/Table·K2/K3/K4·V5와 후속 수락 경계. 생성·저장·Chart 요구는 종료. |
-| [Docling 검수 3단계](design/docling-review-stage3.md) | Draft | #1462 2026-11-11 소유자 확정: 리치오 문서 정본·Core 교정·경로 대응·불변 변환 결과 렌즈·보조 원문 후보·비차단 검증 범위 보고서와 3~7단계 계획. 이전 patch/replay 계획·측정은 대체 이력으로 보존. 구현 완료 아님. |
+| [Docling 검수 3단계](design/docling-review-stage3.md) | Draft | #1462 2026-11-11 소유자 확정: 리치오 문서 정본·Core 교정·경로 대응·불변 변환 결과 렌즈·보조 원문 후보·비차단 검증 범위 보고서와 3~7단계 계획. 3단계는 저장 문서 Core 교정·삭제 대응·before 판정·Undo와 고정 LSR/fixture 검증으로 전환. 이전 patch/replay 계획·측정은 대체 이력이고 4~7단계는 Draft. |
 
 ## UI pattern targets awaiting implementation
 
