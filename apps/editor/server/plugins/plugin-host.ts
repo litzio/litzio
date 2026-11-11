@@ -163,7 +163,8 @@ export class PluginHost {
     }
   }
   async start() {
-    this.assistantSkills.clear();
+    let skillCleanupFailed = false;
+    try { this.assistantSkills.clear(); } catch { skillCleanupFailed = true; }
     for (const item of this.supply) {
       const previous = this.installed[item.id];
       const record: Installed = { registrationId: previous?.registrationId ?? randomUUID(), directory: item.directory, digest: item.digest, enabled: previous?.enabledChoice ?? item.defaultEnabled, enabledChoice: previous?.enabledChoice, bundled: true, settings: previous?.settings ?? {}, operationNames: [] };
@@ -194,6 +195,9 @@ export class PluginHost {
     this.save();
     for (const [id, record] of Object.entries(this.installed)) if (record.enabled && !this.errors.has(id)) {
       try { await this.enable(id); } catch (error) { this.errors.set(id, "Plugin activation failed"); }
+    }
+    if (skillCleanupFailed) for (const id of Object.keys(this.installed)) {
+      if (!this.errors.has(id)) this.errors.set(id, "Assistant skill cleanup failed; reload to recover");
     }
   }
   private async status(live: Loaded) {
@@ -252,10 +256,10 @@ export class PluginHost {
     }, r.directory);
     this.processes.set(id, instance);
     this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
-    try { this.assistantSkills.install(r.directory, a.manifest); }
-    catch (error) { await this.disable(id); throw error; }
     this.disabling.delete(id);
     this.errors.delete(id);
+    try { this.assistantSkills.install(r.directory, a.manifest); }
+    catch { this.errors.set(id, "Assistant skill installation failed; reload to recover"); }
   }
   private declaredSecret(id: string, name: string) {
     const m = this.artifact(this.record(id).directory).manifest;

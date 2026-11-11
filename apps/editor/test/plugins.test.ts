@@ -978,16 +978,17 @@ test("K1 assistant job tools use shared definitions without per-call consent and
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-test("subprocess isolation, fresh artifact reload, trust failure recovery and crash status", async () => {
+test("subprocess isolation, fresh artifact reload, trust failure recovery and crash status", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [], designatedPlugins: [] });
   const connection = new ProviderConnections(path.join(root, "assistant"));
   const skills = path.join(root, "assistant", ".agents", "skills"), installedSkill = path.join(skills, "litzio-plugin-fixture--reload---review");
   const marker = path.join(root, "disposed");
-  const code = (label: string, crash = false) => `import {writeFileSync} from 'node:fs'; export function activate(){${crash ? "setTimeout(()=>process.exit(7),100);" : ""}return {operations:{},status:()=>({available:true,message:${JSON.stringify(label)}+':'+process.pid,folders:[],decorations:[],accounts:[]}),dispose(){writeFileSync(${JSON.stringify(marker)},'disposed')}}}`;
+  const code = (label: string, crash = false) => `import {writeFileSync} from 'node:fs'; export function activate(){${crash ? "setTimeout(()=>process.exit(7),100);" : ""}return {operations:{read:()=> 'available'},status:()=>({available:true,message:${JSON.stringify(label)}+':'+process.pid,folders:[],decorations:[],accounts:[]}),dispose(){writeFileSync(${JSON.stringify(marker)},'disposed')}}}`;
   try {
     const directory = lifecycleFixture(root, "fixture.reload", code("first"));
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
     manifest.requiresSdk = "^0.5.0"; manifest.contributes.skills = [{ id: "review", directory: "skills/review" }];
+    manifest.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }];
     writeFileSync(manifestFile, JSON.stringify(manifest));
     const skillDirectory = path.join(directory, "skills", "review"); mkdirSync(path.join(skillDirectory, "references"), { recursive: true });
     const skillText = (body: string) => `---\nname: review\ndescription: Review a converted document\n---\n${body}\n`;
@@ -1000,7 +1001,24 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     await host.invoke("register", { directory });
     assert.equal(existsSync(installedSkill), false, "registration without trust cannot publish instructions");
     const trust = async () => host.invoke("trust", { id: "fixture.reload", registrationId: (await host.list())[0]!.registrationId });
-    await trust(); await host.invoke("enable", { id: "fixture.reload" });
+    await trust();
+    const copyFault = t.mock.method(fs, "cpSync", ((_source: unknown, target: string) => {
+      mkdirSync(target, { recursive: true }); writeFileSync(path.join(target, "partial.txt"), "Partial copy");
+      throw Object.assign(new Error("simulated ENOSPC during skill copy"), { code: "ENOSPC" });
+    }) as typeof fs.cpSync); syncBuiltinESMExports();
+    try { await host.invoke("enable", { id: "fixture.reload" }); }
+    finally { copyFault.mock.restore(); syncBuiltinESMExports(); }
+    const degraded = (await host.list())[0]!;
+    assert.equal(degraded.running, true); assert.match(degraded.error!, /skill/i);
+    assert.equal((await host.invokeOperation("fixture.reload.read", {})).result, "available");
+    assert.equal(existsSync(installedSkill), false);
+    await host.invoke("reload", { id: "fixture.reload" });
+    assert.equal((await host.list())[0]!.error, undefined);
+    const cleanupFault = t.mock.method(fs, "rmSync", (() => { throw Object.assign(new Error("simulated startup cleanup failure"), { code: "EACCES" }); }) as typeof fs.rmSync); syncBuiltinESMExports();
+    try { await host.start(); } finally { cleanupFault.mock.restore(); syncBuiltinESMExports(); }
+    assert.match((await host.list())[0]!.error!, /skill/i);
+    assert.equal((await host.invokeOperation("fixture.reload.read", {})).result, "available");
+    await host.invoke("reload", { id: "fixture.reload" });
     assert.match(readFileSync(path.join(installedSkill, "SKILL.md"), "utf8"), /name: litzio-plugin-fixture--reload---review/);
     assert.equal(readFileSync(path.join(installedSkill, "references", "evidence.md"), "utf8"), "Original evidence");
     assert.ok(connection.environment().skills.includes(path.basename(installedSkill)));
@@ -1071,6 +1089,12 @@ test("skill validation is nonexecuting and plugin namespaces preserve other cont
         first.contributes.skills = []; manager.install(directories[0]!, first);
         assert.equal(existsSync(path.join(root, "assistant", ".agents", "skills", "litzio-plugin-fixture--first---review")), false);
         assert.equal(existsSync(path.join(root, "assistant", ".agents", "skills", "litzio-plugin-fixture--second---review", "SKILL.md")), true);
+        if (process.platform === "win32") {
+          const skillPath = path.join(root, "assistant", ".agents", "skills", "litzio-plugin-fixture--second---review");
+          const upperPath = path.join(path.dirname(skillPath), path.basename(skillPath).toUpperCase());
+          fs.renameSync(skillPath, upperPath); manager.clear("fixture.second");
+          assert.equal(existsSync(upperPath), false, "Windows cleanup matches namespace aliases without case sensitivity");
+        }
       }
     }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }

@@ -32,7 +32,7 @@ export class PluginAssistantSkills {
   constructor(assistantDirectory: string) { this.directory = path.join(assistantDirectory, ".agents", "skills"); }
   clear(plugin?: string) {
     if (!existsSync(this.directory)) return;
-    for (const name of readdirSync(this.directory)) if (name.startsWith(plugin ? namespace(plugin) : prefix)) {
+    for (const name of readdirSync(this.directory)) if ((process.platform === "win32" ? name.toLowerCase() : name).startsWith(plugin ? namespace(plugin) : prefix)) {
       rmSync(path.join(this.directory, name), { recursive: true, force: true });
     }
   }
