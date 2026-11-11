@@ -1114,6 +1114,13 @@ test("skill validation is nonexecuting and plugin namespaces preserve other cont
         }
       }
     }
+    const doclingDirectory = fileURLToPath(new URL("../../../community-plugins/docling/", import.meta.url));
+    const doclingManifest = validateManifest(JSON.parse(readFileSync(path.join(doclingDirectory, "litzio-plugin.json"), "utf8")));
+    const manager = new PluginAssistantSkills(path.join(root, "assistant"));
+    manager.install(doclingDirectory, doclingManifest);
+    const doclingSkill = path.join(root, "assistant", ".agents", "skills", "litzio-plugin-community--docling---review", "SKILL.md");
+    assert.equal(manager.displayName(doclingSkill), "Docling · 검수");
+    assert.match(readFileSync(doclingSkill, "utf8"), /^name: litzio-plugin-community--docling---review$/m);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

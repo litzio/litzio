@@ -1,5 +1,5 @@
 ---
-name: docling-review
+name: 검수
 description: Docling으로 변환한 PDF의 리치오 검수 작업공간을 검사하고 근거가 있는 국소 교정 묶음을 제안한다. PDF 변환 요청이나 일반 문서 편집이 아니라 변환 결과의 검수·대조 요청에 사용한다.
 ---
 
