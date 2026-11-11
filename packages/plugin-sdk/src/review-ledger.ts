@@ -6,7 +6,7 @@ const opaque = z.record(z.string(), z.unknown());
 const unique = <T>(items: T[]) => new Set(items).size === items.length;
 export const humanReviewSchema = z.strictObject({ actor: id, reason: text, confirmed: z.literal(true) });
 export const reviewInspectionStateSchema = z.enum(["not-inspected", "uncertain", "no-issue"]);
-export const reviewScopeSchema = z.strictObject({ pages: z.array(page).min(1).max(10000).refine(unique), targets: z.array(id).max(10000).refine(unique) });
+export const reviewScopeSchema = z.strictObject({ pages: z.array(page).max(10000).refine(unique), targets: z.array(id).max(10000).refine(unique) });
 const region = z.strictObject({ page, bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]), ref: id });
 export const reviewGroupTargetSchema = z.strictObject({
   id, locator: opaque, pages: z.array(page).max(10000), regions: z.array(region).max(10000), before: z.unknown(),
@@ -34,6 +34,9 @@ export const requiredReviewCheckSchema = z.strictObject({
   disposition: z.enum(["supported", "unsupported", "excluded", "furniture"]), derivedFrom: z.array(id).max(10000),
 });
 const inspection = z.strictObject({ runId: id, lens: id, contentRevision: hash, scope: reviewScopeSchema, state: reviewInspectionStateSchema, evidence: text });
+export const reviewInspectionKindSchema = z.strictObject({
+  kind: id, required: z.boolean(), scope: reviewScopeSchema, extracted: z.boolean(),
+});
 const checkRecord = z.strictObject({ targetIds: z.array(id).min(1).max(10000).refine(unique), contentRevision: hash,
   result: z.enum(["no-issue", "uncertain"]),
   method: z.enum(["direct", "approved-comparison"]), human: humanReviewSchema, runId: id.nullable(),
@@ -42,11 +45,12 @@ const bodyComparison = z.strictObject({ contentRevision: hash, scope: reviewScop
 export const reviewLedgerSchema = z.strictObject({
   version: z.literal(1), revision: id,
   inventory: z.strictObject({ contentRevision: hash, pages: z.array(page).min(1).max(10000).refine(unique), targets: z.array(id).max(10000).refine(unique),
-    lenses: z.array(id).min(1).max(100).refine(unique), requiredChecks: z.array(requiredReviewCheckSchema).max(10000), complete: z.boolean() }).nullable(),
+    lenses: z.array(reviewInspectionKindSchema).min(1).max(100).refine(kinds => unique(kinds.map(k => k.kind))), requiredChecks: z.array(requiredReviewCheckSchema).max(10000), complete: z.boolean() }).nullable(),
   groups: z.array(reviewGroupSchema).max(10000), inspections: z.array(inspection).max(10000), checks: z.array(checkRecord).max(10000), comparisons: z.array(bodyComparison).max(10000),
   approval: z.strictObject({ ledgerRevision: id, contentRevision: hash, snapshotHash: hash, human: humanReviewSchema, at: z.iso.datetime() }).nullable(),
 }).superRefine((ledger, ctx) => {
   if (!unique(ledger.groups.map(g => g.id)) || ledger.inventory && !unique(ledger.inventory.requiredChecks.map(c => c.id))) ctx.addIssue({ code: "custom", message: "Duplicate review identity" });
+  if (ledger.inventory?.lenses.some(kind => kind.scope.pages.some(p => !ledger.inventory!.pages.includes(p)) || kind.scope.targets.some(t => !ledger.inventory!.targets.includes(t)))) ctx.addIssue({ code: "custom", message: "Inspection kind outside inventory" });
 });
 export type ReviewLedger = z.infer<typeof reviewLedgerSchema>;
 export type ReviewGroupTarget = z.infer<typeof reviewGroupTargetSchema>;
@@ -97,11 +101,11 @@ function assertNoOpenDuplicate(groups: readonly z.infer<typeof reviewGroupSchema
 export function evaluateReviewCompletion(ledger: ReviewLedger, contentRevision: string, snapshotHash: string | null, current: boolean) {
   const incomplete: string[] = [], inventory = ledger.inventory;
   if (!inventory || !inventory.complete || inventory.contentRevision !== contentRevision) incomplete.push("inventory-incomplete-or-stale");
-  if (inventory) for (const lens of inventory.lenses) {
-    const runs = ledger.inspections.filter(i => i.lens === lens && i.contentRevision === contentRevision);
+  if (inventory) for (const lens of inventory.lenses.filter(kind => kind.required)) {
+    const runs = ledger.inspections.filter(i => i.lens === lens.kind && i.contentRevision === contentRevision);
     // Latest observation for each page/item owns its state; an older success cannot hide a failed rerun.
     const covered = (key: "pages" | "targets", value: number | string) => [...runs].reverse().find(i => (i.scope[key] as (string | number)[]).includes(value))?.state === "no-issue";
-    if (!inventory.pages.every(p => covered("pages", p)) || !inventory.targets.every(t => covered("targets", t))) incomplete.push(`lens-incomplete:${lens}`);
+    if (!lens.extracted || !lens.scope.pages.every(p => covered("pages", p)) || !lens.scope.targets.every(t => covered("targets", t))) incomplete.push(`lens-incomplete:${lens.kind}`);
   }
   if (ledger.groups.some(g => g.targets.some(t => t.proposal !== "superseded" && (!t.resolved || t.inspection !== "no-issue" || t.result === "uncertain" || t.result === "regeneration-required")))) incomplete.push("open-or-uncertain-groups");
   if (inventory?.requiredChecks.some(c => {
@@ -157,7 +161,7 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
   } else if (change.kind === "inspection") {
     if ([...change.records, ...change.comparisons].some(r => r.contentRevision !== context.contentRevision)) throw new Error("Stale inspection");
     const inventory = ledger.inventory;
-    if (!inventory || change.records.some(r => !inventory.lenses.includes(r.lens) || r.scope.pages.some(p => !inventory.pages.includes(p)) || r.scope.targets.some(t => !inventory.targets.includes(t)))) throw new Error("Inspection outside declared inventory");
+    if (!inventory || change.records.some(r => !inventory.lenses.some(kind => kind.kind === r.lens) || r.scope.pages.some(p => !inventory.pages.includes(p)) || r.scope.targets.some(t => !inventory.targets.includes(t)))) throw new Error("Inspection outside declared inventory");
     for (const next of change.comparisons) {
       const previous = [...ledger.comparisons].reverse().find(c => c.runId === next.runId && c.contentRevision === context.contentRevision);
       if (previous?.selected && !previous.withdrawn && !next.withdrawn && (!next.selected || previous.scope.pages.some(p => !next.scope.pages.includes(p)) || previous.scope.targets.some(t => !next.scope.targets.includes(t)))) throw new Error("Selected comparison withdrawal requires human evidence");
@@ -173,7 +177,14 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
         const next = change.inventory!.requiredChecks.find(n => n.id === c.id)!;
         return next.kind !== c.kind || JSON.stringify([next.locator,next.pages]) !== JSON.stringify([c.locator,c.pages]);
       })) throw new Error("Required source identity cannot be reassigned");
-      if (ledger.inventory?.contentRevision === context.contentRevision && (["pages", "targets", "lenses"] as const).some(key => ledger.inventory![key].some(value => !(change.inventory![key] as (number|string)[]).includes(value)))) throw new Error("Current inspection inventory cannot shrink");
+      if (ledger.inventory?.contentRevision === context.contentRevision) {
+        if ((["pages", "targets"] as const).some(key => ledger.inventory![key].some(value => !(change.inventory![key] as (number|string)[]).includes(value)))) throw new Error("Current inspection inventory cannot shrink");
+        if (ledger.inventory.lenses.some(kind => {
+          const next = change.inventory!.lenses.find(n => n.kind === kind.kind);
+          return !next || kind.required && !next.required || kind.extracted && !next.extracted ||
+            kind.scope.pages.some(p => !next.scope.pages.includes(p)) || kind.scope.targets.some(t => !next.scope.targets.includes(t));
+        })) throw new Error("Current inspection kinds and scopes cannot shrink");
+      }
       ledger.inventory = change.inventory;
     }
     for (const record of change.records) {
