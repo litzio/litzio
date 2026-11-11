@@ -86,7 +86,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const visibleSubmissions = submissions.filter(value => value.hostId === hostId && value.provider === provider &&
     (conversation ? (value.conversationId ?? value.receipt.conversationId) === conversation.id : value.conversationId === undefined));
   const submitted = useRef(visibleSubmissions); submitted.current = visibleSubmissions;
-  const applySubmission = (result: AssistantSubmissionResult) => {
+  const applySubmission = (result: AssistantSubmissionResult, updateConversation = true) => {
     setSubmissions(previous => {
       const accepted = result.submission.status === "accepted" && !result.submission.turnFailed;
       const restored = accepted ? previous.find(value => value.hostId === hostId && value.receipt.id === result.submission.id)?.restores ?? [] : [];
@@ -94,7 +94,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         receipt: value.receipt.status === "accepted" && ["pending", "rejected"].includes(result.submission.status) || value.receipt.status === "unknown" && result.submission.status === "pending"
           ? value.receipt : { ...result.submission, ...(value.receipt.turnFailed ? { turnFailed: true } : {}), ...((result.submission.status === "unknown" || value.receipt.turnFailed) && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value);
     });
-    if (result.conversation) { setConversation(result.conversation); setPermissionMode(result.conversation.permissionMode ?? permissionMode); rememberConversation(conversationKey, result.conversation.id); }
+    if (result.conversation && updateConversation) { setConversation(result.conversation); setPermissionMode(result.conversation.permissionMode ?? permissionMode); rememberConversation(conversationKey, result.conversation.id); }
   };
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
@@ -261,56 +261,73 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
       return changed || retained.length !== previous.length ? retained : previous;
     });
   }, [conversation, hostId, setSubmissions]);
+  const snapshotPending = useRef(false), receiptsPending = useRef(false), windowWorkPending = useRef(false);
   useEffect(() => {
     if (!observe || !observationReady || !enabled || setup) return;
-    let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
+    let alive = true, timer: ReturnType<typeof setTimeout> | undefined;
+    let startedAt = 0;
     const schedule = () => {
-      if (alive && document.visibilityState === "visible" && !polling && timer === undefined) timer = setTimeout(poll, 600);
+      const running = current.current?.turns.some(turn => turn.status === "inProgress") || submitted.current.some(value => value.receipt.status === "pending");
+      const delay = running ? Math.max(0, 100 - (performance.now() - startedAt)) : 600;
+      if (alive && document.visibilityState === "visible" && timer === undefined) timer = setTimeout(poll, delay);
     };
     const poll = async () => {
       timer = undefined;
       if (!alive || document.visibilityState !== "visible") return;
-      polling = true;
+      if (snapshotPending.current) { startedAt = performance.now(); schedule(); return; }
+      startedAt = performance.now();
       const scope = submissionScope.current;
-      // Resolve submissions in this same nonoverlapping poll, including a lost first POST.
-      for (const value of submitted.current) {
-        if (value.receipt.status === "rejected" || current.current?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))) continue;
-        try {
-          const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
-          if (alive && scope === submissionScope.current && document.visibilityState === "visible") applySubmission(result);
-        } catch { /* Acceptance stays uncertain; never replay the message. */ }
-        if (!alive || scope !== submissionScope.current) { polling = false; schedule(); return; }
+      const valid = () => alive && scope === submissionScope.current && document.visibilityState === "visible";
+      // Receipt lookup never blocks text or replaces a newer same-conversation snapshot.
+      if (!receiptsPending.current) {
+        receiptsPending.current = true;
+        void (async () => {
+          for (const value of submitted.current) {
+            if (value.receipt.status === "rejected" || current.current?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))) continue;
+            try {
+              const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
+              if (valid()) applySubmission(result, !current.current);
+            } catch { /* Acceptance stays uncertain; never replay the message. */ }
+            if (!valid()) return;
+          }
+        })().finally(() => { receiptsPending.current = false; });
       }
       const id = current.current?.id;
-      if (!id || !alive || document.visibilityState !== "visible") { polling = false; schedule(); return; }
+      if (!id || !valid()) { schedule(); return; }
+      snapshotPending.current = true;
       const pollStartedAt = performance.now();
       try { const next = await request<AssistantConversation & DisplaySnapshot & ScreenSnapshot & ScreenActionSnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}${panelOpen.current ? `&displayClient=${encodeURIComponent(displayClient)}` : ""}`);
-        if (alive && document.visibilityState === "visible") {
-          if (panelOpen.current && next.screenActionRequest && displayRequestCurrent(next.screenActionRequest, pollStartedAt)) {
-            const command = next.screenActionRequest;
-            let reply = actionReplies.current.get(command.id);
-            if (!reply) {
-              try { reply = await actionHandler.current(command.action); }
-              catch { reply = { outcome: "uncertain", completed: [], remaining: [{ target: "request", reason: "Window action failed; query screen state before retrying." }] }; }
-              actionReplies.current.set(command.id, reply);
-            }
-            await request(ASSISTANT.conversationsRoute, { action: "screen-action-result", id, displayClient, requestId: command.id, reply });
+        if (valid()) {
+          setConversation(next);
+          if (!windowWorkPending.current) {
+            windowWorkPending.current = true;
+            void (async () => {
+              if (valid() && panelOpen.current && next.screenActionRequest && displayRequestCurrent(next.screenActionRequest, pollStartedAt)) {
+                const command = next.screenActionRequest;
+                let reply = actionReplies.current.get(command.id);
+                if (!reply) {
+                  try { reply = await actionHandler.current(command.action); }
+                  catch { reply = { outcome: "uncertain", completed: [], remaining: [{ target: "request", reason: "Window action failed; query screen state before retrying." }] }; }
+                  actionReplies.current.set(command.id, reply);
+                }
+                await request(ASSISTANT.conversationsRoute, { action: "screen-action-result", id, displayClient, requestId: command.id, reply });
+              }
+              if (valid() && panelOpen.current && next.screenRequest && displayRequestCurrent(next.screenRequest, pollStartedAt)) {
+                await request(ASSISTANT.conversationsRoute, { action: "screen-result", id, displayClient, requestId: next.screenRequest.id, reply: screenHandler.current() });
+              }
+              if (valid() && panelOpen.current && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
+                const command = next.displayRequest;
+                // An ACK can be lost; retransmit the reply, never apply the request twice.
+                let reply = displayReplies.current.get(command.id);
+                if (!reply) { reply = await displayHandler.current(command, pollStartedAt); displayReplies.current.set(command.id, reply); }
+                await request(ASSISTANT.conversationsRoute, { action: "display-result", id, displayClient, requestId: command.id, reply });
+              }
+            })().catch(error => { if (valid()) setProblem(i18n.t(error.message, { defaultValue: error.message })); }).finally(() => { windowWorkPending.current = false; });
           }
-          if (panelOpen.current && next.screenRequest && displayRequestCurrent(next.screenRequest, pollStartedAt)) {
-            await request(ASSISTANT.conversationsRoute, { action: "screen-result", id, displayClient, requestId: next.screenRequest.id, reply: screenHandler.current() });
-          }
-          if (panelOpen.current && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
-            const command = next.displayRequest;
-            // An ACK can be lost; retransmit the reply, never apply the request twice.
-            let reply = displayReplies.current.get(command.id);
-            if (!reply) { reply = await displayHandler.current(command, pollStartedAt); displayReplies.current.set(command.id, reply); }
-            await request(ASSISTANT.conversationsRoute, { action: "display-result", id, displayClient, requestId: command.id, reply });
-          }
-          if (alive && document.visibilityState === "visible") setConversation(next);
         }
       }
-      catch (error) { if (alive && document.visibilityState === "visible") setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); }
-      polling = false;
+      catch (error) { if (valid()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); }
+      snapshotPending.current = false;
       schedule();
     };
     const visibilityChanged = () => {
@@ -347,7 +364,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, displayClient, id: conversation?.id, message: value,
         provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, reviewWorkspace: reviewWorkspacePath ? {path:reviewWorkspacePath} : undefined, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(120_000));
-      if (isCurrent()) applySubmission(result);
+      if (isCurrent()) applySubmission(result, current.current === conversation);
     } catch (error) {
       if (isCurrent()) setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted" ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
     }
@@ -431,6 +448,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     if (isCurrent()) setConversation(next);
   });
   const submissionActions = (value: AssistantLocalSubmission, failure?: string) => {
+    if (value.receipt.status === "accepted" && !value.receipt.turnFailed && !failure) return null;
     const status = failure || value.receipt.status === "accepted" ? "unknown" : value.receipt.status;
     const error = failure ?? value.receipt.error;
     return <div className="assistant-submission-status">
@@ -443,8 +461,9 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         }}>{i18n.t("Restore to input")}</Button>
       </TooltipTrigger><TooltipContent>{i18n.t("Restore after clearing your current draft.")}</TooltipContent></Tooltip> : null}
       {status === "unknown" ? <Tooltip><TooltipTrigger render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void run(async isCurrent => {
+        const before = current.current;
         const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
-        if (isCurrent()) applySubmission(result);
+        if (isCurrent()) applySubmission(result, current.current === before);
       })}>{i18n.t("Check conversation")}</TooltipTrigger><TooltipContent>{i18n.t("Check acceptance without sending this message again.")}</TooltipContent></Tooltip> : null}
       {status !== "pending" ? <Tooltip><TooltipTrigger render={<Button variant="ghost" size="sm" disabled={pending} />} onClick={() => {
         submissionScope.current++;
@@ -520,7 +539,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
             {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
           </div>)}
           <div role="group" aria-label={i18n.t("Assistant response")}>
-            {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
+            {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} />)}
           </div>
           {turn.items.filter(item => item.question).map(item => <AssistantQuestion key={item.id} question={item.question!} disabled={pending || !ready || !enabled || !!setup} submit={answers => submitAnswer(item.question!, answers)} />)}
           {turn.items.map(item => {
