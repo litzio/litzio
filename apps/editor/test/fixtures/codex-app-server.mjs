@@ -3,6 +3,7 @@ import { createInterface } from "node:readline";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { CliDiagnostics } from "../../../../test/helpers/cli-diagnostics.ts";
 const [log, mode] = process.argv.slice(2);
 const record = value => { if (log) appendFileSync(log, JSON.stringify(value) + "\n"); };
 record({ pid: process.pid, cwd: process.cwd(), home: process.env.CODEX_HOME ?? null });
@@ -28,8 +29,16 @@ createInterface({ input: process.stdin }).on("line", line => {
     send({ id: pending.id, result: message }); return;
   }
   if (method === "fixture/cli") {
+    const diagnostics = new CliDiagnostics([params.command, ...params.args]);
     const result = spawnSync(params.command, params.args, { encoding: "utf8", shell: process.platform === "win32", windowsHide: true, timeout: 10000 });
-    send({ id, result: { status: result.status, stdout: result.stdout, stderr: result.stderr, path: process.env.PATH } }); return;
+    let stderr = result.stderr;
+    if (result.error || result.status !== 0) {
+      diagnostics.mark("spawnSync returned", { pid: result.pid, status: result.status, signal: result.signal,
+        error: result.error && { message: result.error.message, code: result.error.code },
+        exitAndClose: "not observable separately with spawnSync" });
+      stderr = `${stderr ?? ""}\n${diagnostics.format(result.stdout ?? "", stderr ?? "")}`;
+    }
+    send({ id, result: { status: result.status, stdout: result.stdout, stderr, path: process.env.PATH } }); return;
   }
   if (method === "fixture/tool") {
     const callId = randomUUID(), turn = threads[params.threadId].turns.at(-1);
