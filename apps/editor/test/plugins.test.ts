@@ -742,9 +742,17 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     const readOnly = { ...settings, permissionMode: "read-only" as const };
     const restricted = await conversations.send({ message: "Inspect only", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, readOnly, "window-a");
     for (const name of ["read", "connection"]) {
-      const denied = await invoke(`fixture.lookup.${name}`, { mode: "success" }, restricted.id);
-      assert.equal(denied.success, false); assert.equal(denied.errorKind, "forbidden"); assert.equal(denied.activity.outcome, "refused");
+      const allowed = await invoke(`fixture.lookup.${name}`, name === "read" ? { mode: "success" } : {}, restricted.id);
+      assert.equal(allowed.success, true); assert.equal(allowed.receipt.outcome, "success");
     }
+    for (const name of ["hidden", "write"]) {
+      const denied = await invoke(`fixture.lookup.${name}`, {}, restricted.id);
+      assert.equal(denied.success, false); assert.equal(denied.errorKind, "forbidden");
+      assert.equal(denied.activity.outcome, "refused");
+      assert.match(denied.error, /assistant:true/); assert.match(denied.error, /Broader turn permissions do not enable/);
+    }
+    const redacted = await invoke("fixture.lookup.read", { mode: "success" }, restricted.id);
+    assert.deepEqual(redacted.result, ["output-only-marker", "[secret]"]);
     await connection.client.request("fixture/finish", { threadId: restricted.id });
     await host.invoke("disable", { id: manifest.id });
     await assert.rejects(host.invokeAssistantOperation("fixture.lookup.read", { mode: "success" }), (error: any) => error.kind === "unavailable");

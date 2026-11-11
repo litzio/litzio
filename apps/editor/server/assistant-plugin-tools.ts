@@ -36,7 +36,7 @@ export async function executeReadReviewDocument(host: ReviewHost, input: unknown
 }
 
 const pluginOperationInput = z.strictObject({ operation: z.string().min(1), input: z.unknown().refine(value => value !== undefined) });
-export const pluginOperationTools = [{ type: "function", name: "invoke_plugin_operation", description: "Invoke a declared assistant:true read operation or health check on this conversation's Host. Inspect manage_plugins list for full operation names and input schemas. Supply comparison targets as operation input, never settings. Read-only turns cannot invoke. No per-call approval. Activity contains metadata only; never supply secrets.", inputSchema: { type: "object", properties: { operation: { type: "string" }, input: {} }, required: ["operation", "input"], additionalProperties: false } }];
+export const pluginOperationTools = [{ type: "function", name: "invoke_plugin_operation", description: "Invoke a declared assistant:true read operation or health check on this conversation's Host. Inspect manage_plugins list for full operation names and input schemas. Supply comparison targets as operation input, never settings. Read-only turns may invoke these reads. No per-call approval. Activity contains metadata only; never supply secrets.", inputSchema: { type: "object", properties: { operation: { type: "string" }, input: {} }, required: ["operation", "input"], additionalProperties: false } }];
 
 export async function executePluginOperationTool(host: PluginHost, input: unknown, scope: DocumentToolScope) {
   const activity: { operation?: string; outcome: string; at: number; receipt?: Awaited<ReturnType<PluginHost["invokeOperation"]>>["receipt"] } = { outcome: "refused", at: Date.now() };
@@ -44,14 +44,13 @@ export async function executePluginOperationTool(host: PluginHost, input: unknow
     const args = pluginOperationInput.parse(input);
     // Only declared names may enter activity, never arbitrary input or output text.
     if (host.viewOperationOwner(args.operation)) activity.operation = args.operation;
-    if (!["opened-folders", "full-access"].includes(scope.permissionMode))
-      return { errorKind: "forbidden", error: "Plugin operations are unavailable in read-only turns.", activity };
     const result = await host.invokeAssistantOperation(args.operation, args.input);
     activity.outcome = result.receipt.outcome;
     activity.receipt = result.receipt;
     return { ...result, activity };
   } catch (error) {
-    return { ...publicOperationError(error, "read"), activity };
+    const failure = publicOperationError(error, "read");
+    return { ...failure, ...(failure.errorKind === "forbidden" ? { error: "Plugin operation refused: the assistant requires a declared read operation with assistant:true, or a health check. Broader turn permissions do not enable writes or private operations through this tool; use the dedicated authorized workflow." } : {}), activity };
   }
 }
 
