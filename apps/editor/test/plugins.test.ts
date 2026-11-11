@@ -559,14 +559,16 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       assert.equal((await invoke("request_litzio_user_input",{questions:[{title:"Wrong estimate"}],reviewImage:{...assistantBase,selection,estimateHash:"0".repeat(64)}})).value.accepted,false);
       const declined=ask();for(let attempt=0;!c.userInput && attempt<100;attempt++)await new Promise(resolve=>setTimeout(resolve,10));
       const declineQuestion=c.userInput!;conversations.questionVisible(c.id,declineQuestion.turnId,declineQuestion.requestId,"review-window");await declined;
-      await conversations.answer(c.id,declineQuestion.turnId,declineQuestion.requestId,{"0":{answers:["Decline"]}},"review-window");
+      await conversations.answer(c.id,declineQuestion.turnId,declineQuestion.requestId,{"0":{answers:["decline"]}},"review-window");
       assert.equal((await read()).ledger.comparisons.length,0,"declining grants no image scope");
       const pending=ask();for(let attempt=0;!c.userInput && attempt<100;attempt++)await new Promise(resolve=>setTimeout(resolve,10));
       assert.ok(c.userInput);const q=c.userInput!;
-      assert.match(q.questions[0].question,new RegExp(String(estimate.estimatedInputTokens)));assert.match(q.questions[0].question,/#\/texts\/0/);
+      assert.equal(q.reviewImageEstimate?.estimatedInputTokens, estimate.estimatedInputTokens); assert.deepEqual(q.reviewImageEstimate?.targets, selection.targets);
+      assert.equal(q.questions[0].isOther, false);
       conversations.questionVisible(c.id,q.turnId,q.requestId,"review-window");assert.equal((await pending).value.accepted,true);
+      await assert.rejects(async () => conversations.answer(c.id,q.turnId,q.requestId,{"0":{answers:["승인"]}},"review-window"), /Invalid question answers/);
       assert.equal((await read()).ledger.comparisons.length,0,"display acceptance never authorizes images");
-      await conversations.answer(c.id,q.turnId,q.requestId,{"0":{answers:["Approve image comparison"]}},"review-window");
+      await conversations.answer(c.id,q.turnId,q.requestId,{"0":{answers:["approve"]}},"review-window");
       const run=(await read()).ledger.comparisons.at(-1);assert.equal(run.selected,true);
       const inspection={contentRevision:opened.contentRevision,lens:"source-evidence",scope:selection,state:"uncertain",evidence:"Local original comparison is uncertain; no quality claim"};
       const record=()=>invoke("record_review_inspection",{...assistantBase,imageRunId:run.runId,records:[inspection]});
@@ -1091,6 +1093,12 @@ test("skill validation is nonexecuting and plugin namespaces preserve other cont
       writeFileSync(path.join(source, "SKILL.md"), "---\nname: review\ndescription: Review\n---\nProcedure");
       await host.invoke("register", { directory });
       const manager = new PluginAssistantSkills(path.join(root, "assistant"));
+      manager.install(directory, validateManifest(manifest));
+      const copied = path.join(root, "assistant", ".agents", "skills", `litzio-plugin-${manifest.id.replaceAll(".", "--")}---review`, "SKILL.md");
+      assert.equal(manager.displayName(copied), `${manifest.name} · review`);
+      assert.match(readFileSync(copied, "utf8"), /name: litzio-plugin-/);
+      manager.clear(manifest.id);
+      assert.equal(manager.displayName(copied), undefined);
       manager.install(directory, validateManifest(manifest));
       if (index === 1) {
         assert.ok(existsSync(path.join(root, "assistant", ".agents", "skills", "litzio-plugin-fixture--first---review", "SKILL.md")));
