@@ -424,13 +424,14 @@ function EditorApp() {
       const file = tabs.find(tab => tab.id === item.id);
       const view = viewTabs.find(tab => tab.id === item.id);
       const owner = sessions.current.get(item.id);
+      const staged = view && "assistantChange" in view ? view.assistantChange as { path: string } | undefined : undefined;
       const kind: ScreenTab["kind"] = file ? (owner?.kind ?? file.file.kind) === "text" ? "text" : "document"
         : item.id === "settings" ? "settings" : item.id === "templates" ? "templates"
-        : view && "assistantChange" in view && view.assistantChange ? "staged-comparison" : view?.pdf ? "pdf" : view?.comparison ? "comparison" : view?.screen ? "plugin" : view?.jobs ? "plugin-jobs"
+        : staged ? "staged-comparison" : view?.pdf ? "pdf" : view?.comparison ? "comparison" : view?.screen ? "plugin" : view?.jobs ? "plugin-jobs"
         : view?.view?.profile === "review" ? "review" : "plugin";
       return { id: item.id, kind, hostId: item.hostId ?? null,
         title: "title" in item && item.title ? item.title : splitDocumentPath(item.path).name,
-        ...(kind !== "settings" && kind !== "templates" ? { path: view?.comparison ? `${view.comparison.root}/${comparisonPath(view.comparison)}` : item.path } : {}),
+        ...(kind !== "settings" && kind !== "templates" ? { path: staged ? staged.path : view?.comparison ? `${view.comparison.root}/${comparisonPath(view.comparison)}` : item.path } : {}),
         unsaved: Boolean(owner && (owner.documentDirty || owner.draftActive || owner.editorRef.current?.hasUnsavedChanges())) };
     });
     return { activeTab: screenTabs.find(tab => tab.id === activeId) ?? null, tabs: screenTabs,

@@ -20,4 +20,3 @@ export function screenInfo(value: ScreenInfo): ScreenInfo {
   });
   return { activeTab, tabs, folders };
 }
-
