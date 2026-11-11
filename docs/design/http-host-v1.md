@@ -342,7 +342,7 @@ Owner-initiated stage 1 provides [the shared plugin management contract](plugin-
 
 Node.js `>=24.22.1 <25` is required: 24.22.1 is the first 24.x release fixing
 [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
-CI uses 24.22.2; Desktop pins [Electron 44.11.1](https://releases.electronjs.org/release/v44.11.1)
+CI uses 24.22.2; Desktop pins [Electron 45.3.0](https://releases.electronjs.org/release/v45.3.0)
 with Node 24.22.2. Updating Desktop does not update a separately installed system Node
 or an already running shared daemon. Operators must update system Node and restart those daemons.
 
@@ -371,11 +371,42 @@ paths; the shared runtime update protects its Node decoder too.
 The direct `undici` dependency stays at 7.30.1, matching the
 [Node 24.22.1 security release](https://nodejs.org/en/blog/release/v24.22.1).
 A package-only update cannot replace Node's native Brotli decoder. Electron release notes
-44.8.0, 44.9.0, 44.10.0, 44.10.1, 44.10.2, 44.11.0 and 44.11.1 were reviewed;
-none declares breaking changes requiring application migration.
+44.8.0–44.11.1 and the [45.0 breaking changes](https://www.electronjs.org/docs/latest/breaking-changes#breaking-api-changes-450) were reviewed. The owner selected stable 45.3.0; application migration was not required for the paths below.
 
 The existing packaged CLI verification (`apps/desktop/test/packaged/cli-check.ts`) reads
 `process.versions.node` from the actual packaged executable using `ELECTRON_RUN_AS_NODE`
 and checks the security floor independently of generated CLI engines. It is already called by
 Desktop packaged/update checks; Windows packaging and update regressions run in merge queue
 and release CI, while PR CI runs the selected Linux checks. Historical runtime evidence is unchanged.
+
+### Electron 45 compatibility evidence (2026-11-11)
+
+| 공식 변경 | Litzio 대조·검증 |
+| --- | --- |
+| sandbox preload Node shim/Buffer 제거 | `preload.ts:3`은 electron만 import. 제거된 전역/모듈 사용 없음. 실제 packaged renderer의 info/daemon/update IPC 통과. |
+| native EventEmitter | `preload.ts:8,55`의 on/send/invoke/removeListener만 사용. 실제 update-state 구독·checking→available→downloading→downloaded·구독 해제 통과. static events helper 사용 없음. |
+| display-capture 권한명 | `main.ts:615`의 모든 권한 거부 정책 유지. 캡처 허용 기능 없음. 실제 OS 화면 캡처 권한 수락은 검증 대상 아님. |
+| ASAR descriptor | `package.ts:44`의 ASAR 유지. raw fd를 native addon/stdio/socket으로 전달하는 경로 없음. packaged ASAR의 main/preload/renderer 로딩·NSIS 자산 검증 통과. CLI/플러그인은 resources/cli의 외부 파일로 실행. |
+| 비 sandbox 부모 window.open | `main.ts:481`은 sandbox=true, `main.ts:572`는 child 생성을 deny하고 외부 열기로 전달. 해당 비 sandbox 부모 경로 없음. |
+| worker/subframe Node·DevTools extension preload·legacy desktop capture | Node integration과 캡처/extension 기능을 사용하지 않음. 앞의 세 변경은 44.3에도 backport되어 이번 44.7→45 차이 아님. |
+| contentTracing heap/format·requestStorageAccessFor·safeStorage deprecation | 현재 Desktop에서 해당 API 사용 없음. |
+
+Electron 45.3.0 / Node 24.22.2 / Chromium 156.0.8078.96을 실제 packaged main에서 확인했다.
+같은 probe에서 daemon 실행 파일과 plugin child의 실행 파일·부모 PID를 대조했고 plugin child의
+`ELECTRON_RUN_AS_NODE=1`, Electron 45.3.0, Node 24.22.2를 확인했다.
+업데이트 probe는 임시 로컬 GitHub 형태 feed와 실제 빌드 installer를 사용해 production preload→IPC→
+electron-updater 6.8.9→Electron net의 확인·다운로드·체크섬 및 이벤트 전달을 검증했다.
+로컬 사본의 feed 설정은 finally에서 복원했고 설치·재시작·공개 서비스·서명 수락은 수행하지 않았다.
+실제 install/update lifecycle은 격리된 Windows merge-queue/release CI에 남는다.
+기존 electron-builder 26.15.3으로 Windows x64 NSIS 패키징과 자산 검증이 통과해 builder 갱신은 하지 않았다.
+
+로컬 45.3.0 packaged 전체 실행은 13건 중 11건 통과했다. 두 실패 중 하나는 Chromium 156에서
+CSS custom-property `#fff`와 Electron 배경색 `#ffffff`를 문자열로 비교하던 검사였다.
+CSS 파서로 기대 색상을 정규화하도록 검사만 수정했으며 같은 색상 일치·timeout을 유지했다.
+수정된 파일 열기/저장·테마·재시작 검사의 대상 실행 1건은 통과했다. 나머지 caption 검사는
+44.11.1에서도 실패했던 foreground guard이며, 추가 진단상 Win32 `GetForegroundWindow()`가 0을
+반환해 화면 샘플링 전에 거부됐다. 픽셀 단언은 바꾸지 않았다. 이는 로컬 foreground 환경 부재의
+근거지만 44.7.0 기준 실행을 하지 않았으므로 이 PR 전체와 무관함을 완전히 증명한 것은 아니다.
+실제 native caption 픽셀 검증은 Windows CI에 남는다. 새 진단은 실패 시 HWND·owner만 추가한다.
+업데이트 probe의 differential download는 이전 설치본 cache 부재로 full download에 fallback해
+성공했다. 실제 차등 적용·설치·재시작 성공으로 확대 해석하지 않는다.
