@@ -371,6 +371,7 @@ export class AssistantConversations {
     if (typeof callId !== "string" || !callId.trim()) return result(false, "Invalid question call ID.");
     if (!input || Object.keys(input).some(key => !["questions","reviewImage"].includes(key)) || !Array.isArray(input.questions) || input.questions.some((q: any) => !q || Object.keys(q).some(key => !["title", "options"].includes(key)))) return result(false, "Invalid question input.");
     let reviewImage: AssistantQuestionRecord["reviewImage"];
+    let reviewImageEstimate: AssistantQuestionRecord["reviewImageEstimate"];
     if (input.reviewImage !== undefined) {
       try {
         reviewImage=parseReviewImageQuestion(input.reviewImage);
@@ -378,13 +379,17 @@ export class AssistantConversations {
         const {estimateHash,...request}=reviewImage!;
         const estimate=await executeReviewAssistantTool(this.plugins,"estimate_review_images",request,this.scopes.get(conversation.id)!);
         if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw new Error("Image estimate changed; calculate again");
-        input={...input,questions:[{title:`Image comparison: ${estimate.pageCount} pages, ${estimate.regionCount} regions, estimated input ${estimate.estimatedInputTokens} tokens. Pages: ${request.selection.pages.join(", ")}. Targets: ${request.selection.targets.join(", ") || "whole pages"}. ${estimate.estimation}. Approve this scope?`,options:["Approve image comparison","Decline"]}]};
+        reviewImageEstimate = { ...request.selection, pageCount: estimate.pageCount, regionCount: estimate.regionCount, estimatedInputTokens: estimate.estimatedInputTokens };
+        input={...input,questions:[{title:"Review image comparison",options:["approve","decline"]}]};
       }catch(error){return result(false,String(error));}
     }
     const item = itemFrom({ type: "agentMessage", id: `question-${callId}`, text: "", delivery: "async", questions: input.questions.map((q: any) => ({ ...q, options: q.options ?? null })) }, "provider-live", turn.id)!;
     const question = item.question!;
     if (question.status !== "pending") return result(false, "Invalid question input.");
-    if(reviewImage)question.reviewImage=reviewImage;
+    if(reviewImage) {
+      question.reviewImage=reviewImage; question.reviewImageEstimate=reviewImageEstimate;
+      question.questions[0]!.isOther=false;
+    }
     question.requiresDisplayAck = true;
     turn.items.push(item); this.refreshQuestion(conversation);
     try {
@@ -459,7 +464,7 @@ export class AssistantConversations {
         if(!conversation.turns.some(turn=>turn.id===question.turnId && turn.status==="inProgress") || this.scopes.get(conversation.id)?.turnId!==question.turnId)throw new Error("Question expired.");
       };
       let reviewImages;
-      if(question.reviewImage && answers["0"]?.answers[0]==="Approve image comparison") {
+      if(question.reviewImage && answers["0"]?.answers[0]==="approve") {
         if(!this.plugins)throw new Error("Review Host unavailable");
         reviewImages=await answerReviewImageQuestion(this.plugins,question.reviewImage,this.scopes.get(conversation.id)!,`conversation:${conversation.id}/question:${question.requestId}`,assertActive);
       }

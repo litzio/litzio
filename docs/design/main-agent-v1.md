@@ -1256,6 +1256,7 @@ Implementation reference: [Paseo Copilot ACP](https://github.com/getpaseo/paseo/
 ## Codex skill selection (#1047 PR B)
 
 Typing `/` at a word boundary opens the inline skill candidate surface.
+Plugin candidates show the Host-provided manifest name and original skill name (`Plugin · skill`); search includes the label. Internal names, tokens and Codex inputs remain unchanged.
 The Host calls `skills/list({cwds:[assistantCwd],forceReload:true})` using only
 parameters supported by Codex 0.141.0. Only enabled skills returned for that cwd
 appear, with name and description, filtered by the typed query. Loading, empty
@@ -2035,3 +2036,7 @@ conditions. Captures exclude unrelated Host identity and local paths.
 Codex registers the common review read/material, source-evidence run, proposal-only storage, inspection, image-estimate/image-read and request-status tools. [The plugin contract](plugin-stage1-v1.md#비서-국소-제안-1462-5단계) defines their inputs, CLI parity and boundaries. Human correction approval/rejection/Undo/completion are not assistant tools or question-card actions.
 
 The existing question tool accepts optional `reviewImage` (estimate input plus estimateHash). Host replaces the model's question with the current scope, counts and estimated input tokens. Only an actual answer to the rendered active card selects that comparison in the existing ledger; accepted:true alone does not. Ordinary provider/native questions and prose cannot create the selection. Decline, expiry and invalid/stale estimates grant no image access. The question index retains this estimate linkage with the existing interaction, without a new approval engine. Actual provider turn usage is recorded in inspection evidence, explicitly without per-image attribution. Copilot custom tool delivery remains unsupported.
+
+이미지 대조 승인 카드는 Host의 구조화된 쪽·대상·예상량 기록을 화면 언어로 표시한다. 선택지는 승인/거절이며 전송 값은 `approve`/`decline`으로 고정한다. 직접 입력은 범위 승인에 해당하지 않아 제공하지 않는다. 계산 방식과 대상 상세는 공통 Tooltip에서 hover·keyboard focus로 읽는다. 실제 사람 답변·estimateHash 검증·렌더 확인과 승인 분리는 유지한다.
+
+같은 합성 질문의 이전 Host payload와 새 구조화 payload를 기존 패널에 표시해 수동 비교했다. 캡처는 패널 영역이며 1440px은 기존 412px 도킹 폭, 640px은 기존 overlay다. 영어 Light [Before](assets/review-labels-1462/before-1440-en-light.png) / [After](assets/review-labels-1462/after-1440-en-light.png), 한국어 Dark [1440 Before](assets/review-labels-1462/before-1440-ko-dark.png) / [After](assets/review-labels-1462/after-1440-ko-dark.png), [640 Before](assets/review-labels-1462/before-640-ko-dark.png) / [After](assets/review-labels-1462/after-640-ko-dark.png)를 확인했다. 기존 Question form·Button·Tooltip을 재사용하며 새 공통 상호작용 예외는 없다. 브라우저 fixture는 두 언어의 표시·키보드 상세 안내·고정 답변 값 전송을 보호하며 실제 AI 검수 품질의 증거는 아니다.

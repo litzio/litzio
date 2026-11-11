@@ -9,7 +9,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const models = [{ id: 'sol', model: 'gpt-6.1-sol', displayName: 'GPT Sol', description: 'General model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['medium', 'high'].map(reasoningEffort => ({ reasoningEffort })) },
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
   let skillsFail = false, longSkills = false, skillLookups = 0;
-  const skill = { name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
+  const skill = { displayName: 'Docling · 검수', name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
   await page.route('**/api/assistant/skills*', route => { skillLookups++; return route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: longSkills ? Array.from({ length: 24 }, (_, index) => ({ ...skill, name: `scroll-skill-${index}`, path: skill.path + index })) : [skill], errors: [] } }); });
   const copilotOptions = { reasoningEffortSource: 'cli', currentMode: 'agent', modes: [{ id: 'agent', name: 'Agent', description: '' }, { id: 'plan', name: 'Plan', description: '' }] };
   const copilotModels = ['auto', 'copilot-model'].map(id => ({ id, model: id, displayName: id === 'auto' ? 'Auto' : 'Copilot fixture model', description: '', supportedReasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort })), defaultReasoningEffort: 'medium' }));
@@ -418,9 +418,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.press('Control+Shift+Y');
   await expect(message).toBeEnabled();
 
-  await message.click(); await page.keyboard.type('/lit', { delay: 60 });
+  await message.click(); await page.keyboard.type('/검수', { delay: 60 });
   const skillOptions = panel.getByRole('listbox', { name: 'Codex skills' });
   await expect(skillOptions.getByRole('option')).toContainText(skill.description);
+  await expect(skillOptions.getByRole('option')).toContainText(skill.displayName);
   if (screenshots) await page.screenshot({ path: 'docs/design/assets/assistant-skills-1047/list-1440-light-en.png' });
   await skillOptions.getByRole('option').click();
   await expect(message).toHaveValue('$litzio-guide ');
@@ -694,6 +695,27 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   delete selected.userInput;
   await expect(questionCard).toHaveCount(0);
   expect(submittedAnswers.length).toBe(2);
+  const checkImageQuestion = async (korean) => {
+    selected.userInput = { requestId: `image-${korean}`, turnId: selected.turns[0].id,
+      reviewImageEstimate: { pages: [11], targets: [], pageCount: 1, regionCount: 1, estimatedInputTokens: 63998 },
+      questions: [{ id: '0', header: '', question: 'Review image comparison', isOther: false, isSecret: false,
+        options: [{ label: 'approve', description: '' }, { label: 'decline', description: '' }] }] };
+    await expect(questionCard).toBeVisible();
+    await expect(questionCard).toContainText(korean ? '11쪽 이미지 대조' : 'Image comparison');
+    await expect(questionCard.getByRole('radio')).toHaveCount(2);
+    const details = questionCard.getByLabel(korean ? '이미지 대조 상세' : 'Image comparison details');
+    await details.focus();
+    await page.keyboard.press("Tab"); await page.keyboard.press("Shift+Tab");
+    await expect(page.locator('[data-slot=tooltip-content]')).toContainText(korean ? '청구 토큰이 아닙니다' : 'not billed tokens');
+    await page.keyboard.press('Escape');
+    await questionCard.getByRole('radio', { name: korean ? '승인' : 'Decline', exact: true }).check();
+    if (screenshots) await page.screenshot({ path: `tmp/1462-evidence/image-${korean ? 'ko' : 'en'}.png` });
+    await questionCard.getByRole('button', { name: korean ? '답변 제출' : 'Submit answers' }).click();
+    await expect(questionCard).toHaveCount(0);
+    expect(submittedAnswers.at(-1).answers).toEqual({ '0': { answers: [korean ? 'approve' : 'decline'] } });
+  };
+  await checkImageQuestion(false);
+
 
   // Completion arrives while closed; opening acknowledges it and re-closing stays quiet.
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
@@ -941,6 +963,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-640.png' });
+  await checkImageQuestion(true);
   selected.userInput = { requestId: 'ko-983', turnId: selected.turns.at(-1).id, questions: [{ id: 'ko', header: '설명 범위', question: '문서에서 어떤 내용을 자세히 설명할까요?', isOther: true, isSecret: false, options: [{ label: '핵심 내용', description: '문서의 핵심 내용과 주요 조건을 함께 설명합니다.' }, { label: '단계별 설명', description: '각 단계의 근거와 가정을 자세히 설명합니다.' }] }] };
   await expect(questionCard).toBeVisible();
   await questionCard.scrollIntoViewIfNeeded();
@@ -1102,7 +1125,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   // Clearing the final skill token removes its chip automatically and must detach restoration.
   const restoredSkillInput = panel.getByRole('textbox');
   await restoredSkillInput.fill('/lit');
-  await panel.getByRole('listbox').getByRole('option').filter({ hasText: skill.name }).click();
+  await panel.getByRole('listbox').getByRole('option').filter({ hasText: skill.displayName }).click();
   await restoredSkillInput.press('End'); await restoredSkillInput.pressSequentially('Keep this rejected skill request', { delay: 30 });
   await restoredSkillInput.press('Enter');
   await expect(panel.locator('.assistant-submission')).toContainText('Keep this rejected skill request');
