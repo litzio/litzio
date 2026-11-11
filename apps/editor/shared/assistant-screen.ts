@@ -20,3 +20,20 @@ export function screenInfo(value: ScreenInfo): ScreenInfo {
   });
   return { activeTab, tabs, folders };
 }
+
+/** Concrete reversible actions in the originating window only. */
+export type ScreenAction = { kind: "close_tabs"; tabIds: string[] | "all" } | { kind: "open_folder"; hostId: string; path: string } | { kind: "close_folders"; folders: { hostId: string; path: string }[] | "all" };
+export type ScreenActionResult = { outcome: "success" | "conflict" | "invalid_input" | "unavailable" | "forbidden" | "uncertain"; completed: string[]; remaining: { target: string; reason: string }[] };
+export type ScreenActionRequest = { id: string; validForMs: number; action: ScreenAction };
+export type ScreenActionSnapshot = { screenActionRequest?: ScreenActionRequest };
+export function screenAction(name: string, value: unknown): ScreenAction {
+  const input = value as Record<string, unknown>;
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid action input.");
+  const keys = name === "close_tabs" ? ["tabIds"] : name === "open_folder" ? ["hostId", "path"] : name === "close_folders" ? ["folders"] : [];
+  if (!keys.length || Object.keys(input).some(key => !keys.includes(key))) throw new Error("Invalid action input.");
+  const string = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+  if (name === "close_tabs" && (input.tabIds === "all" || Array.isArray(input.tabIds) && input.tabIds.length > 0 && input.tabIds.every(string))) return { kind: name, tabIds: input.tabIds as string[] | "all" };
+  if (name === "open_folder" && string(input.hostId) && string(input.path)) return { kind: name, hostId: input.hostId, path: input.path };
+  if (name === "close_folders" && (input.folders === "all" || Array.isArray(input.folders) && input.folders.length > 0 && input.folders.every(item => item && Object.keys(item).every(key => ["hostId", "path"].includes(key)) && string(item.hostId) && string(item.path)))) return { kind: name, folders: input.folders as { hostId: string; path: string }[] | "all" };
+  throw new Error("Invalid action input.");
+}

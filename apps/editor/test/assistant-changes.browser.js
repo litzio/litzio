@@ -6,13 +6,14 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   expect(after).not.toBe(saved.source);
   const settings = { provider:'codex', permissionMode:'opened-folders', model:'gpt-6-luna', reasoningEffort:'low', responseLanguage:'en' };
   const conversation = { id:'staged-thread', title:'Edit document', folders:[root], ...settings, createdAt:Date.now(), updatedAt:Date.now(), turns:[{id:'turn',status:'completed',items:[]}] };
-  let screenRequest, screenReply;
+  let screenRequest, screenReply, screenActionRequest, screenActionReply;
   let pending = false, changed = false, applied = false, submissionId;
   await page.route('**/api/assistant/settings*', route => route.fulfill({json:settings}));
   await page.route('**/api/assistant/diagnostics*', route => route.fulfill({json:{provider:'codex',connected:true,account:{type:'chatgpt'}}}));
   await page.route('**/api/assistant/models*', route => route.fulfill({json:{provider:'codex',models:[{id:settings.model,model:settings.model,displayName:'Luna',supportedReasoningEfforts:[{reasoningEffort:'low'}]}]}}));
   await page.route('**/api/assistant/conversations*', async route => {
     const request = route.request(), input = request.method()==='POST' ? request.postDataJSON() : {};
+    if(input.action==='screen-action-result') { screenActionReply=input.reply; screenActionRequest=undefined; return route.fulfill({json:{acknowledged:true}}); }
     if(input.action==='screen-result') { screenReply=input.reply; screenRequest=undefined; return route.fulfill({json:{acknowledged:true}}); }
     if(input.action==='changes-list') return route.fulfill({json:pending ? [{id:'change',path:file}] : []});
     if(input.action==='changes-preview') return route.fulfill({json:{path:file,before:saved.source,after,changed,missing:false,copyRevision:'copy',diskRevision:'disk'}});
@@ -20,7 +21,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
     if(input.action==='changes-discard') { pending=false; return route.fulfill({json:{outcome:'discarded'}}); }
     if(input.action==='send') { submissionId=input.submissionId; conversation.turns[0].items=[{id:'user',kind:'user',text:'Edit the document',submissionId}]; return route.fulfill({json:{submission:{id:submissionId,status:'accepted',conversationId:conversation.id},conversation}}); }
     if(request.url().includes('submissionId=')) return route.fulfill({json:{submission:{id:submissionId,status:'accepted',conversationId:conversation.id},conversation}});
-    return route.fulfill({json:request.method()==='GET' && !request.url().includes('?id=') ? [conversation] : {...conversation,screenRequest}});
+    return route.fulfill({json:request.method()==='GET' && !request.url().includes('?id=') ? [conversation] : {...conversation,screenRequest,screenActionRequest}});
   });
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root); await page.getByTestId('folder-open').click();
   await page.getByRole('treeitem',{name:'a.md',exact:true}).click();
@@ -66,5 +67,21 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await expect(compare.getByRole('status')).toContainText(/Changes discarded|변경 버림/);
   await expect(panel.getByRole('button',{name:/^(Review|검토)$/})).toHaveCount(0);
   await page.evaluate(prefix=>{localStorage.setItem(prefix+'.uiLanguage','en');localStorage.setItem(prefix+'.theme','light');},brand.storagePrefix);
+  await page.getByRole('tab',{name:/a.md/}).first().click();
+  screenActionRequest={id:'close-tabs',validForMs:10000,action:{kind:'close_tabs',tabIds:'all'}};
+  await expect.poll(()=>screenActionReply?.outcome).toBe('conflict');
+  expect(screenActionReply.remaining.some(item=>/Unsaved/.test(item.reason))).toBe(true);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(activeDocument(page).locator('.tiptap')).toContainText('unsaved');
+  screenActionReply=undefined;
+  screenActionRequest={id:'close-folders',validForMs:10000,action:{kind:'close_folders',folders:'all'}};
+  await expect.poll(()=>screenActionReply?.outcome).toBe('success');
+  expect(screenActionReply.completed.length).toBeGreaterThan(0);
+  screenActionReply=undefined;
+  screenActionRequest={id:'open-folder',validForMs:10000,action:{kind:'open_folder',hostId:'local',path:root}};
+  await expect.poll(()=>screenActionReply?.outcome).toBe('success');
+  await expect(page.getByRole('treeitem',{name:'a.md',exact:true})).toBeVisible();
+
   return { pendingCard:true, wideCompare:true, unsavedEditsPreserved:true };
 }

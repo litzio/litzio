@@ -1,3 +1,4 @@
+import { AgentScreenActionRequests } from "../server/assistant-screen-action-tools.ts";
 import { AgentScreenRequests } from "../server/assistant-screen-tools.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
@@ -632,7 +633,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "close_tabs", "open_folder", "close_folders", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -959,6 +960,33 @@ test("screen queries isolate originating windows, omit undeclared data and fail 
   host.cancel("thread"); await cancelled;
 });
 
+
+test("screen actions validate inputs, isolate windows and classify unconfirmed effects", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const host = new AgentScreenActionRequests();
+  assert.equal((await host.execute("close_tabs", { tabIds: [] }, "thread", "window")).outcome, "invalid_input");
+  assert.equal((await host.execute("close_tabs", { tabIds: "all", unexpected: true }, "thread", "window")).outcome, "invalid_input");
+  assert.equal((await host.execute("open_folder", { hostId: "local", path: "/docs" }, "thread")).outcome, "unavailable");
+  for (const [name, input] of [["close_tabs", {tabIds: ["saved", "dirty"]}], ["open_folder", {hostId: "local", path: "/docs"}], ["close_folders", {folders: "all"}]] as const) {
+    const result = host.execute(name, input, "thread", "window");
+    const command = host.snapshot("thread", "window")!;
+    assert.equal(command.action.kind, name);
+    assert.equal(host.snapshot("thread", "other"), undefined);
+    assert.equal(host.snapshot("other", "window"), undefined);
+    const reply = {outcome: "conflict" as const, completed: ["saved"], remaining: [{target: "dirty", reason: "Unsaved confirmation pending."}]};
+    assert.throws(() => host.reply("thread", "other", command.id, reply), /another window/);
+    assert.throws(() => host.reply("other", "window", command.id, reply), /another window/);
+    assert.equal((await host.execute(name, input, "thread", "window")).outcome, "conflict");
+    host.reply("thread", "window", command.id, reply);
+    assert.deepEqual(await result, reply);
+    assert.throws(() => host.reply("thread", "window", command.id, reply), /expired/);
+  }
+  const timeout = host.execute("close_tabs", {tabIds: "all"}, "thread", "window");
+  t.mock.timers.tick(10_000); assert.equal((await timeout).outcome, "uncertain");
+  const cancelled = host.execute("close_tabs", {tabIds: "all"}, "thread", "window");
+  host.cancel("thread"); assert.equal((await cancelled).outcome, "uncertain");
+});
+
 test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revokes ended turns", async t => {
   const { createServer } = await import("node:http");
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
@@ -1041,6 +1069,28 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const screenResult = await screenRead;
   assert.equal(screenResult.isError, false);
   assert.deepEqual(JSON.parse((screenResult.content as { text: string }[])[0]!.text), screenInfo);
+  for (const [name, args] of [["close_tabs", {tabIds: ["saved", "dirty", "gone"]}], ["open_folder", {hostId: "local", path: root}], ["close_folders", {folders: "all"}]] as const) {
+    assert.ok(conversations.tools.some(tool => tool.name === name), "screen actions belong to the common Codex/MCP catalog");
+    const actionCall = one.callTool({name, arguments: args});
+    const actionDeadline = Date.now() + 5000;
+    while (!conversations.screenActions.snapshot(first.id, "mcp-window-one") && Date.now() < actionDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+    const action = conversations.screenActions.snapshot(first.id, "mcp-window-one");
+    assert.ok(action, "MCP forwards to the existing window action request path");
+    assert.deepEqual(action.action, {kind: name, ...args});
+    assert.equal(conversations.screenActions.snapshot(first.id, "other-window"), undefined);
+    assert.equal(conversations.screenActions.snapshot("other-conversation", "mcp-window-one"), undefined);
+    connection.client.emit("disconnected", "Unrelated Codex connection closed");
+    assert.ok(conversations.screenActions.snapshot(first.id, "mcp-window-one"));
+    // The same App handler rechecks targets/dirty state; its classified partial result
+    // must pass through MCP unchanged, rather than becoming a blanket success.
+    const reply = {outcome: "conflict" as const, completed: ["saved"], remaining: [{target: "dirty", reason: "Unsaved confirmation required."}, {target: "gone", reason: "Tab no longer open."}]};
+    assert.throws(() => conversations.screenActions.reply(first.id, "other-window", action.id, reply), /another window/);
+    assert.throws(() => conversations.screenActions.reply("other-conversation", "mcp-window-one", action.id, reply), /another window/);
+    conversations.screenActions.reply(first.id, "mcp-window-one", action.id, reply);
+    const result = await actionCall;
+    assert.equal(result.isError, false);
+    assert.deepEqual(JSON.parse((result.content as {text: string}[])[0]!.text), reply);
+  }
   const permission = (serverName: string, toolName: string, metadata = true) => connection.copilot.permission!({ sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title: "litzio_host-list_documents", ...(metadata ? { rawInput: { serverName, toolName } } : {}) }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] });
   assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "selected");
   assert.equal(permission("foreign", "list_documents").outcome.outcome, "cancelled");
@@ -1051,13 +1101,23 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const noWindow = await two.callTool({ name: "read_screen_context", arguments: {} });
   assert.equal(noWindow.isError, true);
   assert.match(JSON.stringify(noWindow.content), /No originating Litzio window/);
+  const noActionWindow = await two.callTool({name: "close_tabs", arguments: {tabIds: "all"}});
+  assert.equal(JSON.parse((noActionWindow.content as {text: string}[])[0]!.text).outcome, "unavailable");
   assert.equal((await two.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "read-only MCP dispatch uses the same Host plugin operation path");
   assert.equal((await two.callTool({ name: "list_documents", arguments: { path: root } })).isError, true, "a second conversation cannot inherit the first folder scope");
   const readOnlyEdit = await two.callTool({ name: "edit_staged_document", arguments: editInput });
   assert.equal(readOnlyEdit.isError, true); assert.equal(payload(readOnlyEdit).errorKind, "forbidden");
 
   assert.equal((await one.callTool({ name: "request_litzio_user_input", arguments: {} })).isError, true, "text questions must not create review image approval");
+  const endingAction = one.callTool({name: "close_tabs", arguments: {tabIds: "all"}});
+  const endingDeadline = Date.now() + 5000;
+  while (!conversations.screenActions.snapshot(first.id, "mcp-window-one") && Date.now() < endingDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(conversations.screenActions.snapshot(first.id, "mcp-window-one"));
   await conversations.interrupt(first.id);
+  const endedAction = await endingAction;
+  assert.equal(JSON.parse((endedAction.content as {text: string}[])[0]!.text).outcome, "uncertain");
+  assert.equal(conversations.screenActions.snapshot(first.id, "mcp-window-one"), undefined);
+
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: first.id, modelId: "auto" }));
   assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);
   assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "cancelled");
