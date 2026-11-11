@@ -1,3 +1,4 @@
+import { doclingConverter } from "../docling-fixture.ts";
 import { startOwnedDaemon } from "./owned-daemon.ts";
 import { cpSync } from "node:fs";
 import { executeFolderTrash } from "../../server/file-operations.ts";
@@ -404,7 +405,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       },
       async review(action: string, data: unknown) {
         writeFileSync(this.input, JSON.stringify(data));
-        return this.cli(["review", action, "--input", this.input]);
+        return this.cli(["review", ...(action === "workspace-review-change" ? ["groups", (data as any).change.kind.slice(7)] : [action]), "--input", this.input]);
       },
       async cli(args: string[]) {
         if (args[0] === "plugins" && args[1] === "start") {
@@ -415,14 +416,6 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     } : undefined;
     if (docling) {
       cpSync(path.join(REPOSITORY_ROOT, "community-plugins/docling"), docling.directory, { recursive: true });
-      if(name === "http-plugins") {
-        // Preserve the generic legacy generated-document/K1 regression. Workspace behavior is
-        // exercised with the unmodified current manifest by workspace-review, in this same suite.
-        const manifestPath=path.join(docling.directory,"litzio-plugin.json"),manifest=JSON.parse(readFileSync(manifestPath,"utf8"));
-        Object.assign(manifest.contributes.jobs.find((job:any)=>job.id==="create-document"),{workspace:false,title:"문서 만들기"});
-        manifest.contributes.screens[0].jobs=["convert-pdf","create-document"];
-        writeFileSync(manifestPath,JSON.stringify(manifest));
-      }
       if (docling.realFile) cpSync(process.env.LITZIO_DOCLING_REAL_ARCHIVE!, path.join(pluginFolder, docling.realFile));
       if (docling.beforeFile) cpSync(process.env.LITZIO_DOCLING_BEFORE!, path.join(pluginFolder, docling.beforeFile));
       const { readDoclingArchive } = await import(new URL("../../../../community-plugins/docling/archive.js", import.meta.url).href);
@@ -431,7 +424,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       const source = path.join(pluginFolder, "source.pdf"), sourceBytes = readFileSync(path.join(REPOSITORY_ROOT, "tmp/http-host-a/fixture/reading.pdf"));
       writeFileSync(source, sourceBytes);
       for (const name of ["dashboard-a", "dashboard-b"]) writeFileSync(path.join(pluginFolder, name + ".pdf"), sourceBytes);
-      const archive = await convertPdfToArchive({ file: source, serverUrl });
+      const { initializeWorkspace } = await doclingConverter();
+      const archive = await initializeWorkspace(await convertPdfToArchive({ file: source, serverUrl }));
       const decoded = readDoclingArchive(archive);
       for (const [key, value] of Object.entries(PDF_PROFILE.request)) {
         expect(receivedFields[key]).toEqual(Array.isArray(value) ? value.map(String) : [typeof value === "object" ? JSON.stringify(value) : String(value)]);
@@ -449,8 +443,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       expect(decoded.manifest.source.sha256).toBe(createHash("sha256").update(sourceBytes).digest("hex"));
       expect(decoded.manifest.result.sha256).toBe(createHash("sha256").update(rawResult).digest("hex"));
       expect(decoded.manifest.profile).toEqual(PDF_PROFILE);
-      expect(decoded.manifest.version).toBe(3);
-      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.10");
+      expect(decoded.manifest.version).toBe(4);
+      expect(decoded.manifest.converter.pluginVersion).toBe("0.0.11");
       expect(decoded.manifest.images[0].sha256).toBe(createHash("sha256").update(png).digest("hex"));
       conversionState = "failure";
       await expect(convertPdfToArchive({ file: source, serverUrl })).rejects.toThrow(/task fixture-2/);

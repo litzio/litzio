@@ -161,9 +161,11 @@ declaration (saved or staged) or at least one citation. Removing the last citati
 removal of the last declaration hides it when neither remains; connecting a file or inserting
 a citation shows it immediately.
 
-**Connect bibliography…** is available in the expanded **Document settings** block above the title and
-as a command-center item. Both share the Saved-in-document availability rules: disabled without
-a document, during pending work or in Source, with the existing availability reason on command/Settings entries. Connecting opens the existing connection dialog and returns focus to the row’s Connect button. The collapsed summary reflects currently staged bibliography filenames.
+**Connect bibliography…** is available in the expanded **Document settings** block above the title while
+the document has a bibliography declaration (saved or staged), and as a command-center item. Both share the Saved-in-document availability rules: disabled without a document, during pending work or in Source, with the existing availability reason on command/Settings entries. Connecting opens the existing connection dialog and returns focus to the row’s Connect button; the collapsed summary reflects currently staged bibliography filenames.
+Documents without a connected bibliography file do not show the Document settings row; the
+command-center item keeps the connection path available, and the References area offers the same
+action whenever it is shown.
 The connect action also remains inside a visible References area, alongside the existing
 declaration list and Disconnect actions. All entry points open the same candidate UI in the
 shared Dialog, which returns focus to its opener on close. Merely opening it does not show

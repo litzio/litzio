@@ -1,7 +1,7 @@
 # Document templates v1
 
 - Status: Implemented
-- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
+- Last verified: 2026-11-11 — #1185 Host 선택·원격 목록/미리보기·폴더 선택·생성 탭을 Windows persistent Chrome의 두 Host fixture로 확인. 실제 외부 원격 Host·packaged Desktop 연결은 미검증.
 - Previous execution verification: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
 - Shared-operation verification: 2026-11-04 (#1128: common Host operations, fake Codex tool calls/receipt history and child CLI execution; no real model call, packaged behavior is CI-only).
 - Scope: #1128 and #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
@@ -9,7 +9,7 @@
 
 ## Host 요청 경계 (#1174 PR2)
 
-템플릿 목록·미리보기 표면은 mount 시 Host client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 직접 받으며, 대화상자를 여는 시점의 현재 client로 대체하지 않는다. 원본 연결이 달라졌으면 제출을 전송 전에 거부한다. 갤러리에서 템플릿을 선택해 시작한 문서 생성은 갤러리의 고정 client를 생성 대화상자까지 전달하며, 연결 변경 뒤 새 문서 PUT도 전송 전에 거부한다. 비동기 완료 전에 활성 탭을 바꾸어도 요청이 다른 Host로 이동하지 않으며 쓰기를 자동 replay하지 않는다. 현재 갤러리 진입은 로컬 Host만 제공한다. App.tsx의 갤러리 진입과 렌더에는 Host 선택 또는 Provider가 없고 useHostClient는 기본 LOCAL_HOST_ID를 사용한다. 원격 Host의 문서를 사용자 템플릿으로 저장하는 경계와 갤러리 진입은 별개다. 원격 갤러리 진입은 [#1185](https://github.com/litzio/litzio/issues/1185)로 추적한다.
+템플릿 목록·미리보기 표면은 mount 시 Host client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 직접 받으며, 대화상자를 여는 시점의 현재 client로 대체하지 않는다. 원본 연결이 달라졌으면 제출을 전송 전에 거부한다. 갤러리에서 템플릿을 선택해 시작한 문서 생성은 갤러리의 고정 client를 생성 대화상자까지 전달하며, 연결 변경 뒤 새 문서 PUT도 전송 전에 거부한다. 비동기 완료 전에 활성 탭을 바꾸어도 요청이 다른 Host로 이동하지 않으며 쓰기를 자동 replay하지 않는다. 갤러리는 탐색기와 같은 SettingsSelect의 Host 선택 관례로 등록한 Host를 선택한다(#1185). 선택한 Host는 화면의 Host control과 갤러리 탭에 표시하며, 선택 변경 때 목록·미리보기를 별도로 mount하여 이전 응답·cache가 새 Host에 섞이지 않게 한다. 활성 문서 탭이나 탐색기 필터는 갤러리 대상을 바꾸지 않는다. 템플릿으로 시작한 생성 흐름은 선택 당시의 Host/client를 보존하며 그 Host의 열린 폴더만 제안하고, 폴더가 없으면 같은 Host의 폴더 picker를 연다. 생성 결과도 같은 Host의 탭으로 연다. Open template folder도 해당 Host의 기존 탐색기 열기를 사용한다. 템플릿 원본 위치·저장 규칙과 공용 작업·CLI는 그대로다.
 
 
 ## Native document semantics
@@ -290,3 +290,18 @@ The new gallery strings use a bundled i18next `templates` namespace. Adding all
 preserves typed keys/interpolation without changing compiler checks or dependencies.
 
 `litzio create` prints the created file path on one line on success, for both empty and template documents. `--format json` retains the shared creation receipt.
+
+## Remote gallery verification (#1185)
+
+기존 `multi-host` 브라우저 시나리오를 보완하여 로컬 탭이 활성화된 상태에서 원격 catalog·preview 요청, 원격 폴더가 없는 생성 picker, template ID를 포함한 원격 PUT과 결과 탭, 템플릿 폴더 열기 및 로컬 재선택의 catalog 격리를 확인한다. 주된 검증 계층은 브라우저의 Host 연결과 생성 흐름이며 기존 `template-gallery`의 실제 로컬 쓰기·stale-client 거부 검사는 유지한다. 새 subprocess·전수 조합은 없고 두 시나리오의 최종 로컬 실행은 약 1.5분이다. localhost fixture의 성공이며 외부 Host 수락을 뜻하지 않는다.
+
+공통 구현은 탐색기의 SettingsSelect/host-filter, 기존 FolderDialog·NewDialog·Host별 Explorer의 폴더 열기와 DocumentTabs다. 기존 Button·Notice·Popover와 role token을 유지하며 새 표면·공통 interaction 예외는 없다. Host 선택은 갤러리 탭의 일시 상태이며 문서나 기기 설정으로 저장하지 않는다.
+
+Windows persistent Chrome, 100% zoom, 1000px 높이의 수동 촬영이다. 1440px English Light는 변경 전 로컬 전용과 변경 후 선택한 원격 catalog를 비교하며, 640px Korean Dark는 같은 로컬 catalog에 대상 선택이 추가된 상태를 비교한다. 행 중심·control/카드 여백·한국어 줄바꿈·탭 overflow와 콘텐츠 경계·다크 대비를 직접 확인했다. 자동 단언용 캡처가 아니며 `pnpm browser:test multi-host --screenshots`에서 임시 촬영 body를 붙여 실행한 뒤 원래 회귀 body를 복원했다.
+
+| 폭·상태 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| 1440px Light, 로컬 전용 → 원격 선택 | [capture](assets/remote-template-gallery-1185/before-1440.png) | [capture](assets/remote-template-gallery-1185/after-1440.png) |
+| 640px Korean Dark, 로컬 catalog | [capture](assets/remote-template-gallery-1185/before-640.png) | [capture](assets/remote-template-gallery-1185/after-640.png) |
+
+갤러리는 대상 Host의 열린 작업으로 집계한다. 정상 작업 보고와 다른 Host 제거 직전 재보고는 같은 집계 함수를 사용하여 전체 summary 교체 시 갤러리 작업을 보존한다. 기존 `multi-host`에 A의 갤러리만 남긴 채 B 제거를 준비하고 native bridge에서 취소하는 대표 사례를 보완했다. 정상 보고·제거 요청 시점·취소 후 보고에서 A의 `openWork: 1`을 확인한다. 수정 전에는 제거 요청의 summary에서 A가 빠져 `undefined`로 실패하는 것을 실행 확인했다. 주된 검증 계층은 Editor→Desktop bridge 보고이며 새 subprocess·전수 조합은 없다. 실제 packaged native 확인창 실행을 뜻하지 않는다.

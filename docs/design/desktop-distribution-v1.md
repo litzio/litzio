@@ -785,6 +785,25 @@ or recovery must be resolved in those profiles before removal can succeed.
 This is a local safety summary, not a remote registry or audit ledger. Removal never sends stop
 or mutates remote files. Local daemon lifetime and OS shell restrictions remain.
 
+#1205: Before saving, Settings offers an optional “Check connection” for the entered exact HTTP(S)
+origin. Desktop main reuses the CLI health observation (protocol header, five-second timeout,
+redirect refusal, product-version warning), without persistence or expanding renderer CSP.
+`host check <origin>` exposes the same read-only operation before registration. The result is
+an observation, not a connection in this window; editing the address clears it and discards late
+replies. Failure does not block registration: an offline Host may be saved for startup connection
+under ADR-0018. The existing save/restart application flow is unchanged (#1206 is separate).
+The existing Settings actions, secondary Button and HostStatus with keyboard-accessible details
+are reused; no new surface or interaction pattern is introduced.
+
+Manual visual evidence (#1205, native bridge stand-in, no packaged connectivity claim):
+[1440px English Light before](assets/host-check-1205/before-1440.png) /
+[after](assets/host-check-1205/after-1440.png),
+[640px Korean Dark before](assets/host-check-1205/before-640.png) /
+[after](assets/host-check-1205/after-640.png).
+Button/status vertical centers, padding, panel bounds, Korean wrapping and theme contrast were
+reviewed. Capture-only fixture responses omit OS identities; these images are manual evidence,
+not automatic pixel assertions.
+
 Settings lists registered origins, editable labels, connection state, failure details and product
 version warnings. New registration is saved first and explicitly marked unavailable in the current
 window until restart. Restart uses the existing synchronous all-tab unsaved/draft/busy check with

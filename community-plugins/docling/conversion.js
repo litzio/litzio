@@ -48,7 +48,7 @@ export async function convertPdfToArchive({ file, serverUrl, signal: callerSigna
     for (;;) {
       signal.throwIfAborted();
       if (status.task_id !== taskId || status.task_type !== "convert") throw new Error();
-      if (status.task_status === "success") break;
+      if (["success", "partial_success"].includes(status.task_status)) break;
       if (!["pending", "started"].includes(status.task_status)) throw new Error();
       onPhase(status.task_status === "pending" ? "서버 대기 중" : "PDF 변환 중", taskId);
       await delay(1000, undefined, { signal });
@@ -57,11 +57,11 @@ export async function convertPdfToArchive({ file, serverUrl, signal: callerSigna
     const resultBody = Buffer.from(await (await request("/v1/result/" + encodeURIComponent(taskId))).arrayBuffer());
     onPhase("원본 보관 준비 중", taskId);
     const completedAt = new Date().toISOString();
-    const bytes = createDoclingArchiveFromResult({ sourceName: basename(file), sourceBytes: source, serverVersions: versions, openapiBytes, profile,
+    const envelope = createDoclingArchiveFromResult({ sourceName: basename(file), sourceBytes: source, serverVersions: versions, openapiBytes, profile,
       task: { id: taskId, startedAt, submittedAt, completedAt, elapsedMs: Date.now() - started }, resultBody });
     if (hash(await readFile(file, { signal })) !== originalHash) throw new Error();
     signal.throwIfAborted();
-    return bytes;
+    return envelope;
   } catch (cause) {
     const kind = deadline.aborted ? "timeout" : callerSignal?.aborted ? "stopped" : cause.kind ?? "failed";
     throw Object.assign(new Error(`Docling conversion ${kind}${taskId ? ` (task ${taskId})` : " (task ID unavailable; do not resubmit automatically)"}`), { kind, ...(taskId ? { taskId } : {}) });

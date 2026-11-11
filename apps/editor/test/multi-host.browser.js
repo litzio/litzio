@@ -34,6 +34,7 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   const saves = [];
   const created = { local: new Map(), remote: new Map() };
   const creations = [];
+  const templateCreates = [];
   const versions = { local: 0, remote: 0 };
   const revision = host => (host === "local" ? "a" : "b").repeat(60) + String(versions[host]).padStart(4, "0");
   await page.route('**/api/document**', async route => {
@@ -48,7 +49,8 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
       return route.fulfill({ response: await route.fetch({ headers: { ...route.request().headers(), Connection: "close" }, url: origin + '/api/document-source?recovery=1' }) });
     }
     if (route.request().method() === 'PUT') {
-      const { path: target } = route.request().postDataJSON();
+      const { path: target, template } = route.request().postDataJSON();
+      if (template) templateCreates.push({ host, path: target, template });
       creations.push({ host, path: target, kind: 'document' });
       created[host].set(target, 'document');
       return route.fulfill({ json: { ...empty, path: target } });
@@ -131,8 +133,9 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   await page.addInitScript(() => {
     window.__explorerCalls = [];
     window.litzioDesktop = {
-      registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: 'test' }),
-      reportPendingWork: () => {}, reportHostWork: async () => {},
+      registeredHosts: async () => ({ hosts: [{ hostId: 'off', origin: location.origin + '/fixture/off', label: 'Offline' }], allowedHostIds: [], productVersion: 'test' }),
+      reportPendingWork: () => {}, reportHostWork: async summary => { window.__hostWork = structuredClone(summary); },
+      removeHost: async hostId => { window.__removal = { hostId, summary: structuredClone(window.__hostWork) }; throw Error('Removal cancelled.'); },
       hostConnection: async () => ({ url: location.origin, productVersion: 'test', desktopVersion: 'test' }),
       checkDaemon: async () => {}, setTheme: async () => false, setWindowBackground: async () => {},
       info: async () => ({ version: '0.0.2', channel: 'beta', updatesSupported: false, update: { phase: 'idle' }, postponed: null }),
@@ -564,4 +567,53 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   await page.getByTestId('sidebar').getByRole('button',{name:'예시: Host screen',exact:true}).click();
   await expect(screen.getByRole('combobox',{name:'Host',exact:true})).toHaveValue('local');
   expect(offlineCatalogReads).toBe(0);
+  {
+    // #1185: the gallery and its folder/name flow retain the selected Host while Local is active.
+    const remoteTemplate = { id: 'user:Remote template', name: 'Remote template', description: 'Remote catalog only', kind: 'user' };
+    await page.route('**/fixture/remote/api/templates?*', route => route.fulfill({ json: { directory: root, templates: [remoteTemplate], problems: [] } }));
+    const templateReads = [];
+    await page.route('**/fixture/remote/api/template?*', route => { templateReads.push(route.request().url()); return route.fulfill({ json: { ...remoteTemplate, source: empty.source } }); });
+    await local.click();
+    await page.getByTestId('sidebar').getByRole('button', { name: 'Template gallery', exact: true }).click();
+    const gallery = page.locator('.template-gallery');
+    await gallery.getByRole('combobox', { name: 'Host', exact: true }).selectOption('remote');
+    const remoteCard = gallery.getByRole('button', { name: 'Preview Remote template', exact: true });
+    await expect(remoteCard).toBeVisible();
+    await remoteCard.focus();
+    await expect.poll(() => templateReads.length).toBe(1);
+    await expect(page.locator('.template-preview .document-editor')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await gallery.getByRole('button', { name: 'New document from template', exact: true }).click();
+    const picker = page.getByRole('dialog', { name: 'Open folder', exact: true });
+    await expect(picker).toBeVisible();
+    await picker.getByTestId('folder-path').fill(root);
+    await picker.getByTestId('folder-open').click();
+    await page.getByTestId('new-file-name').fill('remote-template');
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(page.getByRole('tab', { name: /remote-template.md.*Remote/ })).toHaveAttribute('aria-selected', 'true');
+    expect(templateCreates).toEqual([{ host: 'remote', path: root + sep + 'remote-template.md', template: remoteTemplate.id }]);
+    await page.getByTestId('sidebar').getByRole('button', { name: 'Template gallery', exact: true }).click();
+    await expect(gallery.getByRole('combobox', { name: 'Host', exact: true })).toHaveValue('remote');
+    await gallery.getByRole('button', { name: 'Open template folder', exact: true }).click();
+    await expect(remoteExplorer.getByTestId('folder')).toHaveCount(1);
+    await gallery.getByRole('combobox', { name: 'Host', exact: true }).selectOption('local');
+    await expect(gallery.locator('.template-card-preview')).toHaveCount(2);
+    await expect(gallery.getByText('Remote template', { exact: true })).toHaveCount(0);
+
+    // A gallery-only Host must survive the full-summary report before another Host's cancelled removal.
+    const remoteClose = page.getByRole('button', { name: /^Close .*Remote$/ });
+    while (await remoteClose.count()) await remoteClose.first().click();
+    await gallery.getByRole('combobox', { name: 'Host', exact: true }).selectOption('remote');
+    await expect.poll(() => page.evaluate(() => window.__hostWork?.find(row => row.hostId === 'remote'))).toEqual({ hostId: 'remote', openWork: 1, recovery: 0 });
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Hosts', exact: true }).click();
+    await page.getByTestId('host-settings').getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.__removal?.hostId)).toBe('off');
+    await expect(page.getByRole('alert').filter({ hasText: 'Close Host work and resolve recovery records before retrying removal.' })).toBeVisible();
+    expect(await page.evaluate(() => window.__removal.summary.find(row => row.hostId === 'remote'))).toEqual({ hostId: 'remote', openWork: 1, recovery: 0 });
+    expect(await page.evaluate(() => window.__hostWork.find(row => row.hostId === 'remote'))).toEqual({ hostId: 'remote', openWork: 1, recovery: 0 });
+    await expect(page.getByRole('tab', { name: /Template gallery.*Remote/ })).toHaveCount(1);
+    await expect(page.getByRole('heading', { name: 'Offline', exact: true })).toBeVisible();
+
+  }
 }

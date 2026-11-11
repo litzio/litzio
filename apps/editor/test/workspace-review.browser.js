@@ -20,8 +20,16 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await expect(documentImages).toHaveCount(state.snapshot.images.length);
   expect(await documentImages.evaluateAll(nodes=>nodes.every(node=>node.src.startsWith('data:image/')&&node.complete&&node.naturalWidth>0))).toBe(true);
   // Corrections go through the same Host operation and explicit Refresh, never the editor draft.
-  const target=state.items.find(item=>item.kind==='texts'&&item.pages.includes(1)&&item.text?.length);
-  const patched=await docling.review('workspace-patch',{...base,baseline:state.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),patches:[{type:'kind',self_ref:target.self_ref,kind:'heading',level:2}]});
+  const target=state.items.find(item=>item.self_ref==='#/texts/4');
+  const group={id:'browser-kind',reasonCode:'kind',reason:'Independent paragraph should be a heading',provider:'community.docling',providerVersion:'0.0.11',sourceRevision:state.contentRevision,contentRevision:state.documentRevision,
+    createdAt:new Date().toISOString(),runId:'browser',representativeTargetId:'body',representativeReason:'Compared source paragraph',splitFrom:null,
+    targets:[{id:'body',locator:{self_ref:target.self_ref},pages:[2],regions:[],before:[{kind:'paragraph'}],
+      evidence:[{observation:'Compared original source',materialRef:'page-2',materialHash:state.contentRevision,inspector:'human',scope:{pages:[2],targets:['body']}}],
+      patch:{expectedBefore:[{kind:'paragraph'}],expectedContentRevision:state.documentRevision,operations:[{type:'kind',self_ref:target.self_ref,kind:'heading',level:2}],after:[{kind:'heading',level:2}],supported:true,deferredReason:null},
+      inspection:'uncertain',proposal:'proposed',result:null,resolved:false,history:[]}]};
+  const proposed=await docling.review('workspace-review-change',{...base,baseline:state.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-propose',groups:[group]}});
+  expect(proposed.receipt.outcome).toBe('success');
+  const patched=await docling.review('workspace-review-change',{...base,baseline:proposed.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-approve',groupId:group.id,targetIds:['body'],human:{actor:'person',reason:'Compared exact paragraph and proposal',confirmed:true},resolvesIssue:true}});
   expect(patched.receipt.outcome).toBe('success');
   await page.getByRole('button',{name:'Refresh data',exact:true}).click();
   await expect(page.locator('.review-region[data-kind="heading"]').first()).toBeEnabled();
@@ -51,7 +59,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   if(screenshots){
     for(const theme of ['light','dark']){
       await chooseTheme(theme);await expect.poll(pageRegions).toEqual(regions);
-      await page.screenshot({path:`docs/design/assets/docling-workspace-p1b/compare-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+      await page.screenshot({path:`docs/design/assets/docling-workspace-s3/compare-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     }
   }
   await exportButton().click();await expect(page.getByLabel('Output file',{exact:true})).toHaveValue(/검수중\.md$/);
@@ -61,7 +69,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   if(screenshots){for(const theme of ['light','dark']){
     await chooseTheme(theme);
     await exportButton().click();await expect(page.getByText('Replace the existing document',{exact:true})).toBeVisible();
-    await page.screenshot({path:`docs/design/assets/docling-workspace-p1b/export-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+    await page.screenshot({path:`docs/design/assets/docling-workspace-s3/export-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     await page.getByRole('button',{name:'Close',exact:true}).last().click();
   }}
   await exportButton().click();await expect(page.getByText('Replace the existing document',{exact:true})).toBeVisible();

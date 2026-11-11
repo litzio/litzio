@@ -146,7 +146,7 @@ async function start(options: { backgroundNoticeShown?: boolean; workDamage?: "c
     "../../editor/server/reset-guard.ts": { ResetGuard: class { actor() { return () => {}; } blockAfterFailedShutdown() { resetCalls.push({ uncertainWriter: true }); } } },
     "../../editor/server/app-reset.ts": { localResetLocations: () => ({ host: "fixture-host" }), resetHostPaths: () => ({ same: true }),
       inspectAppReset: () => ({ revision: "reviewed-fixture", targets: [], retained: [] }) },
-    "../../editor/server/remote-host-registry.ts": { RemoteHostRegistry: class { constructor() { return registry; } } },
+    "../../editor/server/remote-host-registry.ts": { checkRemoteHost: async () => ({ outcome: "success", state: "connected" }), RemoteHostRegistry: class { constructor() { return registry; } } },
     "electron-updater": { autoUpdater: {} }, "js-yaml": {},
     "../../editor/shared/desktop-origin.ts": { DESKTOP_ENTRY, trustedDesktopUrl },
     "./bundled-ui.ts": { bundledUiResponse },
@@ -631,6 +631,10 @@ test("settings removal requires cleared work, recovery and confirmation without 
 
 test("registration restart requires Editor protection and relaunches only after window close", async () => {
   const denied = await start({ restartAllowed: false });
+  assert.throws(() => denied.invoke("desktop:host-check", ["https://remote.example"], false), /Untrusted/);
+  assert.throws(() => denied.invoke("desktop:host-check", [null]), /Expected text/);
+  assert.deepEqual(await denied.invoke("desktop:host-check", ["https://remote.example"]), { outcome: "success", state: "connected" });
+  assert.deepEqual(denied.registry.list(), [], "address checks do not save registrations");
   const refusal = await denied.invoke("desktop:host-restart", []) as { ok: boolean };
   assert.equal(refusal.ok, false);
   assert.equal(denied.window.destroyed, false);

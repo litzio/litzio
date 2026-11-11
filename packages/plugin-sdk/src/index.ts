@@ -5,17 +5,22 @@ export * from "./review-ledger.ts";
 import { queryViewSchema, reviewContributionSchema, validateCatalogView, compileViewInputSchema } from "@litzio/core/views-v2";
 export * from "@litzio/core/views-v2";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DocumentAuthoringError, type DocumentAuthoringInput, type AuthoredDocument } from "@litzio/core";
+// Editor-neutral document operations; the opaque Core document never exposes an AST.
+export { parse, serialize, getEditableDocument, updateNodeTextAtPath, convertBlock, removeBlock, updateTableCell,
+  updateParagraphInlineContent, updateHeadingInlineContent, insertParagraph, insertHeading, insertTable, insertFigure,
+  insertList, insertCodeBlock, insertEquation, updateLabel, updateEnumerator, updateEnumeration, updateTableCaption,
+  updateList, updateCodeBlock, updateEquationLatex, updateFigure, inlineContentText, bodyEndIndex } from "@litzio/core";
 import { rowSchema, type ViewOperation } from "@litzio/core/views";
 export { rowSchema, operationRowResultSchema, type OperationRowResult, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
 import { z } from "zod";
 import { documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS } from "@litzio/core";
 import semver from "semver";
-export const SDK_VERSION = "0.4.0";
+export const SDK_VERSION = "0.5.0";
 // Actual SDK contracts still implemented by this Host, not hypothetical versions
 // between releases. Features before the next public release share one minor.
 // The current Host retains earlier contracts.
-const supportedSdkVersions = ["0.1.0", "0.2.0", "0.3.0", SDK_VERSION];
+const supportedSdkVersions = ["0.1.0", "0.2.0", "0.3.0", "0.4.0", SDK_VERSION];
 export const healthCheckResultSchema = z.strictObject({ ok: z.boolean(), message: z.string().min(1).max(300) });
 export const inputHintResultSchema = z.strictObject({ text: z.string().min(1).max(512) });
 export const inputSuggestionResultsSchema = z.array(z.strictObject({ value: z.string().min(1).max(512).regex(/^[^\r\n]+$/), label: z.string().min(1).max(512) })).max(32).refine(items => new Set(items.map(item => item.value)).size === items.length, "Duplicate suggestion value");

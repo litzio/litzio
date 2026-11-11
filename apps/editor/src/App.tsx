@@ -211,7 +211,7 @@ function EditorApp() {
   const recentFoldersRef = useRef(recentFolders);
   const [allowedRoots, setAllowedRoots] = useState<string[] | undefined>(undefined);
   const visibleRecent = visibleRecentFolders(recentFolders, allowedRoots);
-  const [newTemplate, setNewTemplate] = useState<TemplateSummary & { client: HostClient }>();
+  const [newTemplate, setNewTemplate] = useState<TemplateSummary & { client: HostClient; hostId: string }>();
   const [templateRevision, setTemplateRevision] = useState(0);
   const [saveTemplate, setSaveTemplate] = useState<{ client: HostClient; hostId: string; path: string; returnFocus: HTMLElement | null }>();
   const [newDialog, setNewDialog] = useState(false);
@@ -256,12 +256,18 @@ function EditorApp() {
   const settingsGroup = navigation.groups.find(group => group.tabs.includes("settings"));
   const settingsOpen = settingsGroup?.active === "settings";
   const settingsFocused = activeId === "settings";
+  const [galleryHostId, setGalleryHostId] = useState(LOCAL_HOST_ID);
+  const remoteFolderOpeners = useRef(new Map<string, (path: string) => Promise<string>>());
+  const registerFolderOpener = useCallback((hostId: string, open: (path: string) => Promise<string>) => {
+    remoteFolderOpeners.current.set(hostId, open);
+    return () => { remoteFolderOpeners.current.delete(hostId); };
+  }, []);
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? (tab.comparison ? comparisonPath(tab.comparison) : undefined) ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? (tab.comparison ? comparisonPath(tab.comparison) : undefined) ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -847,8 +853,13 @@ function EditorApp() {
       return messageOf(cause);
     } finally { if (pendingOpens.current.get(group) === pending) { pendingOpens.current.delete(group); refreshOpens(); } }
   }
+  function openGalleryFolder(hostId: string, path: string): Promise<string> {
+    if (hostId === LOCAL_HOST_ID) return openFolder(path);
+    return remoteFolderOpeners.current.get(hostId)?.(path) ?? Promise.resolve(i18n.t("The Host is unavailable."));
+  }
   function openTemplateGallery(): void {
     if (busy || continuation) return;
+    if (!hostRegistry.list().some(host => host.hostId === galleryHostId)) setGalleryHostId(LOCAL_HOST_ID);
     if (sidebarOverlay) closeSidebar();
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
@@ -881,8 +892,11 @@ function EditorApp() {
     setNotice("");
     try {
       const client = target?.client ?? newTemplate?.client ?? getHostClient(LOCAL_HOST_ID);
-      const file = await createDocumentRequests(client).requestDocument("PUT", path, target ? target.root : folders.rootOf(path), !target && newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined);
-      acceptFile(file, client, navigation.focused, target?.hostId ?? LOCAL_HOST_ID);
+      const hostId = target?.hostId ?? newTemplate?.hostId ?? LOCAL_HOST_ID;
+      const root = target ? target.root : hostId === LOCAL_HOST_ID ? folders.rootOf(path)
+        : readOpenFolders(hostId).find(root => folderChain(root, path).length > 0);
+      const file = await createDocumentRequests(client).requestDocument("PUT", path, root, !target && newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined);
+      acceptFile(file, client, navigation.focused, hostId);
       return "";
     } catch (cause) { const message = messageOf(cause); setError(message); return message; }
     finally { operationRef.current = false; setOperation(""); }
@@ -891,24 +905,27 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string, exact = false, template?: TemplateSummary & { client: HostClient }): void {
+  function newFile(root: string, exact = false, template?: TemplateSummary & { client: HostClient; hostId: string }): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
     setNewTemplate(template);
     setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
-  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary & { client: HostClient }): void {
+  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary & { client: HostClient; hostId: string }): void {
     if (busy || continuation) return;
     setNewTemplate(template);
     newFileButton.current = returnFocus;
-    const root = folders.rootOf(openedPath) ?? folders.roots[0];
-    if (root) newFile(root, false, template);
+    const roots = template && template.hostId !== LOCAL_HOST_ID ? readOpenFolders(template.hostId) : folders.roots;
+    const root = roots.find(root => session?.hostId === (template?.hostId ?? LOCAL_HOST_ID) && folderChain(root, openedPath).length > 0) ?? roots[0];
+    if (root) newFile(root, Boolean(template && template.hostId !== LOCAL_HOST_ID), template);
     else {
       dialogReturnFocus.current = returnFocus;
       setNewAfterFolder(true);
       setFolderDialog(true);
     }
   }
+  const templateBrowse = useCallback((path: string) => browseHostFolder(path, undefined, newTemplate?.hostId, newTemplate?.client), [newTemplate]);
+  const templatePlaces = useCallback(() => folderPlaces(newTemplate?.hostId, newTemplate?.client), [newTemplate]);
   async function continueSession(shouldSave: boolean): Promise<void> {
     if (!continuation || continuationRunning.current || busy) return;
     const owner = sessions.current.get(continuation.id);
@@ -1052,21 +1069,25 @@ function EditorApp() {
     }).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
     return () => { active = false; stop?.(); };
   }, []);
+  function summarizeHostWork(records: readonly RecoveryRecord[]) {
+    const work = [...tabs, ...viewTabs, ...(galleryGroup ? [{ hostId: galleryHostId }] : [])];
+    const ids = new Set([...work.map(tab => tab.hostId), ...records.map(record => record.hostId)]);
+    return [...ids].map(hostId => ({
+      hostId, openWork: work.filter(tab => tab.hostId === hostId).length,
+      recovery: records.filter(record => record.hostId === hostId).length,
+    }));
+  }
   useEffect(() => {
     if (!desktop || !tabsRestored) return;
     let active = true;
     void recoveryStorage.list().then(records => {
       if (!active) return;
-      const ids = new Set([...tabs.map(tab => tab.hostId), ...viewTabs.map(tab => tab.hostId), ...records.map(record => record.hostId)]);
-      return desktop.reportHostWork([...ids].map(hostId => ({
-        hostId, openWork: [...tabs, ...viewTabs].filter(tab => tab.hostId === hostId).length,
-        recovery: records.filter(record => record.hostId === hostId).length,
-      })));
+      return desktop.reportHostWork(summarizeHostWork(records));
     }).catch(() => {
       if (active) void desktop.reportHostWork(null).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
     });
     return () => { active = false; };
-  }, [tabs, viewTabs, recoveryRecords, tabsRestored]);
+  }, [tabs, viewTabs, recoveryRecords, tabsRestored, galleryGroup, galleryHostId]);
   const restartCheck = useRef<() => RestartCheck>(() => ({ ok: false, reason: i18n.t("The editor is not ready.") }));
   restartCheck.current = () => {
     if (!tabsRestored) return { ok: false, reason: i18n.t("The editor is not ready.") };
@@ -1293,6 +1314,7 @@ function EditorApp() {
       <Sidebar onCompare={openComparison} onCopyPath={path => void copyPath(path)}
         documentHostId={activePdf?.hostId ?? session?.hostId ?? LOCAL_HOST_ID}
         onHostOpen={(hostId, path) => { if (sidebarOverlay) closeSidebar(); return openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); }); }}
+        registerFolderOpener={registerFolderOpener}
         onHostCreate={(hostId, client, path, root) => createFile(path, { hostId, client, root })}
         createdDocumentFocus={() => editorRef.current?.getFocusTarget() ?? null}
         onHostDirty={(hostId, path) => { const tab = openedTab(tabs, path, hostId); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
@@ -1472,8 +1494,8 @@ function EditorApp() {
             hidden={!galleryOpen} inert={!galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
-            <Suspense fallback={null}><TemplateGallery active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
-              onCreate={(item, focus, client) => newDocument(focus, { ...item, client })} onOpenFolder={path => openFolder(path)} /></Suspense>
+            <HostContext.Provider value={galleryHostId}><Suspense fallback={null}><TemplateGallery key={galleryHostId} hostId={galleryHostId} onHost={setGalleryHostId} active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
+              onCreate={(item, focus, client) => newDocument(focus, { ...item, client, hostId: galleryHostId })} onOpenFolder={path => openGalleryFolder(galleryHostId, path)} /></Suspense></HostContext.Provider>
           </div> : null}
           {settingsGroup ? <div className="shell-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
@@ -1482,17 +1504,15 @@ function EditorApp() {
             <SettingsDialog onCloseHostWork={hostId => {
                 const tab = tabs.find(tab => tab.hostId === hostId);
                 if (tab) closeTab(tab.id);
-                else { const view = viewTabs.find(tab => tab.hostId === hostId); if (view) closeTab(view.id); }
+                else { const view = viewTabs.find(tab => tab.hostId === hostId); if (view) closeTab(view.id); else if (galleryGroup && galleryHostId === hostId) closeTab("templates"); }
               }} onPrepareHostRemoval={async hostId => {
                 if (operationRef.current || busy || !tabsRestored) throw new Error(i18n.t("Wait for the current operation to finish."));
                 operationRef.current = true; setOperation("opening");
                 try {
-                  if ([...tabs, ...viewTabs].some(tab => tab.hostId === hostId)) throw new Error(i18n.t("Close Host work before removing this Host."));
+                  if ([...tabs, ...viewTabs].some(tab => tab.hostId === hostId) || (galleryGroup && galleryHostId === hostId)) throw new Error(i18n.t("Close Host work before removing this Host."));
                   const records = await recoveryStorage.list();
                   if (records.some(record => record.hostId === hostId)) throw new Error(i18n.t("Resolve Host recovery records before removal."));
-                  if (desktop) await desktop.reportHostWork([...new Set([...tabs.map(tab => tab.hostId), ...viewTabs.map(tab => tab.hostId), ...records.map(record => record.hostId)])].map(id => ({
-                    hostId: id, openWork: [...tabs, ...viewTabs].filter(tab => tab.hostId === id).length, recovery: records.filter(record => record.hostId === id).length,
-                  })));
+                  if (desktop) await desktop.reportHostWork(summarizeHostWork(records));
                   await desktop?.removeHost(hostId);
                 } finally { operationRef.current = false; setOperation(""); }
               }} onAssistantSaved={() => setAssistantSettingsRevision(value => value + 1)}
@@ -1551,13 +1571,18 @@ function EditorApp() {
         onClose={() => setRecoveryReview(null)} />
       <FolderDialog
         open={folderDialog}
-        initialPath={folders.rootOf(openedPath) ?? folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory}
-        recent={visibleRecent}
-        restricted={allowedRoots !== undefined}
-        allowedRoots={allowedRoots}
-        browse={browseHostFolder}
-        places={folderPlaces}
-        onOpen={path => openFolder(path, newAfterFolder)}
+        initialPath={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? readOpenFolders(newTemplate.hostId).at(-1) ?? "" : folders.rootOf(openedPath) ?? folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory}
+        recent={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? [] : visibleRecent}
+        restricted={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? false : allowedRoots !== undefined}
+        allowedRoots={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? undefined : allowedRoots}
+        browse={templateBrowse}
+        places={templatePlaces}
+        onOpen={async path => {
+          if (!newTemplate || newTemplate.hostId === LOCAL_HOST_ID) return openFolder(path, newAfterFolder);
+          const problem = await openGalleryFolder(newTemplate.hostId, path);
+          if (!problem && newAfterFolder) { setNewDirectory(path); folderNewReady.current = true; }
+          return problem;
+        }}
         onClosed={() => {
           if (pendingFolderFocus.current) {
             setFolderFocus(pendingFolderFocus.current);
@@ -1565,10 +1590,13 @@ function EditorApp() {
           if (!folderNewReady.current) return;
           setNewDialog(true);
         }}
-        onCreateFolder={createFolder}
+        onCreateFolder={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? async (parent, name) => {
+          try { await requestCreateFolder(parent, name, newTemplate.client); return ""; }
+          catch (cause) { return messageOf(cause); }
+        } : createFolder}
         returnFocus={dialogReturnFocus}
         finalFocus={() => folderNewReady.current || pendingFolderFocus.current ? false : shellReturnFocus(dialogReturnFocus.current)}
-        onClose={() => { setFolderDialog(false); setNewAfterFolder(false); }}
+        onClose={() => { setFolderDialog(false); setNewAfterFolder(false); if (!folderNewReady.current) setNewTemplate(undefined); }}
       />
       <HostContext.Provider value={imageChoice?.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={imageClient}><FolderDialog
         open={imageChoice !== null}
@@ -1587,7 +1615,7 @@ function EditorApp() {
         onSaved={() => { setSaveTemplate(undefined); setTemplateRevision(value => value + 1); setNotice({ key: "Template saved." }); }} /></HostContext.Provider> : null}
       <NewDialog
         open={newDialog}
-        destinations={newDestinations(folders.trees)}
+        destinations={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? readOpenFolders(newTemplate.hostId).map(path => ({ path, label: splitDocumentPath(path).name || path })) : newDestinations(folders.trees)}
         directory={newDirectory}
         busy={busy}
         onCreate={(directory, name) => createFile(childPath(directory, name))}
@@ -1690,8 +1718,8 @@ async function browseHostFolder(path: string, files?: "image" | "pdf", hostId = 
 const browseHostPdfs = (path: string) => browseHostFolder(path, "pdf");
 
 /** Asks the Host to create one folder inside an existing one. */
-async function requestCreateFolder(parent: string, name: string): Promise<FolderCreateResponse> {
-  const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder`, {
+async function requestCreateFolder(parent: string, name: string, client = getHostClient(LOCAL_HOST_ID)): Promise<FolderCreateResponse> {
+  const response = await client.request(`/api/folder`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ parent, name } satisfies FolderCreateRequest),

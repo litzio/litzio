@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.11
+
+저장된 리치오 문서에 Core 교정을 적용합니다. Docling patch/replay와 재생성은 제거했고 archive/record 4, SDK 0.5를 요구합니다. 독립 블록이 없는 kind 교정은 제안 시 거부합니다. before 내용 기준 충돌, 삭제 대응과 Undo, 실패 페이지 기록을 추가합니다. 이전 archive migration은 없습니다.
+
 ## 0.0.10 — 미발행
 
 - P1a/P1b의 내부 snapshot·대조·중간 export에 P2 공용 묶음·검사·필수 확인·완료 기록을 추가합니다.

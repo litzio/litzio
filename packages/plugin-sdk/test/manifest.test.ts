@@ -20,7 +20,7 @@ for (const scenario of ["remaining", "split", "undo"] as const) test(`review sup
   s.decide("groups-approve",scenario==="split"?"ab":"a",["a"],scenario==="split"?{remainderGroupId:"b"}:{});
   const oldGroup=scenario==="undo"?"a":"b", target=scenario==="undo"?"a":"b";
   if(scenario==="undo")s.decide("groups-undo","a",["a"]);
-  assert.throws(()=>s.decide("groups-approve",oldGroup,[target]),/stale/);
+  // The provider, rather than the document revision, owns before-content validation.
   const history=structuredClone(s.ledger.groups.find(g=>g.id===oldGroup)!.targets[0]!.history);
   s.change({kind:"groups-propose",groups:[s.group("replacement",[target])],supersedes:[{groupId:oldGroup,targetIds:[target],replacementGroupId:"replacement"}]});
   const old=s.ledger.groups.find(g=>g.id===oldGroup)!.targets[0]!;
@@ -147,8 +147,8 @@ test("review regions accept optional shared kinds and reject provider names as k
 });
 test("manifest rejects unsupported extensions, invalid identities, versions and unknown declarations before execution", () => {
   assert.equal(validateManifest(manifest()).id, "example.demo");
-  for (const requiresSdk of ["0.1.0", "^0.1.0", "0.2.0", "^0.2.0", ">=0.2.0 <1.0.0", "^0.3.0", "^0.4.0"]) assert.ok(validateManifest({ ...manifest(), requiresSdk }));
-  for (const requiresSdk of ["0.1.1", "^0.5.0", ">=1.0.0"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk }), /Unsupported SDK range/);
+  for (const requiresSdk of ["0.1.0", "^0.1.0", "0.2.0", "^0.2.0", ">=0.2.0 <1.0.0", "^0.3.0", "^0.4.0", "^0.5.0"]) assert.ok(validateManifest({ ...manifest(), requiresSdk }));
+  for (const requiresSdk of ["0.1.1", "^0.6.0", ">=1.0.0"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk }), /Unsupported SDK range/);
   for (const change of [{ settingsSchema: { type: "invalid" } }, { id: "../escape" }, { requiresSdk: "^2.0.0" }, { version: "bad" }, { entry: "../host.js" }, { contributes: { surprise: [] } }, { contributes: { jobs: [{ id: "import", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }, { contributes: { dataViews: [{ id: "table", operation: "read", version: 1 }] } }, { contributes: { generatedUi: [{ id: "ui", catalog: "table", schemaVersion: 1 }] } }, { contributes: { views: [{ id: "saved", definition: "view.json" }] } }, { contributes: { secretUses: [{ operation: "read", secret: "token" }] } }]) assert.throws(() => validateManifest({ ...manifest(), ...change }));
   assert.throws(() => compileSchema({ $ref: "https://example.test/schema" }));
   assert.throws(() => compileSchema({ type: "not-a-type" }));
