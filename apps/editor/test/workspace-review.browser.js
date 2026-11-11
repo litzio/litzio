@@ -57,6 +57,9 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   const list=page.getByRole('complementary',{name:'문제 묶음·후보'});
   await list.getByRole('button',{name:'2쪽 · 검토 대기',exact:true}).click();
   await expect(page.locator('.review-highlights > div')).toHaveCount(1);
+  await expect(list.locator('[aria-current=page]')).toHaveCount(1);
+  const treeRowHeight=await page.locator('.sidebar-tree-item[data-path]').first().evaluate(e=>e.getBoundingClientRect().height);
+  expect(await list.locator('.workspace-review-row').evaluateAll((rows,height)=>Math.max(...rows.map(row=>Math.abs(row.getBoundingClientRect().height-height))),treeRowHeight)).toBeLessThan(1);
   await expect(page.locator('.review-region[aria-pressed="true"]').first()).toBeVisible();
   await page.getByLabel('판단 사유',{exact:true}).fill('Compared exact paragraph and proposal');
   await page.getByRole('button',{name:'승인',exact:true}).click();
@@ -78,14 +81,22 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   // Page exclusion uses the same ledger proposal/approval and restores source mappings on Undo.
   await page.getByRole('button',{name:'쪽 펼치기',exact:true}).click();
   const pages=page.getByRole('complementary',{name:'쪽 선택·제외'});
+  const headers=await page.locator('.workspace-review-list > header, .workspace-review-proposal > summary, .workspace-review-pages > header').evaluateAll(elements=>elements.map(e=>({top:e.getBoundingClientRect().top,height:e.getBoundingClientRect().height})));
+  expect(headers).toHaveLength(3);
+  expect(Math.max(...headers.map(h=>h.top))-Math.min(...headers.map(h=>h.top))).toBeLessThan(1);
+  expect(Math.max(...headers.map(h=>h.height))-Math.min(...headers.map(h=>h.height))).toBeLessThan(1);
+  await expect(pages.getByRole('button',{name:'제외 묶음 만들기',exact:true})).toHaveCount(0);
   await pages.getByRole('checkbox').first().check();
-  await page.getByLabel('쪽 제외 사유',{exact:true}).fill('Exclude cover blocks');
   await page.getByRole('button',{name:'제외 묶음 만들기',exact:true}).click();
-  await expect(page.getByRole('button',{name:'쪽 묶음 승인',exact:true})).toBeEnabled();
-  await page.getByRole('button',{name:'쪽 묶음 승인',exact:true}).click();
+  const proposal=page.locator('.workspace-review-proposal');
+  await expect(pages.getByRole('button',{name:'제외 묶음 만들기',exact:true})).toHaveCount(0);
+  await expect(list.getByText('쪽 제외',{exact:true})).toBeVisible();
+  await proposal.getByLabel('판단 사유',{exact:true}).fill('Exclude cover blocks');
+  await expect(proposal.getByRole('button',{name:'승인',exact:true})).toBeEnabled();
+  await proposal.getByRole('button',{name:'승인',exact:true}).click();
   await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.reasonCode==='page-exclusion')?.targets.every(t=>t.proposal==='approved')).toBe(true);
-  await expect(page.getByRole('button',{name:'쪽 묶음 되돌리기',exact:true})).toBeEnabled();
-  await page.getByRole('button',{name:'쪽 묶음 되돌리기',exact:true}).click();
+  await expect(proposal.getByRole('button',{name:'되돌리기',exact:true})).toBeEnabled();
+  await proposal.getByRole('button',{name:'되돌리기',exact:true}).click();
   await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.reasonCode==='page-exclusion')?.targets.every(t=>t.proposal==='proposed')).toBe(true);
   await page.getByRole('button',{name:'쪽 접기',exact:true}).click();
   const required=(await docling.review('workspace-read',base)).ledger.inventory.requiredChecks[0];
@@ -122,6 +133,8 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   const chooseTheme=async theme=>{if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:/^Color mode:/}).click();await expect(page.locator('html')).toHaveAttribute('data-theme',theme);};
   if(screenshots){
     await list.getByRole('button',{name:'2쪽 · 승인함',exact:true}).click();
+    await expect(page.locator('.review-highlights > div')).toHaveCount(1);
+    await expect(list.locator('[aria-current=page]')).toHaveCount(1);
     await page.getByRole('button',{name:'쪽 펼치기',exact:true}).click();
     for(const theme of ['light','dark']){
       await chooseTheme(theme);await expect.poll(pageRegions).toEqual(regions);
