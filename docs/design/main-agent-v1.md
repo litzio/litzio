@@ -29,6 +29,19 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 > 2026-11-05 결정 개정: [ADR-0020 비서 제작 로드맵](../adr/0020-plugin-architecture.md#비서-플러그인-제작-로드맵2026-11-05-개정)은 하위 프로세스 reload·제작 키트·관리 건별 승인 제거와 활동 기록을 결정했다. 아래 매 호출 확인 등은 현재 구현의 기록이며 새 결정의 완료 증거가 아니다. 해당 구현 PR에서 함께 갱신한다.
 
+## 비서 자율성 원칙 (#1500, 2026-11-11)
+
+소유자 승인 원칙이며 이후 비서 기능과 리뷰의 기준이다. 단계 계획과 진행은 [#1500](https://github.com/litzio/litzio/issues/1500)을 따른다.
+
+- 자율성은 되돌릴 수 있는가로 정한다. 읽기·분석, 사본 수정·제안·검사 기록, 새 문서 생성은 비서가 스스로 한다. 원본(SSOT) 반영은 사람의 [적용] 한 번, Docling 검수 승인·완료는 사람, 큰 비용·외부 전송은 사람에게 확인한다.
+- 보호 장치는 작업별 확정 경계에 둔다. 그 경계에서 Host가 유효성·권한·revision·결과 기록을 책임지고, 비서와 화면은 같은 공용 계약을 재사용한다. 내부 식별자(baseline·requestId 등)는 Host가 채우고 사람과 모델에게 요구하지 않는다.
+- 비서에게 새 제약을 걸 때는 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명한다([AGENTS.md](../../AGENTS.md)). 읽기와 사본 변경은 막기보다 수행 방법을 먼저 찾는다.
+- [적용]은 정상 경로에서 Host가 통제한다. 전체 접근에서는 비서가 셸로 원본을 고치는 것까지 기술적으로 막지 않으며, 이 부분은 지침으로 지키는 약속이다.
+- 공통 작업 레지스트리·범용 승인 엔진은 만들지 않는다. 같은 도구 등록·권한 매핑·오류 변환을 반복 수정하거나 비서 연결 누락 회귀가 되풀이될 때 검토한다. 그 전까지 새 Host 작업은 입력·결과·범위·효과(읽기/쓰기/파괴)·receipt·비서 노출 여부를 설계 문서에 적는다.
+- 비서 도구의 입력·결과 계약은 공급자 중립으로 둔다. Codex와 Copilot은 같은 Host 도구 정의·실행 함수를 쓴다.
+- 비서 수락 시험: 모델 없는 Host·Core 단위 검사, 일상 점검은 Codex `gpt-6.1-terra` high, 핵심 업무 수락은 Codex `gpt-6.1-sol` medium(소유자 주력). 문서 수정 과제의 완료 상태는 '사본 완료·사람 적용 대기'다.
+- 직접 수정(사본 없이 원본 반영)은 수정 전 원본 보존, 원본 revision·파일 identity 검사, 성공·실패·불확실 receipt, 조건부 복원, 미저장 Editor 충돌 처리, 위임 범위 표시가 갖춰진 뒤 '이번 작업의 원본 반영까지 위임했는가'를 기준으로 재검토한다.
+
 ## 비서 뷰 기능 제거 (#1341, 2026-11-09)
 
 #1306에서 전용 Generate view·Ask assistant 진입을 제거한 뒤, #1341에서 일반 Send의
@@ -1450,7 +1463,7 @@ Owner-initiated stage 1 provides [the shared plugin management contract](plugin-
 
 K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 start/status/stop/result/list를 제공한다([계약](plugin-stage1-v1.md#k1-파일-작업)). 건별 승인은 없고 turn의 기존 tool 활동에 작업·성공/실패·결과가 남는다. 쓰기 모드와 열린 폴더 범위, 대상 Host 및 응답 상실 뒤 같은 ID 조회/no replay는 유지한다. Copilot은 #1500의 HTTP MCP 경로로 같은 도구를 사용한다.
 
-Codex `invoke_plugin_operation`은 현재 대화 Host의 `assistant:true` 읽기 작업과 manifest 연결 확인을 같은 공용 실행 경로로 호출한다([계약](plugin-stage1-v1.md#비서의-플러그인-읽기-호출-1425)). 쓰기·비공개 일반 작업·읽기 전용 turn은 거부한다. 출력 검증·secret 제거·고정 오류 분류와 receipt를 유지하며 활동에는 작업·시각·결과 상태·receipt만 남긴다. 입력·출력 원문은 활동이나 재개된 활동에 포함하지 않는다.
+Codex `invoke_plugin_operation`은 현재 대화 Host의 `assistant:true` 읽기 작업과 manifest 연결 확인을 같은 공용 실행 경로로 호출한다([계약](plugin-stage1-v1.md#비서의-플러그인-읽기-호출-1425)). 읽기 전용 turn에서도 이 조회와 연결 확인을 허용한다(#1500 5단계). 쓰기·비공개 일반 작업은 turn 권한과 무관하게 거부하며 필요한 선언과 전용 경로를 안내한다. plugin_jobs 시작·중지와 검수 쓰기의 권한은 유지한다. `manage_plugins`는 읽기 전용 turn에서 list·validate·settings 조회만 허용하며, 관리 쓰기는 거부하고 Opened folders 또는 Full access로 변경하도록 안내한다. 두 쓰기 권한의 동작은 바꾸지 않는다. 출력 검증·secret 제거·고정 오류 분류와 receipt를 유지하며 활동에는 작업·시각·결과 상태·receipt만 남긴다. 입력·출력 원문은 활동이나 재개된 활동에 포함하지 않는다.
 
 ### 플러그인 제작 문맥
 
