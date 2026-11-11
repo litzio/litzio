@@ -1,0 +1,418 @@
+{
+  "name": "synthetic",
+  "evidence": "Invented text, pages and boxes; tracking fixture, not PDF extraction accuracy.",
+  "document": {
+    "schema_name": "DoclingDocument",
+    "version": "1.10.0",
+    "body": {
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        },
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/texts/5"
+        },
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/tables/0"
+        }
+      ]
+    },
+    "texts": [
+      {
+        "self_ref": "#/texts/0",
+        "label": "section_header",
+        "text": "Identity experiment",
+        "level": 2,
+        "prov": [
+          {
+            "page_no": 1,
+            "bbox": {
+              "l": 50,
+              "t": 30,
+              "r": 450,
+              "b": 48,
+              "coord_origin": "TOPLEFT"
+            },
+            "charspan": [
+              0,
+              19
+            ]
+          }
+        ]
+      },
+      {
+        "self_ref": "#/texts/1",
+        "label": "text",
+        "text": "Repeated sentence.",
+        "prov": [
+          {
+            "page_no": 1,
+            "bbox": {
+              "l": 50,
+              "t": 80,
+              "r": 450,
+              "b": 98,
+              "coord_origin": "TOPLEFT"
+            },
+            "charspan": [
+              0,
+              18
+            ]
+          }
+        ]
+      },
+      {
+        "self_ref": "#/texts/2",
+        "label": "text",
+        "text": "Repeated sentence.",
+        "prov": [
+          {
+            "page_no": 2,
+            "bbox": {
+              "l": 50,
+              "t": 80,
+              "r": 450,
+              "b": 98,
+              "coord_origin": "TOPLEFT"
+            },
+            "charspan": [
+              0,
+              18
+            ]
+          }
+        ]
+      },
+      {
+        "self_ref": "#/texts/3",
+        "label": "text",
+        "text": "First half. Second half.",
+        "prov": [
+          {
+            "page_no": 1,
+            "bbox": {
+              "l": 50,
+              "t": 130,
+              "r": 450,
+              "b": 148,
+              "coord_origin": "TOPLEFT"
+            },
+            "charspan": [
+              0,
+              24
+            ]
+          }
+        ]
+      },
+      {
+        "self_ref": "#/texts/4",
+        "label": "text",
+        "text": "Page boundary ",
+        "prov": [
+          {
+            "page_no": 1,
+            "bbox": {
+              "l": 50,
+              "t": 750,
+              "r": 450,
+              "b": 768,
+              "coord_origin": "TOPLEFT"
+            },
+            "charspan": [
+              0,
+              14
+            ]
+          }
+        ]
+      },
+      {
+        "self_ref": "#/texts/5",
+        "label": "text",
+        "text": "continued.",
+        "prov": [
+          {
+            "page_no": 2,
+            "bbox": {
+              "l": 50,
+              "t": 30,
+              "r": 450,
+              "b": 48,
+              "coord_origin": "TOPLEFT"
+            },
+            "charspan": [
+              0,
+              10
+            ]
+          }
+        ]
+      },
+      {
+        "self_ref": "#/texts/6",
+        "label": "text",
+        "text": "Remove this block.",
+        "prov": [
+          {
+            "page_no": 2,
+            "bbox": {
+              "l": 50,
+              "t": 130,
+              "r": 450,
+              "b": 148,
+              "coord_origin": "TOPLEFT"
+            },
+            "charspan": [
+              0,
+              18
+            ]
+          }
+        ]
+      }
+    ],
+    "tables": [
+      {
+        "self_ref": "#/tables/0",
+        "label": "table",
+        "prov": [
+          {
+            "page_no": 2,
+            "bbox": {
+              "l": 50,
+              "t": 200,
+              "r": 450,
+              "b": 280,
+              "coord_origin": "TOPLEFT"
+            }
+          }
+        ],
+        "data": {
+          "num_rows": 2,
+          "num_cols": 2,
+          "table_cells": [
+            {
+              "text": "Name",
+              "column_header": true,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1
+            },
+            {
+              "text": "Value",
+              "column_header": true,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2
+            },
+            {
+              "text": "Repeated sentence.",
+              "column_header": false,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1
+            },
+            {
+              "text": "protcol",
+              "column_header": false,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2
+            }
+          ]
+        }
+      }
+    ],
+    "pictures": [],
+    "groups": [],
+    "pages": {
+      "1": {
+        "page_no": 1,
+        "size": {
+          "width": 595,
+          "height": 842
+        }
+      },
+      "2": {
+        "page_no": 2,
+        "size": {
+          "width": 595,
+          "height": 842
+        }
+      }
+    }
+  },
+  "keys": [
+    "h",
+    "repeat-a",
+    "repeat-b",
+    "split",
+    "front",
+    "back",
+    "delete",
+    "table"
+  ],
+  "steps": [
+    {
+      "op": "text",
+      "key": "repeat-b",
+      "expectedOrder": [
+        "h",
+        "repeat-a",
+        "repeat-b",
+        "split",
+        "front",
+        "back",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "repeat-b": {
+          "text": "Repeated corrected sentence."
+        }
+      },
+      "fromText": "Repeated sentence.",
+      "toText": "Repeated corrected sentence."
+    },
+    {
+      "op": "convert",
+      "key": "repeat-a",
+      "expectedOrder": [
+        "h",
+        "repeat-a",
+        "repeat-b",
+        "split",
+        "front",
+        "back",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "repeat-a": {
+          "block": "heading"
+        }
+      },
+      "to": {
+        "block": "heading",
+        "level": 3
+      }
+    },
+    {
+      "op": "split",
+      "key": "split",
+      "expectedOrder": [
+        "h",
+        "repeat-a",
+        "repeat-b",
+        "split",
+        "split-tail",
+        "front",
+        "back",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "split": {
+          "text": "First half.",
+          "estimated": true
+        },
+        "split-tail": {
+          "text": "Second half.",
+          "block": "paragraph",
+          "origins": [
+            "split"
+          ],
+          "estimated": true
+        }
+      },
+      "offset": 11,
+      "newKey": "split-tail"
+    },
+    {
+      "op": "merge",
+      "key": "back",
+      "expectedOrder": [
+        "h",
+        "repeat-a",
+        "repeat-b",
+        "split",
+        "split-tail",
+        "front",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "front": {
+          "text": "Page boundary continued.",
+          "origins": [
+            "front",
+            "back"
+          ]
+        }
+      },
+      "front": "front"
+    },
+    {
+      "op": "move",
+      "key": "repeat-b",
+      "expectedOrder": [
+        "h",
+        "repeat-a",
+        "split",
+        "split-tail",
+        "front",
+        "delete",
+        "table",
+        "repeat-b"
+      ],
+      "expectedChanges": {},
+      "to": 7
+    },
+    {
+      "op": "remove",
+      "key": "delete",
+      "expectedOrder": [
+        "h",
+        "repeat-a",
+        "split",
+        "split-tail",
+        "front",
+        "table",
+        "repeat-b"
+      ],
+      "expectedChanges": {}
+    },
+    {
+      "op": "cell",
+      "key": "table",
+      "expectedOrder": [
+        "h",
+        "repeat-a",
+        "split",
+        "split-tail",
+        "front",
+        "table",
+        "repeat-b"
+      ],
+      "expectedChanges": {},
+      "row": 1,
+      "column": 1,
+      "value": "protocol"
+    }
+  ]
+}

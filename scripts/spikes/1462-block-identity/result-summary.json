@@ -1,0 +1,183 @@
+{
+  "scope": "Two bounded fixtures, seven sequential operations each; B uses explicit target-pair shim, not native identity",
+  "loc": {
+    "A": 26,
+    "B": 44
+  },
+  "runs": [
+    {
+      "fixture": "synthetic",
+      "mode": "A",
+      "sourceEvidenceHash": "9058a4c88fa716aa9b10af9b8e392198e70197b43f39a378569210146d76529b",
+      "exportedMarkdownHash": "3b88f92fac44d72d5b7b36cd3bc5c2af25b87b8f123ea8b5aeba2060131e4642",
+      "tableCell": {
+        "sourceCellIndex": 3,
+        "row": 1,
+        "column": 1
+      },
+      "merged": [],
+      "deleted": [
+        [
+          "#/texts/6"
+        ]
+      ],
+      "checkpoints": 28,
+      "wrongConnections": 0,
+      "silentSourceLoss": 0
+    },
+    {
+      "fixture": "synthetic",
+      "mode": "B",
+      "sourceEvidenceHash": "9058a4c88fa716aa9b10af9b8e392198e70197b43f39a378569210146d76529b",
+      "exportedMarkdownHash": "e9e178b6c383da4ee6f8c333caaa022e5dbb20c7161bbc43574a03fef38658de",
+      "tableCell": {
+        "sourceCellIndex": 3,
+        "row": 1,
+        "column": 1
+      },
+      "merged": [
+        [
+          "b-006",
+          "b-005"
+        ]
+      ],
+      "deleted": [
+        [
+          "#/texts/6"
+        ]
+      ],
+      "checkpoints": 28,
+      "wrongConnections": 0,
+      "silentSourceLoss": 0
+    },
+    {
+      "fixture": "lsr-excerpt",
+      "mode": "A",
+      "sourceEvidenceHash": "8bcbbffcd7b316a28e3c769279485557bab182a77eb1b5ae24070fd3c9319aee",
+      "exportedMarkdownHash": "5194e5ffff403f8bac540b8b62e2c486d9e1b52fec964619359b576508d76e52",
+      "tableCell": {
+        "sourceCellIndex": 3,
+        "row": 1,
+        "column": 1
+      },
+      "merged": [],
+      "deleted": [
+        [
+          "#/texts/44"
+        ]
+      ],
+      "checkpoints": 28,
+      "wrongConnections": 0,
+      "silentSourceLoss": 0
+    },
+    {
+      "fixture": "lsr-excerpt",
+      "mode": "B",
+      "sourceEvidenceHash": "8bcbbffcd7b316a28e3c769279485557bab182a77eb1b5ae24070fd3c9319aee",
+      "exportedMarkdownHash": "8006edc6e52cc0ef6788efd66df8b5033f59fa6ea1f9bd44a30d56ef5eb7b90c",
+      "tableCell": {
+        "sourceCellIndex": 3,
+        "row": 1,
+        "column": 1
+      },
+      "merged": [
+        [
+          "b-007",
+          "b-004"
+        ]
+      ],
+      "deleted": [
+        [
+          "#/texts/44"
+        ]
+      ],
+      "checkpoints": 28,
+      "wrongConnections": 0,
+      "silentSourceLoss": 0
+    }
+  ],
+  "native": {
+    "resolution": [
+      {
+        "kind": "heading",
+        "targetLine": 1,
+        "blockPath": [
+          2
+        ],
+        "resolvedPath": [
+          2
+        ],
+        "ownLabel": null
+      },
+      {
+        "kind": "paragraph",
+        "targetLine": 3,
+        "blockPath": [
+          4
+        ],
+        "resolvedPath": [
+          4
+        ],
+        "ownLabel": null
+      },
+      {
+        "kind": "table",
+        "targetLine": 15,
+        "blockPath": [
+          16
+        ],
+        "resolvedPath": [
+          16
+        ],
+        "ownLabel": null
+      }
+    ],
+    "attempts": [
+      {
+        "operation": "text",
+        "accepted": true,
+        "wrongConnections": 0,
+        "silentSourceLoss": 0
+      },
+      {
+        "operation": "convert",
+        "accepted": true,
+        "wrongConnections": 0,
+        "silentSourceLoss": 0
+      },
+      {
+        "operation": "split",
+        "accepted": true,
+        "wrongConnections": 0,
+        "silentSourceLoss": 1
+      },
+      {
+        "operation": "merge",
+        "accepted": false,
+        "reason": "operation requires a paragraph"
+      },
+      {
+        "operation": "move",
+        "accepted": true,
+        "wrongConnections": 1,
+        "silentSourceLoss": 2
+      },
+      {
+        "operation": "remove",
+        "accepted": true,
+        "wrongConnections": 1,
+        "silentSourceLoss": 1
+      },
+      {
+        "operation": "cell",
+        "accepted": true,
+        "wrongConnections": 0,
+        "silentSourceLoss": 0
+      }
+    ],
+    "nativeAcceptance": false,
+    "paragraphLabelSetter": "updateLabel requires a top-level Equation, Figure, Table or target at [4]",
+    "wrongConnections": 2,
+    "silentSourceLoss": 4
+  }
+}

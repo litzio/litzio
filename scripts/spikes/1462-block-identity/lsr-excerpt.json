@@ -1,0 +1,1587 @@
+{
+  "name": "lsr-excerpt",
+  "evidence": {
+    "sourcePdf": "LSR-1.1-standards.pdf",
+    "sourcePdfSha256": "63cda884de96dfd0357843a534895f1beb7a10b24f3244398d930817a32b82ea",
+    "rawDocumentSha256": "dd12b431c20f6fa69acc3c7e0606817da05d847de226380929a675c188c356d1",
+    "resultStatus": "partial_success",
+    "errors": [
+      {
+        "component_type": "document_backend",
+        "module_name": "preprocess",
+        "error_message": "Page 2 failed to parse.",
+        "category": "backend_failure",
+        "page_no": 2
+      }
+    ],
+    "note": "Only surviving items selected; original references in sourceRefs. Captions/children/images omitted deliberately for this bounded excerpt, not a complete conversion."
+  },
+  "sourceRefs": {
+    "#/texts/0": "#/texts/40",
+    "#/texts/1": "#/texts/33",
+    "#/texts/2": "#/texts/24",
+    "#/texts/3": "#/texts/45",
+    "#/texts/4": "#/texts/44",
+    "#/tables/0": "#/tables/3"
+  },
+  "document": {
+    "schema_name": "DoclingDocument",
+    "version": "1.10.0",
+    "body": {
+      "children": [
+        {
+          "$ref": "#/texts/0"
+        },
+        {
+          "$ref": "#/texts/1"
+        },
+        {
+          "$ref": "#/texts/2"
+        },
+        {
+          "$ref": "#/texts/3"
+        },
+        {
+          "$ref": "#/texts/4"
+        },
+        {
+          "$ref": "#/tables/0"
+        }
+      ]
+    },
+    "texts": [
+      {
+        "label": "section_header",
+        "prov": [
+          {
+            "page_no": 6,
+            "bbox": {
+              "l": 54,
+              "t": 712.8769528,
+              "r": 353.8125052000001,
+              "b": 699.8769528,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              39
+            ]
+          }
+        ],
+        "text": "4. Duration bands and continued records",
+        "level": 1,
+        "self_ref": "#/texts/0"
+      },
+      {
+        "label": "text",
+        "prov": [
+          {
+            "page_no": 5,
+            "bbox": {
+              "l": 54,
+              "t": 291.8378904,
+              "r": 531.1933631999999,
+              "b": 269.3378904,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              126
+            ]
+          }
+        ],
+        "text": "The source intentionally spells the status as \"protcol pending\". A corrected spelling would be a separate editorial operation.",
+        "self_ref": "#/texts/1"
+      },
+      {
+        "label": "text",
+        "prov": [
+          {
+            "page_no": 4,
+            "bbox": {
+              "l": 54,
+              "t": 166.8378904,
+              "r": 279.12744359999994,
+              "b": 157.8378904,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              50
+            ]
+          }
+        ],
+        "text": "The observation matrix is retained with its notes.",
+        "self_ref": "#/texts/2"
+      },
+      {
+        "label": "text",
+        "prov": [
+          {
+            "page_no": 6,
+            "bbox": {
+              "l": 54,
+              "t": 117.71777320000001,
+              "r": 530.8693871999999,
+              "b": 94.71777320000001,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              160
+            ]
+          },
+          {
+            "page_no": 7,
+            "bbox": {
+              "l": 54,
+              "t": 712.7177732,
+              "r": 504.5634843999997,
+              "b": 703.2177732,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              161,
+              250
+            ]
+          }
+        ],
+        "text": "When a record is divided across physical pages, its reference remains attached to the same logical item. The continuation begins with the remaining words of the same sentence and does not create a new section merely because a running head intervenes.",
+        "self_ref": "#/texts/3"
+      },
+      {
+        "label": "text",
+        "prov": [
+          {
+            "page_no": 6,
+            "bbox": {
+              "l": 54,
+              "t": 237.51054671999998,
+              "r": 354.5448724499999,
+              "b": 226.2177732,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              62
+            ]
+          }
+        ],
+        "text": "The next physical page defines note 121 and continues Table 3.",
+        "self_ref": "#/texts/4"
+      }
+    ],
+    "tables": [
+      {
+        "label": "table",
+        "prov": [
+          {
+            "page_no": 5,
+            "bbox": {
+              "l": 52.89070129394531,
+              "t": 637.2197875976562,
+              "r": 558.6588134765625,
+              "b": 362.28082275390625,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              0
+            ]
+          }
+        ],
+        "data": {
+          "table_cells": [
+            {
+              "bbox": {
+                "l": 59,
+                "t": 181.54992208,
+                "r": 107.33114932,
+                "b": 189.74992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 2,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Parameter",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 164,
+                "t": 167.04992208,
+                "r": 237.72392777999997,
+                "b": 175.24992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 3,
+              "text": "Default settings",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 363,
+                "t": 167.04992208,
+                "r": 438.7619156,
+                "b": 175.24992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 5,
+              "text": "Allowed settings",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 164,
+                "t": 195.54992208,
+                "r": 204.14716802,
+                "b": 203.74992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Profile A",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 263,
+                "t": 195.54992208,
+                "r": 303.7157224,
+                "b": 203.74992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Profile B",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 363,
+                "t": 195.54992208,
+                "r": 407.58349184,
+                "b": 203.74992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "Minimum",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 463,
+                "t": 195.54992208,
+                "r": 508.70858924000004,
+                "b": 203.74992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "Maximum",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 59,
+                "t": 230.04992208,
+                "r": 120.61611445999999,
+                "b": 238.24992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Capture floor",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 164,
+                "t": 227.2481485728,
+                "r": 208.0663878568,
+                "b": 237.26592208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "≥ 0.932 u a",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 263,
+                "t": 230.04992208,
+                "r": 303.83984498,
+                "b": 238.24992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "≥ 0.941 u",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 363,
+                "t": 230.04992208,
+                "r": 389.14550894,
+                "b": 238.24992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "0.90 u",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 463,
+                "t": 230.04992208,
+                "r": 489.14550894,
+                "b": 238.24992207999992,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "0.98 u",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 59,
+                "t": 283.04992208,
+                "r": 114.78642614,
+                "b": 291.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Delay factor",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 59,
+                "t": 350.04992208,
+                "r": 114.83847727999998,
+                "b": 358.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 2,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Review path",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 164,
+                "t": 333.04992208,
+                "r": 227.3698246800001,
+                "b": 341.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 3,
+              "text": "Archive stream",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 363,
+                "t": 333.04992208,
+                "r": 380.26084009999994,
+                "b": 341.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "TCP",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 463,
+                "t": 333.04992208,
+                "r": 499.76386852,
+                "b": 341.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "Ethernet",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 164,
+                "t": 367.04992208,
+                "r": 227.3698246800001,
+                "b": 375.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 3,
+              "text": "Archive stream",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 363,
+                "t": 367.04992208,
+                "r": 378.85947322,
+                "b": 375.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 3,
+              "end_col_offset_idx": 4,
+              "text": "N/A",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 463,
+                "t": 367.04992208,
+                "r": 493.21347728000006,
+                "b": 375.24992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "RS-422",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 59,
+                "t": 405.54992208,
+                "r": 122.48593913999997,
+                "b": 413.74992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Record status",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 164,
+                "t": 405.54992208,
+                "r": 229.94433604000014,
+                "b": 413.74992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 2,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 3,
+              "text": "protcol pending",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 463,
+                "t": 405.54992208,
+                "r": 468.2170901,
+                "b": 413.74992208,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 4,
+              "end_col_offset_idx": 5,
+              "text": "0",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          "num_rows": 7,
+          "num_cols": 5,
+          "orientation": "rot_0",
+          "grid": [
+            [
+              {
+                "bbox": {
+                  "l": 59,
+                  "t": 181.54992208,
+                  "r": 107.33114932,
+                  "b": 189.74992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 2,
+                "col_span": 1,
+                "start_row_offset_idx": 0,
+                "end_row_offset_idx": 2,
+                "start_col_offset_idx": 0,
+                "end_col_offset_idx": 1,
+                "text": "Parameter",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 167.04992208,
+                  "r": 237.72392777999997,
+                  "b": 175.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 0,
+                "end_row_offset_idx": 1,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "Default settings",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 167.04992208,
+                  "r": 237.72392777999997,
+                  "b": 175.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 0,
+                "end_row_offset_idx": 1,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "Default settings",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 363,
+                  "t": 167.04992208,
+                  "r": 438.7619156,
+                  "b": 175.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 0,
+                "end_row_offset_idx": 1,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 5,
+                "text": "Allowed settings",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 363,
+                  "t": 167.04992208,
+                  "r": 438.7619156,
+                  "b": 175.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 0,
+                "end_row_offset_idx": 1,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 5,
+                "text": "Allowed settings",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              }
+            ],
+            [
+              {
+                "bbox": {
+                  "l": 59,
+                  "t": 181.54992208,
+                  "r": 107.33114932,
+                  "b": 189.74992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 2,
+                "col_span": 1,
+                "start_row_offset_idx": 0,
+                "end_row_offset_idx": 2,
+                "start_col_offset_idx": 0,
+                "end_col_offset_idx": 1,
+                "text": "Parameter",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 195.54992208,
+                  "r": 204.14716802,
+                  "b": 203.74992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 1,
+                "end_row_offset_idx": 2,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 2,
+                "text": "Profile A",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 263,
+                  "t": 195.54992208,
+                  "r": 303.7157224,
+                  "b": 203.74992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 1,
+                "end_row_offset_idx": 2,
+                "start_col_offset_idx": 2,
+                "end_col_offset_idx": 3,
+                "text": "Profile B",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 363,
+                  "t": 195.54992208,
+                  "r": 407.58349184,
+                  "b": 203.74992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 1,
+                "end_row_offset_idx": 2,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 4,
+                "text": "Minimum",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 463,
+                  "t": 195.54992208,
+                  "r": 508.70858924000004,
+                  "b": 203.74992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 1,
+                "end_row_offset_idx": 2,
+                "start_col_offset_idx": 4,
+                "end_col_offset_idx": 5,
+                "text": "Maximum",
+                "column_header": true,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              }
+            ],
+            [
+              {
+                "bbox": {
+                  "l": 59,
+                  "t": 230.04992208,
+                  "r": 120.61611445999999,
+                  "b": 238.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 2,
+                "end_row_offset_idx": 3,
+                "start_col_offset_idx": 0,
+                "end_col_offset_idx": 1,
+                "text": "Capture floor",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 227.2481485728,
+                  "r": 208.0663878568,
+                  "b": 237.26592208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 2,
+                "end_row_offset_idx": 3,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 2,
+                "text": "≥ 0.932 u a",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 263,
+                  "t": 230.04992208,
+                  "r": 303.83984498,
+                  "b": 238.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 2,
+                "end_row_offset_idx": 3,
+                "start_col_offset_idx": 2,
+                "end_col_offset_idx": 3,
+                "text": "≥ 0.941 u",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 363,
+                  "t": 230.04992208,
+                  "r": 389.14550894,
+                  "b": 238.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 2,
+                "end_row_offset_idx": 3,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 4,
+                "text": "0.90 u",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 463,
+                  "t": 230.04992208,
+                  "r": 489.14550894,
+                  "b": 238.24992207999992,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 2,
+                "end_row_offset_idx": 3,
+                "start_col_offset_idx": 4,
+                "end_col_offset_idx": 5,
+                "text": "0.98 u",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              }
+            ],
+            [
+              {
+                "bbox": {
+                  "l": 59,
+                  "t": 283.04992208,
+                  "r": 114.78642614,
+                  "b": 291.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 3,
+                "end_row_offset_idx": 4,
+                "start_col_offset_idx": 0,
+                "end_col_offset_idx": 1,
+                "text": "Delay factor",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": null,
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 3,
+                "end_row_offset_idx": 4,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 2,
+                "text": "",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": null,
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 3,
+                "end_row_offset_idx": 4,
+                "start_col_offset_idx": 2,
+                "end_col_offset_idx": 3,
+                "text": "",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": null,
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 3,
+                "end_row_offset_idx": 4,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 4,
+                "text": "",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": null,
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 3,
+                "end_row_offset_idx": 4,
+                "start_col_offset_idx": 4,
+                "end_col_offset_idx": 5,
+                "text": "",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              }
+            ],
+            [
+              {
+                "bbox": {
+                  "l": 59,
+                  "t": 350.04992208,
+                  "r": 114.83847727999998,
+                  "b": 358.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 2,
+                "col_span": 1,
+                "start_row_offset_idx": 4,
+                "end_row_offset_idx": 6,
+                "start_col_offset_idx": 0,
+                "end_col_offset_idx": 1,
+                "text": "Review path",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 333.04992208,
+                  "r": 227.3698246800001,
+                  "b": 341.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 4,
+                "end_row_offset_idx": 5,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "Archive stream",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 333.04992208,
+                  "r": 227.3698246800001,
+                  "b": 341.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 4,
+                "end_row_offset_idx": 5,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "Archive stream",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 363,
+                  "t": 333.04992208,
+                  "r": 380.26084009999994,
+                  "b": 341.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 4,
+                "end_row_offset_idx": 5,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 4,
+                "text": "TCP",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 463,
+                  "t": 333.04992208,
+                  "r": 499.76386852,
+                  "b": 341.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 4,
+                "end_row_offset_idx": 5,
+                "start_col_offset_idx": 4,
+                "end_col_offset_idx": 5,
+                "text": "Ethernet",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              }
+            ],
+            [
+              {
+                "bbox": {
+                  "l": 59,
+                  "t": 350.04992208,
+                  "r": 114.83847727999998,
+                  "b": 358.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 2,
+                "col_span": 1,
+                "start_row_offset_idx": 4,
+                "end_row_offset_idx": 6,
+                "start_col_offset_idx": 0,
+                "end_col_offset_idx": 1,
+                "text": "Review path",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 367.04992208,
+                  "r": 227.3698246800001,
+                  "b": 375.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 5,
+                "end_row_offset_idx": 6,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "Archive stream",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 367.04992208,
+                  "r": 227.3698246800001,
+                  "b": 375.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 5,
+                "end_row_offset_idx": 6,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "Archive stream",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 363,
+                  "t": 367.04992208,
+                  "r": 378.85947322,
+                  "b": 375.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 5,
+                "end_row_offset_idx": 6,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 4,
+                "text": "N/A",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 463,
+                  "t": 367.04992208,
+                  "r": 493.21347728000006,
+                  "b": 375.24992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 5,
+                "end_row_offset_idx": 6,
+                "start_col_offset_idx": 4,
+                "end_col_offset_idx": 5,
+                "text": "RS-422",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              }
+            ],
+            [
+              {
+                "bbox": {
+                  "l": 59,
+                  "t": 405.54992208,
+                  "r": 122.48593913999997,
+                  "b": 413.74992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 6,
+                "end_row_offset_idx": 7,
+                "start_col_offset_idx": 0,
+                "end_col_offset_idx": 1,
+                "text": "Record status",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 405.54992208,
+                  "r": 229.94433604000014,
+                  "b": 413.74992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 6,
+                "end_row_offset_idx": 7,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "protcol pending",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 164,
+                  "t": 405.54992208,
+                  "r": 229.94433604000014,
+                  "b": 413.74992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 2,
+                "start_row_offset_idx": 6,
+                "end_row_offset_idx": 7,
+                "start_col_offset_idx": 1,
+                "end_col_offset_idx": 3,
+                "text": "protcol pending",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": null,
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 6,
+                "end_row_offset_idx": 7,
+                "start_col_offset_idx": 3,
+                "end_col_offset_idx": 4,
+                "text": "",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              },
+              {
+                "bbox": {
+                  "l": 463,
+                  "t": 405.54992208,
+                  "r": 468.2170901,
+                  "b": 413.74992208,
+                  "coord_origin": "TOPLEFT"
+                },
+                "row_span": 1,
+                "col_span": 1,
+                "start_row_offset_idx": 6,
+                "end_row_offset_idx": 7,
+                "start_col_offset_idx": 4,
+                "end_col_offset_idx": 5,
+                "text": "0",
+                "column_header": false,
+                "row_header": false,
+                "row_section": false,
+                "fillable": false
+              }
+            ]
+          ]
+        },
+        "self_ref": "#/tables/0"
+      }
+    ],
+    "groups": [],
+    "pictures": [],
+    "pages": {
+      "1": {
+        "page_no": 1,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "2": {
+        "page_no": 2,
+        "size": {
+          "width": 0,
+          "height": 0
+        }
+      },
+      "3": {
+        "page_no": 3,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "4": {
+        "page_no": 4,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "5": {
+        "page_no": 5,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "6": {
+        "page_no": 6,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "7": {
+        "page_no": 7,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "8": {
+        "page_no": 8,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "9": {
+        "page_no": 9,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "10": {
+        "page_no": 10,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "11": {
+        "page_no": 11,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "12": {
+        "page_no": 12,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      },
+      "13": {
+        "page_no": 13,
+        "size": {
+          "width": 612,
+          "height": 792
+        }
+      }
+    }
+  },
+  "keys": [
+    "h",
+    "correct",
+    "convert",
+    "split",
+    "delete",
+    "table"
+  ],
+  "steps": [
+    {
+      "op": "text",
+      "key": "correct",
+      "expectedOrder": [
+        "h",
+        "correct",
+        "convert",
+        "split",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "correct": {
+          "text": "The source intentionally spells the status as \"protocol pending\". A corrected spelling would be a separate editorial operation."
+        }
+      },
+      "fromText": "protcol",
+      "toText": "protocol"
+    },
+    {
+      "op": "convert",
+      "key": "convert",
+      "expectedOrder": [
+        "h",
+        "correct",
+        "convert",
+        "split",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "convert": {
+          "block": "heading"
+        }
+      },
+      "to": {
+        "block": "heading",
+        "level": 3
+      }
+    },
+    {
+      "op": "split",
+      "key": "split",
+      "expectedOrder": [
+        "h",
+        "correct",
+        "convert",
+        "split",
+        "split-tail",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "split": {
+          "text": "When a record is divided across physical pages, its reference remains attached to the same logical item. ",
+          "estimated": true
+        },
+        "split-tail": {
+          "text": "The continuation begins with the remaining words of the same sentence and does not create a new section merely because a running head intervenes.",
+          "block": "paragraph",
+          "origins": [
+            "split"
+          ],
+          "estimated": true
+        }
+      },
+      "offset": 105,
+      "newKey": "split-tail"
+    },
+    {
+      "op": "merge",
+      "key": "split-tail",
+      "expectedOrder": [
+        "h",
+        "correct",
+        "convert",
+        "split",
+        "delete",
+        "table"
+      ],
+      "expectedChanges": {
+        "split": {
+          "text": "When a record is divided across physical pages, its reference remains attached to the same logical item. The continuation begins with the remaining words of the same sentence and does not create a new section merely because a running head intervenes.",
+          "origins": [
+            "split"
+          ],
+          "estimated": true
+        }
+      },
+      "front": "split"
+    },
+    {
+      "op": "move",
+      "key": "correct",
+      "expectedOrder": [
+        "h",
+        "convert",
+        "split",
+        "delete",
+        "table",
+        "correct"
+      ],
+      "expectedChanges": {},
+      "to": 5
+    },
+    {
+      "op": "remove",
+      "key": "delete",
+      "expectedOrder": [
+        "h",
+        "convert",
+        "split",
+        "table",
+        "correct"
+      ],
+      "expectedChanges": {}
+    },
+    {
+      "op": "cell",
+      "key": "table",
+      "expectedOrder": [
+        "h",
+        "convert",
+        "split",
+        "table",
+        "correct"
+      ],
+      "expectedChanges": {},
+      "row": 1,
+      "column": 1,
+      "value": "checked"
+    }
+  ]
+}
