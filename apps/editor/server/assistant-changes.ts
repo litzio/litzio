@@ -65,7 +65,7 @@ export class AssistantChanges {
       scope.folders.resolve(accessPath(record.path, scope.access, true), true);
       copy = scope.folders.resolve(accessPath(record.copy, scope.access));
       // A changed symlink must never redirect a copy write onto the original.
-      if (canonicalFilePath(copy) === canonicalFilePath(record.path) || fs.lstatSync(copy).isSymbolicLink()) return fail("forbidden", "Pending copy identity changed.");
+      if (canonicalFilePath(copy) === canonicalFilePath(record.path, true) || fs.lstatSync(copy).isSymbolicLink()) return fail("forbidden", "Pending copy identity changed.");
       source = decodeUtf8(fs.readFileSync(copy));
     } catch (error) {
       return fail(error instanceof FileAccessError || ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "") ? "forbidden" : "unavailable", String(error));

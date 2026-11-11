@@ -429,4 +429,8 @@ test("staged Host tools edit atomically by conversation receipt with scoped revi
   assert.doesNotMatch(readFileSync(staged.copy,"utf8"),/Must roll back/);
   const narrow = path.join(root,"narrow");fs.mkdirSync(narrow);
   assert.equal(invoke("edit_staged_document",input,{folders:new RootAccess([narrow])}).errorKind,"forbidden");
+  rmSync(original);
+  assert.equal(invoke("inspect_staged_document",{change:staged.id}).receipt.outcome,"success","a deleted original must not prevent inspecting the pending copy");
+  assert.equal(invoke("edit_staged_document",{...input,copyRevision:updated.copyRevision,operations:[{command:"insert-block",at:"end",text:"Still staged"}]}).receipt.outcome,"success");
+  assert.equal(fs.existsSync(original),false,"editing a copy must not recreate a deleted original");
 });
