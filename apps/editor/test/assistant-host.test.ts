@@ -336,6 +336,8 @@ test("pending copies survive Host restart, preserve originals on conflict, and u
   assert.equal(conflict.changed, true);
   assert.throws(() => restarted.apply("one", next.id, conflict.copyRevision, conflict.diskRevision), /changed/);
   assert.equal(readFileSync(original, "utf8"), source);
+  rmSync(original);
+  assert.equal(restarted.preview("one", next.id).missing, true);
   restarted.discard("one", next.id);
   assert.deepEqual(restarted.list("one"), []);
 });

@@ -49,11 +49,13 @@ export class AssistantChanges {
   }
   preview(conversation: string, id: string) {
     const record = this.get(conversation, id);
-    const before = decodeUtf8(fs.readFileSync(accessPath(record.path, this.access)));
+    let before = "", missing = false;
+    try { before = decodeUtf8(fs.readFileSync(accessPath(record.path, this.access))); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; missing = true; }
     const source = decodeUtf8(fs.readFileSync(accessPath(record.copy, this.access)));
     const document = parse(source); validateStructure(document);
     const after = serialize(document);
-    return { ...record, before, after, changed: textRevision(before) !== record.revision, missing: false,
+    return { ...record, before, after, changed: missing || textRevision(before) !== record.revision, missing,
       copyRevision: textRevision(source), diskRevision: textRevision(before) };
   }
   apply(conversation: string, id: string, copyRevision: string, diskRevision: string) {
