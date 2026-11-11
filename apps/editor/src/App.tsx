@@ -1,4 +1,4 @@
-import type { ScreenInfo, ScreenTab } from "../shared/assistant-screen.ts";
+import type { ScreenAction, ScreenActionResult, ScreenInfo, ScreenTab } from "../shared/assistant-screen.ts";
 import { GeneratedComparison, comparisonPath, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
@@ -259,10 +259,11 @@ function EditorApp() {
   const settingsOpen = settingsGroup?.active === "settings";
   const settingsFocused = activeId === "settings";
   const [galleryHostId, setGalleryHostId] = useState(LOCAL_HOST_ID);
+  const remoteFolderControls = useRef(new Map<string, { roots: string[]; close(path: string): void }>());
   const remoteFolderOpeners = useRef(new Map<string, (path: string) => Promise<string>>());
-  const registerFolderOpener = useCallback((hostId: string, open: (path: string) => Promise<string>) => {
-    remoteFolderOpeners.current.set(hostId, open);
-    return () => { remoteFolderOpeners.current.delete(hostId); };
+  const registerFolderOpener = useCallback((hostId: string, open: (path: string) => Promise<string>, control: { roots: string[]; close(path: string): void }) => {
+    remoteFolderOpeners.current.set(hostId, open); remoteFolderControls.current.set(hostId, control);
+    return () => { remoteFolderOpeners.current.delete(hostId); remoteFolderControls.current.delete(hostId); };
   }, []);
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
@@ -436,7 +437,7 @@ function EditorApp() {
         unsaved: Boolean(owner && (owner.documentDirty || owner.draftActive || owner.editorRef.current?.hasUnsavedChanges())) };
     });
     return { activeTab: screenTabs.find(tab => tab.id === activeId) ?? null, tabs: screenTabs,
-      folders: folders.trees.map(tree => ({ hostId: tree.hostId, path: tree.root })) };
+      folders: [...folders.trees.map(tree => ({ hostId: tree.hostId, path: tree.root })), ...[...remoteFolderControls.current].flatMap(([hostId, control]) => control.roots.map(path => ({ hostId, path })))] };
   };
   const documentPanelOpen = panelOpen && !settingsFocused && !galleryFocused && !activeViewTab && session?.kind !== "text";
   const nativeSession = session?.kind === "native" ? session : undefined;
@@ -732,24 +733,58 @@ function EditorApp() {
     const renamed = await fileAction("rename", root, { path, name: imageUrl.split("/").pop()!, kind: "image" }, name, { documentPath, imageUrl });
     return `./${renamed.slice(directory.length).replaceAll("\\", "/")}`;
   };
-  function closeTab(id: string): void {
+  function closeTab(id: string): boolean {
     if (viewTabs.some(tab => tab.id === id)) {
-      if (comparisonWrites.current.has(id)) { setNotice({key:"Wait for the current operation to finish."}); return; }
-      if (busy || continuation) return;
+      if (comparisonWrites.current.has(id)) { setNotice({key:"Wait for the current operation to finish."}); return false; }
+      if (busy || continuation) return false;
       setViewTabs(previous => previous.filter(tab => tab.id !== id));
-      navigate({ type: "close", id }); focusAfterClose.current = true; return;
+      navigate({ type: "close", id }); focusAfterClose.current = true; return true;
     }
     if (id === "settings" || id === "templates") {
-      if (busy || continuation) return;
+      if (busy || continuation) return false;
       if (id === "settings") setHighlightUpdate(false);
-      navigate({ type: "close", id }); focusAfterClose.current = true; return;
+      navigate({ type: "close", id }); focusAfterClose.current = true; return true;
     }
     const owner = sessions.current.get(id);
-    if (!owner || busy || owner.busyRef.current || continuation) return;
+    if (!owner || busy || owner.busyRef.current || continuation) return false;
     if (owner.editorRef.current?.hasUnsavedChanges()) {
       continuationReturnFocus.current = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : null;
       setContinuation({ id, session: owner });
-    } else removeTab(id);
+    } else { removeTab(id); return true; }
+    return false;
+  }
+  async function performScreenAction(action: ScreenAction): Promise<ScreenActionResult> {
+    const completed: string[] = [], remaining: ScreenActionResult["remaining"] = [];
+    if (busy || continuation || operationRef.current) return { outcome: "conflict", completed, remaining: [{target: "window", reason: "An operation or confirmation is pending."}] };
+    if (action.kind === "close_tabs") {
+      const current = readScreen().tabs;
+      const ids = action.tabIds === "all" ? current.map(tab => tab.id) : [...new Set(action.tabIds)];
+      let confirmation = false;
+      for (const id of ids) {
+        const tab = current.find(tab => tab.id === id);
+        if (!tab) { remaining.push({target: id, reason: "Tab is no longer open."}); continue; }
+        if (confirmation) { remaining.push({target: id, reason: "Unsaved-edit confirmation pending."}); continue; }
+        // closeTab checks the live editor and preserves the existing confirmation flow.
+        if (closeTab(id)) completed.push(id);
+        else { remaining.push({target: id, reason: tab.unsaved ? "Unsaved edits; existing close confirmation required." : "Tab is busy or unavailable."}); confirmation = tab.unsaved; }
+      }
+    } else if (action.kind === "open_folder") {
+      if (!hostRegistry.list().some(host => host.hostId === action.hostId)) return { outcome: "unavailable", completed, remaining: [{target: action.path, reason: "Host is not connected in this window."}] };
+      const problem = await openGalleryFolder(action.hostId, action.path);
+      if (problem) return { outcome: "unavailable", completed, remaining: [{target: action.path, reason: problem}] };
+      completed.push(action.path);
+    } else {
+      const current = readScreen().folders;
+      const targets = action.folders === "all" ? current : action.folders;
+      for (const target of targets) {
+        const key = `${target.hostId}:${target.path}`;
+        if (!current.some(item => item.hostId === target.hostId && item.path === target.path)) { remaining.push({target: key, reason: "Folder is no longer open."}); continue; }
+        if (target.hostId === LOCAL_HOST_ID) folders.close(target.path);
+        else remoteFolderControls.current.get(target.hostId)!.close(target.path);
+        completed.push(key);
+      }
+    }
+    return { outcome: remaining.length ? "conflict" : "success", completed, remaining };
   }
   const [desktopInfo, setDesktopInfo] = useState<DesktopInfo | null>(null);
   const settingsFocusRequested = useRef(false);
@@ -1575,7 +1610,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onReviewChange={openAssistantChange} onScreen={readScreen} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onReviewChange={openAssistantChange} onScreen={readScreen} onScreenAction={performScreenAction} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {

@@ -1,3 +1,4 @@
+import { AgentScreenActionRequests } from "../server/assistant-screen-action-tools.ts";
 import { AgentScreenRequests } from "../server/assistant-screen-tools.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
@@ -619,7 +620,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "close_tabs", "open_folder", "close_folders", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -944,4 +945,31 @@ test("screen queries isolate originating windows, omit undeclared data and fail 
   assert.throws(() => host.reply("thread", "window", expired.id, reply), /expired/);
   const cancelled = assert.rejects(host.execute({}, "thread", "window"), /cancelled/);
   host.cancel("thread"); await cancelled;
+});
+
+
+test("screen actions validate inputs, isolate windows and classify unconfirmed effects", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const host = new AgentScreenActionRequests();
+  assert.equal((await host.execute("close_tabs", { tabIds: [] }, "thread", "window")).outcome, "invalid_input");
+  assert.equal((await host.execute("close_tabs", { tabIds: "all", unexpected: true }, "thread", "window")).outcome, "invalid_input");
+  assert.equal((await host.execute("open_folder", { hostId: "local", path: "/docs" }, "thread")).outcome, "unavailable");
+  for (const [name, input] of [["close_tabs", {tabIds: ["saved", "dirty"]}], ["open_folder", {hostId: "local", path: "/docs"}], ["close_folders", {folders: "all"}]] as const) {
+    const result = host.execute(name, input, "thread", "window");
+    const command = host.snapshot("thread", "window")!;
+    assert.equal(command.action.kind, name);
+    assert.equal(host.snapshot("thread", "other"), undefined);
+    assert.equal(host.snapshot("other", "window"), undefined);
+    const reply = {outcome: "conflict" as const, completed: ["saved"], remaining: [{target: "dirty", reason: "Unsaved confirmation pending."}]};
+    assert.throws(() => host.reply("thread", "other", command.id, reply), /another window/);
+    assert.throws(() => host.reply("other", "window", command.id, reply), /another window/);
+    assert.equal((await host.execute(name, input, "thread", "window")).outcome, "conflict");
+    host.reply("thread", "window", command.id, reply);
+    assert.deepEqual(await result, reply);
+    assert.throws(() => host.reply("thread", "window", command.id, reply), /expired/);
+  }
+  const timeout = host.execute("close_tabs", {tabIds: "all"}, "thread", "window");
+  t.mock.timers.tick(10_000); assert.equal((await timeout).outcome, "uncertain");
+  const cancelled = host.execute("close_tabs", {tabIds: "all"}, "thread", "window");
+  host.cancel("thread"); assert.equal((await cancelled).outcome, "uncertain");
 });

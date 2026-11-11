@@ -494,6 +494,14 @@ The window supplies its focused group's active tab (or null), all opened tabs an
 
 This read is autonomous and provides no UI manipulation. It is Editor-specific tab/focus context, excluded from CLI parity under AGENTS.md and ADR-0015; no CLI command is added. Copilot ACP has no screen tool. The assistant uses the existing generic tool activity surface; no new visual component or layout exception is introduced.
 
+### Concrete screen actions (#1500 stage 3)
+
+`close_tabs` accepts `tabIds` (one or more IDs from `read_screen_context`, or `"all"`); `open_folder` accepts `hostId` and `path`; `close_folders` accepts `folders` (Host/path pairs, or `"all"`). These provider-neutral definitions join the same Host dynamic tool array as screen reads. They only affect the sending window, never another window, and need no extra permission-mode confirmation. They are reversible Editor interactions, exempt from CLI parity under AGENTS.md / ADR-0015. No generic UI executor is provided.
+
+The window rechecks live tab IDs, unsaved editor state and operation guards, using the existing tab-close confirmation flow. A dirty tab remains pending human confirmation; bulk close stops initiating closes after that confirmation opens. Folder actions use existing local/remote folder opening and closing functions and Host access rules; closing folders leaves document tabs intact. Screen reads include the connected remote explorers' opened roots as well as local roots.
+
+Results contain `outcome`, `completed` targets and `remaining` targets with reasons. Outcomes are `success`, `invalid_input`, `conflict`, `forbidden`, `unavailable`, or `uncertain`; missing/busy tabs and pending unsaved confirmation are conflicts. Opening failures retain the existing path's error reason as unavailable. No persistent receipt or document write is created. Host keeps only in-flight requests, verifies conversation/window ownership, and expires requests after 10 seconds. Timeout, cancellation and lost responses are uncertain: inspect screen state before deciding a next action. The window caches replies by request ID so a lost acknowledgement cannot execute the action twice. Existing generic tool activity is the only UI surface; no layout or visual exception is added. Copilot transport availability follows its shared-tool integration (#1509); this branch adds no independent ACP transport.
+
 ## Document tools (#931 implementation 2, PR 1)
 
 The Host registers document specs, the three [template specs](#template-workflows-936-phase-3) and the two

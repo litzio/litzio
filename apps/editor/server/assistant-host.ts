@@ -49,7 +49,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.submissionId) return history().submission(args.submissionId);
       if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args));
       const conversation = history().current(args.id);
-      return { ...conversation, screenRequest: history().screen.snapshot(args.id, args.displayClient), displayRequest: history().display.snapshot(args.id, args.displayClient) };
+      return { ...conversation, screenActionRequest: history().screenActions.snapshot(args.id, args.displayClient), screenRequest: history().screen.snapshot(args.id, args.displayClient), displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
     assistantConversation: async (args: any): Promise<any> => {
       if (args.action === "delete") {
@@ -82,6 +82,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.action === "send") await plugins?.start();
       if (closed) throw new Error("The Assistant Host is closing.");
       const currentSettings = settings();
+      if (args.action === "screen-action-result") { history().screenActions.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "screen-result") { history().screen.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "display-undo") return history().display.undo(args.id, args.displayClient, args.requestId);
