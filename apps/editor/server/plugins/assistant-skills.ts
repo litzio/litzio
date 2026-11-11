@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { isMap, parseDocument } from "yaml";
 import type { PluginManifest } from "@litzio/plugin-sdk";
@@ -8,7 +8,9 @@ const prefix = "litzio-plugin-";
 const namespace = (plugin: string) => `${prefix}${plugin.replaceAll(".", "--")}---`;
 
 function skillEntry(directory: string, manifest: PluginManifest, skill: PluginManifest["contributes"]["skills"][number]) {
-  const source = path.join(directory, skill.directory);
+  const source = realpathSync(path.join(directory, skill.directory));
+  const relative = path.relative(realpathSync(directory), source);
+  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Skill directory must stay inside package");
   const text = readFileSync(path.join(source, "SKILL.md"), "utf8");
   const frontmatter = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
   if (!frontmatter) throw new Error("Skill requires YAML frontmatter");
@@ -39,7 +41,6 @@ export class PluginAssistantSkills {
     try {
       for (const skill of manifest.contributes.skills) {
         const entry = skillEntry(directory, manifest, skill);
-        if (!statSync(entry.source).isDirectory()) throw new Error("Skill source must be a directory");
         mkdirSync(this.directory, { recursive: true });
         const target = path.join(this.directory, entry.name);
         cpSync(entry.source, target, { recursive: true });
