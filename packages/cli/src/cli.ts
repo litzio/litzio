@@ -1,4 +1,5 @@
 import { executeCompareOperation } from "../../../apps/editor/server/document-compare.ts";
+import { executeRequirementsOperation, type RequirementsAction } from "../../../apps/editor/server/requirements.ts";
 import { executeFolderTrash } from "../../../apps/editor/server/file-operations.ts";
 import { osTrashAvailable, trashFile } from "../../../apps/editor/server/os-trash.ts";
 import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
@@ -191,6 +192,11 @@ const COMMANDS: CommandSpec[] = [
     details: ["inspect lists deleted and retained data. apply requires the reviewed revision and confirmation; live Desktop/Host/CLI writers refuse reset. External browser profiles and provider accounts remain untouched."] },
   { name: "folder-trash", group: "Create and inspect", summary: "Move a child folder to OS Trash", usage: `${brand.cliCommand} folder-trash <path> --root <folder> [--host <origin>] [--check | --revision <sha256>] --json`, details: ["Only descendants of root are eligible. No permanent deletion. --check inspects file count and external image references without moving. Receipts distinguish refusal before mutation from uncertain OS results. Window drafts are not visible to CLI."] },
   { name: "compare", group: "Create and inspect", summary: "Compare native document block meaning (read-only)", usage: `${brand.cliCommand} compare <before> <after> --json`, details: ["Read-only native source snapshots; block paths are snapshot-local. Moves are removed + added. Returns source revision receipts; does not contact a live daemon."] },
+  { name: "requirements", group: "Create and inspect", summary: "Trace system requirements to a standard document and export ReqIF",
+    usage: `${brand.cliCommand} requirements check|extract|adopt|exclude|anchor|draft|export --standard <file> --system <file> [--key <anchor~sN>]... [--undo] [--id-prefix <prefix>] [--title <text>] [--out <file>] [--strict] [--json]`,
+    details: ["check reports orphans, broken links, changed or moved source sentences, duplicate IDs and normative sentences not yet extracted (exit 1 on errors; --strict also on unextracted sentences).",
+      "extract lists open candidates. adopt --key adds draft requirement blocks for them. exclude --key records a reviewed exclusion beside the system document (<system>.excluded.json, tied to the sentence hash); --undo removes it.",
+      "anchor adds missing (std-<clause>-p<n>)= anchors to the standard document. draft creates a new system document from all open candidates and never overwrites. export writes ReqIF 1.2 to --out (stdout without it). Same Host operation as the editor's /api/requirements."] },
   { name: "templates", group: "Create and inspect", summary: "List, read or save document templates",
     usage: `${brand.cliCommand} templates list [--json] [--language <ko|en>]`,
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
@@ -910,6 +916,49 @@ function main(argv: string[]): number {
   if (command === "compare") {
     if (rest.length !== 3 || rest[2] !== "--json" || rest[0].startsWith("--") || rest[1].startsWith("--")) throw new Error(commandHelp(command));
     process.stdout.write(JSON.stringify(executeCompareOperation({ before: readFile(rest[0]), after: readFile(rest[1]) })) + "\n");
+    return 0;
+  }
+  if (command === "requirements") {
+    const [action, ...tokens] = rest;
+    const actions = ["check", "extract", "adopt", "exclude", "anchor", "draft", "export"];
+    if (!actions.includes(action)) throw new Error(commandHelp(command));
+    const valued = ["--standard", "--system", "--key", "--id-prefix", "--title", "--out"], bare = ["--undo", "--strict", "--json"];
+    const keys: string[] = [], values = new Map<string, string>(), seen = new Set<string>();
+    for (let index = 0; index < tokens.length; index++) {
+      const token = tokens[index];
+      if (bare.includes(token)) { seen.add(token); continue; }
+      if (!valued.includes(token)) throw new Error(commandHelp(command));
+      const value = tokens[++index];
+      if (value === undefined || value.startsWith("--")) throw new Error(`missing ${token}`);
+      if (token === "--key") keys.push(value);
+      else if (values.has(token)) throw new Error(`${token} was given twice`);
+      else values.set(token, value);
+    }
+    const result = executeRequirementsOperation(action as RequirementsAction, {
+      standard: values.get("--standard"), system: values.get("--system"), keys, undo: seen.has("--undo"),
+      idPrefix: values.get("--id-prefix"), title: values.get("--title"),
+    });
+    const strict = seen.has("--strict"), report = result.report;
+    if (action === "export") {
+      const out = values.get("--out");
+      if (out) writeFileSync(out, result.reqif!, { encoding: "utf8", flag: "wx" });
+      else if (!seen.has("--json")) { process.stdout.write(result.reqif!); return 0; }
+      process.stdout.write(seen.has("--json") ? JSON.stringify({ ...result, reqif: undefined, written: out }) + "\n" : `wrote ${out}\n`);
+      return 0;
+    }
+    if (seen.has("--json")) process.stdout.write(JSON.stringify(result) + "\n");
+    else if (action === "extract") process.stdout.write(result.candidates!.map(item => `${item.anchor}~s${item.sentence} ${item.strength} [${item.clause}] ${item.text}`).join("\n") + `\n${result.candidates!.length} candidates\n`);
+    else if (action === "adopt") process.stdout.write(`adopted ${result.adopted!.join(", ")}\n`);
+    else if (action === "anchor") process.stdout.write(`${result.anchored} anchors added\n`);
+    else if (action === "draft") process.stdout.write(`wrote ${result.written}\n`);
+    if (report && (action === "check" || action === "adopt" || action === "exclude" || action === "draft")) {
+      const c = report.counts;
+      if (!seen.has("--json")) {
+        for (const issue of report.issues.filter(item => action === "check" && item.kind !== "uncovered")) process.stdout.write(`${issue.severity} ${issue.kind}: ${issue.message}\n`);
+        process.stdout.write(`requirements ${c.requirements} · linked ${c.linked} · not extracted ${c.uncovered} · excluded ${c.excluded} · broken ${c.broken} · changed ${c.changed} · moved ${c.moved} · orphans ${c.orphans}\n`);
+      }
+      if (action === "check") return !report.ok || (strict && c.uncovered > 0) ? 1 : 0;
+    }
     return 0;
   }
   if (command === "templates") {

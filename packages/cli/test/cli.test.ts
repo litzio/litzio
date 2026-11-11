@@ -699,7 +699,7 @@ test("litzio help exits successfully", () => {
     }
     const help = args.length === 0 ? result.stderr : result.stdout;
     const expectedGroups: Record<string, string[]> = {
-      "Create and inspect": ["compare", "create", "folder-trash", "inspect", "templates"],
+      "Create and inspect": ["compare", "create", "folder-trash", "inspect", "requirements", "templates"],
       "Check": ["check"],
       "Edit — batch": ["apply-batch"],
       "Edit — insert blocks": ["insert-block", "insert-heading", "insert-admonition", "insert-quote", "insert-divider", "insert-equation", "insert-figure", "insert-list", "insert-code-block"],
@@ -3081,4 +3081,49 @@ test("compare returns shared JSON receipts without changing either file; rejects
   const failure = run(["compare", before, after, "--json"]);
   assert.notEqual(failure.status, 0); assert.equal(failure.stdout, "");
   assert.equal(readFileSync(after, "utf8"), "not native");
+});
+
+test("requirements: check, extract, adopt, exclude, anchor, draft and export share the Host operation and never overwrite", async t => {
+  const dir = path.join(fixtures, "requirements"); mkdirSync(dir);
+  const standard = path.join(dir, "std.md"), system = path.join(dir, "sys.md");
+  writeFileSync(standard, nativeSource("# 1 Pumps\n\nThe pump shall start within 2 s. The pump may idle.\n\nThe valve should close.\n"));
+  writeFileSync(system, nativeSource("# 1 Pumps\n"));
+  const json = (args: string[]) => { const result = run(["requirements", ...args, "--json"]); assert.ok(result.status === 0 || result.status === 1, result.stderr); return { status: result.status, data: JSON.parse(result.stdout) }; };
+  assert.equal(json(["extract", "--standard", standard, "--system", system]).data.candidates.length, 0, "no anchors yet: nothing to extract");
+  assert.equal(json(["anchor", "--standard", standard]).data.anchored, 2);
+  assert.equal(json(["anchor", "--standard", standard]).data.anchored, 0);
+  const candidates = json(["extract", "--standard", standard, "--system", system]).data.candidates;
+  assert.deepEqual(candidates.map((item: { anchor: string; sentence: number }) => `${item.anchor}~s${item.sentence}`), ["std-1-p1~s1", "std-1-p1~s2", "std-1-p2~s1"]);
+  const adopt = json(["adopt", "--standard", standard, "--system", system, "--key", "std-1-p1~s1", "--key", "std-1-p2~s1"]);
+  assert.deepEqual(adopt.data.adopted, ["REQ-0001", "REQ-0002"]);
+  assert.equal(adopt.data.report.counts.covered, 2);
+  assert.match(readFileSync(system, "utf8"), /:source: std\.md#std-1-p1~s1@[0-9a-f]{12}/);
+  const exclude = json(["exclude", "--standard", standard, "--system", system, "--key", "std-1-p1~s2"]);
+  assert.equal(exclude.data.report.counts.excluded, 1);
+  assert.equal(JSON.parse(readFileSync(path.join(dir, "sys.excluded.json"), "utf8")).length, 1);
+  const checked = json(["check", "--standard", standard, "--system", system]);
+  assert.equal(checked.status, 0); assert.equal(checked.data.report.counts.uncovered, 0);
+  assert.equal(run(["requirements", "adopt", "--standard", standard, "--system", system, "--key", "std-1-p1~s1"]).status, 1, "already covered");
+  assert.equal(json(["exclude", "--standard", standard, "--system", system, "--key", "std-1-p1~s2", "--undo"]).data.report.counts.uncovered, 1);
+  assert.equal(run(["requirements", "check", "--standard", standard, "--system", system, "--strict"]).status, 1);
+  // A changed standard sentence is an error for check (exit 1).
+  writeFileSync(standard, readFileSync(standard, "utf8").replace("within 2 s", "within 3 s"));
+  const changed = json(["check", "--standard", standard, "--system", system]);
+  assert.equal(changed.status, 1); assert.equal(changed.data.report.counts.changed, 1);
+  const out = path.join(dir, "out.reqif");
+  assert.equal(run(["requirements", "export", "--system", system, "--out", out]).status, 0);
+  assert.match(readFileSync(out, "utf8"), /<REQ-IF /);
+  assert.notEqual(run(["requirements", "export", "--system", system, "--out", out]).status, 0, "export never overwrites");
+  const draft = path.join(dir, "draft.md");
+  assert.equal(run(["requirements", "draft", "--standard", standard, "--system", draft]).status, 0);
+  assert.notEqual(run(["requirements", "draft", "--standard", standard, "--system", draft]).status, 0);
+  // The HTTP route is the same operation.
+  const server = createServer((req, res) => void handleDocumentRequest(req, res, () => res.end()));
+  await listenForFetch(server);
+  t.after(() => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  const address = server.address() as { port: number };
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/requirements`, { method: "POST", body: JSON.stringify({ action: "check", standard, system }) });
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json() as { report: unknown }).report, changed.data.report);
+  assert.equal((await fetch(`http://127.0.0.1:${address.port}/api/requirements`, { method: "POST", body: JSON.stringify({ action: "nope" }) })).status >= 400, true);
 });

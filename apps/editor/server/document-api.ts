@@ -5,6 +5,7 @@ import { catalogViewByteLimit, type CatalogView } from "@litzio/core/views-v2";
 import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
 export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
+import { executeRequirementsOperation, type RequirementsAction } from "./requirements.ts";
 import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
 import { executeViewOperation } from "./views.ts";
@@ -339,6 +340,17 @@ export async function handleDocumentRequest(
     if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
     try { sendJson(res, 200, executeCompareOperation(JSON.parse(await readBody(req)))); }
     catch (error) { failure(error); }
+    return;
+  }
+  if (url === "/api/requirements") {
+    if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
+    try {
+      const body: unknown = JSON.parse(await readBody(req));
+      const actions = ["check", "extract", "adopt", "exclude", "anchor", "draft", "export"];
+      if (!isObject(body) || typeof body.action !== "string" || !actions.includes(body.action)) throw new Error("a requirements action is required");
+      const { action, ...input } = body;
+      sendJson(res, 200, executeRequirementsOperation(action as RequirementsAction, input, access));
+    } catch (error) { failure(error); }
     return;
   }
   if (url === "/api/document-source") {

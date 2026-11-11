@@ -13,7 +13,7 @@ import { formatSource } from "./myst/requirement.ts";
  * Source spans are addressed as `document#anchor~sN@hash`:
  * - `anchor` is a `(label)=` target directly before a top-level standard paragraph (persistent);
  * - `N` is the 1-based sentence ordinal inside that paragraph;
- * - `hash` is a non-cryptographic content hash of the sentence, so a changed sentence is detected
+ * - `hash` is a SHA-256 content hash (12 hex digits) of the normalized sentence, so a changed sentence is detected
  *   and a sentence that only moved inside its paragraph is found again by hash.
  */
 
