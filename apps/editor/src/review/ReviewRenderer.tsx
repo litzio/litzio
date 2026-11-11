@@ -89,7 +89,8 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
     </div></div>
   </section>;
 }
-export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable, title, toolbarActions, compact = false }: { snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void; title?: string; toolbarActions?: ReactNode; compact?: boolean }) {
+export type ReviewNavigation = { path?: number[]; sourceId?: string; pageNo?: number };
+export function SourceDocumentCompare({ navigation, snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable, title, toolbarActions, compact = false }: { navigation?: ReviewNavigation; snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void; title?: string; toolbarActions?: ReactNode; compact?: boolean }) {
   const [sources, setSources] = useState<string[]>([]), [targets, setTargets] = useState<string[]>([]);
   const [positions, setPositions] = useState<ReadingPosition>({ blocks: [], height: 0 });
   const scroll = useRef<HTMLDivElement>(null), content = useRef<HTMLDivElement>(null), source = useRef<HTMLDivElement>(null);
@@ -170,6 +171,19 @@ export function SourceDocumentCompare({ snapshot: s, disabled, selectionDisabled
     const region = container?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (container && region) { const a = container.getBoundingClientRect(), b = region.getBoundingClientRect(); reveal(container, container.scrollTop + b.top-a.top, b.height); }
   }, [sources]);
+  const deliveredNavigation = useRef<ReviewNavigation | undefined>(undefined);
+  useEffect(() => {
+    if (!navigation || deliveredNavigation.current === navigation || disabled || selectionDisabled || !positions.blocks.length) return;
+    deliveredNavigation.current = navigation;
+    if (navigation.pageNo) navigate(navigation.pageNo);
+    if (navigation.path) {
+      const owner = s.document.blocks.find(block => block.path.every((part,index)=>navigation.path![index]===part));
+      const key = JSON.stringify(owner?.path ?? navigation.path);
+      void selectDocument(key);
+      const block = positions.blocks.find(block => block.key === key);
+      if (block && scroll.current && content.current) reveal(scroll.current, content.current.offsetTop + block.top, block.height);
+    } else if (navigation.sourceId) void selectSource(navigation.sourceId);
+  }, [navigation, disabled, selectionDisabled, positions]);
   const checkedDescription = i18n.t("{{checked}} of {{total}} pages checked",{checked:s.progress?.checkedPages.length ?? 0,total:s.pageCount});
   return <>{continuous && <div className="review-toolbar review-compare-toolbar" aria-label={i18n.t("Source comparison")}>
     <span className="review-file" title={title ?? s.documentPath}>{title ?? s.documentPath}</span>
@@ -252,7 +266,7 @@ export function ReviewDetail({ proposal: p, document, baseline, disabled, onActi
     })}</div></section>;
 }
 /** Mount with a new key on Host/source changes. Adapter is scoped to that mounted source. */
-export function ReviewRenderer({ view, adapter, actions, unavailableMessage }: { view: ReviewView; adapter: ReviewAdapter; actions?: ReactNode; unavailableMessage?: string }) {
+export function ReviewRenderer({ blocked = false, navigation, view, adapter, actions, unavailableMessage }: { blocked?: boolean; navigation?: ReviewNavigation; view: ReviewView; adapter: ReviewAdapter; actions?: ReactNode; unavailableMessage?: string }) {
   const [snapshot, setSnapshot] = useState<ReviewSnapshot>(), [selected, setSelected] = useState<string>();
   const [state, setState] = useState<"loading" | "ready" | "refreshing" | "unavailable" | "uncertain">("loading");
   const verification = useRef<Promise<boolean> | undefined>(undefined);
@@ -291,7 +305,7 @@ export function ReviewRenderer({ view, adapter, actions, unavailableMessage }: {
   const stale = snapshot && (!documentCoherent(snapshot) || !adapter.saveProgress && snapshot.bundle.bundleRef !== view.sources.review.bundleRef);
   const unresolved = adapter.pending ?? snapshot?.unresolved?.[0];
   const unverifiable = unresolved?.verification === "unavailable";
-  const disabled = state !== "ready" || !!stale || !!unresolved || progressError;
+  const disabled = blocked || state !== "ready" || !!stale || !!unresolved || progressError;
   const proposal = snapshot?.proposals.find(p => p.id === selected);
   const act = async (action: ReviewAction) => {
     if (busy.current || disabled || !snapshot || !proposal || !sameBaseline(proposal.baseline, snapshot.baseline) || !targetsMatch(snapshot, proposal) || (action === "undo" ? proposal.state !== "approved" : proposal.state !== "pending") || !proposal.actions.some(a => a.action === action && a.allowed)) return;
@@ -318,7 +332,7 @@ export function ReviewRenderer({ view, adapter, actions, unavailableMessage }: {
     {snapshot && (wide || adapter.saveProgress) && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
       <h3 className={combined && child.component === "SourceDocumentCompare" ? "sr-only":undefined}>{child.title}</h3>
       {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n,true)} />}
-      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} compact={compact} title={view.title} toolbarActions={combined ? controls:undefined} disabled={disabled} selectionDisabled={savingProgress} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
+      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare navigation={navigation} snapshot={snapshot} compact={compact} title={view.title} toolbarActions={combined ? controls:undefined} disabled={disabled} selectionDisabled={savingProgress} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
         if (disabled || busy.current) return;
         const pages = new Set(snapshot.progress?.checkedPages);
         if (checked) pages.add(pageNo); else pages.delete(pageNo);

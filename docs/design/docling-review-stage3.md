@@ -41,6 +41,22 @@
 
 1440px 합성 대조 [라이트](assets/docling-workspace-s3/compare-1440-light.png)·[다크](assets/docling-workspace-s3/compare-1440-dark.png), 명시 export [라이트](assets/docling-workspace-s3/export-1440-light.png)·[다크](assets/docling-workspace-s3/export-1440-dark.png)를 보관한다. source PNG가 1px인 합성 자료로 실제 PDF 품질이나 제품 실측이 아니다. 실제 서비스 재변환·AI 호출·원격 PC/설치형 Desktop·4~7단계 제품 수락은 확인하지 않았다.
 
+## 6단계 최소 검수 화면 — 6-2
+
+6-1의 소유자 선택 A(문제 목록 중심)를 작업공간 대조에 적용한다. 왼쪽은 숫자·단위 우선 원문 후보, 문제 묶음별 대상, 그림·표 필수 확인과 접힌 검사 기록이다. 가운데 위는 선택 대상의 제안·판단 사유·승인/거절/Undo 또는 직접 확인/판단 불가 기록이며 접을 수 있다. 가운데 아래는 기존 ReviewRenderer/SourceDocumentCompare다. 오른쪽 쪽 선택·제외는 기본 접힘이고 펼치면 근처 썸네일을 읽는다. 큰 제목·반복 설명·하단 안내는 추가하지 않는다. Button sm/ghost/outline, Input, Notice, native details와 기존 간격·색 토큰을 사용한다. 승인된 A 배치 외에 새 공통 상호작용 예외는 없다.
+
+목록 선택은 현재 binding/후보 경로와 쪽 번호를 기존 대조의 선택·이동 경로에 전달한다. 원본 박스·모든 가시 대응 연결선·선택 강조·동기화와 끄기·확대/resize 재측정·viewport 밖 endpoint 숨김과 이미지 읽기 큐를 유지한다. 좁은 창은 작업 영역 안의 스크롤과 기존 넓은 창 권장 안내를 유지하며 다중 패널의 최적 읽기 경험을 약속하지 않는다.
+
+화면은 workspace-evidence read/run, workspace-review-change의 groups-propose/approve/reject/undo 및 required-checks를 호출한다. 실제 사람이 사유를 입력하고 판단 버튼을 누른 기록만 human으로 보낸다. 비서의 권한·도구는 바꾸지 않는다. 후보는 미판정이고 오래된 문서의 후보임을 표시한다. 필수 확인은 문제 목록 한 곳에서만 표시하고 선택 후 직접 확인 결과와 이력을 기록한다.
+
+쪽 제외는 선택한 쪽에 대응하는 기존 블록을 중복 없이 골라 제외 제안 묶음을 만든 뒤 사람이 묶음 전체를 승인한다. 공유 블록은 다른 쪽에 걸쳐 있어도 전체를 제외함을 안내한다. 원본과 대응 증거는 남기고 기존 그룹 Undo로 복원한다. 4b 삽입 블록이 있는 쪽은 부분 제외하지 않고 사유를 hover/focus로 안내하며 거부한다(삽입 블록 제외 확장은 6-3 실측에서 필요할 때 별도 결정). 새 영속 상태·Core/Host 작업·CLI는 추가하지 않는다. 화면의 선택·접힘·입력 사유는 열린 탭 소유이며 저장하지 않는다. 기존 baseline/requestId/uncertain 관측 경계와 닫기 보호를 사용한다.
+
+화면 고유 검사는 기존 workspace-review browser 경로에서 목록 선택→원본/문서 강조, 사람 승인→Undo→거절, 쪽 제외 묶음→전체 승인→Undo, 그림/표 직접 확인 기록을 검증한다. 기존 진행 저장·cold Host·export 검사는 유지한다. 숫자·단위 후보 정렬/탐지 의미는 기존 공용 evidence 검사에 맡긴다. 삽입 블록의 쪽 제외 거부는 별도 가벼운 UI admission 단위 검사로 보호하며 Host 의미 검사를 반복하지 않는다. 새 subprocess·무거운 E2E 경로·조합 전수 검사·timeout 증가는 없다. 첫 목록 선택 검사는 새 자료 읽기 중 들어온 선택이 버려지는 실패를 드러냈고 자료/블록 layout 준비 후 한 번 전달하도록 고쳤다.
+
+동일 합성 작업공간의 1440px [라이트 이전](assets/review-panel-s6/before-1440-light.png)/[이후](assets/review-panel-s6/after-1440-light.png), [다크 이전](assets/review-panel-s6/before-1440-dark.png)/[이후](assets/review-panel-s6/after-1440-dark.png) 및 한국어 640px [라이트](assets/review-panel-s6/after-640-light.png)/[다크](assets/review-panel-s6/after-640-dark.png)를 보관한다. 원본 PNG는 기존 1px 합성 fixture이며 실제 PDF 품질·소유자 시각 승인을 뜻하지 않는다. 기존 대조와 나란히 비교해 compact 행/여백·패널 내부 스크롤·다크 톤·한국어 줄바꿈을 자체 확인했다. Windows 로컬에서 공용 review 8개·삽입 블록 admission 1개, 전체 typecheck·Editor/CLI build·docs check·diff check, workspace-review(HTTP 복구 포함 2개, 캡처 실행 약 1.8분), review-v5/layout-rules/quiet-document(3개, 약 1.6분)가 통과했다. 마지막 quiet-document 실행에 기존 ResizeObserver loop 진단 1건이 출력됐으며 runner 판정은 통과다. 캡처 전용 테마/폭 순회는 --screenshots에만 둔다.
+
+이 절은 6-2 화면 범위다. 6-3 LSR 13쪽 전체 실측, 실제 AI 응답·탐지 성능·사람 처리 부담 측정은 포함하지 않는다. Docling 재변환은 하지 않는다.
+
 ## 4b 원문 증거 후보·블록 삽입 구현 — 2026-11-11
 
 범위는 4단계 중 보조 원문 증거 후보와 insert 교정이다. 검사 종류·필수 여부·완료 계산은 4a의 계약을 재사용한다. `source-evidence`는 required=false이며 검사를 실행하지 않았거나 후보가 남아도 완료·내보내기를 막지 않는다. 후보를 문제 묶음으로 자동 변환하지 않으며 비서 도구는 정의만 제공한다.

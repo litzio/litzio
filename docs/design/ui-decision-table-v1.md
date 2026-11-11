@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 문제 목록에서 검수한다 (#1462 6-2) | 승인된 A 배치: 목록·가운데 제안/기존 대조·접힌 쪽 칸 | 기존 ReviewRenderer, Button sm/ghost/outline, Input, Notice, Tooltip, native details | 기존 evidence/그룹 판단/필수 확인 작업과 블록 제외 묶음, 비서 승인 권한 추가 없음 | [6-2 화면](docling-review-stage3.md#6단계-최소-검수-화면--6-2) | 배치는 소유자 승인. 새 공통 control/token 예외 없음. 큰 머리글·하단 반복 설명 없음 |
 | 파일 없는 검수 snapshot을 대조·중간 내보내기한다 (#1462 P1b) | 기존 comparison 작업 탭·명시 export Dialog | ReviewRenderer/DocumentEditor readOnly preview·Dialog/Input/Button/checkbox | 내부 source/이미지·effective 대응, 실제 파일 열기는 export 결과만, revision/overwrite·미저장 보호 | [P1b](docling-review-stage3.md#p1b-내부-대조이미지명시-export) | 기존 공통 구현, 새 token/control 예외 없음. 완료 승인/final export는 후속 |
 
 | 생성 문서에서 대조를 다시 연다 (#1465) | 기존 문서 안내·탐색기 | warning Notice + ghost sm Button, ContextMenu + PanelRightOpen, 여러 문서는 기존 Dialog/Button | Host 연결을 조회해 기존 대조 탭 열기·재생성 안내 | [생성 문서 진입점](plugin-stage1-v1.md#생성-문서-대조-진입점-1465) | 새 화면 종류 없음. 최근 검수 진행률 목록은 공용 schema/binding 부재로 미제공 |

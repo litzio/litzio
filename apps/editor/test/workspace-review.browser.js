@@ -53,9 +53,49 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
       inspection:'uncertain',proposal:'proposed',result:null,resolved:false,history:[]}]};
   const proposed=await docling.review('workspace-review-change',{...base,baseline:state.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-propose',groups:[group]}});
   expect(proposed.receipt.outcome).toBe('success');
-  const patched=await docling.review('workspace-review-change',{...base,baseline:proposed.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-approve',groupId:group.id,targetIds:['body'],human:{actor:'person',reason:'Compared exact paragraph and proposal',confirmed:true},resolvesIssue:true}});
-  expect(patched.receipt.outcome).toBe('success');
   await page.getByRole('button',{name:'Refresh data',exact:true}).click();
+  const list=page.getByRole('complementary',{name:'문제 묶음·후보'});
+  await list.getByRole('button',{name:'2쪽 · 검토 대기',exact:true}).click();
+  await expect(page.locator('.review-highlights > div')).toHaveCount(1);
+  await expect(page.locator('.review-region[aria-pressed="true"]').first()).toBeVisible();
+  await page.getByLabel('판단 사유',{exact:true}).fill('Compared exact paragraph and proposal');
+  await page.getByRole('button',{name:'승인',exact:true}).click();
+  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===group.id).targets[0].proposal).toBe('approved');
+  await expect(page.getByRole('button',{name:'되돌리기',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'되돌리기',exact:true}).click();
+  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===group.id).targets[0].proposal).toBe('proposed');
+  await expect(page.getByRole('button',{name:'거절',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'거절',exact:true}).click();
+  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===group.id).targets[0].proposal).toBe('rejected');
+  const rejected=await docling.review('workspace-read',base);
+  const second={...group,id:'browser-kind-second',contentRevision:rejected.documentRevision};
+  await docling.review('workspace-review-change',{...base,baseline:rejected.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-propose',groups:[second]}});
+  await page.getByRole('button',{name:'Refresh data',exact:true}).click();
+  await list.getByRole('button',{name:'2쪽 · 검토 대기',exact:true}).click();
+  await page.getByLabel('판단 사유',{exact:true}).fill('Compared source again');
+  await page.getByRole('button',{name:'승인',exact:true}).click();
+  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===second.id).targets[0].proposal).toBe('approved');
+  // Page exclusion uses the same ledger proposal/approval and restores source mappings on Undo.
+  await page.getByRole('button',{name:'쪽 펼치기',exact:true}).click();
+  const pages=page.getByRole('complementary',{name:'쪽 선택·제외'});
+  await pages.getByRole('checkbox').first().check();
+  await page.getByLabel('쪽 제외 사유',{exact:true}).fill('Exclude cover blocks');
+  await page.getByRole('button',{name:'제외 묶음 만들기',exact:true}).click();
+  await expect(page.getByRole('button',{name:'쪽 묶음 승인',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'쪽 묶음 승인',exact:true}).click();
+  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.reasonCode==='page-exclusion')?.targets.every(t=>t.proposal==='approved')).toBe(true);
+  await expect(page.getByRole('button',{name:'쪽 묶음 되돌리기',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'쪽 묶음 되돌리기',exact:true}).click();
+  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.reasonCode==='page-exclusion')?.targets.every(t=>t.proposal==='proposed')).toBe(true);
+  await page.getByRole('button',{name:'쪽 접기',exact:true}).click();
+  const required=(await docling.review('workspace-read',base)).ledger.inventory.requiredChecks[0];
+  await list.getByRole('button',{name:new RegExp(`^${required.kind==='table'?'표':'그림'} 1 · ${required.pages.length ? required.pages.join(',')+'쪽' : '쪽 미지정'} · 미확인$`)}).first().click();
+  await page.getByLabel('판단 사유',{exact:true}).fill('Direct comparison of source and result');
+  await page.getByRole('button',{name:'직접 확인 기록',exact:true}).click();
+  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.checks.some(c=>c.targetIds.includes(required.id))).toBe(true);
+  // Return to the first page for the existing progress/cold Host checks below.
+  await page.getByLabel('Go to page',{exact:true}).fill('1');
+  await page.getByLabel('Go to page',{exact:true}).press('Enter');
   await expect(page.locator('.review-region[data-kind="heading"]').first()).toBeEnabled();
   await page.getByRole('button',{name:'Page 1: Page checked',exact:true}).click();
   await expect(page.getByRole('button',{name:'Page 1: Page checked',exact:true})).toHaveAttribute('aria-pressed','true');
@@ -81,10 +121,28 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   const exportButton=()=>page.getByRole('button',{name:'Export current state…',exact:true});
   const chooseTheme=async theme=>{if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:/^Color mode:/}).click();await expect(page.locator('html')).toHaveAttribute('data-theme',theme);};
   if(screenshots){
+    await list.getByRole('button',{name:'2쪽 · 승인함',exact:true}).click();
+    await page.getByRole('button',{name:'쪽 펼치기',exact:true}).click();
     for(const theme of ['light','dark']){
       await chooseTheme(theme);await expect.poll(pageRegions).toEqual(regions);
-      await page.screenshot({path:`docs/design/assets/docling-workspace-s3/compare-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+      await page.screenshot({path:`docs/design/assets/review-panel-s6/after-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     }
+  }
+  if(screenshots){
+    await page.getByRole('button',{name:'쪽 접기',exact:true}).click();
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('ko');
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({width:640,height:900});
+    for(const theme of ['light','dark']){
+      if(await page.locator('html').getAttribute('data-theme')!==theme) await page.getByRole('button',{name:/^색상 모드:/}).click();
+      await expect(page.getByRole('button',{name:'쪽 펼치기',exact:true})).toBeVisible();
+      await page.screenshot({path:`docs/design/assets/review-panel-s6/after-640-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+    }
+    await page.setViewportSize({width:1440,height:900});
+    await page.getByRole('button',{name:'설정',exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.keyboard.press('Escape');
   }
   await exportButton().click();await expect(page.getByLabel('Output file',{exact:true})).toHaveValue(/검수중\.md$/);
   await page.getByRole('button',{name:'Export current state',exact:true}).click();
@@ -93,7 +151,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   if(screenshots){for(const theme of ['light','dark']){
     await chooseTheme(theme);
     await exportButton().click();await expect(page.getByText('Replace the existing document',{exact:true})).toBeVisible();
-    await page.screenshot({path:`docs/design/assets/docling-workspace-s3/export-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+    await page.screenshot({path:`tmp/review-panel-export-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     await page.getByRole('button',{name:'Close',exact:true}).last().click();
   }}
   await exportButton().click();await expect(page.getByText('Replace the existing document',{exact:true})).toBeVisible();
