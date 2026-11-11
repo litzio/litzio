@@ -359,6 +359,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('button', {name: 'Permission mode settings', exact: true})).toHaveText('Read-only');
   expect(settingsWrites.length).toBe(defaultWrites);
   const permissionButton = panel.getByRole('button', {name: 'Permission mode settings', exact: true});
+  // Finish the menu's close/focus handoff before starting another keyboard interaction.
+  // Linux CI reached the forced focus 14ms after selecting an item, then Tab 4ms later.
+  await expect(page.getByRole('menu', {name: 'Permission mode', exact: true})).toHaveCount(0);
+  await expect(permissionButton).toBeFocused();
   await panel.getByRole('button', { name: 'Reasoning effort settings', exact: true }).focus();
   await page.keyboard.press('Tab');
   try {
