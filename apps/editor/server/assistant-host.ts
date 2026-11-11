@@ -59,8 +59,14 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       }
       if (args.action?.startsWith("changes-")) {
         const info = history().list().find(entry => entry.id === args.id);
-        if (!info) throw new Error("Unknown conversation.");
+        if (!info) {
+          if (["changes-inspect", "changes-edit"].includes(args.action)) return { receipt: { outcome: "failure" }, errorKind: "unavailable", error: "Unknown conversation." };
+          throw new Error("Unknown conversation.");
+        }
         const action = args.action.slice(8);
+        if (action === "inspect" || action === "edit") return changes.edit(args.id, action,
+          { change: args.change, ...(action === "edit" ? { copyRevision: args.copyRevision, operations: args.operations } : {}) },
+          { folders: info.folders.length ? new RootAccess(info.folders) : null, access, permissionMode: info.permissionMode ?? "read-only" });
         if (action === "list") return changes.list(args.id);
         if (action === "preview") return changes.preview(args.id, args.change);
         if (action === "start") {

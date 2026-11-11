@@ -633,7 +633,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "close_tabs", "open_folder", "close_folders", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "close_tabs", "open_folder", "close_folders", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -1013,6 +1013,48 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const one = await connect(firstUrl);
   assert.deepEqual((await one.listTools()).tools, conversations.tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { type: "object", ...inputSchema } })));
   assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
+  const { documentTools } = await import("../server/assistant-document-tools.ts");
+  const published = (await one.listTools()).tools;
+  for (const name of ["inspect_staged_document", "edit_staged_document"]) {
+    const definition = documentTools.find(tool => tool.name === name)!;
+    assert.deepEqual(published.find(tool => tool.name === name), { name, description: definition.description, inputSchema: definition.inputSchema });
+  }
+  const original = path.join(root, "a.md"), source = "---\nlitzio: 1\n---\n\nFirst paragraph.\n\nSecond paragraph.\n";
+  writeFileSync(original, source);
+  const payload = (result: any) => JSON.parse(result.content[0].text);
+  const stagedResult = await one.callTool({ name: "stage_document", arguments: { path: original } });
+  assert.equal(stagedResult.isError, false);
+  const staged = payload(stagedResult);
+  const inspectedResult = await one.callTool({ name: "inspect_staged_document", arguments: { change: staged.id } });
+  assert.equal(inspectedResult.isError, false);
+  const inspected = payload(inspectedResult), secondNode = inspected.nodes.find((node: any) => node.text === "Second paragraph.");
+  assert.ok(secondNode);
+  const editInput = { change: staged.id, copyRevision: inspected.copyRevision, operations: [{ command: "update-node-text", path: secondNode.path.join(","), from: secondNode.text, to: "Edited through MCP." }] };
+  const rejectedPath = await one.callTool({ name: "edit_staged_document", arguments: { ...editInput, path: original } });
+  assert.equal(rejectedPath.isError, true);
+  assert.equal(payload(rejectedPath).errorKind, "invalid_input", "MCP cannot supply a write path instead of the Host change ID");
+  const edited = await one.callTool({ name: "edit_staged_document", arguments: editInput });
+  assert.equal(edited.isError, false);
+  assert.equal(payload(edited).receipt.outcome, "success");
+  assert.match(readFileSync(staged.copy, "utf8"), /Edited through MCP/);
+  const editedBytes = readFileSync(staged.copy, "utf8");
+  const atomic = await one.callTool({ name: "edit_staged_document", arguments: { ...editInput, copyRevision: payload(edited).copyRevision, operations: [{ command: "insert-block", at: "end", text: "Must roll back" }, { command: "remove-block", at: 99999 }] } });
+  assert.equal(atomic.isError, true);
+  assert.equal(payload(atomic).errorKind, "invalid_input");
+  assert.match(payload(atomic).error, /operation 2/);
+  assert.equal(readFileSync(staged.copy, "utf8"), editedBytes);
+  const stale = await one.callTool({ name: "edit_staged_document", arguments: editInput });
+  assert.equal(stale.isError, true); assert.equal(payload(stale).errorKind, "conflict");
+  assert.equal(readFileSync(original, "utf8"), source, "MCP edits only the pending copy, awaiting human Apply");
+  const other = await conversations.send(input, settings);
+  const otherClient = await connect(endpoint());
+  const foreign = await otherClient.callTool({ name: "inspect_staged_document", arguments: { change: staged.id } });
+  assert.equal(foreign.isError, true);
+  assert.equal(payload(foreign).errorKind, "unavailable", "even with the same folder scope, another conversation cannot read this receipt");
+  const foreignEdit = await otherClient.callTool({ name: "edit_staged_document", arguments: { ...editInput, copyRevision: payload(edited).copyRevision } });
+  assert.equal(foreignEdit.isError, true); assert.equal(payload(foreignEdit).errorKind, "unavailable");
+  await conversations.interrupt(other.id);
+
   const screenRead = one.callTool({ name: "read_screen_context", arguments: {} });
   const screenDeadline = Date.now() + 5000;
   while (!conversations.screen.snapshot(first.id, "mcp-window-one") && Date.now() < screenDeadline) await new Promise(resolve => setTimeout(resolve, 10));
@@ -1063,6 +1105,9 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.equal(JSON.parse((noActionWindow.content as {text: string}[])[0]!.text).outcome, "unavailable");
   assert.equal((await two.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "read-only MCP dispatch uses the same Host plugin operation path");
   assert.equal((await two.callTool({ name: "list_documents", arguments: { path: root } })).isError, true, "a second conversation cannot inherit the first folder scope");
+  const readOnlyEdit = await two.callTool({ name: "edit_staged_document", arguments: editInput });
+  assert.equal(readOnlyEdit.isError, true); assert.equal(payload(readOnlyEdit).errorKind, "forbidden");
+
   assert.equal((await one.callTool({ name: "request_litzio_user_input", arguments: {} })).isError, true, "text questions must not create review image approval");
   const endingAction = one.callTool({name: "close_tabs", arguments: {tabIds: "all"}});
   const endingDeadline = Date.now() + 5000;
@@ -1079,6 +1124,10 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const deadline = Date.now() + 5000;
   while (first.turns.at(-1)?.status === "inProgress" && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
   assert.notEqual(first.turns.at(-1)?.status, "inProgress");
+  await assert.rejects(one.callTool({ name: "edit_staged_document", arguments: { ...editInput, copyRevision: payload(edited).copyRevision } }), { code: 403 });
+  assert.equal(readFileSync(staged.copy, "utf8"), editedBytes, "an ended MCP turn cannot edit its earlier copy");
+  assert.equal(readFileSync(original, "utf8"), source);
+
   await conversations.send({ ...input, id: first.id }, settings);
   assert.notEqual(endpoint(), firstUrl, "loadSession rotates the turn capability");
   assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);

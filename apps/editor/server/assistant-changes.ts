@@ -1,9 +1,10 @@
+import { applyDocumentBatch, machineNodes } from "./document-edit-commands.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { parse, serialize, validateStructure } from "@litzio/core";
-import { commitFile, createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
-import { accessPath, canonicalFilePath, type FileAccess, type RootAccess } from "./file-access.ts";
+import { parse, serialize, validateStructure, getEditableDocument, numberingReport } from "@litzio/core";
+import { FileChangedError, commitFile, createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
+import { FileAccessError, accessPath, canonicalFilePath, type FileAccess, type RootAccess } from "./file-access.ts";
 import { loadDocumentFile } from "./document-reader.ts";
 
 export type PendingDocumentChange = { id: string; conversationId: string; path: string; copy: string; revision: string };
@@ -46,6 +47,46 @@ export class AssistantChanges {
     try { createFile(receipt, JSON.stringify(record)); }
     catch (error) { fs.unlinkSync(copy); throw error; }
     return record;
+  }
+  /** Shared Host operation: only a conversation-owned pending copy, never a caller path. */
+  edit(conversation: string, action: "inspect" | "edit", input: unknown, scope: Scope) {
+    const fail = (errorKind: string, error: string) => ({ receipt: { outcome: errorKind === "uncertain" ? "uncertain" : "failure" }, errorKind, error });
+    const value = input as { change: string; copyRevision?: string; operations?: unknown };
+    const keys = action === "inspect" ? ["change"] : ["change", "copyRevision", "operations"];
+    if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => !keys.includes(key)) ||
+        typeof value.change !== "string" || !/^[a-f0-9]{64}$/.test(value.change) ||
+        (action === "edit" && (typeof value.copyRevision !== "string" || !/^[a-f0-9]{64}$/.test(value.copyRevision) || !Array.isArray(value.operations) || !value.operations.length)))
+      return fail("invalid_input", "Expected change ID and, for edit, copyRevision and non-empty operations.");
+    if (action === "edit" && !["opened-folders", "full-access"].includes(scope.permissionMode)) return fail("forbidden", "This turn is read-only.");
+    if (!scope.folders) return fail("forbidden", "No opened folders for this turn.");
+    let copy: string, source: string;
+    try {
+      const record = this.get(conversation, value.change);
+      scope.folders.resolve(accessPath(record.path, scope.access, true), true);
+      copy = scope.folders.resolve(accessPath(record.copy, scope.access));
+      // A changed symlink must never redirect a copy write onto the original.
+      if (canonicalFilePath(copy) === canonicalFilePath(record.path, true) || fs.lstatSync(copy).isSymbolicLink()) return fail("forbidden", "Pending copy identity changed.");
+      source = decodeUtf8(fs.readFileSync(copy));
+    } catch (error) {
+      return fail(error instanceof FileAccessError || ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "") ? "forbidden" : "unavailable", String(error));
+    }
+    const copyRevision = textRevision(source);
+    if (action === "inspect") {
+      try {
+        const document = getEditableDocument(parse(source));
+        return { receipt: { outcome: "success" }, change: value.change, copyRevision, title: document.title ?? null, nodes: machineNodes(document), numbering: numberingReport(document.blocks) };
+      } catch (error) { return fail("invalid_input", String(error)); }
+    }
+    if (copyRevision !== value.copyRevision) return fail("conflict", "Pending copy changed; inspect again. Nothing was written.");
+    let result: ReturnType<typeof applyDocumentBatch>;
+    try { result = applyDocumentBatch(source, value.operations); }
+    catch (error) { return fail("invalid_input", String(error)); }
+    try {
+      commitFile(copy, result.markdown, copyRevision);
+      return { receipt: { outcome: "success" }, change: value.change, copyRevision: textRevision(result.markdown), applied: result.applied };
+    } catch (error) {
+      return fail(error instanceof FileChangedError ? "conflict" : error instanceof FileAccessError ? "forbidden" : "uncertain", String(error));
+    }
   }
   preview(conversation: string, id: string) {
     const record = this.get(conversation, id);
