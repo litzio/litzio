@@ -16,6 +16,8 @@ export function verifyPackagedCli(exe: string, shim: string, folder: string, exp
   cpSync(path.dirname(bundle), standalone, { recursive: true });
   const node = spawnSync(exe, ["-p", "process.versions.node"], { env: { ...env, ELECTRON_RUN_AS_NODE: "1" }, encoding: "utf8", timeout: 15_000 });
   assert.equal(node.status, 0, node.stderr);
+  // Keep the security floor independent of the generated CLI manifest.
+  assert.ok(semver.satisfies(node.stdout.trim(), ">=24.22.1 <25"), `Electron Node ${node.stdout.trim()} must include the CVE-2026-111497 fix`);
   assert.ok(semver.satisfies(node.stdout.trim(), manifest.engines.node), `Electron Node ${node.stdout.trim()} must satisfy ${manifest.engines.node}`);
   const run = (args: string[]) => spawnSync(process.env.ComSpec ?? "cmd.exe", windowsCommand(shim, args),
     { cwd: folder, env, windowsVerbatimArguments: true, windowsHide: true, encoding: "utf8", timeout: 20_000 });
