@@ -1141,7 +1141,7 @@ read references. Copilot receives the same Host tool definitions and dispatch as
 The existing daemon HTTP listener serves `/api/assistant/mcp/<random-turn-token>`.
 Codex dynamicTools and MCP tools/list read one Host-owned array and both execute
 through one provider-neutral dispatch. Future tools added to that array therefore
-reach both providers. No second document/plugin registry is maintained.
+reach both providers. MCP adds the required top-level object type to object-union schemas without changing their constraints or Host validation. No second document/plugin registry is maintained.
 
 ACP newSession/loadSession receive an HTTP server named `litzio_host`. Each send
 loads existing sessions again to replace the endpoint and rebuild provider history;

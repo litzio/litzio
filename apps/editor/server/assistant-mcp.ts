@@ -39,7 +39,7 @@ export class AssistantMcp {
     if (!lease) { res.writeHead(403).end(); return; }
     const server = new Server({ name: "litzio-host", version: "1" }, { capabilities: { tools: {} } });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: this.tools().map(({ name, description, inputSchema }) => ({ name, description, inputSchema: inputSchema as any })) }));
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: this.tools().map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { type: "object", ...inputSchema } as any })) }));
     server.setRequestHandler(CallToolRequestSchema, async request => {
       if (this.leases.get(token) !== lease || !lease.conversationId || !lease.turnId) throw new Error("No authorized active turn for this tool call.");
       if (!this.tools().some(tool => tool.name === request.params.name)) throw new Error("Unknown Host tool.");

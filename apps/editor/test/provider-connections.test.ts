@@ -902,7 +902,10 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const root = mkdtempSync(path.join(tmpdir(), "copilot-mcp-"));
   const log = path.join(root, "acp.jsonl");
   const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
-  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), {
+    viewOperationOwner: () => "fixture",
+    invokeAssistantOperation: async () => ({ receipt: { outcome: "success" }, rows: [{ title: "Host read" }] }),
+  } as any);
   const server = createServer((req, res) => { void conversations.mcp.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   conversations.mcp.base = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
@@ -916,14 +919,15 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const firstUrl = endpoint();
   const connect = async (url: string) => { const client = new Client({ name: "fixture", version: "1" }); clients.push(client); await client.connect(new StreamableHTTPClientTransport(new URL(url))); return client; };
   const one = await connect(firstUrl);
-  assert.deepEqual((await one.listTools()).tools.map(tool => tool.name), conversations.tools.map(tool => tool.name));
+  assert.deepEqual((await one.listTools()).tools, conversations.tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { type: "object", ...inputSchema } })));
   assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
   const permission = (title: string) => connection.copilot.permission!({ sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] });
   assert.equal(permission("litzio_host-list_documents").outcome.outcome, "selected");
   assert.equal(permission("foreign-list_documents").outcome.outcome, "cancelled");
   assert.equal(permission("litzio_host-missing_tool").outcome.outcome, "cancelled");
-  const second = await conversations.send({ ...input, folders: [] }, settings);
+  const second = await conversations.send({ ...input, folders: [] }, { ...settings, permissionMode: "read-only" });
   const two = await connect(endpoint());
+  assert.equal((await two.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "read-only MCP dispatch uses the same Host plugin operation path");
   assert.equal((await two.callTool({ name: "list_documents", arguments: { path: root } })).isError, true, "a second conversation cannot inherit the first folder scope");
   assert.equal((await one.callTool({ name: "request_litzio_user_input", arguments: {} })).isError, true, "text questions must not create review image approval");
   await conversations.interrupt(first.id);
