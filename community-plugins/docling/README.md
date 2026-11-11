@@ -246,3 +246,7 @@ CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|reg
 ## 보관 자료
 
 [LSR 1.1 합성 PDF와 작성자 기대 구조](sample/lsr-1.1/README.md)를 보관합니다. Docling 출력 정답이나 품질 합격선이 아니며, 플러그인과 함께 배포되는 체험용 샘플입니다.
+
+## 측정·실험용 고정 변환 결과
+
+측정·실험·테스트는 [LSR 1.1](sample/lsr-1.1/README.md)과 [NIST SP 1108r4 발췌본](sample/nist-sp1108r4/README.md)의 `converted/document.json`과 `conversion-record.json`을 재사용합니다. docling-serve 재변환은 변환기 버전·옵션을 의도적으로 바꾸거나 새 문서를 추가할 때만 수행합니다. 재변환하면 document.json과 conversion-record.json(버전·옵션·입력 hash·상태·시각·경과 시간)을 함께 갱신하고 SHA256SUMS도 갱신합니다. 이 고정본은 변환 품질의 정답이 아니며 기존 테스트 fixture 교체는 별도 작업입니다.

@@ -83,6 +83,8 @@
 
 ## Verification
 
+- Docling 측정·실험은 [고정 변환 결과 재사용 지침](community-plugins/docling/README.md#측정실험용-고정-변환-결과)에 따라 고정본을 재사용하며, 버전·옵션 변경이나 새 문서 추가 외에는 재변환하지 않는다.
+
 - 테스트 작성·확대와 PR 확인은 [테스트 설계 지침](docs/contributing/test-design.md)을 따른다.
 
 - 로컬에서는 변경 영역의 대상 검사를 우선하고, PR의 필수 CI 검사는 모두 통과해야 한다. 문서 전용 변경, 전체 suite와 패키징·플랫폼별 검증의 로컬 실행 기준은 [CONTRIBUTING matrix](CONTRIBUTING.md#verification-matrix)를 따른다. 무관한 테스트 확장·리팩터링은 하지 않는다.
