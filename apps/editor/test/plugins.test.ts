@@ -12,52 +12,61 @@ import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
 import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from "@litzio/core";
+import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
+import { createHash, randomUUID } from "node:crypto";
+import { executeReadReviewDocument } from "../server/assistant-plugin-tools.ts";
 
 // Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
 // SDK runtime admission, official K1 storage and the browser result boundary.
-async function doclingConverter() {
-  const source = readFileSync(new URL("../../../community-plugins/docling/document.js", import.meta.url), "utf8");
-  const review = readFileSync(new URL("../../../community-plugins/docling/review.js", import.meta.url), "utf8");
-  const reviewUrl = "data:text/javascript;base64," + Buffer.from(review.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64");
-  const converter = await import("data:text/javascript;base64," + Buffer.from(source.replace('"./review.js"', JSON.stringify(reviewUrl)).replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
-  return {...converter,...await import(reviewUrl)};
-}
+import {doclingConverter} from "./docling-fixture.ts";
+
 const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
 
-test("Docling corrections replay by self_ref with last assignment winning before the existing converter", async () => {
-  const { convertDocument } = await doclingConverter();
-  const original = doclingFixture(), before = JSON.stringify(original);
-  const result = await convertDocument(original, "a".repeat(64), [
-    { type: "text", self_ref: "#/texts/4", text: "superseded" },
-    { type: "text", self_ref: "#/texts/4", text: "Corrected text" },
-    { type: "kind", self_ref: "#/texts/4", kind: "heading", level: 6 },
-    { type: "kind", self_ref: "#/texts/1", kind: "paragraph" },
-    { type: "exclude", self_ref: "#/groups/0", excluded: true },
-    { type: "exclude", self_ref: "#/texts/1", excluded: false },
-    { type: "cell", self_ref: "#/tables/0", cell: 0, text: "Corrected merged cell" },
-  ]);
-  assert.equal(JSON.stringify(original), before);
-  assert.match(result.source, /###### Corrected text/);
-  assert.doesNotMatch(result.source, /First item|Nested item|superseded|## Converted PDF/);
-  assert.match(result.source, /Converted PDF/);
-  assert.match(result.source, /Corrected merged cell/);
-  const roles = doclingFixture(); roles.pictures[0].children = [];
-  const reclassified = await convertDocument(roles, "a".repeat(64), [
-    { type: "kind", self_ref: "#/texts/0", kind: "heading", level: 1 },
-    { type: "kind", self_ref: "#/texts/7", kind: "heading", level: 3 },
-  ]);
-  assert.match(reclassified.source, /# RUNNING HEADER/);
-  assert.match(reclassified.source, /### Figure 1: Original caption/);
-  for (const patch of [{ type: "kind", self_ref: "#/texts/4", kind: "heading", level: 7 }, { type: "cell", self_ref: "#/tables/0", cell: 9, text: "bad" }, { type: "text", self_ref: "#/texts/999", text: "bad" }]) {
-    await assert.rejects(convertDocument(original, "a".repeat(64), [patch]));
+test("Docling official 1.10.0 schema and source lenses retain every fixed LSR/NIST picture and table", async () => {
+  const {validateDoclingDocument,convertDocument,extractReviewLenses,emptyReview,readReview} = await doclingConverter();
+  for (const name of ["lsr-1.1","nist-sp1108r4"]) {
+    const bytes=readFileSync(new URL(`../../../community-plugins/docling/sample/${name}/converted/document.json`,import.meta.url));
+    const doc=JSON.parse(bytes.toString()), before=JSON.stringify(doc), revision=createHash("sha256").update(bytes).digest("hex");
+    assert.equal(validateDoclingDocument(doc),doc);
+    assert.throws(()=>validateDoclingDocument({...doc,version:"1.9.0"}),/Unsupported DoclingDocument version/);
+    const invalid=structuredClone(doc);delete invalid.name;
+    assert.throws(()=>validateDoclingDocument(invalid),/Invalid DoclingDocument schema/);
+    const badCell=structuredClone(doc);badCell.tables[0].data.table_cells[0].start_row_offset_idx="0";
+    assert.throws(()=>validateDoclingDocument(badCell),/Invalid DoclingDocument schema/);
+    const {report}=await convertDocument(doc,revision), extracted=extractReviewLenses(doc,revision,report);
+    assert.deepEqual(Object.keys(extracted.lenses),["headings","headers-footers","captions","footnotes","lists","page-boundaries","formulas-tables"]);
+    assert.deepEqual(extracted.inventory.requiredChecks.map((item:any)=>item.id).sort(),[...doc.pictures,...doc.tables].map(item=>item.self_ref).sort());
+    assert.deepEqual(extracted.lenses.headings.official.map((item:any)=>item.self_ref).sort(),[...doc.texts,...doc.tables].filter(item=>["title","section_header","document_index"].includes(item.label)).map(item=>item.self_ref).sort());
+    assert.deepEqual(extracted.lenses["formulas-tables"].official.tables[0].table_cells.map(({index,...cell}:any)=>cell),doc.tables[0].data.table_cells);
+    assert.equal(extracted.lenses["page-boundaries"].official.length,Object.keys(doc.pages).length-1);
+    for(const kind of extracted.inventory.lenses.filter((kind:any)=>kind.required)) {
+      assert.equal(kind.extracted,true);
+      assert.deepEqual(kind.scope,extracted.lenses[kind.kind].scope);
+      assert.ok(kind.scope.targets.every((ref:string)=>extracted.inventory.targets.includes(ref)));
+    }
+    assert.deepEqual(extracted.inventory.lenses.find((kind:any)=>kind.kind==="source-evidence"),{kind:"source-evidence",required:false,scope:{pages:extracted.inventory.pages,targets:extracted.inventory.targets},extracted:false});
+    assert.equal(JSON.stringify(doc),before,"schema validation and lens extraction do not normalize source bytes");
+    const record={...emptyReview(),lenses:extracted.lenses};record.ledger.inventory=extracted.inventory;
+    delete record.lenses.headings;
+    assert.equal(readReview(Buffer.from(JSON.stringify(record))).ledger.inventory.lenses.find((kind:any)=>kind.kind==="headings").extracted,false,"lost stored material cannot report successful empty extraction");
+    const dangling=structuredClone(doc);dangling.tables[0].captions=[{$ref:"#/texts/999999"}];
+    assert.throws(()=>extractReviewLenses(dangling,revision,report),/Unresolved lens reference/);
   }
+  const doc=doclingFixture(), {report}=await convertDocument(doc,"a".repeat(64));
+  // Even source-only furniture, unsupported and excluded items remain human obligations.
+  doc.pictures.push({self_ref:"#/pictures/1",label:"picture",content_layer:"furniture"},{self_ref:"#/pictures/2",label:"picture"});
+  report.items.find((item:any)=>item.self_ref==="#/tables/0").status="excluded";
+  const {inventory}=extractReviewLenses(doc,"a".repeat(64),report);
+  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/tables/0").disposition,"excluded");
+  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/pictures/1").disposition,"furniture");
+  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/pictures/2").disposition,"unsupported");
 });
 
 test("Docling comparison uses immutable provenance, final targets and portable progress only", async () => {
   const {convertDocument,comparison,setProgress,emptyReview} = await doclingConverter();
   const doc = doclingFixture(), original = JSON.stringify(doc), record = emptyReview();
-  doc.texts[1].prov = [{page_no:1,bbox:{l:10,t:800,r:100,b:780,coord_origin:"BOTTOMLEFT"}}];
-  doc.texts[0].prov = [{page_no:1,bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
+  doc.texts[1].prov = [{page_no:1,charspan:[0,1],bbox:{l:10,t:800,r:100,b:780,coord_origin:"BOTTOMLEFT"}}];
+  doc.texts[0].prov = [{page_no:1,charspan:[0,1],bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
   const extraRegions = [doc.texts[2], doc.texts[4], doc.texts[5], doc.texts[6], doc.texts[7], doc.texts[8], doc.tables[0], doc.pictures[0]];
   for (const item of extraRegions) item.prov = doc.texts[0].prov;
   const authored = await convertDocument(doc,"source");
@@ -72,7 +81,7 @@ test("Docling comparison uses immutable provenance, final targets and portable p
   assert.ok(material.mapping!.entries.some(e=>e.targets.length === 0));
   assert.ok(material.mapping!.entries.some(e=>e.targets.some(t=>t.documentRevision === authored.report.documentRevision)));
   setProgress(doc,record,{checkedPages:[1],lastPage:1});
-  assert.deepEqual(record,{patches:[],checkedPages:[1],lastPage:1,approval:null});
+  assert.deepEqual(record,{...emptyReview(),checkedPages:[1],lastPage:1});
   assert.throws(()=>setProgress(doc,record,{checkedPages:[2],lastPage:2}),/Invalid/);
   assert.throws(()=>setProgress(doc,record,{checkedPages:[1,1],lastPage:1}),/Invalid/);
   delete doc.texts[1].prov; delete doc.texts[0].prov;
@@ -108,7 +117,7 @@ test("Docling converter preserves source identity, native blocks, shared targets
   assert.match(report.summary, /병합 칸 반복 1/);
   assert.match(report.summary, /다단 헤더 계층 소실 1/);
   assert.doesNotMatch(report.summary, /(?:^| · )표 \d|(?:^| · )[^·]+ 0(?: · |$)/);
-  const plain = { schema_name: "DoclingDocument", body: { children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", text: "Plain paragraph" }] };
+  const plain = { name:"plain", version:"1.10.0", schema_name: "DoclingDocument", body: { self_ref:"#/body", children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", orig:"Plain paragraph", text: "Plain paragraph" }] };
   assert.equal((await convertDocument(plain, "a".repeat(64))).report.summary, "");
   const roles = doclingFixture();
   roles.tables[0].data.table_cells[0].row_header = true;
@@ -136,7 +145,7 @@ test("Docling caption numbers are conservative, kind-specific and duplicate-safe
   }
   const doc = doclingFixture();
   const ref = `#/texts/${doc.texts.length}`;
-  doc.texts.push({ self_ref: ref, label: "caption", text: "Figure 1: Duplicate" });
+  doc.texts.push({ self_ref: ref, label: "caption", orig:"Figure 1: Duplicate", text: "Figure 1: Duplicate" });
   doc.pictures.push({ self_ref: "#/pictures/1", label: "picture", captions: [{ $ref: ref }], children: [{ $ref: ref }] });
   doc.body.children.push({ $ref: "#/pictures/1" });
   const converted = await convertDocument(doc, "a".repeat(64));
@@ -178,15 +187,15 @@ test("Docling converter refuses whole input on limits and invalid graph/grid ins
   await rejects(d => { d.body.children[0].$ref = "#/texts/999"; }, /Invalid source reference/);
   await rejects(d => { d.texts[4].text = "x".repeat(16385); }, /16384/);
   await rejects(d => {
-    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
+    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", orig:"Orphan", text: "Orphan" });
   }, new RegExp(`input limit.*${limits.inputs}`));
   await rejects(d => {
-    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
+    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", orig:"x".repeat(16000), text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
   }, new RegExp(`byte limit.*${limits.bytes}`));
 });
 test("Docling envelope keeps original PDF/JSON hashes independent of the reserved opaque review entry", async () => {
-  const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);
-  const { PDF_PROFILE } = await import(new URL("../../../community-plugins/docling/conversion.js", import.meta.url).href);
+  const archive = await doclingConverter();
+  const { PDF_PROFILE } = await doclingConverter();
   const sourceBytes = Buffer.from("%PDF-1.4 synthetic fixture");
   const bytes = archive.createDoclingArchiveFromResult({ sourceName: "fixture.pdf", sourceBytes, serverVersions: { "docling-serve": "1.32.0" }, openapiBytes: Buffer.from("{}"), profile: PDF_PROFILE,
     task: { id: "fixture", startedAt: "2026-11-09T00:00:00Z", completedAt: "2026-11-09T00:01:00Z" }, resultBody: Buffer.from(JSON.stringify({ status: "success", errors: [], document: { json_content: doclingFixture() } })) });
@@ -208,6 +217,301 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
   assert.throws(() => archive.rewriteReview({...formatted,manifestBytes:Buffer.from("{}")},reviewBytes), /Original changed/);
   assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes: Buffer.from("%PDF-tampered"), reviewBytes }), /Original PDF mismatch/);
   assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson + " ", sourceBytes, reviewBytes }), /Invalid DoclingDocument/);
+});
+
+test("Docling saved document corrections preserve independent proposals, mapping, Undo and atomic storage", async t => {
+  const {workspaceOperation,initializeWorkspace}=await doclingConverter();
+  const archive=await doclingConverter();
+  const {PDF_PROFILE}=await doclingConverter();
+  const digest=(value:string|Buffer)=>createHash("sha256").update(value).digest("hex");
+  const root=mkdtempSync(path.join(os.tmpdir(),"litzio-workspace-")),file=path.join(root,"source.docling");
+  const document=doclingFixture();
+  document.pictures[0].image={mimetype:"image/png",dpi:72,size:{width:1,height:1},uri:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII="};
+  document.pages[1].image=document.pictures[0].image;
+  document.texts[1].text=document.texts[4].text; // Earlier identical text must never receive the later paragraph correction.
+  document.texts[4].prov=[{page_no:1,charspan:[0,1],bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
+  const original=await initializeWorkspace(archive.createDoclingArchiveFromResult({sourceName:"sample.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
+    task:{id:"workspace",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"partial_success",errors:[{error_message:"Page 1 failed to parse."}],document:{json_content:document}}))}));
+  writeFileSync(file,original);
+  const access=new RootAccess([root]);let fail="",hold:(()=>void)|undefined,entered:(()=>void)|undefined;
+  const {PluginReviews}=await import("../server/plugins/reviews.ts");let reviews!:InstanceType<typeof PluginReviews>;
+  const service=()=>{
+    reviews=new PluginReviews(access,()=>({id:"compare",title:"Compare",read:{operation:"fixture.provider",version:1}}),async()=>({}));
+    return new GeneratedDocuments(access,()=>({operation:"fixture.provider",comparison:"compare",workspace:true,version:1,assertCurrent(){}}),async(_op,raw:any)=>{
+      if(raw.mode===fail)throw new Error("Injected provider failure");
+      const result=await workspaceOperation(raw);
+      if(raw.mode==="workspace-prepare" && entered){entered();await new Promise<void>(resolve=>{hold=resolve;});}
+      if(fail==="race" && raw.mode==="workspace-prepare")writeFileSync(file,original);
+      if(fail==="mixed" && raw.mode==="workspace-read" && raw.file!==file && result.snapshot)result.snapshot.inputs.find((input:any)=>input.targets.length).targets[0].documentHash="0".repeat(64);
+      return {result};
+    },(...args)=>reviews.publish(...args),input=>reviews.execute(input));
+  };
+  let host=service(),sequence=0;
+  const base={root,workspace:"source.docling",plugin:"fixture",job:"import"};
+  const read=()=>host.execute({...base,action:"workspace-read"});
+  const write=(action:string,extra={},baseline=digest(readFileSync(file)),requestId:string=randomUUID())=>host.execute({...base,action,baseline,requestId,...extra});
+  const human={actor:"person",reason:"Compared the exact original and current document",confirmed:true};
+  const change=(value:unknown,baseline?:string,requestId?:string)=>write("workspace-review-change",{change:value},baseline,requestId);
+  const propose=async(operations:any[],before:any[],after:any[],reason="manual",regions:any[]=[])=>{
+    const state=await read(),id=`g${++sequence}`;
+    const targets=operations.map((op,index)=>({id:`${id}-${index}`,locator:op.type==="insert"?{anchorPath:op.anchorPath}:{self_ref:op.self_ref,...(op.cell===undefined?{}:{cell:op.cell})},pages:[1],regions,before:[before[index]],
+      evidence:[{observation:"Compared source and current target",materialRef:"page-1",materialHash:digest(document.pages[1].image.uri),inspector:"human",scope:{pages:[1],targets:[`${id}-${index}`]}}],
+      patch:{expectedBefore:[before[index]],expectedContentRevision:state.documentRevision,operations:[op],after:[after[index]],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}));
+    const group={id,reasonCode:reason,reason:"Observed difference",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:archive.readDoclingArchive(readFileSync(file)).manifest.document.sha256,contentRevision:state.documentRevision,
+      createdAt:new Date().toISOString(),runId:id,representativeTargetId:targets[0].id,representativeReason:"Exact target",splitFrom:null,targets};
+    return {group,result:await change({kind:"groups-propose",groups:[group]})};
+  };
+  const decide=(kind:string,group:any,baseline?:string,requestId?:string)=>change({kind,groupId:group.id,targetIds:group.targets.map((target:any)=>target.id),human,resolvesIssue:true},baseline,requestId);
+  const unchangedSources=()=>{const current=archive.readDoclingArchive(readFileSync(file)),initial=archive.readDoclingArchive(original);for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(current[key],initial[key]);};
+  try {
+    assert.equal((await read()).cacheState,"current");assert.deepEqual(readFileSync(file),original);
+    const opened=await write("workspace-open");assert.equal(opened.cacheState,"current",JSON.stringify(opened));
+    // Actual CLI JSON reads use the common dispatcher and never prepare/write.
+    const {createServer}=await import("node:http"),{spawn}=await import("node:child_process"),{DAEMON_PROTOCOL}=await import("../shared/daemon-version.ts");
+    const server=createServer(async(req,res)=>{
+      res.setHeader("Content-Type","application/json");
+      if(req.url==="/daemon/health"){res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL}));return;}
+      try{let body="";for await(const chunk of req)body+=chunk;res.end(JSON.stringify(await host.execute(JSON.parse(body))));}
+      catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}
+    });
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    try{
+      const input=path.join(root,"cli-input.json"),baselineBytes=readFileSync(file);writeFileSync(input,JSON.stringify(base));
+      for(const action of ["lenses","required-checks"]){
+        const cli=spawn(process.execPath,["--import","tsx",path.resolve("../../packages/cli/src/cli.ts"),"review",action,"--input",input,"--host",`http://127.0.0.1:${(server.address() as {port:number}).port}`,"--json"],{windowsHide:true});
+        let stdout="",stderr="";cli.stdout.on("data",b=>stdout+=b);cli.stderr.on("data",b=>stderr+=b);
+        const exit=await new Promise<number|null>((resolve,reject)=>{cli.on("error",reject);cli.on("close",resolve);});
+        assert.equal(exit,0,stderr+stdout);const result=JSON.parse(stdout);
+        assert.equal(result.receipt.operation,`review.workspace-${action}`);
+        assert.deepEqual(result.lenses,opened.lenses);assert.deepEqual(result.ledger.inventory,opened.ledger.inventory);
+        assert.deepEqual(readFileSync(file),baselineBytes);
+      }
+    }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
+    assert.deepEqual(opened.record.failedPages,[1]);assert.match(opened.snapshot.source,/review-asset:/);assert.equal(opened.snapshot.images.length,1);
+    const firstCompare=await host.execute({...base,action:"workspace-compare"});assert.equal(firstCompare.state,"ready");
+    assert.equal(firstCompare.snapshot.documentHash,opened.documentRevision);
+    const cached=readFileSync(file);await write("workspace-open");assert.deepEqual(readFileSync(file),cached);
+    const progress=await write("workspace-progress",{progress:{checkedPages:[1],lastPage:1}});assert.deepEqual(progress.snapshot,opened.snapshot);
+    unchangedSources();
+    const missingTarget=await propose([{type:"kind",self_ref:"#/texts/999999",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"missing");
+    assert.equal(missingTarget.result.receipt.outcome,"failure");
+    // Owner-approved scope change: source-only furniture and embedded captions are rejected at propose, not approval.
+    for(const self_ref of ["#/texts/0","#/texts/7"]){
+      const before=readFileSync(file),{result}=await propose([{type:"kind",self_ref,kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}]);
+      assert.equal(result.receipt.outcome,"failure");assert.match(result.error,/독립 블록.*블록 삽입 교정을 사용/);assert.deepEqual(readFileSync(file),before);
+    }
+    const inspectionRevision=opened.contentRevision;
+    const required=opened.items.filter((item:any)=>["tables","pictures"].includes(item.kind)).map((item:any)=>({id:item.self_ref,kind:item.kind==="tables"?"table":"picture",locator:{self_ref:item.self_ref},pages:[1],regions:[],disposition:"supported",derivedFrom:[]}));
+    assert.equal((await change({kind:"required-checks",records:required.map((item:any)=>({targetIds:[item.id],contentRevision:inspectionRevision,result:"no-issue",method:"direct",human,runId:null,approvedRun:null,at:new Date().toISOString()}))})).receipt.outcome,"success");
+    const inspected=await change({kind:"inspection",records:[{runId:"original",lens:"headings",contentRevision:inspectionRevision,scope:opened.ledger.inventory.lenses.find((kind:any)=>kind.kind==="headings").scope,state:"no-issue",evidence:"Original immutable conversion inspected"},
+      {runId:"evidence",lens:"source-evidence",contentRevision:inspectionRevision,scope:{pages:[1],targets:["#/texts/4"]},state:"uncertain",evidence:"Auxiliary original-text candidate"}],comparisons:[]});
+    assert.equal(inspected.receipt.outcome,"success",JSON.stringify(inspected));
+    const textBefore=document.texts[4].text;
+    const a=await propose([{type:"text",self_ref:"#/texts/4",text:"Corrected canonical text"}],[textBefore],["Corrected canonical text"]);
+    const b=await propose([{type:"kind",self_ref:"#/texts/1",kind:"paragraph"}],[{kind:"heading",level:2}],[{kind:"paragraph"}]);
+    const stale=await propose([{type:"text",self_ref:"#/texts/4",text:"Stale replacement"}],[textBefore],["Stale replacement"],"other-reason");
+    const crossKind=await propose([{type:"kind",self_ref:"#/texts/4",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"cross-kind");
+    const crossText=await propose([{type:"text",self_ref:"#/texts/1",text:"Other title"}],[textBefore],["Other title"],"cross-text");
+    for(const proposal of [a,b,stale,crossKind,crossText])assert.equal(proposal.result.receipt.outcome,"success",JSON.stringify(proposal.result));
+    assert.equal((await decide("groups-approve",a.group)).receipt.outcome,"success");
+    host=service();const afterText=await read();assert.match(afterText.snapshot.source,/Corrected canonical text/);
+    assert.equal(afterText.document.blocks.find((block:any)=>block.block==="heading").text,textBefore);
+    const independent=await decide("groups-approve",b.group);assert.equal(independent.receipt.outcome,"success",JSON.stringify(independent));
+    assert.deepEqual(independent.ledger.inspections,inspected.ledger.inspections);assert.deepEqual(independent.ledger.checks,inspected.ledger.checks);
+    assert.deepEqual(independent.lenses,opened.lenses,"corrections preserve the original lens extraction");
+    assert.deepEqual(independent.ledger.inventory,opened.ledger.inventory);
+    const beforeStale=readFileSync(file);assert.equal((await decide("groups-approve",stale.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale);
+    for(const group of [crossKind.group,crossText.group]){assert.equal((await decide("groups-approve",group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale,"another field change at the same target makes a proposal stale");}
+    const followupKind=await propose([{type:"kind",self_ref:"#/texts/4",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"kind-followup");
+    const changedKind=await decide("groups-approve",followupKind.group);assert.equal(changedKind.receipt.outcome,"success",JSON.stringify(changedKind));
+    const beforeUndoConflict=readFileSync(file);assert.equal((await decide("groups-undo",a.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeUndoConflict,"Undo cannot cross another field change on its target");
+    assert.equal((await decide("groups-undo",followupKind.group)).receipt.outcome,"success");
+    for(const group of [b.group,a.group]){assert.equal((await decide("groups-undo",group)).receipt.outcome,"success");host=service();}
+    assert.equal((await read()).snapshot.source,opened.snapshot.source);
+    // Existing source text kinds keep their native meaning (list item, code, equation, figure/table caption).
+    for(const [self_ref,text] of [["#/texts/2","Reviewed list item"],["#/texts/5","print(3)"],["#/texts/6","x^2"],["#/texts/7","Reviewed figure caption"],["#/texts/9","Reviewed table caption"]]){
+      const before=(await read()).items.find((item:any)=>item.self_ref===self_ref).text;
+      const proposed=await propose([{type:"text",self_ref,text}],[before],[text],`native-${self_ref}`);
+      assert.equal(proposed.result.receipt.outcome,"success",JSON.stringify(proposed.result));
+      const approved=await decide("groups-approve",proposed.group);assert.equal(approved.receipt.outcome,"success",JSON.stringify(approved));
+      host=service();assert.equal((await read()).items.find((item:any)=>item.self_ref===self_ref).text,text);
+      assert.equal((await decide("groups-undo",proposed.group)).receipt.outcome,"success");assert.equal((await read()).snapshot.source,opened.snapshot.source);
+    }
+    // Cell correction updates every projected position of an original merged cell, not the first text match.
+    const cell=await propose([{type:"cell",self_ref:"#/tables/0",cell:0,text:"Approved merged cell"}],["Cell one"],["Approved merged cell"]);
+    assert.equal((await decide("groups-approve",cell.group)).receipt.outcome,"success");host=service();
+    const table=(await read()).document.blocks.find((block:any)=>block.block==="table");assert.deepEqual(table.rows[0].cells.map((cell:any)=>cell.text),["Approved merged cell","Approved merged cell"]);
+    assert.equal((await decide("groups-undo",cell.group)).receipt.outcome,"success");assert.equal((await read()).snapshot.source,opened.snapshot.source);
+    const state=await read(),excludeBefore=(ref:string)=>{
+      const current=archive.readDoclingArchive(readFileSync(file)),report=JSON.parse(current.cacheEntries.get("current/snapshot.json").toString()).correspondence;
+      const targets=report.items.find((item:any)=>item.self_ref===ref).targets;
+      return {excluded:false,blocks:JSON.parse(JSON.stringify(targets.map((target:any)=>state.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(target.path))),(key,value)=>key==="path"?undefined:value))};
+    };
+    const badExclusions=await propose(["#/texts/4","#/texts/5"].map(self_ref=>({type:"exclude",self_ref,excluded:true})),[excludeBefore("#/texts/4"),{excluded:false,blocks:[]}],[{excluded:true,blocks:[]},{excluded:true,blocks:[]}],"exclude-conflict");
+    const beforeBundle=readFileSync(file);assert.equal((await decide("groups-approve",badExclusions.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeBundle,"a later target conflict rolls back the entire exclusion bundle");
+    const exclusions=await propose(["#/texts/4","#/texts/5"].map(self_ref=>({type:"exclude",self_ref,excluded:true})),[excludeBefore("#/texts/4"),excludeBefore("#/texts/5")],[{excluded:true,blocks:[]},{excluded:true,blocks:[]}],"exclude");
+    assert.equal(exclusions.result.receipt.outcome,"success",JSON.stringify(exclusions.result));
+    const deleted=await decide("groups-approve",exclusions.group);assert.equal(deleted.receipt.outcome,"success",JSON.stringify(deleted));host=service();
+    const compared=await host.execute({...base,action:"workspace-compare"});
+    const deletedRegion="region-texts-4-0";assert.equal(compared.snapshot.page.regions.find((region:any)=>region.id===deletedRegion).status,"excluded");
+    assert.deepEqual(compared.snapshot.mapping.entries.find((entry:any)=>entry.sourceIds.includes(deletedRegion)).targets,[]);
+    const oldEquation=state.snapshot.inputs.flatMap((input:any)=>input.targets).find((target:any)=>target.path[0]===6);
+    assert.ok(oldEquation);assert.equal(deleted.document.blocks.find((block:any)=>block.block==="equation").path[0],4);
+    assert.equal((await decide("groups-undo",exclusions.group)).receipt.outcome,"success");host=service();assert.equal((await read()).snapshot.source,opened.snapshot.source);
+    unchangedSources();
+    {
+    // Inserts retain the anchor's content check while paths shift; evidence comes only from the proposal.
+    const anchor=opened.document.blocks.find((b:any)=>b.block==="paragraph"),anchorPath=anchor.path;
+    const evidenceRegion={page:1,bbox:[12,14,98,26],ref:"pdf-text-evidence"};
+    const heading={type:"insert",anchorPath,position:"before",kind:"heading",level:2,text:"Recovered header"};
+    const insertA=await propose([heading],[null],[{kind:"heading",level:2,text:heading.text}],"insert-heading",[evidenceRegion]);
+    const paragraph={type:"insert",anchorPath,position:"after",kind:"paragraph",text:"Recovered paragraph"};
+    const insertB=await propose([paragraph],[null],[{kind:"paragraph",text:paragraph.text}],"insert-paragraph");
+    const laterText=await propose([{type:"text",self_ref:"#/texts/4",text:"After insertion"}],[textBefore],["After insertion"],"after-insertion");
+    for(const kind of ["table","figure","list"]){
+      const before=readFileSync(file),bad=await propose([{...paragraph,kind}],[null],[{}],`unsupported-${kind}`);
+      assert.equal(bad.result.receipt.outcome,"failure");assert.deepEqual(readFileSync(file),before);
+    }
+    assert.equal(insertA.result.receipt.outcome,"success",JSON.stringify(insertA.result));
+    const insertionFailureBytes=readFileSync(file);fail="workspace-prepare";
+    assert.equal((await decide("groups-approve",insertA.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),insertionFailureBytes);fail="";
+    const insertedA=await decide("groups-approve",insertA.group);assert.equal(insertedA.receipt.outcome,"success",JSON.stringify(insertedA));host=service();
+    const correspondence=()=>JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
+    assert.deepEqual(correspondence().insertions[0].regions,[evidenceRegion]);
+    const comparedInsert=await host.execute({...base,action:"workspace-compare"});assert.equal(comparedInsert.state,"ready",JSON.stringify(comparedInsert));
+    const insertedRegion=comparedInsert.snapshot.page.regions.find((r:any)=>r.id.startsWith("insert-"));
+    assert.deepEqual(insertedRegion.bbox,evidenceRegion.bbox);
+    const mappedInsert=comparedInsert.snapshot.mapping.entries.find((e:any)=>e.sourceIds.includes(insertedRegion.id));
+    assert.deepEqual(mappedInsert.targets[0].path,anchorPath);
+    assert.equal((await decide("groups-approve",insertB.group)).receipt.outcome,"success");host=service();
+    assert.equal(correspondence().insertions[1].status,"no-correspondence");assert.deepEqual(correspondence().insertions[1].regions,[]);
+    assert.equal((await decide("groups-approve",laterText.group)).receipt.outcome,"success");
+    assert.equal((await decide("groups-undo",laterText.group)).receipt.outcome,"success");
+    assert.equal((await decide("groups-undo",insertA.group)).receipt.outcome,"success");host=service();
+    assert.equal((await decide("groups-undo",insertB.group)).receipt.outcome,"success");assert.equal((await read()).snapshot.source,opened.snapshot.source);
+    // Editing the anchor changes before content; deletion never rebinds it to the next identical paragraph.
+    const staleInsert=await propose([paragraph],[null],[{kind:"paragraph",text:paragraph.text}],"stale-insert");
+    const sourceAnchor=correspondence().items.find((i:any)=>i.targets.length===1&&JSON.stringify(i.targets[0].path)===JSON.stringify(anchorPath));
+    const editAnchor=await propose([{type:"kind",self_ref:sourceAnchor.self_ref,kind:"heading",level:4}],[{kind:"paragraph"}],[{kind:"heading",level:4}],"anchor-kind");
+    assert.equal((await decide("groups-approve",editAnchor.group)).receipt.outcome,"success");
+    const beforeStale=readFileSync(file);assert.equal((await decide("groups-approve",staleInsert.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale);
+    assert.equal((await decide("groups-undo",editAnchor.group)).receipt.outcome,"success");
+    const anchorBlock=(await read()).document.blocks.find((b:any)=>JSON.stringify(b.path)===JSON.stringify(anchorPath));
+    const removeAnchor=await propose([{type:"exclude",self_ref:sourceAnchor.self_ref,excluded:true}],[{excluded:false,blocks:JSON.parse(JSON.stringify([anchorBlock],(key,value)=>key==="path"?undefined:value))}],[{excluded:true,blocks:[]}],"anchor-removal");
+    assert.equal((await decide("groups-approve",removeAnchor.group)).receipt.outcome,"success");
+    const beforeMissingAnchor=readFileSync(file);assert.equal((await decide("groups-approve",staleInsert.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeMissingAnchor);
+    assert.equal((await decide("groups-undo",removeAnchor.group)).receipt.outcome,"success");unchangedSources();
+    }
+    // A page-sized bundle may remove the whole body; Undo must still insert after native front matter.
+    const allSources=state.snapshot.inputs.filter((input:any)=>input.targets.length).map((input:any)=>input.key);
+    const allExcluded=await propose(allSources.map((self_ref:string)=>({type:"exclude",self_ref,excluded:true})),allSources.map(excludeBefore),allSources.map(()=>({excluded:true,blocks:[]})),"whole-body");
+    assert.equal(allExcluded.result.receipt.outcome,"success",JSON.stringify(allExcluded.result));
+    const empty=await decide("groups-approve",allExcluded.group);assert.equal(empty.receipt.outcome,"success",JSON.stringify(empty));assert.deepEqual(empty.document.blocks,[]);
+    const restored=await decide("groups-undo",allExcluded.group);assert.equal(restored.receipt.outcome,"success",JSON.stringify(restored));assert.equal(restored.snapshot.source,opened.snapshot.source);
+    // Provider/canonical validation/commit failures retain the complete document and judgment history.
+    const before=readFileSync(file),approval=()=>decide("groups-approve",a.group);
+    for(const mode of ["workspace-prepare","mixed"]){fail=mode;assert.equal((await approval()).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),before);}fail="";
+    // File commit resolves aliases (including Windows 8.3 temp roots) before rename.
+    const rename=fs.renameSync,commitTarget=canonicalFilePath(file),fault=t.mock.method(fs,"renameSync",(from:fs.PathLike,to:fs.PathLike)=>{if(to===commitTarget)throw Object.assign(new Error("Injected replacement failure"),{code:"EACCES"});return rename(from,to);});syncBuiltinESMExports();
+    try{const failed=await approval();assert.equal(failed.error,"Injected replacement failure");assert.equal(failed.receipt.outcome,"uncertain");assert.deepEqual(readFileSync(file),before);await assert.rejects(approval(),/Uncertain workspace/);await host.execute({action:"workspace-status",requestId:failed.receipt.requestId});await read();}finally{fault.mock.restore();syncBuiltinESMExports();}
+    assert.equal((await decide("groups-approve",a.group,opened.baseline)).receipt.outcome,"failure");
+    const requestId=randomUUID(),approved=await decide("groups-approve",a.group,digest(before),requestId);assert.equal(approved.saved,true,JSON.stringify(approved));
+    await assert.rejects(decide("groups-approve",a.group,approved.baseline,requestId),/Duplicate requestId/);
+    host=service();assert.equal((await host.execute({action:"workspace-status",requestId})).state,"unknown");assert.deepEqual((await read()).snapshot,approved.snapshot);
+    const assistant=await executeReadReviewDocument({generatedDocuments:host},base,{folders:access,access,permissionMode:"read-only"});assert.deepEqual(assistant.snapshot,approved.snapshot);
+    let signal!:()=>void;const waiting=new Promise<void>(resolve=>{signal=resolve;});entered=signal;
+    const pending=write("workspace-progress",{progress:{checkedPages:[],lastPage:1}});await waiting;
+    await assert.rejects(host.execute({...base,workspace:process.platform==="win32"?"SOURCE.DOCLING":"source.docling",action:"workspace-progress",baseline:digest(readFileSync(file)),requestId:randomUUID(),progress:{checkedPages:[],lastPage:1}}),/operation in progress/);
+    let readFinished=false;const queued=read().then(result=>{readFinished=true;return result;});await new Promise(resolve=>setImmediate(resolve));assert.equal(readFinished,false);entered=undefined;hold!();await pending;assert.equal((await queued).baseline,digest(readFileSync(file)));
+    const exportCheck=await host.execute({...base,action:"workspace-export-check",baseline:digest(readFileSync(file))});assert.equal(exportCheck.targetRevision,null);
+    const exported=await write("workspace-export",{mode:"current",targetRevision:null});assert.equal(exported.receipt.outcome,"success");assert.doesNotMatch(readFileSync(exported.path,"utf8"),/review-asset:/);
+    assert.equal((await write("workspace-export",{mode:"current",targetRevision:exported.revision})).receipt.outcome,"failure");
+    assert.equal((await write("workspace-export",{mode:"current",targetRevision:exported.revision,overwrite:true})).receipt.outcome,"success");unchangedSources();
+    const beforeRace=readFileSync(file);fail="race";assert.equal((await write("workspace-progress",{progress:{checkedPages:[],lastPage:1}})).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),original,"a competing writer is preserved");fail="";writeFileSync(file,beforeRace);
+    const currentBytes=readFileSync(file),previousContract=archive.readDoclingArchive(currentBytes),metadata=JSON.parse(previousContract.cacheEntries.get("current/snapshot.json").toString());
+    metadata.authoringContract="older-contract";metadata.cacheKey=digest(JSON.stringify([metadata.documentRevision,metadata.adapterVersion,metadata.authoringContract,metadata.images]));
+    const {integrity:_integrity,correspondence,...saved}=metadata;metadata.integrity=digest(JSON.stringify([previousContract.cacheEntries.get("current/document.md").toString(),saved,correspondence]));
+    previousContract.cacheEntries.set("current/snapshot.json",Buffer.from(JSON.stringify(metadata)));writeFileSync(file,archive.rewriteReview(previousContract,previousContract.reviewBytes));
+    const older=readFileSync(file);assert.equal((await write("workspace-open")).cacheState,"created-version");assert.equal((await write("workspace-regenerate")).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),older);writeFileSync(file,currentBytes);
+    // A stale/invalid authoritative document is readable where intact, but can never be rebuilt from source.
+    const intact=archive.readDoclingArchive(readFileSync(file));intact.cacheEntries.set("current/document.md",Buffer.from("corrupt"));writeFileSync(file,archive.rewriteReview(intact,intact.reviewBytes));
+    const corrupt=readFileSync(file);assert.equal((await read()).cacheState,"invalid");assert.equal((await write("workspace-regenerate")).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),corrupt);
+    const missing=archive.readDoclingArchive(corrupt);missing.cacheEntries.clear();writeFileSync(file,archive.rewriteReview(missing,missing.reviewBytes));
+    const missingBytes=readFileSync(file);assert.equal((await write("workspace-open")).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),missingBytes,"missing authoritative document cannot be regenerated");
+  } finally {
+    for(const name of fs.readdirSync(root)){const target=path.join(root,name);if(fs.statSync(target).isDirectory()){for(const child of fs.readdirSync(target))fs.unlinkSync(path.join(target,child));fs.rmdirSync(target);}else fs.unlinkSync(target);}fs.rmdirSync(root);
+  }
+});
+
+test("fixed LSR document uses Core corrections through save, cold read, Undo and actual CLI JSON without conversion", async () => {
+  const {workspaceOperation,initializeWorkspace}=await doclingConverter();
+  const archive=await doclingConverter();
+  const {PDF_PROFILE}=await doclingConverter();
+  const root=mkdtempSync(path.join(os.tmpdir(),"litzio-fixed-lsr-")),file=path.join(root,"lsr.docling");
+  const sample=new URL("../../../community-plugins/docling/sample/lsr-1.1/",import.meta.url);
+  const json=readFileSync(new URL("converted/document.json",sample),"utf8"),pdf=readFileSync(new URL("LSR-1.1-standards.pdf",sample));
+  const digest=(value:string|Buffer)=>createHash("sha256").update(value).digest("hex");
+  // Only a synthetic transport envelope is supplied. The fixed record's API status is unrecorded; this is not a new conversion or success claim.
+  const envelope=archive.createDoclingArchiveFromResult({sourceName:"LSR-1.1-standards.pdf",sourceBytes:pdf,serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
+    task:{id:"fixed-result-test-envelope",startedAt:"2026-11-11T00:00:00Z",completedAt:"2026-11-11T00:00:00Z"},resultBody:Buffer.from('{"status":"success","errors":[],"document":{"json_content":'+json+'}}')});
+  writeFileSync(file,await initializeWorkspace(envelope));
+  const original=archive.readDoclingArchive(readFileSync(file));
+  const binaryHash=/"binary_hash"\s*:\s*(\d+)/.exec(json)?.[1];assert.ok(binaryHash);assert.match(original.documentJson,new RegExp(`"binary_hash":${binaryHash}`));
+  const base={root,workspace:"lsr.docling",plugin:"fixture",job:"import"},human={actor:"person",reason:"Compared fixed source and exact target",confirmed:true};
+  const service=()=>new GeneratedDocuments(new RootAccess([root]),()=>({operation:"fixture",version:1,workspace:true,assertCurrent(){}}),async(_op,input)=>({result:await workspaceOperation(input)}));
+  let host=service();
+  const read=()=>host.execute({...base,action:"workspace-read"});
+  const change=(change:unknown)=>host.execute({...base,action:"workspace-review-change",baseline:digest(readFileSync(file)),requestId:randomUUID(),change});
+  try {
+    const opened=await read(),report=JSON.parse(original.cacheEntries.get("current/snapshot.json").toString()).correspondence;
+    const item=report.items.find((item:any)=>item.self_ref.startsWith("#/texts/") && item.label==="text" && item.targets.length===1 && opened.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(item.targets[0].path))?.block==="paragraph");
+    assert.ok(item,"fixed sample has a standalone paragraph");
+    const block=opened.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(item.targets[0].path));
+    const tableItem=report.items.find((item:any)=>item.self_ref.startsWith("#/tables/")&&item.cells?.length);
+    const table=opened.document.blocks.find((block:any)=>block.path[0]===tableItem.targets[0].path[0]),position=tableItem.cells[0].positions[0];
+    const excludeBefore={excluded:false,blocks:JSON.parse(JSON.stringify([block],(key,value)=>key==="path"?undefined:value))};
+    const cases=[
+      [{type:"text",self_ref:item.self_ref,text:"Corrected fixed LSR paragraph"},block.text,"Corrected fixed LSR paragraph"],
+      [{type:"kind",self_ref:item.self_ref,kind:"heading",level:3},{kind:"paragraph"},{kind:"heading",level:3}],
+      [{type:"cell",self_ref:tableItem.self_ref,cell:tableItem.cells[0].index,text:"Corrected fixed LSR cell"},table.rows[position.row].cells[position.column].text,"Corrected fixed LSR cell"],
+      [{type:"exclude",self_ref:item.self_ref,excluded:true},excludeBefore,{excluded:true,blocks:[]}],
+      [{type:"insert",anchorPath:block.path,position:"before",kind:"heading",level:2,text:"Recovered fixed heading"},null,{level:2,text:"Recovered fixed heading",kind:"heading"}],
+      [{type:"insert",anchorPath:block.path,position:"after",kind:"paragraph",text:"Recovered fixed paragraph"},null,{text:"Recovered fixed paragraph",kind:"paragraph"}],
+    ];
+    let n=0;
+    for(const [op,before,after] of cases){
+      const state=await read(),id=`fixed-${++n}`;
+      const target={id,locator:(op as any).type==="insert"?{anchorPath:(op as any).anchorPath}:{self_ref:(op as any).self_ref,...((op as any).cell===undefined?{}:{cell:(op as any).cell})},pages:[1],regions:(op as any).type==="insert"?[{page:1,bbox:[10,10,100,25],ref:"fixed-pdf-region"}]:[],before:[before],
+        evidence:[{observation:"Compared fixed source PDF and current document",materialRef:"fixed-pdf",materialHash:digest(pdf),inspector:"human",scope:{pages:[1],targets:[id]}}],
+        patch:{expectedBefore:[before],expectedContentRevision:state.documentRevision,operations:[op],after:[after],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]};
+      const proposed=await change({kind:"groups-propose",groups:[{id,reasonCode:id,reason:"Fixed sample correction",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:original.manifest.document.sha256,contentRevision:state.documentRevision,
+        createdAt:new Date().toISOString(),runId:id,representativeTargetId:id,representativeReason:"Exact fixed target",splitFrom:null,targets:[target]}]});
+      assert.equal(proposed.receipt.outcome,"success",JSON.stringify(proposed));
+      const approved=await change({kind:"groups-approve",groupId:id,targetIds:[id],human,resolvesIssue:true});assert.equal(approved.receipt.outcome,"success",JSON.stringify(approved));
+      host=service();assert.equal((await read()).snapshot.source,approved.snapshot.source);
+      const undone=await change({kind:"groups-undo",groupId:id,targetIds:[id],human});assert.equal(undone.receipt.outcome,"success",JSON.stringify(undone));
+      host=service();assert.equal((await read()).snapshot.source,opened.snapshot.source);
+      const current=archive.readDoclingArchive(readFileSync(file));for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(current[key],original[key]);
+    }
+    const evidenceRun=await host.execute({...base,action:"workspace-evidence",mode:"run",baseline:digest(readFileSync(file)),requestId:randomUUID()});
+    assert.equal(evidenceRun.receipt.outcome,"success",JSON.stringify(evidenceRun));assert.equal(evidenceRun.evidence.status,"inspected");
+    assert.equal(evidenceRun.snapshot.source,opened.snapshot.source);assert.equal(evidenceRun.ledger.groups.length,cases.length);
+    assert.ok(evidenceRun.evidence.candidates.length>0);assert.ok(evidenceRun.evidence.coverage.outside.furniture>0);
+    let sawText=false;for(const candidate of evidenceRun.evidence.candidates){if(candidate.priority==="text")sawText=true;else assert.equal(sawText,false,"numeric/unit candidates come first");}
+    host=service();const evidenceRead=await host.execute({...base,action:"workspace-evidence",mode:"read"});assert.deepEqual(evidenceRead.evidence,evidenceRun.evidence);
+    console.log("LSR evidence",JSON.stringify({candidates:evidenceRun.evidence.candidates.length,coverage:{...evidenceRun.evidence.coverage,outsideRegions:evidenceRun.evidence.coverage.outsideRegions.length}}));
+    const {createServer}=await import("node:http"),{spawn}=await import("node:child_process"),{DAEMON_PROTOCOL}=await import("../shared/daemon-version.ts");
+    const server=createServer(async(req,res)=>{res.setHeader("Content-Type","application/json");if(req.url==="/daemon/health"){res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL}));return;}try{let body="";for await(const chunk of req)body+=chunk;res.end(JSON.stringify(await host.execute(JSON.parse(body))));}catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}});
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    try {
+      const input=path.join(root,"read.json");writeFileSync(input,JSON.stringify({...base,baseline:digest(readFileSync(file)),requestId:randomUUID()}));
+      const cli=spawn(process.execPath,["--import","tsx",fileURLToPath(new URL("../../../packages/cli/src/cli.ts",import.meta.url)),"review","evidence","run","--input",input,"--host",`http://127.0.0.1:${(server.address() as any).port}`,"--json"],{windowsHide:true});
+      let stdout="",stderr="";cli.stdout.on("data",chunk=>stdout+=chunk);cli.stderr.on("data",chunk=>stderr+=chunk);
+      const code=await new Promise((resolve,reject)=>{cli.once("error",reject);cli.once("exit",resolve);});assert.equal(code,0,stderr+stdout);
+      const result=JSON.parse(stdout);assert.deepEqual(result.evidence,evidenceRun.evidence);assert.equal(result.snapshot.source,opened.snapshot.source);assert.equal(result.ledger.groups.length,cases.length);assert.ok(result.ledger.groups.every((group:any)=>group.targets[0].history.at(-1).action==="undone"));
+    }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
+    assert.equal(readFileSync(new URL("converted/document.json",sample),"utf8"),json);
+  }finally{for(const name of fs.readdirSync(root))fs.unlinkSync(path.join(root,name));fs.rmdirSync(root);}
 });
 
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
@@ -306,6 +610,7 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
     const start = readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).find(entry => entry.method === "thread/start");
     assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "invoke_plugin_operation"));
+    assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "read_review_document"));
     const invoke = async (operation: string, input: unknown, id = conversation.id) => {
       const response: any = await connection.client.request("fixture/tool", { threadId: id, tool: "invoke_plugin_operation", arguments: { operation, input } });
       return { success: response.result.success, ...JSON.parse(response.result.contentItems[0].text) };
@@ -736,7 +1041,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     assert.equal((created.result as any).directory, canonicalFilePath(directory));
     await assert.rejects(host.invoke("scaffold", { id }), /EEXIST/);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
-    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.4.0 <1.0.0");
+    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.5.0 <1.0.0");
     assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
     assert.match(readFileSync(path.join(directory, "plugin-sdk.d.ts"), "utf8"), /PluginContext/);
     // Even an artifact-local SDK must never replace the Host's public runtime.
@@ -803,7 +1108,7 @@ test("Host SDK runtime is one self-contained JavaScript module with only Node bu
     }
   }
   const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
-  assert.equal(runtime.SDK_VERSION, "0.4.0");
+  assert.equal(runtime.SDK_VERSION, "0.5.0");
   assert.equal(JSON.parse(readFileSync(new URL("../../../packages/plugin-sdk/package.json", import.meta.url), "utf8")).version, runtime.SDK_VERSION);
   assert.equal(typeof runtime.PluginOperationError, "function");
 });
@@ -1507,6 +1812,17 @@ test("designated community supply requires trust, persists across updates and yi
 
 test("designated distribution payload check rejects a missing runtime file", async () => {
   const { DESIGNATED_COMMUNITY_PLUGINS, assertDesignatedPluginPayload } = await import("../server/plugins/designated-plugins.ts");
+  const docling=DESIGNATED_COMMUNITY_PLUGINS.find(item=>item.id==="community.docling")!;
+  const visited=new Set<string>(),missing=new Set<string>();
+  const visit=(file:string)=>{
+    if(!docling.files.includes(file))missing.add(file);
+    if(visited.has(file)||!file.endsWith(".js"))return;visited.add(file);
+    const source=readFileSync(new URL(`../../../community-plugins/docling/${file}`,import.meta.url),"utf8");
+    const refs=[...source.matchAll(/^\s*import\b[^;]*?\bfrom\s+["'](\.[^"']+)["']/gm),...source.matchAll(/new URL\(["'](\.[^"']+)["'],\s*import\.meta\.url\)/g)];
+    for(const ref of refs)visit(path.posix.normalize(path.posix.join(path.posix.dirname(file),ref[1]!)));
+  };
+  visit("host.js");
+  assert.deepEqual([...missing],[],`Docling runtime dependencies missing from designated payload: ${[...missing].join(", ")}`);
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-supply-check-"));
   assert.throws(() => assertDesignatedPluginPayload(root), /community.docling/);
   for (const item of DESIGNATED_COMMUNITY_PLUGINS) {

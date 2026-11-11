@@ -1,6 +1,7 @@
 import { authorDocument, DOCUMENT_AUTHORING_LIMITS as limits } from "@litzio/plugin-sdk";
+import { validateDoclingDocument } from "./schema.js";
 
-import { applyCorrections } from "./review.js";
+
 
 function refuse(reason, ref) {
   throw Object.assign(new Error(reason), { conversionReason: reason, ...(ref ? { sourceRef: ref } : {}) });
@@ -23,13 +24,15 @@ export function readCaptionNumber(caption, kind) {
   return { enumerator: number, caption: rest.replace(/^\s*[:.]?\s*/, "") };
 }
 
-/** Interpret Docling only here; the SDK owns document semantics and serialization. */
-export async function convertDocument(original, sourceHash, patches = []) {
-  const doc = applyCorrections(original, patches);
+/** Interpret Docling only here; the SDK owns document semantics and serialization.
+ * @param {import("./schema/document.js").DoclingDocument} doc
+ */
+export async function convertDocument(doc, sourceHash) {
+  validateDoclingDocument(doc);
   if (doc?.schema_name !== "DoclingDocument" || !Array.isArray(doc.body?.children)) refuse("Invalid DoclingDocument");
   const records = new Map(), inputs = [], images = [], losses = [], visited = new Set(), captionOwners = new Map();
   const note = (ref, kind, detail, extra = {}) => losses.push({ self_ref: ref, kind, detail, ...extra });
-  const isFurniture = item => item.__reviewExcluded === true || item.content_layer === "furniture" || ["page_header", "page_footer"].includes(item.label);
+  const isFurniture = item => item.content_layer === "furniture" || ["page_header", "page_footer"].includes(item.label);
   function resolve(ref) {
     const match = /^#\/(texts|groups|tables|pictures|key_value_items|form_items)\/(\d+)$/.exec(ref ?? "");
     const item = match && doc[match[1]]?.[Number(match[2])];
@@ -59,7 +62,6 @@ export async function convertDocument(original, sourceHash, patches = []) {
   }
   for (const collection of [doc.tables ?? [], doc.pictures ?? []]) for (const owner of collection) {
     for (const caption of owner.captions ?? []) {
-      if (resolve(caption.$ref).__reviewKind) continue;
       if (captionOwners.has(caption.$ref)) refuse("Caption has multiple owners", caption.$ref);
       captionOwners.set(caption.$ref, owner.self_ref);
     }
@@ -67,7 +69,7 @@ export async function convertDocument(original, sourceHash, patches = []) {
   const captionNumbers = new Map(), usedNumbers = new Map();
   for (const [collection, kind] of [[doc.pictures ?? [], "figure"], [doc.tables ?? [], "table"]]) for (const owner of collection) {
     if (isFurniture(owner)) continue;
-    const captions = (owner.captions ?? []).map(c => resolve(c.$ref)).filter(c => !isFurniture(c) && !c.__reviewKind);
+    const captions = (owner.captions ?? []).map(c => resolve(c.$ref)).filter(c => !isFurniture(c));
     const caption = captions.map(c => c.text).filter(Boolean).join(" ");
     const value = readCaptionNumber(caption, kind);
     if (captions.slice(1).some(c => /^\s*(?:Figure|Fig\.?|Table|그림|표)\s/i.test(c.text))) {
@@ -117,13 +119,12 @@ export async function convertDocument(original, sourceHash, patches = []) {
     visited.add(ref);
     const furniture = excluded || isFurniture(item);
     if (furniture) {
-      entry.status = item.__reviewExcluded ? "excluded" : "furniture"; pendingList = undefined;
+      entry.status = "furniture"; pendingList = undefined;
       for (const child of item.children ?? []) visit(child.$ref, listDepth, excluded || item.content_layer === "furniture" || ["page_header", "page_footer"].includes(item.label));
       for (const caption of item.captions ?? []) record(caption.$ref).status = "furniture";
       return;
     }
     const captions = (item.captions ?? []).map(caption => caption.$ref).filter(key => {
-      if (resolve(key).__reviewKind) return false;
       if (!isFurniture(resolve(key))) return true;
       record(key).status = "furniture";
       return false;
@@ -159,6 +160,7 @@ export async function convertDocument(original, sourceHash, patches = []) {
         pendingList.block.items.push(item.text); pendingList.next++;
         entry.status = "converted"; entry.links.push(pendingList.link);
       }
+      entry.listItem = pendingList.block.items.length - 1;
       if (ordered && !number) note(ref, "list-marker", "Source marker unavailable as a numeric start; automatic numbering used");
       if (listDepth > 1) note(ref, "nested-list", "Nested item flattened");
     } else {
@@ -193,9 +195,7 @@ export async function convertDocument(original, sourceHash, patches = []) {
       } else note(ref, "unsupported", "Item has no supported content");
     }
     for (const child of item.children ?? []) visit(child.$ref, listDepth);
-    // Captions may be referenced only by captions, outside children. A role
-    // correction keeps their position after the owner while changing representation.
-    for (const caption of item.captions ?? []) if (resolve(caption.$ref).__reviewKind && !visited.has(caption.$ref)) visit(caption.$ref, listDepth);
+
   }
   for (const child of doc.body.children) visit(child.$ref);
   // Furniture is independent of tree placement. Inventory orphaned content too.

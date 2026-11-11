@@ -17,7 +17,8 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   const comparisonHosts = [], previewHosts = [], assetRequests = [], connectionReads = [];
   await page.route('**/fixture/remote/api/reviews', route => {
     const input = route.request().postDataJSON();
-    expect(input.action).toBe('generated-find');
+    expect(['generated-find','workspace-find']).toContain(input.action);
+    if(input.action==='workspace-find'){expect(input.root === root || input.root.startsWith(root + sep)).toBe(true);return route.fulfill({json:{providers:[],targets:[]}});}
     expect(input.root === root || input.root.startsWith(root + sep)).toBe(true);
     connectionReads.push(input.root);
     return route.fulfill({ json: { documents: [], receipt: { requestId: `00000000-0000-4000-8000-${String(connectionReads.length).padStart(12, '0')}`, operation: 'review.find', version: 1, scope: input.root, outcome: 'success' } } });

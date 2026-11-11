@@ -1,4 +1,4 @@
-import { GeneratedComparison, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
+import { GeneratedComparison, comparisonPath, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
@@ -267,7 +267,7 @@ function EditorApp() {
   const galleryFocused = activeId === "templates";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.comparison?.document ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? (tab.comparison ? comparisonPath(tab.comparison) : undefined) ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -808,7 +808,18 @@ function EditorApp() {
       placeTab(id, group, hostId);
       return "";
     }
-    if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
+    if (!/\.(md|txt)$/i.test(requestedPath)) {
+      if (operationRef.current || busy || fileOperationPending || continuation) return i18n.t("Wait for the current operation to finish.");
+      const root = (hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(hostId)).find(root => folderChain(root, requestedPath).length > 0);
+      if (root) {
+        try {
+          const response=await getHostClient(hostId).request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"workspace-find",root,path:requestedPath})});
+          const value=await response.json();
+          if(response.ok && value.targets?.length===1){ const {root,workspace,plugin,job}=value.targets[0];openComparison(hostId,{root,workspace,plugin,job});return ""; }
+        } catch { return i18n.t("Data unavailable."); }
+      }
+      return i18n.t("Only .md and .txt files can be opened.");
+    }
     if (operationRef.current || fileOperationPending || sessions.current.get(navigation.groups.find(item => item.id === group)?.active ?? "")?.busyRef.current || continuation) return i18n.t("Wait for the current operation to finish.");
     markStartupOverride({ hostId, path: requestedPath });
     const existing = openedTab(tabs, requestedPath, hostId);
@@ -854,10 +865,11 @@ function EditorApp() {
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
-  function openComparison(hostId: string, { root, document }: ComparisonTarget) {
+  function openComparison(hostId: string, target: ComparisonTarget) {
+    if (!tabsRestored || operationRef.current || busy || continuation) { setNotice({key:"Wait for the current operation to finish."}); return; }
     if (sidebarOverlay) closeSidebar();
-    const comparison = { root, document };
-    const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && tab.comparison.document === comparison.document);
+    const comparison:ComparisonTarget="workspace" in target ? {root:target.root,workspace:target.workspace,plugin:target.plugin,job:target.job} : {root:target.root,document:target.document};
+    const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && comparisonPath(tab.comparison) === comparisonPath(comparison));
     const id = existing?.id ?? `comparison-${++nextId.current}`;
     setViewTabs(previous => previous.some(t => t.id === id) ? previous : [...previous,{id,hostId,root:comparison.root,comparison,label:i18n.t("Source comparison")}]);
     placeTab(id);
@@ -1474,7 +1486,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
+              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} isDirty={path => { const existing=openedTab(tabs,path,tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
 
             </div>;
           })}

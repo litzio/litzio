@@ -1,29 +1,11 @@
-import { createHash } from "node:crypto";
-import { resolve } from "node:path";
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { convertPdfToArchive } from "./conversion.js";
-import { readDoclingArchive, rewriteReview } from "./archive.js";
-import { convertDocument } from "./document.js";
-import { readReview, applyCorrections, reviewItems, comparison, setProgress } from "./review.js";
+
+import { workspaceOperation, initializeWorkspace } from "./workspace.js";
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
   const requests = new Set();
-  // One validated source per activation. Host supplies the revision it checked before/after the call.
-  let cached, authoredCache;
-  async function load(input) {
-    if (!input.sourceRevision || cached?.file !== input.file || cached.revision !== input.sourceRevision) {
-      const bytes = await readFile(input.file);
-      if (input.sourceRevision && createHash("sha256").update(bytes).digest("hex") !== input.sourceRevision) throw new Error("Source revision changed");
-      cached = { file: input.file, revision: input.sourceRevision, archive: readDoclingArchive(bytes) };
-    }
-    return cached.archive;
-  }
-  async function author(archive, patches) {
-    const key = archive.manifest.document.sha256 + JSON.stringify(patches);
-    if (authoredCache?.key !== key) authoredCache = { key, value: await convertDocument(archive.document, archive.manifest.document.sha256, patches) };
-    return authoredCache.value;
-  }
   async function checkConnection() {
     let base;
     try {
@@ -75,7 +57,7 @@ export function activate(context) {
       // A cancelled waiter releases its turn, but cannot bypass earlier work.
       pdfTail = previous.then(() => turn);
       work = runPdf(control, input, previous).finally(() => release());
-    } else work = run(control, input);
+    } else throw new Error("Use the single-workspace operations");
     control.done = work.catch(error => {
       if (!control.controller.signal.aborted) {
         control.report = { failure: { reason: error.conversionReason ?? "Archive or conversion failed", ...(error.sourceRef ? { self_ref: error.sourceRef } : {}) } };
@@ -97,77 +79,23 @@ export function activate(context) {
       if (signal.aborted) aborted();
     });
     signal.throwIfAborted();
-    const bytes = await convertPdfToArchive({ file: input.file, serverUrl: String(context.settings.serverUrl ?? "http://127.0.0.1:5001"), signal,
+    const envelope = await convertPdfToArchive({ file: input.file, serverUrl: String(context.settings.serverUrl ?? "http://127.0.0.1:5001"), signal,
       onPhase(phase) { if (!signal.aborted) control.job.phase = phase; } });
     signal.throwIfAborted();
+    const bytes = await initializeWorkspace(envelope);
     if (bytes.length > input.resultFile.maxBytes) throw new Error();
     await writeFile(input.resultFile.path, bytes, { signal });
     signal.throwIfAborted();
     control.job = { state: "completed", phase: "완료", file: { path: input.resultFile.path } };
   }
-  async function run(control, input) {
-    const signal = control.controller.signal;
-    const bytes = await readFile(input.file, { signal });
-    signal.throwIfAborted();
-    const archive = readDoclingArchive(bytes);
-    control.job.phase = "문서 생성 중";
-    const authored = await convertDocument(archive.document, archive.manifest.document.sha256, readReview(archive.reviewBytes).patches);
-    signal.throwIfAborted();
-    control.report = authored.report;
-    control.authored = authored;
-    control.output = input.output;
-    control.job = { state: "completed", phase: authored.report.summary, document: authored.document };
-  }
   return {
     operations: {
       connection: async () => checkConnection(),
       async "generated-document"(input) {
-        const archive = await load(input);
-        const record = readReview(archive.reviewBytes);
-        if (input.mode === "patch") {
-          record.patches.push(...input.patches);
-          record.checkedPages = []; record.lastPage = null;
-          readReview(Buffer.from(JSON.stringify(record)));
-        }
-        if (input.mode === "progress") setProgress(archive.document, record, input.progress);
-        if (input.mode === "compare") {
-          const authored = await author(archive, record.patches);
-          const pageNo = input.pageNo ?? record.lastPage ?? 1;
-          const image = archive.document.pages[pageNo]?.image;
-          if (image?.mimetype !== "image/png") throw new Error("Page image unavailable");
-          const bytes = Buffer.from(image.uri.slice(image.uri.indexOf(",") + 1), "base64");
-          if (bytes.length > input.resultFile.maxBytes) throw new Error("Image exceeds Host limit");
-          await writeFile(input.resultFile.path, bytes, {flag:"r+"});
-          const material = comparison(archive,record,authored.bindReport(input.result),input);
-          const ref = `page-${pageNo}`; material.pages.find(p => p.pageNo === pageNo).imageRef = ref;
-          material.images = [{ref,path:input.resultFile.path,revision:createHash("sha256").update(bytes).digest("hex")}];
-          return material;
-        }
-        const effective = applyCorrections(archive.document, record.patches);
-        if (input.mode === "build") return (await author(archive, record.patches)).document;
-        const state = { record, items: reviewItems(effective) };
-        if (["patch","progress"].includes(input.mode)) {
-          const reviewBytes = Buffer.from(JSON.stringify(record)), bytes = rewriteReview(archive, reviewBytes);
-          if (bytes.length > input.resultFile.maxBytes) throw new Error("Archive exceeds Host limit");
-          await writeFile(input.resultFile.path, bytes, { flag: "r+" });
-          cached = { file: input.file, revision: createHash("sha256").update(bytes).digest("hex"), archive: { ...archive, reviewBytes } };
-        }
-        return state;
+        if (input.mode.startsWith("workspace-")) return workspaceOperation(input);
+        throw new Error("Use the single-workspace operations");
       },
-      async "conversion-report"(input) {
-        const control = jobs.get(input.requestId);
-        if (!control?.report) throw new Error();
-        if (control.report.failure) return structuredClone(control.report);
-        if (input.result) {
-          if (resolve(input.result.path) !== resolve(control.output)) throw new Error("Host result path does not match this job");
-          const bytes = await readFile(control.output);
-          if (createHash("sha256").update(bytes).digest("hex") !== input.result.revision) throw new Error("Host result revision is stale");
-          control.finalReport = control.authored.bindReport(input.result);
-        }
-        if (!control.finalReport) throw new Error("Supply the completed Host job result to bind final targets");
-        return structuredClone(control.finalReport);
-      },
-      start(input) { return accept(input, false); },
+      start() { throw new Error("Use the single-workspace operations"); },
       "convert-pdf"(input) { return accept(input, true); },
       "job-status"(input) { return structuredClone(jobs.get(input.requestId).job); },
       "job-stop": async (input) => { const control = jobs.get(input.requestId); await stop(control); return structuredClone(control.job); },

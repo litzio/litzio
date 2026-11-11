@@ -5,8 +5,13 @@ import { ReviewRenderer, type ReviewAdapter, type ReviewSnapshot } from "./Revie
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 
-export type ComparisonTarget = { root: string; document: string };
-export function GeneratedComparison({ client, target, onOpen, onPending }: { client: HostClient; target: ComparisonTarget; onOpen(path: string): void; onPending?(pending: boolean): void }) {
+import { WorkspaceComparison, type WorkspaceTarget } from "./WorkspaceComparison.tsx";
+export type ComparisonTarget = { root: string; document: string } | WorkspaceTarget;
+export const comparisonPath = (target: ComparisonTarget) => "workspace" in target ? target.workspace : target.document;
+export function GeneratedComparison(props: { client: HostClient; target: ComparisonTarget; onOpen(path: string): void; onPending?(pending: boolean): void; isDirty?(path:string):boolean }) {
+  return "workspace" in props.target ? <WorkspaceComparison {...props} target={props.target} /> : <LegacyComparison {...props} target={props.target} />;
+}
+function LegacyComparison({client,target,onOpen,onPending}: {client:HostClient;target:{root:string;document:string};onOpen(path:string):void;onPending?(pending:boolean):void}) {
   const open = useRef(onOpen); open.current = onOpen;
   const pendingChanged = useRef(onPending); pendingChanged.current = onPending;
   const pendingWrites = useRef(0);

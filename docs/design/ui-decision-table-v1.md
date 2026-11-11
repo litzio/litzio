@@ -1,9 +1,11 @@
 # UI 결정표와 실행 예제
 
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 보관 소스를 가리키는 플러그인·Docling 과거 캡처/검증은 당시 기록이며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 재개된 플러그인·workspace 계약은 [플러그인 1단계](plugin-stage1-v1.md)를 따른다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 파일 없는 검수 snapshot을 대조·중간 내보내기한다 (#1462 P1b) | 기존 comparison 작업 탭·명시 export Dialog | ReviewRenderer/DocumentEditor readOnly preview·Dialog/Input/Button/checkbox | 내부 source/이미지·effective 대응, 실제 파일 열기는 export 결과만, revision/overwrite·미저장 보호 | [P1b](docling-review-stage3.md#p1b-내부-대조이미지명시-export) | 기존 공통 구현, 새 token/control 예외 없음. 완료 승인/final export는 후속 |
+
 | 생성 문서에서 대조를 다시 연다 (#1465) | 기존 문서 안내·탐색기 | warning Notice + ghost sm Button, ContextMenu + PanelRightOpen, 여러 문서는 기존 Dialog/Button | Host 연결을 조회해 기존 대조 탭 열기·재생성 안내 | [생성 문서 진입점](plugin-stage1-v1.md#생성-문서-대조-진입점-1465) | 새 화면 종류 없음. 최근 검수 진행률 목록은 공용 schema/binding 부재로 미제공 |
 | Desktop 창을 숨기거나 완전 종료한다 (#1448) | Windows 트레이 | Electron Tray/Menu + 기존 brand icon·native dialog | 열기·종료, 최초 백그라운드 안내·설정 보존, 종료 시 작업 중단 안내와 기존 미저장 보호 | [Desktop 트레이 계약](desktop-distribution-v1.md#close-to-tray-1448) | 소유자가 승인한 OS 표면으로 renderer 공통 부품 밖이다. 창은 같은 편집 세션을 유지하며 실제 native 시각·패키지 수락은 미확인 |
 | 비서 질문에 답하고 기록을 확인한다 (#1443) | 기존 대화 본문, 과정 밖 | AssistantQuestion + native fieldset/radio + 공용 Input/Button | 선택·직접 입력, 렌더 확인 뒤 수락, 답변 후 같은 카드에 기록 | [질문 계약](main-agent-v1.md#async-questions-and-answer-history-1443) | 기존 대화·질문 소유권 유지. 현재 Copilot ACP 연결은 미지원 명시 |

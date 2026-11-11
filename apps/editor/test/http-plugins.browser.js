@@ -355,182 +355,6 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await docling.cli(["plugins", "settings", id, "--file", docling.settings]);
     await docling.cli(["plugins", "trust", id, "--registration", registered.registrationId]);
     await docling.cli(["plugins", "enable", id]);
-    // Manual real-service evidence uses an already converted archive. Never put
-    // external model latency inside the 180s automatic fake-service regression.
-    if (screenshots && docling.realFile && docling.comparisonCapture) {
-      const measurements = [];
-      await openFolderPicker(page);
-      await page.getByTestId("folder-path").fill(pluginFixture.folder);
-      await page.getByTestId("folder-open").click();
-      await expect(page.getByTestId("folder-path")).not.toBeVisible();
-      docling.setRealInput();
-      const started = await docling.cli(["plugins","start",id,"--input",docling.jobInput]);
-      // Manual real-document capture waits for the actual terminal K1 state;
-      // conversion/authoring duration is measured separately, not a 5s fixture assertion.
-      let completed;
-      do {
-        completed = (await docling.cli(["plugins","status",started.job.requestId])).job;
-        if (completed.state === "running") await new Promise(resolve => setTimeout(resolve,250));
-      } while (completed.state === "running");
-      expect(completed.state).toBe("completed");
-      const result = (await docling.cli(["plugins","result",started.job.requestId])).job.result;
-      const current = await docling.review("read",result.comparison);
-      await docling.review("progress",{...result.comparison,baseline:current.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),progress:{checkedPages:[],lastPage:docling.comparisonPage}});
-      for (const width of docling.comparisonWidth ? [docling.comparisonWidth]:[1440,640]) for (const theme of ["light","dark"]) {
-        const captureSuffix = (width === 1440 && theme === "light") || (width === 640 && theme === "dark") ? String(width):`${width}-${theme}`;
-        await page.setViewportSize({width,height:1000});
-        await page.evaluate(({width,theme}) => {localStorage.setItem("litzio.uiLanguage",width === 640 ? "ko":"en");localStorage.setItem("litzio.theme",theme);},{width,theme});
-        await page.reload();
-        await openScreen('Docling');
-        const panel = page.getByTestId("plugin-job-panel");
-        const row = panel.getByRole("row").filter({has:page.getByRole("cell",{name:"real.docling",exact:true})}).first();
-        await expect(row.getByRole("status")).toHaveText(width === 640 ? "완료":"Completed");
-        if (docling.comparisonBefore) {
-          await page.screenshot({path:`tmp/docling-1408/before-${captureSuffix}.png`,mask:[page.locator(".sidebar-host-account"),panel.getByLabel(width===640?"열린 폴더":"Opened folder",{exact:true})]});
-        } else {
-          const firstRead = page.waitForResponse(response => response.url().endsWith('/api/reviews') && response.request().postDataJSON()?.action === 'generated-compare');
-          await row.getByRole("button",{name:width===640?"원본 대조":"Compare source",exact:true}).click();
-          const response = await firstRead;
-          const opening = await response.json();
-          expect(response.ok(), opening.error).toBe(true);
-          expect(opening.receipt.outcome).toBe('success');
-          const compare = page.locator(".review-renderer").filter({visible:true});
-          const waitForWires = () => expect.poll(()=>compare.evaluate(element=>{
-            const pane=element.querySelector('.review-page-scroll').getBoundingClientRect();
-            const regions=[...element.querySelectorAll('.review-region')].map(region=>({kind:region.dataset.kind,box:region.getBoundingClientRect()})).filter(region=>region.box.top+region.box.height/2>=pane.top && region.box.top+region.box.height/2<=pane.bottom);
-            return Math.max(0,...[...element.querySelectorAll('.review-wires path')].map(path=>{
-              const point=path.getPointAtLength(0),actual=new DOMPoint(point.x,point.y).matrixTransform(path.getScreenCTM());
-              return Math.min(Infinity,...regions.filter(region=>region.kind===path.dataset.kind).map(region=>Math.max(Math.abs(actual.x-region.box.right),Math.abs(actual.y-region.box.top-region.box.height/2))));
-            }));
-          })).toBeLessThan(2);
-
-          await expect(compare.locator(".review-page img").first()).toBeVisible();
-          await expect.poll(()=>compare.locator(".review-page img").first().evaluate(c=>c.naturalWidth)).toBeGreaterThan(0);
-          const label = width === 640 ? "페이지":"Page", checkedLabel = width === 640 ? "확인한 페이지":"Page checked";
-          const check = compare.getByRole("button",{name:`${label} ${docling.comparisonPage}: ${checkedLabel}`,exact:true});
-          if (await check.getAttribute('aria-pressed') === 'false') await check.click();
-          await expect(check).toHaveAttribute('aria-pressed','true');
-          await expect(compare.getByRole('status')).toBeHidden();
-          await expect(compare.getByRole("button",{name:width===640?"데이터 새로고침":"Refresh data",exact:true})).toBeEnabled();
-          const sheet = compare.locator(`[data-page-no="${docling.comparisonPage}"]`);
-          await expect(sheet.locator("img")).toBeVisible();
-          await expect.poll(()=>sheet.locator("img").evaluate(image=>image.complete && image.naturalWidth>0)).toBe(true);
-          const heading = sheet.getByRole('button',{name:docling.comparisonPage === 1 ? 'table · Supported':'section_header · Supported',exact:true}).first();
-          if (await heading.count()) { await heading.click(); await expect(compare.locator('.review-wires path[data-selected="true"]')).not.toHaveCount(0); }
-          // Keep the first-page heading and prose visible in narrow review evidence.
-          if (width === 640 && docling.comparisonPage === 1) await compare.locator(".review-read").evaluate(element=>{element.scrollTop=0;});
-          expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-          await expect(compare.locator(".review-image-loading")).toHaveCount(0);
-          await page.evaluate(()=>document.fonts.ready);
-          const measured = await compare.evaluate(element=>{
-            const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const context=canvas.getContext('2d');
-            const rgb=color=>{context.clearRect(0,0,1,1);context.fillStyle=color;context.fillRect(0,0,1,1);return [...context.getImageData(0,0,1,1).data].slice(0,3);};
-            const resolve=name=>{const span=document.createElement('span');span.style.cssText='position:fixed;visibility:hidden';span.style.color=`var(${name})`;element.appendChild(span);const value=getComputedStyle(span).color;span.remove();return value;};
-            const luminance=value=>rgb(value).map(channel=>{const n=channel/255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;}).reduce((sum,n,index)=>sum+n*[.2126,.7152,.0722][index],0);
-            const contrast=(a,b)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
-            const bg=getComputedStyle(element).backgroundColor,paper=resolve('--id-color-pdf-paper'),opacity=Number(getComputedStyle(element).getPropertyValue('--opacity-review-wire'));
-            const blended=(ink,base)=>`rgb(${rgb(ink).map((n,index)=>Math.round(n*opacity+rgb(base)[index]*(1-opacity))).join(',')})`;
-            const kinds=['heading','text','list','table','formula','picture','footnote','code','unmapped'].map(kind=>{
-              const source=resolve(`--id-color-review-source-${kind}`),wire=resolve(`--id-color-review-${kind}`);
-              return {kind,source,wire,sourceContrast:contrast(source,paper),sourceWireContrast:contrast(blended(source,paper),paper),uiWireContrast:contrast(blended(wire,bg),bg)};
-            });
-            const reading=element.querySelector('.review-read'),body=reading.querySelector('.paragraph'),heading=reading.querySelector('h1.heading');
-            const ordinaryWordFragments=[];
-            if (heading) {
-              const walker=document.createTreeWalker(heading,NodeFilter.SHOW_TEXT);let node;
-              while (node=walker.nextNode()) for (const match of node.textContent.matchAll(/\b[A-Za-z]{2,12}\b/g)) {
-                const range=document.createRange();range.setStart(node,match.index);range.setEnd(node,match.index+match[0].length);ordinaryWordFragments.push(range.getClientRects().length);
-              }
-            }
-            return {readingWidth:reading.getBoundingClientRect().width,sourceWidth:element.querySelector('.review-source').getBoundingClientRect().width,bodyFontSize:body && parseFloat(getComputedStyle(body).fontSize),headingFontSize:heading && parseFloat(getComputedStyle(heading).fontSize),ordinaryHeadingWordMaxFragments:Math.max(0,...ordinaryWordFragments),width:innerWidth,height:innerHeight,dpr:devicePixelRatio,theme:document.documentElement.dataset.theme,toolbarHeight:element.querySelector(".review-compare-toolbar").getBoundingClientRect().height,panelTop:element.querySelector(".review-read").getBoundingClientRect().top,documentOverflow:element.querySelector(".review-read").scrollWidth-element.querySelector(".review-read").clientWidth,kinds,sourceBottom:element.querySelector('.review-source').getBoundingClientRect().bottom,documentBottom:element.querySelector('.review-read').getBoundingClientRect().bottom,visibleWires:element.querySelectorAll('.review-wires path').length,selectedWires:element.querySelectorAll('.review-wires path[data-selected="true"]').length};
-          });
-          expect(measured.kinds.every(kind=>Math.min(kind.sourceContrast,kind.sourceWireContrast,kind.uiWireContrast)>=3),JSON.stringify(measured.kinds)).toBe(true);
-          expect(measured.documentOverflow).toBeLessThan(2);
-          if (width === 640) expect(measured.ordinaryHeadingWordMaxFragments).toBe(1);
-          measurements.push(measured);
-          await waitForWires();
-          await page.screenshot({path:`docs/design/assets/review-compare-1435/${docling.comparisonPage > 1 ? "long":"after"}-${captureSuffix}.png`,mask:[page.locator(".sidebar-host-account")]});
-          if (docling.comparisonPage === 1) {
-            const zoom=compare.getByRole('combobox',{name:width===640?'원본 배율':'Source zoom',exact:true});
-            for (const percent of [50,200]) {
-              await zoom.fill(`${percent}%`); await zoom.press('Enter');
-              await expect(zoom).toHaveValue(`${percent}%`);
-              await expect(compare.locator('.review-image-loading')).toHaveCount(0);
-              await waitForWires();
-              await page.screenshot({path:`docs/design/assets/review-compare-1435/zoom-${percent}-${width}-${theme}.png`,mask:[page.locator('.sidebar-host-account')]});
-            }
-            await zoom.fill(width===640?'페이지 너비':'Page width'); await zoom.press('Enter');
-          }
-          if (docling.comparisonPage > 1) {
-            const sourceScroll = compare.locator('.review-page-scroll');
-            await sourceScroll.hover(); await page.mouse.wheel(0,550);
-            await expect.poll(()=>sourceScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(0);
-            await expect(compare.locator(".review-image-loading")).toHaveCount(0);
-            await waitForWires();
-            await page.screenshot({path:`docs/design/assets/review-compare-1435/boundary-${captureSuffix}.png`,mask:[page.locator('.sidebar-host-account')]});
-            await compare.getByRole('button',{name:width===640?'스크롤 동기화':'Sync scrolling',exact:true}).click();
-            const reading = compare.locator('.review-read');
-            const before = await reading.evaluate(e=>e.scrollTop);
-            await sourceScroll.hover(); await page.mouse.wheel(0,120);
-            await expect.poll(()=>sourceScroll.evaluate(e=>e.scrollTop)).toBeGreaterThan(0);
-            expect(await reading.evaluate(e=>e.scrollTop)).toBe(before);
-            await expect(compare.locator(".review-image-loading")).toHaveCount(0);
-            await waitForWires();
-            await page.screenshot({path:`docs/design/assets/review-compare-1435/sync-off-${captureSuffix}.png`,mask:[page.locator('.sidebar-host-account')]});
-          }
-
-        }
-      }
-      return {comparisonMeasurements:measurements};
-    }
-    if (screenshots && docling.realFile) {
-      await openFolderPicker(page);
-      await page.getByTestId("folder-path").fill(pluginFixture.folder);
-      await page.getByTestId("folder-open").click();
-      await expect(page.getByTestId("folder-path")).not.toBeVisible();
-      docling.setRealInput();
-      const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
-      await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
-      const report = await docling.report(started.job.requestId);
-      await docling.repeatReal();
-      expect(report.summary).not.toContain("그림 이미지 미포함");
-      expect(report.summary).toContain("캡션 번호 미보존 1");
-      for (const width of [1440, 640]) {
-        await page.setViewportSize({ width, height: 1100 });
-        await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
-        await page.reload();
-        if (docling.beforeFile) {
-          await page.locator('[role="treeitem"][data-path$="docling-before.md"]').click();
-          await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-before\.md$/);
-          await page.screenshot({ path: `tmp/docling-1382/before-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
-        }
-        await page.locator('[role="treeitem"][data-path$="docling-real.md"]').click();
-        await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-real\.md$/);
-        const document = page.locator(".tiptap").filter({ visible: true });
-        await expect(document.locator("table")).toContainText("Revenue");
-        await expect(document).toContainText("Two connected stages");
-        await expect(document).toContainText("Figure IV: Unreadable source number");
-        await expect(document.locator('figure img')).toHaveCount(2);
-        await expect.poll(() => document.locator('figure img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
-        await expect(document.locator('figure').filter({hasText:'Two connected stages'}).locator('figcaption')).toHaveAttribute('data-caption-prefix', /Figure 6/);
-        await expect(document.locator('figure').filter({hasText:'Figure IV:'}).locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
-        await expect(document.getByTestId('table-caption')).toHaveAttribute('data-caption-prefix', /Table 2-1/);
-        await page.screenshot({ path: `tmp/docling-1382/after-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
-        await document.locator('figure').last().scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `tmp/docling-1382/figures-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
-        await openScreen('Docling');
-        const panel = page.getByTestId("plugin-job-panel");
-        const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "real.docling", exact: true }) }).first();
-        await expect(row).toContainText(report.summary);
-        const masks = [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })];
-        await page.screenshot({ path: `tmp/docling-1382/losses-${width}.png`, mask: masks, maskColor: "#a1a1aa" });
-        if (width === 640) {
-          await panel.locator(".view-table-scroll").evaluate(element => element.scrollTo({ left: element.scrollWidth }));
-          await page.screenshot({ path: "tmp/docling-1382/losses-640-end.png", mask: masks, maskColor: "#a1a1aa" });
-        }
-      }
-      return { realDocling: true, report };
-    }
     const invoke = () => docling.cli(["operation", "invoke", id + ".connection", "--input", docling.input]);
     const connected = await invoke();
     expect(connected.result.ok).toBe(true);
@@ -569,7 +393,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(page.getByTestId("folder-path")).not.toBeVisible();
     await openScreen('Docling');
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
-    await panel.getByRole("group", { name: "Task", exact: true }).getByRole("button", { name: /PDF 변환/ }).click();
+    // Only PDF conversion remains in the task panel; workspace opening uses Explorer.
     await panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true }).check();
     await panel.getByRole("checkbox", { name: "dashboard-b.pdf", exact: true }).check();
     await panel.locator(".plugin-job-start").getByRole("button").click();
@@ -629,84 +453,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     expect(stoppedPdf.stopRequested).toBe(true);
     expect(stoppedPdf.result).toBeUndefined();
     const beforeNativeRequests = docling.conversionRequests();
-    const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
-    expect(started.job.state).toBe("running");
-    await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
-    expect((await docling.cli(["plugins", "result", started.job.requestId])).job.result.path).toContain("docling-cli.md");
-    const conversionReport = await docling.report(started.job.requestId);
-    expect(conversionReport.documentRevision).toBe((await docling.cli(["plugins", "result", started.job.requestId])).job.result.revision);
-    expect(conversionReport.items.find(item => item.self_ref === "#/pictures/0").targets).toEqual(conversionReport.items.find(item => item.self_ref === "#/texts/7").targets);
-    await page.keyboard.press("Control+Slash");
-    await page.getByRole("combobox").fill("> Plugin jobs");
-    await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
-    const pane = page.getByTestId("plugin-jobs");
-    await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
-    await pane.getByRole("button", { name: "Open result document" }).click();
-    const editor = page.locator(".tiptap").filter({ visible: true });
-    await expect(editor).toContainText("Converted PDF");
-    await expect(editor).toContainText("PDF body *literal*.");
-    await expect(editor.locator("table")).toContainText("Cell one");
-    await expect(editor.locator("ol").filter({ hasText: "First item" })).toContainText("First item");
-    await expect(editor.locator("pre")).toContainText("print(1)");
-    await expect(editor).toContainText("Original caption.");
-    const figure = editor.locator('figure').filter({ hasText: 'Original caption.' });
-    await expect.poll(() => figure.locator('img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
-    await expect(figure.locator('figcaption')).toHaveAttribute('data-caption-prefix', /Figure 1/);
-    await expect(figure).not.toContainText('Figure 1:');
-    const unnumbered = editor.locator('figure').filter({ hasText: 'Figure IV: Unreadable number' });
-    await expect(unnumbered.locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
-    expect(conversionReport.summary).toContain('캡션 번호 미보존 1');
-    expect(conversionReport.losses.filter(loss => loss.kind === 'picture-image')).toHaveLength(1);
-    await expect(editor).not.toContainText("RUNNING HEADER");
-    await expect(editor).not.toContainText("Docling conversion:");
-    const generatedWarning = page.getByTestId("generated-document-warning").filter({ visible: true });
-    await expect(generatedWarning).toBeVisible();
-    await generatedWarning.locator('span[tabindex="0"]').hover();
-    await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
-    await expect(page.locator("[data-slot=tooltip-content]")).toContainText("Direct edits will be overwritten");
-    await page.mouse.move(0, 0);
-    // The saved document's entry point shares the existing comparison and stale guard.
-    await expect(generatedWarning.getByRole("button", { name: "Compare source", exact: true })).toBeVisible();
-    await captureEntry("document", [1440,640]);
-    await generatedWarning.getByRole("button", { name: "Compare source", exact: true }).click();
-    await expect(page.locator(".review-renderer").filter({ visible: true }).locator(".review-page img").first()).toBeVisible();
-    await page.getByRole("tab", { name: "Source comparison", exact: true }).locator("..").getByRole("button").click();
-    // The warning must allow the ordinary editor's Save, then regeneration can replace
-    // the explicitly reread revision. Patch semantics are covered below the UI layer.
-    await page.getByTestId("view-visual").click();
-    await editor.getByText("PDF body *literal*.", { exact: true }).click();
-    await page.keyboard.press("End"); await page.keyboard.type(" Direct edit.");
-    await page.getByTestId("save").click();
-    await expect(page.getByTestId("status")).toHaveAttribute("data-operation", "saved");
-    await generatedWarning.getByRole("button", { name: "Compare source", exact: true }).click();
-    await expect(page.locator(".review-renderer").filter({ visible: true })).toContainText("Regeneration required");
-    await page.getByRole("tab", { name: "Source comparison", exact: true }).locator("..").getByRole("button").click();
-    const reviewInput = { root: pluginFixture.folder, document: "docling-cli.md" };
-    const review = await docling.review("read", reviewInput);
-    expect(review.state).toBe("externally-modified");
-    const corrected = await docling.review("patch", { ...reviewInput, baseline: review.baseline, requestId: "6cf96dcb-0c9c-41c5-b14c-c9d6736bb3e7", patches: [
-      { type: "text", self_ref: "#/texts/4", text: "Reviewed PDF body." },
-    ] });
-    expect(corrected.correctionsSaved).toBe(true); expect(corrected.documentRegenerated).toBe(true);
-    await reloadDocument(page);
-    await expect(editor).toContainText("Reviewed PDF body.");
-    await expect(editor).not.toContainText("Direct edit.");
-    await expect(generatedWarning).toBeVisible();
-    await openScreen('Docling');
-    // Re-selecting the current Root must preserve its loaded files.
-    await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
-    await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
-    await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
-    await panel.getByRole("group", { name: "Task", exact: true }).getByRole("button", { name: /문서 만들기/ }).click();
-    await panel.getByRole("checkbox", { name: "sample.docling", exact: true }).check();
-    await panel.locator(".plugin-job-start").getByRole("button").click();
-    const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first();
-    await expect(nativeRow.getByRole("status")).toHaveText("Completed");
-    await expect(nativeRow).toContainText("병합 칸 반복 1");
-    await nativeRow.getByRole("button", { name: "Open result: sample.docling", exact: true }).click();
-    await expect(editor).toContainText("PDF body *literal*.");
-    await openScreen('Docling');
-    await nativeRow.getByRole("button",{name:"Compare source",exact:true}).click();
+    // The source archive opens its authoritative document directly. External generated copies are no longer Docling's write path.
+    await showExplorer();
+    const sourceRow = page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:/^sample\.docling$/})});
+    await sourceRow.focus();await sourceRow.press("Enter");
     const comparison = page.locator(".review-renderer").filter({visible:true});
     const pageCheck = n => comparison.getByRole("button",{name:`Page ${n}: Page checked`,exact:true});
     await expect(comparison.locator(".review-page img").first()).toBeVisible();
@@ -728,9 +478,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     const heldProgress = new Promise(resolve => { releaseProgress = resolve; });
     let holdProgress = true, rejectProgress = false;
     await page.route("**/api/reviews",async route => {
-      if (route.request().postDataJSON()?.action === "generated-progress") {
+      if (route.request().postDataJSON()?.action === "workspace-progress") {
         if (holdProgress) await heldProgress;
-        if (rejectProgress) return route.fulfill({json:{error:"Fixture save failure",receipt:{outcome:"failure"}}});
+        if (rejectProgress) {
+          // A definite Host rejection records this request ID; a fabricated failure would correctly remain unknown.
+          const request=route.request();
+          const response=await route.fetch({postData:JSON.stringify({...request.postDataJSON(),baseline:"0".repeat(64)}),headers:{...request.headers(),Connection:"close"}});
+          return route.fulfill({json:await response.json()});
+        }
       }
       await route.continue();
     });
@@ -755,81 +510,18 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await comparison.getByRole("button",{name:"Refresh data",exact:true}).click();
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.unroute("**/api/reviews");
-    const resultPath = (await docling.cli(["jobs","list",id])).jobs.find(j => j.result?.comparison?.document && j.file?.endsWith("sample.docling"))?.result.comparison.document;
-    const progress = await docling.review("compare",{root:pluginFixture.folder,document:resultPath});
+    const workspaceInput={root:pluginFixture.folder,workspace:"sample.docling",plugin:id,job:"create-document"};
+    const progress=await docling.review("workspace-compare",workspaceInput);
     expect(progress.progress).toEqual({checkedPages:[1,2],lastPage:2});
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
-    await openScreen('Docling');
-    await nativeRow.getByRole("button",{name:"Compare source",exact:true}).click();
-    // Both short pages fit the continuous viewport; the restored last page must be visible.
-    await expect(comparison.locator('[data-page-no="2"]')).toBeInViewport();
+    await showExplorer();await sourceRow.focus();await sourceRow.press("Enter");
     await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
     await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
-    // CLI and Explorer use Host connections, independent of the source extension.
-    await page.setViewportSize({width:captureEntries ? 1440 : 640,height:1000});
-    await showExplorer();
-    const found = await docling.review("find", {root:pluginFixture.folder,path:"sample.docling"});
-    expect(found.documents.some(item => item.document === resultPath)).toBe(true);
-    const sourceRow = page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:/^sample\.docling$/})});
-    await expect(sourceRow).toBeVisible();
-    await sourceRow.click({button:"right"});
-    const compareMenu = page.getByRole("menuitem",{name:"Open source comparison",exact:true});
-    await expect(compareMenu).toBeVisible();
-    await captureEntry("source-menu");
-    await compareMenu.click();
-    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
-    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
-    await showExplorer();
-    await sourceRow.focus(); await sourceRow.press("Enter");
-    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
-    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
-    if (!captureEntries) await expect(expandExplorer).toBeVisible();
-    await showExplorer();
-    // A second output must offer a choice rather than silently selecting a document.
-    docling.setDocumentInput(false, "docling-additional.md");
-    const secondOutput = await docling.cli(["plugins","start",id,"--input",docling.jobInput]);
-    await expect.poll(async () => (await docling.cli(["plugins","status",secondOutput.job.requestId])).job.state).toBe("completed");
-    await expect(page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:/^docling-additional\.md$/})})).toBeVisible();
-    await sourceRow.click({button:"right"});
-    await expect(page.getByRole("menuitem",{name:`Open source comparison · ${resultPath}`,exact:true})).toBeVisible();
-    // The portal can paint before focus arrives; Escape on the tree closes its overlay.
-    await expect.poll(() => page.getByRole("menu").evaluate(menu => menu.contains(document.activeElement))).toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("menu")).toBeHidden();
-    await showExplorer();
-    await sourceRow.dblclick();
-    await page.getByRole("dialog",{name:"Open source comparison",exact:true}).getByRole("button",{name:resultPath,exact:true}).click();
-    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
-    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
-    await showExplorer();
-    const documentRow = page.getByRole("treeitem").filter({has:page.locator(".sidebar-tree-name",{hasText:resultPath})});
-    await documentRow.click({button:"right"});
-    await captureEntry("document-menu");
-    await page.getByRole("menuitem",{name:"Open source comparison",exact:true}).click();
-    await expect(pageCheck(2)).toHaveAttribute("aria-pressed","true");
-    await page.getByRole("tab",{name:"Source comparison",exact:true}).locator("..").getByRole("button").click();
-    await page.setViewportSize({width:1280,height:720});
-    await openScreen('Docling');
-    docling.setDocumentInput(true);
-    await captureEntry("dashboard-existing-jobs");
-    const failure = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
-    await expect.poll(async () => (await docling.cli(["plugins", "status", failure.job.requestId])).job.state).toBe("failed");
-    expect((await docling.cli(["plugins", "status", failure.job.requestId])).job.result).toBeUndefined();
+    const found=await docling.review("workspace-find",{root:pluginFixture.folder,path:"sample.docling"});
+    expect(found.targets.some(target=>target.workspace==="sample.docling")).toBe(true);
+    // K1 native-document admission is closed for workspace providers; conversion remains offline after initial creation.
+    await expect(docling.cli(["plugins","start",id,"--input",docling.jobInput])).rejects.toThrow();
     expect(docling.conversionRequests()).toBe(beforeNativeRequests);
-
-    if (screenshots) for (const width of [1440, 640]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
-      await page.reload();
-      await openScreen('Docling');
-      await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first().getByRole("status")).toHaveText(width === 640 ? "완료" : "Completed");
-      await page.mouse.move(0, 0);
-      await page.screenshot({ path: `tmp/docling-002/dashboard-${width}.png`, mask: [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })], maskColor: "#a1a1aa" });
-    }
-    if (screenshots) {
-      await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
-      await page.reload();
-    }
 
   } finally {
     if (doclingRegistered) {

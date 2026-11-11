@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { HostClient } from "../host-client.ts";
 import type { ComparisonTarget } from "./GeneratedComparison.tsx";
 
-export type GeneratedConnection = ComparisonTarget & { source: string; plugin: string; job: string; match?: "document" | "source" };
+export type GeneratedConnection = Extract<ComparisonTarget, {document:string}> & { source: string; plugin: string; job: string; match?: "document" | "source" };
 /** Host-owned connection discovery; no filename inference or plugin execution. */
 export function useGeneratedConnections(client: HostClient, root: string, refresh?: unknown, path?: string) {
   const [result, setResult] = useState<{ client: HostClient; root: string; path?: string; connections: GeneratedConnection[] }>();

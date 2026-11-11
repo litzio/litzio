@@ -89,6 +89,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | Document | Status | Authority / description |
 | --- | --- | --- |
 | [카탈로그 v2](design/catalog-v2.md) | Draft | #1341 이후 남는 query/InputForm/Table·K2/K3/K4·V5와 후속 수락 경계. 생성·저장·Chart 요구는 종료. |
+| [Docling 검수 3단계](design/docling-review-stage3.md) | Draft | #1462 2026-11-11 소유자 확정: 리치오 문서 정본·Core 교정·경로 대응·불변 변환 결과 렌즈·보조 원문 후보·비차단 검증 범위 보고서와 3~7단계 계획. 3단계는 저장 문서 Core 교정·삭제 대응·before 판정·Undo와 고정 LSR/fixture 검증으로 전환. 4a는 공식 1.10.0 schema 검증·최초 원본 렌즈·전체 그림/표 목록·검사 종류별 범위 보고와 CLI 읽기를 구현했다. 4b는 보조 PDF 증거 후보의 inspection 저장·CLI 실행과 Core insert 교정·대응·Undo를 구현했다. 이전 patch/replay 계획·측정은 대체 이력이고 5~7단계는 Draft. |
 
 ## UI pattern targets awaiting implementation
 
@@ -105,6 +106,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
+| [#1462 원문 증거 대응 spike ①](reviews/1462-spike-evidence-match.md) | Historical | PDF 텍스트↔문서 양방향 후보 탐지. 주입 오류 탐지와 holdout 오경보 기준 미달을 보존한 오프라인 실험. |
+| [#1462 블록 정체성 spike ②](reviews/1462-spike-block-identity.md) | Historical | 경로 갱신 A와 MyST target B 비교. 시험한 연산의 대응·저장 근거와 Core 단독 B의 실패 경계. |
 | [Generated views v1](design/generated-views-v1.md) | Historical | #1341에서 종료한 비서 생성·저장·통계·Chart 계약과 당시 검증 기록. 현재 계약은 Plugin screens and queries. |
 | [동적 뷰 재정의 v1](design/dynamic-views-v1.md) | Historical | #1341에서 종료한 제안. 이후 재구축은 Discussion #767의 업무·탐색·판단 순환 기준으로 별도 정의. |
 | [UI pattern inventory and target proposals #777](reviews/ui-pattern-inventory-777.md) | Historical | 1단계의 25개 사용처·12개 패턴·실제 캡처·대안·소유자 질문을 보존. 확정 목표와 불일치 추적은 [UI patterns](design/ui-patterns-v1.md)를 따른다. |

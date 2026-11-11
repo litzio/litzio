@@ -7,20 +7,23 @@ import { generatedDocumentRequestSchema, generatedDocumentStateSchema, authoredD
 import { generatedDocumentLinkPath, generatedDocumentLinksDirectory, storedGeneratedDocumentSchema } from "../generated-document.ts";
 import { createAuthoredDocumentFile, regenerateAuthoredDocumentFile } from "../document-authoring.ts";
 import { RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
+import { ReviewWorkspaces } from "./review-workspaces.ts";
 
 const hash = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
 const revision = (file: string) => existsSync(file) ? hash(file) : null;
-type Provider = { comparison?: string; operation: string; version: number; assertCurrent: () => void };
+type Provider = { workspace?: boolean; comparison?: string; operation: string; version: number; assertCurrent: () => void };
 /** Only connections are Host state. Plugin-owned source files carry the portable correction ledger. */
 export class GeneratedDocuments {
   private busy = new Set<string>();
   private reads = new Map<string, Promise<void>>();
   private progressWrites = new Map<string, { readers: number; closing: boolean; done: Promise<void>; release(): void; idle?: () => void }>();
   private requests = new Map<string, unknown>();
+  private workspaces: ReviewWorkspaces;
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => Provider,
     private invoke: (operation: string, input: unknown, version: number) => Promise<{ result?: unknown; error?: string }>,
-    private publish?: (plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer) => any,
-    private readComparison?: (input: unknown) => Promise<any>) {}
+    private publish?: (plugin: string, root: string, file: string, source: string, raw: unknown, imageBytes?: Buffer, embedded?:{source:string}) => any,
+    private readComparison?: (input: unknown) => Promise<any>,
+    findWorkspace?: (file?:string)=>{plugin:string;job:string;accept:string[]}[]) { this.workspaces = new ReviewWorkspaces(access, declaration, invoke, this.busy, publish, readComparison, findWorkspace); }
   private paths(root: string, document: string) {
     root = accessPath(root, this.access);
     const boundary = new RootAccess([root]);
@@ -48,7 +51,8 @@ export class GeneratedDocuments {
   /** Called on the same K1 publication path, without interpreting source filenames or bytes. */
   register(plugin: string, job: string, root: string, source: string, file: string, documentRevision: string, sourceRevision: string, inputs?: unknown) {
     const p = this.paths(root, path.relative(root, file));
-    p.resolve(source); this.declaration(plugin, job).assertCurrent();
+    p.resolve(source); const provider=this.declaration(plugin, job); provider.assertCurrent();
+    if(provider.workspace) throw new Error("Use the review workspace operations and explicit current export");
     if (hash(source) !== sourceRevision) throw new Error("Generated source changed during document creation");
     this.saveLink(p.linkFile, { plugin, job, source: path.relative(path.dirname(file), source).split(path.sep).join("/"), generatedFrom: sourceRevision, generatedRevision: documentRevision, ...(inputs ? { inputs: generatedInputsSchema.parse(inputs) } : {}) }, revision(p.linkFile), p.file);
   }
@@ -72,7 +76,7 @@ export class GeneratedDocuments {
         const source = resolve(path.resolve(path.dirname(document), link.source));
         if (target && target !== document && target !== source) continue;
         const provider = this.declaration(link.plugin, link.job); provider.assertCurrent();
-        if (!provider.comparison) continue;
+        if (!provider.comparison || provider.workspace) continue;
         documents.push({ root, document: path.relative(root, document).split(path.sep).join("/"), source: path.relative(root, source).split(path.sep).join("/"), plugin: link.plugin, job: link.job, ...(target ? { match: target === document ? "document" as const : "source" as const } : {}) });
       } catch { /* Unavailable, malformed or out-of-Root connections are not actionable. */ }
     }
@@ -80,6 +84,7 @@ export class GeneratedDocuments {
     return { documents, receipt: { requestId: randomUUID(), operation: "review.find", version: 1, scope: root, outcome: "success" } };
   }
   async execute(raw: unknown): Promise<any> {
+    if (raw && typeof raw === "object" && "action" in raw && String(raw.action).startsWith("workspace-")) return this.workspaces.execute(raw);
     const input = generatedDocumentRequestSchema.parse(raw);
     if (input.action === "generated-find") return this.find(input.root, input.path);
     if (input.action === "generated-status") return structuredClone(this.requests.get(input.requestId) ?? { state: "unknown", guidance: "Read the files after a daemon restart; never automatically replay edits." });
@@ -119,6 +124,7 @@ export class GeneratedDocuments {
     let progressSaved = false, correctionsSaved = false, documentRegenerated = false, linkSaved = false, staging: string | undefined;
     try {
       const provider = this.declaration(link.plugin, link.job);
+      if(provider.workspace) throw new Error("Use the review workspace operations and explicit current export");
       const baseline = () => ({ sourceRevision: hash(p.resolve(source)), documentRevision: revision(p.resolve(p.file, true)), linkRevision: revision(p.linkFile) });
       let before = baseline();
       const check = () => {

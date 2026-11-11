@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-11-11",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "source": {
+    "fixture": "LSR / MAIS-SYN 1.1",
+    "pages": 13,
+    "documentJsonSha256": "fc3a4b657e3bbd530c245226f191a8b9b9b53b3e1ab5f599389323aa7c47098d",
+    "originalPdfJsonPreserved": true,
+    "reconverted": false
+  },
+  "flow": {
+    "filelessComparison": true,
+    "effectiveKindAfterCliPatch": true,
+    "pageCheckPersisted": true,
+    "coldProductionCliDaemonHandoff": true,
+    "actualDaemonProcessRestart": true,
+    "currentExport": true,
+    "existingFileOverwriteConfirmation": true,
+    "observerEndedBeforeHostStop": true
+  },
+  "windowsEightDotThree": {
+    "actualShortRootAndLeaf": true,
+    "sameSnapshotAndBaseline": true,
+    "providerDiscovery": true,
+    "canonicalDefaultExportName": true,
+    "sharedAdmissionLock": true,
+    "shortWriteThenLongStaleConflict": true,
+    "originalPdfJsonPreserved": true,
+    "scope": "Local unrestricted Host; does not extend restricted Root alias rules"
+  },
+  "privacy": {
+    "hostAccountMasked": true
+  },
+  "limits": [
+    "Not owner visual approval",
+    "Not conversion fidelity approval",
+    "No actual remote PC/network handoff",
+    "No large actual PDF or long workspace timeout proof",
+    "No actual AI image analysis",
+    "Final completion gate belongs to P11"
+  ],
+  "captures": [
+    {
+      "file": "compare-1440-light.png",
+      "sha256": "96b4f63779c44364ad01f5eceee8cb2b14152db18d1320f5b75179a34e18e39e"
+    },
+    {
+      "file": "compare-1440-dark.png",
+      "sha256": "a70a52df236d9f75261912400ef6a7315d77b46ebd0d6d9ee0d51fd39cd5ac42"
+    },
+    {
+      "file": "export-1440-light.png",
+      "sha256": "c06df254641b5d76289d58ecb55c1c34634d8e8b7707d51ea0c1c6aae9862d97"
+    },
+    {
+      "file": "export-1440-dark.png",
+      "sha256": "74ad18ac6638ababdda3365023c82c0344f6ace7d6e6cce89a943aec389420f3"
+    }
+  ],
+  "execution": {
+    "scenarioSeconds": 51.8,
+    "runnerMinutesIncludingExistingRecovery": 1.4,
+    "result": "2 passed",
+    "timeoutsIncreased": false
+  }
+}

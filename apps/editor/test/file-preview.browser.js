@@ -29,7 +29,7 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
     // Connection discovery is a Root-scoped read on the shared POST dispatcher.
     // Every other mutation-shaped request remains forbidden during preview.
     const connectionRead = request.method() === 'POST' && request.url().split('?')[0] === origin + '/api/reviews'
-      && request.postDataJSON()?.action === 'generated-find';
+      && ['generated-find','workspace-find'].includes(request.postDataJSON()?.action);
     if (connectionRead) check(request.postDataJSON().root === root, 'Preview connection discovery escaped its opened folder');
     else if (['PUT','POST','DELETE'].includes(request.method())) writes++;
     if (request.url().includes('preview-leak') || request.url().includes('svg11.dtd')) leaks++;

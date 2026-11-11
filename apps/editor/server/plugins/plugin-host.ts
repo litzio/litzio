@@ -64,8 +64,12 @@ export class PluginHost {
         const record = this.record(plugin), artifact = this.artifact(record.directory);
         if (artifact.digest !== record.digest || !this.official(artifact.manifest, artifact.digest) && !record.trusted) throw new Error("Generated document provider trust changed");
       };
-      assertCurrent(); return { operation: `${plugin}.${op.id}`, version: op.version, comparison: binding?.resultKind === "native-document" ? binding.comparison : undefined, assertCurrent };
-    }, (operation, input, version) => this.invokeOperation(operation, input, undefined, true, version), (...args) => this.reviews.publish(...args), input => this.reviews.execute(input));
+      assertCurrent(); return { operation: `${plugin}.${op.id}`, version: op.version, workspace: binding?.resultKind === "native-document" ? binding.workspace : undefined, comparison: binding?.resultKind === "native-document" ? binding.comparison : undefined, assertCurrent };
+    }, (operation, input, version) => this.invokeOperation(operation, input, undefined, true, version), (...args) => this.reviews.publish(...args), input => this.reviews.execute(input), file => {
+      const targets:{plugin:string;job:string;accept:string[]}[]=[];
+      for(const [plugin,live] of this.loaded) for(const job of live.manifest.contributes.jobs) if(job.resultKind==="native-document"&&job.workspace&&(!file||job.accept.includes(path.extname(file).toLowerCase()))) targets.push({plugin,job:job.id,accept:job.accept});
+      return targets;
+    });
     this.reviews = new PluginReviews(this.access, (plugin, review) => {
       if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping");
       const binding = this.loaded.get(plugin)?.manifest.contributes.reviews.find(r => r.id === review);

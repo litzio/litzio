@@ -7,9 +7,9 @@
     "name": "Community"
   },
   "name": "Docling",
-  "description": "docling-serve 연결 확인, PDF 원본 보관과 Litzio 문서 만들기",
-  "version": "0.0.7",
-  "requiresSdk": ">=0.4.0 <1.0.0",
+  "description": "docling-serve 연결 확인, PDF 원본 보관·검수 작업공간·현재 상태 내보내기",
+  "version": "0.0.11",
+  "requiresSdk": ">=0.5.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [
@@ -457,94 +457,6 @@
         }
       },
       {
-        "inputSchema": {
-          "required": [
-            "requestId"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "requestId": {
-              "type": "string",
-              "minLength": 1
-            },
-            "result": {
-              "type": "object",
-              "properties": {
-                "path": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "revision": {
-                  "type": "string",
-                  "pattern": "^[a-f0-9]{64}$"
-                },
-                "inputs": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "key": {
-                        "type": "string"
-                      },
-                      "targets": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "path": {
-                              "type": "array",
-                              "items": {
-                                "type": "integer",
-                                "minimum": 0
-                              }
-                            },
-                            "documentRevision": {
-                              "type": "string"
-                            },
-                            "documentHash": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "path",
-                            "documentRevision",
-                            "documentHash"
-                          ],
-                          "additionalProperties": false
-                        }
-                      }
-                    },
-                    "required": [
-                      "key",
-                      "targets"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "comparison": {
-                  "type": "object"
-                }
-              },
-              "required": [
-                "path",
-                "revision",
-                "inputs"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "type": "object"
-        },
-        "assistant": false,
-        "id": "conversion-report",
-        "scope": "host",
-        "version": 1,
-        "outputSchema": {
-          "type": "object"
-        },
-        "effect": "read"
-      },
-      {
         "id": "generated-document",
         "version": 1,
         "effect": "read",
@@ -558,11 +470,10 @@
             },
             "mode": {
               "enum": [
-                "read",
-                "patch",
-                "build",
-                "compare",
-                "progress"
+                "workspace-read",
+                "workspace-prepare",
+                "workspace-material",
+                "workspace-evidence-material"
               ]
             },
             "patches": {
@@ -602,6 +513,21 @@
             "pageNo": {
               "type": "integer",
               "minimum": 1
+            },
+            "ref": {
+              "type": "string"
+            },
+            "change": {
+              "type": "object"
+            },
+            "requestId": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
             }
           },
           "required": [
@@ -622,8 +548,7 @@
         "icon": "Table",
         "primary": true,
         "jobs": [
-          "convert-pdf",
-          "create-document"
+          "convert-pdf"
         ]
       }
     ],
@@ -642,7 +567,7 @@
       },
       {
         "id": "create-document",
-        "title": "Litzio 문서 만들기",
+        "title": "검수 작업공간",
         "accept": [
           ".docling"
         ],
@@ -651,7 +576,8 @@
         "stop": "job-stop",
         "resultKind": "native-document",
         "generatedDocument": "generated-document",
-        "comparison": "compare"
+        "comparison": "compare",
+        "workspace": true
       }
     ],
     "healthCheck": "connection",

@@ -17,7 +17,7 @@ export function ContinuousSource({snapshot:s, loadPage, selected, disabled, savi
   const [near,setNear] = useState<number[]>([]);
   const [images,setImages] = useState<Record<number,string>>({});
   const pages = s.pages ?? (s.page ? [s.page] : []);
-  const identity = `${s.documentHash}:${s.generatedBaseline?.sourceRevision}`;
+  const identity = `${s.documentHash}:${s.contentRevision ?? s.generatedBaseline?.sourceRevision ?? s.bundle.sourceRevision}`;
   const latest = useRef({s,near,identity,loadPage,onUnavailable}); latest.current = {s,near,identity,loadPage,onUnavailable};
   const cache = useRef<{identity:string;images:Record<number,string>}>({identity,images:{}});
   const pumping = useRef(false), mounted = useRef(false);

@@ -83,7 +83,7 @@ function Fixture() {
         setCount(c => c + 1); requestId = input.requestId; pendingChange = { proposalId: "p1", requestId: requestId!, action: "approve", verification: "pending", receipt: { requestId: requestId!, outcome: "uncertain" } }; setHeld(true); throw Error("Write response lost");
       } }, view, "/fixture", new AbortController().signal, () => { document.title = "Opened result"; });
       let transport = connect();
-      return { get pending() { return transport.pending; }, read: n => transport.read(n), act: (a, p, b) => transport.act(a, p, b), openDocument: () => transport.openDocument(),
+      return { get pending() { return transport.pending; }, read: n => transport.read(n), act: (a, p, b) => transport.act(a, p, b), openDocument: () => transport.openDocument?.(),
         reopen: () => { transport = connect(); setClientEpoch(v => v + 1); }, release: () => { pendingChange = undefined; resolved = true; state = "approved"; revision = "r2"; proposalRevision++; hasMapping = false; setHeld(false); } };
     }
     return { read: async pageNo => { if (mode === "unavailable") throw Error("Unavailable"); if (release) await new Promise<void>(resolve => { release = resolve; }); return snapshot(pageNo); },

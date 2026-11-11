@@ -1,6 +1,7 @@
+import { startOwnedDaemon } from "./owned-daemon.ts";
 import { brand } from "../../../../brand.ts";
 import { test, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
 import { DAEMON_PROTOCOL, type DaemonIdentity } from "../../server/daemon-protocol.ts";
@@ -27,26 +28,7 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
   const port = (reservation.address() as { port: number }).port;
   await new Promise<void>((resolve, reject) => reservation.close(error => error ? reject(error) : resolve()));
   const origin = `http://127.0.0.1:${port}`;
-  const start = async () => {
-    const child = spawn(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), "daemon", "run", "--channel", "development", "--port", String(port),
-      ...["a", "b"].flatMap(name => ["--root", path.join(REPOSITORY_ROOT, `tmp/http-host-${name}`)])], {
-      windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
-      env: { ...process.env, LITZIO_DAEMON_DIR: path.join(data, "daemon"), LITZIO_DATA_DIR: data, LITZIO_PLUGINS_SETTINGS_FILE: path.join(data, "plugins.json"), LITZIO_ASSISTANT_CWD: path.join(data, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(data, "ai.json"), LITZIO_DESKTOP_DAEMON: "0" },
-    });
-    let diagnostics = "";
-    child.stdout!.on("data", value => { diagnostics += value; }); child.stderr!.on("data", value => { diagnostics += value; });
-    const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
-    try {
-      const identity = await new Promise<DaemonIdentity>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`Owned daemon startup not confirmed: ${diagnostics}`)), 15_000);
-        const finish = () => clearTimeout(timer);
-        child.once("message", message => { finish(); resolve((message as { identity: DaemonIdentity }).identity); });
-        child.once("error", error => { finish(); reject(error); });
-        child.once("exit", code => { finish(); reject(new Error(`Owned daemon exited ${code}: ${diagnostics}`)); });
-      });
-      return { child, identity, exited };
-    } catch (error) { child.kill(); await exited; throw error; }
-  };
+  const start = () => startOwnedDaemon(data,["a","b"].map(name=>path.join(REPOSITORY_ROOT,`tmp/http-host-${name}`)),port);
   let host = await start(), stopped = false;
   let closing: Promise<void> | undefined;
   const stop = () => closing ??= (async () => {

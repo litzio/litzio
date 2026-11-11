@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { crc32 } from "node:zlib";
 import { PLUGIN_VERSION, DOCLING_FORMAT_VERSION } from "./versions.js";
+import { validateDoclingDocument } from "./schema.js";
 
 // Plugin-owned .docling: ZIP32, stored entries only. No filesystem extraction.
 // Node has no ZIP API; this deliberately supports our small fixed envelope, not general ZIP.
 // The opaque review ledger is independent of immutable source hashes.
 // Record semantics belong to review.js; this envelope only preserves its bytes.
-const validName = name => name === "manifest.json" || name === "document.json" || name === "source.pdf" || name === "review.json";
+const validName = name => ["manifest.json", "document.json", "source.pdf", "review.json", "current/document.md", "current/snapshot.json"].includes(name);
 const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 const hashPattern = /^[a-f0-9]{64}$/;
@@ -38,14 +39,16 @@ function imagesOf(document) {
 function validateEntries(entries) {
   if (!entries.has("manifest.json") || !entries.has("document.json") || !entries.has("source.pdf")) throw new Error("Incomplete .docling");
   const manifest = JSON.parse(entries.get("manifest.json").toString("utf8"));
-  if (manifest?.format !== "docling" || manifest.version !== DOCLING_FORMAT_VERSION || manifest.status !== "success" || typeof manifest.converter?.pluginVersion !== "string" ||
+  if (manifest?.format !== "docling" || manifest.version !== DOCLING_FORMAT_VERSION || !["success", "partial_success"].includes(manifest.status) || typeof manifest.converter?.pluginVersion !== "string" ||
       typeof manifest.source?.name !== "string" || !manifest.source.name || /[/\\]/.test(manifest.source.name) ||
       !hashPattern.test(manifest.source.sha256) || !Number.isSafeInteger(manifest.source.bytes) || manifest.source.bytes < 0 ||
       manifest.server?.versions?.["docling-serve"] !== "1.32.0" || !hashPattern.test(manifest.server.openapi?.sha256) ||
       !manifest.profile?.request || typeof manifest.task?.id !== "string" || !manifest.task.id ||
       !Number.isFinite(Date.parse(manifest.task.startedAt)) || !Number.isFinite(Date.parse(manifest.task.completedAt)) ||
       !hashPattern.test(manifest.result?.sha256) || !Number.isSafeInteger(manifest.result.bytes)) throw new Error("Invalid .docling manifest");
+  if (!Array.isArray(manifest.failedPages) || manifest.failedPages.some(page => !Number.isInteger(page) || page < 1)) throw new Error("Invalid failed pages");
   const documentBytes = entries.get("document.json"), documentJson = documentBytes.toString("utf8"), document = JSON.parse(documentJson);
+  validateDoclingDocument(document);
   if (document?.schema_name !== "DoclingDocument" || document.version !== "1.10.0" || !Array.isArray(document.body?.children) ||
       manifest.document?.sha256 !== sha256(documentBytes) || manifest.document.bytes !== documentBytes.length) throw new Error("Invalid DoclingDocument");
   const sourcePdf = entries.get("source.pdf");
@@ -53,7 +56,7 @@ function validateEntries(entries) {
   const images = imagesOf(document);
   if (JSON.stringify(manifest.images) !== JSON.stringify(images.map(({ data, ...record }) => record))) throw new Error("Image record mismatch");
   for (const name of entries.keys()) if (!validName(name)) throw new Error("Unsupported .docling entry");
-  return { manifest, manifestBytes: entries.get("manifest.json"), manifestHash: sha256(entries.get("manifest.json")), documentJson, document, sourcePdf, ...(entries.has("review.json") ? { reviewBytes: entries.get("review.json") } : {}) };
+  return { manifest, manifestBytes: entries.get("manifest.json"), manifestHash: sha256(entries.get("manifest.json")), documentJson, document, sourcePdf, cacheEntries: new Map([...entries].filter(([name]) => name.startsWith("current/"))), ...(entries.has("review.json") ? { reviewBytes: entries.get("review.json") } : {}) };
 
 }
 
@@ -66,11 +69,13 @@ export function createDoclingArchive({ manifest, documentJson, sourceBytes, revi
 }
 
 /** Rewrite only the ledger of an already validated archive; immutable bytes are hash checked. */
-export function rewriteReview(archive, reviewBytes) {
+export function rewriteReview(archive, reviewBytes, cacheEntries = archive.cacheEntries ?? new Map()) {
   const documentBytes = Buffer.from(archive.documentJson);
   if (sha256(documentBytes) !== archive.manifest.document.sha256 || sha256(archive.sourcePdf) !== archive.manifest.source.sha256 ||
       sha256(archive.manifestBytes) !== archive.manifestHash) throw new Error("Original changed");
-  return packEntries(new Map([["manifest.json", archive.manifestBytes], ["document.json", documentBytes], ["source.pdf", archive.sourcePdf], ["review.json", reviewBytes]]));
+  const entries = new Map([["manifest.json", archive.manifestBytes], ["document.json", documentBytes], ["source.pdf", archive.sourcePdf], ["review.json", reviewBytes], ...cacheEntries]);
+  for (const name of cacheEntries.keys()) if (!["current/document.md", "current/snapshot.json"].includes(name)) throw new Error("Unsupported cache entry");
+  return packEntries(entries);
 }
 
 function packEntries(entries) {
@@ -123,14 +128,22 @@ export function readDoclingArchive(raw) {
 export function createDoclingArchiveFromResult({ sourceName, sourceBytes, serverVersions, openapiBytes, profile, task, resultBody }) {
   const raw = Buffer.from(resultBody);
   const lossless = JSON.parse(raw.toString("utf8"), (_key, value, context) => typeof value === "number" ? JSON.rawJSON(context.source) : value);
-  if (lossless.status !== "success" || (lossless.errors?.length ?? 0) !== 0) throw new Error("Conversion did not completely succeed");
+  if (!["success", "partial_success"].includes(lossless.status)) throw new Error("Conversion failed");
+  const errors = JSON.parse(raw.toString("utf8")).errors ?? [];
+  const failedPages = [...new Set(errors.map(error => {
+    const page = error.page_no ?? error.page ?? /Page (\d+) failed/i.exec(error.error_message ?? error.message ?? "")?.[1];
+    if (!Number.isInteger(Number(page)) || Number(page) < 1) throw new Error("Conversion error has no failed page");
+    return Number(page);
+  }))].sort((a,b)=>a-b);
+  if (lossless.status === "partial_success" && !failedPages.length) throw new Error("Partial conversion has no failed page record");
   const documentJson = JSON.stringify(lossless.document?.json_content);
   const document = JSON.parse(documentJson);
+  validateDoclingDocument(document);
   if (document.schema_name !== "DoclingDocument" || document.version !== "1.10.0") throw new Error("Unsupported document version");
   const images = imagesOf(document);
   const reference = profile.provenance.openapi_sha256, openapiHash = sha256(openapiBytes);
   const manifest = {
-    format: "docling", version: DOCLING_FORMAT_VERSION, converter: { pluginVersion: PLUGIN_VERSION }, status: "success", createdAt: task.completedAt,
+    format: "docling", version: DOCLING_FORMAT_VERSION, converter: { pluginVersion: PLUGIN_VERSION }, status: JSON.parse(raw.toString("utf8")).status, failedPages, createdAt: task.completedAt,
     source: { name: sourceName, sha256: sha256(sourceBytes), bytes: sourceBytes.length },
     server: { versions: serverVersions, openapi: { sha256: openapiHash, referenceSha256: reference, referenceMatch: openapiHash === reference } },
     profile, task,
