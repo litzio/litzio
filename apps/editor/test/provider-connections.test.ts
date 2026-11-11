@@ -872,12 +872,13 @@ test("Codex requirements disable full access; policy rejection retries once befo
   const original = connection.client.request.bind(connection.client);
   let discovery = true;
   const policies: string[] = [];
+  let uncertain = false;
   t.mock.method(connection.client, "request", async (method: string, params?: any) => {
     if (method === "configRequirements/read") {
       if (!discovery) throw new Error("Method not found");
       return { requirements: { allowedSandboxModes: ["read-only", "workspace-write"] } };
     }
-    if (method === "turn/start") policies.push(params.sandboxPolicy.type);
+    if (method === "turn/start") { policies.push(params.sandboxPolicy.type); if (uncertain) throw new Error("Connection closed before response"); }
     if (method === "turn/start" && params.sandboxPolicy.type === "dangerFullAccess") throw new Error("invalid thread settings override: invalid value for sandbox_mode: DangerFullAccess is not in the allowed set [ReadOnly, WorkspaceWrite] (set by enterprise-managed requirements private-organization)");
     return original(method, params);
   });
@@ -902,5 +903,10 @@ test("Codex requirements disable full access; policy rejection retries once befo
   assert.equal(restored.permissionFallback, true);
   await conversations.send({ ...input, id: restored.id }, { ...settings, permissionMode: "full-access" });
   assert.equal(policies.at(-1), "workspaceWrite", "next turn does not repeat the rejection");
+  await conversations.interrupt(restored.id);
+  uncertain = true;
+  const attempts = policies.length;
+  await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access" }, settings), /Connection closed before response/);
+  assert.equal(policies.length, attempts + 1, "uncertain acceptance must never replay a request");
 
 });

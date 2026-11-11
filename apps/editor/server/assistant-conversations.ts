@@ -361,11 +361,12 @@ export class AssistantConversations {
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots,
             networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
+        const turnsBeforeStart = conversation.turns.length;
         let result;
         try { result = await start(); }
         catch (error) {
           // This explicit configuration rejection means the turn was not admitted.
-          if (settings.permissionMode !== "full-access" || !fullAccessRejected((error as Error).message) || conversation.turns.some(turn => turn.status === "inProgress")) throw error;
+          if (settings.permissionMode !== "full-access" || !fullAccessRejected((error as Error).message) || conversation.turns.length !== turnsBeforeStart || conversation.turns.some(turn => turn.status === "inProgress")) throw error;
           settings = { ...settings, permissionMode: "opened-folders" };
           conversation.permissionMode = "opened-folders";
           conversation.permissionFallback = true;
