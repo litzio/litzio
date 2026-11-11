@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Update #1462 (2026-11-11): 공통 manifest 비서 스킬 선언·활성 수명에 따른 파일 배포와 Docling 검수 스킬. Codex만 사용하며 Copilot은 기존 도구 계약을 유지한다.
 - Transition #1462: 2026-11-11 — SDK 0.5 / Docling format 4의 저장 문서 Core 교정·내용 기준 오래됨·삭제 대응·Undo로 전환. 고정 LSR와 합성 fixture 검증은 3단계 기록을 따른다.
 - Verification #1435: 2026-11-10 — 실제 Docling 1쪽 결과로 Vite 첫 읽기의 중복 요청/HTTP 400을 재현하고 공유 읽기 수정만 적용해 통과. 200쪽 metadata fixture의 근처 PNG·저장 대기 중 추가 읽기·양방향 동기/해제, 확대·resize 연결선 및 per-page 확인 저장/재진입을 확인. 실제 8쪽 결과의 1440px/한국어 Dark 640px 표시를 검토. 실제 200쪽 성능·복잡한 PDF 품질·설치형 Desktop은 미검증.
 - Review corrections #1439: 2026-11-10 — 재리뷰 후 소유자가 확정한 현재 daemon running 예외·종료 이력 1,000건·종료 시각 순 정리·복원 uncertain의 무조건 안전 안내를 반영했다. 수정 전 완료 직후 결과 유실과 effect 변경 시 안내 누락으로 실패한 두 회귀, 수정 후 jobs/Host 플러그인 대상 64건과 전체 typecheck·문서 검사를 확인했다. 실제 서비스·Desktop 재시작 수락을 추가한 것은 아니다.
@@ -83,6 +84,24 @@ Windows 환경 변수 OneDrive/OneDriveConsumer/OneDriveCommercial과 실재 폴
 | Explorer 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-explorer-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-explorer-640-ko-dark.png) |
 | Settings 1440px | [Before](assets/folder-plugins-1366/before-settings-1440.png) | [After](assets/folder-plugins-1366/after-settings-1440.png) |
 | Settings 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-settings-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-settings-640-ko-dark.png) |
+
+## 플러그인 비서 스킬 (#1462)
+
+SDK 0.5.0의 선택적 `contributes.skills`는 `[{"id":"review","directory":"skills/review"}]`로 스킬 폴더를 선언한다. ID는 영문 소문자로 시작하는 소문자·숫자·단일 하이픈 조합이며 플러그인 안에서 고유하다. directory는 artifact 안의 slash 구분 상대 경로다. 폴더에는 YAML frontmatter의 비어 있지 않은 문자열 name·description과 본문을 가진 `SKILL.md`를 둔다. 보조 자료도 폴더에 함께 배포할 수 있다. 패키지 밖 경로·링크·누락 파일·잘못된 frontmatter는 실행 전 validate/등록에서 거부한다. 스킬 파일도 기존 artifact digest에 포함된다. 스킬 선언은 requiresSdk가 0.5.0 이상의 실제 지원 계약을 허용해야 한다.
+
+스킬 복사본은 대상 Host의 소유이며, 신뢰·활성화 후 정상 로드된 플러그인의 폴더만 비서 cwd의 `.agents/skills/`에 복사한다. 설치 이름은 `litzio-plugin-<pluginId의 점을 이중 하이픈으로 치환>---<skillId>`이고 SKILL.md frontmatter name도 이 이름으로 바꾼다(최대 64자). 예를 들어 `community.docling`의 review는 `litzio-plugin-community--docling---review`다. 이 prefix는 Host 전용이다. 원본 artifact는 수정하지 않으며 다른 플러그인·litzio-guide·사용자 스킬 폴더와 전역 Codex 설정을 덮어쓰지 않는다.
+
+기존 공용 `plugins enable/disable/reload/unregister`와 CLI를 통해 같은 로드 수명을 따른다. disable/unregister·프로세스 실패·Host 종료는 해당 복사본을 제거한다. reload는 이전 폴더 전체를 지우고 새 파일을 복사하므로 삭제된 보조 자료나 기여도 남지 않으며, 재로드 실패 시 스킬을 남기지 않는다. Host 시작은 이전 실행의 예약 prefix 복사본을 정리한 뒤 실제 로드한 플러그인의 스킬만 다시 만든다. 파일 배포이며 새 권한·실행·마켓·버전 관리 계층은 없다. 이미 공급자 문맥에 읽힌 지시를 회수한다는 뜻은 아니다.
+
+현재 스킬 발견/선택은 Codex만 지원한다. 스킬 목록 조회도 플러그인 시작을 기다린 후 기존 `skills/list` forceReload를 사용하며, 대화 전송은 기존 플러그인 시작·스킬 선택 검사 경로를 따른다. Copilot에서는 이 스킬을 공급하지 않고 기존 도구만 사용한다. 따라서 쓰기 재시도 금지·불확실한 응답의 상태 조회·이미지 사람 승인 등의 필수 데이터 보호 규칙은 도구 설명에도 남겨야 한다.
+
+스킬 복사 실패는 정상 활성화한 플러그인이나 도구를 종료하지 않는다. 설치 중 실패하면 해당 namespace의 부분 복사본 정리를 시도하고 기존 플러그인 error 표시로 설치 실패와 reload 안내를 알린다. 시작 시 이전 스킬 정리가 실패해도 Host와 플러그인 로드를 계속하며 기존 등록별 error 경로로 정리 실패를 알린다. 정리 자체의 파일 오류가 지속되면 이전/부분 복사본이 남을 수 있으며 제거 성공으로 간주하지 않는다. 정상 reload는 설치 오류를 해제한다. Windows의 예약 namespace 이름 비교는 대소문자를 구분하지 않는다.
+
+리뷰 회귀는 기존 reload subprocess fixture에서 fs.cpSync ENOSPC와 시작 정리 EACCES를 주입해 수정 전 실패를 확인했다. 수정 후 오류 표시·부분 복사본 제거·정상 플러그인 도구 호출·reload 복구를 확인한다. 실제 디스크를 가득 채운 검사가 아니며 새 subprocess fixture나 E2E를 추가하지 않는다. 기존 파일 검사에는 Windows 대문자 namespace 정리만 보완한다.
+
+Docling은 지정 커뮤니티 payload에 검수 스킬을 포함한다. 검수 대상 찾기 → 렌즈·필수 확인·숫자/단위 원문 증거 후보 → 쪽 자료 → 국소 교정 제안 → 실제 읽은 범위의 검사 기록 → 필요시 예상량 질문 카드로 이미지 승인 순서를 안내한다. 원본 PDF=증거·변환 결과=해석 가설·리치오 문서=검증된 결과, 근거 부족 시 uncertain을 따른다. 교정 대상·입력·권한·이미지 승인·사람의 승인/Undo/완료 계약은 바꾸지 않는다. 병렬 검수 도구 입력 개선이 master에 병합되기 전에는 도구 설명 축소를 보류한다.
+
+SDK manifest 단위 검사는 선언·기능 버전·경로·중복 ID를 보호한다. 기존 Host reload/실패/프로세스 종료 검사에 파일 갱신·보조 자료 삭제·비활성/제거·종료 정리와 guide/사용자 스킬 보존을 보완한다. 별도 in-process 검사는 실행 전 누락/frontmatter 거부와 같은 skill ID를 쓰는 두 플러그인의 복사본 분리, lazy Host의 목록 조회 전 플러그인 시작 대기를 보호한다. 새 subprocess fixture·suite·무거운 E2E는 추가하지 않는다. Windows 실제 Codex app-server에서 Docling 활성화 후 스킬 발견(errors 0)과 비활성화 후 목록 제거를 확인했다(검수 응답 호출 없음). 파일 배포/목록 발견은 실제 AI가 스킬을 선택해 검수 품질을 높였다는 증명이 아니다.
 
 ## 검증 경계
 

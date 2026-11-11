@@ -26,8 +26,9 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     return value;
   };
   const assistantOperations = {
-    assistantSkills: (args?: { provider?: AiProvider }) => {
+    assistantSkills: async (args?: { provider?: AiProvider }) => {
       if (provider(args) !== "codex") throw new Error("Skill selection is available only with Codex.");
+      await plugins?.start();
       return (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).skills();
     },
     assistantModels: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).models(provider(args)),

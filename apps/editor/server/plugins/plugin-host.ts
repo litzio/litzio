@@ -1,4 +1,5 @@
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
+import { PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { designatedPluginDirectories } from "./designated-plugins.ts";
 import { PLUGIN_REGISTRATION_CHANGED, inputHintResultSchema, inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
@@ -46,9 +47,11 @@ export class PluginHost {
   private access: FileAccess;
   private supply: OfficialPlugin[];
   private designated: { id: string; directory: string }[];
+  private assistantSkills: PluginAssistantSkills;
   readonly authoringDirectory: string;
   private authoringRoot?: RootAccess;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[]; jobHistoryFile?: string } = {}) {
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[]; jobHistoryFile?: string } = {}) {
+    this.assistantSkills = new PluginAssistantSkills(options.assistantDirectory ?? path.join(path.dirname(file), "assistant"));
     this.authoringDirectory = options.authoringDirectory ?? hostPaths().plugins;
     this.supply = options.officialPlugins ?? OFFICIAL_PLUGINS;
     this.designated = options.designatedPlugins ?? designatedPluginDirectories();
@@ -136,6 +139,8 @@ export class PluginHost {
     this.artifacts.delete(directory);
     inspecting("litzio-plugin.json");
     const manifest = validateManifest(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")));
+    if (manifest.contributes.skills.length) inspecting("assistant skill");
+    validateAssistantSkills(directory, manifest);
     if (manifest.icon) { inspecting(manifest.icon); readPluginIcon(directory, manifest.icon); }
     inspecting("package.json");
     if (JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8")).version !== manifest.version) throw new Error("Package and manifest versions differ");
@@ -158,6 +163,8 @@ export class PluginHost {
     }
   }
   async start() {
+    let skillCleanupFailed = false;
+    try { this.assistantSkills.clear(); } catch { skillCleanupFailed = true; }
     for (const item of this.supply) {
       const previous = this.installed[item.id];
       const record: Installed = { registrationId: previous?.registrationId ?? randomUUID(), directory: item.directory, digest: item.digest, enabled: previous?.enabledChoice ?? item.defaultEnabled, enabledChoice: previous?.enabledChoice, bundled: true, settings: previous?.settings ?? {}, operationNames: [] };
@@ -188,6 +195,9 @@ export class PluginHost {
     this.save();
     for (const [id, record] of Object.entries(this.installed)) if (record.enabled && !this.errors.has(id)) {
       try { await this.enable(id); } catch (error) { this.errors.set(id, "Plugin activation failed"); }
+    }
+    if (skillCleanupFailed) for (const id of Object.keys(this.installed)) {
+      if (!this.errors.has(id)) this.errors.set(id, "Assistant skill cleanup failed; reload to recover");
     }
   }
   private async status(live: Loaded) {
@@ -242,11 +252,14 @@ export class PluginHost {
     const secrets = await this.runtimeSecrets(id, a.manifest);
     const instance = await startPluginProcess(a.entry, a.manifest, structuredClone(r.settings), secrets, () => {
       this.loaded.delete(id); this.jobs.lost(id); this.errors.set(id, "Plugin process failed; reload to recover");
+      try { this.assistantSkills.clear(id); } catch { this.errors.set(id, "Plugin process failed; skill cleanup failed"); }
     }, r.directory);
     this.processes.set(id, instance);
     this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
     this.disabling.delete(id);
     this.errors.delete(id);
+    try { this.assistantSkills.install(r.directory, a.manifest); }
+    catch { this.errors.set(id, "Assistant skill installation failed; reload to recover"); }
   }
   private declaredSecret(id: string, name: string) {
     const m = this.artifact(this.record(id).directory).manifest;
@@ -291,6 +304,8 @@ export class PluginHost {
   private record(id: string) { if (!Object.hasOwn(this.installed, id)) throw new Error("Plugin is not registered"); return this.installed[id]!; }
   private async disable(id: string) {
     this.disabling.add(id);
+    let skillCleanupError: unknown;
+    try { this.assistantSkills.clear(id); } catch (error) { skillCleanupError = error; }
     await this.jobs.close(id);
     const live = this.loaded.get(id), instance = this.processes.get(id); this.loaded.delete(id);
     if (live) await Promise.allSettled([...live.pending]);
@@ -299,6 +314,7 @@ export class PluginHost {
       catch { this.errors.set(id, "Plugin disposal failed; reload to recover"); throw new Error("Plugin disposal failed; reload to recover"); }
       finally { this.processes.delete(id); }
     }
+    if (skillCleanupError) throw skillCleanupError;
   }
   private async reload(id: string) {
     const r = this.record(id);
@@ -513,6 +529,7 @@ export class PluginHost {
     const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
     this.redactionSecrets.clear();
     this.artifacts.clear();
+    this.assistantSkills.clear();
     if (errors.length) throw new AggregateError(errors, "Plugin cleanup failed");
   }
 }

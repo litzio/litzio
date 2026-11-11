@@ -11,6 +11,21 @@ import { handleDocumentRequest } from "../server/document-api.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { runCliAsync } from "../../../packages/cli/src/cli.ts";
 
+test("Codex skill discovery waits for plugin startup; Copilot retains tool-only support", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-plugin-skill-catalog-"));
+  let started = false, discovered = false, release!: () => void;
+  const ready = new Promise<void>(resolve => { release = () => { started = true; resolve(); }; });
+  const agent = { async skills() { assert.equal(started, true); discovered = true; return { skills: [], errors: [] }; }, async close() {} } as unknown as ProviderConnections;
+  const plugins = { start: () => ready } as import("../server/plugin-service.ts").PluginService;
+  const host = createAssistantHost(null, path.join(root, "settings.json"), { agent, plugins });
+  try {
+    const listing = host.invoke("assistantSkills", { provider: "codex" });
+    await Promise.resolve(); assert.equal(discovered, false);
+    await assert.rejects(host.invoke("assistantSkills", { provider: "copilot" }), /only with Codex/);
+    release(); assert.deepEqual(await listing, { skills: [], errors: [] });
+  } finally { release(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("official settings HTTP and CLI share validation and the stored snapshot without registration", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-assistant-host-"));
   const file = path.join(root, "ai.json");
