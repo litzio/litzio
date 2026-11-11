@@ -26,16 +26,16 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await page.getByRole('button',{name:/^Assistant(?: — |$)/}).click();
   const panel=page.getByTestId('assistant-panel');
   await expect(panel.getByRole('textbox')).toBeEnabled();
-  if(screenshots) await page.screenshot({mask:[page.getByText(/BSW-HOME/)],path:'tmp/1494-evidence/before-1440.png'});
+  if(screenshots) await page.screenshot({mask:[page.locator(".sidebar-host-account")],path:'tmp/1494-evidence/before-1440.png'});
   await panel.getByRole('textbox').fill('Edit the document'); await panel.getByRole('button',{name:'Send message',exact:true}).click();
   pending=true;
   await expect(panel.getByRole('button',{name:'Review',exact:true})).toBeVisible();
-  if(screenshots) await page.screenshot({mask:[page.getByText(/BSW-HOME/)],path:'tmp/1494-evidence/pending-1440.png'});
+  if(screenshots) await page.screenshot({mask:[page.locator(".sidebar-host-account")],path:'tmp/1494-evidence/pending-1440.png'});
   await panel.getByRole('button',{name:'Review',exact:true}).click();
   const compare=page.getByTestId('assistant-change-comparison');
   await expect(compare.locator('.visual-comparison-grid')).toContainText('Proposed change.');
   await expect(compare.getByRole('button',{name:'Apply',exact:true})).toBeEnabled();
-  if(screenshots) await page.screenshot({mask:[page.getByText(/BSW-HOME/)],path:'tmp/1494-evidence/compare-1440.png'});
+  if(screenshots) await page.screenshot({mask:[page.locator(".sidebar-host-account")],path:'tmp/1494-evidence/compare-1440.png'});
   // Unsaved human edits stay protected even when the disk revision is unchanged.
   await page.getByRole('tab',{name:/a.md/}).first().click();
   await activeDocument(page).locator('.tiptap p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' unsaved');
@@ -51,7 +51,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
     await expect(panel.getByRole('button',{name:'검토',exact:true})).toBeVisible();
     await panel.getByRole('button',{name:'검토',exact:true}).click();
     await expect(compare.locator('.visual-comparison-grid')).toContainText('Proposed change.');
-    await page.screenshot({mask:[page.getByText(/BSW-HOME/)],path:'tmp/1494-evidence/compare-640-ko-dark.png'});
+    await page.screenshot({mask:[page.locator(".sidebar-host-account")],path:'tmp/1494-evidence/compare-640-ko-dark.png'});
   }
   await compare.getByRole('button',{name:/^(Discard|버리기)$/}).click();
   await expect(compare.getByRole('status')).toContainText(/Changes discarded|변경 버림/);

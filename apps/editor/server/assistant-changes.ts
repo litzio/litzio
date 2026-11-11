@@ -6,7 +6,7 @@ import { commitFile, createFile, decodeUtf8, textRevision } from "@litzio/file-c
 import { accessPath, canonicalFilePath, type FileAccess, type RootAccess } from "./file-access.ts";
 import { loadDocumentFile } from "./document-reader.ts";
 
-export type PendingDocumentChange = { id: string; conversation: string; path: string; copy: string; revision: string };
+export type PendingDocumentChange = { id: string; conversationId: string; path: string; copy: string; revision: string };
 type Scope = { folders: RootAccess | null; permissionMode: string; access: FileAccess };
 
 /** Host-owned, conversation-scoped receipts. Copies are hidden siblings so relative assets keep their base. */
@@ -23,7 +23,7 @@ export class AssistantChanges {
   }
   private get(conversation: string, id: string): PendingDocumentChange {
     const record: PendingDocumentChange = JSON.parse(fs.readFileSync(this.file(conversation, id), "utf8"));
-    if (record.conversation !== conversation || record.id !== id) throw new Error("Pending change owner mismatch.");
+    if (record.conversationId !== conversation || record.id !== id) throw new Error("Pending change owner mismatch.");
     accessPath(record.path, this.access, true); accessPath(record.copy, this.access, true);
     return record;
   }
@@ -40,7 +40,7 @@ export class AssistantChanges {
     serialize(parse(document.source));
     const copy = path.join(path.dirname(original), `.litzio-change-${randomUUID()}.md`);
     scope.folders.resolve(accessPath(copy, scope.access, true), true);
-    const record = { id, conversation, path: original, copy, revision: document.revision };
+    const record = { id, conversationId: conversation, path: original, copy, revision: document.revision };
     fs.mkdirSync(path.dirname(receipt), { recursive: true });
     createFile(copy, document.source);
     try { createFile(receipt, JSON.stringify(record)); }
