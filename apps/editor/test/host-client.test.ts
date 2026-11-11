@@ -1,8 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { HostStatus } from "../src/components/HostStatus.tsx";
+import { i18n } from "../src/i18n.ts";
 import { once } from "node:events";
-import { createHostRegistry, monitorRegisteredHosts, hostRegistry } from "../src/host-client.ts";
+import { createHostRegistry, monitorDesktopHosts, hostRegistry, setHostRegistry } from "../src/host-client.ts";
 import { createDocumentRequests } from "../src/document-session.ts";
 import { createAssetHost, chooseHostImage } from "../src/image-assets.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
@@ -172,7 +176,7 @@ test("registered monitor automatically connects and reconnects using only reads,
     }
     return Response.json({ fileDeletion: "trash" });
   });
-  const stop = monitorRegisteredHosts([{ hostId: "auto-test", origin: "https://auto.example" }], "client");
+  const stop = monitorDesktopHosts([{ hostId: "auto-test", origin: "https://auto.example" }], "client");
   t.after(() => { stop(); hostRegistry.remove("auto-test"); });
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.equal(hostRegistry.get("auto-test").state, "disconnected");
@@ -200,4 +204,48 @@ test("registered Host metadata and observation changes publish to shell subscrib
   assert.throws(() => registry.add("remote", "https://other.example", "Changed"), /origin cannot change/);
   registry.remove("remote");
   assert.ok(!registry.list().some(host => host.hostId === "remote"));
+});
+
+test("Desktop observes the local Host without remote registrations and recovers a failed startup observation", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const previous = hostRegistry;
+  const registry = createHostRegistry([{ hostId: "local", origin: "http://local.example" }]);
+  setHostRegistry(registry);
+  const status = () => renderToStaticMarkup(createElement(HostStatus, { runtime: registry.get("local"), showDetails: false }));
+  let firstCapability = true, offline = false;
+  const requests: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    requests.push(String(url));
+    if (offline) throw new TypeError("fetch failed");
+    if (url.endsWith("/daemon/health")) return Response.json({ protocolVersion: "4", productVersion: "client" });
+    if (url.endsWith("/api/host-capabilities")) {
+      if (firstCapability) { firstCapability = false; throw new TypeError("startup socket error"); }
+      return Response.json({ fileDeletion: "trash", identity: { runAs: "local-user" } });
+    }
+    return Response.json({ source: "Document work is available" });
+  });
+  t.after(() => setHostRegistry(previous));
+  await registry.connect("local");
+  assert.equal(registry.get("local").state, "disconnected");
+  assert.equal(registry.get("local").reason, "startup socket error");
+  assert.ok(status().includes(i18n.t("Unreachable")));
+  assert.equal((await (await registry.get("local").client.request("/api/document")).json()).source, "Document work is available");
+  const stop = monitorDesktopHosts([], "client");
+  t.after(stop);
+  const settled = () => new Promise<void>(resolve => setImmediate(resolve));
+  await settled();
+  assert.equal(registry.get("local").state, "connected");
+  assert.deepEqual(registry.get("local").identity, { runAs: "local-user" });
+  assert.equal(registry.get("local").reason, undefined);
+  assert.ok(status().includes(i18n.t("Connected")));
+  offline = true; t.mock.timers.tick(5000); await settled();
+  assert.equal(registry.get("local").state, "disconnected", "a real loss is reported on the next check without a grace period");
+  assert.equal(registry.get("local").reason, "fetch failed");
+  assert.ok(status().includes(i18n.t("Unreachable")));
+  offline = false; t.mock.timers.tick(5000); await settled();
+  assert.equal(registry.get("local").state, "connected");
+  stop(); const before = requests.length;
+  t.mock.timers.tick(10000); await settled();
+  assert.equal(requests.length, before);
+  assert.ok(requests.every(url => !url.includes("stop")), "observation never starts or stops a daemon");
 });

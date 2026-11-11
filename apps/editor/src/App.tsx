@@ -12,7 +12,7 @@ import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
 import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
-import { getHostClient, hostRegistry, hostLabel, monitorRegisteredHosts, type HostClient } from "./host-client.ts";
+import { getHostClient, hostRegistry, hostLabel, monitorDesktopHosts, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
@@ -1065,7 +1065,7 @@ function EditorApp() {
     let active = true;
     let stop: (() => void) | undefined;
     void desktop.registeredHosts().then(({ hosts, allowedHostIds, productVersion }) => {
-      if (active) stop = monitorRegisteredHosts(hosts.filter(host => allowedHostIds.includes(host.hostId)), productVersion);
+      if (active) stop = monitorDesktopHosts(hosts.filter(host => allowedHostIds.includes(host.hostId)), productVersion);
     }).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
     return () => { active = false; stop?.(); };
   }, []);

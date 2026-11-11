@@ -3358,6 +3358,8 @@ registered Host's protocol/product policy.
 
 사이드바 맨 아래 한 줄은 현재 활성 문서 탭의 Host 라벨과 실행 계정을 함께 표시한다(예: `workstation · DOMAIN\user`). 문서 탭이 없으면 로컬 Host를 기준으로 한다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. 탐색기의 Host 필터는 이 실행 대상을 바꾸지 않는다.
 
+Desktop의 로컬 Host 상태도 원격 등록 유무와 무관하게 관측 완료 5초 뒤 읽기 전용 health/capability 검사를 반복한다(#1487). 시작 시 한 번 실패한 관측이 계속 남지 않으며, 다음 성공에서 상태·실행 계정을 복원한다. 첫 실패의 닿지 않음/이유 표시는 유지한다. daemon 탐색·spawn·수동 다시 연결과 별개의 상태 관측이며 상세 계약은 [Desktop distribution](desktop-distribution-v1.md)을 따른다.
+
 공통 HostStatus 상태 점·Tooltip과 기존 control 높이·간격·문자색 토큰을 사용한다. 연결된 Host의 `identity.runAs`만 표시하며 연결되지 않거나 계정이 없는 Host는 상태만 표시한다. 축소된 사이드바에서는 상태 점과 툴팁을 사용한다. 전체 Host 라벨·실행 계정과 설명은 툴팁으로 제공한다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 접속자 신원은 제공하지 않는다.
 
 640px 이상에서 한 줄 말줄임을 사용하며 전체 계정은 키보드 focus/hover 툴팁으로 확인한다. 공통 구현은 HostStatus/Tooltip이며 별도 아이콘·팔레트·상호작용 예외는 없다.
