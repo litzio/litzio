@@ -6,19 +6,21 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   expect(after).not.toBe(saved.source);
   const settings = { provider:'codex', permissionMode:'opened-folders', model:'gpt-6-luna', reasoningEffort:'low', responseLanguage:'en' };
   const conversation = { id:'staged-thread', title:'Edit document', folders:[root], ...settings, createdAt:Date.now(), updatedAt:Date.now(), turns:[{id:'turn',status:'completed',items:[]}] };
+  let screenRequest, screenReply;
   let pending = false, changed = false, applied = false, submissionId;
   await page.route('**/api/assistant/settings*', route => route.fulfill({json:settings}));
   await page.route('**/api/assistant/diagnostics*', route => route.fulfill({json:{provider:'codex',connected:true,account:{type:'chatgpt'}}}));
   await page.route('**/api/assistant/models*', route => route.fulfill({json:{provider:'codex',models:[{id:settings.model,model:settings.model,displayName:'Luna',supportedReasoningEfforts:[{reasoningEffort:'low'}]}]}}));
   await page.route('**/api/assistant/conversations*', async route => {
     const request = route.request(), input = request.method()==='POST' ? request.postDataJSON() : {};
+    if(input.action==='screen-result') { screenReply=input.reply; screenRequest=undefined; return route.fulfill({json:{acknowledged:true}}); }
     if(input.action==='changes-list') return route.fulfill({json:pending ? [{id:'change',path:file}] : []});
     if(input.action==='changes-preview') return route.fulfill({json:{path:file,before:saved.source,after,changed,missing:false,copyRevision:'copy',diskRevision:'disk'}});
     if(input.action==='changes-apply') { applied=true; pending=false; return route.fulfill({json:{outcome:'applied'}}); }
     if(input.action==='changes-discard') { pending=false; return route.fulfill({json:{outcome:'discarded'}}); }
     if(input.action==='send') { submissionId=input.submissionId; conversation.turns[0].items=[{id:'user',kind:'user',text:'Edit the document',submissionId}]; return route.fulfill({json:{submission:{id:submissionId,status:'accepted',conversationId:conversation.id},conversation}}); }
     if(request.url().includes('submissionId=')) return route.fulfill({json:{submission:{id:submissionId,status:'accepted',conversationId:conversation.id},conversation}});
-    return route.fulfill({json:request.method()==='GET' && !request.url().includes('?id=') ? [conversation] : conversation});
+    return route.fulfill({json:request.method()==='GET' && !request.url().includes('?id=') ? [conversation] : {...conversation,screenRequest}});
   });
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root); await page.getByTestId('folder-open').click();
   await page.getByRole('treeitem',{name:'a.md',exact:true}).click();
@@ -36,6 +38,13 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await expect(compare.locator('.visual-comparison-grid')).toContainText('Proposed change.');
   await expect(compare.getByRole('button',{name:'Apply',exact:true})).toBeEnabled();
   if(screenshots) await page.screenshot({mask:[page.locator(".sidebar-host-account")],path:'tmp/1494-evidence/compare-1440.png'});
+  // The sending window identifies a pending-copy comparison without leaking its contents.
+  screenRequest={id:'staged-screen',validForMs:10000};
+  await expect.poll(()=>screenReply?.activeTab?.kind).toBe('staged-comparison');
+  expect(screenReply.activeTab.path).toBe(file);
+  expect(screenReply.activeTab.hostId).toBe('local');
+  expect(screenReply.tabs.find(tab=>tab.id===screenReply.activeTab.id)).toEqual(screenReply.activeTab);
+  expect(JSON.stringify(screenReply)).not.toContain('Proposed change.');
   // Unsaved human edits stay protected even when the disk revision is unchanged.
   await page.getByRole('tab',{name:/a.md/}).first().click();
   await activeDocument(page).locator('.tiptap p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' unsaved');

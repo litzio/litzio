@@ -1,3 +1,4 @@
+import { AgentScreenRequests } from "../server/assistant-screen-tools.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
@@ -631,7 +632,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["stage_document", "create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -878,17 +879,20 @@ test("display requests report absent windows, expire honestly, cancel and reject
 });
 
 
-test("Codex requirements disable full access; policy rejection preserves history and permits retry", async t => {
+test("Codex requirements disable full access; policy rejection retries once before execution and remembers reduced access", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-policy-"));
   const connection = new ProviderConnections(root, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const original = connection.client.request.bind(connection.client);
   let discovery = true;
+  const policies: string[] = [];
+  let uncertain = false;
   t.mock.method(connection.client, "request", async (method: string, params?: any) => {
     if (method === "configRequirements/read") {
       if (!discovery) throw new Error("Method not found");
       return { requirements: { allowedSandboxModes: ["read-only", "workspace-write"] } };
     }
+    if (method === "turn/start") { policies.push(params.sandboxPolicy.type); if (uncertain) throw new Error("Connection closed before response"); }
     if (method === "turn/start" && params.sandboxPolicy.type === "dangerFullAccess") throw new Error("invalid thread settings override: invalid value for sandbox_mode: DangerFullAccess is not in the allowed set [ReadOnly, WorkspaceWrite] (set by enterprise-managed requirements private-organization)");
     return original(method, params);
   });
@@ -901,11 +905,58 @@ test("Codex requirements disable full access; policy rejection preserves history
   const conversation = await conversations.send(input, settings);
   await conversations.interrupt(conversation.id);
   const before = conversation.turns.length;
-  await assert.rejects(conversations.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings), { message: "Your organization does not allow Full access. Choose Opened folders or Read-only and send again." });
-  assert.equal(conversations.current(conversation.id).turns.length, before);
-  const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
+  const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings);
   assert.equal(retry.id, conversation.id);
-  assert.equal(retry.turns.at(-1)!.status, "inProgress");
+  assert.equal(retry.turns.length, before + 1, "only the admitted retry creates a turn");
+  assert.equal(retry.permissionMode, "opened-folders");
+  assert.equal(retry.permissionFallback, true);
+  assert.deepEqual(policies, ["workspaceWrite", "dangerFullAccess", "workspaceWrite"]);
+  await conversations.interrupt(retry.id);
+  const restored = await new AssistantConversations(connection, null).resume(retry.id, { ...settings, permissionMode: "full-access" });
+  assert.equal(restored.permissionMode, "opened-folders");
+  assert.equal(restored.permissionFallback, true);
+  await conversations.send({ ...input, id: restored.id }, { ...settings, permissionMode: "full-access" });
+  assert.equal(policies.at(-1), "workspaceWrite", "next turn does not repeat the rejection");
+  await conversations.interrupt(restored.id);
+  const changed = await conversations.send({ ...input, id: restored.id, permissionMode: "read-only" }, settings);
+  assert.equal(changed.permissionMode, "read-only");
+  assert.equal(changed.permissionFallback, undefined, "explicit changed permission clears the fallback notice");
+  await conversations.interrupt(changed.id);
+  const reopened = await new AssistantConversations(connection, null).resume(changed.id, settings);
+  assert.equal(reopened.permissionFallback, undefined, "cleared notice stays cleared on resume");
+  assert.equal(reopened.permissionMode, "read-only");
+  uncertain = true;
+  const attempts = policies.length;
+  await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access" }, settings), /Connection closed before response/);
+  assert.equal(policies.length, attempts + 1, "uncertain acceptance must never replay a request");
+
+});
+
+
+test("screen queries isolate originating windows, omit undeclared data and fail on timeout/cancellation", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const host = new AgentScreenRequests();
+  const activeTab = { id: "settings", kind: "settings" as const, hostId: null, title: "Settings", unsaved: false };
+  const reply = { activeTab, tabs: [activeTab], folders: [{ hostId: "remote", path: "/docs" }] };
+  assert.throws(() => host.execute({}, "thread"), /originating/);
+  assert.throws(() => host.execute({ text: "excluded" }, "thread", "window"), /no arguments/);
+  const result = host.execute({}, "thread", "window");
+  const command = host.snapshot("thread", "window")!;
+  assert.equal(host.snapshot("thread", "other"), undefined);
+  assert.equal(host.snapshot("other-thread", "window"), undefined);
+  assert.throws(() => host.reply("thread", "other", command.id, reply), /another window/);
+  assert.throws(() => host.reply("other-thread", "window", command.id, reply), /another window/);
+  assert.throws(() => host.reply("thread", "window", command.id, { ...reply, activeTab: { ...activeTab, id: "missing" } }), /not open/);
+  const untrusted = { ...reply, tabs: [{ ...activeTab, text: "unsaved private content" }] };
+  host.reply("thread", "window", command.id, untrusted);
+  assert.deepEqual(await result, reply);
+  assert.equal(host.snapshot("thread", "window"), undefined);
+  const timeout = assert.rejects(host.execute({}, "thread", "window"), /did not respond/);
+  const expired = host.snapshot("thread", "window")!;
+  t.mock.timers.tick(10_000); await timeout;
+  assert.throws(() => host.reply("thread", "window", expired.id, reply), /expired/);
+  const cancelled = assert.rejects(host.execute({}, "thread", "window"), /cancelled/);
+  host.cancel("thread"); await cancelled;
 });
 
 test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revokes ended turns", async t => {
@@ -926,7 +977,7 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   t.after(async () => { await Promise.all(clients.map(client => client.close())); await connection.close(); await conversations.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(root, { recursive: true, force: true }); });
   const settings = { provider: "copilot" as const, permissionMode: "opened-folders" as const, model: "auto", reasoningEffort: "low" };
   const input = { message: "Inspect files", folders: [root], model: "auto", reasoningEffort: "low" };
-  const first = await conversations.send(input, settings);
+  const first = await conversations.send(input, settings, "mcp-window-one");
   const rows = () => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const endpoint = () => rows().filter(row => ["session/new", "session/load"].includes(row.method) && row.params.mcpServers.length).at(-1).params.mcpServers[0].url;
   const firstUrl = endpoint();
@@ -934,6 +985,20 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const one = await connect(firstUrl);
   assert.deepEqual((await one.listTools()).tools, conversations.tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { type: "object", ...inputSchema } })));
   assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
+  const screenRead = one.callTool({ name: "read_screen_context", arguments: {} });
+  const screenDeadline = Date.now() + 5000;
+  while (!conversations.screen.snapshot(first.id, "mcp-window-one") && Date.now() < screenDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  const screenRequest = conversations.screen.snapshot(first.id, "mcp-window-one");
+  assert.ok(screenRequest, "Copilot MCP dispatch uses the originating window handler");
+  assert.equal(conversations.screen.snapshot(first.id, "other-window"), undefined);
+  connection.client.emit("disconnected", "Unrelated Codex connection closed");
+  assert.ok(conversations.screen.snapshot(first.id, "mcp-window-one"), "a Codex disconnect cannot cancel the Copilot window query");
+  const screenInfo = { activeTab: null, tabs: [], folders: [{ hostId: "fixture-host", path: root }] };
+  assert.throws(() => conversations.screen.reply(first.id, "other-window", screenRequest.id, screenInfo), /another window/);
+  conversations.screen.reply(first.id, "mcp-window-one", screenRequest.id, screenInfo);
+  const screenResult = await screenRead;
+  assert.equal(screenResult.isError, false);
+  assert.deepEqual(JSON.parse((screenResult.content as { text: string }[])[0]!.text), screenInfo);
   const permission = (serverName: string, toolName: string, metadata = true) => connection.copilot.permission!({ sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title: "litzio_host-list_documents", ...(metadata ? { rawInput: { serverName, toolName } } : {}) }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] });
   assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "selected");
   assert.equal(permission("foreign", "list_documents").outcome.outcome, "cancelled");
@@ -941,6 +1006,9 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.equal(permission("litzio_host", "list_documents", false).outcome.outcome, "cancelled", "a matching title alone does not identify a Host tool");
   const second = await conversations.send({ ...input, folders: [] }, { ...settings, permissionMode: "read-only" });
   const two = await connect(endpoint());
+  const noWindow = await two.callTool({ name: "read_screen_context", arguments: {} });
+  assert.equal(noWindow.isError, true);
+  assert.match(JSON.stringify(noWindow.content), /No originating Litzio window/);
   assert.equal((await two.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "read-only MCP dispatch uses the same Host plugin operation path");
   assert.equal((await two.callTool({ name: "list_documents", arguments: { path: root } })).isError, true, "a second conversation cannot inherit the first folder scope");
   assert.equal((await one.callTool({ name: "request_litzio_user_input", arguments: {} })).isError, true, "text questions must not create review image approval");

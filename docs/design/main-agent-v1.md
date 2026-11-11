@@ -486,6 +486,14 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 [#1053](#copilot-conversations-1053).
 
 
+### On-demand screen context (#1500 stage 2)
+
+Codex dynamic tools and Copilot HTTP MCP expose the same `read_screen_context` definition (empty input) to read metadata from the window that sent the admitted turn. It uses the existing conversation/window identity and visible-panel polling path, with a 10-second Host deadline charged for poll transit time. Another window cannot see or satisfy the request. Fake ACP plus an SDK MCP client verify definition parity, successful Copilot window-owned response, rejection of another window, isolation from an unrelated Codex disconnect and explicit failure without a window; no real Copilot call was made for this merge. Closed, hidden, disconnected or unresponsive windows fail explicitly; cancellation, turn end and daemon shutdown discard pending requests. Host keeps only in-flight requests, not shared screen state.
+
+The window supplies its focused group's active tab (or null), all opened tabs and opened folders with Host identities. Tab metadata includes kind, title, Host, path/target where applicable, and unsaved flag. Kinds cover native document, text, PDF, review, comparison, staged comparison, plugin screen, plugin jobs, settings and template gallery. App-wide settings have no document Host (null). No unsaved body, selection, plugin inputs or result contents are supplied. Paths on another Host remain metadata, never an access grant. The existing per-message saved document path context remains; a null document directs the assistant to query screen metadata rather than assume a document is active.
+
+This read is autonomous and provides no UI manipulation. It is Editor-specific tab/focus context, excluded from CLI parity under AGENTS.md and ADR-0015; no CLI command is added. Copilot MCP uses the same Host dispatch and originating-window identity; an absent window fails explicitly instead of inventing screen state. The assistant uses the existing generic tool activity surface; no new visual component or layout exception is introduced.
+
 ## Document tools (#931 implementation 2, PR 1)
 
 The Host registers document specs, the three [template specs](#template-workflows-936-phase-3) and the two
@@ -1192,7 +1200,7 @@ full-access; no migration of earlier saved settings is included.
 
 UI uses the shared SettingsSelect for provider/model/effort/language/permission mode.
 Providers have no enable switches; all defaults save automatically. Permission mode defaults to
-opened-folders and also offers read-only and Full access. A shared hover/keyboard-focus Tooltip description
+full-access (only absent saved values; saved settings stay unchanged) and also offers read-only and opened-folders. A shared hover/keyboard-focus Tooltip description
 explains each permission mode and the Copilot containment limitation; Full access removes the Codex sandbox and automatically approves tools,
 paths and network access; no permanent warning is shown. Codex full-access turns use
 `sandboxPolicy: {type:"dangerFullAccess"}` and `approvalPolicy:"never"`; steering keeps
@@ -1491,8 +1499,7 @@ The Codex model catalog reads the official `configRequirements/read` request and
 whether `allowedSandboxModes` permits `danger-full-access`; no organization identifiers are returned.
 Settings and composer disable Full access with a reason in the existing permission Tooltip.
 Servers that report an unsupported method keep the choice available. A turn-start rejection
-for DangerFullAccess outside the allowed sandbox set is replaced with a plain organization-policy
-message advising Opened folders or Read-only. No automatic retry or policy override occurs.
+for DangerFullAccess outside the allowed sandbox set retries once with opened-folders, only after an explicit turn/start RPC rejection before execution with no active turn. Transport failures and execution errors are never retried. The conversation remembers opened-folders, including resume; global settings remain unchanged. The panel shows the status with a hover/focus explanation. An explicit different permission on a subsequent turn clears the remembered fallback notice; steering keeps the active turn scope.
 A rejected submission retains its message row with an explicit Restore to input action; existing conversation history remains available.
 Requirements can change after discovery; the turn rejection remains authoritative.
 
@@ -1726,10 +1733,13 @@ The existing #1424 observer and attention priority are unchanged.
   Changed conversation content adds “New content”; unchanged polls do not. Its
   separate row inside the reading area leaves the composer fixed and does not
   cover transcript content. It never steals keyboard focus.
+- The work disclosure follows all answers, question cards (including the pending
+  question fallback) and result receipts of its turn (#1492). It stays at that
+  turn's latest position while output grows; completed work keeps the same position.
 - Every active response has a collapsed native details summary, even without a
   reasoning item: Thinking, Running tool with its existing tool/target description,
   or Writing answer. A pending question uses the same Needs your attention label
-  as #1424. The summary is one line with overflow ellipsis and a full native title.
+  as #1424. The summary is one line with overflow ellipsis and the full text in a hover/focus Tooltip.
   It exposes status accessibly. Completion/interruption/failure removes the live
   stage; retained work is labelled Work details. No timer or estimated progress.
 - User expansion/collapse survives incoming snapshots and phase changes for that
@@ -1740,6 +1750,18 @@ The existing #1424 observer and attention priority are unchanged.
   remain outside too. Supported user-input transport is unchanged. The Host still
   refuses unsupported approval requests; this change does not add approval support
   or place actionable requests in the process disclosure.
+
+#1492 (2026-11-11) reuses native details/summary and the shared Tooltip;
+no new surface, tokens or Host/CLI operation. Existing assistant browser checks
+assert that answers and pending questions precede work details. Synthetic Host
+captures (no real model call) were visually reviewed for alignment, clipping,
+Korean wrapping and Light/Dark consistency:
+[1440 Light, multiple answers/question](assets/assistant-progress-1492/after-1440-light-latest.png),
+[640 Korean Dark](assets/assistant-progress-1492/after-640-dark-latest.png),
+[1440 Dark tool](assets/assistant-progress-1492/after-1440-dark-tool.png),
+[640 expanded work](assets/assistant-progress-1492/after-640-dark-expanded.png).
+Expansion retains the reader's position; content below the viewport remains
+available by scrolling. [Manual capture script](assets/assistant-progress-1492/capture.browser.js).
 
 ### Reference study and validation
 
@@ -2100,3 +2122,5 @@ Verification layers: Host tests protect persistence, permission refusal, hidden 
 `litzio assistant delete <id> --host <origin>` calls the Host conversation deletion action; it refuses active turns, removes pending copies and the Host index entry, and does not delete provider-owned history.
 
 Visual review uses the existing task-tab, Button and comparison patterns without a common-interaction exception: [1440px before](assets/assistant-changes-1494/before-1440.png), [pending card](assets/assistant-changes-1494/pending-1440.png), [1440px comparison](assets/assistant-changes-1494/compare-1440.png), [640px Korean dark](assets/assistant-changes-1494/compare-640-ko-dark.png). Captures use synthetic document/provider data; the local Host identity is masked. Controls, wrapping, comparison scrolling and narrow overlay return were checked. The new browser scenario is registered in the stable suite and fixture selection. Host/CLI tests own disk revision and persistence defects; browser coverage owns tab admission, unsaved-editor refusal and Discard, without duplicating disk fault combinations or introducing extra subprocesses. Targeted Host/provider/fixture tests completed in 14 seconds; the browser capture run completed in 19 seconds. No paid AI call or packaged Desktop validation was run locally.
+
+With default full-access, shell access can modify originals. Waiting for human [Apply] is an instruction contract, not technical shell containment.

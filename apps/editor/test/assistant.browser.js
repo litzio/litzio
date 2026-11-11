@@ -199,6 +199,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(await editor.evaluate(el => el.editor.getJSON().content.find(node => node.type === 'paragraph').content.at(-1).type)).toBe('hardBreak');
   const submittedAnswers = [];
   const sent = [], conversations = new Map(), receipts = new Map();
+  let screenRequest, screenReply;
   let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
   let resumeFailure = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
@@ -211,6 +212,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
+      if (body.action === 'screen-result') { screenReply = body.reply; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
       if (body.action === 'display-result') {
         displayReply = body.reply; displayRequest = undefined;
         if (displayResolve) { displayResolve(body.reply); displayResolve = undefined; }
@@ -279,7 +281,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     }
     const id = decodeURIComponent((route.request().url().split('?id=')[1] ?? '').split('&')[0]);
     if (id) { snapshots++; await snapshotGate; }
-    return route.fulfill({ json: id ? { ...conversations.get(id), displayRequest } : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
+    return route.fulfill({ json: id ? { ...conversations.get(id), displayRequest, screenRequest } : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
   await editor.locator('p').first().click(); await page.keyboard.press('End');
@@ -622,6 +624,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation.\n\n'.repeat(65) };
   progressTurn.items.push(progressAnswer);
   await expect(steps.locator('summary')).toHaveText('Writing answer…');
+  await expect.poll(() => steps.evaluate(el => { const answers = el.parentElement.querySelectorAll('.assistant-answer'); return answers.length > 0 && [...answers].every(answer => !!(answer.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)); })).toBe(true);
   await expect(steps).not.toHaveAttribute('open');
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   const transcriptBox = await transcript.boundingBox();
@@ -661,6 +664,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await statusTrigger.click();
   const questionCard = panel.getByTestId('assistant-question');
   await expect(questionCard).toBeVisible();
+  await expect.poll(() => questionCard.evaluate(el => !!(el.compareDocumentPosition(el.parentElement.querySelector('.assistant-steps')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await questionCard.scrollIntoViewIfNeeded();
   expect(await questionCard.evaluate(el => !!el.closest('details'))).toBe(false);
   await expect(steps).not.toHaveAttribute('open');
@@ -1070,6 +1074,18 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   displayRequest = { id: 'display-read', validForMs: 10000 };
   await expect.poll(() => displayReply?.after?.theme).toBe('light');
   const displayBefore = displayReply.after;
+  screenRequest = { id: 'screen-dirty-document', validForMs: 10000 };
+  await expect.poll(() => screenReply?.activeTab?.unsaved).toBe(true);
+  expect(screenReply.activeTab.kind).toBe('document');
+  expect(screenReply.activeTab.path).toBe(sent.at(-1).document.path);
+  expect(screenReply.tabs.find(tab => tab.id === screenReply.activeTab.id)).toEqual(screenReply.activeTab);
+  expect(JSON.stringify(screenReply)).not.toContain('display settings draft');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  screenReply = undefined; screenRequest = { id: 'screen-settings', validForMs: 10000 };
+  await expect.poll(() => screenReply?.activeTab?.kind).toBe('settings');
+  expect(screenReply.activeTab.hostId).toBeNull();
+  expect(screenReply.tabs.some(tab => tab.kind === 'document' && tab.unsaved)).toBe(true);
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   if (screenshots) for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.screenshot({ path: `tmp/1120-evidence/before-${width}.png` });

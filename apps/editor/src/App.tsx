@@ -1,3 +1,4 @@
+import type { ScreenInfo, ScreenTab } from "../shared/assistant-screen.ts";
 import { GeneratedComparison, comparisonPath, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
@@ -419,6 +420,24 @@ function EditorApp() {
   const emptyImageRef = useRef<HTMLElement | null>(null);
   const session = activeId ? sessions.current.get(activeId) : undefined;
   // Hiding task tabs must not change the user's document navigation preference.
+  const readScreen = (): ScreenInfo => {
+    const screenTabs: ScreenTab[] = allTabs.map(item => {
+      const file = tabs.find(tab => tab.id === item.id);
+      const view = viewTabs.find(tab => tab.id === item.id);
+      const owner = sessions.current.get(item.id);
+      const staged = view?.assistantChange;
+      const kind: ScreenTab["kind"] = file ? (owner?.kind ?? file.file.kind) === "text" ? "text" : "document"
+        : item.id === "settings" ? "settings" : item.id === "templates" ? "templates"
+        : staged ? "staged-comparison" : view?.pdf ? "pdf" : view?.comparison ? "comparison" : view?.screen ? "plugin" : view?.jobs ? "plugin-jobs"
+        : view?.view?.profile === "review" ? "review" : "plugin";
+      return { id: item.id, kind, hostId: item.hostId ?? null,
+        title: "title" in item && item.title ? item.title : splitDocumentPath(item.path).name,
+        ...(kind !== "settings" && kind !== "templates" ? { path: staged ? staged.path : view?.comparison ? `${view.comparison.root}/${comparisonPath(view.comparison)}` : item.path } : {}),
+        unsaved: Boolean(owner && (owner.documentDirty || owner.draftActive || owner.editorRef.current?.hasUnsavedChanges())) };
+    });
+    return { activeTab: screenTabs.find(tab => tab.id === activeId) ?? null, tabs: screenTabs,
+      folders: folders.trees.map(tree => ({ hostId: tree.hostId, path: tree.root })) };
+  };
   const documentPanelOpen = panelOpen && !settingsFocused && !galleryFocused && !activeViewTab && session?.kind !== "text";
   const nativeSession = session?.kind === "native" ? session : undefined;
   // A fresh editor action replaces an older shell notice such as Copy path.
@@ -1556,7 +1575,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onReviewChange={openAssistantChange} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onReviewChange={openAssistantChange} onScreen={readScreen} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {

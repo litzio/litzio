@@ -872,3 +872,35 @@ No common interaction exception or new persistent chrome was introduced.
 [구현 계약](plugin-stage1-v1.md#생성-문서-대조-진입점-1465)을 따른다.
 
 화면 근거와 범위는 [1440px Light/Dark 및 640px 문서 안내 전후](plugin-stage1-v1.md#1465-검증화면-근거)를 따른다.
+
+### 좁은 저장·복구 비교 라벨 (#1499)
+
+U24의 기존 SourceCompare/VisualCompare와 ChoiceGroup을 재사용한다. 800px 이하에서는
+열 머리글을 숨기고 변경 블록 앞에 현재 파일/미리보기 라벨을 표시한다. 변경 없는 문맥 블록은 라벨 없이 한 번만 표시하며 기존 접기 동작을 유지한다.
+넓은 화면의 두 열 배치와 기존 간격·서체 토큰은 유지하며 새 표면·상호작용 예외는 없다.
+한국어 Visual 선택은 ‘시각적 비교’다. [비교 계약](editing-session-save-v1.md#pre-save-visual-comparison-1201)을 따른다.
+
+동일한 저장 비교 fixture의 Windows persistent Chrome 수동 캡처:
+[640px 한국어 다크 Before](assets/compare-labels-1499/before-640.png) /
+[After](assets/compare-labels-1499/after-640.png),
+[1440px 한국어 Light Before](assets/compare-labels-1499/before-1440.png) /
+[After](assets/compare-labels-1499/after-1440.png).
+
+캡처의 로컬 경로는 가렸으며 비교 콘텐츠는 변경하지 않았다. 640px 다크의 라벨/내용 구분·한국어 줄바꿈과 1440px의 열 정렬·여백·잘림을 수동 확인했다.
+
+#1497 병합 후 비서 변경 대기 비교도 같은 공통 구현에서 확인했다.
+[640px 한국어 다크](assets/compare-labels-1499/assistant-640.png) /
+[1440px 영어 Light](assets/compare-labels-1499/assistant-1440.png).
+`assistant-changes --screenshots`는 synthetic assistant 응답과 실제 비교 renderer를 사용하며 실제 AI 호출은 아니다.
+최초 실행은 시나리오 전 초기 앱 준비 대기에서 실패했다. 병합 후 production build 통과와 서버 로그 확인 후
+동일한 15초 제한의 진단 실행은 통과했다. 초기 기동 실패의 정확한 원인은 확정하지 않았다.
+
+
+추가 시각 확인: 좁은 폭의 열 머리글은 숨기고 변경 블록에만 라벨을 표시한다.
+변경 없는 문맥과 동일한 문서 제목은 좁은 폭에서 한 번만 표시한다. 양쪽 full editor state와
+기존 문맥 접기는 유지한다. 넓은 화면은 열 머리글만 사용한다.
+위 저장·비서 After 캡처를 갱신했고 [복구 640px 한국어 다크](assets/compare-labels-1499/recovery-640.png)를 추가했다.
+세 화면의 머리글 중복 제거·변경 라벨·문맥 한 번 표시·잘림·한국어 줄바꿈을 확인했다.
+저장 비교의 기존 복구 기록 불변 단언은 최초 실패 후 전후 기록 진단을 추가했으며,
+동일 단언은 이후 통과했다. 최초 실패의 원인은 확정하지 않았다.
+복구의 문맥 양쪽 표시 전제는 새 요구에 맞게 한 번 표시 검사로 바꾸고 변경 블록 대응 검사는 유지했다.

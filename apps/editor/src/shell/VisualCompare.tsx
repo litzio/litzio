@@ -19,12 +19,16 @@ class PreviewBoundary extends Component<{ children: ReactNode; fail(reason: stri
   componentDidCatch(error: Error) { this.props.fail(error.message); }
   render() { return this.state.failed ? null : this.props.children; }
 }
-function Snapshot({ document, path, layout, bibliography, recovery, pending }: { document: EditableDocument; path: string; layout: ComparisonLayout; bibliography?: DocumentFileResponse["bibliography"]; recovery: boolean; pending?: boolean }) {
+function Snapshot({ document, path, layout, bibliography, recovery, pending, sharedTitle }: { sharedTitle?: boolean; document: EditableDocument; path: string; layout: ComparisonLayout; bibliography?: DocumentFileResponse["bibliography"]; recovery: boolean; pending?: boolean }) {
   const { slots, foldSlots } = layoutSlots(layout);
   const end = Math.max(-1, ...slots.values(), ...foldSlots.values()) + 1;
   const label = i18n.t(layout.side === "before" ? "Current disk file" : pending ? "Pending changes" : recovery ? "Recovery preview" : "Save preview");
-  return <section style={{ "--compare-end-row": end * 2 + 3, "--compare-narrow-end-row": end * 4 + (layout.side === "before" ? 5 : 6) } as CSSProperties} className="visual-snapshot" data-side={layout.side} aria-label={label}>
+  return <section style={{ "--compare-end-row": end * 2 + 3, "--compare-narrow-end-row": end * 6 + (layout.side === "before" ? 6 : 8) } as CSSProperties} className="visual-snapshot" data-side={layout.side} data-shared-title={sharedTitle} aria-label={label}>
     <div className="visual-snapshot-title">{layout.side === "before" ? "− " : "+ "}{label}</div>
+    {layout.rows.map((row, index) => slots.has(index) && row.change && row[layout.side] ? <div key={index} className="visual-side-label"
+      data-compare-side-label={layout.side} data-compare-label-row={index} style={{ "--compare-narrow-row": slots.get(index)! * 6 + (layout.side === "before" ? 6 : 8) } as CSSProperties}>
+      {layout.side === "before" ? "− " : "+ "}{label}
+    </div> : null)}
     <DocumentEditor readOnly preview document={document} documentPath={path} bibliography={bibliography} comparison={layout} onStructuralReject={() => {}} />
   </section>;
 }
@@ -99,13 +103,13 @@ export default function VisualCompare({ result, client, path, bibliography, reco
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); event.stopPropagation(); }
     }}><div className="visual-comparison-grid">
       {rows.map((row, index) => row.change ? <div className="visual-block-label" data-compare-label={row.number} key={index}
-        style={{ "--compare-row": slots.get(index)! * 2 + 3, "--compare-narrow-row": slots.get(index)! * 4 + 5 } as CSSProperties}>
+        style={{ "--compare-row": slots.get(index)! * 2 + 3, "--compare-narrow-row": slots.get(index)! * 6 + 5 } as CSSProperties}>
         <Tooltip><TooltipTrigger render={<Button variant="ghost" size="sm" id={descriptionIds[index]} data-testid="visual-change-summary" />}>
           {row.number} · {comparisonSummary(row)}
         </TooltipTrigger><TooltipContent className="whitespace-pre-wrap break-words">{descriptions[index]}</TooltipContent></Tooltip>
       </div> : null)}
       <Snapshot document={comparison.before} path={path} layout={beforeLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
-      <Snapshot document={comparison.after} path={path} layout={afterLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
+      <Snapshot sharedTitle={comparison.before.title === comparison.after.title} document={comparison.after} path={path} layout={afterLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
     </div></div></PreviewBoundary>
   </HostClientContext.Provider>;
 }

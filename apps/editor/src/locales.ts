@@ -389,6 +389,7 @@ export const en = {
   "Save the document before saving it as a template.": "Save the document before saving it as a template.",
 
   "max": "max",
+  "Full access is not allowed in this environment. Continuing with Opened folders.": "Full access is not allowed in this environment. Continuing with Opened folders.",
   "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.": "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.",
   "Write access": "Permission mode",
   "Read-only": "Read-only",
@@ -1659,7 +1660,7 @@ export const ko: Record<keyof typeof en, string> = {
   "The disk file is missing. Use Source comparison.": "디스크 파일이 없습니다. 소스 비교를 사용하세요.",
   "Text sessions use Source comparison.": "텍스트 문서는 소스 비교를 사용합니다.",
   "Comparison view": "비교 보기",
-  "Visual": "Visual",
+  "Visual": "시각적 비교",
   "Visual unavailable: {{reason}}. Use Source comparison.": "Visual 비교를 사용할 수 없습니다: {{reason}}. 소스 비교를 사용하세요.",
   "Visual compares block meaning. Formatting-only source changes appear in Source.": "Visual은 블록 의미를 비교합니다. 소스 서식만 바뀐 경우 소스에서 확인하세요.",
   "Images use current Host files. Historical image bytes are not preserved; past appearance cannot be verified.": "이미지는 현재 Host 파일을 사용합니다. 과거 이미지 bytes가 보존되지 않아 과거 모습을 확인할 수 없습니다.",
@@ -1750,6 +1751,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Save the document before saving it as a template.": "템플릿으로 저장하려면 먼저 문서를 저장하세요.",
 
   "max": "최대",
+  "Full access is not allowed in this environment. Continuing with Opened folders.": "이 환경에서는 전체 접근이 허용되지 않아 열린 폴더로 진행함",
   "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.": "조직 정책으로 전체 접근을 사용할 수 없습니다. 열린 폴더 또는 읽기 전용을 선택하고 다시 보내세요.",
   "Write access": "권한 모드",
   "Read-only": "읽기 전용",

@@ -1,3 +1,4 @@
+import type { ScreenInfo, ScreenSnapshot } from "../../shared/assistant-screen.ts";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { hostLabel } from "../host-client.ts";
 import { createAssistantRequest } from "../assistant-api.ts";
@@ -31,6 +32,7 @@ export type AssistantLocalSubmission = { hostId: string; provider: AssistantSett
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+  onScreen(): ScreenInfo;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onReviewChange(hostId: string, conversation: string, change: string, path: string): void;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
@@ -39,7 +41,7 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   reviewWorkspacePath?:string; documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onReviewChange, submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, reviewWorkspacePath, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ onReviewChange, submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, reviewWorkspacePath, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay, onScreen }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -47,6 +49,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const request = createAssistantRequest(client);
   // Match existing editor identities: getRandomValues also works on non-localhost HTTP.
   const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
+  const screenHandler = useRef(onScreen); screenHandler.current = onScreen;
   const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
   const displayReplies = useRef(new Map<string, DisplayReply>());
   const questionAcks = useRef(new Set<string>());
@@ -59,7 +62,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
   const [provider, setProvider] = useState<"codex" | "copilot">("codex");
-  const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("opened-folders");
+  const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("full-access");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
   const [mode, setMode] = useState("");
@@ -88,7 +91,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         receipt: value.receipt.status === "accepted" && ["pending", "rejected"].includes(result.submission.status) || value.receipt.status === "unknown" && result.submission.status === "pending"
           ? value.receipt : { ...result.submission, ...(value.receipt.turnFailed ? { turnFailed: true } : {}), ...((result.submission.status === "unknown" || value.receipt.turnFailed) && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value);
     });
-    if (result.conversation) { setConversation(result.conversation); rememberConversation(conversationKey, result.conversation.id); }
+    if (result.conversation) { setConversation(result.conversation); setPermissionMode(result.conversation.permissionMode ?? permissionMode); rememberConversation(conversationKey, result.conversation.id); }
   };
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
@@ -278,8 +281,11 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
       const id = current.current?.id;
       if (!id || !alive || document.visibilityState !== "visible") { polling = false; schedule(); return; }
       const pollStartedAt = performance.now();
-      try { const next = await request<AssistantConversation & DisplaySnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}${panelOpen.current ? `&displayClient=${encodeURIComponent(displayClient)}` : ""}`);
+      try { const next = await request<AssistantConversation & DisplaySnapshot & ScreenSnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}${panelOpen.current ? `&displayClient=${encodeURIComponent(displayClient)}` : ""}`);
         if (alive && document.visibilityState === "visible") {
+          if (panelOpen.current && next.screenRequest && displayRequestCurrent(next.screenRequest, pollStartedAt)) {
+            await request(ASSISTANT.conversationsRoute, { action: "screen-result", id, displayClient, requestId: next.screenRequest.id, reply: screenHandler.current() });
+          }
           if (panelOpen.current && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
             const command = next.displayRequest;
             // An ACK can be lost; retransmit the reply, never apply the request twice.
@@ -500,7 +506,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
             {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
           </div>)}
-          <AssistantWorkDetails turn={turn} needsInput={conversation.userInput?.turnId === turn.id} onDisclosure={holdDisclosure} />
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           </div>
@@ -542,6 +547,9 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
                 }}>{i18n.t("Undo display change")}</TooltipTrigger><TooltipContent>{i18n.t("Undo is available in the originating window and Host session while these values are unchanged.")}</TooltipContent></Tooltip></div>
             </div>;
           })}
+          {conversation.userInput?.turnId === turn.id && !turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
+            submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
+          <AssistantWorkDetails turn={turn} needsInput={conversation.userInput?.turnId === turn.id} onDisclosure={holdDisclosure} />
           {turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{i18n.t(turn.error, { defaultValue: turn.error })}</p> : null}
           {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
@@ -553,10 +561,9 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
           <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips references={value.references} /></p>
           {submissionActions(value)}
         </div>)}
-      {!history && conversation?.userInput && !conversation.turns.some(turn => turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId)) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
-        submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Requested edits wait for your review.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
+      {conversation?.permissionFallback ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>{i18n.t("Opened folders")}</TooltipTrigger><TooltipContent>{i18n.t("Full access is not allowed in this environment. Continuing with Opened folders.")}</TooltipContent></Tooltip> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
     </div>
     </div>
@@ -644,7 +651,7 @@ function AssistantWorkDetails({ turn, needsInput, onDisclosure }: { turn: Assist
   const latest = turn.items.findLast(item => ["assistant", "reasoning", "tool"].includes(item.kind));
   const stage = needsInput ? i18n.t("Needs your attention") : tool ? i18n.t("Running tool: {{target}}", { target: tool.text.replace(/\s+/g, " ") }) : latest?.kind === "assistant" ? i18n.t("Writing answer…") : i18n.t("Thinking…");
   return <details className="assistant-steps" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary onClick={onDisclosure}><span role={active ? "status" : undefined} title={active ? stage : undefined}>{active ? stage : i18n.t("Work details")}</span></summary>
+    <Tooltip><TooltipTrigger render={<summary onClick={onDisclosure} />}><span role={active ? "status" : undefined}>{active ? stage : i18n.t("Work details")}</span></TooltipTrigger><TooltipContent>{i18n.t("Work details")}{active ? ` · ${stage}` : ""}</TooltipContent></Tooltip>
     {details.map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}
   </details>;
 }
