@@ -751,6 +751,27 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
       assert.equal(denied.activity.outcome, "refused");
       assert.match(denied.error, /assistant:true/); assert.match(denied.error, /Broader turn permissions do not enable/);
     }
+    const manage = async (args: unknown) => {
+      const response: any = await connection.client.request("fixture/tool", { threadId: restricted.id, tool: "manage_plugins", arguments: args });
+      return { success: response.result.success, ...JSON.parse(response.result.contentItems[0].text) };
+    };
+    for (const action of ["list", "validate", "settings"]) {
+      const result = await manage(action === "list" ? { action } : action === "validate" ? { action, directory } : { action, id: manifest.id });
+      assert.equal(result.success, true);
+    }
+    for (const args of [
+      { action: "disable", id: manifest.id }, { action: "reload", id: manifest.id },
+      { action: "enable", id: manifest.id }, { action: "unregister", id: manifest.id },
+      { action: "settings", id: manifest.id, settings: {} }, { action: "register", directory },
+      { action: "trust", id: manifest.id, registrationId: (await host.list())[0]!.registrationId },
+      { action: "scaffold", id: "local.readonly" },
+    ]) {
+      const denied = await manage(args);
+      assert.equal(denied.success, false, args.action);
+      assert.equal(denied.activity.outcome, "failure");
+      assert.match(denied.error, new RegExp(args.action));
+      assert.match(denied.error, /Opened folders.*Full access/);
+    }
     const redacted = await invoke("fixture.lookup.read", { mode: "success" }, restricted.id);
     assert.deepEqual(redacted.result, ["output-only-marker", "[secret]"]);
     await connection.client.request("fixture/finish", { threadId: restricted.id });

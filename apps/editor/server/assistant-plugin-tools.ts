@@ -60,6 +60,12 @@ export async function executePluginTool(host: PluginHost, input: unknown, activi
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid plugin management input");
   const { action, ...args } = input as Record<string, any>;
   if (!["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"].includes(action) || Object.keys(args).some(key => !["template", "id", "directory", "digest", "registrationId", "trust", "settings"].includes(key))) throw new Error("Invalid plugin management action");
+  const writes = !["list", "validate"].includes(action) && !(action === "settings" && args.settings === undefined);
+  if (writes && scope?.permissionMode === "read-only") {
+    const entry = { action, id: args.id, outcome: "failure" as const };
+    activity(entry);
+    return { error: `Plugin management action ${action} is blocked in read-only turns. Switch to Opened folders or Full access to change plugins.`, activity: entry };
+  }
   try {
     let creationScope = scope?.folders;
     if (action === "scaffold") {
