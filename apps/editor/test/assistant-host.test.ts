@@ -38,6 +38,7 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
   t.after(async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); rmSync(root, { recursive: true, force: true }); });
   const settings = { ...await host.invoke("settings"), model: "gpt-6.1-sol", reasoningEffort: "high" };
   const put = (value: unknown) => fetch(`${url}/api/assistant/settings`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+  assert.equal(settings.permissionMode, "full-access", "unsaved permission defaults to full access");
   const saved = await put(settings);
   const usage = await fetch(`${url}/api/assistant/diagnostics?provider=codex&summary=account-usage`).then(response => response.json());
   assert.equal(usage.account.email, "fixture@example.invalid");

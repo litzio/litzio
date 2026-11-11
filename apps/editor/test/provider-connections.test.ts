@@ -865,17 +865,19 @@ test("display requests report absent windows, expire honestly, cancel and reject
 });
 
 
-test("Codex requirements disable full access; policy rejection preserves history and permits retry", async t => {
+test("Codex requirements disable full access; policy rejection retries once before execution and remembers reduced access", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-policy-"));
   const connection = new ProviderConnections(root, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const original = connection.client.request.bind(connection.client);
   let discovery = true;
+  const policies: string[] = [];
   t.mock.method(connection.client, "request", async (method: string, params?: any) => {
     if (method === "configRequirements/read") {
       if (!discovery) throw new Error("Method not found");
       return { requirements: { allowedSandboxModes: ["read-only", "workspace-write"] } };
     }
+    if (method === "turn/start") policies.push(params.sandboxPolicy.type);
     if (method === "turn/start" && params.sandboxPolicy.type === "dangerFullAccess") throw new Error("invalid thread settings override: invalid value for sandbox_mode: DangerFullAccess is not in the allowed set [ReadOnly, WorkspaceWrite] (set by enterprise-managed requirements private-organization)");
     return original(method, params);
   });
@@ -888,9 +890,17 @@ test("Codex requirements disable full access; policy rejection preserves history
   const conversation = await conversations.send(input, settings);
   await conversations.interrupt(conversation.id);
   const before = conversation.turns.length;
-  await assert.rejects(conversations.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings), { message: "Your organization does not allow Full access. Choose Opened folders or Read-only and send again." });
-  assert.equal(conversations.current(conversation.id).turns.length, before);
-  const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
+  const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings);
   assert.equal(retry.id, conversation.id);
-  assert.equal(retry.turns.at(-1)!.status, "inProgress");
+  assert.equal(retry.turns.length, before + 1, "only the admitted retry creates a turn");
+  assert.equal(retry.permissionMode, "opened-folders");
+  assert.equal(retry.permissionFallback, true);
+  assert.deepEqual(policies, ["workspaceWrite", "dangerFullAccess", "workspaceWrite"]);
+  await conversations.interrupt(retry.id);
+  const restored = await new AssistantConversations(connection, null).resume(retry.id, { ...settings, permissionMode: "full-access" });
+  assert.equal(restored.permissionMode, "opened-folders");
+  assert.equal(restored.permissionFallback, true);
+  await conversations.send({ ...input, id: restored.id }, { ...settings, permissionMode: "full-access" });
+  assert.equal(policies.at(-1), "workspaceWrite", "next turn does not repeat the rejection");
+
 });

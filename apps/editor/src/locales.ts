@@ -389,6 +389,7 @@ export const en = {
   "Save the document before saving it as a template.": "Save the document before saving it as a template.",
 
   "max": "max",
+  "Full access is not allowed in this environment. Continuing with Opened folders.": "Full access is not allowed in this environment. Continuing with Opened folders.",
   "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.": "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.",
   "Write access": "Permission mode",
   "Read-only": "Read-only",
@@ -1750,6 +1751,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Save the document before saving it as a template.": "템플릿으로 저장하려면 먼저 문서를 저장하세요.",
 
   "max": "최대",
+  "Full access is not allowed in this environment. Continuing with Opened folders.": "이 환경에서는 전체 접근이 허용되지 않아 열린 폴더로 진행함",
   "Your organization does not allow Full access. Choose Opened folders or Read-only and send again.": "조직 정책으로 전체 접근을 사용할 수 없습니다. 열린 폴더 또는 읽기 전용을 선택하고 다시 보내세요.",
   "Write access": "권한 모드",
   "Read-only": "읽기 전용",

@@ -165,12 +165,12 @@ export class AssistantConversations {
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
   private save(conversation: AssistantConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider, permissionMode } = conversation;
+    const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback } = conversation;
     const questions = conversation.turns.flatMap(turn => turn.items.filter(item => item.question).map(item => ({ itemId: item.id, text: item.text, question: item.question! })));
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}),
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}),
         ...(questions.length ? { questions } : {}),
         ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
@@ -357,10 +357,23 @@ export class AssistantConversations {
           const directory = this.plugins.authoringPath();
           if (directory) writableRoots.push(directory);
         }
-        const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
+        const start = () => this.connection.client.request("turn/start", { threadId: conversation!.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots,
             networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
+        let result;
+        try { result = await start(); }
+        catch (error) {
+          // This explicit configuration rejection means the turn was not admitted.
+          if (settings.permissionMode !== "full-access" || !fullAccessRejected((error as Error).message) || conversation.turns.some(turn => turn.status === "inProgress")) throw error;
+          settings = { ...settings, permissionMode: "opened-folders" };
+          conversation.permissionMode = "opened-folders";
+          conversation.permissionFallback = true;
+          const scope = this.scopes.get(conversation.id); if (scope) scope.permissionMode = "opened-folders";
+          if (this.plugins) { const directory = this.plugins.authoringPath(); if (directory) writableRoots.push(directory); }
+          this.save(conversation);
+          result = await start();
+        }
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
       }
@@ -833,8 +846,11 @@ function checkedReferences(value: string[], folders: string[], access: FileAcces
   return references;
 }
 
+function fullAccessRejected(message: string): boolean {
+  return /invalid.*sandbox_mode.*DangerFullAccess.*not in the allowed set/s.test(message);
+}
 function permissionError(message: string): string {
-  return /invalid.*sandbox_mode.*DangerFullAccess.*not in the allowed set/s.test(message)
+  return fullAccessRejected(message)
     ? "Your organization does not allow Full access. Choose Opened folders or Read-only and send again."
     : message;
 }

@@ -1145,7 +1145,7 @@ full-access; no migration of earlier saved settings is included.
 
 UI uses the shared SettingsSelect for provider/model/effort/language/permission mode.
 Providers have no enable switches; all defaults save automatically. Permission mode defaults to
-opened-folders and also offers read-only and Full access. A shared hover/keyboard-focus Tooltip description
+full-access (only absent saved values; saved settings stay unchanged) and also offers read-only and opened-folders. A shared hover/keyboard-focus Tooltip description
 explains each permission mode and the Copilot containment limitation; Full access removes the Codex sandbox and automatically approves tools,
 paths and network access; no permanent warning is shown. Codex full-access turns use
 `sandboxPolicy: {type:"dangerFullAccess"}` and `approvalPolicy:"never"`; steering keeps
@@ -1444,8 +1444,7 @@ The Codex model catalog reads the official `configRequirements/read` request and
 whether `allowedSandboxModes` permits `danger-full-access`; no organization identifiers are returned.
 Settings and composer disable Full access with a reason in the existing permission Tooltip.
 Servers that report an unsupported method keep the choice available. A turn-start rejection
-for DangerFullAccess outside the allowed sandbox set is replaced with a plain organization-policy
-message advising Opened folders or Read-only. No automatic retry or policy override occurs.
+for DangerFullAccess outside the allowed sandbox set retries once with opened-folders, only after an explicit turn/start RPC rejection before execution with no active turn. Transport failures and execution errors are never retried. The conversation remembers opened-folders, including resume; global settings remain unchanged. The panel shows the status with a hover/focus explanation.
 A rejected submission retains its message row with an explicit Restore to input action; existing conversation history remains available.
 Requirements can change after discovery; the turn rejection remains authoritative.
 
@@ -2053,3 +2052,5 @@ Verification layers: Host tests protect persistence, permission refusal, hidden 
 `litzio assistant delete <id> --host <origin>` calls the Host conversation deletion action; it refuses active turns, removes pending copies and the Host index entry, and does not delete provider-owned history.
 
 Visual review uses the existing task-tab, Button and comparison patterns without a common-interaction exception: [1440px before](assets/assistant-changes-1494/before-1440.png), [pending card](assets/assistant-changes-1494/pending-1440.png), [1440px comparison](assets/assistant-changes-1494/compare-1440.png), [640px Korean dark](assets/assistant-changes-1494/compare-640-ko-dark.png). Captures use synthetic document/provider data; the local Host identity is masked. Controls, wrapping, comparison scrolling and narrow overlay return were checked. The new browser scenario is registered in the stable suite and fixture selection. Host/CLI tests own disk revision and persistence defects; browser coverage owns tab admission, unsaved-editor refusal and Discard, without duplicating disk fault combinations or introducing extra subprocesses. Targeted Host/provider/fixture tests completed in 14 seconds; the browser capture run completed in 19 seconds. No paid AI call or packaged Desktop validation was run locally.
+
+With default full-access, shell access can modify originals. Waiting for human [Apply] is an instruction contract, not technical shell containment.
