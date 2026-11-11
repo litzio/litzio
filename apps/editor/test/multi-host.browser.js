@@ -177,8 +177,8 @@ async (page, { brand, expect, screenshots, recoveryRecords, showNotifications })
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   await expect(accountRow).toBeFocused();
-  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText("Local · Run as: WORKSTATION\\local-user");
-  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText("This Host performs file operations and assistant execution with this account's permissions.");
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toContainText("Local · Run as: WORKSTATION\\local-user");
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toContainText("This Host performs file operations and assistant execution with this account's permissions.");
   await page.keyboard.press('Tab');
   await expect(page.locator('[data-slot="tooltip-content"]')).toBeHidden();
   if (screenshots) await page.screenshot({ path: 'tmp/1199-run-as-local-640.png' });
