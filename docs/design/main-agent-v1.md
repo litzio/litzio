@@ -52,6 +52,8 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 - `unavailable`: 대상·플러그인 목록이나 원래 창의 화면 상태를 안전하게 재조회하고 가능한 공식 경로를 찾는다.
 - `uncertain`: 쓰기를 자동 재실행하지 않는다. 검수는 기존 requestId로 `read_review_request_status`, 플러그인 job은 `job-status`부터 조회한다. 상태 도구가 없는 사본 편집은 사본을 다시 inspect하고 결과를 대조한다. 상태 미발견은 무쓰기 증거가 아니다.
 
+화면 조작의 기존 최상위 `outcome`도 같은 실패 receipt/errorKind로 매핑한다. `completed`와 `remaining`은 보존하고 충돌·불확실 결과는 `read_screen_context`로 현재 창을 대조한다. 기존 미저장 확인은 사람 결정으로 남으며, 화면 조작 timeout/취소를 성공으로 반환하거나 자동 재실행하지 않는다.
+
 `recovery`는 action, 가능한 tool/arguments, 필요한 requestId와 행동 설명을 담는다. 안전한 읽기·입력 수정·충돌 재분석은 사용자 확인 없이 비서가 수행한다. 알 수 없는 쓰기 예외는 uncertain으로 보수적으로 공개한다. 이 분류는 비서 결과 전달 계약이며 공용 CLI 작업이나 Core 의미를 새로 구현하지 않는다. 실제 모델 수락 근거와 미확인 범위는 PR에 따로 기록한다.
 
 ## 비서 뷰 기능 제거 (#1341, 2026-11-09)
@@ -505,6 +507,14 @@ Codex dynamic tools and Copilot HTTP MCP expose the same `read_screen_context` d
 The window supplies its focused group's active tab (or null), all opened tabs and opened folders with Host identities. Tab metadata includes kind, title, Host, path/target where applicable, and unsaved flag. Kinds cover native document, text, PDF, review, comparison, staged comparison, plugin screen, plugin jobs, settings and template gallery. App-wide settings have no document Host (null). No unsaved body, selection, plugin inputs or result contents are supplied. Paths on another Host remain metadata, never an access grant. The existing per-message saved document path context remains; a null document directs the assistant to query screen metadata rather than assume a document is active.
 
 This read is autonomous and provides no UI manipulation. It is Editor-specific tab/focus context, excluded from CLI parity under AGENTS.md and ADR-0015; no CLI command is added. Copilot MCP uses the same Host dispatch and originating-window identity; an absent window fails explicitly instead of inventing screen state. The assistant uses the existing generic tool activity surface; no new visual component or layout exception is introduced.
+
+### Concrete screen actions (#1500 stage 3)
+
+`close_tabs` accepts `tabIds` (one or more IDs from `read_screen_context`, or `"all"`); `open_folder` accepts `hostId` and `path`; `close_folders` accepts `folders` (Host/path pairs, or `"all"`). These provider-neutral definitions join the same Host dynamic tool array as screen reads. They only affect the sending window, never another window, and need no extra permission-mode confirmation. They are reversible Editor interactions, exempt from CLI parity under AGENTS.md / ADR-0015. No generic UI executor is provided.
+
+The window rechecks live tab IDs, unsaved editor state and operation guards, using the existing tab-close confirmation flow. A dirty tab remains pending human confirmation; bulk close stops initiating closes after that confirmation opens. Folder actions use existing local/remote folder opening and closing functions and Host access rules; closing folders leaves document tabs intact. Screen reads include the connected remote explorers' opened roots as well as local roots.
+
+Results contain `outcome`, `completed` targets and `remaining` targets with reasons. Outcomes are `success`, `invalid_input`, `conflict`, `forbidden`, `unavailable`, or `uncertain`; missing/busy tabs and pending unsaved confirmation are conflicts. Opening failures retain the existing path's error reason as unavailable. No persistent receipt or document write is created. Host keeps only in-flight requests, verifies conversation/window ownership, and expires requests after 10 seconds. Timeout, cancellation and lost responses are uncertain: inspect screen state before deciding a next action. The window caches replies by request ID so a lost acknowledgement cannot execute the action twice. Existing generic tool activity is the only UI surface; no layout or visual exception is added. Codex dynamic tools and Copilot HTTP MCP use the same `tools` array and `executeTool` dispatch (#1509), including all three screen actions. Both capture the admitted turn's `displayClient`; the window executes the same App handler and rechecks live targets and unsaved state, regardless of provider. ACP end/disconnect cancels only its conversations' pending actions; an unrelated Codex disconnect does not cancel Copilot actions. Fake ACP plus the SDK MCP client verify definition parity, action forwarding, originating-window isolation, conflict result preservation, absent-window classification and end-of-turn cancellation without any real Copilot call.
 
 ## Document tools (#931 implementation 2, PR 1)
 

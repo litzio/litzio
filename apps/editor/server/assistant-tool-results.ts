@@ -25,6 +25,8 @@ function readOnly(call: HostToolCall) {
 }
 export function assistantToolValue(value: any, call: HostToolCall): any {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const screenAction = ["close_tabs","open_folder","close_folders"].includes(call.tool);
+  if (screenAction && kinds.includes(value.outcome)) value = {...value,errorKind:value.outcome};
   const receipt = value.receipt ?? value.result?.receipt;
   if (value.state === "unknown" && call.tool === "read_review_request_status") value = {...value,errorKind:"uncertain"};
   if (!value.error && !value.errorKind && !["failure", "uncertain"].includes(receipt?.outcome)) return value;
@@ -48,6 +50,8 @@ export function assistantToolValue(value: any, call: HostToolCall): any {
   if (errorKind === "uncertain") recovery = {action:"observe", ...(requestId ? {requestId} : {}),
     ...(call.tool.includes("review") && requestId ? {tool:"read_review_request_status",arguments:{path:args.path,requestId}} : call.tool === "plugin_jobs" && requestId ? {tool:"plugin_jobs",arguments:{action:"job-status",requestId}} : call.tool === "edit_staged_document" ? {tool:"inspect_staged_document",arguments:{change:args.change}} : call.tool === "manage_plugins" ? {tool:"manage_plugins",arguments:{action:"list"}} : call.tool === "create_document" ? {tool:"read_document",arguments:{path:args.path}} : {}),
     instruction:"Do not replay the write. Query the existing requestId first when available; otherwise inspect the current target/result and reconcile it before proposing any new write. Missing status is not proof that nothing was written."};
+  if (screenAction && ["conflict","unavailable","uncertain"].includes(errorKind)) recovery = {action:errorKind === "uncertain" ? "observe" : "reread",tool:"read_screen_context",arguments:{},instruction:"Read the originating window's current state and reconcile completed/remaining targets. Never replay an uncertain action or dismiss unsaved-edit confirmation. Ask the user only for the remaining human decision."};
+  if (screenAction && errorKind === "forbidden") recovery = {action:"request_permission",tool:"read_screen_context",arguments:{},instruction:"Inspect remaining reasons and request the required window confirmation or Host/path access. Do not bypass unsaved-edit confirmation or change assistant permissions yourself."};
   return {...value, errorKind, receipt:{...receipt,outcome:errorKind === "uncertain" ? "uncertain" : "failure"}, recovery};
 }
 export function assistantToolResult(result: HostToolResult, call: HostToolCall): HostToolResult {

@@ -451,6 +451,17 @@ test("provider-neutral tool failures expose executable recovery without replayin
     const result:any=await connection.client.toolCall!({threadId:"one",turnId:"turn",callId:"call",tool,arguments:args});
     return {success:result.success,...JSON.parse(result.contentItems[0].text)};
   };
+  const badAction=await invoke("close_tabs",{});
+  assert.equal(badAction.success,false);assert.equal(badAction.errorKind,"invalid_input");
+  const noWindow=await invoke("close_tabs",{tabIds:"all"});
+  assert.equal(noWindow.errorKind,"unavailable");assert.equal(noWindow.recovery.tool,"read_screen_context");
+  const {AgentScreenActionRequests}=await import("../server/assistant-screen-action-tools.ts");
+  history.screenActions=new AgentScreenActionRequests(1);
+  (scope as any).displayClient="window";
+  const timedOut=await invoke("close_tabs",{tabIds:"all"});
+  assert.equal(timedOut.success,false);assert.equal(timedOut.errorKind,"uncertain");
+  assert.equal(timedOut.recovery.tool,"read_screen_context");assert.deepEqual(timedOut.completed,[]);
+  assert.equal(timedOut.remaining.length,1);delete (scope as any).displayClient;
   const invalid=await invoke("read_document",{path:"relative"});
   assert.equal(invalid.errorKind,"invalid_input");assert.equal(invalid.recovery.action,"correct_input");
   const staged=await invoke("stage_document",{path:original});
