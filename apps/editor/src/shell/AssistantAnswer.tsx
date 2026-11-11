@@ -4,14 +4,17 @@ import { useTranslation } from "react-i18next";
 import { CopyButton } from "../components/CopyButton.tsx";
 import { renderAssistantMarkdown } from "../plain-markdown.ts";
 import { openExternalLink } from "../link-opening.ts";
+import { useAssistantText } from "./useAssistantText.ts";
 
-export function AssistantAnswer({ source }: { source: string }) {
+export function AssistantAnswer({ source, streaming = false, onLayout }: { source: string; streaming?: boolean; onLayout?: () => void }) {
   const { t } = useTranslation();
   const scope = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const html = useMemo(() => renderAssistantMarkdown(source, scope), [source, scope]);
+  const displayed = useAssistantText(source, streaming);
+  const html = useMemo(() => renderAssistantMarkdown(displayed, scope), [displayed, scope]);
   const body = useRef<HTMLDivElement>(null);
   const [blocks, setBlocks] = useState<HTMLElement[]>([]);
   useLayoutEffect(() => { setBlocks(Array.from(body.current!.querySelectorAll<HTMLElement>(".code-block"))); }, [html]);
+  useLayoutEffect(() => { onLayout?.(); }, [html, onLayout]);
   return <div className="assistant-answer">
     <div ref={body} className="assistant-markdown" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
       const anchor = event.target instanceof Element ? event.target.closest("a") : null;

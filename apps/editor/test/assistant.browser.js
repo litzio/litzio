@@ -199,7 +199,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(await editor.evaluate(el => el.editor.getJSON().content.find(node => node.type === 'paragraph').content.at(-1).type)).toBe('hardBreak');
   const submittedAnswers = [];
   const sent = [], conversations = new Map(), receipts = new Map();
-  let screenRequest, screenReply;
+  let screenRequest, screenReply, screenReplyGate;
   let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
   let resumeFailure = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
@@ -212,7 +212,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
-      if (body.action === 'screen-result') { screenReply = body.reply; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
+      if (body.action === 'screen-result') { screenReply = body.reply; await screenReplyGate; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
       if (body.action === 'display-result') {
         displayReply = body.reply; displayRequest = undefined;
         if (displayResolve) { displayResolve(body.reply); displayResolve = undefined; }
@@ -262,13 +262,15 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (body.action === 'send') {
         const item = selected.turns.flatMap(turn => turn.items).find(item => item.submissionId === body.submissionId);
         const result = { submission: { id: body.submissionId, status: 'accepted', conversationId: selected.id, itemId: item.id }, conversation: selected };
+        if (body.message === 'Accepted before observation') result.conversation = { ...selected, turns: selected.turns.map(turn => ({ ...turn, items: turn.items.filter(item => item.submissionId !== body.submissionId) })) };
         receipts.set(body.submissionId, result);
         if (body.message === 'Uncertain first') {
           lostResult = result; receipts.set(body.submissionId, { submission: { id: body.submissionId, status: 'unknown' } });
           return route.fulfill({ status: 503, json: { error: 'Fixture response lost' } });
         }
+        const reply = sendReplyGate ? JSON.parse(JSON.stringify(result)) : result;
         await sendReplyGate;
-        return route.fulfill({ json: result });
+        return route.fulfill({ json: reply });
       }
       return route.fulfill({ json: selected });
     }
@@ -482,7 +484,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   await expect(message).toBeEnabled();
   await expect(message).toHaveValue('New draft during send');
+  selected.turns[0].items.find(item => item.kind === 'assistant').text += ' with newer output';
+  await expect(panel.locator('.assistant-markdown')).toContainText('with newer output');
+  await panel.evaluate(el => { window.postRewound = false; window.postObserver = new MutationObserver(() => {
+    if (el.querySelector('.assistant-markdown')?.textContent.trim() === 'Partial answer') window.postRewound = true;
+  }); window.postObserver.observe(el, {subtree:true,childList:true,characterData:true}); });
+  const firstPostReply = page.waitForResponse(response => response.request().method() === 'POST' && response.request().postDataJSON()?.action === 'send');
   releaseSendReply(); sendReplyGate = undefined;
+  await (await firstPostReply).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await page.evaluate(() => window.postRewound)).toBe(false);
+  await page.evaluate(() => window.postObserver.disconnect());
   await expect(message).toHaveValue('New draft during send');
   await message.fill('');
   await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
@@ -639,8 +651,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   if (await existingJump.isVisible()) await existingJump.click();
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   progressTool.status = 'completed';
-  const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation.\n\n'.repeat(65) };
+  const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation. 👨‍👩‍👧‍👦\n\n'.repeat(65) };
+  // Output must advance while a window acknowledgement is still in flight.
+  let releaseScreenReply;
+  screenReplyGate = new Promise(resolve => { releaseScreenReply = resolve; });
+  screenRequest = { id: 'slow-screen-ack', validForMs: 10000 };
+  await expect.poll(() => screenReply?.activeTab).toBeTruthy();
+  await steps.evaluate(el => { window.smoothSteps = el; window.smoothText = []; window.smoothObserver = new MutationObserver(() => {
+    const text = el.parentElement?.querySelector('.assistant-markdown')?.textContent ?? '';
+    if (text && window.smoothText.at(-1) !== text) window.smoothText.push(text);
+  }); window.smoothObserver.observe(el.parentElement, { childList: true, characterData: true, subtree: true }); });
   progressTurn.items.push(progressAnswer);
+  await expect(panel.locator('.assistant-markdown').first()).toContainText('More explanation.');
+  expect(await steps.evaluate(el => el === window.smoothSteps)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.smoothText.length)).toBeGreaterThan(1);
+  expect(await page.evaluate(() => window.smoothText.every(text => !/[👨👩👧👦\u200d]/u.test(text.replaceAll('👨‍👩‍👧‍👦', ''))))).toBe(true);
+  await page.evaluate(() => window.smoothObserver.disconnect());
+  releaseScreenReply(); screenReplyGate = undefined;
   await expect(steps.locator('summary')).toHaveText('Writing answer…');
   await expect.poll(() => steps.evaluate(el => { const answers = el.parentElement.querySelectorAll('.assistant-answer'); return answers.length > 0 && [...answers].every(answer => !!(answer.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)); })).toBe(true);
   await expect(steps).not.toHaveAttribute('open');
@@ -1392,6 +1419,26 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     await page.getByRole('button', { name: '설정', exact: true }).click();
   }
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  // Admission is already known even when the provider's user row is late (#1522).
+  await page.getByRole('button', { name: /^(Settings|설정)$/ }).click();
+  await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
+  if (await panel.getByRole('button', { name: 'Stop response', exact: true }).isVisible()) await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
+  let releaseLateSnapshot, releaseLateReceipt;
+  snapshotGate = new Promise(resolve => { releaseLateSnapshot = resolve; });
+  receiptGate = new Promise(resolve => { releaseLateReceipt = resolve; });
+  await message.fill('Accepted before observation');
+  await message.press('Enter');
+  await expect(panel.locator('.assistant-submission')).toContainText('Accepted before observation');
+  await expect(panel.locator('.assistant-submission-status')).toHaveCount(0);
+  await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(1);
+  expect(sent.filter(value => value.message === 'Accepted before observation').length).toBe(1);
+  releaseLateSnapshot(); snapshotGate = undefined; releaseLateReceipt(); receiptGate = undefined;
+  await expect(panel.locator('.assistant-submission')).toHaveCount(0);
+  await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(1);
+  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   // Restore preferences for the other stable scenarios.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation:local'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };

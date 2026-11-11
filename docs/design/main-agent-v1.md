@@ -410,7 +410,7 @@ fit inside the viewport. The before reproduction used a longer unsaved paragraph
 after captures use a minimal trailing-hard-break fixture and fake answer.
 
 
-A single nonoverlapping 600ms snapshot poll while the tab is visible and the panel
+A single nonoverlapping snapshot poll (100ms target start-to-start during running work or a pending send, 600ms after each idle read) while the tab is visible and the panel
 is open or has ongoing work/input/submission observation (#1424) delivers
 message deltas, tool names/statuses, plans and reasoning **summaries**. Raw
 reasoning content is never included in the UI snapshot. Polling reuses the
@@ -609,7 +609,7 @@ and change receipts. Codex's `item/tool/call` is only its current adapter. The
 Host never reads browser storage or writes a settings file. Each send supplies
 an in-memory window ID generated with `crypto.getRandomValues` (also available
 on non-localhost HTTP); a new turn pins that ID, and steering retains it. The
-existing nonoverlapping visible-panel 600ms snapshot poll supplies this ID and
+existing nonoverlapping visible-panel snapshot poll supplies this ID and
 receives only its pending `displayRequest`. A `display-result` action returns
 validated live before/after values and any application/storage failure. A
 missing originating ID refuses immediately. A closed/hidden panel, hidden tab,
@@ -1594,6 +1594,7 @@ only; Litzio still persists only its conversation index, with content owned by C
 
 Message-local **Failed** rows remain visible with **Restore to input**. Restoration
 is disabled when the current draft has any text or reference, protecting new work.
+Accepted receipts show the ordinary user message immediately, without recovery actions, even before its correlated provider row arrives. Admission does not retire the protected local copy or prove provider-history preservation. Known failed turns still expose recovery actions.
 Unknown/unconfirmed rows retain **Check conversation**, **Restore to input** and
 the available error; failed turns expose these actions beside their user message
 as well as after resume. Restoration only fills a draft and never sends it.
@@ -1615,7 +1616,7 @@ these actions; longer action help is in keyboard-accessible tooltips. The existi
 assistant side panel is the selected surface from the UI decision table; no new panel,
 notification, dialog or common interaction is introduced.
 
-Visible-panel, visible-tab nonoverlapping 600ms polling continues during a pending
+Visible-panel, visible-tab nonoverlapping polling (100ms target during running work or a pending send; 600ms idle) continues during a pending
 send and queries unresolved submissions as well as conversation snapshots. Closing
 or refreshing the panel invalidates outstanding response handlers without cancelling
 the Host turn; reopening reconciles retained submission rows and preserves the new
@@ -1689,7 +1690,7 @@ queue; no speculative approval state is introduced.
 
 Conversation snapshots and #1417 submission receipts remain the source of truth.
 Closing the panel neither invalidates an in-flight send nor creates another poller.
-The same nonoverlapping 600ms observer continues for running work, questions and
+The same nonoverlapping observer (100ms target for running work/pending sends, 600ms idle) continues for running work, questions and
 unresolved submissions while the browser tab is visible and initial setup has admitted the work. Idle
 closed conversations stop polling. Hidden tabs and failed/incomplete setup still
 pause it. Closing a setup refresh retains observation of already-admitted work.
@@ -2168,3 +2169,33 @@ Tables, lists, figures and captions use existing `insert-table`, `insert-list`, 
 Ordinary creation adds `receipt.outcome:success` to its existing path/source/revision/identity receipt. Creation failures use `receipt.outcome:failure|uncertain` and `errorKind:invalid_input|conflict|forbidden|unavailable|uncertain`; existing target is conflict, bad operations are invalid_input, denied scope is forbidden, missing parent is unavailable and unconfirmed I/O is uncertain. Do not replay uncertain writes.
 
 Creation and copy-edit success also report a separate `readiness` array for Figure assets: path, label, source and status `available|missing_or_unreadable|unavailable|unchecked|pending|embedded`. Canonical validity does not establish image existence or decoding. Host document-relative media resolution and access checks determine availability; outside-directory references are unavailable, remote/absolute sources are unchecked, missing/unreadable local files warn without blocking valid document writes, as with CLI check. No image files are generated or copied. Asset checks are point-in-time file checks, not rendered-image verification.
+
+## Smooth assistant output (#1522, #1523)
+
+Snapshot reads apply conversation content before window work or acknowledgements.
+Submission lookups run independently and do not replace an already selected
+conversation's newer snapshot. Each read path is nonoverlapping, including across
+observer restarts. Window work is serialized separately; existing request IDs,
+cached replies, deadlines, visibility and scope invalidation remain authoritative.
+No message is automatically resent. A slow read can exceed the 100ms target;
+reads never overlap to catch up.
+
+The conversation retains the complete received answer. Only an active answer's
+rendered slice is paced, using a roughly 150ms backlog horizon, at most 60Hz,
+and grapheme-safe cuts. Unsupported segmentation renders the complete source.
+Completion, interruption and failure show the exact source immediately; replacement
+text resets pacing and unmount cancels its frame. Copy at turn end uses the complete
+conversation. Existing bottom-follow, reader detachment, turn/item identities and
+work disclosure ownership remain unchanged. The existing panel, Button, Tooltip and
+native details are reused; no new surface or common interaction exception is added.
+This behavior was implemented independently from the observed Paseo behavior;
+Paseo source was not copied. SSE/WebSocket push is outside this change; reconsider
+it separately if remote Host use still shows gaps.
+
+Synthetic fake-Codex 1440px captures (no account or real AI call):
+[accepted before provider observation, before](assets/assistant-smooth-1523/before-1440-light.png),
+[accepted after](assets/assistant-smooth-1523/after-1440-light.png),
+[streamed output, Korean Dark](assets/assistant-smooth-1523/after-1440-dark-ko.png).
+The OS-account footer is masked. Alignment, spacing, clipping and Korean wrapping
+were visually inspected. Existing 640px assertions remain in the assistant browser
+scenario; the panel layout and supported minimum width are unchanged.
