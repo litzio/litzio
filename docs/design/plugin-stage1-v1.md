@@ -246,7 +246,7 @@ Verification #1434: 2026-11-10 — Host 기본 제작 위치의 생성·등록·
 
 - Verification #1425: 2026-11-10 — 비서 app-server fixture와 실제 플러그인 child에서 읽기/연결 확인·권한 거부·출력/secret 경계·활동 재개 복원을 확인했다. 실제 AI 제작·외부 서비스 인증은 미검증.
 
-Codex dynamic tool `invoke_plugin_operation {operation,input}`은 대화가 속한 Host의 활성 manifest를 검사한다. 일반 작업은 `assistant:true`·`effect:read`여야 한다. `contributes.healthCheck`에 연결된 읽기 작업은 `assistant:false`여도 허용한다. 쓰기·비활성·미선언 작업은 거부하며 기존 review/job 전용 dispatcher 제한도 우회하지 않는다. turn의 `opened-folders` 또는 `full-access` 권한이 필요하고 `read-only`에서는 연결 확인과 조회 모두 차단한다. Host 범위 작업이므로 열린 폴더나 Host 주소를 별도로 요구하지 않으며 다른 Host·로컬 CLI로 fallback하지 않는다. Copilot custom dynamic-tool 공급은 추가하지 않는다.
+Codex dynamic tool `invoke_plugin_operation {operation,input}`은 대화가 속한 Host의 활성 manifest를 검사한다. 일반 작업은 `assistant:true`·`effect:read`여야 한다. `contributes.healthCheck`에 연결된 읽기 작업은 `assistant:false`여도 허용한다. 쓰기·비활성·미선언 작업은 거부하며 기존 review/job 전용 dispatcher 제한도 우회하지 않는다. `read-only`를 포함한 모든 turn 권한에서 연결 확인과 선언된 조회를 허용한다(#1500 5단계). 쓰기·비공개 일반 작업은 더 넓은 turn 권한으로도 이 도구에서 허용되지 않으며, 거부 오류는 필요한 선언과 전용 작업 경로를 안내한다. plugin_jobs 시작·중지와 검수 쓰기의 기존 권한 검사는 유지한다. `manage_plugins`는 읽기 전용 turn에서 list·validate·settings 조회만 허용한다. scaffold·register·trust·enable·disable·reload·unregister·settings 변경은 실행 전에 거부하고 오류에 막힌 action과 필요한 Opened folders 또는 Full access 권한을 안내한다. 열린 폴더·전체 접근의 기존 관리 동작은 바꾸지 않는다. 읽기 호출은 Host 관리·job 시작 API를 플러그인 context에 제공하지 않으며 설정은 child에 전달된 값, secret은 해당 플러그인의 읽기 전용 map이다. 다만 신뢰된 child는 OS sandbox가 아니므로 외부 코드가 read 선언을 어기고 직접 파일·네트워크를 쓰는 것을 기술적으로 보장하지 않는다(기존 신뢰 계약). Host 범위 작업이므로 열린 폴더나 Host 주소를 별도로 요구하지 않으며 다른 Host·로컬 CLI로 fallback하지 않는다. Copilot custom dynamic-tool 공급은 추가하지 않는다.
 
 실행은 기존 `PluginHost.invokeOperation`을 재사용하며 CLI `operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`도 같은 공용 실행·출력 검증·secret 제거·receipt를 사용한다. 일반 CLI 권한을 비서 호출 자격과 같게 바꾸지는 않는다. 설정 UI에 저장된 secret은 Host와 해당 플러그인 child 안에만 있고 도구 입력이나 결과에는 제공하지 않는다. 비서는 연결 확인과 실제 조회를 각각 호출하며 성공 데이터·성공한 빈 결과·`errorKind:auth`를 구분할 수 있다. 실패는 아래 고정 오류 분류를 그대로 반환한다.
 
@@ -254,7 +254,7 @@ Codex dynamic tool `invoke_plugin_operation {operation,input}`은 대화가 속�
 
 번들 제작 안내는 CLI 우회 대신 이 도구를 사용하고 읽기 전용 거부를 우회하지 않도록 안내한다. 비교 대상 ID·URL·문서 쌍 등은 재사용 연결 설정이 아니라 작업 입력으로 받는다. 외부 HTTP 상태는 플러그인이 고정 오류 kind로 분류하며 원문 오류나 secret을 넣지 않는다.
 
-기존 Host/비서 app-server fixture에서 도구 노출, 연결 확인, 실제 child 조회·빈 결과·인증 실패, 비공개/쓰기/읽기 전용 거부, 입력·출력 검증과 secret 비노출, 활동의 원문 제외 및 재개 복원을 확인한다. 동적 최상위 키와 객체/배열 안 중첩 키에 실제 secret을 반환하는 child 사례를 추가했고 수정 전 성공 응답으로 통과해 실패하는 것을 먼저 확인했다. 수정 후 provider 전달·활동·재개 대화·오류 어디에도 해당 원문이 없으며 고정 failed 오류만 반환한다. 실제 AI 제작·외부 서비스 인증·패키지 Desktop은 이 fixture의 검증 범위가 아니다.
+기존 Host/비서 app-server fixture에서 도구 노출, 연결 확인, 실제 child 조회·빈 결과·인증 실패, 비공개/쓰기 거부와 읽기 전용 조회 허용, 입력·출력 검증과 secret 비노출, 활동의 원문 제외 및 재개 복원을 확인한다. 동적 최상위 키와 객체/배열 안 중첩 키에 실제 secret을 반환하는 child 사례를 추가했고 수정 전 성공 응답으로 통과해 실패하는 것을 먼저 확인했다. 수정 후 provider 전달·활동·재개 대화·오류 어디에도 해당 원문이 없으며 고정 failed 오류만 반환한다. 실제 AI 제작·외부 서비스 인증·패키지 Desktop은 이 fixture의 검증 범위가 아니다.
 
 ### 제작 템플릿 실행 확인 (#1397)
 
