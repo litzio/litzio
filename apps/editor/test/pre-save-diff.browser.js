@@ -83,11 +83,11 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   check(await visual.locator('[data-visual-change="1"][data-kind="removed"]').count() === 1 && await visual.locator('[data-visual-change="1"][data-kind="added"]').count() === 1, 'Visual must reuse Source deletion/addition states');
   check(JSON.stringify(await visual.locator('.visual-diff-marker').allTextContents()) === JSON.stringify(['−', '+']), 'Changed pair needs textual deletion/addition markers');
   await visual.getByTestId('visual-change-summary').hover();
-  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(/Text, formatting and links:.*Converter Control.*→/);
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toContainText(/Text, formatting and links:.*Converter Control.*→/);
   await dialog().getByRole('button', { name: 'About this comparison', exact: true }).hover();
-  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Historical .bib contents are not preserved');
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toContainText('Historical .bib contents are not preserved');
   await page.mouse.move(0, 0);
-  await expect(page.locator('[data-slot="tooltip-content"]')).toBeHidden();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
   await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('ko'));
   await dialog().getByText('변경 1개', { exact: true }).waitFor();
   check(await visual.getByTestId('visual-change-summary').innerText() === '1 · 텍스트 변경', 'Korean summary must translate');

@@ -1130,8 +1130,7 @@ document path and validated reference paths. It reads saved file content on dema
 unsaved native/text editor content is excluded (#1106). Copilot receives image
 references as paths, without Codex localImage inputs. Native Copilot tools may
 read references. Litzio dynamic document tools/result cards and Codex skill
-selection are not exposed. Existing-document editing remains text suggestions
-only. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
+selection are not exposed. Existing-document editing uses pending copies as described below; Copilot requires full-access for the CLI write path. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
 Only read/edit requests carrying absolute paths inside those folders and Host
@@ -2040,3 +2039,25 @@ The existing question tool accepts optional `reviewImage` (estimate input plus e
 이미지 대조 승인 카드는 Host의 구조화된 쪽·대상·예상량 기록을 화면 언어로 표시한다. 선택지는 승인/거절이며 전송 값은 `approve`/`decline`으로 고정한다. 직접 입력은 범위 승인에 해당하지 않아 제공하지 않는다. 계산 방식과 대상 상세는 공통 Tooltip에서 hover·keyboard focus로 읽는다. 실제 사람 답변·estimateHash 검증·렌더 확인과 승인 분리는 유지한다.
 
 같은 합성 질문의 이전 Host payload와 새 구조화 payload를 기존 패널에 표시해 수동 비교했다. 캡처는 패널 영역이며 1440px은 기존 412px 도킹 폭, 640px은 기존 overlay다. 영어 Light [Before](assets/review-labels-1462/before-1440-en-light.png) / [After](assets/review-labels-1462/after-1440-en-light.png), 한국어 Dark [1440 Before](assets/review-labels-1462/before-1440-ko-dark.png) / [After](assets/review-labels-1462/after-1440-ko-dark.png), [640 Before](assets/review-labels-1462/before-640-ko-dark.png) / [After](assets/review-labels-1462/after-640-ko-dark.png)를 확인했다. 기존 Question form·Button·Tooltip을 재사용하며 새 공통 상호작용 예외는 없다. 브라우저 fixture는 두 언어의 표시·키보드 상세 안내·고정 답변 값 전송을 보호하며 실제 AI 검수 품질의 증거는 아니다.
+
+
+### Pending existing-document edits (#1494)
+
+Only an explicit user edit request authorizes editing an existing document. The Assistant starts or finds a conversation-owned pending copy and uses existing Litzio CLI semantic operations (`inspect`, `apply-batch --operations <json-file> --if-revision <revision>`, `check`) on that copy. It never edits the original or applies/discards a pending copy. New documents are still created immediately. Read-only turns cannot create copies. Codex supports opened-folders and full-access. Copilot supports this workflow only in full-access; opened-folders retains shell denial and must explain that the user should select Full access or Codex. No restricted Copilot CLI exception or editing tool is added.
+
+Host receipts live under the Assistant directory, scoped by conversation; copies are hidden `.litzio-change-<uuid>.md` siblings of the original. This keeps copies within opened folder grants and preserves relative images/attachments. The existing hidden-entry filtering omits copies from document lists and Explorer-backed search. Assistant working-directory copies would change the relative asset base and fall outside document roots. Pending records survive Host restart. Deleting a Host conversation removes its copies; provider-owned history is not deleted.
+
+`stage_document({path})` is the minimum Codex start/find tool. It returns the original path, copy path, base revision and change ID. Copilot full-access and terminal continuation use `litzio assistant changes start <conversationId> --path <absolute-path>` through the Host-owned CLI shim. Message context includes conversationId; the shim propagates the selected Host Assistant directory. No assistant apply tool exists.
+
+The shared Host conversation actions are `changes-list`, `changes-start`, `changes-preview`, `changes-apply`, `changes-discard`. Scope is the selected Host and conversation ID; preview/apply/discard also take `change`. Apply requires the preview's `copyRevision` and `diskRevision`; the original must still match the creation revision. The result is an applied path/revision receipt or discarded path receipt. An original or pending-copy change refuses writing and requires refreshed comparison. There is no force overwrite or partial apply.
+
+CLI parity: `litzio assistant changes <list|start|preview|apply|discard> <conversationId> [--path <absolute-original>] [--change <id>] [--copy-revision <hash> --disk-revision <hash>] [--host <origin>]`. Explicit Host uses HTTP with no fallback/replay; local invocation uses the same Host operations/storage. Assistant instructions prohibit self-application; consent remains an instruction contract, as with existing document creation.
+
+Conversation cards show only pending state, target and Review. Review opens an existing task tab with SourceCompare/VisualCompare and Core block comparison, plus whole-document Apply/Discard. Relative assets render using the original path. Apply serializes/validates through Core and uses the common revision-checked file commit. Open editor drafts are preserved; the UI refuses application while that document has unsaved edits, and ordinary external-change detection and Save revision checks remain in force. During an active Assistant turn the Host refuses application/discard. No edit history, partial apply, new permission system or shared editing session is introduced.
+
+Verification layers: Host tests protect persistence, permission refusal, hidden sibling discovery, CLI semantic edits, stale preview/copy and original conflicts. Browser tests protect the pending card, comparison tab, Core visual comparison and unsaved editor guard. These synthetic checks do not claim a live model invocation or Copilot sandbox equivalence.
+
+
+`litzio assistant delete <id> --host <origin>` calls the Host conversation deletion action; it refuses active turns, removes pending copies and the Host index entry, and does not delete provider-owned history.
+
+Visual review uses the existing task-tab, Button and comparison patterns without a common-interaction exception: [1440px before](assets/assistant-changes-1494/before-1440.png), [pending card](assets/assistant-changes-1494/pending-1440.png), [1440px comparison](assets/assistant-changes-1494/compare-1440.png), [640px Korean dark](assets/assistant-changes-1494/compare-640-ko-dark.png). Captures use synthetic document/provider data; the local Host identity is masked. Controls, wrapping, comparison scrolling and narrow overlay return were checked. The new browser scenario is registered in the stable suite and fixture selection. Host/CLI tests own disk revision and persistence defects; browser coverage owns tab admission, unsaved-editor refusal and Discard, without duplicating disk fault combinations or introducing extra subprocesses. Targeted Host/provider/fixture tests completed in 14 seconds; the browser capture run completed in 19 seconds. No paid AI call or packaged Desktop validation was run locally.
