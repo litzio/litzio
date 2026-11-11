@@ -30,6 +30,10 @@ const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional(), inputSuggestions: z.record(z.string(), id).optional(), inputHints: z.record(z.string(), id).optional() });
 const extension = z.string().regex(/^\.[a-z0-9]+$/);
+const skillContribution = z.strictObject({
+  id: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/),
+  directory: z.string().min(1).refine(value => !/[\\:\x00?#]/.test(value) && value.split("/").every(part => !!part && part !== "." && part !== ".."), "Skill directory must stay inside package"),
+});
 const jobFields = { id, title: z.string().min(1), accept: z.array(extension).min(1), start: id, status: id, stop: id };
 const jobContributionSchema = z.discriminatedUnion("resultKind", [
   z.strictObject({ ...jobFields, resultKind: z.literal("native-document"), generatedDocument: id.optional(), comparison: id.optional(), workspace: z.boolean().optional() }),
@@ -44,6 +48,7 @@ export const manifestSchema = z.strictObject({
   publisher: z.strictObject({ id, name: z.string().min(1) }), name: z.string().min(1), description: z.string().default(""),
   version: z.string().refine(v => !!semver.valid(v), "Invalid SemVer"), requiresSdk: z.string().refine(v => !!semver.validRange(v), "Invalid SDK range"), entry: z.string().min(1), icon: z.string().min(1).max(240).optional(),
   contributes: z.strictObject({ healthCheck: id.optional(), operations: z.array(operation).default([]), jobs: z.array(jobContributionSchema).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
+    skills: z.array(skillContribution).refine(skills => new Set(skills.map(skill => skill.id)).size === skills.length, "Duplicate skill ID").default([]),
     dataViews: z.array(z.strictObject({ id, operation: id, version: z.number().int().positive() })).default([]),
     generatedUi: z.array(z.strictObject({ id, catalog: z.string(), schemaVersion: z.number().int().positive() })).default([]),
     views: z.array(z.strictObject({ id, title: z.string().min(1), definition: queryViewSchema })).default([]),
@@ -58,6 +63,7 @@ export type OperationDefinition = z.infer<typeof operation>;
 export function validateManifest(input: unknown): PluginManifest {
   const m = manifestSchema.parse(input);
   if (!supportedSdkVersions.some(version => semver.satisfies(version, m.requiresSdk))) throw new Error("Unsupported SDK range");
+  if (m.contributes.skills.length && !supportedSdkVersions.some(version => semver.gte(version, "0.5.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Assistant skills require SDK 0.5.0 or later in requiresSdk");
   if (/^(?:[a-z]+:|[/\\])/i.test(m.entry) || m.entry.split(/[/\\]/).includes("..")) throw new Error("Entry must stay inside package");
   if (m.icon !== undefined) {
     if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Plugin icons require SDK 0.3.0 or later in requiresSdk");
