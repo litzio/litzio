@@ -1,3 +1,4 @@
+import { AgentScreenRequests } from "../server/assistant-screen-tools.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
@@ -618,7 +619,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_screen_context", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -893,4 +894,31 @@ test("Codex requirements disable full access; policy rejection preserves history
   const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
   assert.equal(retry.id, conversation.id);
   assert.equal(retry.turns.at(-1)!.status, "inProgress");
+});
+
+
+test("screen queries isolate originating windows, omit undeclared data and fail on timeout/cancellation", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const host = new AgentScreenRequests();
+  const activeTab = { id: "settings", kind: "settings" as const, hostId: null, title: "Settings", unsaved: false };
+  const reply = { activeTab, tabs: [activeTab], folders: [{ hostId: "remote", path: "/docs" }] };
+  assert.throws(() => host.execute({}, "thread"), /originating/);
+  assert.throws(() => host.execute({ text: "excluded" }, "thread", "window"), /no arguments/);
+  const result = host.execute({}, "thread", "window");
+  const command = host.snapshot("thread", "window")!;
+  assert.equal(host.snapshot("thread", "other"), undefined);
+  assert.equal(host.snapshot("other-thread", "window"), undefined);
+  assert.throws(() => host.reply("thread", "other", command.id, reply), /another window/);
+  assert.throws(() => host.reply("other-thread", "window", command.id, reply), /another window/);
+  assert.throws(() => host.reply("thread", "window", command.id, { ...reply, activeTab: { ...activeTab, id: "missing" } }), /not open/);
+  const untrusted = { ...reply, tabs: [{ ...activeTab, text: "unsaved private content" }] };
+  host.reply("thread", "window", command.id, untrusted);
+  assert.deepEqual(await result, reply);
+  assert.equal(host.snapshot("thread", "window"), undefined);
+  const timeout = assert.rejects(host.execute({}, "thread", "window"), /did not respond/);
+  const expired = host.snapshot("thread", "window")!;
+  t.mock.timers.tick(10_000); await timeout;
+  assert.throws(() => host.reply("thread", "window", expired.id, reply), /expired/);
+  const cancelled = assert.rejects(host.execute({}, "thread", "window"), /cancelled/);
+  host.cancel("thread"); await cancelled;
 });

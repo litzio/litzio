@@ -473,6 +473,14 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 [#1053](#copilot-conversations-1053).
 
 
+### On-demand screen context (#1500 stage 2)
+
+Codex exposes `read_screen_context` (empty input) to read metadata from the window that sent the admitted turn. It uses the existing conversation/window identity and visible-panel polling path, with a 10-second Host deadline charged for poll transit time. Another window cannot see or satisfy the request. Closed, hidden, disconnected or unresponsive windows fail explicitly; cancellation, turn end and daemon shutdown discard pending requests. Host keeps only in-flight requests, not shared screen state.
+
+The window supplies its focused group's active tab (or null), all opened tabs and opened folders with Host identities. Tab metadata includes kind, title, Host, path/target where applicable, and unsaved flag. Kinds cover native document, text, PDF, review, comparison, staged comparison, plugin screen, plugin jobs, settings and template gallery. App-wide settings have no document Host (null). No unsaved body, selection, plugin inputs or result contents are supplied. Paths on another Host remain metadata, never an access grant. The existing per-message saved document path context remains; a null document directs the assistant to query screen metadata rather than assume a document is active.
+
+This read is autonomous and provides no UI manipulation. It is Editor-specific tab/focus context, excluded from CLI parity under AGENTS.md and ADR-0015; no CLI command is added. Copilot ACP has no screen tool. The assistant uses the existing generic tool activity surface; no new visual component or layout exception is introduced.
+
 ## Document tools (#931 implementation 2, PR 1)
 
 The Host registers document specs, the three [template specs](#template-workflows-936-phase-3) and the two
