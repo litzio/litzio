@@ -1172,7 +1172,7 @@ Read-only permits read/search requests with absolute locations inside those fold
 and Host Roots. Opened-folders also permits location-bearing edit/delete/move and
 other file tools: every source/destination location must pass the same containment
 check, using write resolution for non-read/search tools. Execute remains denied in
-both restricted modes even with inside locations. Native requests without locations
+both restricted modes even with inside locations. Fetch requests carrying file locations also pass this containment check. Native requests without locations
 are refused except fetch (allowed in opened-folders, denied in read-only) and known
 Litzio MCP requests with matching server/tool metadata. A title alone does not grant
 a Host tool hint. Host tool execution independently enforces its admitted scope. The owner-approved `full-access`

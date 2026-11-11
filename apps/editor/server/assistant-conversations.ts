@@ -624,7 +624,7 @@ export class AssistantConversations {
       }
     } catch { allowed = false; }
     const fullAccess = !!scope && !!active && scope.permissionMode === "full-access";
-    const network = !!scope && !!active && scope.permissionMode === "opened-folders" && tool.kind === "fetch";
+    const network = !!scope && !!active && scope.permissionMode === "opened-folders" && tool.kind === "fetch" && !tool.locations?.length;
     const hostTool = !!scope && !!active && tool.kind !== "execute" && this.mcp.permission(request.sessionId, tool.rawInput);
     const option = allowed || network || fullAccess || hostTool ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
     return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } };

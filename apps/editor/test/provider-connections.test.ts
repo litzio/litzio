@@ -80,7 +80,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await assert.rejects(conversations.send({ ...input, id: conversation.id }, settings), /Stop/);
     const request = { sessionId: conversation.id, toolCall: { toolCallId: "write", kind: "edit" as const, locations: [{ path: path.join(root, "new.txt") }] }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "cancelled" } });
-    for (const kind of ["read", "search", "edit", "delete", "move", "execute"] as const) {
+    for (const kind of ["read", "search", "edit", "delete", "move", "execute", "fetch"] as const) {
       const result = connection.copilot.permission!({ ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: log }] } });
       assert.equal(result.outcome.outcome, kind === "read" || kind === "search" ? "selected" : "cancelled", `read-only ${kind}`);
       assert.equal(connection.copilot.permission!({ ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: path.join(root, "..", "outside.txt") }] } }).outcome.outcome, "cancelled", `read-only outside ${kind}`);
@@ -93,7 +93,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "selected", optionId: "once" } });
     writeFileSync(path.join(root, "target.txt"), "move destination fixture");
-    for (const kind of ["read", "search", "edit", "delete", "move", "other"] as const) {
+    for (const kind of ["read", "search", "edit", "delete", "move", "other", "fetch"] as const) {
       const scoped = { ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: log }, { path: path.join(root, "target.txt") }] } };
       assert.equal(connection.copilot.permission!(scoped).outcome.outcome, "selected", `opened-folders ${kind}`);
       assert.equal(connection.copilot.permission!({ ...scoped, toolCall: { ...scoped.toolCall, locations: [...scoped.toolCall.locations, { path: path.join(root, "..", "outside.txt") }] } }).outcome.outcome, "cancelled", `mixed outside locations ${kind}`);
