@@ -62,7 +62,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
   const [provider, setProvider] = useState<"codex" | "copilot">("codex");
-  const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("opened-folders");
+  const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("full-access");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
   const [mode, setMode] = useState("");
@@ -91,7 +91,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         receipt: value.receipt.status === "accepted" && ["pending", "rejected"].includes(result.submission.status) || value.receipt.status === "unknown" && result.submission.status === "pending"
           ? value.receipt : { ...result.submission, ...(value.receipt.turnFailed ? { turnFailed: true } : {}), ...((result.submission.status === "unknown" || value.receipt.turnFailed) && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value);
     });
-    if (result.conversation) { setConversation(result.conversation); rememberConversation(conversationKey, result.conversation.id); }
+    if (result.conversation) { setConversation(result.conversation); setPermissionMode(result.conversation.permissionMode ?? permissionMode); rememberConversation(conversationKey, result.conversation.id); }
   };
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
@@ -563,6 +563,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         </div>)}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Requested edits wait for your review.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
+      {conversation?.permissionFallback ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>{i18n.t("Opened folders")}</TooltipTrigger><TooltipContent>{i18n.t("Full access is not allowed in this environment. Continuing with Opened folders.")}</TooltipContent></Tooltip> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
     </div>
     </div>
