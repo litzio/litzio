@@ -1,3 +1,4 @@
+import type { ScreenInfo, ScreenSnapshot } from "../../shared/assistant-screen.ts";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { hostLabel } from "../host-client.ts";
 import { createAssistantRequest } from "../assistant-api.ts";
@@ -31,6 +32,7 @@ export type AssistantLocalSubmission = { hostId: string; provider: AssistantSett
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+  onScreen(): ScreenInfo;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onReviewChange(hostId: string, conversation: string, change: string, path: string): void;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
@@ -39,7 +41,7 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   reviewWorkspacePath?:string; documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onReviewChange, submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, reviewWorkspacePath, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ onReviewChange, submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, reviewWorkspacePath, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay, onScreen }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -47,6 +49,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const request = createAssistantRequest(client);
   // Match existing editor identities: getRandomValues also works on non-localhost HTTP.
   const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
+  const screenHandler = useRef(onScreen); screenHandler.current = onScreen;
   const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
   const displayReplies = useRef(new Map<string, DisplayReply>());
   const questionAcks = useRef(new Set<string>());
@@ -278,8 +281,11 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
       const id = current.current?.id;
       if (!id || !alive || document.visibilityState !== "visible") { polling = false; schedule(); return; }
       const pollStartedAt = performance.now();
-      try { const next = await request<AssistantConversation & DisplaySnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}${panelOpen.current ? `&displayClient=${encodeURIComponent(displayClient)}` : ""}`);
+      try { const next = await request<AssistantConversation & DisplaySnapshot & ScreenSnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}${panelOpen.current ? `&displayClient=${encodeURIComponent(displayClient)}` : ""}`);
         if (alive && document.visibilityState === "visible") {
+          if (panelOpen.current && next.screenRequest && displayRequestCurrent(next.screenRequest, pollStartedAt)) {
+            await request(ASSISTANT.conversationsRoute, { action: "screen-result", id, displayClient, requestId: next.screenRequest.id, reply: screenHandler.current() });
+          }
           if (panelOpen.current && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
             const command = next.displayRequest;
             // An ACK can be lost; retransmit the reply, never apply the request twice.
