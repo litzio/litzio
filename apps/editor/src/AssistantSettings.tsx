@@ -143,7 +143,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
           <SettingsSelect label={t("Write access")} value={settings?.permissionMode ?? "opened-folders"} disabled={!settings}
             onChange={value => { save({ ...latest.current!, permissionMode: value as AssistantSettings["permissionMode"] }); }}
             options={[{ value: "read-only", label: t("Read-only") }, { value: "opened-folders", label: t("Opened folders") }, { value: "full-access", label: t("Full access"), disabled: defaultModels?.fullAccessAllowed === false }]} />
-        </TooltipTrigger><TooltipContent>{t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.")}{defaultModels?.fullAccessAllowed === false ? ` ${t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : ""}</TooltipContent></Tooltip>
+        </TooltipTrigger><TooltipContent>{t("Full access removes the sandbox and automatically approves tools, paths and network access. Requested document edits wait for review.")}{defaultModels?.fullAccessAllowed === false ? ` ${t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : ""}</TooltipContent></Tooltip>
         <SettingsSelect label={t("AI default language")} value={settings?.responseLanguage ?? "en"} disabled={!settings}
           onChange={value => { save({ ...latest.current!, responseLanguage: value as AssistantSettings["responseLanguage"] }); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
