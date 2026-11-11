@@ -3503,8 +3503,9 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 @media (max-width: 800px) {
   .visual-side-label { display: block; grid-column: 1; grid-row: var(--compare-narrow-row); padding: var(--space-2); font-weight: var(--font-weight-semibold); }
   .visual-comparison-grid { grid-template-columns: minmax(0, 1fr); }
-  .visual-comparison-grid .visual-snapshot-title { grid-column: 1; grid-row: 1; }
-  .visual-comparison-grid .visual-snapshot[data-side="after"] .visual-snapshot-title { grid-row: 3; }
+  .visual-comparison-grid .visual-snapshot[data-shared-title="true"] .document-title-input,
+  .visual-comparison-grid .visual-snapshot-title,
+  .visual-comparison-grid .visual-snapshot[data-side="after"] [data-compare-row][data-kind="context"] { display: none; }
   .visual-comparison-grid .document-editor > [data-compare-row], .visual-block-label, .visual-fold, .visual-diff-marker { grid-column: 1; grid-row: var(--compare-narrow-row); }
 }
 

@@ -19,13 +19,13 @@ class PreviewBoundary extends Component<{ children: ReactNode; fail(reason: stri
   componentDidCatch(error: Error) { this.props.fail(error.message); }
   render() { return this.state.failed ? null : this.props.children; }
 }
-function Snapshot({ document, path, layout, bibliography, recovery, pending }: { document: EditableDocument; path: string; layout: ComparisonLayout; bibliography?: DocumentFileResponse["bibliography"]; recovery: boolean; pending?: boolean }) {
+function Snapshot({ document, path, layout, bibliography, recovery, pending, sharedTitle }: { sharedTitle?: boolean; document: EditableDocument; path: string; layout: ComparisonLayout; bibliography?: DocumentFileResponse["bibliography"]; recovery: boolean; pending?: boolean }) {
   const { slots, foldSlots } = layoutSlots(layout);
   const end = Math.max(-1, ...slots.values(), ...foldSlots.values()) + 1;
   const label = i18n.t(layout.side === "before" ? "Current disk file" : pending ? "Pending changes" : recovery ? "Recovery preview" : "Save preview");
-  return <section style={{ "--compare-end-row": end * 2 + 3, "--compare-narrow-end-row": end * 6 + (layout.side === "before" ? 6 : 8) } as CSSProperties} className="visual-snapshot" data-side={layout.side} aria-label={label}>
+  return <section style={{ "--compare-end-row": end * 2 + 3, "--compare-narrow-end-row": end * 6 + (layout.side === "before" ? 6 : 8) } as CSSProperties} className="visual-snapshot" data-side={layout.side} data-shared-title={sharedTitle} aria-label={label}>
     <div className="visual-snapshot-title">{layout.side === "before" ? "− " : "+ "}{label}</div>
-    {layout.rows.map((row, index) => slots.has(index) && row[layout.side] ? <div key={index} className="visual-side-label"
+    {layout.rows.map((row, index) => slots.has(index) && row.change && row[layout.side] ? <div key={index} className="visual-side-label"
       data-compare-side-label={layout.side} data-compare-label-row={index} style={{ "--compare-narrow-row": slots.get(index)! * 6 + (layout.side === "before" ? 6 : 8) } as CSSProperties}>
       {layout.side === "before" ? "− " : "+ "}{label}
     </div> : null)}
@@ -109,7 +109,7 @@ export default function VisualCompare({ result, client, path, bibliography, reco
         </TooltipTrigger><TooltipContent className="whitespace-pre-wrap break-words">{descriptions[index]}</TooltipContent></Tooltip>
       </div> : null)}
       <Snapshot document={comparison.before} path={path} layout={beforeLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
-      <Snapshot document={comparison.after} path={path} layout={afterLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
+      <Snapshot sharedTitle={comparison.before.title === comparison.after.title} document={comparison.after} path={path} layout={afterLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
     </div></div></PreviewBoundary>
   </HostClientContext.Provider>;
 }
