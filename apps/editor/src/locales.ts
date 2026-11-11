@@ -1659,7 +1659,7 @@ export const ko: Record<keyof typeof en, string> = {
   "The disk file is missing. Use Source comparison.": "디스크 파일이 없습니다. 소스 비교를 사용하세요.",
   "Text sessions use Source comparison.": "텍스트 문서는 소스 비교를 사용합니다.",
   "Comparison view": "비교 보기",
-  "Visual": "Visual",
+  "Visual": "시각적 비교",
   "Visual unavailable: {{reason}}. Use Source comparison.": "Visual 비교를 사용할 수 없습니다: {{reason}}. 소스 비교를 사용하세요.",
   "Visual compares block meaning. Formatting-only source changes appear in Source.": "Visual은 블록 의미를 비교합니다. 소스 서식만 바뀐 경우 소스에서 확인하세요.",
   "Images use current Host files. Historical image bytes are not preserved; past appearance cannot be verified.": "이미지는 현재 Host 파일을 사용합니다. 과거 이미지 bytes가 보존되지 않아 과거 모습을 확인할 수 없습니다.",

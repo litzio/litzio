@@ -187,12 +187,15 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
       }
       return [...rows.values()].filter(row => row.length === 2);
     });
-    check(pairs.length > 0 && pairs.every(pair => width === 640 ? pair[0].y < pair[1].y : Math.abs(pair[0].y - pair[1].y) < 2), 'Recovery corresponding blocks must stay paired');
+    check((width === 640 || pairs.length > 0) && pairs.every(pair => width === 640 ? pair[0].y < pair[1].y : Math.abs(pair[0].y - pair[1].y) < 2), 'Recovery corresponding changed blocks must stay paired');
+    if (width === 640) check(await visual.locator('[data-compare-row][data-kind="context"]').evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).every(node => node.dataset.compareSide === 'before')), 'Narrow recovery must show unchanged context once');
     check(await prompt.evaluate(node => node.scrollWidth <= node.clientWidth), 'Recovery Visual must fit the dialog');
     if (screenshots) for (const theme of ['light', 'dark']) {
       await page.evaluate(async theme => { (await import('/src/theme.ts')).applyTheme(theme, false); await document.fonts.ready; }, theme);
       await visual.evaluate(node => { node.scrollTop = 0; });
+      await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('ko'));
       await page.screenshot({ path: `tmp/296/visual-${width}-${theme}.png` });
+      await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('en'));
     }
   }
   await page.evaluate(async () => (await import('/src/theme.ts')).applyTheme('light', false));

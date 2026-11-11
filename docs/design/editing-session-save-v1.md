@@ -1082,8 +1082,9 @@ Editor engine types stay in apps/editor.
 
 Core decides equality and pairing. Editor maps snapshot-local paths to top-level PM
 node decorations, adds textual descriptions, and lays the two sides out on one grid.
-At widths up to 800px (including 640px), each corresponding before block precedes
-its after block vertically. Wider windows show before/disk left and after/Save right.
+At widths up to 800px (including 640px), each changed before block precedes
+its after block vertically. Unchanged context is displayed once, using the before snapshot;
+folding still retains both full editor states. Wider windows show before/disk left and after/Save right.
 Added/deleted blocks keep an empty counterpart; the UI never re-pairs ambiguous
 Core replacements. Tables, equations, image figures and Mermaid remain whole blocks.
 Previous/Next wraps through Core changes and reveals/focuses the selected changed
@@ -1099,7 +1100,7 @@ releases both preview editors; reopening Visual resets fold/navigation state.
 Descriptions format Core-selected properties from the neutral read models: heading
 level, text/marks/link destinations, image path, equation/Mermaid source and captions.
 Each changed pair has one short shared summary; detailed before/after values use
-the existing Tooltip. Column names appear only in the headers. Before and after
+the existing Tooltip. Above 800px, column names appear only in the headers. At 800px and below, column headers are hidden and each changed block shows its side label directly above its content. Unchanged context has no side label, and identical document titles are displayed once. The Korean Visual choice reads “시각적 비교” (#1499). Before and after
 reuse Source's removed/added surface colors and explicit `−`/`+` markers; navigation
 outlines both corresponding blocks. The change count uses locale plural rules and
 incorporates the current position when there is more than one change.
