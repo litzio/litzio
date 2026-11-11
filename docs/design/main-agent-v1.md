@@ -1680,10 +1680,13 @@ The existing #1424 observer and attention priority are unchanged.
   Changed conversation content adds “New content”; unchanged polls do not. Its
   separate row inside the reading area leaves the composer fixed and does not
   cover transcript content. It never steals keyboard focus.
+- The work disclosure follows all answers, question cards (including the pending
+  question fallback) and result receipts of its turn (#1492). It stays at that
+  turn's latest position while output grows; completed work keeps the same position.
 - Every active response has a collapsed native details summary, even without a
   reasoning item: Thinking, Running tool with its existing tool/target description,
   or Writing answer. A pending question uses the same Needs your attention label
-  as #1424. The summary is one line with overflow ellipsis and a full native title.
+  as #1424. The summary is one line with overflow ellipsis and the full text in a hover/focus Tooltip.
   It exposes status accessibly. Completion/interruption/failure removes the live
   stage; retained work is labelled Work details. No timer or estimated progress.
 - User expansion/collapse survives incoming snapshots and phase changes for that
@@ -1694,6 +1697,18 @@ The existing #1424 observer and attention priority are unchanged.
   remain outside too. Supported user-input transport is unchanged. The Host still
   refuses unsupported approval requests; this change does not add approval support
   or place actionable requests in the process disclosure.
+
+#1492 (2026-11-11) reuses native details/summary and the shared Tooltip;
+no new surface, tokens or Host/CLI operation. Existing assistant browser checks
+assert that answers and pending questions precede work details. Synthetic Host
+captures (no real model call) were visually reviewed for alignment, clipping,
+Korean wrapping and Light/Dark consistency:
+[1440 Light, multiple answers/question](assets/assistant-progress-1492/after-1440-light-latest.png),
+[640 Korean Dark](assets/assistant-progress-1492/after-640-dark-latest.png),
+[1440 Dark tool](assets/assistant-progress-1492/after-1440-dark-tool.png),
+[640 expanded work](assets/assistant-progress-1492/after-640-dark-expanded.png).
+Expansion retains the reader's position; content below the viewport remains
+available by scrolling. [Manual capture script](assets/assistant-progress-1492/capture.browser.js).
 
 ### Reference study and validation
 

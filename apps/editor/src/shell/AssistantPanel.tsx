@@ -486,7 +486,6 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
             {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
           </div>)}
-          <AssistantWorkDetails turn={turn} needsInput={conversation.userInput?.turnId === turn.id} onDisclosure={holdDisclosure} />
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           </div>
@@ -528,6 +527,9 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
                 }}>{i18n.t("Undo display change")}</TooltipTrigger><TooltipContent>{i18n.t("Undo is available in the originating window and Host session while these values are unchanged.")}</TooltipContent></Tooltip></div>
             </div>;
           })}
+          {conversation.userInput?.turnId === turn.id && !turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
+            submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
+          <AssistantWorkDetails turn={turn} needsInput={conversation.userInput?.turnId === turn.id} onDisclosure={holdDisclosure} />
           {turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{i18n.t(turn.error, { defaultValue: turn.error })}</p> : null}
           {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
@@ -539,8 +541,6 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
           <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips references={value.references} /></p>
           {submissionActions(value)}
         </div>)}
-      {!history && conversation?.userInput && !conversation.turns.some(turn => turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId)) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
-        submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
@@ -630,7 +630,7 @@ function AssistantWorkDetails({ turn, needsInput, onDisclosure }: { turn: Assist
   const latest = turn.items.findLast(item => ["assistant", "reasoning", "tool"].includes(item.kind));
   const stage = needsInput ? i18n.t("Needs your attention") : tool ? i18n.t("Running tool: {{target}}", { target: tool.text.replace(/\s+/g, " ") }) : latest?.kind === "assistant" ? i18n.t("Writing answer…") : i18n.t("Thinking…");
   return <details className="assistant-steps" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary onClick={onDisclosure}><span role={active ? "status" : undefined} title={active ? stage : undefined}>{active ? stage : i18n.t("Work details")}</span></summary>
+    <Tooltip><TooltipTrigger render={<summary onClick={onDisclosure} />}><span role={active ? "status" : undefined}>{active ? stage : i18n.t("Work details")}</span></TooltipTrigger><TooltipContent>{i18n.t("Work details")}{active ? ` · ${stage}` : ""}</TooltipContent></Tooltip>
     {details.map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}
   </details>;
 }
