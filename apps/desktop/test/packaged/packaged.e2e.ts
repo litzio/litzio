@@ -290,7 +290,13 @@ test("a .md argument opens; edits save to disk and reopen", async () => {
       await expect.poll(() => app.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe(theme);
       const dark = await app.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors);
       await expect(page.locator("html")).toHaveAttribute("data-theme", dark ? "dark" : "light");
-      const background = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--id-color-canvas").trim());
+      // Chromium 156 preserves short CSS hex tokens (#fff); Electron returns #ffffff.
+      // Compare the parsed opaque color, retaining the exact native appearance contract.
+      const background = await page.evaluate(() => {
+        const context = document.createElement("canvas").getContext("2d")!;
+        context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--id-color-canvas").trim();
+        return context.fillStyle;
+      });
       await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBackgroundColor().toLowerCase())).toBe(background);
       assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), dark ? "dark" : "light");
     }

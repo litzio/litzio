@@ -13,12 +13,19 @@ public static class CaptionScreen {
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hwnd, ref Point point);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     [DllImport("dwmapi.dll")] public static extern int DwmFlush();
 }
 '@
 [void][CaptionScreen]::SetThreadDpiAwarenessContext([IntPtr](-4))
 $hwnd = [IntPtr]([long]::Parse($capture.handle))
-if ([CaptionScreen]::GetForegroundWindow() -ne $hwnd) { throw 'Test window must be foreground for screen pixels' }
+$foreground = [CaptionScreen]::GetForegroundWindow()
+if ($foreground -ne $hwnd) {
+    [uint32]$foregroundProcessId = 0
+    [void][CaptionScreen]::GetWindowThreadProcessId($foreground, [ref]$foregroundProcessId)
+    $foregroundProcess = Get-Process -Id $foregroundProcessId -ErrorAction SilentlyContinue
+    throw "Test window must be foreground for screen pixels; expected=$hwnd actual=$foreground owner=$foregroundProcessId/$($foregroundProcess.ProcessName)"
+}
 $client = New-Object CaptionScreen+Rect
 $origin = New-Object CaptionScreen+Point
 if (-not [CaptionScreen]::GetClientRect($hwnd, [ref]$client) -or
