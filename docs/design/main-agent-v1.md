@@ -2017,3 +2017,9 @@ account; warning and balance deliberately enabled to show those states):
 [Capture procedure](assets/assistant-usage-1453/capture.browser.js) and
 [metadata/hashes](assets/assistant-usage-1453/capture-metadata.json) record fixture
 conditions. Captures exclude unrelated Host identity and local paths.
+
+## Review workspace tools (#1462 stage 5)
+
+Codex registers the common review read/material, source-evidence run, proposal-only storage, inspection, image-estimate/image-read and request-status tools. [The plugin contract](plugin-stage1-v1.md#비서-국소-제안-1462-5단계) defines their inputs, CLI parity and boundaries. Human correction approval/rejection/Undo/completion are not assistant tools or question-card actions.
+
+The existing question tool accepts optional `reviewImage` (estimate input plus estimateHash). Host replaces the model's question with the current scope, counts and estimated input tokens. Only an actual answer to the rendered active card selects that comparison in the existing ledger; accepted:true alone does not. Ordinary provider/native questions and prose cannot create the selection. Decline, expiry and invalid/stale estimates grant no image access. The question index retains this estimate linkage with the existing interaction, without a new approval engine. Actual provider turn usage is recorded in inspection evidence, explicitly without per-image attribution. Copilot custom tool delivery remains unsupported.

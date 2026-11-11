@@ -53,6 +53,7 @@ createInterface({ input: process.stdin }).on("line", line => {
     notify("serverRequest/resolved", params); send({ id, result: {} }); return;
   }
   if (!method) return;
+  if (method === "fixture/token-usage") { notify("thread/tokenUsage/updated", params); send({id,result:{}}); return; }
   if (method === "fixture/usage") {
     usageOverride = params;
     notify(params.notification ?? "account/rateLimits/updated", { rateLimits: params.limits?.rateLimits });

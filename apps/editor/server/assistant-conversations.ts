@@ -1,6 +1,6 @@
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
-import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, reviewImageQuestionSchema, answerReviewImageQuestion, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -67,13 +67,15 @@ export class AssistantConversations {
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
   private questionDisplays = new Map<string, { conversation: string; question: AssistantQuestionRecord; deadline: number; timer?: ReturnType<typeof setTimeout>; resolve?(): void; reject?(error: Error): void }>();
+  private closed = false;
+  private reviewUsageWrites = new Set<Promise<unknown>>();
   private loaded = new Set<string>();
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost, private questionDisplayTimeoutMs = 10_000) {
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
         this.loaded.delete(conversation.id); this.scopes.delete(conversation.id);
-        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
         if (this.expireQuestion(conversation)) this.save(conversation);
       }
     });
@@ -119,6 +121,18 @@ export class AssistantConversations {
           return { ...activity.toolResult };
         }
       }
+      if (reviewAssistantTools.some(tool=>tool.name===params.tool) && this.plugins) {
+        try {
+          const result=await executeReviewAssistantTool(this.plugins,params.tool,params.arguments,scope,active.items.filter(item=>item.id.startsWith("review-image-")).map(item=>JSON.parse(item.toolResult!.contentItems[0]!.text!)));
+          const images=result.images?.filter((image:any)=>image.base64);
+          if(images?.length) {
+            active.items.push({id:`review-image-${params.callId}`,kind:"tool",text:"read_review_images",status:"completed",toolResult:{success:true,contentItems:[{type:"inputText",text:JSON.stringify({input:params.arguments,runId:result.runId,scope:{pages:[params.arguments.pageNo],targets:params.arguments.target?[params.arguments.target]:[]},documentRevision:result.documentRevision})}]}});
+            this.save(this.current(params.threadId));
+            return {success:true,contentItems:[{type:"inputText",text:JSON.stringify({...result,images:images.map(({base64,...image}:any)=>image)})},...images.map((image:any)=>({type:"inputImage",imageUrl:`data:${image.mime};base64,${image.base64}`}))]};
+          }
+          return {success:result.receipt?.outcome!=="failure" && result.receipt?.outcome!=="uncertain",contentItems:[{type:"inputText",text:JSON.stringify(result)}]};
+        } catch(error) {return {success:false,contentItems:[{type:"inputText",text:JSON.stringify({error:String(error)})}]};}
+      }
       const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, entry => {
@@ -139,7 +153,7 @@ export class AssistantConversations {
       this.display.cancel();
       for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
       for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
-        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
         if (this.expireQuestion(conversation)) this.save(conversation);
       }
     });
@@ -305,7 +319,7 @@ export class AssistantConversations {
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [
-            ...documentTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools] : [])] });
+            ...documentTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools, ...reviewAssistantTools] : [])] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
@@ -348,10 +362,22 @@ export class AssistantConversations {
     const result = (accepted: boolean, error?: string) => ({ success: accepted, contentItems: [{ type: "inputText", text: JSON.stringify({ accepted, questionId: `question-${callId}`, ...(error ? { error } : {}) }) }] });
     if (!client) return result(false, "Question cards require a Litzio client. No question was queued.");
     if (typeof callId !== "string" || !callId.trim()) return result(false, "Invalid question call ID.");
-    if (!input || Object.keys(input).some(key => key !== "questions") || !Array.isArray(input.questions) || input.questions.some((q: any) => !q || Object.keys(q).some(key => !["title", "options"].includes(key)))) return result(false, "Invalid question input.");
+    if (!input || Object.keys(input).some(key => !["questions","reviewImage"].includes(key)) || !Array.isArray(input.questions) || input.questions.some((q: any) => !q || Object.keys(q).some(key => !["title", "options"].includes(key)))) return result(false, "Invalid question input.");
+    let reviewImage: AssistantQuestionRecord["reviewImage"];
+    if (input.reviewImage !== undefined) {
+      try {
+        reviewImage=reviewImageQuestionSchema.parse(input.reviewImage);
+        if(!this.plugins)throw new Error("Review Host unavailable");
+        const {estimateHash,...request}=reviewImage!;
+        const estimate=await executeReviewAssistantTool(this.plugins,"estimate_review_images",request,this.scopes.get(conversation.id)!);
+        if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw new Error("Image estimate changed; calculate again");
+        input={...input,questions:[{title:`Image comparison: ${estimate.pageCount} pages, ${estimate.regionCount} regions, estimated input ${estimate.estimatedInputTokens} tokens. Pages: ${request.selection.pages.join(", ")}. Targets: ${request.selection.targets.join(", ") || "whole pages"}. ${estimate.estimation}. Approve this scope?`,options:["Approve image comparison","Decline"]}]};
+      }catch(error){return result(false,String(error));}
+    }
     const item = itemFrom({ type: "agentMessage", id: `question-${callId}`, text: "", delivery: "async", questions: input.questions.map((q: any) => ({ ...q, options: q.options ?? null })) }, "provider-live", turn.id)!;
     const question = item.question!;
     if (question.status !== "pending") return result(false, "Invalid question input.");
+    if(reviewImage)question.reviewImage=reviewImage;
     question.requiresDisplayAck = true;
     turn.items.push(item); this.refreshQuestion(conversation);
     try {
@@ -379,9 +405,12 @@ export class AssistantConversations {
     pending.resolve?.();
     return { acknowledged: true };
   }
-  close() {
+  async close() {
+    for(const conversation of this.conversations.values())for(const turn of conversation.turns)this.saveReviewUsage(conversation,turn);
+    this.closed = true;
     this.display.cancel();
     for (const pending of this.questionDisplays.values()) { clearTimeout(pending.timer); pending.reject?.(new Error("Question display was cancelled.")); }
+    await Promise.allSettled(this.reviewUsageWrites);
   }
   private expireQuestion(conversation: AssistantConversation, turnId?: string, blockingOnly = false) {
     let changed = false;
@@ -419,7 +448,16 @@ export class AssistantConversations {
     question.status = "sending"; question.answers = recordedAnswers(question, answers); this.refreshQuestion(conversation);
     try {
       this.save(conversation);
-      const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
+      const assertActive=()=>{
+        if(!conversation.turns.some(turn=>turn.id===question.turnId && turn.status==="inProgress") || this.scopes.get(conversation.id)?.turnId!==question.turnId)throw new Error("Question expired.");
+      };
+      let reviewImages;
+      if(question.reviewImage && answers["0"]?.answers[0]==="Approve image comparison") {
+        if(!this.plugins)throw new Error("Review Host unavailable");
+        reviewImages=await answerReviewImageQuestion(this.plugins,question.reviewImage,this.scopes.get(conversation.id)!,`conversation:${conversation.id}/question:${question.requestId}`,assertActive);
+      }
+      assertActive();
+      const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ ...(reviewImages?{reviewImages}:{}), requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
       await this.send({ id: conversation.id, message, folders: conversation.folders, model: conversation.model, reasoningEffort: conversation.reasoningEffort },
         { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort }, displayClient);
       question.status = "answered"; this.save(conversation);
@@ -576,6 +614,29 @@ export class AssistantConversations {
       if (update.status) item.status = update.status === "in_progress" ? "inProgress" : update.status;
     }
   }
+  private saveReviewUsage(conversation:AssistantConversation,turn:AssistantConversationTurn) {
+    if(this.closed || !this.plugins)return;
+    const scope=this.scopes.get(conversation.id) ?? {folders:conversation.folders.length?new RootAccess(conversation.folders):null,permissionMode:conversation.permissionMode??"read-only",access:this.access};
+    const inputs=turn.items.filter(item=>item.id.startsWith("review-image-")).flatMap(item=>{
+      const part=item.toolResult!.contentItems[0]!,input=JSON.parse(part.text!);
+      if(!input.providerUsage)return [];
+      const usage=input.providerUsage;delete input.providerUsage;part.text=JSON.stringify(input);
+      return [{input,usage}];
+    });
+    if(!inputs.length)return;
+    const previous=[...this.reviewUsageWrites];
+    const task=(async()=>{
+      await Promise.allSettled(previous);
+      const seen=new Set<string>();
+      for(const {input,usage} of inputs){
+        if(seen.has(input.runId))continue;seen.add(input.runId);
+        try{await recordReviewImageUsage(this.plugins!,input,scope,usage,turn.id);}
+        catch(error){turn.items.push({id:randomUUID(),kind:"tool",text:String(error),status:"failed"});this.save(conversation);}
+      }
+    })();
+    this.reviewUsageWrites.add(task);
+    void task.then(()=>this.reviewUsageWrites.delete(task),()=>this.reviewUsageWrites.delete(task));
+  }
   private notification(method: string, params: any) {
     const conversation = this.conversations.get(params.threadId);
     if (!conversation) return;
@@ -584,7 +645,15 @@ export class AssistantConversations {
       return;
     }
     if (method === "thread/tokenUsage/updated") {
-      conversation.tokenUsage = { used: params.tokenUsage.last.totalTokens, limit: params.tokenUsage.modelContextWindow }; return;
+      conversation.tokenUsage = { used: params.tokenUsage.last.totalTokens, limit: params.tokenUsage.modelContextWindow };
+      const turn=params.turnId ? conversation.turns.find(turn=>turn.id===params.turnId) : [...conversation.turns].reverse().find(turn=>turn.status==="inProgress");
+      for(const item of turn?.items.filter(item=>item.id.startsWith("review-image-"))??[]){
+        const part=item.toolResult!.contentItems[0]!;
+        part.text=JSON.stringify({...JSON.parse(part.text!),providerUsage:params.tokenUsage.last});
+      }
+      // Persist final actual usage after the turn's proposal/inspection writes, not between them.
+      if(turn && turn.status!=="inProgress")this.saveReviewUsage(conversation,turn);
+      return;
     }
     const turnId = params.turnId ?? params.turn?.id;
     if (!turnId) return;
@@ -593,7 +662,7 @@ export class AssistantConversations {
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
-      else { this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
+      else { this.saveReviewUsage(conversation,turn); this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
       if (params.turn.error) turn.error = permissionError(params.turn.error.message);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
@@ -618,6 +687,7 @@ export class AssistantConversations {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
     } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
+    if(method==="error" && !params.willRetry)this.saveReviewUsage(conversation,turn);
     if ((method === "turn/completed" || method === "error" && !params.willRetry) && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }
 }

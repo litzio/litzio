@@ -28,6 +28,7 @@ export type AssistantQuestionRecord = AssistantUserInput & {
   sourceQuestions?: { title: string; options: string[] | null }[];
   answers?: AssistantUserInputAnswers;
   error?: string;
+  reviewImage?: { root:string; workspace:string; plugin:string; job:string; selection:{pages:number[];targets:string[]}; estimateHash:string };
   requiresDisplayAck?: boolean;
   displayed?: boolean;
 };

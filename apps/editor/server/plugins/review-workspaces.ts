@@ -1,4 +1,4 @@
-import { inspectEvidence, evidenceMaterialSchema } from "./review-evidence.ts";
+import { inspectEvidence, evidenceMaterialSchema, renderEvidenceImage } from "./review-evidence.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, statSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -42,13 +42,13 @@ export class ReviewWorkspaces {
     }
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
-    const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
+    const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-material","workspace-image-estimate","workspace-image-read","workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
     if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
     const unsettled = this.unsettled.get(key);
     if (writing && unsettled) throw new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`);
     if (this.busy.has(key)) {
       const current=this.admissions.get(key);
-      if(!writing&&current){await current.done;return this.execute(raw);}
+      if((!writing || input.action==="workspace-image-usage")&&current){await current.done;return this.execute(raw);}
       throw new Error("Workspace operation in progress");
     }
     this.busy.add(key);
@@ -84,7 +84,56 @@ export class ReviewWorkspaces {
         return result(original, before, false);
       }
       if (input.action === "workspace-evidence" && input.mode === "read") { check(); return result(original, before, false); }
+      if (input.action === "workspace-material") {
+        if (!original.snapshot) throw new Error("Current review document required");
+        const material = await call("workspace-review-material", file, {pageNo:input.pageNo});
+        return {material, baseline:before, documentRevision:original.snapshot.documentRevision, contentRevision:original.snapshot.contentRevision, receipt:receipt("success")};
+      }
+      if (input.action === "workspace-image-estimate") {
+        if (!original.snapshot || original.cacheState !== "current" || !original.ledger?.inventory) throw new Error("Current review inventory required");
+        const selection = input.selection, inventory = original.ledger.inventory;
+        if (selection.pages.some(p=>!inventory.pages.includes(p)) || selection.targets.some(t=>!inventory.targets.includes(t))) throw new Error("Unknown image selection");
+        const images: {page:number;target?:string;bbox:number[]}[] = [];
+        let textCharacters = 0;
+        for (const page of selection.pages) {
+          const material:any = await call("workspace-review-material",file,{pageNo:page});
+          textCharacters += JSON.stringify(material).length;
+          if (!selection.targets.length) {
+            const size=material.pageSizes.find((p:any)=>p.page===page);
+            if (!size) throw new Error("Image page unavailable");
+            images.push({page,bbox:[0,0,size.width,size.height]});
+          } else for (const region of material.regions) if (region.page===page && selection.targets.includes(region.target)) images.push(region);
+        }
+        if(images.some(image=>image.bbox.some(n=>!Number.isFinite(n)) || image.bbox[2]!<=image.bbox[0]! || image.bbox[3]!<=image.bbox[1]! || Math.ceil((image.bbox[2]!-image.bbox[0]!)*2)*Math.ceil((image.bbox[3]!-image.bbox[1]!)*2)>16_000_000))throw new Error("Image pixel limit exceeded or invalid region; select a smaller scope");
+        if (!images.length || selection.targets.some(target=>!images.some(image=>image.target===target))) throw new Error("Selection has no image regions");
+        // Model-independent planning heuristic, not billed usage. Include repeated neighboring text conservatively.
+        const estimatedInputTokens = textCharacters + images.reduce((n,image)=>n+85+170*Math.ceil((image.bbox[2]!-image.bbox[0]!)*2/512)*Math.ceil((image.bbox[3]!-image.bbox[1]!)*2/512),0);
+        const estimate = {baseline:before,documentRevision:original.snapshot.documentRevision,contentRevision:original.snapshot.contentRevision,selection,images,
+          pageCount:selection.pages.length,regionCount:images.length,estimatedInputTokens,estimation:"Text characters plus 85+170 per 512px image tile at 2x; heuristic, model-dependent, not billed tokens"};
+        if (JSON.stringify({images,documentRevision:estimate.documentRevision}).length > 8000) throw new Error("Image approval record limit; select a smaller scope");
+        return {...estimate,estimateHash:hash(Buffer.from(JSON.stringify(estimate))),receipt:receipt("success")};
+      }
+      if (input.action === "workspace-image-read") {
+        const run = [...(original.ledger?.comparisons??[])].reverse().find(run=>run.runId===input.runId);
+        const approval = original.ledger?.inspections.find(record=>record.runId===input.runId && (()=>{try{return JSON.parse(record.evidence).format==="review-image-approval-1";}catch{return false;}})());
+        const approved = approval ? JSON.parse(approval.evidence) : null;
+        if (!run?.selected || run.withdrawn || run.contentRevision!==original.snapshot?.contentRevision || approved?.documentRevision!==original.snapshot?.documentRevision) throw new Error("Human image approval required for this document revision");
+        const image = approved.images.find((image:any)=>image.page===input.pageNo && image.target===input.target);
+        if (!image) throw new Error("Image outside human-approved scope");
+        // A target may span several regions; return each approved region, never the containing page.
+        const selected = approved.images.filter((image:any)=>image.page===input.pageNo && image.target===input.target);
+        const material=evidenceMaterialSchema.parse(await call("workspace-evidence-material"));
+        const images=[];
+        for(const image of selected) images.push({...image,...await renderEvidenceImage(material,image.page,image.bbox)});
+        check(); return {runId:input.runId,images,documentRevision:original.snapshot!.documentRevision,receipt:receipt("success")};
+      }
       let evidenceChange: unknown;
+      if(input.action==="workspace-image-usage") {
+        const run=[...(original.ledger?.comparisons??[])].reverse().find(run=>run.runId===input.runId);
+        if(!original.snapshot || original.cacheState!=="current" || !run || input.scope.pages.some(p=>!run.scope.pages.includes(p)) || input.scope.targets.some(t=>!run.scope.targets.includes(t)))throw new Error("Usage requires an existing image run and its scope");
+        evidenceChange={kind:"inspection",comparisons:[],records:[{runId:input.runId,lens:"source-evidence",contentRevision:original.snapshot.contentRevision,scope:input.scope,state:"not-inspected",
+          evidence:JSON.stringify({format:"review-image-usage-1",source:"provider-turn-total-not-per-image",turnId:input.turnId,usage:input.usage})}]};
+      }
       if (input.action === "workspace-evidence" && input.mode === "run") {
         if (!original.snapshot || original.cacheState !== "current") throw new Error("Current workspace document required");
         const material = evidenceMaterialSchema.parse(await call("workspace-evidence-material"));
@@ -154,7 +203,7 @@ export class ReviewWorkspaces {
         ...("change" in input || evidenceChange ? { change: evidenceChange ?? ("change" in input ? input.change : undefined), requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
       if (typeof plan.rejection === "string") throw new Error(plan.rejection);
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
-      const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-evidence" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
+      const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-evidence" || input.action === "workspace-image-usage" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
       if (plan.snapshot) {
         // Providers may update a saved document through SDK Core operations. Never rebuild it from its source format.
         const snapshot = workspaceSnapshotSchema.parse(plan.snapshot);
@@ -219,9 +268,10 @@ function validateSnapshot(snapshot: WorkspaceSnapshot) {
 }
 
 function readEvidence(inspections: {lens:string;runId:string;evidence:string}[]) {
-  const latest = [...inspections].reverse().find(i => i.lens === "source-evidence");
+  const candidate = (i: typeof inspections[number]) => { try { return i.lens === "source-evidence" && JSON.parse(i.evidence).format === "source-evidence-1"; } catch { return false; } };
+  const latest = [...inspections].reverse().find(candidate);
   if (!latest) return null;
-  const parts = inspections.filter(i => i.lens === "source-evidence" && i.runId === latest.runId).map(i => JSON.parse(i.evidence));
+  const parts = inspections.filter(i => candidate(i) && i.runId === latest.runId).map(i => JSON.parse(i.evidence));
   if (parts.some((p,i) => p.format !== "source-evidence-1" || p.part !== i || p.total !== parts.length)) throw new Error("Incomplete source evidence inspection");
   return JSON.parse(parts.map(p => p.data).join(""));
 }

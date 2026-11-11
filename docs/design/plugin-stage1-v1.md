@@ -933,19 +933,19 @@ furniture/footnote로 재분류하지 않는다. 표 중복 점유/미점유 좌
 모든 pictures/tables 배열 항목은 도달 여부·렌즈 결과와 관계없이 requiredChecks에 들어간다.
 supported/unsupported/excluded/furniture와 원본 pages/regions를 제공하고 필수 사람 확인 의무는 제거하지 않는다.
 source-evidence는 required:false, 전체 원본 pages/targets 범위로 선언한다. 4b의 공용 원문 증거 검사는
-`review evidence read|run`으로 실행·조회하고 기존 inspection의 evidence 텍스트에 결과를 저장한다. 비서 계약에는 workspace-lenses를 정의만 하며 AI 연결·실행은 하지 않는다.
+`review evidence read|run`으로 실행·조회하고 기존 inspection의 evidence 텍스트에 결과를 저장한다. 5단계의 Codex 도구가 같은 workspace-lenses 정의로 자료를 읽는다.
 
 publication 결과가 uncertain이면 파일 identity별 Host 잠금을 유지한다. 같은 requestId status를
 조회한 뒤 검증된 workspace read를 해야 잠금이 풀린다. 다른 requestId 쓰기와 자동 재전송은
 거부한다. 재시작 후 unknown은 자동 replay하지 않고 새 파일 읽기/새 baseline으로 이어간다.
 `REVIEW_LEDGER_OPERATIONS`의 비서 계약은 같은 입력 schema와 read/propose/inspection 작업을
-가리키며 approve/reject/Undo/최종 승인은 humanOnly다. 실제 AI adapter 등록·실행은 P5다.
+가리키며 approve/reject/Undo/최종 승인은 humanOnly다. 5단계의 Codex adapter 등록·실행은 아래 비서 국소 제안 절을 따른다.
 
 Docling은 format 4 / record 4 / plugin 0.0.11이다. 원본 PDF·JSON·manifest bytes는 저장 전후 불변이다. ledger는 판단 이력이고 ordered source patches는 없다. 교정 값 배열 expectedBefore/after는 리치오 문서의 현재 값이다. propose 때 provider가 target.before를 해당 Core 대상의 전체 내용에 결합한다. 같은 블록의 다른 필드가 바뀌어도 제안/Undo는 오래됨으로 거부하며 다른 칸·목록 항목은 독립적이다. 글자는 지정 경로의 Core 연산(목록·코드·수식·캡션은 해당 Core 연산), 종류는 convertBlock, 칸은 updateTableCell, 제외는 removeBlock을 쓴다. 원본 병합 칸은 최초 대응의 모든 직사각 grid 위치를 함께 바꾼다. 제외의 before/after 값은 `{excluded,blocks}`이며 blocks는 path를 제외한 Core editable block들이다. 다른 삭제로 경로가 당겨져도 내용이 같으면 제안은 유효하다.
 
 종류 교정은 독립된 문단·제목만 받는다. 독립 블록이 없는 종류 교정은 propose 시 블록 삽입 교정을 안내한다. 4b의 insert는 기준 블록 앞/뒤에 문단 또는 수준 1~6 제목을 Core 연산으로 삽입하며 빠진 머리말 복원에 사용할 수 있다. 삽입 블록은 제안의 원문 증거 영역에만 대응시키고, 증거가 없으면 대응 없음으로 기록한다. 캡션→제목 분리는 계속 미지원이다. 삭제는 모든 뒤 경로를 갱신하되 원본 항목·영역을 보존해 대조에서 대응 문단 없음을 표시한다. Undo는 승인 때 기록한 before로 기존 Core 연산을 실행하고 삭제 복원도 같은 경로 갱신을 사용한다. 한 묶음의 여러 제외는 한 staging 후보에서 모두 검증하고 한 번 교체한다. 중간 대상 실패는 문서·대응·ledger 전체를 보존한다.
 
-실패 페이지는 manifest와 최초 대응, workspace read의 record.failedPages로 제공한다. 대응 geometry가 있는 실패 쪽은 기존 unsupported 영역과 reason으로 표시하며 없는 원본 geometry·이미지는 추측하지 않는다. 원본 그림·표 inventory와 대상별 근거·사람 판단/필수 확인 기록, 동결된 묶음 전이 모델은 유지한다. SDK·Host는 Docling 배열을 해석하지 않는다. 4a의 렌즈·inventory·검사 종류별 검증 범위 계산은 위 현재 계약을 따른다. 공용 원문 증거 후보와 insert의 입력·대응·Undo·검증 경계는 [README 안내](../../community-plugins/docling/README.md#원문-증거-후보와-블록-삽입-교정)와 [4b 구현 기록](docling-review-stage3.md#4b-원문-증거-후보블록-삽입-구현--2026-11-11)을 따른다. 공식 내보내기 표시·보고서 화면·비서·직접 편집·나누기/합치기는 후속 단계다.
+실패 페이지는 manifest와 최초 대응, workspace read의 record.failedPages로 제공한다. 대응 geometry가 있는 실패 쪽은 기존 unsupported 영역과 reason으로 표시하며 없는 원본 geometry·이미지는 추측하지 않는다. 원본 그림·표 inventory와 대상별 근거·사람 판단/필수 확인 기록, 동결된 묶음 전이 모델은 유지한다. SDK·Host는 Docling 배열을 해석하지 않는다. 4a의 렌즈·inventory·검사 종류별 검증 범위 계산은 위 현재 계약을 따른다. 공용 원문 증거 후보와 insert의 입력·대응·Undo·검증 경계는 [README 안내](../../community-plugins/docling/README.md#원문-증거-후보와-블록-삽입-교정)와 [4b 구현 기록](docling-review-stage3.md#4b-원문-증거-후보블록-삽입-구현--2026-11-11)을 따른다. 공식 내보내기 표시·보고서 화면·직접 편집·나누기/합치기는 후속 단계다.
 
 검증 계층·실행 범위와 미확인 조건은 [P2 기록](docling-review-stage3.md#p2-공용-묶음저장-경계)을 따른다.
 
@@ -1013,3 +1013,17 @@ Notice 안 버튼 정렬·줄바꿈, 메뉴 행동·테마 대비와 가로 넘�
 최근 검수 진행률 목록을 추가한 화면이 아니며 기존 작업 목록의 최소 대안을 촬영했다.
 [촬영 정보·파일 해시](assets/compare-entry-1465/verification.json)에 환경과 범위를 남긴다.
 실제 Docling 서비스의 변환 품질·원격 네트워크·설치형 Desktop 수락은 미확인이다.
+
+## 비서 국소 제안 (#1462 5단계)
+
+Codex 비서는 `read_review_document`, `read_review_material`(렌즈·원문 차이 후보·그림/표 필수 확인 목록·묶음·페이지 조각), `run_review_source_evidence`, `propose_review_groups`, `record_review_inspection`, `estimate_review_images`, `read_review_images`, `read_review_request_status`를 등록한다. 같은 workspace dispatcher와 SDK 입력을 쓰며 열린 폴더 범위와 읽기 전용 turn의 쓰기 금지를 유지한다. 제안은 기존 대상 실재·바꾸기 전 내용·insert 증거·독립 블록 검증을 통과해 ledger에만 저장한다. 승인·거절·Undo·완료 승인 도구는 없다. 교정 결정은 사람의 기존 CLI 경로에 남기고 질문 카드로 교정을 승인하지 않는다.
+
+공용 `workspace-material {pageNo}`는 해당 쪽과 앞뒤 쪽의 항목·관계·원문·provenance·현재 블록 대응과 삽입 대응을 이미지 없이 반환한다. CLI는 `review workspace-material --input <json-file> --host <origin> --json`이다. `workspace-image-estimate {selection:{pages,targets}}`는 페이지/영역 수와 입력 토큰 예상량을 계산하며 이미지 bytes를 반환하지 않는다. targets가 비면 전체 쪽, 있으면 지정 원본 항목의 해당 쪽 영역만 선택한다. 예상량은 이웃 쪽 자료의 문자 수와 2배 해상도의 512px tile당 85+170 토큰을 합한 모델 의존 휴리스틱이며 청구량이 아니다. 큰 승인 기록은 범위를 줄이도록 거부한다. 두 작업과 `workspace-image-read`는 CLI에서도 같은 이름으로 제공한다.
+
+`request_litzio_user_input`의 선택 입력 `reviewImage`는 예상량 작업 입력과 `estimateHash`다. Host가 현재 예상량을 재계산하고 정확한 쪽·대상·영역 수·예상 토큰을 질문 문구로 만든다. 질문 기록의 이 연결 필드가 필요한 이유는 일반 질문 문장이나 비서의 `confirmed:true`를 이미지 승인으로 추측하지 않기 위해서다. 렌더 수신의 accepted는 승인과 다르다. 활성 질문의 실제 사람 답변이 `Approve image comparison`일 때만 Host가 기존 ledger의 selected comparison과 inspection evidence에 사람 출처·문서 revision·이미지 범위를 저장한다. 비서 입력은 comparisons·human·필수 확인 완료를 받지 않는다. P2 묶음·전이 모델은 바꾸지 않는다.
+
+사람 답변은 runId와 새 baseline을 같은 대화로 전달한다. `workspace-image-read {baseline,runId,pageNo,target?}`는 승인 범위와 현재 문서 revision을 확인하고 PDF.js로 승인된 페이지 또는 영역만 래스터화한다. 영역 승인으로 전체 페이지를 받을 수 없고 문서가 바뀌면 다시 예상량 승인이 필요하다. `record_review_inspection`은 읽은 범위의 판단을 저장한다. imageRunId를 지정해 comparison을 compared로 기록하려면 그 활성 turn에서 승인 이미지 전부를 실제 반환받고 전체 승인 범위를 기록해야 한다. 이 결과만으로 사람 필수 확인 목록을 자동 완료하지 않는다.
+
+실제 provider tokenUsage의 최신 turn 관측은 교정/검사 쓰기와 경합하지 않도록 turn 종료·중단·실패 또는 Host 종료 시 기존 inspection evidence에 `provider-turn-total-not-per-image`로 저장한다. 이는 이미지별 청구량이 아니라 이미지가 전달된 turn의 실제 입력·출력·캐시 토큰 관측이며, provider가 보고하지 않으면 값을 만들지 않는다. 공용 `workspace-image-usage {requestId,runId,turnId,scope,usage}`(CLI도 같은 이름)는 admission을 얻은 뒤 현재 상태 조회와 inspection 저장을 한 번에 처리한다. 이 작업이 필요한 이유는 화면 읽기와 분리된 사용량 읽기/저장이 겹쳐 관측 기록이 유실되는 실제 경합이다. 실행 전 기존 admission 종료를 기다릴 뿐 실패한 쓰기를 재시도하지 않으며 저장 실패는 대화 tool 실패로 남긴다. 질문 취소·거절·표시 실패에는 이미지 권한이 생기지 않는다. Copilot custom tools는 이번 범위가 아니다.
+
+비서 지침은 숫자·단위 후보 우선, 의심 쪽 조각 읽기, 직접 읽은 범위만 검사 기록, 부족한 근거는 판단 불가, 이미지 예상량·사람 승인 순서를 따른다. 검수 화면·교정 안전장치·품질 실측·구조 나누기/합치기는 후속 단계다.

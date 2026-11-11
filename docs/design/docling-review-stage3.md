@@ -55,6 +55,16 @@ insert는 기준 블록 경로 앞/뒤에 문단 또는 수준 1~6 제목만 Cor
 
 검증은 기존 Host 검사에서 두 삽입·다른 제안의 경로 갱신, 기준 내용 변경/삭제의 오래됨 거부, 제안 증거 bbox 대응·증거 없는 대응, 저장 실패 보존을 보완했다. 고정 LSR에서는 문단/제목 insert를 기존 네 교정과 함께 승인→저장→새 Host 재열기→Undo하고 원본 PDF·JSON·manifest bytes를 비교했다. 같은 기존 subprocess 한 개로 실제 `review evidence run` stdout JSON과 저장 inspection의 일치를 검사했다. 새 subprocess나 무거운 E2E 조합은 추가하지 않았다. 이 고정 LSR 검사는 병행 실행에서 약 49초였으며 전체 관련 Host 세 파일 59개 검사는 약 121초였다. 공용 검사 계층의 작은 PDF로 수치·단위/부호, 수치 후보 우선 정렬, 독립 칸 개수/원본 span 복사본, 이미지 PDF를 검사했다. NIST 고정 JSON은 외부 PNG URI여서 원본 bytes를 유지하는 embedded-image 작업공간 저장 검사에는 사용하지 않았다. NIST의 근거는 PDF+고정 JSON→Core 문서의 오프라인 후보 검사이고, NIST archive 저장·Editor/설치형 Desktop·실제 사람 검수·AI 제안의 수락 근거가 아니다. 새 Docling 변환과 AI 호출은 0회다.
 
+## 5단계 비서 국소 제안 구현 — 2026-11-11
+
+`master`에 병합된 1~4단계 위에서 Codex 비서 읽기·제안 저장을 연결했다. 공용 페이지 조각은 해당/앞뒤 쪽의 항목·관계·원문·provenance·현재 블록/삽입 대응을 제공한다. 이미지 예상량을 Host 질문 카드에 표시하고 실제 사람 응답만 기존 selected comparison/inspection에 저장한다. 승인 영역만 PDF.js로 반환하며 문서 변경·범위 밖 요청·비서 자체 확인을 거부한다. 교정 승인·거절·Undo·완료 승인은 비서에 등록하지 않고 사람 CLI 경로에 남긴다. P2 묶음 모델·전이는 그대로다. 상세 계약과 도구 목록은 [현재 플러그인 계약](plugin-stage1-v1.md#비서-국소-제안-1462-5단계)을 따른다.
+
+새 질문 연결 필드는 일반 질문 문구나 비서의 confirmed 값을 승인으로 추측하지 않고 정확한 예상량에 사람 답변을 결합하기 위해 필요하다. 검사 결과와 provider의 실제 turn 사용량은 기존 inspection evidence에 기록하며 이미지별 청구량으로 환산하지 않는다. 사람이 승인한 이미지를 반환받지 않은 turn은 compared 결과를 기록할 수 없다. 숫자·단위 후보 우선, 의심 페이지 조각 읽기, 직접 읽지 않은 범위 확인 금지, 근거 부족 시 판단 불가 지침을 기존 비서 지침에 추가했다.
+
+Windows에서 기존 고정 LSR 검사에 가짜 provider를 연결해 읽기 결과·제안 저장의 문서 불변·결정 도구 미등록·자체 확인 거부·미승인/범위 밖 이미지 거부·렌더 accepted와 사람 승인 구별·거절·문서 revision 변경·실제 provider 사용량 기록을 확인한다. 기존 subprocess 검증은 유지하고 추가 fake app-server 한 개로 모델 도구→질문→실제 사람 응답 경계를 보호한다. 독립 Host fixture만으로는 잡지 못하는 등록·선택·네이티브 이미지 전달 경계이며, 별도 E2E suite·timeout 확대는 없다. 전체 Editor 545개 통과/2개 기존 skip(약 222초), SDK 21개·CLI 100개 통과(약 218초), typecheck·Editor build·문서/경계 검사와 기존 persistent `assistant-question` 브라우저 검사가 통과했다. 수명/사용량 저장 최종 보완 뒤 같은 고정 LSR 검사(패키징 병행 시 약 133초), SDK 21개, CLI forwarding과 offline packaged CLI 검사가 통과했다.
+
+실제 Codex gpt-6-luna/low 한 turn은 새 `read_review_material`을 정확히 한 번 호출했고 success receipt와 S5_TOOL_OK 응답을 확인했다. context used는 42,789토큰이며 청구량·이미지별 비용 또는 품질 측정이 아니다. 실제 AI 이미지 대조·사람 제품 검수·제안 품질은 평가하지 않았다. 고정 LSR/fixture만 사용하며 Docling 재변환은 하지 않는다. 6단계 검수 화면·안전장치·품질 실측, 구조 나누기/합치기와 원격/설치형 제품 수락은 포함하지 않는다.
+
 ## 소유자 결정 — 2026-11-10
 
 이 절은 [#1462](https://github.com/litzio/litzio/issues/1462)의 소유자가 추가로 전달한 결정이다. 아래 실험의 수치·당시 제안은 보존하되, 이전의 “전 페이지 이미지 대조가 완료 필수” 권고와 패치 보류안은 이 결정으로 대체한다. 이슈 본문과 측정 당시 문구를 현재 결정의 대체 근거로 사용하지 않는다.

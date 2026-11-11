@@ -303,6 +303,26 @@ export async function workspaceOperation(input) {
   if(hash(raw)!==input.sourceRevision)throw new Error("Workspace revision changed");
   const archive=readDoclingArchive(raw),state=workspaceState(archive),record=readReview(archive.reviewBytes);
   if(input.mode==="workspace-read")return state;
+  if(input.mode==="workspace-review-material") {
+    if(!state.snapshot)throw new Error("Workspace document unavailable");
+    const pageNo=input.pageNo;
+    if(!archive.document.pages[pageNo])throw new Error("Unknown material page");
+    const pages=Object.keys(archive.document.pages).map(Number).filter(p=>Math.abs(p-pageNo)<=1);
+    const report=metadataOf(archive).correspondence;
+    const items=["texts","tables","pictures","groups","key_value_items","form_items"].flatMap(key=>archive.document[key]??[])
+      .filter(item=>(item.prov??[]).some(prov=>pages.includes(prov.page_no)))
+      .map(item=>({...Object.fromEntries(["self_ref","label","content_layer","parent","children","prov","text","orig","level","marker","enumerated","captions","footnotes","references","data"].filter(key=>item[key]!==undefined).map(key=>[key,item[key]])),correspondence:report.items.find(entry=>entry.self_ref===item.self_ref)??null}));
+    const insertions=(report.insertions??[]).filter(item=>item.regions.some(region=>pages.includes(region.page)));
+    const paths=[...items.flatMap(item=>item.correspondence?.targets??[]),...insertions.flatMap(item=>item.targets)].map(target=>target.path);
+    const regions=items.flatMap(item=>(item.prov??[]).map(prov=>{
+      const b=prov.bbox,h=archive.document.pages[prov.page_no].size.height;
+      const y=b.coord_origin==="BOTTOMLEFT"?[h-b.t,h-b.b]:[b.t,b.b];
+      return {target:item.self_ref,page:prov.page_no,bbox:[Math.min(b.l,b.r),Math.min(...y),Math.max(b.l,b.r),Math.max(...y)]};
+    }));
+    return {pageNo,pages,items,regions,insertions,
+      blocks:getEditableDocument(parse(state.snapshot.source)).blocks.filter(block=>paths.some(p=>same(p,block.path))),
+      pageSizes:pages.map(page=>({page,width:archive.document.pages[page].size.width,height:archive.document.pages[page].size.height}))};
+  }
   if(input.mode==="workspace-evidence-material")return evidenceMaterial(archive,metadataOf(archive).correspondence);
   if(input.mode==="workspace-material") {
     if(!state.snapshot)throw new Error("Workspace document unavailable");

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DOCUMENT_AUTHORING_CONTRACT } from "@litzio/core";
 import { generatedInputsSchema, generatedProgressSchema } from "./generated-document.ts";
-import { reviewLedgerSchema, reviewLedgerChangeSchema } from "./review-ledger.ts";
+import { reviewLedgerSchema, reviewLedgerChangeSchema, reviewScopeSchema } from "./review-ledger.ts";
 
 /** Bump when canonical authoring/serialization or stable image binding semantics change. */
 export const REVIEW_AUTHORING_CONTRACT = `${DOCUMENT_AUTHORING_CONTRACT}/review-images-1`;
@@ -19,10 +19,18 @@ export const workspaceStateSchema = z.strictObject({
   lenses: z.record(z.string(), z.unknown()).optional(),
 });
 const common = { root: id, workspace: id, plugin: id, job: id };
+export const reviewImageSelectionSchema = reviewScopeSchema.extend({
+  // Empty targets selects whole pages; otherwise only these original inventory regions.
+  targets: reviewScopeSchema.shape.targets,
+});
 export const workspaceRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ ...common, action: z.literal("workspace-read") }),
   z.strictObject({ action: z.literal("workspace-find"), root: id, path: id.optional() }),
   z.strictObject({ ...common, action: z.literal("workspace-compare"), pageNo: z.number().int().positive().optional(), baseline: hash.optional() }),
+  z.strictObject({ ...common, action: z.literal("workspace-material"), pageNo: z.number().int().positive() }),
+  z.strictObject({ ...common, action: z.literal("workspace-image-estimate"), selection: reviewImageSelectionSchema }),
+  z.strictObject({ ...common, action: z.literal("workspace-image-usage"), requestId:z.uuid(), runId:id, turnId:id, scope:reviewScopeSchema, usage:z.record(z.string(),z.number().int().nonnegative()) }),
+  z.strictObject({ ...common, action: z.literal("workspace-image-read"), baseline: hash, runId: id, pageNo: z.number().int().positive(), target: id.optional() }),
   z.strictObject({ ...common, action: z.literal("workspace-image"), baseline: hash, ref: hash }),
   z.strictObject({ ...common, action: z.literal("workspace-export-check"), baseline: hash, output: id.optional() }),
   z.strictObject({ ...common, action: z.literal("workspace-export"), mode: z.literal("current"), baseline: hash, requestId: z.uuid(), output: id.optional(), targetRevision: hash.nullable(), overwrite: z.boolean().default(false) }),
@@ -38,7 +46,7 @@ export const workspaceRequestSchema = z.discriminatedUnion("action", [
   ...(["workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"] as const).map(action => z.strictObject({ ...common, action: z.literal(action) })),
   z.strictObject({ ...common, action: z.literal("workspace-review-change"), baseline: hash, requestId: z.uuid(), change: reviewLedgerChangeSchema }),
 ]);
-/** P5 adapter contract only: these use the same dispatcher schema, with no AI registration in P2.
+/** The stage-5 Codex adapter uses this same dispatcher schema.
  * Human confirmation is required for approve/reject/undo/completion and cannot be synthesized by an assistant.
  * Propose accepts change.supersedes [{groupId,targetIds,replacementGroupId}] through that same schema and CLI;
  * it closes only open proposals with linked history, and grants no approval or relaxed target-content check.
@@ -48,5 +56,5 @@ export const REVIEW_LEDGER_OPERATIONS = { version: 1, scope: "workspace", inputS
   humanOnly: ["groups-approve", "groups-reject", "groups-undo", "completion"] } as const;
 export type WorkspaceSnapshot = z.infer<typeof workspaceSnapshotSchema>;
 
-/** Contract only; assistant runtime registration belongs to stage 5. Run saves inspection records, never proposals. */
-export const REVIEW_EVIDENCE_OPERATION = { version: 1, scope: "workspace", action: "workspace-evidence", modes: ["read", "run"], inputSchema: z.toJSONSchema(workspaceRequestSchema), assistantRegistered: false } as const;
+/** Registered by the stage-5 Codex adapter. Run saves inspection records, never proposals. */
+export const REVIEW_EVIDENCE_OPERATION = { version: 1, scope: "workspace", action: "workspace-evidence", modes: ["read", "run"], inputSchema: z.toJSONSchema(workspaceRequestSchema), assistantRegistered: true } as const;

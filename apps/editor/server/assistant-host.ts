@@ -100,8 +100,11 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const close = () => {
     closed = true;
-    conversations?.close();
-    return closing ??= Promise.resolve(agent?.close());
+    return closing ??= (async () => {
+      const draining = conversations?.close();
+      await agent?.close();
+      await draining;
+    })();
   };
   return { invoke, route, close };
 }
