@@ -44,6 +44,9 @@ import { messageOf, NativeOpenError, createDocumentRequests } from "./document-s
 import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenFolders, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, type DocumentWidth } from "./preferences.ts";
 import { applyTheme, currentTheme } from "./theme.ts";
 import { DocumentPanel } from "./shell/DocumentPanel.tsx";
+import { GuidedTour } from "./tour/GuidedTour.tsx";
+import { DOCUMENT_WRITING_TOUR } from "./tour/document-writing-tour.ts";
+import { reduceTour, startTour, type TourEvent, type TourState } from "./tour/tour.ts";
 import { DocumentStart } from "./shell/DocumentStart.tsx";
 import productMark from "@brand-icon";
 import { MessageArea } from "./shell/MessageArea.tsx";
@@ -64,7 +67,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
+import { CircleHelp, MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
 import type {
   DocumentErrorResponse,
   EditorFileResponse,
@@ -899,6 +902,25 @@ function EditorApp() {
     setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
+  // Guided tour: a practice document is created first; the tour starts once its tab is active.
+  const [tour, setTour] = useState<{ tabId: string; state: TourState } | null>(null);
+  const [tourPractice, setTourPractice] = useState<string | null>(null);
+  function startDocumentTour(): void {
+    if (busy || continuation) return;
+    const root = folders.roots.find(root => session?.hostId === LOCAL_HOST_ID && folderChain(root, openedPath).length > 0) ?? folders.roots[0];
+    if (!root) { setError({ key: "Open a folder before starting the document writing tour." }); return; }
+    setAssistantOpen(false);
+    const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+    const name = `litzio-tour-practice-${stamp}.md`;
+    void createFile(childPath(newDirectoryIn(root), name), { hostId: LOCAL_HOST_ID, client: getHostClient(LOCAL_HOST_ID), root }).then(message => { if (!message) setTourPractice(name); });
+  }
+  useEffect(() => {
+    if (!tourPractice || !nativeSession || !activeId || splitDocumentPath(nativeSession.openedPath).name !== tourPractice) return;
+    setTourPractice(null);
+    setTour({ tabId: activeId, state: startTour() });
+  }, [tourPractice, nativeSession?.openedPath, activeId]);
+  // The tour belongs to its practice tab: leaving it, or opening Settings, ends it.
+  useEffect(() => { if (tour && (!tour.state.active || activeId !== tour.tabId || !sessions.current.has(tour.tabId))) setTour(null); }, [tour?.tabId, tour?.state.active, activeId]);
   function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary & { client: HostClient; hostId: string }): void {
     if (busy || continuation) return;
     setNewTemplate(template);
@@ -1001,6 +1023,8 @@ function EditorApp() {
         !globalThis.document.querySelector('[data-slot="dialog-content"], [role="menu"], [data-slot="popover-content"]')) {
       event.preventDefault(); event.stopPropagation(); closeSettingsTab(); return;
     }
+    // A running tour guards the screen: shortcuts that open other surfaces wait until it ends.
+    if (tour?.state.active && (ASSISTANT_SHORTCUT.matches(event) || COMMAND_CENTER_SHORTCUT.matches(event))) { event.preventDefault(); return; }
     if (ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {
       if (globalThis.document.querySelector('[data-slot="dialog-content"]')) return;
       event.preventDefault(); toggleAssistant(); return;
@@ -1229,6 +1253,8 @@ function EditorApp() {
         if (session.editorRef.current?.hasUnsavedChanges()) { setError({ key: "Save the document before saving it as a template." }); return; }
         setSaveTemplate({ client: session.client, hostId: session.hostId, path: session.openedPath, returnFocus: commandReturnFocus.current });
       } },
+    { id: "document-writing-tour", kind: "command", label: i18n.t("Help: Take the document writing tour"), icon: CircleHelp, takesFocus: true,
+      disabled: busy || Boolean(continuation), keywords: ["help", "tour", "guide", "tutorial", "도움말", "둘러보기", "튜토리얼", "문서 작성"], run: startDocumentTour },
     { id: "new-document", kind: "command", label: i18n.t("New document…"), icon: FileText, takesFocus: true,
       disabled: busy || Boolean(continuation), keywords: ["new document", "new file", "새 문서", "새 파일"],
       run: () => newDocument(commandReturnFocus.current) },
@@ -1532,6 +1558,10 @@ function EditorApp() {
             outlineToggle.current?.focus();
           }}
         />
+      {tour?.state.active ? <GuidedTour steps={DOCUMENT_WRITING_TOUR} state={tour.state}
+        getEditor={() => { const owner = sessions.current.get(tour.tabId); return owner?.kind === "native" ? owner.editorRef.current : null; }}
+        onEvent={(event: TourEvent) => setTour(current => current ? { ...current, state: reduceTour(current.state, DOCUMENT_WRITING_TOUR, event) } : current)}
+        onPrepare={() => { setAssistantOpen(false); choosePanelOpen(true); }} /> : null}
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}

@@ -22,6 +22,7 @@ import { i18n } from "./i18n.ts";
 import { prepareEditorSnapshot, type EditorSnapshot } from "./editor-snapshot.ts";
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useImperativeHandle, useReducer, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { EditorAuthoring, useEditorVisible } from "./editor-visibility.ts";
+import { EMPTY_PROBE, probeDocument, type TourProbe } from "./tour/tour.ts";
 import { normalizeSaveTails } from "./save-normalization.ts";
 import { closeHistory } from "@tiptap/pm/history";
 import {
@@ -102,6 +103,10 @@ export type DocumentEditorHandle = {
   revealItem(item: OutlineItem): void;
   /** A click below the document places the caret at its end; returns whether it did. */
   focusEnd(clientY: number): boolean;
+  /** Guided-tour progress facts from the live engine document. */
+  tourProbe(): TourProbe;
+  /** Calls `listener` after every engine transaction; returns the unsubscribe function. */
+  onTourChange(listener: () => void): () => void;
 };
 
 
@@ -574,6 +579,14 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     ref,
     () => ({
       getFocusTarget() { return editor?.view.dom ?? null; },
+      tourProbe() {
+        const title = editor?.view.dom.ownerDocument.querySelector('[data-litzio-anchor="document-title"]');
+        return editor ? probeDocument(editor.state.doc, title !== null && title === editor.view.dom.ownerDocument.activeElement) : EMPTY_PROBE;
+      },
+      onTourChange(listener) {
+        editor?.on("transaction", listener);
+        return () => { editor?.off("transaction", listener); };
+      },
       canUndo() { return Boolean(editor?.isEditable && editor.can().undo()); },
       canRedo() { return Boolean(editor?.isEditable && editor.can().redo()); },
       // The center releases modal focus before dispatch, just like inline insertion below.
@@ -904,7 +917,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         if (readOnly && event.button === 0 && event.target instanceof Element && event.target.closest(".document-editor")) {
           editor.view.dom.focus({ preventScroll: true });
         }
-      }} className={`document${empty ? " document--empty" : ""}`} data-testid="document-editor" data-table-wrap={tableWrap} ref={host}
+      }} className={`document${empty ? " document--empty" : ""}`} data-testid="document-editor" data-litzio-anchor="document-body" data-table-wrap={tableWrap} ref={host}
       onMouseDown={(event) => {
         // The paper extends below the editor content, including in a brand-new document.
         if (event.button === 0 && event.target === event.currentTarget && focusEnd(event.clientY)) event.preventDefault();

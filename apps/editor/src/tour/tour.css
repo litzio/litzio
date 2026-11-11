@@ -1,0 +1,65 @@
+/* Spotlight layer of the guided tour. Tokens only; no decorative animation (Visual Language). */
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* The hole is clipped out, so the target region shows undimmed. A slight blur softens the rest. */
+.tour-dim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--id-color-backdrop), var(--id-color-backdrop)), linear-gradient(var(--id-color-backdrop), var(--id-color-backdrop));
+  backdrop-filter: blur(1.5px);
+}
+
+.tour-ring {
+  position: fixed;
+  box-sizing: border-box;
+  border: 2px solid var(--id-color-interaction);
+  border-radius: var(--id-radius-md);
+  outline: 2px solid var(--id-color-surface);
+  outline-offset: 0;
+}
+
+.tour-badge {
+  position: absolute;
+  top: calc(var(--space-3) * -1);
+  left: calc(var(--space-3) * -1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  background: var(--id-color-interaction);
+  color: var(--id-color-text-on-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tour-card {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: min(24rem, calc(100vw - var(--space-8)));
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--id-color-border);
+  border-radius: var(--id-radius-lg);
+  background: var(--id-color-surface);
+  box-shadow: var(--shadow-overlay);
+  color: var(--id-color-text);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-label);
+  pointer-events: auto;
+}
+
+.tour-progress { margin: 0; color: var(--id-color-text-muted); }
+.tour-title { margin: 0; font-weight: 600; }
+.tour-body { margin: 0; }
+.tour-hint { margin: 0; color: var(--id-color-text-muted); }
+.tour-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }

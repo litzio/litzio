@@ -46,6 +46,7 @@ export function DocumentPanel({ visible=true, onWidth, overlay, outline: store =
       className={`document-panel${overlay ? " document-panel--overlay" : ""}`}
       aria-labelledby="document-panel-title"
       data-testid="document-panel"
+      data-litzio-anchor="outline-panel"
       onKeyDown={event => {
         // An overlay closes with Escape, like other overlays.
         if (event.key !== "Escape" || !overlay) return;

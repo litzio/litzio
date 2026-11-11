@@ -122,6 +122,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Footnote region verification](reviews/footnote-regions-2026-10-12.md) | Historical | #185 원문 위치의 각주 구역 Before/After, 좁은 화면과 원문·편집·복사·저장 보존 검증. |
 | [Endnotes verification](reviews/endnotes-2026-10-12.md) | Historical | #194 단일 미주 구역 Before/After, 원문 보존·명시적 변환·참조 복귀·초안 보호 검증. |
 | [Single Editor Foundation review](reviews/single-editor-foundation.md) | Historical | 당시 architecture 검토 근거. 현재 authority는 ADR-0001과 design contracts. |
+| [Guided tour spike](reviews/guided-tour-spike-2026-11.md) | Historical | 문서 작성 안내 투어 스파이크: 스포트라이트·입력 차단 구조, 단계별 실제 수단, 5단계 e2e 확인과 한계. 제품 계약 아님. |
 | [AI agent host and extension patterns](reviews/ai-agent-host-patterns-2026-11.md) | Historical | #877 공개 문서·소스 조사. AI 작업/도구·업체 어댑터·검증·승인·수명·다중 에이전트 8개 축과 B 최소 골격 시사점. 설계·채택 결정 아님. |
 | [MyST security alignment review](reviews/myst-security-alignment-v1.md) | Historical | 당시 security 분석. 현재 후속 작업은 issue #11; 현재 안전성의 영구 보증이 아님. |
 | [Desktop shell spike](reviews/desktop-shell-spike-v1.md) | Historical | 실행 가능성과 비용의 실험 근거. 제품 Host·배포 결정이 아님. |

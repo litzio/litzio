@@ -9,7 +9,7 @@ export function DocumentTitle({ editor }: { editor: Editor }) {
   const { t } = useTranslation();
   const title = useEditorState({ editor, selector: ({ editor }) => editor.state.doc.attrs.title as string | null });
   const boundary = () => editor.view.dispatch(closeHistory(editor.state.tr));
-  return <textarea className="document-title-input" data-document-title="true" rows={1}
+  return <textarea className="document-title-input" data-document-title="true" data-litzio-anchor="document-title" rows={1}
     aria-label={t("Title")} placeholder={editor.isEditable ? t("Add a title (optional)") : undefined} value={title ?? ""}
     readOnly={!editor.isEditable} spellCheck={false}
     onFocus={boundary} onBlur={boundary}
