@@ -19,17 +19,17 @@ class PreviewBoundary extends Component<{ children: ReactNode; fail(reason: stri
   componentDidCatch(error: Error) { this.props.fail(error.message); }
   render() { return this.state.failed ? null : this.props.children; }
 }
-function Snapshot({ document, path, layout, bibliography, recovery }: { document: EditableDocument; path: string; layout: ComparisonLayout; bibliography?: DocumentFileResponse["bibliography"]; recovery: boolean }) {
+function Snapshot({ document, path, layout, bibliography, recovery, pending }: { document: EditableDocument; path: string; layout: ComparisonLayout; bibliography?: DocumentFileResponse["bibliography"]; recovery: boolean; pending?: boolean }) {
   const { slots, foldSlots } = layoutSlots(layout);
   const end = Math.max(-1, ...slots.values(), ...foldSlots.values()) + 1;
-  const label = i18n.t(layout.side === "before" ? "Current disk file" : recovery ? "Recovery preview" : "Save preview");
+  const label = i18n.t(layout.side === "before" ? "Current disk file" : pending ? "Pending changes" : recovery ? "Recovery preview" : "Save preview");
   return <section style={{ "--compare-end-row": end * 2 + 3, "--compare-narrow-end-row": end * 4 + (layout.side === "before" ? 5 : 6) } as CSSProperties} className="visual-snapshot" data-side={layout.side} aria-label={label}>
     <div className="visual-snapshot-title">{layout.side === "before" ? "− " : "+ "}{label}</div>
     <DocumentEditor readOnly preview document={document} documentPath={path} bibliography={bibliography} comparison={layout} onStructuralReject={() => {}} />
   </section>;
 }
-export default function VisualCompare({ result, client, path, bibliography, recovery = false, onUnavailable }: {
-  result: Comparison; client: HostClient; path: string; bibliography?: DocumentFileResponse["bibliography"]; recovery?: boolean; onUnavailable(reason: string): void;
+export default function VisualCompare({ result, client, path, bibliography, recovery = false, pending = false, onUnavailable }: {
+  result: Comparison; client: HostClient; path: string; bibliography?: DocumentFileResponse["bibliography"]; recovery?: boolean; pending?: boolean; onUnavailable(reason: string): void;
 }) {
   const descriptionPrefix = useId();
   const [comparison, setComparison] = useState<CompareResult>();
@@ -104,8 +104,8 @@ export default function VisualCompare({ result, client, path, bibliography, reco
           {row.number} · {comparisonSummary(row)}
         </TooltipTrigger><TooltipContent className="whitespace-pre-wrap break-words">{descriptions[index]}</TooltipContent></Tooltip>
       </div> : null)}
-      <Snapshot document={comparison.before} path={path} layout={beforeLayout} bibliography={bibliography} recovery={recovery} />
-      <Snapshot document={comparison.after} path={path} layout={afterLayout} bibliography={bibliography} recovery={recovery} />
+      <Snapshot document={comparison.before} path={path} layout={beforeLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
+      <Snapshot document={comparison.after} path={path} layout={afterLayout} bibliography={bibliography} recovery={recovery} pending={pending} />
     </div></div></PreviewBoundary>
   </HostClientContext.Provider>;
 }

@@ -12,6 +12,7 @@ import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
 import { listFolder } from "./document-api.ts";
+import { AssistantChanges } from "./assistant-changes.ts";
 import { documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
@@ -146,7 +147,7 @@ export class AssistantConversations {
           return {success:result.receipt?.outcome!=="failure" && result.receipt?.outcome!=="uncertain",contentItems:[{type:"inputText",text:JSON.stringify(result)}]};
         } catch(error) {return {success:false,contentItems:[{type:"inputText",text:JSON.stringify({error:String(error)})}]};}
       }
-      const templateScope = { ...scope, directory: this.connection.templatesDirectory };
+      const templateScope = { ...scope, directory: this.connection.templatesDirectory, changes: new AssistantChanges(path.join(this.connection.cwd, "changes"), this.access), conversation: params.threadId };
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, entry => {
           active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
@@ -180,6 +181,15 @@ export class AssistantConversations {
         ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
+  }
+  remove(id: string, cleanup: () => void) {
+    if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Assistant response before deleting the conversation.");
+    cleanup();
+    const entries = this.list().filter(entry => entry.id !== id);
+    const temporary = `${this.file}.${randomUUID()}.tmp`;
+    try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }
+    finally { if (existsSync(temporary)) unlinkSync(temporary); }
+    this.conversations.delete(id); this.loaded.delete(id); this.scopes.delete(id);
   }
   current(id: string) {
     const conversation = this.conversations.get(id);
@@ -337,7 +347,7 @@ export class AssistantConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -565,7 +575,7 @@ export class AssistantConversations {
       conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
     }
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references };
+    const context = { conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references };
     const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
     this.dispatch(input, conversation);
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;

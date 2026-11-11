@@ -32,7 +32,7 @@ export function assistantCliEnvironment(cwd: string, cli: AssistantCli, inherite
   const binary = path.basename(cli.bin);
   if (process.platform === "win32") writeFileSync(path.join(directory, `${brand.cliCommand}.cmd`), `@echo off\r\nsetlocal DisableDelayedExpansion\r\nset "ELECTRON_RUN_AS_NODE=1"\r\n"%~dp0runtime\\${binary}" "%~dp0cli.cjs" %*\r\nexit /b %errorlevel%\r\n`);
   else writeFileSync(path.join(directory, brand.cliCommand), `#!/bin/sh\nexport ELECTRON_RUN_AS_NODE=1\nexec "$(dirname "$0")/runtime/${binary}" "$(dirname "$0")/cli.cjs" "$@"\n`, { mode: 0o755 });
-  const env = { ...inherited };
+  const env: NodeJS.ProcessEnv = { ...inherited, LITZIO_ASSISTANT_CWD: cwd };
   const key = Object.keys(env).find(key => key.toUpperCase() === "PATH") ?? "PATH";
   env[key] = directory + path.delimiter + (env[key] ?? "");
   return env;
