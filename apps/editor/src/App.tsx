@@ -1555,6 +1555,7 @@ function EditorApp() {
           if (!root) throw new Error(i18n.t("The created file is outside the opened folders."));
           return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result, assistantHost) !== "";
         }}
+        reviewWorkspacePath={activeViewTab?.hostId===assistantHost && activeViewTab.comparison && "workspace" in activeViewTab.comparison ? `${activeViewTab.comparison.root}/${activeViewTab.comparison.workspace}` : undefined}
         documentPath={session?.hostId === assistantHost ? session.openedPath : ""} folders={assistantHost === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(assistantHost)}
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /></HostContext.Provider> : null}

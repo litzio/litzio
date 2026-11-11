@@ -1,6 +1,6 @@
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
-import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, reviewImageQuestionSchema, answerReviewImageQuestion, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, parseReviewImageQuestion, answerReviewImageQuestion, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -123,10 +123,10 @@ export class AssistantConversations {
       }
       if (reviewAssistantTools.some(tool=>tool.name===params.tool) && this.plugins) {
         try {
-          const result=await executeReviewAssistantTool(this.plugins,params.tool,params.arguments,scope,active.items.filter(item=>item.id.startsWith("review-image-")).map(item=>JSON.parse(item.toolResult!.contentItems[0]!.text!)));
+          const result=await executeReviewAssistantTool(this.plugins,params.tool,params.arguments,scope,active.items.filter(item=>item.id.startsWith("review-image-")).map(item=>JSON.parse(item.toolResult!.contentItems[0]!.text!)),params.callId);
           const images=result.images?.filter((image:any)=>image.base64);
           if(images?.length) {
-            active.items.push({id:`review-image-${params.callId}`,kind:"tool",text:"read_review_images",status:"completed",toolResult:{success:true,contentItems:[{type:"inputText",text:JSON.stringify({input:params.arguments,runId:result.runId,scope:{pages:[params.arguments.pageNo],targets:params.arguments.target?[params.arguments.target]:[]},documentRevision:result.documentRevision})}]}});
+            active.items.push({id:`review-image-${params.callId}`,kind:"tool",text:"read_review_images",status:"completed",toolResult:{success:true,contentItems:[{type:"inputText",text:JSON.stringify({input:result.workspace,runId:result.runId,scope:{pages:[params.arguments.pageNo],targets:params.arguments.target?[params.arguments.target]:[]},documentRevision:result.documentRevision})}]}});
             this.save(this.current(params.threadId));
             return {success:true,contentItems:[{type:"inputText",text:JSON.stringify({...result,images:images.map(({base64,...image}:any)=>image)})},...images.map((image:any)=>({type:"inputImage",imageUrl:`data:${image.mime};base64,${image.base64}`}))]};
           }
@@ -291,6 +291,10 @@ export class AssistantConversations {
       if (typeof input.document.path !== "string") throw new Error("Invalid document context.");
       accessPath(input.document.path, this.access);
     }
+    if(input.reviewWorkspace) {
+      if(typeof input.reviewWorkspace.path!=="string" || !folders.length)throw new Error("Invalid review workspace context.");
+      new RootAccess(folders).resolve(accessPath(input.reviewWorkspace.path,this.access));
+    }
     let conversation = input.id ? this.current(input.id) : undefined;
     const key = settings.provider === "copilot" ? "copilot" : input.id ?? "new";
     if (this.pending.has(key)) throw new Error("A conversation request is already pending.");
@@ -328,7 +332,7 @@ export class AssistantConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -366,7 +370,7 @@ export class AssistantConversations {
     let reviewImage: AssistantQuestionRecord["reviewImage"];
     if (input.reviewImage !== undefined) {
       try {
-        reviewImage=reviewImageQuestionSchema.parse(input.reviewImage);
+        reviewImage=parseReviewImageQuestion(input.reviewImage);
         if(!this.plugins)throw new Error("Review Host unavailable");
         const {estimateHash,...request}=reviewImage!;
         const estimate=await executeReviewAssistantTool(this.plugins,"estimate_review_images",request,this.scopes.get(conversation.id)!);
@@ -538,7 +542,7 @@ export class AssistantConversations {
       conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
     }
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references };
+    const context = { userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references };
     const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
     this.dispatch(input, conversation);
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
@@ -627,9 +631,14 @@ export class AssistantConversations {
     const previous=[...this.reviewUsageWrites];
     const task=(async()=>{
       await Promise.allSettled(previous);
-      const seen=new Set<string>();
-      for(const {input,usage} of inputs){
-        if(seen.has(input.runId))continue;seen.add(input.runId);
+      const runs=new Map<string,(typeof inputs)[number]>();
+      for(const entry of inputs){
+        const key=JSON.stringify([entry.input.input,entry.input.runId]);
+        const previous=runs.get(key);
+        if(!previous)runs.set(key,entry);
+        else for(const field of ["pages","targets"] as const)previous.input.scope[field]=[...new Set([...previous.input.scope[field],...entry.input.scope[field]])];
+      }
+      for(const {input,usage} of runs.values()){
         try{await recordReviewImageUsage(this.plugins!,input,scope,usage,turn.id);}
         catch(error){turn.items.push({id:randomUUID(),kind:"tool",text:String(error),status:"failed"});this.save(conversation);}
       }
@@ -759,7 +768,7 @@ function itemFrom(item: any, userMessageSource: AssistantConversationItem["userM
     return { id: item.id, kind: "tool", text: "invoke_plugin_operation", status: item.status };
   }
   if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: pluginActivityText(item) ?? [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.success === false ? "failed" : item.status,
-    toolResult: { success: item.success ?? null, contentItems: item.contentItems ?? [] } };
+    toolResult: displayToolResult({ success: item.success ?? null, contentItems: item.contentItems ?? [] }) };
   if (item.type === "webSearch") return { id: item.id, kind: "tool", text: item.query };
   if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status };
   return null;
@@ -813,4 +822,26 @@ function permissionError(message: string): string {
   return /invalid.*sandbox_mode.*DangerFullAccess.*not in the allowed set/s.test(message)
     ? "Your organization does not allow Full access. Choose Opened folders or Read-only and send again."
     : message;
+}
+
+/** UI history never needs large model-facing tool payloads. Apply again at the transport boundary
+ * for already-loaded conversations; provider-owned history and model results remain intact. */
+function displayToolResult(result:NonNullable<AssistantConversationItem["toolResult"]>) {
+  const bytes=Buffer.byteLength(JSON.stringify(result.contentItems),"utf8");
+  if(bytes<=16*1024)return result;
+  // Creation cards use the small receipt, never the returned source, for Open/Undo.
+  const receipts=result.contentItems.flatMap(part=>{
+    if(part.type!=="inputText" || !part.text)return [];
+    try {const value=JSON.parse(part.text);return typeof value.path==="string" && /^[a-f0-9]{64}$/.test(value.revision) ? [{path:value.path,revision:value.revision,identity:value.identity}] : [];} catch {return [];}
+  });
+  return {...result,contentItems:[...receipts.map(value=>({type:"inputText",text:JSON.stringify(value)})),{type:"inputText",text:JSON.stringify({omitted:true,bytes,summary:"Tool result retained in provider history; omitted from display."})}]};
+}
+export function conversationForDisplay(conversation:AssistantConversation):AssistantConversation {
+  let changed=false;
+  const turns=conversation.turns.map(turn=>({...turn,items:turn.items.map(item=>{
+    if(!item.toolResult)return item;
+    const result=displayToolResult(item.toolResult);if(result===item.toolResult)return item;
+    changed=true;return {...item,toolResult:result};
+  })}));
+  return changed ? {...conversation,turns} : conversation;
 }

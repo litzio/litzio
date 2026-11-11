@@ -28,7 +28,7 @@ export type AssistantQuestionRecord = AssistantUserInput & {
   sourceQuestions?: { title: string; options: string[] | null }[];
   answers?: AssistantUserInputAnswers;
   error?: string;
-  reviewImage?: { root:string; workspace:string; plugin:string; job:string; selection:{pages:number[];targets:string[]}; estimateHash:string };
+  reviewImage?: { path:string; selection:{pages:number[];targets:string[]}; estimateHash:string };
   requiresDisplayAck?: boolean;
   displayed?: boolean;
 };
@@ -41,7 +41,7 @@ export type AssistantConversationInput = Pick<AssistantExecutionSettings, "model
   /** User-selected conversation overrides; never persisted as global defaults. */
   provider?: AiProvider; permissionMode?: AssistantSettings["permissionMode"];
   mode?: string;
-  folders: string[]; document?: { path: string } };
+  folders: string[]; document?: { path: string }; reviewWorkspace?: {path:string} };
 export type AiModel = { id: string; model: string; displayName: string; description: string;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
 export type AiCopilotOptions = { reasoningEfforts?: { reasoningEffort: string; description: string }[]; reasoningEffortSource: "config" | "cli"; modes: { id: string; name: string; description: string }[]; currentMode: string };
