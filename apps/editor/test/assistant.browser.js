@@ -622,6 +622,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation.\n\n'.repeat(65) };
   progressTurn.items.push(progressAnswer);
   await expect(steps.locator('summary')).toHaveText('Writing answer…');
+  await expect.poll(() => steps.evaluate(el => { const answers = el.parentElement.querySelectorAll('.assistant-answer'); return answers.length > 0 && [...answers].every(answer => !!(answer.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)); })).toBe(true);
   await expect(steps).not.toHaveAttribute('open');
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   const transcriptBox = await transcript.boundingBox();
@@ -661,6 +662,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await statusTrigger.click();
   const questionCard = panel.getByTestId('assistant-question');
   await expect(questionCard).toBeVisible();
+  await expect.poll(() => questionCard.evaluate(el => !!(el.compareDocumentPosition(el.parentElement.querySelector('.assistant-steps')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await questionCard.scrollIntoViewIfNeeded();
   expect(await questionCard.evaluate(el => !!el.closest('details'))).toBe(false);
   await expect(steps).not.toHaveAttribute('open');
