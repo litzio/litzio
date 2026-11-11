@@ -713,6 +713,9 @@ test("document settings summarizes current values and readonly has no editable c
   const readonly = renderToStaticMarkup(<DocumentSettings numberingMode="automatic" onNumberingModeChange={() => {}} {...props} readOnly />);
   assert.doesNotMatch(readonly, /aria-expanded=|<input|<button/);
   assert.match(readonly, /Numbered headings · Concise references · refs.bib/);
+  const unconnected = renderToStaticMarkup(<DocumentSettings numberingMode="automatic" onNumberingModeChange={() => {}} {...props} bibliography={[]} />);
+  assert.match(unconnected, /Numbered headings · Concise references/);
+  assert.doesNotMatch(unconnected, /Bibliography|Connect bibliography|No bibliography connected/);
 });
 
 test("top bar shows filename while keeping the complete path in its title", () => {

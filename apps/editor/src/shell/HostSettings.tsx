@@ -1,11 +1,11 @@
 import { HostStatus } from "../components/HostStatus.tsx";
-import { useEffect, useId, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Info, Pencil, RefreshCw, X, Trash2 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 import "./host-settings.css";
 import { useTranslation } from "react-i18next";
 import type { DesktopBridge, RegisteredHost } from "../../shared/desktop-bridge.ts";
-import { hostRegistry } from "../host-client.ts";
+import { hostRegistry, type HostRuntime } from "../host-client.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { FieldError, Notice } from "../ui/primitives.tsx";
@@ -24,6 +24,25 @@ export function HostSettings({ desktop, closeWork, prepareRemoval }: {
   const [registrationProblem, setRegistrationProblem] = useState("");
   const registrationErrorId = useId();
   const [saved, setSaved] = useState(false);
+  const checkAttempt = useRef(0);
+  const [checking, setChecking] = useState(false);
+  const [connection, setConnection] = useState<Pick<HostRuntime, "state" | "failure" | "reason" | "warning">>();
+  const clearCheck = () => { checkAttempt.current++; setChecking(false); setConnection(undefined); };
+  useEffect(() => () => { checkAttempt.current++; }, []);
+  const check = async () => {
+    const attempt = ++checkAttempt.current;
+    setChecking(true); setConnection({ state: "connecting" });
+    try {
+      const result = await desktop.checkHost(origin);
+      if (checkAttempt.current !== attempt) return;
+      setConnection(result.state === "connected" ? { state: "connected", warning: result.warning } : {
+        state: "disconnected", failure: result.state === "protocol-mismatch" ? "protocol-mismatch" : "unreachable",
+        reason: result.state === "protocol-mismatch" ? t("Host protocol mismatch.") : result.reason || t("Could not reach Host."),
+      });
+    } catch {
+      if (checkAttempt.current === attempt) setConnection({ state: "disconnected", failure: "unreachable", reason: t("Check the Host address and try again.") });
+    } finally { if (checkAttempt.current === attempt) setChecking(false); }
+  };
   const [busy, setBusy] = useState(false);
   useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
   const refresh = async () => {
@@ -53,12 +72,15 @@ export function HostSettings({ desktop, closeWork, prepareRemoval }: {
     </Notice>
     <form className="settings-section" onSubmit={event => {
       event.preventDefault();
-      void run(async () => { await desktop.registerHost(origin, label); setSaved(true); setOrigin(""); setLabel(""); }, true);
+      void run(async () => { await desktop.registerHost(origin, label); setSaved(true); clearCheck(); setOrigin(""); setLabel(""); }, true);
     }}>
-      <label>{t("Host address")}<Input aria-invalid={!!registrationProblem} aria-describedby={registrationProblem ? registrationErrorId : undefined} value={origin} onChange={event => setOrigin(event.target.value)} placeholder="https://host.example:3000" required /></label>
+      <label>{t("Host address")}<Input aria-invalid={!!registrationProblem} aria-describedby={registrationProblem ? registrationErrorId : undefined} value={origin} onChange={event => { clearCheck(); setOrigin(event.target.value); }} placeholder="https://host.example:3000" required /></label>
       <label>{t("Host label")}<Input aria-invalid={!!registrationProblem} aria-describedby={registrationProblem ? registrationErrorId : undefined} value={label} onChange={event => setLabel(event.target.value)} required /></label>
       {registrationProblem ? <FieldError id={registrationErrorId}>{registrationProblem}</FieldError> : null}
-      <div className="settings-actions"><Button type="submit" size="sm" disabled={busy}>{t("Register Host")}</Button></div>
+      <div className="settings-actions host-registration-actions">
+        <Button type="button" size="sm" variant="secondary" disabled={busy || checking || !origin} onClick={() => void check()}>{t("Check connection")}</Button>
+        {connection ? <HostStatus runtime={connection} /> : null}
+        <Button type="submit" size="sm" disabled={busy}>{t("Register Host")}</Button></div>
     </form>
     {saved || hosts.some(host => !allowed.includes(host.hostId)) ? <Notice>
       {t("Registration saved. New Hosts cannot connect in this window. Save your work and apply drafts, then restart.")}

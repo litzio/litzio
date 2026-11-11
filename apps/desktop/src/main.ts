@@ -1,5 +1,5 @@
 import { openProviderSessionLog } from "./provider-session-log.ts";
-import { RemoteHostRegistry } from "../../editor/server/remote-host-registry.ts";
+import { RemoteHostRegistry, checkRemoteHost } from "../../editor/server/remote-host-registry.ts";
 import { brand } from "../../../brand.ts";
 // Litzio Desktop: one window with the bundled Editor, the shared daemon HTTP Host, preferences
 // and updates. Documents are read and written only through the existing Host handlers.
@@ -348,6 +348,7 @@ function registerIpc(): void {
   });
   handle("desktop:hosts", () => ({ hosts: remoteHosts.list(), allowedHostIds, productVersion: app.getVersion(), cliRemovalProtectionWarning }));
   const text = (value: unknown): string => { if (typeof value !== "string") throw new Error("Expected text."); return value; };
+  handle("desktop:host-check", origin => checkRemoteHost(text(origin), app.getVersion()));
   handle("desktop:host-register", (origin, label) => { remoteHosts.register(text(origin), text(label)); });
   handle("desktop:host-rename", (id, label) => { remoteHosts.rename(text(id), text(label)); });
   handle("desktop:host-work", summary => {

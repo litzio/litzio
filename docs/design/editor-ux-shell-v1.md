@@ -743,10 +743,11 @@ including choices in an already-open portaled reference-style menu.
 
 The TopBar Document settings button and its modal are removed. Command center
 `Document settings…` closes its overlay, scrolls to the block, expands it and focuses
-its disclosure. It retains its existing
-no-document/busy/Source availability. Bibliography opens the existing connection
-dialog from its row and returns focus to that row's Connect button after selection
-or dismissal. The existing References-region connection remains available.
+its disclosure. It retains its existing no-document/busy/Source availability. A document
+without a connected bibliography file hides the bibliography row. When a bibliography is
+connected, the row opens the existing connection dialog and returns focus to that row's
+Connect button after selection or dismissal. The existing References-region connection
+and the command-center `Connect bibliography…` item remain available.
 
 Settings still use the same editor/Core operations, dirty indication, Save and save
 failure handling. No Core/CLI operation, file format or device preference changes.
@@ -1499,7 +1500,8 @@ same switching and document-action restrictions; unavailable results remain visi
 Without an open document, the center still offers folder/settings/view-layout commands.
 
 **Connect bibliography…** (#473, owner decision 2026-10-26) opens the same candidate Dialog as
-the **Document settings** action and the connect button in a visible References area.
+the **Document settings** bibliography row (while a declaration is connected) and the connect
+button in a visible References area.
 It shares the document settings restrictions (no document, pending work, Source), without
 requiring an editor caret. Selection stages the existing bibliography declaration edit; Save
 applies it. See [bibliography connections](citations-v1.md#connect-and-disconnect-bibliography-files-438).
@@ -3272,7 +3274,7 @@ active tab or the Explorer filter to another Host. Document creation uses the sh
 write path and tab-admission with `(hostId, path)`, then opens and focuses the created document.
 Folder creation refreshes/reveals its location without switching the document. Errors retain
 the dialog and input. File rename/delete continue using the same FileActionDialog as local.
-The remote template-gallery entry remains separate work (#1185).
+The template gallery reuses the Explorer Host select control (#1185). Catalog and preview are mounted per selected Host; folder selection, creation and the resulting document tab retain that Host. See the [template contract](document-templates-v1.md#host-요청-경계-1174-pr2).
 
 The title-strip search also displays the active tab's Host beside its document context. Its short
 Host label remains visible when the folder context yields at 640px; filter changes do not retarget it.
