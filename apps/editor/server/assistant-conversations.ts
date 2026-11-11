@@ -1,6 +1,6 @@
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
-import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, reviewImageQuestionSchema, answerReviewImageQuestion, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, parseReviewImageQuestion, answerReviewImageQuestion, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -370,7 +370,7 @@ export class AssistantConversations {
     let reviewImage: AssistantQuestionRecord["reviewImage"];
     if (input.reviewImage !== undefined) {
       try {
-        reviewImage=reviewImageQuestionSchema.parse(input.reviewImage);
+        reviewImage=parseReviewImageQuestion(input.reviewImage);
         if(!this.plugins)throw new Error("Review Host unavailable");
         const {estimateHash,...request}=reviewImage!;
         const estimate=await executeReviewAssistantTool(this.plugins,"estimate_review_images",request,this.scopes.get(conversation.id)!);

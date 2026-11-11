@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { executeReviewAssistantTool, executeReadReviewDocument, reviewAssistantTools } from "../server/assistant-plugin-tools.ts";
+import { executeReviewAssistantTool, executeReadReviewDocument, reviewAssistantTools, parseReviewImageQuestion } from "../server/assistant-plugin-tools.ts";
 import { AssistantConversations, conversationForDisplay } from "../server/assistant-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
 
@@ -48,6 +48,14 @@ test("text inspection requires material actually delivered in this turn", async 
     await assert.rejects(invoke("read_review_material",{kind:"page",pageNo:1,path:path.join(root,"..","outside.docling")}),/No review workspace found/);
     const discovered=await invoke("find_review_workspaces",{});assert.equal(discovered.targets.length,1);
     await executeReadReviewDocument(host,{path:path.join(root,"a.docling")},scope);
+    const resumedRead=await executeReadReviewDocument(host,location,scope);
+    assert.equal(resumedRead.documentRevision,documentRevision,"a resumed provider may retain the previous registered tool schema");
+    fail=false;
+    const legacyRequest={...location,baseline,requestId:"00000000-0000-4000-8000-000000000001",records:[record]};
+    await executeReviewAssistantTool(host,"record_review_inspection",legacyRequest,scope);
+    await assert.rejects(executeReviewAssistantTool(host,"record_review_inspection",legacyRequest,scope),/Duplicate requestId/);
+    const question=parseReviewImageQuestion({...location,selection:{pages:[1],targets:[]},estimateHash:"f".repeat(64)});
+    assert.equal(question.path,path.join(root,"a.docling"));assert.equal("plugin" in question,false);
     assert.ok(calls.some(input=>input.action==="workspace-review-change" && input.baseline && input.requestId));
     for(const tool of reviewAssistantTools.filter(tool=>tool.name!=="read_review_request_status"))assert.ok(!["root","plugin","job","baseline","requestId"].some(key=>key in ((tool.inputSchema as any).properties??{})));
   } finally {rmSync(root,{recursive:true,force:true});}
@@ -79,4 +87,3 @@ test("display projects already-loaded large results while preserving creation re
   assert.ok(Buffer.byteLength(JSON.stringify(display))<1024);
   assert.equal(JSON.parse(conversation.turns[0].items[0].toolResult.contentItems[0].text).source,source);
 });
-

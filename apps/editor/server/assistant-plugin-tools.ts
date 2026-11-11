@@ -11,9 +11,20 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 const reviewPath = z.strictObject({path:z.string().min(1)});
+/** Codex retains a thread's registered schemas. Keep in-use conversations callable after resume;
+ * new registrations expose only path. Internal provider IDs are always rediscovered. */
+function reviewInput(raw:unknown) {
+  const value=raw as Record<string,unknown>;
+  if(!value || typeof value!=="object" || Array.isArray(value) || "path" in value || !("root" in value && "workspace" in value))return raw;
+  const {root,workspace,plugin,job,baseline,requestId,...fields}=value;
+  const location=workspaceRequestSchema.options[0]!.omit({action:true}).parse({root,workspace,plugin,job});
+  if(!path.isAbsolute(location.root) || path.isAbsolute(location.workspace))throw new Error("Expected an absolute Root and relative workspace");
+  return {...fields,path:path.resolve(location.root,location.workspace)};
+}
+
 export const reviewDocumentTools = [{ type: "function", name: "read_review_document", description: "Read a prepared review workspace summary by path relative to an opened folder or absolute inside it. Returns revisions, progress and target counts, not the full document. Use read_review_material for page details. Does not prepare or write the workspace.", inputSchema: z.toJSONSchema(reviewPath) }];
 export async function executeReadReviewDocument(host: ReviewHost, input: unknown, scope: DocumentToolScope) {
-  const location=await resolveReview(host,reviewPath.parse(input).path,scope);
+  const location=await resolveReview(host,reviewPath.parse(reviewInput(input)).path,scope);
   const result=await scopedReview(host,{...location,action:"workspace-read"},scope);
   if(result.receipt?.outcome!=="success")return result;
   return {workspace:result.workspace,baseline:result.baseline,documentRevision:result.documentRevision,contentRevision:result.contentRevision,
@@ -119,6 +130,7 @@ const materialInput = reviewPath.extend({kind:z.enum(["lenses","source-evidence"
 const proposeInput = reviewPath.extend({change:reviewLedgerChangeSchema.options[0]!});
 const inspectionInput = reviewPath.extend({records:z.array(reviewLedgerSchema.shape.inspections.element.omit({runId:true})).min(1).max(1000),imageRunId:z.string().min(1).optional()});
 export const reviewImageQuestionSchema = reviewPath.extend({selection:actionSchema("workspace-image-estimate").shape.selection,estimateHash:z.string().regex(/^[a-f0-9]{64}$/)});
+export const parseReviewImageQuestion = (raw:unknown) => reviewImageQuestionSchema.parse(reviewInput(raw));
 const reviewInputs = {
   find_review_workspaces:z.strictObject({path:z.string().min(1).optional()}),
   read_review_material:materialInput,
@@ -166,7 +178,8 @@ async function scopedReview(host:ReviewHost, input:any, scope:DocumentToolScope,
 }
 export async function executeReviewAssistantTool(host:ReviewHost,name:string,input:unknown,scope:DocumentToolScope, delivered: {input:any;runId:string;documentRevision:string;scope:{pages:number[];targets:string[]}}[] = [], callId?:string) {
   if(name==="read_review_request_status") {
-    const {requestId,path:requested}=reviewPath.extend({requestId:z.uuid()}).parse(input);
+    const normalized=reviewInput(input) as Record<string,unknown>;
+    const {requestId,path:requested}=reviewPath.extend({requestId:z.uuid()}).parse({...normalized,requestId:(input as any)?.requestId});
     const location=await resolveReview(host,requested,scope);
     await scopedReview(host,{...location,action:"workspace-read"},scope);
     const result=await host.generatedDocuments.execute({action:"workspace-status",requestId});
@@ -175,14 +188,16 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
   }
   const schema=reviewInputs[name as keyof typeof reviewInputs];
   if(!schema)throw new Error("Unknown review assistant tool");
-  const parsed:any=schema.parse(input);
+  const normalized=reviewInput(input);
+  const parsed:any=schema.parse(normalized);
   if(name==="find_review_workspaces")return findReviewWorkspaces(host,scope,parsed.path);
   if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name) && !["opened-folders","full-access"].includes(scope.permissionMode))throw new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.');
   const {path:requested,...fields}=parsed;
   const location=await resolveReview(host,requested!,scope), args={...location,...fields} as any;
   if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name)) {
     let requests=reviewRequests.get(scope);if(!requests){requests=new Map();reviewRequests.set(scope,requests);}
-    args.requestId=callId ? requests.get(callId)??randomUUID() : randomUUID();
+    const legacyId=normalized!==input && (input as any)?.requestId!==undefined ? z.uuid().parse((input as any).requestId) : undefined;
+    args.requestId=legacyId??(callId ? requests.get(callId)??randomUUID() : randomUUID());
     if(callId)requests.set(callId,args.requestId);
   }
   let action:string, extra:object={}, writing=false;
@@ -227,7 +242,7 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
 
 /** Called exclusively from the validated human-answer path, never a provider tool. */
 export async function answerReviewImageQuestion(host:Pick<PluginHost,"generatedDocuments">, raw:unknown, scope:DocumentToolScope, actor:string, assertActive:()=>void) {
-  const {estimateHash,path:requested,selection}=reviewImageQuestionSchema.parse(raw);
+  const {estimateHash,path:requested,selection}=parseReviewImageQuestion(raw);
   const request={...await resolveReview(host,requested,scope),selection};
   const estimate=await scopedReview(host,{...request,action:"workspace-image-estimate"},scope);
   if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw new Error("Image estimate changed; request a new human approval");
