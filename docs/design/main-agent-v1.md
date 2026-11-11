@@ -1143,13 +1143,13 @@ Codex dynamicTools and MCP tools/list read one Host-owned array and both execute
 through one provider-neutral dispatch. Future tools added to that array therefore
 reach both providers. MCP adds the required top-level object type to object-union schemas without changing their constraints or Host validation. No second document/plugin registry is maintained.
 
-ACP newSession/loadSession receive an HTTP server named `litzio_host`. Each send
+ACP newSession/loadSession receive an HTTP server named `litzio_host`, including an Origin header equal to the endpoint origin. This passes the existing daemon POST Origin policy without exceptions. Each send
 loads existing sessions again to replace the endpoint and rebuild provider history;
 CLIs without loadSession must start a new conversation. The Host generates each
 capability, binds it to the provider session and current turn, and supplies folders,
 permission mode and originating window from admitted Host state. Tool arguments
 cannot select another conversation, turn or permission. Setup permits discovery;
-execution requires an active matching turn. Completion, failure, cancellation,
+execution requires an active matching turn. Failed session setup and conversation deletion also revoke leases. Completion, failure, cancellation,
 disconnection and shutdown revoke capabilities; previous turn URLs cannot be reused.
 This is conversation isolation, not daemon authentication (#1145 remains deferred).
 
@@ -1164,20 +1164,23 @@ in the prompt. This change does not consolidate those instruction sources.
 Verification (2026-11-11): fake ACP plus real SDK HTTP clients protect tool discovery,
 folder isolation, permission hints, cancellation and endpoint rotation. Two real
 Auto prompts: the first discovered tools but host_policy denied them; the second
-completed list_documents and read_document with shell denied. These small localhost
-reads do not establish long sessions, remote Hosts or real plugin/image workflows.
+completed list_documents and read_document with shell denied. Those two probes used a direct createServer → MCP handler and did not test the daemon Host/Origin gate. Review found missing Origin headers; before fixing them, a new real startHttpHost regression reproduced 403 Request origin is not allowed. It now uses the exact ACP-supplied headers to discover and invoke read_document in an admitted active turn, while missing/foreign Origins remain refused. A follow-up real Copilot Auto prompt through startHttpHost completed list_documents and read_document and returned Daemon MCP probe, with shell denied and built-in MCPs no longer disabled. This used one additional prompt. Small localhost reads do not establish long sessions, remote Hosts or real plugin/image workflows.
 
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
-Only read/edit requests carrying absolute paths inside those folders and Host
-Roots can receive the returned `allow_once` option. Edits additionally require
-`opened-folders`; `read-only` denies them. Fetch (URL/network) requests receive allow_once in opened-folders and are denied in read-only.
-Missing paths on native read/edit, execution and unknown requests are cancelled in restricted access. Known Litzio MCP tool permission requests can receive allow_once during an active turn; execution independently enforces Host scope. The owner-approved `full-access`
+Read-only permits read/search requests with absolute locations inside those folders
+and Host Roots. Opened-folders also permits location-bearing edit/delete/move and
+other file tools: every source/destination location must pass the same containment
+check, using write resolution for non-read/search tools. Execute remains denied in
+both restricted modes even with inside locations. Native requests without locations
+are refused except fetch (allowed in opened-folders, denied in read-only) and known
+Litzio MCP requests with matching server/tool metadata. A title alone does not grant
+a Host tool hint. Host tool execution independently enforces its admitted scope. The owner-approved `full-access`
 value instead selects an allow_once (or allow_always) response for every active-turn
 request, including tool execution, paths outside opened folders and URLs. Like Paseo,
 Host sends `allow_all=on` when advertised; Agent/Plan remains the selected session
 mode. Restricted turns send `allow_all=off`. CLI flags deny shell tools in restricted
-access and permit them in full access; built-in MCP servers remain disabled. Unlike Codex, this does not install an OS sandbox or
+access and permit them in full access. The #1500 owner amendment removes the unconditional built-in MCP disable flag, so GitHub and other built-in MCPs can be discovered under Copilot configuration. Unlike Codex, this does not install an OS sandbox or
 override every inherited Copilot permission/MCP configuration. Preauthorized
 provider actions may not ask Host for permission. Users must verify their CLI
 configuration; these settings are not represented as equivalent containment.

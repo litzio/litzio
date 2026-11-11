@@ -794,3 +794,44 @@ test("document comparison accepts only supplied native snapshots and returns rea
   }
   assert.equal(fs.readFileSync(path.join(a, "document.md"), "utf8"), disk);
 });
+
+test("Copilot MCP discovery and calls cross the real daemon Origin gate", async t => {
+  const { CopilotAcp } = await import("../server/copilot-acp.ts");
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+  const log = path.join(isolatedData, "copilot-daemon-acp.jsonl");
+  const originalConnect = CopilotAcp.prototype.connect;
+  // Replace only the provider executable. The daemon, services, ACP framing,
+  // admitted turn and MCP handler all remain the production implementations.
+  t.mock.method(CopilotAcp.prototype, "connect", function (this: InstanceType<typeof CopilotAcp>) {
+    Object.assign(this, { options: { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] } });
+    return originalConnect.call(this);
+  });
+  const previous = process.env.LITZIO_ASSISTANT_CWD;
+  process.env.LITZIO_ASSISTANT_CWD = path.join(isolatedData, "copilot-daemon-assistant");
+  const { a, send, url } = await fixture(t);
+  t.after(() => { if (previous === undefined) delete process.env.LITZIO_ASSISTANT_CWD; else process.env.LITZIO_ASSISTANT_CWD = previous; });
+  const sent = await send("/api/assistant/conversations", "POST", { action: "send", provider: "copilot", permissionMode: "opened-folders", message: "Inspect documents", folders: [a], model: "auto", reasoningEffort: "low" });
+  assert.equal(sent.status, 200, await sent.clone().text());
+  const conversation = await sent.json();
+  assert.equal(conversation.turns.at(-1).status, "inProgress");
+  const rows = fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  const config = rows.filter(row => row.method === "session/new" && row.params.mcpServers.length).at(-1).params.mcpServers[0];
+  assert.equal(new URL(config.url).origin, url);
+  const client = new Client({ name: "daemon-regression", version: "1" });
+  t.after(() => client.close());
+  const headers = Object.fromEntries(config.headers.map((header: { name: string; value: string }) => [header.name, header.value]));
+  await client.connect(new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers } }));
+  assert.ok((await client.listTools()).tools.some(tool => tool.name === "read_document"));
+  const result = await client.callTool({ name: "read_document", arguments: { path: path.join(a, "document.md") } });
+  assert.equal(result.isError, false);
+  assert.match(JSON.stringify(result.content), /Alpha/);
+  // Neither an absent Origin nor an unrelated one becomes a new policy exception.
+  for (const origin of [undefined, "https://foreign.invalid"]) {
+    const response = await fetch(config.url, { method: "POST", headers: { "Content-Type": "application/json", ...(origin ? { Origin: origin } : {}) }, body: "{}" });
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { error: "Request origin is not allowed." });
+  }
+  await client.close();
+  await send("/api/assistant/conversations", "POST", { action: "interrupt", id: conversation.id });
+});

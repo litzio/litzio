@@ -21,7 +21,7 @@
 The existing HTTP listener routes `/api/assistant/mcp/<random-turn-token>` to the
 official assistant's SDK Streamable HTTP transport (JSON responses, no persistent
 MCP session store or second listener). ACP receives the Host socket's local address,
-not a client-supplied origin. Each token selects only Host-owned conversation/turn
+not a client-supplied origin. ACP receives an explicit Origin header for that endpoint; MCP POSTs pass the existing Host/Origin gate with no policy exception. A regression uses real startHttpHost, an active fake-ACP turn and the official SDK client with those supplied headers to discover tools and read a document; missing/foreign Origins remain refused. Each token selects only Host-owned conversation/turn
 state; tool inputs cannot grant folders or permissions. Tool discovery is available
 during session setup, while execution requires the matching active turn. Tokens
 are revoked at completion, failure, cancellation, disconnect and shutdown and rotate

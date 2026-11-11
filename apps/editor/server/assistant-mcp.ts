@@ -7,7 +7,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 export type HostToolCall = { threadId: string; turnId: string; callId: string; tool: string; arguments: any; namespace?: string };
 export type HostToolResult = { success: boolean | null; contentItems: { type: string; text?: string; imageUrl?: string }[] };
 type Tool = { name: string; description: string; inputSchema: object };
-type Lease = { token: string; name: string; conversationId?: string; turnId?: string; servers: { type: "http"; name: string; url: string; headers: [] }[] };
+type Lease = { token: string; name: string; conversationId?: string; turnId?: string; servers: { type: "http"; name: string; url: string; headers: { name: string; value: string }[] }[] };
 
 /** HTTP is owned by the existing Host listener. Tokens are turn capabilities, not daemon authentication. */
 export class AssistantMcp {
@@ -16,7 +16,7 @@ export class AssistantMcp {
   constructor(private tools: () => Tool[], private execute: (call: HostToolCall) => Promise<HostToolResult>) {}
   create() {
     const token = randomUUID(), name = "litzio_host";
-    const lease: Lease = { token, name, servers: this.base ? [{ type: "http", name, url: `${this.base}/api/assistant/mcp/${token}`, headers: [] }] : [] };
+    const lease: Lease = { token, name, servers: this.base ? [{ type: "http", name, url: `${this.base}/api/assistant/mcp/${token}`, headers: [{ name: "Origin", value: new URL(this.base).origin }] }] : [] };
     this.leases.set(token, lease); return lease;
   }
   bind(lease: Lease, id: string) { lease.conversationId = id; }
@@ -28,10 +28,10 @@ export class AssistantMcp {
   revokeConversation(id: string) { for (const lease of this.leases.values()) if (lease.conversationId === id) this.revoke(lease); }
   revoke(lease: Lease) { this.leases.delete(lease.token); }
   close() { this.leases.clear(); }
-  permission(id: string, raw: unknown, title?: string | null) {
+  permission(id: string, raw: unknown) {
     // ACP metadata is only a provider approval hint. Every execution independently checks Host scope.
     const input = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-    return [...this.leases.values()].some(lease => lease.conversationId === id && lease.turnId && this.tools().some(tool => input.serverName === lease.name && (input.toolName === tool.name || input.toolName === `${lease.name}-${tool.name}`) || title === `${lease.name}-${tool.name}`));
+    return [...this.leases.values()].some(lease => lease.conversationId === id && lease.turnId && this.tools().some(tool => input.serverName === lease.name && (input.toolName === tool.name || input.toolName === `${lease.name}-${tool.name}`)));
   }
   async handle(req: IncomingMessage, res: ServerResponse) {
     const token = new URL(req.url!, "http://localhost").pathname.split("/").at(-1)!;

@@ -37,7 +37,7 @@ export class CopilotAcp extends EventEmitter {
     const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin), command = shell ? `"${bin}"` : bin;
     this.version = await new Promise<string | null>(resolve => execFile(command, ["--version"], { shell, windowsHide: true, timeout: 5000 }, (error, out) => resolve(error ? null : out.trim())));
     if (this.closed) throw new Error("Copilot ACP is closed.");
-    const child = spawn(command, [...(this.options.args ?? []), "--acp", ...(!this.fullAccess ? ["--deny-tool=shell"] : []), "--disable-builtin-mcps", "--allow-tool=litzio_host", "--reasoning-effort", this.reasoningEffort],
+    const child = spawn(command, [...(this.options.args ?? []), "--acp", ...(!this.fullAccess ? ["--deny-tool=shell"] : []), "--allow-tool=litzio_host", "--reasoning-effort", this.reasoningEffort],
       { cwd: this.cwd, env: this.options.env?.() ?? process.env, shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     child.stderr.on("data", () => {});

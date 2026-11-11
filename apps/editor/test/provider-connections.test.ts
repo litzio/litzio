@@ -80,6 +80,11 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await assert.rejects(conversations.send({ ...input, id: conversation.id }, settings), /Stop/);
     const request = { sessionId: conversation.id, toolCall: { toolCallId: "write", kind: "edit" as const, locations: [{ path: path.join(root, "new.txt") }] }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "cancelled" } });
+    for (const kind of ["read", "search", "edit", "delete", "move", "execute"] as const) {
+      const result = connection.copilot.permission!({ ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: log }] } });
+      assert.equal(result.outcome.outcome, kind === "read" || kind === "search" ? "selected" : "cancelled", `read-only ${kind}`);
+      assert.equal(connection.copilot.permission!({ ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: path.join(root, "..", "outside.txt") }] } }).outcome.outcome, "cancelled", `read-only outside ${kind}`);
+    }
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
     // A protocol barrier ensures prompt completion is processed, without a timing assumption.
@@ -87,6 +92,14 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.equal(turn.status, "interrupted");
     await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "selected", optionId: "once" } });
+    writeFileSync(path.join(root, "target.txt"), "move destination fixture");
+    for (const kind of ["read", "search", "edit", "delete", "move", "other"] as const) {
+      const scoped = { ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: log }, { path: path.join(root, "target.txt") }] } };
+      assert.equal(connection.copilot.permission!(scoped).outcome.outcome, "selected", `opened-folders ${kind}`);
+      assert.equal(connection.copilot.permission!({ ...scoped, toolCall: { ...scoped.toolCall, locations: [...scoped.toolCall.locations, { path: path.join(root, "..", "outside.txt") }] } }).outcome.outcome, "cancelled", `mixed outside locations ${kind}`);
+    }
+    assert.equal(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "shell", kind: "execute", locations: [{ path: log }] } }).outcome.outcome, "cancelled", "even an inside location cannot authorize shell");
+    assert.equal(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "move", kind: "move" } }).outcome.outcome, "cancelled", "a file mutation still needs locations");
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { ...request.toolCall, locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "cancelled" } });
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "selected", optionId: "once" } });
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "shell", kind: "execute" } }), { outcome: { outcome: "cancelled" } });
@@ -137,7 +150,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   const fullRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const launch = fullRpc.filter(message => message.args).at(-1);
   assert.ok(!launch.args.includes("--deny-tool=shell"));
-  assert.ok(launch.args.includes("--disable-builtin-mcps"));
+  assert.ok(!launch.args.includes("--disable-builtin-mcps"));
   assert.ok(fullRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "allow_all" && message.params.value === "on"));
   const restricted = await conversations.send({ ...input, id: full.id, permissionMode: "read-only" }, settings);
   assert.deepEqual(connection.copilot.permission!({ ...execution, sessionId: restricted.id }), { outcome: { outcome: "cancelled" } });
@@ -921,10 +934,11 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const one = await connect(firstUrl);
   assert.deepEqual((await one.listTools()).tools, conversations.tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { type: "object", ...inputSchema } })));
   assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
-  const permission = (title: string) => connection.copilot.permission!({ sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] });
-  assert.equal(permission("litzio_host-list_documents").outcome.outcome, "selected");
-  assert.equal(permission("foreign-list_documents").outcome.outcome, "cancelled");
-  assert.equal(permission("litzio_host-missing_tool").outcome.outcome, "cancelled");
+  const permission = (serverName: string, toolName: string, metadata = true) => connection.copilot.permission!({ sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title: "litzio_host-list_documents", ...(metadata ? { rawInput: { serverName, toolName } } : {}) }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] });
+  assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "selected");
+  assert.equal(permission("foreign", "list_documents").outcome.outcome, "cancelled");
+  assert.equal(permission("litzio_host", "missing_tool").outcome.outcome, "cancelled");
+  assert.equal(permission("litzio_host", "list_documents", false).outcome.outcome, "cancelled", "a matching title alone does not identify a Host tool");
   const second = await conversations.send({ ...input, folders: [] }, { ...settings, permissionMode: "read-only" });
   const two = await connect(endpoint());
   assert.equal((await two.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "read-only MCP dispatch uses the same Host plugin operation path");
@@ -933,7 +947,7 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   await conversations.interrupt(first.id);
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: first.id, modelId: "auto" }));
   assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);
-  assert.equal(permission("litzio_host-list_documents").outcome.outcome, "cancelled");
+  assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "cancelled");
   const deadline = Date.now() + 5000;
   while (first.turns.at(-1)?.status === "inProgress" && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
   assert.notEqual(first.turns.at(-1)?.status, "inProgress");
@@ -942,5 +956,31 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);
   assert.ok(rows().find(row => row.args)?.args.includes("--deny-tool=shell"));
   assert.ok(rows().find(row => row.args)?.args.includes("--allow-tool=litzio_host"));
+  assert.ok(rows().filter(row => row.args).every(row => !row.args.includes("--disable-builtin-mcps")));
   await conversations.interrupt(first.id); await conversations.interrupt(second.id);
+  const idleDeadline = Date.now() + 5000;
+  while ([first.id, second.id].some(id => conversations.current(id).turns.some(turn => turn.status === "inProgress")) && Date.now() < idleDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  await conversations.resume(first.id, settings);
+  const idleUrl = endpoint();
+  conversations.remove(first.id, () => {});
+  assert.equal((await fetch(idleUrl, { method: "POST" })).status, 403, "deleting an idle resumed conversation revokes its lease");
+  const acp = await connection.copilot.connect();
+  let failedUrl = "";
+  const failedSetup = t.mock.method(acp, "newSession", async (params: Parameters<typeof acp.newSession>[0]) => {
+    failedUrl = (params.mcpServers[0] as { url: string }).url;
+    throw new Error("fixture session setup failure");
+  });
+  await assert.rejects(conversations.send(input, settings), /fixture session setup failure/);
+  assert.equal((await fetch(failedUrl, { method: "POST" })).status, 403);
+  failedSetup.mock.restore();
+  const failedConfiguration = t.mock.method(acp, "setSessionMode", async () => { throw new Error("fixture session configuration failure"); });
+  await assert.rejects(conversations.send(input, settings), /fixture session configuration failure/);
+  assert.equal((await fetch(endpoint(), { method: "POST" })).status, 403);
+  failedConfiguration.mock.restore();
+  t.mock.method(acp, "loadSession", async (params: Parameters<typeof acp.loadSession>[0]) => {
+    failedUrl = (params.mcpServers[0] as { url: string }).url;
+    throw new Error("fixture resume setup failure");
+  });
+  await assert.rejects(conversations.resume(second.id, settings), /fixture resume setup failure/);
+  assert.equal((await fetch(failedUrl, { method: "POST" })).status, 403);
 });
