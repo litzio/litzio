@@ -36,7 +36,7 @@ view_catalog/propose_view와 내부 Host/CLI 생성·교정·자료/출처·결�
 아래 생성 관련 실행·캡처 기록은 Historical이며 현재 제공 기능이나 검증 경로를 뜻하지 않는다.
 남는 플러그인 화면·조회·표와 review 경계는 [플러그인 화면 계약](plugin-screens-v1.md)을 따른다.
 
-일반 대화는 첨부하지 않은 현재 문서의 경로만 전달한다. 현재 문서 본문이나 이전 도구 결과를
+일반 대화는 첨부하지 않은 현재 문서의 경로만 전달한다. 활성 검수 대조 탭은 대상 Host가 같은 경우 별도 `reviewWorkspace:{path}`를 참고 맥락으로 전달한다. 이 맥락은 권한이나 검수 도구의 실행 조건이 아니다. 현재 문서 본문이나 이전 도구 결과를
 뷰 생성용 snapshot으로 자동 수집하지 않는다. 명시적 파일 참조와 문서 읽기 도구는 유지한다.
 사용자 데이터 migration은 없다.
 
@@ -507,8 +507,12 @@ operation or CLI command is needed: this is an AI interface to existing semantic
 The reply is `{contentItems:[{type:"inputText",text:JSON.stringify(result)}],success}`.
 Failures return the same shape with `success:false` and `{error}` JSON text.
 Codex stores the dynamic item. The Host snapshot retains `toolResult.success` and
-`toolResult.contentItems`, including the JSON path/revision/identity, on live notifications
-and history hydration. The existing progress view shows tool name and completion
+small `toolResult.contentItems`, including the JSON path/revision/identity, on live notifications
+and history hydration. Results over 16 KiB are represented by omitted/byte-count metadata;
+creation receipts retain path/revision/identity for Open/Undo. This is a display projection,
+not a change to model-facing results or provider history. The transport boundary also projects
+already-loaded conversations for GET, resume, send and submission lookup; the 8 MiB response
+limit remains unchanged. The existing progress view shows tool name and completion
 or failure. The result cards and guarded undo below consume these receipts.
 
 Codex **0.166.0** generated `ThreadResumeParams` has no `dynamicTools` field.

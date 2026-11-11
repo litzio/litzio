@@ -5,7 +5,7 @@ import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { ASSISTANT, type AiProvider } from "../shared/assistant.ts";
 import { createAssistantSettings, checkedAssistantSettings } from "./assistant-settings.ts";
 import { ProviderConnections } from "./provider-connections.ts";
-import { AssistantConversations } from "./assistant-conversations.ts";
+import { AssistantConversations, conversationForDisplay } from "./assistant-conversations.ts";
 
 /** Official daemon feature. Connections and turns live until daemon shutdown. */
 export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun; plugins?: PluginService; paths?: ReturnType<typeof hostPaths> }) {
@@ -88,7 +88,9 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return configure(next);
     }
     if (!Object.hasOwn(assistantOperations, operation)) throw new Error("Unknown assistant operation.");
-    const result = await assistantOperations[operation as keyof typeof assistantOperations](args);
+    let result:any = await assistantOperations[operation as keyof typeof assistantOperations](args);
+    if(result?.turns)result=conversationForDisplay(result);
+    else if(result?.conversation)result={...result,conversation:conversationForDisplay(result.conversation)};
     if (Buffer.byteLength(JSON.stringify(result), "utf8") > ASSISTANT_TRANSPORT_LIMITS.responseBytes) throw new Error("Assistant response exceeds byte limit.");
     return result;
   };

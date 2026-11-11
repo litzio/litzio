@@ -51,6 +51,9 @@ test("generic workspace groups preserve source and history through partial decis
   const mutate = (change: unknown, baseline = textRevision(readFileSync(file,"utf8")), requestId = randomUUID()) => host.execute({ ...base, action: "workspace-review-change", change, baseline, requestId });
   const human = { actor: "human", reason: "Reviewed exact target and change", confirmed: true };
   try {
+    const wrongJob=new GeneratedDocuments(new RootAccess([root]),()=>({workspace:false,operation:"fixture",version:1,assertCurrent(){}}),provider);
+    const wrongJobResult=await wrongJob.execute({...base,action:"workspace-read"});
+    assert.equal(wrongJobResult.receipt.outcome,"failure");assert.match(wrongJobResult.error,/does not create a review workspace/);
     const opened = await host.execute({ ...base, action: "workspace-open", baseline: textRevision(readFileSync(file,"utf8")), requestId: randomUUID() });
     assert.equal(opened.receipt.outcome, "success", JSON.stringify(opened));
     assert.equal(opened.snapshot.inputs[0].targets.length, 2, "one source binds to multiple final Core targets");

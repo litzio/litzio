@@ -11,7 +11,7 @@ import { validateImage } from "../image-validation.ts";
 import { readModel } from "../document-replay.ts";
 import { RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
 
-type Provider = { operation: string; version: number; comparison?: string; assertCurrent(): void };
+type Provider = { workspace?:boolean; operation: string; version: number; comparison?: string; assertCurrent(): void };
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const revision = (file: string) => { if (statSync(file).size > JOB_FILE_MAX_BYTES) throw new Error("Workspace exceeds Host limit"); return hash(readFileSync(file)); };
 
@@ -60,6 +60,7 @@ export class ReviewWorkspaces {
     let evidence: Awaited<ReturnType<typeof inspectEvidence>> | undefined;
     try {
       const provider = this.declaration(input.plugin, input.job), before = revision(file);
+      if(!provider.workspace)throw new Error(`Job ${input.plugin}.${input.job} does not create a review workspace. Choose a workspace provider job.`);
       const check = () => { provider.assertCurrent(); accessPath(boundary.resolve(file), this.access); if (revision(file) !== before) throw new Error("Workspace baseline conflict; read before writing"); };
       const call = async (mode: string, target = file, extra = {}) => {
         check();
