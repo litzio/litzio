@@ -22,7 +22,7 @@ function reviewInput(raw:unknown) {
   return {...fields,path:path.resolve(location.root,location.workspace)};
 }
 
-export const reviewDocumentTools = [{ type: "function", name: "read_review_document", description: "Read a prepared review workspace summary by path relative to an opened folder or absolute inside it. Returns revisions, progress and target counts, not the full document. Use read_review_material for page details. Does not prepare or write the workspace.", inputSchema: z.toJSONSchema(reviewPath) }];
+export const reviewDocumentTools = [{ type: "function", name: "read_review_document", description: "Read a prepared workspace summary by opened-folder-relative or contained absolute path. Returns revisions, progress and target counts; no full document, preparation or writes.", inputSchema: z.toJSONSchema(reviewPath) }];
 export async function executeReadReviewDocument(host: ReviewHost, input: unknown, scope: DocumentToolScope) {
   const location=await resolveReview(host,reviewPath.parse(reviewInput(input)).path,scope);
   const result=await scopedReview(host,{...location,action:"workspace-read"},scope);
@@ -141,13 +141,13 @@ const reviewInputs = {
   read_review_images:reviewPath.extend({runId:z.string().min(1),pageNo:z.number().int().positive(),target:z.string().min(1).optional()}),
 };
 const descriptions: Record<keyof typeof reviewInputs,string> = {
-  find_review_workspaces:"Find review workspaces inside opened folders using the common workspace-find reader. Optional path names a file or folder; omitted searches opened folders. Returns paths and matching providers, never document contents.",
-  read_review_material:"Read review lenses, source-evidence candidates (numeric/unit first), required picture/table checks, groups, or a page fragment with neighboring items, relations, original text/provenance and current block correspondence. No images.",
-  run_review_source_evidence:"Run the common source-evidence operation and save candidates, never proposals or document changes. Host supplies the requestId; on uncertainty query the returned ID with read_review_request_status, never replay.",
-  propose_review_groups:"Save proposed review groups only through the common validated operation. Does not approve or change the document. Target before-content must match; insert requires source evidence. Never bypass rejection. On uncertainty read status; never replay.",
-  record_review_inspection:"Record only scopes you actually read. Use uncertain when evidence is insufficient. Cannot select/approve an image run, complete required checks or change documents. With imageRunId, record comparison results only after reading all approved images in this turn.",
-  estimate_review_images:"Calculate selected page/region counts and estimated input tokens without returning images. Show the returned estimateHash and selection using request_litzio_user_input reviewImage. Acceptance is display only; wait for the human answer and its runId.",
-  read_review_images:"Read only images selected by a real human question-card answer, using its runId and workspace path. Pages require whole-page approval; target regions require that exact target/page. Cannot self-confirm. Record findings with record_review_inspection; provider turn usage is recorded separately.",
+  find_review_workspaces:"Find workspace paths and providers inside opened folders. Optional path filters by file or folder; omitted searches all opened folders. No document contents.",
+  read_review_material:"Read lenses, source-evidence candidates, required checks, groups, or page fragments with neighbors, provenance and current block correspondence. No images.",
+  run_review_source_evidence:"Save source-evidence candidates for optional pages; no proposals or document changes. On uncertainty query the returned ID with read_review_request_status; never replay.",
+  propose_review_groups:"Save validated proposed groups to the ledger; no approval or document changes. Never bypass rejection. On uncertainty query request status; never replay.",
+  record_review_inspection:"Save inspections for actually read scopes; insufficient evidence is uncertain. No approval, required-check completion or document changes. Image comparison requires all approved images read this turn. On uncertainty query request status; never replay.",
+  estimate_review_images:"Return page/region counts, estimated input tokens and estimateHash; no images. Submit selection and hash with request_litzio_user_input reviewImage; acceptance is not approval. Wait for the human answer and runId.",
+  read_review_images:"Return page or target-region images for the human-approved runId and exact scope only; cannot self-confirm or expand approval.",
 };
 export const reviewAssistantTools: {type:string;name:string;description:string;inputSchema:object}[] = Object.entries(reviewInputs).map(([name,schema])=>({type:"function",name,description:descriptions[name as keyof typeof reviewInputs],inputSchema:z.toJSONSchema(schema)}));
 reviewAssistantTools.push({type:"function",name:"read_review_request_status",description:"Observe the same requestId after an uncertain review write; never replay it.",inputSchema:z.toJSONSchema(reviewPath.extend({requestId:z.uuid()}))});

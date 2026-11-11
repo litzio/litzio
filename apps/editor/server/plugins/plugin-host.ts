@@ -48,6 +48,7 @@ export class PluginHost {
   private supply: OfficialPlugin[];
   private designated: { id: string; directory: string }[];
   private assistantSkills: PluginAssistantSkills;
+  skillDisplayName(file: string) { return this.assistantSkills.displayName(file); }
   readonly authoringDirectory: string;
   private authoringRoot?: RootAccess;
   constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[]; jobHistoryFile?: string } = {}) {

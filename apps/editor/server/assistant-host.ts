@@ -29,7 +29,11 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     assistantSkills: async (args?: { provider?: AiProvider }) => {
       if (provider(args) !== "codex") throw new Error("Skill selection is available only with Codex.");
       await plugins?.start();
-      return (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).skills();
+      const catalog = await (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).skills();
+      return { ...catalog, skills: catalog.skills.map(skill => {
+        const displayName = plugins?.host.skillDisplayName(skill.path);
+        return displayName ? { ...skill, displayName } : skill;
+      }) };
     },
     assistantModels: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).models(provider(args)),
     assistantDiagnostics: async (args?: { provider?: AiProvider; summary?: string }) => {
