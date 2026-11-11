@@ -155,6 +155,18 @@ test("portable review completion keeps inspection, required confirmation and opt
 import { validateManifest, compileSchema, defaultJobOutput, HEALTH_CHECK_OUTPUT_SCHEMA, healthCheckResultSchema, reviewPageSchema } from "../src/index.ts";
 const manifest = () => ({ schemaVersion: 1, id: "example.demo", tier: "community", publisher: { id: "example", name: "Example" }, name: "Demo", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: {} });
 
+test("assistant skills declare unique IDs and artifact-relative directories on SDK 0.5", () => {
+  const skill = { id: "review", directory: "skills/review" };
+  const withSkills = (skills: unknown[], requiresSdk = "^0.5.0") => ({ ...manifest(), requiresSdk, contributes: { skills } });
+  assert.deepEqual(validateManifest(withSkills([skill])).contributes.skills, [skill]);
+  assert.deepEqual(validateManifest(manifest()).contributes.skills, []);
+  assert.throws(() => validateManifest(withSkills([skill], "<0.5.0")), /skills require SDK/);
+  assert.throws(() => validateManifest(withSkills([skill, skill])), /Duplicate skill ID/);
+  for (const directory of ["", "/skills/review", "../review", "skills/../review", "C:/review", "skills\\review", "https://example.test/review"]) {
+    assert.throws(() => validateManifest(withSkills([{ ...skill, directory }])));
+  }
+});
+
 test("review regions accept optional shared kinds and reject provider names as kinds", () => {
   const region = { id: "region", bbox: [0, 0, 10, 10], category: "Provider label", status: "supported" };
   const page = { generation: "g", sourceRevision: "s", pageNo: 1, width: 100, height: 100, origin: "TOPLEFT", unit: "pt", regions: [region] };

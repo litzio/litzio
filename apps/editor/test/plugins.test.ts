@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { canonicalFilePath } from "../server/file-access.ts";
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
-import { rowSchema, completedReviewSchema } from "@litzio/plugin-sdk";
+import { rowSchema, completedReviewSchema, validateManifest } from "@litzio/plugin-sdk";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
@@ -15,6 +15,7 @@ import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from 
 import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { executeReadReviewDocument } from "../server/assistant-plugin-tools.ts";
+import { PluginAssistantSkills } from "../server/plugins/assistant-skills.ts";
 
 // Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
 // SDK runtime admission, official K1 storage and the browser result boundary.
@@ -978,18 +979,39 @@ test("K1 assistant job tools use shared definitions without per-call consent and
 });
 
 test("subprocess isolation, fresh artifact reload, trust failure recovery and crash status", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"));
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [], designatedPlugins: [] });
+  const connection = new ProviderConnections(path.join(root, "assistant"));
+  const skills = path.join(root, "assistant", ".agents", "skills"), installedSkill = path.join(skills, "litzio-plugin-fixture--reload---review");
   const marker = path.join(root, "disposed");
   const code = (label: string, crash = false) => `import {writeFileSync} from 'node:fs'; export function activate(){${crash ? "setTimeout(()=>process.exit(7),100);" : ""}return {operations:{},status:()=>({available:true,message:${JSON.stringify(label)}+':'+process.pid,folders:[],decorations:[],accounts:[]}),dispose(){writeFileSync(${JSON.stringify(marker)},'disposed')}}}`;
   try {
     const directory = lifecycleFixture(root, "fixture.reload", code("first"));
+    const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+    manifest.requiresSdk = "^0.5.0"; manifest.contributes.skills = [{ id: "review", directory: "skills/review" }];
+    writeFileSync(manifestFile, JSON.stringify(manifest));
+    const skillDirectory = path.join(directory, "skills", "review"); mkdirSync(path.join(skillDirectory, "references"), { recursive: true });
+    const skillText = (body: string) => `---\nname: review\ndescription: Review a converted document\n---\n${body}\n`;
+    writeFileSync(path.join(skillDirectory, "SKILL.md"), skillText("First procedure"));
+    writeFileSync(path.join(skillDirectory, "references", "evidence.md"), "Original evidence");
+    connection.environment();
+    const userSkill = path.join(skills, "user-skill"); mkdirSync(userSkill); writeFileSync(path.join(userSkill, "SKILL.md"), "User skill");
+    const stale = path.join(skills, "litzio-plugin-removed---review"); mkdirSync(stale); writeFileSync(path.join(stale, "SKILL.md"), "Stale");
+    await host.start(); assert.equal(existsSync(stale), false);
     await host.invoke("register", { directory });
+    assert.equal(existsSync(installedSkill), false, "registration without trust cannot publish instructions");
     const trust = async () => host.invoke("trust", { id: "fixture.reload", registrationId: (await host.list())[0]!.registrationId });
     await trust(); await host.invoke("enable", { id: "fixture.reload" });
+    assert.match(readFileSync(path.join(installedSkill, "SKILL.md"), "utf8"), /name: litzio-plugin-fixture--reload---review/);
+    assert.equal(readFileSync(path.join(installedSkill, "references", "evidence.md"), "utf8"), "Original evidence");
+    assert.ok(connection.environment().skills.includes(path.basename(installedSkill)));
     const first = (await host.list())[0]!.status!.message;
     assert.notEqual(first.split(':')[1], String(process.pid));
     writeFileSync(path.join(directory, "host.js"), code("second"));
+    writeFileSync(path.join(skillDirectory, "SKILL.md"), skillText("Updated procedure"));
+    rmSync(path.join(skillDirectory, "references"), { recursive: true });
     await host.invoke("reload", { id: "fixture.reload" });
+    assert.match(readFileSync(path.join(installedSkill, "SKILL.md"), "utf8"), /Updated procedure/);
+    assert.equal(existsSync(path.join(installedSkill, "references")), false, "reload removes deleted resources");
     assert.equal(readFileSync(marker, "utf8"), "disposed");
     assert.equal((await host.list())[0]!.running, true);
     await host.invoke("reload", { id: "fixture.reload" });
@@ -998,6 +1020,7 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     writeFileSync(path.join(directory, "host.js"), "throw new Error('private error')");
     await trust(); await assert.rejects(host.invoke("reload", { id: "fixture.reload" }), /request failed/);
     assert.equal((await host.list())[0]!.running, false);
+    assert.equal(existsSync(installedSkill), false, "failed activation cannot retain instructions");
     writeFileSync(path.join(directory, "host.js"), code("recovered"));
     await trust(); await host.invoke("reload", { id: "fixture.reload" });
     assert.match((await host.list())[0]!.status!.message, /^recovered:/);
@@ -1011,10 +1034,45 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
       failed = (await host.list())[0]!;
     }
     assert.equal(failed.running, false); assert.match(failed.error!, /process failed/);
+    assert.equal(existsSync(installedSkill), false, "crashed plugin instructions are removed");
     await new Promise(r => setTimeout(r, 100)); assert.equal((await host.list())[0]!.running, false);
     writeFileSync(path.join(directory, "host.js"), code("final"));
     await trust(); await host.invoke("reload", { id: "fixture.reload" });
     assert.match((await host.list())[0]!.status!.message, /^final:/);
+    await host.invoke("disable", { id: "fixture.reload" }); assert.equal(existsSync(installedSkill), false);
+    await host.invoke("enable", { id: "fixture.reload" }); assert.equal(existsSync(installedSkill), true);
+    await host.invoke("unregister", { id: "fixture.reload" }); assert.equal(existsSync(installedSkill), false);
+    await host.invoke("register", { directory }); await trust(); await host.invoke("enable", { id: "fixture.reload" });
+    await host.close(); assert.equal(existsSync(installedSkill), false);
+    assert.equal(readFileSync(path.join(userSkill, "SKILL.md"), "utf8"), "User skill");
+    assert.ok(existsSync(path.join(skills, "litzio-guide", "SKILL.md")));
+  } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("skill validation is nonexecuting and plugin namespaces preserve other contributions", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-skills-")), host = new PluginHost(path.join(root, "state.json"));
+  try {
+    const directories = ["fixture.first", "fixture.second"].map(id => lifecycleFixture(root, id, "throw new Error('must not execute')"));
+    for (const [index, directory] of directories.entries()) {
+      const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+      manifest.requiresSdk = "^0.5.0"; manifest.contributes.skills = [{ id: "review", directory: "skills/review" }];
+      writeFileSync(manifestFile, JSON.stringify(manifest));
+      await assert.rejects(host.invoke("register", { directory }), /ENOENT/);
+      const source = path.join(directory, "skills", "review"); mkdirSync(source, { recursive: true });
+      writeFileSync(path.join(source, "SKILL.md"), "---\nname: review\n---\nMissing description");
+      await assert.rejects(host.invoke("register", { directory }), /Invalid skill/);
+      writeFileSync(path.join(source, "SKILL.md"), "---\nname: review\ndescription: Review\n---\nProcedure");
+      await host.invoke("register", { directory });
+      const manager = new PluginAssistantSkills(path.join(root, "assistant"));
+      manager.install(directory, validateManifest(manifest));
+      if (index === 1) {
+        assert.ok(existsSync(path.join(root, "assistant", ".agents", "skills", "litzio-plugin-fixture--first---review", "SKILL.md")));
+        const first = validateManifest(JSON.parse(readFileSync(path.join(directories[0]!, "litzio-plugin.json"), "utf8")));
+        first.contributes.skills = []; manager.install(directories[0]!, first);
+        assert.equal(existsSync(path.join(root, "assistant", ".agents", "skills", "litzio-plugin-fixture--first---review")), false);
+        assert.equal(existsSync(path.join(root, "assistant", ".agents", "skills", "litzio-plugin-fixture--second---review", "SKILL.md")), true);
+      }
+    }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

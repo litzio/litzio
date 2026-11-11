@@ -12,6 +12,7 @@
   "requiresSdk": ">=0.5.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
+    "skills": [{ "id": "review", "directory": "skills/review" }],
     "operations": [
       {
         "id": "connection",
