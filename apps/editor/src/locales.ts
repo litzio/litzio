@@ -1,6 +1,16 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Approve": "Approve",
+  "Decline": "Decline",
+  "Image comparison · {{pages}} · about {{tokens}} input tokens": "Image comparison · {{pages}} · about {{tokens}} input tokens",
+  "Pages: {{pages}}": "Pages: {{pages}}",
+  "{{count}} pages": "{{count}} pages",
+  "Image comparison details": "Image comparison details",
+  "Targets: {{targets}} · {{count}} regions": "Targets: {{targets}} · {{count}} regions",
+  "Whole pages": "Whole pages",
+  "Text plus 85+170 tokens per 512px tile at 2x. Model-dependent estimate, not billed tokens.": "Text plus 85+170 tokens per 512px tile at 2x. Model-dependent estimate, not billed tokens.",
+
   "Check request status": "Check request status",
   "Regenerate review snapshot": "Regenerate review snapshot",
   "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.": "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.",
@@ -1345,6 +1355,17 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Approve": "승인",
+  "Decline": "거절",
+  "Image comparison · {{pages}} · about {{tokens}} input tokens": "{{pages}} 이미지 대조 · 예상 입력 약 {{tokens}} 토큰",
+  "Pages: {{pages}}": "{{pages}}쪽",
+  "{{count}} pages": "{{count}}쪽",
+  "Image comparison details": "이미지 대조 상세",
+  "Targets: {{targets}} · {{count}} regions": "대상: {{targets}} · {{count}}개 영역",
+  "Whole pages": "전체 쪽",
+  "Text plus 85+170 tokens per 512px tile at 2x. Model-dependent estimate, not billed tokens.": "텍스트와 2배 해상도의 512px 타일당 85+170 토큰으로 계산한 예상량입니다. 모델에 따라 다르며 청구 토큰이 아닙니다.",
+
+
   "Check request status": "요청 상태 확인",
   "Regenerate review snapshot": "검수 문서 다시 만들기",
   "This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress.": "이전 생성 계약의 문서입니다. 대조하거나 확인 기록을 바꾸려면 명시적으로 다시 만드세요.",

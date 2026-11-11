@@ -93,13 +93,15 @@ SDK 0.5.0의 선택적 `contributes.skills`는 `[{"id":"review","directory":"ski
 
 기존 공용 `plugins enable/disable/reload/unregister`와 CLI를 통해 같은 로드 수명을 따른다. disable/unregister·프로세스 실패·Host 종료는 해당 복사본을 제거한다. reload는 이전 폴더 전체를 지우고 새 파일을 복사하므로 삭제된 보조 자료나 기여도 남지 않으며, 재로드 실패 시 스킬을 남기지 않는다. Host 시작은 이전 실행의 예약 prefix 복사본을 정리한 뒤 실제 로드한 플러그인의 스킬만 다시 만든다. 파일 배포이며 새 권한·실행·마켓·버전 관리 계층은 없다. 이미 공급자 문맥에 읽힌 지시를 회수한다는 뜻은 아니다.
 
+선택 목록은 Host가 읽은 manifest 이름과 SKILL.md 원래 name을 `플러그인 · 스킬`로 표시한다. 표시 정보는 설치 수명 안에서 메모리에 보관하며 내부 이름·SDK 선언은 바꾸지 않는다.
+
 현재 스킬 발견/선택은 Codex만 지원한다. 스킬 목록 조회도 플러그인 시작을 기다린 후 기존 `skills/list` forceReload를 사용하며, 대화 전송은 기존 플러그인 시작·스킬 선택 검사 경로를 따른다. Copilot에서는 이 스킬을 공급하지 않고 기존 도구만 사용한다. 따라서 쓰기 재시도 금지·불확실한 응답의 상태 조회·이미지 사람 승인 등의 필수 데이터 보호 규칙은 도구 설명에도 남겨야 한다.
 
 스킬 복사 실패는 정상 활성화한 플러그인이나 도구를 종료하지 않는다. 설치 중 실패하면 해당 namespace의 부분 복사본 정리를 시도하고 기존 플러그인 error 표시로 설치 실패와 reload 안내를 알린다. 시작 시 이전 스킬 정리가 실패해도 Host와 플러그인 로드를 계속하며 기존 등록별 error 경로로 정리 실패를 알린다. 정리 자체의 파일 오류가 지속되면 이전/부분 복사본이 남을 수 있으며 제거 성공으로 간주하지 않는다. 정상 reload는 설치 오류를 해제한다. Windows의 예약 namespace 이름 비교는 대소문자를 구분하지 않는다.
 
 리뷰 회귀는 기존 reload subprocess fixture에서 fs.cpSync ENOSPC와 시작 정리 EACCES를 주입해 수정 전 실패를 확인했다. 수정 후 오류 표시·부분 복사본 제거·정상 플러그인 도구 호출·reload 복구를 확인한다. 실제 디스크를 가득 채운 검사가 아니며 새 subprocess fixture나 E2E를 추가하지 않는다. 기존 파일 검사에는 Windows 대문자 namespace 정리만 보완한다.
 
-Docling은 지정 커뮤니티 payload에 검수 스킬을 포함한다. 검수 대상 찾기 → 렌즈·필수 확인·숫자/단위 원문 증거 후보 → 쪽 자료 → 국소 교정 제안 → 실제 읽은 범위의 검사 기록 → 필요시 예상량 질문 카드로 이미지 승인 순서를 안내한다. 원본 PDF=증거·변환 결과=해석 가설·리치오 문서=검증된 결과, 근거 부족 시 uncertain을 따른다. 교정 대상·입력·권한·이미지 승인·사람의 승인/Undo/완료 계약은 바꾸지 않는다. 병렬 검수 도구 입력 개선이 master에 병합되기 전에는 도구 설명 축소를 보류한다.
+Docling은 지정 커뮤니티 payload에 검수 스킬을 포함한다. 검수 대상 찾기 → 렌즈·필수 확인·숫자/단위 원문 증거 후보 → 쪽 자료 → 국소 교정 제안 → 실제 읽은 범위의 검사 기록 → 필요시 예상량 질문 카드로 이미지 승인 순서를 안내한다. 원본 PDF=증거·변환 결과=해석 가설·리치오 문서=검증된 결과, 근거 부족 시 uncertain을 따른다. 교정 대상·입력·권한·이미지 승인·사람의 승인/Undo/완료 계약은 바꾸지 않는다. 검수 절차와 판단 요령은 스킬에 두고 도구 설명은 입력·출력 계약과 필수 데이터 보호 규칙으로 제한한다.
 
 SDK manifest 단위 검사는 선언·기능 버전·경로·중복 ID를 보호한다. 기존 Host reload/실패/프로세스 종료 검사에 파일 갱신·보조 자료 삭제·비활성/제거·종료 정리와 guide/사용자 스킬 보존을 보완한다. 별도 in-process 검사는 실행 전 누락/frontmatter 거부와 같은 skill ID를 쓰는 두 플러그인의 복사본 분리, lazy Host의 목록 조회 전 플러그인 시작 대기를 보호한다. 새 subprocess fixture·suite·무거운 E2E는 추가하지 않는다. Windows 실제 Codex app-server에서 Docling 활성화 후 스킬 발견(errors 0)과 비활성화 후 목록 제거를 확인했다(검수 응답 호출 없음). 파일 배포/목록 발견은 실제 AI가 스킬을 선택해 검수 품질을 높였다는 증명이 아니다.
 
@@ -1041,7 +1043,7 @@ Codex 비서는 `read_review_document`, `read_review_material`(렌즈·원문 �
 
 공용 `workspace-material {pageNo}`는 해당 쪽과 앞뒤 쪽의 항목·관계·원문·provenance·현재 블록 대응과 삽입 대응을 이미지 없이 반환한다. CLI는 `review workspace-material --input <json-file> --host <origin> --json`이다. `workspace-image-estimate {selection:{pages,targets}}`는 페이지/영역 수와 입력 토큰 예상량을 계산하며 이미지 bytes를 반환하지 않는다. targets가 비면 전체 쪽, 있으면 지정 원본 항목의 해당 쪽 영역만 선택한다. 예상량은 이웃 쪽 자료의 문자 수와 2배 해상도의 512px tile당 85+170 토큰을 합한 모델 의존 휴리스틱이며 청구량이 아니다. 큰 승인 기록은 범위를 줄이도록 거부한다. 두 작업과 `workspace-image-read`는 CLI에서도 같은 이름으로 제공한다.
 
-`request_litzio_user_input`의 선택 입력 `reviewImage`는 예상량 작업 입력과 `estimateHash`다. Host가 현재 예상량을 재계산하고 정확한 쪽·대상·영역 수·예상 토큰을 질문 문구로 만든다. 질문 기록의 이 연결 필드가 필요한 이유는 일반 질문 문장이나 비서의 `confirmed:true`를 이미지 승인으로 추측하지 않기 위해서다. 렌더 수신의 accepted는 승인과 다르다. 활성 질문의 실제 사람 답변이 `Approve image comparison`일 때만 Host가 기존 ledger의 selected comparison과 inspection evidence에 사람 출처·문서 revision·이미지 범위를 저장한다. 비서 입력은 comparisons·human·필수 확인 완료를 받지 않는다. P2 묶음·전이 모델은 바꾸지 않는다.
+`request_litzio_user_input`의 선택 입력 `reviewImage`는 예상량 작업 입력과 `estimateHash`다. Host가 현재 예상량을 재계산하고 정확한 쪽·대상·영역 수·예상 토큰을 질문 문구로 만든다. 질문 기록의 이 연결 필드가 필요한 이유는 일반 질문 문장이나 비서의 `confirmed:true`를 이미지 승인으로 추측하지 않기 위해서다. 렌더 수신의 accepted는 승인과 다르다. 질문 기록에 쪽·대상·쪽/영역 수·예상 토큰을 구조화해 저장하고 화면 언어로 제목과 승인/거절을 표시한다. 계산 방식·대상 세부는 기존 Tooltip의 hover·keyboard focus 안내로 제공한다. 이 카드는 범위 승인만 받으므로 직접 입력을 제공하지 않으며 `approve`/`decline` 외의 답을 거부한다. 활성 질문의 실제 사람 답변이 안정된 값 `approve`일 때만 Host가 기존 ledger의 selected comparison과 inspection evidence에 사람 출처·문서 revision·이미지 범위를 저장한다. 비서 입력은 comparisons·human·필수 확인 완료를 받지 않는다. P2 묶음·전이 모델은 바꾸지 않는다.
 
 사람 답변은 runId와 새 baseline을 같은 대화로 전달하며 모델이 baseline을 도구 입력에 채우지는 않는다. `workspace-image-read {baseline,runId,pageNo,target?}`는 승인 범위와 현재 문서 revision을 확인하고 PDF.js로 승인된 페이지 또는 영역만 래스터화한다. 영역 승인으로 전체 페이지를 받을 수 없고 문서가 바뀌면 다시 예상량 승인이 필요하다. `record_review_inspection`은 읽은 범위의 판단을 저장한다. 일반 텍스트 기록은 이번 턴의 같은 작업공간·문서/content revision에서 실제 반환한 페이지 조각의 pages·targets 범위 안에서만 허용한다. inventory나 요약만 조회한 것은 읽기 증명이 아니며 다른 턴·바뀐 문서의 반환 이력을 재사용하지 않는다. imageRunId를 지정해 comparison을 compared로 기록하려면 그 활성 turn에서 승인 이미지 전부를 실제 반환받고 전체 승인 범위를 기록해야 한다. 이 결과만으로 사람 필수 확인 목록을 자동 완료하지 않는다.
 
