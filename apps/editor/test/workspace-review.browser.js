@@ -141,13 +141,27 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
       await page.screenshot({path:`docs/design/assets/review-panel-s6/after-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     }
   }
-  if(screenshots){
-    await page.getByRole('button',{name:'쪽 접기',exact:true}).click();
+  {
+    if(screenshots) await page.getByRole('button',{name:'쪽 접기',exact:true}).click();
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.getByTestId('ui-language').selectOption('ko');
     await page.keyboard.press('Escape');
     await page.setViewportSize({width:640,height:900});
-    for(const theme of ['light','dark']){
+    await expect(page.locator('.review-page-heading button').first()).toHaveText('확인한 페이지');
+    // Checked and unchecked page actions must wrap at Korean word boundaries.
+    await expect.poll(()=>page.locator('.review-page-heading button').evaluateAll(buttons=>buttons.flatMap(button=>{
+      const words=button.textContent.trim().split(/\s+/);
+      return words.map(word=>{
+        const walker=document.createTreeWalker(button,NodeFilter.SHOW_TEXT);let node;
+        while(node=walker.nextNode()){
+          const start=node.textContent.indexOf(word);if(start<0)continue;
+          const range=document.createRange();range.setStart(node,start);range.setEnd(node,start+word.length);
+          return range.getClientRects().length;
+        }
+        return Infinity;
+      });
+    }))).toEqual([1,1,1,1]); // 확인한/페이지, 페이지/확인함
+    if(screenshots) for(const theme of ['light','dark']){
       if(await page.locator('html').getAttribute('data-theme')!==theme) await page.getByRole('button',{name:/^색상 모드:/}).click();
       await expect(page.getByRole('button',{name:'쪽 펼치기',exact:true})).toBeVisible();
       await page.screenshot({path:`docs/design/assets/review-panel-s6/after-640-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});

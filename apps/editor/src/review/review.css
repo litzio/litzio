@@ -47,7 +47,7 @@
 .review-read .document { --layout-document-gutter: var(--layout-reading-heading-gutter); }
 .review-renderer[data-generated="true"] .review-compare .review-read .document { --layout-document-gutter: var(--layout-reading-heading-gutter); }
 .review-read .heading-level { right: calc(100% - var(--layout-document-gutter) + var(--space-heading-level-reading-gap)); }
-.review-page-heading button { max-width: 100%; white-space: normal; height: auto; min-height: var(--size-control-compact); }
+.review-page-heading button { max-width: 100%; white-space: normal; word-break: keep-all; height: auto; min-height: var(--size-control-compact); }
 .review-image-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted-foreground); font-size: var(--text-xs); }
 
 .review-wires path[data-selected="true"] { stroke-width: var(--size-review-wire-selected); opacity: 1; }
