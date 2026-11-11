@@ -1006,7 +1006,8 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const settings = { provider: "copilot" as const, permissionMode: "opened-folders" as const, model: "auto", reasoningEffort: "low" };
   const input = { message: "Inspect files", folders: [root], model: "auto", reasoningEffort: "low" };
   const first = await conversations.send(input, settings, "mcp-window-one");
-  const rows = () => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  // The fixture may still be appending a later request; parse only complete lines.
+  const rows = () => readFileSync(log, "utf8").split("\n").slice(0, -1).map(line => JSON.parse(line));
   const endpoint = () => rows().filter(row => ["session/new", "session/load"].includes(row.method) && row.params.mcpServers.length).at(-1).params.mcpServers[0].url;
   const firstUrl = endpoint();
   const connect = async (url: string) => { const client = new Client({ name: "fixture", version: "1" }); clients.push(client); await client.connect(new StreamableHTTPClientTransport(new URL(url))); return client; };
