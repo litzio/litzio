@@ -142,3 +142,26 @@ export async function inspectEvidence(source: string, material: Material, select
   return { status: imagePages.length === pages.length ? "unavailable-image-pdf" : "inspected", documentRevision: textRevision(source), pages, imagePages,
     coverage: { rawPdfTokens: total, inScopeRawPdfTokens: total - Object.values(outside).reduce((a,b) => a+b, 0), outsideRawPdfTokens: Object.values(outside).reduce((a,b) => a+b, 0), outside, outsideRegions: regions.filter(r => r.exclude), outsideDocumentUnits: outsideUnits }, candidates };
 }
+
+/** PDF.js owns rasterization/cropping; no converter or new image engine. */
+export async function renderEvidenceImage(material: Material, pageNo: number, bbox: number[]) {
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // @ts-expect-error PDF.js ships no worker declaration.
+  (globalThis as any).pdfjsWorker ??= await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  const task = getDocument({ data: new Uint8Array(Buffer.from(material.pdfBase64, "base64")), useSystemFonts: true });
+  try {
+    const pdf = await task.promise, page = await pdf.getPage(pageNo);
+    const view = page.getViewport({ scale: 1 });
+    const [left, top, right, bottom] = bbox;
+    if (left < 0 || top < 0 || right > view.width + 1 || bottom > view.height + 1 || right <= left || bottom <= top) throw new Error("Invalid image region");
+    const width = Math.ceil((right-left)*2), height = Math.ceil((bottom-top)*2);
+    if (width * height > 16_000_000) throw new Error("Image pixel limit exceeded");
+    const factory = pdf.canvasFactory as {create(w:number,h:number):any;destroy(canvas:any):void};
+    const canvas = factory.create(width, height);
+    try {
+      await page.render({ canvasContext: canvas.context, canvas: canvas.canvas, viewport: page.getViewport({scale:2,offsetX:-left*2,offsetY:-top*2}) }).promise;
+      const bytes: Buffer = canvas.canvas.toBuffer("image/png");
+      return { mime: "image/png", base64: bytes.toString("base64"), width, height };
+    } finally { factory.destroy(canvas); }
+  } finally { await task.destroy(); }
+}

@@ -510,8 +510,80 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       const code=await new Promise((resolve,reject)=>{cli.once("error",reject);cli.once("exit",resolve);});assert.equal(code,0,stderr+stdout);
       const result=JSON.parse(stdout);assert.deepEqual(result.evidence,evidenceRun.evidence);assert.equal(result.snapshot.source,opened.snapshot.source);assert.equal(result.ledger.groups.length,cases.length);assert.ok(result.ledger.groups.every((group:any)=>group.targets[0].history.at(-1).action==="undone"));
     }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
+    // Stage 5: use the real common dispatcher and fixed PDF behind a fake provider.
+    const log=path.join(root,"provider.jsonl");
+    const connection=new ProviderConnections(path.join(root,"assistant"),{bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/codex-app-server.mjs",import.meta.url)),log]});
+    const conversations=new AssistantConversations(connection,new RootAccess([root]),{generatedDocuments:host,authoringPath:()=>null} as unknown as PluginHost);
+    try {
+      const settings={provider:"codex" as const,permissionMode:"opened-folders" as const,model:"gpt-6.1-sol",reasoningEffort:"medium"};
+      const c=await conversations.send({message:"Inspect local review evidence",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},settings,"review-window");
+      const tools=readFileSync(log,"utf8").split("\n").filter(Boolean).map(line=>JSON.parse(line)).find(row=>row.method==="thread/start").params.dynamicTools;
+      assert.ok(tools.some((tool:any)=>tool.name==="propose_review_groups"));
+      assert.ok(!tools.some((tool:any)=>/review.*(approve|reject|undo|completion|complete)/.test(tool.name)),"no human decision tools");
+      const invoke=async(tool:string,args:any)=>{const reply:any=await connection.client.request("fixture/tool",{threadId:c.id,tool,arguments:args});return {reply:reply.result,value:JSON.parse(reply.result.contentItems[0].text)};};
+      for(const kind of ["lenses","required-checks","groups","source-evidence"]){
+        const result=await invoke("read_review_material",{...base,kind});assert.equal(result.reply.success,true);
+        if(kind==="source-evidence")assert.deepEqual(result.value.evidence,evidenceRun.evidence);
+        if(kind==="required-checks")assert.ok(result.value.ledger.inventory.requiredChecks.length>0);
+      }
+      const material=(await invoke("read_review_material",{...base,kind:"page",pageNo:2})).value.material;
+      assert.deepEqual(material.pages,[1,2,3]);assert.ok(material.items.some((item:any)=>item.prov.length && item.correspondence));assert.ok(material.blocks.length);
+      assert.doesNotMatch(JSON.stringify(material),/data:image|base64|pdfBase64/);
+      const group=structuredClone((await read()).ledger.groups[0]);group.id="assistant-saved";group.reasonCode="assistant-local";group.runId="assistant-local";
+      group.targets=group.targets.map((target:any)=>({...target,id:"assistant-target",history:[],proposal:"proposed",result:null,resolved:false}));group.representativeTargetId="assistant-target";
+      const beforeProposal=(await read()).snapshot;
+      const proposed=await invoke("propose_review_groups",{...base,baseline:(await read()).baseline,requestId:randomUUID(),change:{kind:"groups-propose",groups:[group]}});
+      assert.equal(proposed.reply.success,true,JSON.stringify(proposed));
+      assert.equal((await invoke("read_review_request_status",{...base,requestId:proposed.value.receipt.requestId})).value.baseline,proposed.value.baseline);
+      assert.deepEqual((await read()).snapshot,beforeProposal,"proposal storage never changes document/mapping");
+      const invalidGroup={...group,id:"invalid-target",targets:[{...group.targets[0],patch:{...group.targets[0].patch,expectedBefore:["wrong before"]}}]};
+      assert.equal((await invoke("propose_review_groups",{...base,baseline:(await read()).baseline,requestId:randomUUID(),change:{kind:"groups-propose",groups:[invalidGroup]}})).reply.success,false);
+      const selection={pages:[1],targets:["#/texts/0"]};
+      const estimate=(await invoke("estimate_review_images",{...base,selection})).value;
+      assert.ok(estimate.estimatedInputTokens>0);assert.equal(estimate.pageCount,1);assert.ok(estimate.regionCount>0);assert.equal(estimate.images[0].base64,undefined);
+      const imageArgs=()=>({...base,baseline:digest(readFileSync(file)),pageNo:1,target:selection.targets[0]});
+      assert.equal((await invoke("read_review_images",{...imageArgs(),runId:"unapproved"})).reply.success,false);
+      assert.equal((await invoke("record_review_inspection",{...base,baseline:digest(readFileSync(file)),requestId:randomUUID(),records:[],comparisons:[{selected:true,confirmed:true}]})).reply.success,false);
+      assert.equal((await invoke("propose_review_groups",{...base,baseline:digest(readFileSync(file)),requestId:randomUUID(),change:{kind:"groups-approve",human,groupId:group.id,targetIds:["assistant-target"]}})).reply.success,false);
+      const ask=()=>invoke("request_litzio_user_input",{questions:[{title:"Assistant title is replaced"}],reviewImage:{...base,selection,estimateHash:estimate.estimateHash}});
+      assert.equal((await invoke("request_litzio_user_input",{questions:[{title:"Wrong estimate"}],reviewImage:{...base,selection,estimateHash:"0".repeat(64)}})).value.accepted,false);
+      const declined=ask();for(let attempt=0;!c.userInput && attempt<100;attempt++)await new Promise(resolve=>setTimeout(resolve,10));
+      const declineQuestion=c.userInput!;conversations.questionVisible(c.id,declineQuestion.turnId,declineQuestion.requestId,"review-window");await declined;
+      await conversations.answer(c.id,declineQuestion.turnId,declineQuestion.requestId,{"0":{answers:["Decline"]}},"review-window");
+      assert.equal((await read()).ledger.comparisons.length,0,"declining grants no image scope");
+      const pending=ask();for(let attempt=0;!c.userInput && attempt<100;attempt++)await new Promise(resolve=>setTimeout(resolve,10));
+      assert.ok(c.userInput);const q=c.userInput!;
+      assert.match(q.questions[0].question,new RegExp(String(estimate.estimatedInputTokens)));assert.match(q.questions[0].question,/#\/texts\/0/);
+      conversations.questionVisible(c.id,q.turnId,q.requestId,"review-window");assert.equal((await pending).value.accepted,true);
+      assert.equal((await read()).ledger.comparisons.length,0,"display acceptance never authorizes images");
+      await conversations.answer(c.id,q.turnId,q.requestId,{"0":{answers:["Approve image comparison"]}},"review-window");
+      const run=(await read()).ledger.comparisons.at(-1);assert.equal(run.selected,true);
+      const inspection={contentRevision:opened.contentRevision,lens:"source-evidence",scope:selection,state:"uncertain",evidence:"Local original comparison is uncertain; no quality claim"};
+      const record=()=>invoke("record_review_inspection",{...base,baseline:digest(readFileSync(file)),requestId:randomUUID(),imageRunId:run.runId,records:[inspection]});
+      assert.equal((await record()).reply.success,false,"unread images cannot be recorded as compared");
+      assert.equal((await invoke("read_review_images",{...imageArgs(),pageNo:2,runId:run.runId})).reply.success,false);
+      const {target,...wholePage}=imageArgs();assert.equal((await invoke("read_review_images",{...wholePage,runId:run.runId})).reply.success,false,"region approval cannot release a full page");
+      const images=await invoke("read_review_images",{...imageArgs(),runId:run.runId});assert.equal(images.reply.success,true,JSON.stringify(images.value));
+      assert.ok(images.reply.contentItems.some((item:any)=>item.type==="inputImage" && item.imageUrl.startsWith("data:image/png;base64,")));
+      assert.equal((await record()).reply.success,true);assert.equal((await read()).ledger.comparisons.at(-1).state,"compared");
+      assert.deepEqual((await invoke("read_review_material",{...base,kind:"source-evidence"})).value.evidence,evidenceRun.evidence,"image records cannot replace source candidates");
+      const state=await read();assert.deepEqual(state.snapshot,beforeProposal);
+      assert.equal((await change({kind:"groups-approve",groupId:group.id,targetIds:["assistant-target"],human,resolvesIssue:true})).receipt.outcome,"success");
+      assert.equal((await invoke("read_review_images",{...imageArgs(),runId:run.runId})).reply.success,false,"changed document invalidates image approval");
+      assert.equal((await change({kind:"groups-undo",groupId:group.id,targetIds:["assistant-target"],human,resolvesIssue:false})).receipt.outcome,"success");
+      await connection.client.request("fixture/token-usage",{threadId:c.id,turnId:q.turnId,tokenUsage:{last:{totalTokens:123,inputTokens:100,outputTokens:23,cachedInputTokens:0},modelContextWindow:1000}});
+      await connection.client.request("fixture/finish",{threadId:c.id});
+      for(let attempt=0;attempt<100;attempt++) {
+        if((await read()).ledger.inspections.some((r:any)=>r.evidence.includes('"format":"review-image-usage-1"')))break;
+        await new Promise(resolve=>setTimeout(resolve,10));
+      }
+      assert.ok((await read()).ledger.inspections.some((record:any)=>{try{const data=JSON.parse(record.evidence);return data.format==="review-image-usage-1" && data.usage.inputTokens===100 && data.source==="provider-turn-total-not-per-image";}catch{return false;}}),JSON.stringify(c.turns.flatMap(t=>t.items).filter(item=>item.status==="failed")));
+      const restricted=await conversations.send({message:"Read only",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},{...settings,permissionMode:"read-only"},"review-window");
+      const denied:any=await connection.client.request("fixture/tool",{threadId:restricted.id,tool:"propose_review_groups",arguments:{...base,baseline:(await read()).baseline,requestId:randomUUID(),change:{kind:"groups-propose",groups:[{...group,id:"read-only"}]}}});assert.equal(denied.result.success,false);
+      for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(archive.readDoclingArchive(readFileSync(file))[key],original[key]);
+    } finally {await conversations.close();await connection.close();}
     assert.equal(readFileSync(new URL("converted/document.json",sample),"utf8"),json);
-  }finally{for(const name of fs.readdirSync(root))fs.unlinkSync(path.join(root,name));fs.rmdirSync(root);}
+  }finally{rmSync(root,{recursive:true,force:true});}
 });
 
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {

@@ -312,3 +312,11 @@ PDF.js legacy Node build가 PDF 텍스트를 독립 추출합니다. 어댑터�
 ## 측정·실험용 고정 변환 결과
 
 측정·실험·테스트는 [LSR 1.1](sample/lsr-1.1/README.md)과 [NIST SP 1108r4 발췌본](sample/nist-sp1108r4/README.md)의 `converted/document.json`과 `conversion-record.json`을 재사용합니다. docling-serve 재변환은 변환기 버전·옵션을 의도적으로 바꾸거나 새 문서를 추가할 때만 수행합니다. 재변환하면 document.json과 conversion-record.json(버전·옵션·입력 hash·상태·시각·경과 시간)을 함께 갱신하고 SHA256SUMS도 갱신합니다. 이 고정본은 변환 품질의 정답이 아니며 기존 테스트 fixture 교체는 별도 작업입니다.
+
+## 비서 국소 제안 (5단계)
+
+Codex 비서는 공용 `read_review_material`로 렌즈·source-evidence 후보·그림/표 필수 확인·해당/앞뒤 페이지 조각을 읽고 `propose_review_groups`로 제안만 저장한다. 문서를 적용하는 승인·거절·Undo·완료 승인 도구는 제공하지 않는다. 교정 결정은 기존 사람 CLI 경로를 사용한다.
+
+이미지는 `estimate_review_images` → `request_litzio_user_input`의 reviewImage(예상량 입력+estimateHash) → 실제 사람 답변의 runId → `read_review_images` 순서다. Host가 질문에 정확한 쪽·영역 수·대상·예상 입력 토큰을 표시하며, 승인 영역만 PDF.js로 반환한다. 영역 승인으로 페이지 전체를 받거나 변경된 문서에 승인을 재사용할 수 없다. 렌더 accepted는 사람 승인이 아니다. 실제 turn 토큰 관측과 검사 결과는 기존 inspection evidence를 재사용하고 필수 확인을 자동 완료하지 않는다.
+
+공용 CLI는 `review workspace-material|workspace-image-estimate|workspace-image-read|workspace-image-usage --input <json-file> --host <origin> --json`이며 SDK의 같은 입력·receipt를 사용한다. 페이지 조각은 이미지 대조 없이도 조회할 수 있다. 상세 입력·예상량 한계와 사람 경계는 [현재 플러그인 계약](../../docs/design/plugin-stage1-v1.md#비서-국소-제안-1462-5단계)을 따른다. 고정 sample/converted와 fixture만 사용하며 Docling을 재변환하지 않는다. 실제 품질·6단계 화면/실측 수락을 뜻하지 않는다.

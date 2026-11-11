@@ -473,7 +473,8 @@
                 "workspace-read",
                 "workspace-prepare",
                 "workspace-material",
-                "workspace-evidence-material"
+                "workspace-evidence-material",
+                "workspace-review-material"
               ]
             },
             "patches": {
