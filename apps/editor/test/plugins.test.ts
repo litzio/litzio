@@ -333,13 +333,14 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
   const {PDF_PROFILE}=await import(new URL("../../../community-plugins/docling/conversion.js",import.meta.url).href);
   const root=mkdtempSync(path.join(os.tmpdir(),"litzio-fixed-lsr-")),file=path.join(root,"lsr.docling");
   const sample=new URL("../../../community-plugins/docling/sample/lsr-1.1/",import.meta.url);
-  const json=readFileSync(new URL("converted/document.json",sample),"utf8"),document=JSON.parse(json),pdf=readFileSync(new URL("LSR-1.1-standards.pdf",sample));
+  const json=readFileSync(new URL("converted/document.json",sample),"utf8"),pdf=readFileSync(new URL("LSR-1.1-standards.pdf",sample));
   const digest=(value:string|Buffer)=>createHash("sha256").update(value).digest("hex");
   // Only a synthetic transport envelope is supplied. The fixed record's API status is unrecorded; this is not a new conversion or success claim.
   const envelope=archive.createDoclingArchiveFromResult({sourceName:"LSR-1.1-standards.pdf",sourceBytes:pdf,serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
-    task:{id:"fixed-result-test-envelope",startedAt:"2026-11-11T00:00:00Z",completedAt:"2026-11-11T00:00:00Z"},resultBody:Buffer.from(JSON.stringify({status:"success",errors:[],document:{json_content:document}}))});
+    task:{id:"fixed-result-test-envelope",startedAt:"2026-11-11T00:00:00Z",completedAt:"2026-11-11T00:00:00Z"},resultBody:Buffer.from('{"status":"success","errors":[],"document":{"json_content":'+json+'}}')});
   writeFileSync(file,await initializeWorkspace(envelope));
   const original=archive.readDoclingArchive(readFileSync(file));
+  const binaryHash=/"binary_hash"\s*:\s*(\d+)/.exec(json)?.[1];assert.ok(binaryHash);assert.match(original.documentJson,new RegExp(`"binary_hash":${binaryHash}`));
   const base={root,workspace:"lsr.docling",plugin:"fixture",job:"import"},human={actor:"person",reason:"Compared fixed source and exact target",confirmed:true};
   const service=()=>new GeneratedDocuments(new RootAccess([root]),()=>({operation:"fixture",version:1,workspace:true,assertCurrent(){}}),async(_op,input)=>({result:await workspaceOperation(input)}));
   let host=service();

@@ -35,7 +35,7 @@
 
 기존 fixture의 머리말·캡션 kind 성공 기대는 소유자 승인 범위에 맞춰 propose 거부 회귀로 바꿨다. 기존 source replay·손상 캐시 재생성 테스트도 새 Core 교정·정본 손상 시 보존/거부로 대체했다. Windows 로컬에서는 네 교정 승인→저장→새 Host 읽기→Undo, 독립 제안 승인/동일 값 변경 거부, 묶음 제외의 뒤 경로와 빈 대응, 실패 페이지 기록, 원본 bytes, 후보·rename 실패·중복 requestId·재시작 unknown·읽기 대기/대소문자 alias·명시 export를 검사한다. SDK·Host 기존 일반 provider 테스트는 별도로 유지한다.
 
-고정 LSR `converted/document.json`과 원본 PDF로 네 교정의 저장·재열기·Undo 및 실제 CLI JSON 읽기를 검사했다. 약 14초였으며 실제 변환은 하지 않았다. 고정 record의 원래 API 상태는 unrecorded이므로 검사 내부의 합성 전송 봉투를 실제 변환 성공으로 간주하지 않는다. 새 subprocess 한 개는 실제 CLI stdout JSON과 저장된 Docling 상태의 연결만 검사하며, 실패 주입 조합은 기존 in-process Host 검사에 둔다. NIST 고정본은 병합·보존했지만 이 PR의 교정 수락 범위로 확대하지 않았다.
+고정 LSR `converted/document.json`과 원본 PDF로 네 교정의 저장·재열기·Undo 및 실제 CLI JSON 읽기를 검사했다. 최종 고정 JSON 숫자 토큰 보존 검사는 로컬 브라우저와 병행해 약 31초였으며 실제 변환은 하지 않았다. 고정 record의 원래 API 상태는 unrecorded이므로 검사 내부의 합성 전송 봉투를 실제 변환 성공으로 간주하지 않는다. 새 subprocess 한 개는 실제 CLI stdout JSON과 저장된 Docling 상태의 연결만 검사하며, 실패 주입 조합은 기존 in-process Host 검사에 둔다. NIST 고정본은 병합·보존했지만 이 PR의 교정 수락 범위로 확대하지 않았다.
 
 브라우저는 기존 workspace-review를 사람 승인 공용 CLI 경로로 옮겨 cold Host·진행·이미지·export/덮어쓰기를 확인했다. http-plugins의 제거된 외부 문서 재생성 검사는 workspace 진입·양방향 대응·진행 저장/오류·탭 재진입으로 바꾸며 K1 PDF 작업 수명과 일반 provider 검사는 유지한다. 새 UI 표면·공용 상호작용은 추가하지 않고 기존 ReviewRenderer·unsupported reason을 재사용한다.
 
