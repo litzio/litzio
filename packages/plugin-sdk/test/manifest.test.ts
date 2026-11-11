@@ -72,12 +72,33 @@ test("Undo refuses an open same-reason proposal before replay and succeeds after
 function comparedReviewScenario() {
   const s=reviewScenario(), hash=s.hash(), scope={pages:[1],targets:["figure"]};
   const lenses=["text","structure","reading","formula","table","picture","decoration"];
-  s.change({kind:"required-checks",inventory:{contentRevision:hash,pages:[1],targets:["figure"],lenses,requiredChecks:[{id:"figure",kind:"picture",locator:{ref:"original"},pages:[1],regions:[],disposition:"supported",derivedFrom:["original"]}],complete:true},records:[]});
+  s.change({kind:"required-checks",inventory:{contentRevision:hash,pages:[1],targets:["figure"],lenses:lenses.map(kind=>({kind,required:true,scope,extracted:true})),requiredChecks:[{id:"figure",kind:"picture",locator:{ref:"original"},pages:[1],regions:[],disposition:"supported",derivedFrom:["original"]}],complete:true},records:[]});
   s.change({kind:"inspection",records:lenses.map(lens=>({lens,runId:lens,contentRevision:hash,scope,state:"no-issue",evidence:"Complete coverage"})),comparisons:[{runId:"image",contentRevision:hash,scope,state:"compared",selected:true,withdrawn:null}]});
   const record={targetIds:["figure"],contentRevision:hash,result:"no-issue",method:"approved-comparison",human:s.human,runId:"image",approvedRun:{requestId:s.context().requestId,scope,contentRevision:hash,completed:true,resultRecorded:true},at:"2026-11-11T00:00:00Z"};
   const withdraw=()=>s.change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope,state:"partial",selected:false,withdrawn:s.human}]});
   return {s,record,withdraw};
 }
+
+test("completion requires each required kind's extracted scope, with optional evidence and replaceable inspection strategies",()=>{
+  const s=reviewScenario(), hash=s.hash();
+  const inventory={contentRevision:hash,pages:[1,2,3],targets:["heading","table"],requiredChecks:[],complete:true,
+    lenses:[{kind:"headings",required:true,scope:{pages:[1],targets:["heading"]},extracted:true},
+      {kind:"no-formula",required:true,scope:{pages:[],targets:[]},extracted:true},
+      {kind:"source-evidence",required:false,scope:{pages:[1,2,3],targets:["heading","table"]},extracted:false}]};
+  s.change({kind:"required-checks",inventory,records:[]});
+  const inspect=(state:string)=>s.change({kind:"inspection",records:[{runId:"headings",lens:"headings",contentRevision:hash,scope:{pages:[1],targets:["heading"]},state,evidence:"Only heading scope inspected"}],comparisons:[]});
+  inspect("no-issue");
+  assert.equal(evaluateReviewCompletion(s.ledger,hash,hash,true).ready,true,"pages 2/3 and table are outside this required kind");
+  inspect("uncertain");assert.deepEqual(evaluateReviewCompletion(s.ledger,hash,hash,true).incomplete,["lens-incomplete:headings"]);
+  inspect("no-issue");
+  const missing=structuredClone(s.ledger);missing.inventory!.lenses[1]!.extracted=false;
+  assert.deepEqual(evaluateReviewCompletion(missing,hash,hash,true).incomplete,["lens-incomplete:no-formula"],"missing extraction is never successful empty coverage");
+  s.change({kind:"required-checks",inventory:{...inventory,lenses:[...inventory.lenses,{kind:"page-images",required:true,scope:{pages:[1,2,3],targets:[]},extracted:true}]},records:[]});
+  assert.deepEqual(evaluateReviewCompletion(s.ledger,hash,hash,true).incomplete,["lens-incomplete:page-images"]);
+  s.change({kind:"inspection",records:[{runId:"pages",lens:"page-images",contentRevision:hash,scope:{pages:[1,2,3],targets:[]},state:"no-issue",evidence:"All declared images inspected"}],comparisons:[]});
+  assert.equal(evaluateReviewCompletion(s.ledger,hash,hash,true).ready,true);
+  assert.throws(()=>s.change({kind:"required-checks",inventory:{...inventory,lenses:inventory.lenses},records:[]}),/cannot shrink/);
+});
 test("required confirmation rejects a withdrawn or incomplete latest comparison despite older success",()=>{
   const {s,record,withdraw}=comparedReviewScenario();
   s.change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:s.hash(),scope:{pages:[1],targets:["figure"]},state:"partial",selected:true,withdrawn:null}]});
@@ -107,10 +128,10 @@ test("portable review completion keeps inspection, required confirmation and opt
   let ledger = emptyReviewLedger();
   assert.ok(evaluateReviewCompletion(ledger,hash,hash,true).incomplete.includes("inventory-incomplete-or-stale"));
   const change = (value: unknown) => { ledger = updateReviewLedger(ledger, reviewLedgerChangeSchema.parse(value), {...context, revision:`r${Number(ledger.revision.slice(1)) + 1 || 1}`}); };
-  const inventory = { contentRevision: hash, pages: [1,2], targets: ["figure"], lenses: ["text","structure","reading","formula","table","picture","decoration"], complete: true,
+  const inventory = { contentRevision: hash, pages: [1,2], targets: ["figure"], lenses: ["text","structure","reading","formula","table","picture","decoration"].map(kind=>({kind,required:true,scope:{pages:[1,2],targets:["figure"]},extracted:true})), complete: true,
     requiredChecks: [{ id:"figure", kind:"picture",locator:{ref:"original"},pages:[1],regions:[],disposition:"unsupported",derivedFrom:["original"] }] };
   change({kind:"required-checks",inventory,records:[]});
-  change({kind:"inspection",records:inventory.lenses.map(lens=>({lens,runId:`run-${lens}`,contentRevision:hash,scope:{pages:[1,2],targets:["figure"]},state:"no-issue",evidence:"Full declared input and crops inspected"})),comparisons:[]});
+  change({kind:"inspection",records:inventory.lenses.map(({kind:lens})=>({lens,runId:`run-${lens}`,contentRevision:hash,scope:{pages:[1,2],targets:["figure"]},state:"no-issue",evidence:"Full declared input and crops inspected"})),comparisons:[]});
   assert.deepEqual(evaluateReviewCompletion(ledger,hash,hash,true).incomplete,["required-checks-incomplete"],"viewing pages and completing lenses never confirms pictures");
   assert.throws(()=>change({kind:"required-checks",records:[{targetIds:["figure"],contentRevision:hash,result:"no-issue",method:"approved-comparison",human,runId:"run-image",approvedRun:null,at:context.at}]}),/Completed approved/);
   change({kind:"required-checks",records:[{targetIds:["figure"],contentRevision:hash,result:"no-issue",method:"direct",human,runId:null,approvedRun:null,at:context.at}]});
