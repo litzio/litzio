@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import childProcess, { execFileSync } from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
+import { promisify } from "node:util";
 import test, { type TestContext } from "node:test";
 import { trashFile, osTrashAvailable } from "../server/os-trash.ts";
 import { WINDOWS_TRASH_SOURCE } from "../server/windows-trash.ts";
@@ -15,6 +17,29 @@ function fixture(t: TestContext) {
   const trash = path.join(dataHome, "Trash");
   return { root, trash, options: { platform: "linux" as const, dataHome } };
 }
+
+test("Windows trash capability retries a failed probe and shares successful computation for the process", { skip: process.platform !== "win32" }, async t => {
+  let calls = 0, fail = true;
+  const original = childProcess.execFile;
+  const probe = t.mock.fn(async () => {
+    calls++;
+    if (fail) throw new Error("Temporary PowerShell startup failure");
+    return { stdout: "True\r\n", stderr: "" };
+  });
+  childProcess.execFile = Object.assign(() => { throw new Error("Expected promisified probe"); }, {
+    [promisify.custom]: probe,
+  }) as unknown as typeof childProcess.execFile;
+  syncBuiltinESMExports();
+  try {
+    const { osTrashAvailable: available } = await import(new URL("../server/os-trash.ts?capability-cache", import.meta.url).href);
+    assert.equal(await available(), false, "a failed probe fails closed for this request");
+    assert.equal(calls, 1);
+    fail = false;
+    assert.deepEqual(await Promise.all([available(), available()]), [true, true]);
+    assert.equal(await available(), true);
+    assert.equal(calls, 2, "retry once, then reuse the successful probe even for concurrent requests");
+  } finally { childProcess.execFile = original; syncBuiltinESMExports(); }
+});
 
 test("Windows trash has no VisualBasic permanent-delete branch for folders", () => {
   const source = fs.readFileSync(new URL("../server/os-trash.ts", import.meta.url), "utf8") + WINDOWS_TRASH_SOURCE;

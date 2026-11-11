@@ -157,11 +157,12 @@ export function setDesktopHost(origin: string): void {
 }
 export const getHostClient = (hostId: string): HostClient => hostRegistry.get(hostId).client;
 
-/** Periodic read-only health checks never replay document writes or control daemons. */
-export function monitorRegisteredHosts(hosts: readonly { hostId: string; origin: string; label?: string }[], productVersion: string, interval = 5000) {
+/** Observe the local Host and registered remotes; never replay writes or control daemons. */
+export function monitorDesktopHosts(hosts: readonly { hostId: string; origin: string; label?: string }[], productVersion: string, interval = 5000) {
   let stopped = false;
   const timers = new Set<ReturnType<typeof setTimeout>>();
-  for (const host of hosts) {
+  const local = hostRegistry.list().find(host => host.hostId === LOCAL_HOST_ID)!;
+  for (const host of [local, ...hosts.filter(host => host.hostId !== LOCAL_HOST_ID)]) {
     hostRegistry.add(host.hostId, host.origin, host.label);
     const check = async () => {
       try { hostRegistry.get(host.hostId); } catch { return; }
