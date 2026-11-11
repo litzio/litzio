@@ -492,6 +492,16 @@ test("common evidence keeps numbers/units/signs strict, exposes missing and unsu
   assert.ok(sorted.candidates[0].missing.some(t=>t.text==="12.5"),"numeric mismatch precedes earlier text mismatch");
   const unitOnly=await inspectEvidence(nativeSource("Sample 12.5 kg/L < -2%\n"),material);
   assert.equal(unitOnly.candidates[0].priority,"numeric-unit","matched numbers do not hide a unit-only difference");
+  const strictPairs=[["Dose .5 mg","Dose 5 mg",".5","5"],["Value != 5","Value = 5","!=","="]];
+  const strictCases=await Promise.all(strictPairs.flatMap(([from,to,missing,unsupported])=>[
+    {from,to,missing,unsupported},{from:to,to:from,missing:unsupported,unsupported:missing},
+  ]).map(async pair=>{
+    const result=await inspectEvidence(nativeSource(pair.to+"\n"),{...material,pdfBase64:pdf(pair.from)});
+    return {case:`${pair.from} -> ${pair.to}`,missing:result.candidates.some(c=>c.missing.some(t=>t.text===pair.missing)),unsupported:result.candidates.some(c=>c.unsupported.some(t=>t.text===pair.unsupported))};
+  }));
+  const basicUnit=await inspectEvidence(nativeSource("Length 5 h\n"),{...material,pdfBase64:pdf("Length 5 m")});
+  assert.deepEqual({strictCases,unitPriority:basicUnit.candidates[0]?.priority},{strictCases:strictCases.map(c=>({...c,missing:true,unsupported:true})),unitPriority:"numeric-unit"});
+  for(const operator of ["!=","<=",">=","≤","≥","≠"])assert.ok(evidenceWords(`Value ${operator} 5`).includes(operator),`Preserve comparison ${operator}`);
   const tableSource=nativeSource(":::{table}\n:enumerated: false\n\n| Sample | |\n| --- | --- |\n| 1 | 1 |\n:::\n");
   const table=getEditableDocument(parse(tableSource)).blocks.find(b=>b.block==="table")!;
   const cells=table.rows.flatMap(r=>r.cells);

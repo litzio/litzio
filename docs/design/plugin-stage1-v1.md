@@ -932,8 +932,8 @@ furniture/footnote로 재분류하지 않는다. 표 중복 점유/미점유 좌
 
 모든 pictures/tables 배열 항목은 도달 여부·렌즈 결과와 관계없이 requiredChecks에 들어간다.
 supported/unsupported/excluded/furniture와 원본 pages/regions를 제공하고 필수 사람 확인 의무는 제거하지 않는다.
-source-evidence는 required:false, 전체 원본 pages/targets 범위로 미리 선언한다. 원문 증거 추출은 4b이며,
-이후 기존 inspection 형식에 결과를 저장한다. 비서 계약에는 workspace-lenses를 정의만 하며 AI 연결·실행은 하지 않는다.
+source-evidence는 required:false, 전체 원본 pages/targets 범위로 선언한다. 4b의 공용 원문 증거 검사는
+`review evidence read|run`으로 실행·조회하고 기존 inspection의 evidence 텍스트에 결과를 저장한다. 비서 계약에는 workspace-lenses를 정의만 하며 AI 연결·실행은 하지 않는다.
 
 publication 결과가 uncertain이면 파일 identity별 Host 잠금을 유지한다. 같은 requestId status를
 조회한 뒤 검증된 workspace read를 해야 잠금이 풀린다. 다른 requestId 쓰기와 자동 재전송은
@@ -943,9 +943,9 @@ publication 결과가 uncertain이면 파일 identity별 Host 잠금을 유지�
 
 Docling은 format 4 / record 4 / plugin 0.0.11이다. 원본 PDF·JSON·manifest bytes는 저장 전후 불변이다. ledger는 판단 이력이고 ordered source patches는 없다. 교정 값 배열 expectedBefore/after는 리치오 문서의 현재 값이다. propose 때 provider가 target.before를 해당 Core 대상의 전체 내용에 결합한다. 같은 블록의 다른 필드가 바뀌어도 제안/Undo는 오래됨으로 거부하며 다른 칸·목록 항목은 독립적이다. 글자는 지정 경로의 Core 연산(목록·코드·수식·캡션은 해당 Core 연산), 종류는 convertBlock, 칸은 updateTableCell, 제외는 removeBlock을 쓴다. 원본 병합 칸은 최초 대응의 모든 직사각 grid 위치를 함께 바꾼다. 제외의 before/after 값은 `{excluded,blocks}`이며 blocks는 path를 제외한 Core editable block들이다. 다른 삭제로 경로가 당겨져도 내용이 같으면 제안은 유효하다.
 
-종류 교정은 독립된 문단·제목만 받는다. 빠진 머리말이나 다른 블록의 캡션은 propose 시 명확한 이유로 거부하며 블록 삽입/캡션 분리는 만들지 않는다. 삭제는 모든 뒤 경로를 갱신하되 원본 항목·영역을 보존해 대조에서 대응 문단 없음을 표시한다. Undo는 승인 때 기록한 before로 기존 Core 연산을 실행하고 삭제 복원도 같은 경로 갱신을 사용한다. 한 묶음의 여러 제외는 한 staging 후보에서 모두 검증하고 한 번 교체한다. 중간 대상 실패는 문서·대응·ledger 전체를 보존한다.
+종류 교정은 독립된 문단·제목만 받는다. 독립 블록이 없는 종류 교정은 propose 시 블록 삽입 교정을 안내한다. 4b의 insert는 기준 블록 앞/뒤에 문단 또는 수준 1~6 제목을 Core 연산으로 삽입하며 빠진 머리말 복원에 사용할 수 있다. 삽입 블록은 제안의 원문 증거 영역에만 대응시키고, 증거가 없으면 대응 없음으로 기록한다. 캡션→제목 분리는 계속 미지원이다. 삭제는 모든 뒤 경로를 갱신하되 원본 항목·영역을 보존해 대조에서 대응 문단 없음을 표시한다. Undo는 승인 때 기록한 before로 기존 Core 연산을 실행하고 삭제 복원도 같은 경로 갱신을 사용한다. 한 묶음의 여러 제외는 한 staging 후보에서 모두 검증하고 한 번 교체한다. 중간 대상 실패는 문서·대응·ledger 전체를 보존한다.
 
-실패 페이지는 manifest와 최초 대응, workspace read의 record.failedPages로 제공한다. 대응 geometry가 있는 실패 쪽은 기존 unsupported 영역과 reason으로 표시하며 없는 원본 geometry·이미지는 추측하지 않는다. 원본 그림·표 inventory와 대상별 근거·사람 판단/필수 확인 기록, 동결된 묶음 전이 모델은 유지한다. SDK·Host는 Docling 배열을 해석하지 않는다. 4a의 렌즈·inventory·검사 종류별 검증 범위 계산은 위 현재 계약을 따른다. 공식 내보내기 표시·보고서 화면·원문 증거·비서·직접 편집·나누기/합치기는 후속 단계다.
+실패 페이지는 manifest와 최초 대응, workspace read의 record.failedPages로 제공한다. 대응 geometry가 있는 실패 쪽은 기존 unsupported 영역과 reason으로 표시하며 없는 원본 geometry·이미지는 추측하지 않는다. 원본 그림·표 inventory와 대상별 근거·사람 판단/필수 확인 기록, 동결된 묶음 전이 모델은 유지한다. SDK·Host는 Docling 배열을 해석하지 않는다. 4a의 렌즈·inventory·검사 종류별 검증 범위 계산은 위 현재 계약을 따른다. 공용 원문 증거 후보와 insert의 입력·대응·Undo·검증 경계는 [README 안내](../../community-plugins/docling/README.md#원문-증거-후보와-블록-삽입-교정)와 [4b 구현 기록](docling-review-stage3.md#4b-원문-증거-후보블록-삽입-구현--2026-11-11)을 따른다. 공식 내보내기 표시·보고서 화면·비서·직접 편집·나누기/합치기는 후속 단계다.
 
 검증 계층·실행 범위와 미확인 조건은 [P2 기록](docling-review-stage3.md#p2-공용-묶음저장-경계)을 따른다.
 

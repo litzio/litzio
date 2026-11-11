@@ -15,7 +15,7 @@ export const evidenceMaterialSchema = z.strictObject({
 type Material = z.infer<typeof evidenceMaterialSchema>;
 type Token = { text: string; page?: number; bbox?: number[]; path?: number[]; group: string; line?: string };
 type Gap = { missing: Token[]; unsupported: Token[]; page?: number };
-const rawWords = (text: string) => [...text].map(c => /[\p{N}\p{S}µΩKÅ\u2070-\u209f]/u.test(c) ? c : c.normalize("NFKC")).join("").replace(/\u00ad/g, "").match(/[\p{L}\p{M}]+|[0-9]+(?:[.,][0-9]+)*|[^\s]/gu) ?? [];
+const rawWords = (text: string) => [...text].map(c => /[\p{N}\p{S}µΩKÅ\u2070-\u209f]/u.test(c) ? c : c.normalize("NFKC")).join("").replace(/\u00ad/g, "").match(/[\p{L}\p{M}]+|[0-9]+(?:[.,][0-9]+)*|[.,][0-9]+|!=|<=|>=|==|[^\s]/gu) ?? [];
 export function evidenceWords(text: string) {
   const tokens = rawWords(text.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-")).filter(t => !/^[.,;:!?"'()[\]{}…•]$/.test(t));
   return tokens.filter((t, i) => !(t === "-" && /^\p{L}+$/u.test(tokens[i - 1] ?? "") && /^\p{L}+$/u.test(tokens[i + 1] ?? "")));
@@ -136,7 +136,7 @@ export async function inspectEvidence(source: string, material: Material, select
   const gaps: Gap[] = [];
   for (const group of new Set([...evidence, ...doc].map(t => t.group))) gaps.push(...(group === "body" ? ordered : unordered)(evidence.filter(t => t.group === group), doc.filter(t => t.group === group)));
   const candidates = gaps.map((g, i) => ({ id: i + 1, page: g.page ?? null,
-    priority: [...g.missing, ...g.unsupported].some(t => /[\p{N}\p{S}%/µμΩ+\-−±]/u.test(t.text) || /^(?:[munpkMGT]?A|[munpkMGT]?V|[munpkMGT]?g|kg|mg|Hz|kHz|MHz|s|ms|mm|cm|nm|mol|Pa|W|L|K|°C)$/u.test(t.text)) ? "numeric-unit" : "text",
+    priority: [...g.missing, ...g.unsupported].some(t => /[\p{N}\p{S}%/µμΩ+\-−±]/u.test(t.text) || /^(?:[munpkMGT]?A|[munpkMGT]?V|[munpkMGT]?g|kg|mg|Hz|kHz|MHz|s|ms|m|h|mm|cm|nm|mol|Pa|W|L|K|°C)$/u.test(t.text)) ? "numeric-unit" : "text",
     missing: g.missing, unsupported: g.unsupported,
   })).sort((a, b) => Number(b.priority === "numeric-unit") - Number(a.priority === "numeric-unit") || a.id - b.id);
   return { status: imagePages.length === pages.length ? "unavailable-image-pdf" : "inspected", documentRevision: textRevision(source), pages, imagePages,
