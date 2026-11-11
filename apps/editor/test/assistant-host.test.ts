@@ -316,7 +316,7 @@ test("submission IDs survive event-before-response, duplicate sends and uncertai
 
 test("pending copies survive Host restart, preserve originals on conflict, and use CLI semantic edits", async t => {
   const { AssistantChanges } = await import("../server/assistant-changes.ts");
-  const { RootAccess } = await import("../server/file-access.ts");
+  const { RootAccess, canonicalFilePath } = await import("../server/file-access.ts");
   const { createDocument, serialize } = await import("@litzio/core");
   const { listFolder } = await import("../server/document-api.ts");
   const root = mkdtempSync(path.join(tmpdir(), "assistant-changes-"));
@@ -329,7 +329,7 @@ test("pending copies survive Host restart, preserve originals on conflict, and u
   assert.deepEqual(changes.list("readonly"), []);
   const record = changes.start("one", original, scope);
   assert.equal(changes.start("one", original, scope).copy, record.copy);
-  assert.equal(path.dirname(record.copy), path.dirname(original), "relative attachment base must remain unchanged");
+  assert.equal(path.dirname(record.copy), path.dirname(canonicalFilePath(original)), "relative attachment base must remain unchanged");
   assert.ok(!listFolder(root, root, access).entries.some(entry => entry.path === record.copy), "hidden copies are not documents in Explorer/search");
   assert.equal(await runCliAsync(["insert-block", record.copy, "--at", "end", "--text", "Edited by CLI"]), 0);
   assert.equal(readFileSync(original, "utf8"), source);
