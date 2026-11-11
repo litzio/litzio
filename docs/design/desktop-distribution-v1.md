@@ -815,7 +815,9 @@ Read-only health/capability checks repeat five seconds after each observation, a
 failed observations. The sidebar's local Host status therefore recovers after a transient startup
 capability failure, even when no remote Host is registered (#1487). A failed check still immediately
 reports unreachable and its reason; the next check can restore connected. Each request retains
-its five-second timeout. Local observation uses Desktop's verified address and never discovers,
+its five-second timeout. The Host reuses successfully computed process-lifetime trash support
+and execution identity, so these periodic observations do not launch PowerShell repeatedly;
+failed computations can retry on the next request (see [HTTP Host](http-host-v1.md)). Local observation uses Desktop's verified address and never discovers,
 spawns or restarts a daemon: explicit Reconnect retains that authority. Desktop's separate
 local daemon notification/tray checks retain their existing behavior. Protocol mismatch
 refuses every attempt; a product difference warns. Requests have bounded timeouts, redirects

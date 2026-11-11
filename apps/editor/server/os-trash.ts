@@ -8,13 +8,18 @@ import { WINDOWS_TRASH_SCRIPT, WINDOWS_TRASH_SOURCE } from "./windows-trash.ts";
 const execute = promisify(execFile);
 /** Only adapters with a non-mutating failure guarantee may use this error. */
 export class TrashPreservedError extends Error {}
-export async function osTrashAvailable(): Promise<boolean> {
-  if (process.platform === "linux") return true;
-  if (process.platform !== "win32") return false;
-  try {
+// Platform, process session interactivity and OS version are fixed for this process.
+// Share an in-flight probe too; a PowerShell failure is not a capability result.
+let trashAvailability: Promise<boolean> | undefined;
+export function osTrashAvailable(): Promise<boolean> {
+  return trashAvailability ??= (async () => {
+    if (process.platform === "linux") return true;
+    if (process.platform !== "win32") return false;
     const result = await execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "[Environment]::UserInteractive -and ([Environment]::OSVersion.Version -ge [Version]'6.2')"], { windowsHide: true });
-    return result.stdout.trim() === "True";
-  } catch { return false; }
+    const value = result.stdout.trim();
+    if (value !== "True" && value !== "False") throw new Error("Invalid Windows trash capability response");
+    return value === "True";
+  })().catch(() => { trashAvailability = undefined; return false; });
 }
 
 type TrashOptions = {
