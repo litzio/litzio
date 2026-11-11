@@ -247,6 +247,9 @@ importers:
       '@litzio/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+      '@modelcontextprotocol/sdk':
+        specifier: 1.30.0
+        version: 1.30.0(@cfworker/json-schema@4.1.6)(supports-color@9.4.0)(zod@4.6.7)
       '@tiptap/core':
         specifier: 3.31.3
         version: 3.31.3(@tiptap/pm@3.31.3)
@@ -5380,6 +5383,30 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.6)(supports-color@9.4.0)(zod@4.6.7)':
+    dependencies:
+      '@hono/node-server': 2.1.1(hono@4.13.8)
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.1.1
+      express: 5.2.1(supports-color@9.4.0)
+      express-rate-limit: 8.7.0(express@5.2.1(supports-color@9.4.0))(supports-color@9.4.0)
+      hono: 4.13.8
+      jose: 6.2.12
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.6.7
+      zod-to-json-schema: 3.25.2(zod@4.6.7)
+    optionalDependencies:
+      '@cfworker/json-schema': 4.1.6
+    transitivePeerDependencies:
+      - supports-color
+
   '@napi-rs/canvas-android-arm64@0.1.100':
     optional: true
 
@@ -9466,6 +9493,10 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
       zod: 3.25.76
+
+  zod-to-json-schema@3.25.2(zod@4.6.7):
+    dependencies:
+      zod: 4.6.7
 
   zod@3.25.76: {}
 

@@ -359,9 +359,27 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const permissionButton = panel.getByRole('button', {name: 'Permission mode settings', exact: true});
   await panel.getByRole('button', { name: 'Reasoning effort settings', exact: true }).focus();
   await page.keyboard.press('Tab');
-  await expect(permissionButton).toBeFocused();
-  await expect(page.locator('[data-slot=tooltip-content]')).toContainText('Opened folders allows network access');
-  await expect(page.locator('[data-slot=tooltip-content]')).toContainText('Your organization does not allow Full access');
+  try {
+    await expect(permissionButton).toBeFocused();
+    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Opened folders allows network access');
+    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Your organization does not allow Full access');
+  } catch (error) {
+    // Capture only on failure; keep the original assertion and its timeout.
+    const state = await permissionButton.evaluate(button => {
+      const describe = element => element && ({
+        tag: element.tagName,
+        attributes: Object.fromEntries([...element.attributes].map(attribute => [attribute.name, attribute.value])),
+        text: element.textContent,
+      });
+      return {
+        activeElement: describe(document.activeElement),
+        permissionButton: describe(button),
+        popups: [...document.querySelectorAll('[data-slot=tooltip-content], [role=menu]')].map(describe),
+      };
+    }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
+    error.message += '\nPermission tooltip failure state: ' + JSON.stringify(state);
+    throw error;
+  }
   if (screenshots) await panel.screenshot({ path: 'tmp/1416-permission-tooltip.png' });
   await message.focus();
 
@@ -546,8 +564,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent[1].id).toBe('thread-1');
   await expect(panel.getByText('Context is nearly full. Start a new conversation soon.', { exact: true })).toBeVisible();
   await panel.getByRole('img', { name: 'Context usage' }).hover();
-  await expect(page.locator('[data-slot=tooltip-content]')).toContainText('810 / 1,000 tokens · 81%');
-  const contextTooltip = page.locator('[data-slot=tooltip-content]');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('810 / 1,000 tokens · 81%');
+  const contextTooltip = page.locator('[data-slot=tooltip-content][data-open]');
   await expect(contextTooltip).toContainText('ChatGPT login · example@example.invalid · plus');
   await expect(contextTooltip).toContainText('5 hours · 28% used');
   await expect(contextTooltip).toContainText('7 days · 12% used');
@@ -558,7 +576,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   }
   await page.mouse.move(0, 0);
-  await expect(contextTooltip).toHaveCount(0);
+  await expect(page.locator('[data-slot=tooltip-content]')).toHaveCount(0);
   summaryAccount = { ...summaryAccount, planType: 'business' };
   summaryLimits = [{ name: 'Codex', windows: [], planType: 'business',
     individualLimit: { limit: 500, used: 208.24, remainingPercent: 58, resetsAt: 1795478400 },
@@ -571,7 +589,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   for (const row of await contextTooltip.locator('p').all()) {
     expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   }
-  await page.mouse.move(0, 0); await expect(contextTooltip).toHaveCount(0);
+  await page.mouse.move(0, 0); await expect(page.locator('[data-slot=tooltip-content]')).toHaveCount(0);
   summaryLimits = undefined; summaryAccount = { ...summaryAccount, planType: 'plus' };
   summaryFail = true;
   await message.focus();
@@ -582,17 +600,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(contextTooltip).not.toContainText('private provider failure');
   await expect(panel.getByRole('button', { name: 'Stop response', exact: true })).toBeEnabled();
   await panel.getByRole('img', { name: 'Context usage' }).blur();
-  await expect(contextTooltip).toHaveCount(0);
+  await expect(page.locator('[data-slot=tooltip-content]')).toHaveCount(0);
   summaryFail = false; summaryAccount = { type: 'apiKey' };
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(contextTooltip).toContainText('API key login');
   await expect(contextTooltip).not.toContainText('Usage and limits');
-  await page.mouse.move(0, 0); await expect(contextTooltip).toHaveCount(0);
+  await page.mouse.move(0, 0); await expect(page.locator('[data-slot=tooltip-content]')).toHaveCount(0);
   summaryAccount = null;
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(contextTooltip).toContainText('Codex login is required on the Host.');
   await expect(contextTooltip).not.toContainText('Usage and limits');
-  await page.mouse.move(0, 0); await expect(contextTooltip).toHaveCount(0);
+  await page.mouse.move(0, 0); await expect(page.locator('[data-slot=tooltip-content]')).toHaveCount(0);
   summaryAccount = { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' };
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/running-1440-light-en.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-1440.png' });
@@ -660,7 +678,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await statusTrigger.focus();
   await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
   await expect(statusTrigger).toBeFocused();
-  await expect(page.locator('[data-slot=tooltip-content]')).toContainText('Needs your attention');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Needs your attention');
   await statusTrigger.click();
   const questionCard = panel.getByTestId('assistant-question');
   await expect(questionCard).toBeVisible();
@@ -708,7 +726,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     const details = questionCard.getByLabel(korean ? '이미지 대조 상세' : 'Image comparison details');
     await details.focus();
     await page.keyboard.press("Tab"); await page.keyboard.press("Shift+Tab");
-    await expect(page.locator('[data-slot=tooltip-content]')).toContainText(korean ? '청구 토큰이 아닙니다' : 'not billed tokens');
+    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText(korean ? '청구 토큰이 아닙니다' : 'not billed tokens');
     await page.keyboard.press('Escape');
     await questionCard.getByRole('radio', { name: korean ? '승인' : 'Decline', exact: true }).check();
     if (screenshots) await page.screenshot({ path: `tmp/1462-evidence/image-${korean ? 'ko' : 'en'}.png` });
@@ -870,7 +888,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   await expect(copyAnswer).toBeFocused();
-  await expect(page.locator('[data-slot=tooltip-content]')).toHaveText('Copy answer');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toHaveText('Copy answer');
   expect(await copyAnswer.evaluate(element => element.matches(':focus-visible'))).toBe(true);
   await page.keyboard.press('Enter');
   expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe(markdownSource + '\n\n' + finalSource);
@@ -1179,8 +1197,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent.at(-1).skills).toEqual([]);
   const readsBeforeCopilot = summaryReads;
   await panel.getByRole('img', { name: 'Context usage' }).hover();
-  await expect(page.locator('[data-slot=tooltip-content]')).toBeVisible();
-  await expect(page.locator('[data-slot=tooltip-content]')).not.toContainText('Account');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toBeVisible();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).not.toContainText('Account');
   expect(summaryReads).toBe(readsBeforeCopilot);
   await page.mouse.move(0, 0);
   await expect(panel.getByRole('alert')).toHaveCount(0);

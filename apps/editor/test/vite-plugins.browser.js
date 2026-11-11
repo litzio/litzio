@@ -152,7 +152,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByText("Simulate failure", { exact: true }).hover();
-  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Simulates service availability");
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText("Simulates service availability");
   const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://docling.example.test/updated" } } });
   expect(externalSave.ok()).toBe(true);
   await check.click();
@@ -169,7 +169,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
   await expect(check).toBeDisabled();
   await check.locator("..").hover();
-  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Plugin disabled");
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText("Plugin disabled");
   await page.keyboard.press("Escape");
   await toggle.click();
   await expect(external.getByRole("switch")).toBeChecked();

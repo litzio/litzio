@@ -1,3 +1,4 @@
+import { AssistantMcp, type HostToolCall, type HostToolResult } from "./assistant-mcp.ts";
 import { AgentScreenRequests, screenTool } from "./assistant-screen-tools.ts";
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
@@ -77,7 +78,8 @@ export class AssistantConversations {
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
-        this.loaded.delete(conversation.id); this.scopes.delete(conversation.id);
+        this.screen.cancel(conversation.id); this.display.cancel(conversation.id);
+        this.loaded.delete(conversation.id); this.scopes.delete(conversation.id); this.mcp.revokeConversation(conversation.id);
         for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
         if (this.expireQuestion(conversation)) this.save(conversation);
       }
@@ -96,10 +98,21 @@ export class AssistantConversations {
       this.answers.set(conversation.id, respond);
       this.refreshQuestion(conversation); this.save(conversation);
     };
-    connection.client.toolCall = async params => {
+    connection.client.toolCall = params => this.executeTool(params);
+    connection.client.on("notification", (method, params) => this.notification(method, params));
+    connection.client.on("disconnected", (message: string) => {
+      for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.screen.cancel(id); this.display.cancel(id); this.loaded.delete(id); this.scopes.delete(id); }
+      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
+        if (this.expireQuestion(conversation)) this.save(conversation);
+      }
+    });
+  }
+  private executeTool = async (params: HostToolCall): Promise<HostToolResult> => {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
-      if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
+      if (this.closed || !scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
+      if (params.tool === questionTool.name && this.current(params.threadId).provider === "copilot") throw new Error("Copilot question cards are unavailable. Ask in ordinary text; review image approval requires a supported question card.");
       if (params.tool === questionTool.name) return this.requestQuestion(this.current(params.threadId), active, params.callId, params.arguments, scope.displayClient);
       if (params.tool === "invoke_plugin_operation" && this.plugins) {
         const result = await executePluginOperationTool(this.plugins, params.arguments, scope);
@@ -152,16 +165,9 @@ export class AssistantConversations {
       const text = JSON.stringify(result);
       return { contentItems: [{ type: "inputText", text }], success: !(result && typeof result === "object" && "error" in result && result.error) };
     };
-    connection.client.on("notification", (method, params) => this.notification(method, params));
-    connection.client.on("disconnected", (message: string) => {
-      this.screen.cancel(); this.display.cancel();
-      for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
-      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
-        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
-        if (this.expireQuestion(conversation)) this.save(conversation);
-      }
-    });
-  }
+
+  get tools() { return [...documentTools, screenTool, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools, ...reviewAssistantTools] : [])]; }
+  readonly mcp = new AssistantMcp(() => this.tools, params => this.executeTool(params));
   private get file() { return path.join(this.connection.cwd, "conversations.json"); }
   list(): ConversationIndexEntry[] {
     this.connection.environment();
@@ -186,6 +192,7 @@ export class AssistantConversations {
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }
     finally { if (existsSync(temporary)) unlinkSync(temporary); }
+    this.mcp.revokeConversation(id);
     this.conversations.delete(id); this.loaded.delete(id); this.scopes.delete(id);
   }
   current(id: string) {
@@ -253,21 +260,23 @@ export class AssistantConversations {
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
     if (info.provider === "copilot") {
-      this.loaded.delete(id);
-      const client = await this.connection.copilot.connect();
-      if (!this.connection.copilot.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
-      const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: [] }));
-      conversation.model = session.models?.currentModelId ?? settings.model;
-      this.connection.copilot.remember({ ...session, sessionId: id });
-      conversation.copilot = copilotOptions({ ...session, sessionId: id });
-      const reasoning = copilotReasoning(session);
-      if (conversation.copilot.reasoningEffortSource === "cli" && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
-      conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
-      // Only a completed loadSession replay proves the CLI owns these user messages.
-      for (const turn of conversation.turns) for (const item of turn.items) if (item.kind === "user") item.userMessageSource = "provider-history";
-      this.loaded.add(id);
-      this.restoreQuestions(conversation, info.questions);
-      return conversation;
+      try {
+        this.loaded.delete(id);
+        const client = await this.connection.copilot.connect();
+        if (!this.connection.copilot.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
+        const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: this.mcp.servers(id) }));
+        conversation.model = session.models?.currentModelId ?? settings.model;
+        this.connection.copilot.remember({ ...session, sessionId: id });
+        conversation.copilot = copilotOptions({ ...session, sessionId: id });
+        const reasoning = copilotReasoning(session);
+        if (conversation.copilot.reasoningEffortSource === "cli" && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
+        conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
+        // Only a completed loadSession replay proves the CLI owns these user messages.
+        for (const turn of conversation.turns) for (const item of turn.items) if (item.kind === "user") item.userMessageSource = "provider-history";
+        this.loaded.add(id);
+        this.restoreQuestions(conversation, info.questions);
+        return conversation;
+      } catch (error) { this.mcp.revokeConversation(id); throw error; }
     }
     const result = await this.connection.client.request("thread/resume", { threadId: id, cwd: this.connection.cwd,
       approvalPolicy: "never", sandbox: "read-only", excludeTurns: true });
@@ -317,7 +326,7 @@ export class AssistantConversations {
       if (conversation && (conversation.provider ?? "codex") !== settings.provider) throw new Error("Start a conversation with the selected provider.");
       if (settings.provider === "copilot") {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
-        return await this.sendCopilot(input, settings, folders, references, conversation);
+        return await this.sendCopilot(input, settings, folders, references, conversation, displayClient);
       }
       if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
@@ -335,8 +344,7 @@ export class AssistantConversations {
       }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
-          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [
-            ...documentTools, screenTool, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools, ...reviewAssistantTools] : [])] });
+          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: this.tools });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
@@ -445,6 +453,7 @@ export class AssistantConversations {
   async close() {
     for(const conversation of this.conversations.values())for(const turn of conversation.turns)this.saveReviewUsage(conversation,turn);
     this.closed = true;
+    this.mcp.close();
     this.screen.cancel(); this.display.cancel();
     for (const pending of this.questionDisplays.values()) { clearTimeout(pending.timer); pending.reject?.(new Error("Question display was cancelled.")); }
     await Promise.allSettled(this.reviewUsageWrites);
@@ -511,12 +520,13 @@ export class AssistantConversations {
     this.save(conversation);
     this.screen.cancel(id); this.display.cancel(id);
     if (turn && conversation.provider === "copilot") {
+      this.mcp.revokeConversation(id);
       const client = await this.connection.copilot.connect();
       await this.connection.copilot.call(() => client.cancel({ sessionId: id }));
     } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
   }
-  private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
+  private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation, displayClient?: string) {
     const acp = this.connection.copilot;
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     const catalog = await this.connection.models("copilot");
@@ -530,74 +540,90 @@ export class AssistantConversations {
     const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
     await this.prepareCopilotLaunch(effort, settings);
-    if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
+    if (conversation) {
+      // loadSession replaces the endpoint and replays authoritative history on every turn.
+      // Retain the snapshot object held by callers while rebuilding provider-owned content.
+      const previous = conversation;
+      const restored = await this.resume(previous.id, settings, settings.permissionMode);
+      // Some ACP implementations replay no history; retain the admitted snapshot then.
+      if (!restored.turns.length) restored.turns = previous.turns;
+      Object.assign(previous, restored);
+      conversation = previous; this.conversations.set(previous.id, previous);
+    }
     const client = await acp.connect();
-    if (!conversation) {
-      const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: [] })));
-      conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
-        folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
-      this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
-    }
-    const id = conversation.id;
-    const session = acp.sessions.get(id)!;
-    const modelOption = copilotModelOption(session);
+    const lease = conversation ? this.mcp.lease(conversation.id) : this.mcp.create();
     try {
-      if (modelOption) {
-        const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: modelOption.id, value: input.model }));
-        session.configOptions = result.configOptions;
-      } else await acp.call(() => client.unstable_setSessionModel({ sessionId: id, modelId: input.model }));
-      conversation.model = input.model;
-      const reasoning = copilotReasoning(session);
-      if (reasoning) {
-        if (!copilotChoices(reasoning).some(value => value.value === input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort for this session.");
-        const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: reasoning.id, value: input.reasoningEffort }));
-        session.configOptions = result.configOptions;
-      } else if (!modelOption && source === "cli" && acp.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
-      const options = copilotOptions(session);
-      const mode = input.mode ?? options.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id;
-      if (mode) {
-        if (!options.modes.some(value => value.id === mode)) throw new Error("Invalid Copilot session mode.");
-        await acp.call(() => client.setSessionMode({ sessionId: id, modeId: mode }));
-        if (session.modes) session.modes.currentModeId = mode;
-        const modeConfig = session.configOptions?.find(option => option.category === "mode");
-        if (modeConfig?.type === "select") modeConfig.currentValue = mode;
+      if (!conversation) {
+        const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: lease.servers })));
+        conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
+          folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
+        this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
       }
-      // Paseo's Allow All is Agent/Plan plus allow_all=on, not an autopilot mode.
-      const allowAll = session.configOptions?.find(option => option.id === "allow_all");
-      if (allowAll?.type === "select") {
-        const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: allowAll.id, value: fullAccess ? "on" : "off" }));
-        session.configOptions = result.configOptions;
+      const id = conversation.id;
+      this.mcp.bind(lease, id);
+      const session = acp.sessions.get(id)!;
+      const modelOption = copilotModelOption(session);
+      try {
+        if (modelOption) {
+          const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: modelOption.id, value: input.model }));
+          session.configOptions = result.configOptions;
+        } else await acp.call(() => client.unstable_setSessionModel({ sessionId: id, modelId: input.model }));
+        conversation.model = input.model;
+        const reasoning = copilotReasoning(session);
+        if (reasoning) {
+          if (!copilotChoices(reasoning).some(value => value.value === input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort for this session.");
+          const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: reasoning.id, value: input.reasoningEffort }));
+          session.configOptions = result.configOptions;
+        } else if (!modelOption && source === "cli" && acp.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
+        const options = copilotOptions(session);
+        const mode = input.mode ?? options.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id;
+        if (mode) {
+          if (!options.modes.some(value => value.id === mode)) throw new Error("Invalid Copilot session mode.");
+          await acp.call(() => client.setSessionMode({ sessionId: id, modeId: mode }));
+          if (session.modes) session.modes.currentModeId = mode;
+          const modeConfig = session.configOptions?.find(option => option.category === "mode");
+          if (modeConfig?.type === "select") modeConfig.currentValue = mode;
+        }
+        // Paseo's Allow All is Agent/Plan plus allow_all=on, not an autopilot mode.
+        const allowAll = session.configOptions?.find(option => option.id === "allow_all");
+        if (allowAll?.type === "select") {
+          const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: allowAll.id, value: fullAccess ? "on" : "off" }));
+          session.configOptions = result.configOptions;
+        }
+      } finally {
+        // A successful model change is real even if a later setting is rejected.
+        // Keep polling truthful so the user can choose from the new model's options.
+        conversation.copilot = copilotOptions(session);
+        conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
       }
-    } finally {
-      // A successful model change is real even if a later setting is rejected.
-      // Keep polling truthful so the user can choose from the new model's options.
-      conversation.copilot = copilotOptions(session);
-      conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
-    }
-    references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references };
-    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
-    this.dispatch(input, conversation);
-    conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
-    conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
-    this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
-    this.save(conversation);
-    // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
-    const failedPrompt = (message: string) => {
-      turn.status = "failed"; turn.error = message;
-      const receipt = input.submissionId ? this.submissions.get(input.submissionId)?.receipt : undefined;
-      if (receipt) { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = message; }
-    };
-    void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nThis Copilot ACP connection does not support interactive question cards or async question tools. The read_screen_context tool is also unavailable. Do not claim a question was accepted. Ask in ordinary text and let the user reply after the response ends.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
-      if (turn.status === "inProgress") {
-        turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
-        if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
-      }
-    }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => {
-      this.scopes.delete(id);
-      if (this.expireQuestion(conversation, turn.id)) this.save(conversation);
-    });
-    return conversation;
+      references = checkedReferences(input.references ?? [], folders, this.access);
+      const context = { conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references };
+      const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
+      this.dispatch(input, conversation);
+      conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
+      conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
+      lease.turnId = turn.id;
+      this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, displayClient });
+      this.save(conversation);
+      // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
+      const failedPrompt = (message: string) => {
+        turn.status = "failed"; turn.error = message;
+        const receipt = input.submissionId ? this.submissions.get(input.submissionId)?.receipt : undefined;
+        if (receipt) { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = message; }
+      };
+      void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nThis Copilot ACP connection does not support interactive question cards or async question tools. Do not claim a question was accepted. Ask in ordinary text and let the user reply after the response ends.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
+        if (turn.status === "inProgress") {
+          turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
+          if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
+        }
+      }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => {
+        this.screen.cancel(id); this.display.cancel(id);
+        this.mcp.revoke(lease);
+        if (this.scopes.get(id)?.turnId === turn.id) this.scopes.delete(id);
+        if (this.expireQuestion(conversation!, turn.id)) this.save(conversation!);
+      });
+      return conversation;
+    } catch (error) { this.mcp.revoke(lease); throw error; }
   }
   private async prepareCopilotLaunch(effort: string, settings: AssistantSettings) {
     const acp = this.connection.copilot, fullAccess = settings.permissionMode === "full-access";
@@ -607,17 +633,19 @@ export class AssistantConversations {
   private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse {
     const scope = this.scopes.get(request.sessionId), tool = request.toolCall;
     const active = this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
-    let allowed = !!scope && !!active && (tool.kind === "read" || tool.kind === "edit" && scope.permissionMode === "opened-folders");
+    const reading = tool.kind === "read" || tool.kind === "search";
+    let allowed = !!scope && !!active && tool.kind !== "execute" && (reading || scope.permissionMode === "opened-folders");
     if (!tool.locations?.length) allowed = false;
     if (allowed) try {
       for (const location of tool.locations!) {
         if (!path.isAbsolute(location.path) || !scope!.folders) throw new Error("No opened folder scope.");
-        accessPath(accessPath(location.path, scope!.folders, tool.kind === "edit"), this.access, tool.kind === "edit");
+        accessPath(accessPath(location.path, scope!.folders, !reading), this.access, !reading);
       }
     } catch { allowed = false; }
     const fullAccess = !!scope && !!active && scope.permissionMode === "full-access";
-    const network = !!scope && !!active && scope.permissionMode === "opened-folders" && tool.kind === "fetch";
-    const option = allowed || network || fullAccess ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
+    const network = !!scope && !!active && scope.permissionMode === "opened-folders" && tool.kind === "fetch" && !tool.locations?.length;
+    const hostTool = !!scope && !!active && tool.kind !== "execute" && this.mcp.permission(request.sessionId, tool.rawInput);
+    const option = allowed || network || fullAccess || hostTool ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
     return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } };
   }
   private copilotUpdate({ sessionId, update }: SessionNotification) {

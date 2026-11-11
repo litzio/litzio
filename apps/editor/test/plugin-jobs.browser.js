@@ -251,7 +251,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const failureRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "start-fail.txt", exact: true }) }).first();
   await expect(failureRow.getByRole("status")).toHaveText("Outcome uncertain");
   await failureRow.getByRole("button", { name: "Job details: start-fail.txt", exact: true }).hover();
-  await expect(page.locator("[data-slot=tooltip-content]")).toContainText("The plugin could not acknowledge the start request.");
+  await expect(page.locator("[data-slot=tooltip-content][data-open]")).toContainText("The plugin could not acknowledge the start request.");
   await page.keyboard.press("Escape");
   await panel.getByRole("checkbox", { name: "input.txt", exact: true }).check();
   await panel.locator(".plugin-job-start").getByRole("button").click();
@@ -281,8 +281,8 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
         await nativeRow.getByRole("button", { name: "결과 열기: input.txt", exact: true }).focus();
         await page.keyboard.press("Tab");
         await expect(info).toBeFocused();
-        await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
-        await expect(page.locator("[data-slot=tooltip-content]")).toContainText("플러그인이 작업 시작을 확인하지 못했습니다.");
+        await expect(page.locator("[data-slot=tooltip-content][data-open]")).toBeVisible();
+        await expect(page.locator("[data-slot=tooltip-content][data-open]")).toContainText("플러그인이 작업 시작을 확인하지 못했습니다.");
         await page.screenshot({ path: "tmp/plugin-jobs/failure-details-640.png", maskColor: "#a1a1aa", mask: [page.locator(".sidebar-host-account"), panel.getByLabel("열린 폴더", { exact: true })] });
         await page.keyboard.press("Escape");
         await nativeRow.getByRole("cell").first().click();

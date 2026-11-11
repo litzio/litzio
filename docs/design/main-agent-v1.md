@@ -488,11 +488,11 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 
 ### On-demand screen context (#1500 stage 2)
 
-Codex exposes `read_screen_context` (empty input) to read metadata from the window that sent the admitted turn. It uses the existing conversation/window identity and visible-panel polling path, with a 10-second Host deadline charged for poll transit time. Another window cannot see or satisfy the request. Closed, hidden, disconnected or unresponsive windows fail explicitly; cancellation, turn end and daemon shutdown discard pending requests. Host keeps only in-flight requests, not shared screen state.
+Codex dynamic tools and Copilot HTTP MCP expose the same `read_screen_context` definition (empty input) to read metadata from the window that sent the admitted turn. It uses the existing conversation/window identity and visible-panel polling path, with a 10-second Host deadline charged for poll transit time. Another window cannot see or satisfy the request. Fake ACP plus an SDK MCP client verify definition parity, successful Copilot window-owned response, rejection of another window, isolation from an unrelated Codex disconnect and explicit failure without a window; no real Copilot call was made for this merge. Closed, hidden, disconnected or unresponsive windows fail explicitly; cancellation, turn end and daemon shutdown discard pending requests. Host keeps only in-flight requests, not shared screen state.
 
 The window supplies its focused group's active tab (or null), all opened tabs and opened folders with Host identities. Tab metadata includes kind, title, Host, path/target where applicable, and unsaved flag. Kinds cover native document, text, PDF, review, comparison, staged comparison, plugin screen, plugin jobs, settings and template gallery. App-wide settings have no document Host (null). No unsaved body, selection, plugin inputs or result contents are supplied. Paths on another Host remain metadata, never an access grant. The existing per-message saved document path context remains; a null document directs the assistant to query screen metadata rather than assume a document is active.
 
-This read is autonomous and provides no UI manipulation. It is Editor-specific tab/focus context, excluded from CLI parity under AGENTS.md and ADR-0015; no CLI command is added. Copilot ACP has no screen tool. The assistant uses the existing generic tool activity surface; no new visual component or layout exception is introduced.
+This read is autonomous and provides no UI manipulation. It is Editor-specific tab/focus context, excluded from CLI parity under AGENTS.md and ADR-0015; no CLI command is added. Copilot MCP uses the same Host dispatch and originating-window identity; an absent window fails explicitly instead of inventing screen state. The assistant uses the existing generic tool activity surface; no new visual component or layout exception is introduced.
 
 ## Document tools (#931 implementation 2, PR 1)
 
@@ -571,7 +571,7 @@ AI permissions/provider/model, plugins, navigation, document content and front
 matter are excluded. Document write scope is unchanged; these appearance-only
 operations also work in read-only turns and without opened folders. They add no
 Core semantic operation, CLI command, MCP server, registry or public Plugin API.
-Copilot and terminal sessions have no display-tool handler. Start a new Codex
+Copilot uses the same Host display handler when sent from a Litzio window; terminal sessions have no originating window. Start a new Codex
 conversation to acquire the added specs; existing thread registrations are not
 retrofitted.
 
@@ -1142,19 +1142,53 @@ The user message includes product instructions, opened-folder paths, the active
 document path and validated reference paths. It reads saved file content on demand;
 unsaved native/text editor content is excluded (#1106). Copilot receives image
 references as paths, without Codex localImage inputs. Native Copilot tools may
-read references. Litzio dynamic document tools/result cards and Codex skill
-selection are not exposed. Existing-document editing uses pending copies as described below; Copilot requires full-access for the CLI write path. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
+read references. Copilot receives the same Host tool definitions and dispatch as Codex through HTTP MCP (#1500); Codex skill selection remains unavailable. Existing-document editing uses pending copies as described below; the CLI write path still requires Copilot full-access until the Host copy-edit tools land. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
+
+### Copilot Host tools over HTTP MCP (#1500)
+
+The existing daemon HTTP listener serves `/api/assistant/mcp/<random-turn-token>`.
+Codex dynamicTools and MCP tools/list read one Host-owned array and both execute
+through one provider-neutral dispatch. Future tools added to that array therefore
+reach both providers. MCP adds the required top-level object type to object-union schemas without changing their constraints or Host validation. No second document/plugin registry is maintained.
+
+ACP newSession/loadSession receive an HTTP server named `litzio_host`, including an Origin header equal to the endpoint origin. This passes the existing daemon POST Origin policy without exceptions. Each send
+loads existing sessions again to replace the endpoint and rebuild provider history;
+CLIs without loadSession must start a new conversation. The Host generates each
+capability, binds it to the provider session and current turn, and supplies folders,
+permission mode and originating window from admitted Host state. Tool arguments
+cannot select another conversation, turn or permission. Setup permits discovery;
+execution requires an active matching turn. Failed session setup and conversation deletion also revoke leases. Completion, failure, cancellation,
+disconnection and shutdown revoke capabilities; previous turn URLs cannot be reused.
+This is conversation isolation, not daemon authentication (#1145 remains deferred).
+
+Copilot 1.0.109 refused MCP calls with host_policy before sending ACP permissions.
+`--allow-tool=litzio_host` skips only this provider approval, while restricted
+launches retain `--deny-tool=shell` and every MCP execution still checks Host scope.
+Question cards are deliberately unsupported; ordinary text questions and the
+existing image approval protection remain. ACP/MCP elicitation is follow-up work.
+The cwd litzio-guide skill is discovered by Copilot; instructions are also injected
+in the prompt. This change does not consolidate those instruction sources.
+
+Verification (2026-11-11): fake ACP plus real SDK HTTP clients protect tool discovery,
+folder isolation, permission hints, cancellation and endpoint rotation. Two real
+Auto prompts: the first discovered tools but host_policy denied them; the second
+completed list_documents and read_document with shell denied. Those two probes used a direct createServer → MCP handler and did not test the daemon Host/Origin gate. Review found missing Origin headers; before fixing them, a new real startHttpHost regression reproduced 403 Request origin is not allowed. It now uses the exact ACP-supplied headers to discover and invoke read_document in an admitted active turn, while missing/foreign Origins remain refused. A follow-up real Copilot Auto prompt through startHttpHost completed list_documents and read_document and returned Daemon MCP probe, with shell denied and built-in MCPs no longer disabled. This used one additional prompt. Small localhost reads do not establish long sessions, remote Hosts or real plugin/image workflows.
+
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
-Only read/edit requests carrying absolute paths inside those folders and Host
-Roots can receive the returned `allow_once` option. Edits additionally require
-`opened-folders`; `read-only` denies them. Fetch (URL/network) requests receive allow_once in opened-folders and are denied in read-only.
-Missing paths on read/edit, execution and unknown requests are cancelled in restricted access. The owner-approved `full-access`
+Read-only permits read/search requests with absolute locations inside those folders
+and Host Roots. Opened-folders also permits location-bearing edit/delete/move and
+other file tools: every source/destination location must pass the same containment
+check, using write resolution for non-read/search tools. Execute remains denied in
+both restricted modes even with inside locations. Fetch requests carrying file locations also pass this containment check. Native requests without locations
+are refused except fetch (allowed in opened-folders, denied in read-only) and known
+Litzio MCP requests with matching server/tool metadata. A title alone does not grant
+a Host tool hint. Host tool execution independently enforces its admitted scope. The owner-approved `full-access`
 value instead selects an allow_once (or allow_always) response for every active-turn
 request, including tool execution, paths outside opened folders and URLs. Like Paseo,
 Host sends `allow_all=on` when advertised; Agent/Plan remains the selected session
 mode. Restricted turns send `allow_all=off`. CLI flags deny shell tools in restricted
-access and permit them in full access; built-in MCP servers remain disabled. Unlike Codex, this does not install an OS sandbox or
+access and permit them in full access. The #1500 owner amendment removes the unconditional built-in MCP disable flag, so GitHub and other built-in MCPs can be discovered under Copilot configuration. Unlike Codex, this does not install an OS sandbox or
 override every inherited Copilot permission/MCP configuration. Preauthorized
 provider actions may not ask Host for permission. Users must verify their CLI
 configuration; these settings are not represented as equivalent containment.
@@ -1438,7 +1472,7 @@ remain PR3b's responsibility; remote panels do not dispatch the local Settings s
 
 Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md). Management is a separate Codex tool without per-call confirmation. Its action, target plugin ID and success/failure appear in the existing conversation tool activity and result, without settings values or secrets. `reload` uses the same Host operation as CLI. Display tools remain restricted to their existing fields. Plugin execution belongs to the target Host; Secret values are supplied only through the settings UI and passed privately to the target plugin runtime; assistant management cannot input or retrieve them. View runtime contributions remain unsupported.
 
-K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 start/status/stop/result/list를 제공한다([계약](plugin-stage1-v1.md#k1-파일-작업)). 건별 승인은 없고 turn의 기존 tool 활동에 작업·성공/실패·결과가 남는다. 쓰기 모드와 열린 폴더 범위, 대상 Host 및 응답 상실 뒤 같은 ID 조회/no replay는 유지한다. 이 추가는 Copilot custom dynamic-tool 공급을 구현한 증거가 아니다.
+K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 start/status/stop/result/list를 제공한다([계약](plugin-stage1-v1.md#k1-파일-작업)). 건별 승인은 없고 turn의 기존 tool 활동에 작업·성공/실패·결과가 남는다. 쓰기 모드와 열린 폴더 범위, 대상 Host 및 응답 상실 뒤 같은 ID 조회/no replay는 유지한다. Copilot은 #1500의 HTTP MCP 경로로 같은 도구를 사용한다.
 
 Codex `invoke_plugin_operation`은 현재 대화 Host의 `assistant:true` 읽기 작업과 manifest 연결 확인을 같은 공용 실행 경로로 호출한다([계약](plugin-stage1-v1.md#비서의-플러그인-읽기-호출-1425)). 읽기 전용 turn에서도 이 조회와 연결 확인을 허용한다(#1500 5단계). 쓰기·비공개 일반 작업은 turn 권한과 무관하게 거부하며 필요한 선언과 전용 경로를 안내한다. plugin_jobs 시작·중지와 검수 쓰기의 권한은 유지한다. `manage_plugins`는 읽기 전용 turn에서 list·validate·settings 조회만 허용하며, 관리 쓰기는 거부하고 Opened folders 또는 Full access로 변경하도록 안내한다. 두 쓰기 권한의 동작은 바꾸지 않는다. 출력 검증·secret 제거·고정 오류 분류와 receipt를 유지하며 활동에는 작업·시각·결과 상태·receipt만 남긴다. 입력·출력 원문은 활동이나 재개된 활동에 포함하지 않는다.
 
@@ -2061,7 +2095,7 @@ conditions. Captures exclude unrelated Host identity and local paths.
 
 Codex registers the common review read/material, source-evidence run, proposal-only storage, inspection, image-estimate/image-read and request-status tools. [The plugin contract](plugin-stage1-v1.md#비서-국소-제안-1462-5단계) defines their inputs, CLI parity and boundaries. Human correction approval/rejection/Undo/completion are not assistant tools or question-card actions.
 
-The existing question tool accepts optional `reviewImage` (estimate input plus estimateHash). Host replaces the model's question with the current scope, counts and estimated input tokens. Only an actual answer to the rendered active card selects that comparison in the existing ledger; accepted:true alone does not. Ordinary provider/native questions and prose cannot create the selection. Decline, expiry and invalid/stale estimates grant no image access. The question index retains this estimate linkage with the existing interaction, without a new approval engine. Actual provider turn usage is recorded in inspection evidence, explicitly without per-image attribution. Copilot custom tool delivery remains unsupported.
+The existing question tool accepts optional `reviewImage` (estimate input plus estimateHash). Host replaces the model's question with the current scope, counts and estimated input tokens. Only an actual answer to the rendered active card selects that comparison in the existing ledger; accepted:true alone does not. Ordinary provider/native questions and prose cannot create the selection. Decline, expiry and invalid/stale estimates grant no image access. The question index retains this estimate linkage with the existing interaction, without a new approval engine. Actual provider turn usage is recorded in inspection evidence, explicitly without per-image attribution. Copilot receives these Host tools via MCP, but interactive question cards remain unsupported: request_litzio_user_input returns an explicit error and prose never grants review image access.
 
 이미지 대조 승인 카드는 Host의 구조화된 쪽·대상·예상량 기록을 화면 언어로 표시한다. 선택지는 승인/거절이며 전송 값은 `approve`/`decline`으로 고정한다. 직접 입력은 범위 승인에 해당하지 않아 제공하지 않는다. 계산 방식과 대상 상세는 공통 Tooltip에서 hover·keyboard focus로 읽는다. 실제 사람 답변·estimateHash 검증·렌더 확인과 승인 분리는 유지한다.
 
@@ -2070,11 +2104,11 @@ The existing question tool accepts optional `reviewImage` (estimate input plus e
 
 ### Pending existing-document edits (#1494)
 
-Only an explicit user edit request authorizes editing an existing document. The Assistant starts or finds a conversation-owned pending copy and prefers the shell-free Host tools below to edit that copy. Existing CLI semantic operations (`inspect`, `apply-batch --operations <json-file> --if-revision <revision>`, `check`) remain available for full-access terminal continuation. It never edits the original or applies/discards a pending copy. New documents are still created immediately. Read-only turns cannot create copies. Codex supports opened-folders and full-access. Copilot supports this workflow only in full-access; opened-folders retains shell denial and must explain that the user should select Full access or Codex. No restricted Copilot CLI exception is added; Copilot MCP tool exposure remains deferred.
+Only an explicit user edit request authorizes editing an existing document. The Assistant starts or finds a conversation-owned pending copy and prefers the shell-free Host tools below to edit that copy. Existing CLI semantic operations (`inspect`, `apply-batch --operations <json-file> --if-revision <revision>`, `check`) remain available for full-access terminal continuation. It never edits the original or applies/discards a pending copy. New documents are still created immediately. Read-only turns cannot create copies. Both Codex and Copilot support opened-folders and full-access through the same Host tools. Copilot opened-folders retains shell denial; the Host tools require no shell exception. Read-only turns may inspect existing copies but cannot create or edit them.
 
 Host receipts live under the Assistant directory, scoped by conversation; copies are hidden `.litzio-change-<uuid>.md` siblings of the original. This keeps copies within opened folder grants and preserves relative images/attachments. The existing hidden-entry filtering omits copies from document lists and Explorer-backed search. Assistant working-directory copies would change the relative asset base and fall outside document roots. Pending records survive Host restart. Deleting a Host conversation removes its copies; provider-owned history is not deleted.
 
-`stage_document({path})` is the minimum Codex start/find tool. It returns the original path, copy path, base revision and change ID. Copilot full-access and terminal continuation use `litzio assistant changes start <conversationId> --path <absolute-path>` through the Host-owned CLI shim. Message context includes conversationId; the shim propagates the selected Host Assistant directory. No assistant apply tool exists.
+`stage_document({path})` is the shared Host start/find tool for Codex and Copilot. It returns the original path, copy path, base revision and change ID. Terminal continuation can use `litzio assistant changes start <conversationId> --path <absolute-path>` through the Host-owned CLI shim. Message context includes conversationId; the shim propagates the selected Host Assistant directory. No assistant apply tool exists.
 
 The shared Host conversation actions are `changes-list`, `changes-start`, `changes-preview`, `changes-apply`, `changes-discard`. Scope is the selected Host and conversation ID; preview/apply/discard also take `change`. Apply requires the preview's `copyRevision` and `diskRevision`; the original must still match the creation revision. The result is an applied path/revision receipt or discarded path receipt. An original or pending-copy change refuses writing and requires refreshed comparison. There is no force overwrite or partial apply.
 
@@ -2093,10 +2127,10 @@ With default full-access, shell access can modify originals. Waiting for human [
 
 ### Shell-free pending-copy operations (#1500, stage 0b)
 
-Codex registers `inspect_staged_document({change})` and `edit_staged_document({change, copyRevision, operations})` beside `stage_document`. Inputs and receipts are provider-neutral; the active turn supplies the conversation, opened folders and permission. There is no path input or original-apply tool. Inspect reuses CLI inspect's current node paths/text/numbering and returns `copyRevision`. Edit takes the existing apply-batch JSON array (command plus options); inspect again after structural edits. A successful result means **사본 완료·사람 적용 대기**.
+The shared tool array exposes `inspect_staged_document({change})` and `edit_staged_document({change, copyRevision, operations})` beside `stage_document` through Codex dynamic tools and Copilot HTTP MCP (#1509). Both use the same dispatch; the MCP lease supplies the conversation/turn and the Host rechecks active turn, folder scope and receipt ownership. Inputs and receipts are provider-neutral; the active turn supplies the conversation, opened folders and permission. There is no path input or original-apply tool. Inspect reuses CLI inspect's current node paths/text/numbering and returns `copyRevision`. Edit takes the existing apply-batch JSON array (command plus options); inspect again after structural edits. A successful result means **사본 완료·사람 적용 대기**.
 
 Host actions `changes-inspect` and `changes-edit` share that implementation. CLI parity is `litzio assistant changes inspect <conversationId> --change <id>` and `litzio assistant changes edit <conversationId> --change <id> --copy-revision <hash> --operations <json-file>`, optionally `--host <origin>`. Failure/uncertain receipts exit nonzero; no automatic replay occurs.
 
 The Node Host adapter `document-edit-commands.ts` owns the extracted CLI JSON/flag conversion and Core operation dispatch; CLI imports it as it already imports other shared Host operations. Core still owns document semantics. No new operations are introduced. All operations and canonical validation complete before the single revision-checked copy commit. A failed step identifies its one-based operation number and reason, and writes nothing. Receipts reuse `outcome: success|failure|uncertain` and `errorKind: invalid_input|conflict|forbidden|unavailable|uncertain`: malformed/failed operations, stale revision, denied scope, missing receipt/copy, or unconfirmed commit respectively. Inspect does not require edit permission; edit rejects read-only turns and rechecks both original and copy against current folders. Copies cannot redirect writes through a symlink to the original. Human Apply retains its existing original/copy revision checks.
 
-Host tests protect atomic failure, revision conflict, ownership, permissions and commit uncertainty. Existing CLI regression tests protect the extracted conversion behavior. Actual model evidence is recorded in the PR separately from these synthetic tests. Copilot MCP delivery, new semantic operations, partial Apply and original writes remain outside stage 0b.
+Host tests protect atomic failure, revision conflict, ownership, permissions and commit uncertainty. Existing CLI regression tests protect the extracted conversion behavior. Actual model evidence is recorded in the PR separately from these synthetic tests. The existing fake-provider HTTP MCP test verifies the shared descriptors, copy-only success, atomic failure, revision conflicts, change-ID ownership, read-only refusal and ended-turn revocation. It does not establish a real Copilot invocation. New semantic operations, partial Apply and original writes remain outside stage 0b.

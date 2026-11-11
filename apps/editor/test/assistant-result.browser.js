@@ -41,7 +41,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await expect(pathLabel).toHaveText('a.md');
   await expect(pathLabel).toHaveAttribute('aria-label', paths[0]);
   await pathLabel.focus(); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab');
-  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(paths[0]);
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toContainText(paths[0]);
   await page.keyboard.press('Escape');
   const card = name => cards.filter({ has: page.locator('span', { hasText: name }) });
   await card('a.md').getByRole('button', { name: 'Open', exact: true }).click();
