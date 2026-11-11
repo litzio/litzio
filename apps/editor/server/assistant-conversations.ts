@@ -1,3 +1,4 @@
+import { AgentScreenRequests, screenTool } from "./assistant-screen-tools.ts";
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, parseReviewImageQuestion, answerReviewImageQuestion, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
@@ -25,6 +26,7 @@ type ConversationIndexEntry = AssistantConversationInfo & { copilotCliReasoningE
 /** Providers own message content. Litzio's index also owns correlated question interactions. */
 export class AssistantConversations {
   private readonly copilotRoot = copilotLogRoot();
+  readonly screen = new AgentScreenRequests();
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
   private pending = new Set<string>();
@@ -140,6 +142,7 @@ export class AssistantConversations {
           active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
         }, scope)
         : params.tool === "read_review_document" && this.plugins ? await executeReadReviewDocument(this.plugins, params.arguments, scope)
+        : params.tool === screenTool.name ? await this.screen.execute(params.arguments, params.threadId, scope.displayClient)
         : displayTools.some(tool => tool.name === params.tool)
         ? await this.display.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
         : params.tool === templateOperations.list.name ? executeTemplateOperation("list", params.arguments, templateScope)
@@ -151,7 +154,7 @@ export class AssistantConversations {
     };
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
-      this.display.cancel();
+      this.screen.cancel(); this.display.cancel();
       for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
       for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
         for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
@@ -165,12 +168,12 @@ export class AssistantConversations {
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
   private save(conversation: AssistantConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider, permissionMode } = conversation;
+    const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback } = conversation;
     const questions = conversation.turns.flatMap(turn => turn.items.filter(item => item.question).map(item => ({ itemId: item.id, text: item.text, question: item.question! })));
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}),
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}),
         ...(questions.length ? { questions } : {}),
         ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
@@ -333,7 +336,7 @@ export class AssistantConversations {
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [
-            ...documentTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools, ...reviewAssistantTools] : [])] });
+            ...documentTools, screenTool, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools, ...reviewAssistantTools] : [])] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
@@ -342,7 +345,7 @@ export class AssistantConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -350,6 +353,7 @@ export class AssistantConversations {
       if (active) {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
+        if (input.permissionMode !== undefined && input.permissionMode !== conversation.permissionMode) delete conversation.permissionFallback;
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
         this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient });
         const writableRoots = [...folders];
@@ -357,10 +361,24 @@ export class AssistantConversations {
           const directory = this.plugins.authoringPath();
           if (directory) writableRoots.push(directory);
         }
-        const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
+        const start = () => this.connection.client.request("turn/start", { threadId: conversation!.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots,
             networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
+        const turnsBeforeStart = conversation.turns.length;
+        let result;
+        try { result = await start(); }
+        catch (error) {
+          // This explicit configuration rejection means the turn was not admitted.
+          if (settings.permissionMode !== "full-access" || !fullAccessRejected((error as Error).message) || conversation.turns.length !== turnsBeforeStart || conversation.turns.some(turn => turn.status === "inProgress")) throw error;
+          settings = { ...settings, permissionMode: "opened-folders" };
+          conversation.permissionMode = "opened-folders";
+          conversation.permissionFallback = true;
+          const scope = this.scopes.get(conversation.id); if (scope) scope.permissionMode = "opened-folders";
+          if (this.plugins) { const directory = this.plugins.authoringPath(); if (directory) writableRoots.push(directory); }
+          this.save(conversation);
+          result = await start();
+        }
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
       }
@@ -427,7 +445,7 @@ export class AssistantConversations {
   async close() {
     for(const conversation of this.conversations.values())for(const turn of conversation.turns)this.saveReviewUsage(conversation,turn);
     this.closed = true;
-    this.display.cancel();
+    this.screen.cancel(); this.display.cancel();
     for (const pending of this.questionDisplays.values()) { clearTimeout(pending.timer); pending.reject?.(new Error("Question display was cancelled.")); }
     await Promise.allSettled(this.reviewUsageWrites);
   }
@@ -491,7 +509,7 @@ export class AssistantConversations {
     const conversation = this.current(id), turn = conversation.turns.find(turn => turn.status === "inProgress");
     this.expireQuestion(conversation);
     this.save(conversation);
-    this.display.cancel(id);
+    this.screen.cancel(id); this.display.cancel(id);
     if (turn && conversation.provider === "copilot") {
       const client = await this.connection.copilot.connect();
       await this.connection.copilot.call(() => client.cancel({ sessionId: id }));
@@ -570,7 +588,7 @@ export class AssistantConversations {
       const receipt = input.submissionId ? this.submissions.get(input.submissionId)?.receipt : undefined;
       if (receipt) { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = message; }
     };
-    void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nThis Copilot ACP connection does not support interactive question cards or async question tools. Do not claim a question was accepted. Ask in ordinary text and let the user reply after the response ends.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
+    void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nThis Copilot ACP connection does not support interactive question cards or async question tools. The read_screen_context tool is also unavailable. Do not claim a question was accepted. Ask in ordinary text and let the user reply after the response ends.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
       if (turn.status === "inProgress") {
         turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
         if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
@@ -686,7 +704,7 @@ export class AssistantConversations {
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
-      else { this.saveReviewUsage(conversation,turn); this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
+      else { this.saveReviewUsage(conversation,turn); this.screen.cancel(params.threadId); this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
       if (params.turn.error) turn.error = permissionError(params.turn.error.message);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
@@ -710,7 +728,7 @@ export class AssistantConversations {
     } else if (method === "turn/plan/updated") {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
-    } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
+    } else if (method === "error" && !params.willRetry) { this.screen.cancel(params.threadId); this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
     if(method==="error" && !params.willRetry)this.saveReviewUsage(conversation,turn);
     if ((method === "turn/completed" || method === "error" && !params.willRetry) && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }
@@ -833,8 +851,11 @@ function checkedReferences(value: string[], folders: string[], access: FileAcces
   return references;
 }
 
+function fullAccessRejected(message: string): boolean {
+  return /invalid.*sandbox_mode.*DangerFullAccess.*not in the allowed set/s.test(message);
+}
 function permissionError(message: string): string {
-  return /invalid.*sandbox_mode.*DangerFullAccess.*not in the allowed set/s.test(message)
+  return fullAccessRejected(message)
     ? "Your organization does not allow Full access. Choose Opened folders or Read-only and send again."
     : message;
 }

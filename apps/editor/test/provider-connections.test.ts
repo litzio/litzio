@@ -1,3 +1,4 @@
+import { AgentScreenRequests } from "../server/assistant-screen-tools.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
@@ -618,7 +619,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -865,17 +866,20 @@ test("display requests report absent windows, expire honestly, cancel and reject
 });
 
 
-test("Codex requirements disable full access; policy rejection preserves history and permits retry", async t => {
+test("Codex requirements disable full access; policy rejection retries once before execution and remembers reduced access", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-policy-"));
   const connection = new ProviderConnections(root, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const original = connection.client.request.bind(connection.client);
   let discovery = true;
+  const policies: string[] = [];
+  let uncertain = false;
   t.mock.method(connection.client, "request", async (method: string, params?: any) => {
     if (method === "configRequirements/read") {
       if (!discovery) throw new Error("Method not found");
       return { requirements: { allowedSandboxModes: ["read-only", "workspace-write"] } };
     }
+    if (method === "turn/start") { policies.push(params.sandboxPolicy.type); if (uncertain) throw new Error("Connection closed before response"); }
     if (method === "turn/start" && params.sandboxPolicy.type === "dangerFullAccess") throw new Error("invalid thread settings override: invalid value for sandbox_mode: DangerFullAccess is not in the allowed set [ReadOnly, WorkspaceWrite] (set by enterprise-managed requirements private-organization)");
     return original(method, params);
   });
@@ -888,9 +892,56 @@ test("Codex requirements disable full access; policy rejection preserves history
   const conversation = await conversations.send(input, settings);
   await conversations.interrupt(conversation.id);
   const before = conversation.turns.length;
-  await assert.rejects(conversations.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings), { message: "Your organization does not allow Full access. Choose Opened folders or Read-only and send again." });
-  assert.equal(conversations.current(conversation.id).turns.length, before);
-  const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
+  const retry = await conversations.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings);
   assert.equal(retry.id, conversation.id);
-  assert.equal(retry.turns.at(-1)!.status, "inProgress");
+  assert.equal(retry.turns.length, before + 1, "only the admitted retry creates a turn");
+  assert.equal(retry.permissionMode, "opened-folders");
+  assert.equal(retry.permissionFallback, true);
+  assert.deepEqual(policies, ["workspaceWrite", "dangerFullAccess", "workspaceWrite"]);
+  await conversations.interrupt(retry.id);
+  const restored = await new AssistantConversations(connection, null).resume(retry.id, { ...settings, permissionMode: "full-access" });
+  assert.equal(restored.permissionMode, "opened-folders");
+  assert.equal(restored.permissionFallback, true);
+  await conversations.send({ ...input, id: restored.id }, { ...settings, permissionMode: "full-access" });
+  assert.equal(policies.at(-1), "workspaceWrite", "next turn does not repeat the rejection");
+  await conversations.interrupt(restored.id);
+  const changed = await conversations.send({ ...input, id: restored.id, permissionMode: "read-only" }, settings);
+  assert.equal(changed.permissionMode, "read-only");
+  assert.equal(changed.permissionFallback, undefined, "explicit changed permission clears the fallback notice");
+  await conversations.interrupt(changed.id);
+  const reopened = await new AssistantConversations(connection, null).resume(changed.id, settings);
+  assert.equal(reopened.permissionFallback, undefined, "cleared notice stays cleared on resume");
+  assert.equal(reopened.permissionMode, "read-only");
+  uncertain = true;
+  const attempts = policies.length;
+  await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access" }, settings), /Connection closed before response/);
+  assert.equal(policies.length, attempts + 1, "uncertain acceptance must never replay a request");
+
+});
+
+
+test("screen queries isolate originating windows, omit undeclared data and fail on timeout/cancellation", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const host = new AgentScreenRequests();
+  const activeTab = { id: "settings", kind: "settings" as const, hostId: null, title: "Settings", unsaved: false };
+  const reply = { activeTab, tabs: [activeTab], folders: [{ hostId: "remote", path: "/docs" }] };
+  assert.throws(() => host.execute({}, "thread"), /originating/);
+  assert.throws(() => host.execute({ text: "excluded" }, "thread", "window"), /no arguments/);
+  const result = host.execute({}, "thread", "window");
+  const command = host.snapshot("thread", "window")!;
+  assert.equal(host.snapshot("thread", "other"), undefined);
+  assert.equal(host.snapshot("other-thread", "window"), undefined);
+  assert.throws(() => host.reply("thread", "other", command.id, reply), /another window/);
+  assert.throws(() => host.reply("other-thread", "window", command.id, reply), /another window/);
+  assert.throws(() => host.reply("thread", "window", command.id, { ...reply, activeTab: { ...activeTab, id: "missing" } }), /not open/);
+  const untrusted = { ...reply, tabs: [{ ...activeTab, text: "unsaved private content" }] };
+  host.reply("thread", "window", command.id, untrusted);
+  assert.deepEqual(await result, reply);
+  assert.equal(host.snapshot("thread", "window"), undefined);
+  const timeout = assert.rejects(host.execute({}, "thread", "window"), /did not respond/);
+  const expired = host.snapshot("thread", "window")!;
+  t.mock.timers.tick(10_000); await timeout;
+  assert.throws(() => host.reply("thread", "window", expired.id, reply), /expired/);
+  const cancelled = assert.rejects(host.execute({}, "thread", "window"), /cancelled/);
+  host.cancel("thread"); await cancelled;
 });

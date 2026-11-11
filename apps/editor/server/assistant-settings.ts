@@ -4,7 +4,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync, renameSync, unlinkS
 import path from "node:path";
 
 export function createAssistantSettings(settingsFile: string, assistantDefaults = DEFAULT_ASSISTANT_SETTINGS) {
-  const defaults = (): AssistantSettings => ({ ...(assistantDefaults), provider: "codex", permissionMode: "opened-folders", responseLanguage: defaultLanguage() });
+  const defaults = (): AssistantSettings => ({ ...(assistantDefaults), provider: "codex", permissionMode: "full-access", responseLanguage: defaultLanguage() });
   const settings = (): AssistantSettings => {
     if (!existsSync(settingsFile)) return defaults();
     const value = JSON.parse(readFileSync(settingsFile, "utf8"));
@@ -31,7 +31,7 @@ export function checkedAssistantSettings(value: unknown): AssistantSettings {
   if (!["codex", "copilot"].includes(v.provider)) throw new Error("AI provider: allowed values: codex, copilot.");
   if (v.permissionMode !== undefined && !["opened-folders", "read-only", "full-access"].includes(v.permissionMode)) throw new Error("AI permissionMode: allowed values: opened-folders, read-only, full-access.");
   if (v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("AI responseLanguage: allowed values: ko, en, ja.");
-  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: v.provider ?? "codex", permissionMode: v.permissionMode ?? "opened-folders",
+  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: v.provider ?? "codex", permissionMode: v.permissionMode ?? "full-access",
     ...(v.responseLanguage !== undefined ? { responseLanguage: v.responseLanguage } : {}) };
 }
 

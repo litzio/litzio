@@ -17,7 +17,7 @@ function updateDisclosure(button: HTMLButtonElement, layout: ComparisonLayout, f
   const fold = Number(button.dataset.compareFold), slot = foldSlots.get(fold)!;
   const count = layout.rows.filter(row => row.fold === fold).length;
   button.style.setProperty("--compare-row", String(slot * 2 + 3));
-  button.style.setProperty("--compare-narrow-row", String(slot * 4 + 5));
+  button.style.setProperty("--compare-narrow-row", String(slot * 6 + 5));
   button.textContent = i18n.t(layout.expanded.has(fold) ? "Unchanged {{count}} blocks ▾" : "Unchanged {{count}} blocks ▸", { count });
   button.setAttribute("aria-expanded", String(layout.expanded.has(fold)));
 }
@@ -46,7 +46,7 @@ export function comparisonLayout(initial: ComparisonLayout) {
             "data-visual-change": row.number ? String(row.number) : "", "data-change-kind": row.change?.kind ?? "context",
             "data-kind": row.change ? layout.side === "before" ? "removed" : "added" : "context",
             "data-current": String(!!row.number && row.number === layout.current),
-            style: folded ? "display:none" : `--compare-row:${slots.get(index)! * 2 + 4};--compare-narrow-row:${slots.get(index)! * 4 + (layout.side === "before" ? 6 : 8)}`,
+            style: folded ? "display:none" : `--compare-row:${slots.get(index)! * 2 + 4};--compare-narrow-row:${slots.get(index)! * 6 + (layout.side === "before" ? 7 : 9)}`,
             tabindex: "-1", ...(row.change ? { "aria-describedby": layout.descriptionIds[index] } : {}) };
           decorations.push(Decoration.node(pos, pos + node.nodeSize, attrs));
           if (row.fold !== undefined && layout.side === "before" && layout.rows.findIndex(item => item.fold === row.fold) === index) {

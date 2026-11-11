@@ -117,10 +117,22 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
       const marker = document.createRange(); marker.selectNodeContents(node.previousSibling);
       return marker.getBoundingClientRect().right < range.getBoundingClientRect().left;
     })), 'Deletion/addition markers must not overlap changed text');
+    check(await visual.locator('.visual-snapshot-title').evaluateAll(nodes => nodes.every(node => (getComputedStyle(node).display === 'none') === (innerWidth <= 800))), 'Column headers must appear only in wide comparison');
+    if (width === 640) {
+      check(await visual.locator('[data-kind="context"][data-compare-row]').evaluateAll(nodes => nodes.filter(node => getComputedStyle(node).display !== 'none').every(node => node.dataset.compareSide === 'before')), 'Stacked unchanged context must appear once');
+      check(await visual.locator('[data-compare-row]').evaluateAll(blocks => blocks.filter(block => block.dataset.kind !== 'context' && getComputedStyle(block).display !== 'none').every(block => {
+        const label = block.closest('.visual-snapshot').querySelector(`[data-compare-label-row="${block.dataset.compareRow}"]`);
+        if (!label || getComputedStyle(label).display === 'none') return false;
+        const l = label.getBoundingClientRect(), b = block.getBoundingClientRect();
+        return l.bottom <= b.top + 1 && b.top - l.bottom < 2 && Math.abs(l.left - b.left) < 1;
+      })), 'Each stacked block needs its side label immediately above it');
+    }
     if (screenshots) for (const theme of ['light','dark']) {
       await page.evaluate(async theme => (await import('/src/theme.ts')).applyTheme(theme,false), theme);
       await dialog().getByRole('button', { name: 'Next change', exact: true }).click();
+      await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('ko'));
       await page.screenshot({ path: `tmp/pre-save-diff/visual-${width}-${theme}.png` });
+      await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('en'));
     }
   }
   await page.setViewportSize({width:1440,height:900});
@@ -131,7 +143,8 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await capture('comparison');
   await page.keyboard.press('Control+s');
   check((await read()).revision === disk.revision && (await read()).source === disk.source, 'Comparison or shortcut wrote disk');
-  check(JSON.stringify(await records()) === beforeRecords, 'Comparison changed recovery records');
+  const afterRecords = JSON.stringify(await records());
+  check(afterRecords === beforeRecords, `Comparison changed recovery records: ${beforeRecords} -> ${afterRecords}`);
   await close();
   check(await menu().evaluate(node => node === document.activeElement), 'Menu focus not restored');
   const after = await editor().evaluate(node => ({ document: node.editor.getJSON(), selection: node.editor.state.selection.toJSON(), undo: node.editor.can().undo() }));

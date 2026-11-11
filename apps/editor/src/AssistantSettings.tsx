@@ -140,7 +140,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
           onChange={value => { save({ ...latest.current!, reasoningEffort: value }); }}
           options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /></div>
         <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
-          <SettingsSelect label={t("Write access")} value={settings?.permissionMode ?? "opened-folders"} disabled={!settings}
+          <SettingsSelect label={t("Write access")} value={settings?.permissionMode ?? "full-access"} disabled={!settings}
             onChange={value => { save({ ...latest.current!, permissionMode: value as AssistantSettings["permissionMode"] }); }}
             options={[{ value: "read-only", label: t("Read-only") }, { value: "opened-folders", label: t("Opened folders") }, { value: "full-access", label: t("Full access"), disabled: defaultModels?.fullAccessAllowed === false }]} />
         </TooltipTrigger><TooltipContent>{t("Full access removes the sandbox and automatically approves tools, paths and network access. Requested document edits wait for review.")}{defaultModels?.fullAccessAllowed === false ? ` ${t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : ""}</TooltipContent></Tooltip>
