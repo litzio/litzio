@@ -1,0 +1,15 @@
+{
+  "status": "Frozen before first matching run; thresholds are not acceptance criteria",
+  "primary": "LSR 13 pages, 3 independent mutations per error kind, always reset to baseline",
+  "holdout": "NIST archived PDF pages 6, 9, 10; baseline noise only",
+  "selection": "Document-order quantiles floor((n-1)*q), q = 0.2, 0.5, 0.8; never filter by match quality",
+  "paragraphs": "Core paragraph blocks with at least 80 characters",
+  "numbers": "Eligible paragraphs containing an ASCII digit; increment the first digit modulo 10",
+  "order": "Move selected paragraph after the next eligible paragraph using Core moveBlock",
+  "cells": "Nonempty table cells in row-major document order, at least 4 characters",
+  "detection": "New unmatched evidence tokens, relative to baseline, cover at least half the target tokens matched at baseline AND half all target tokens. Numeric change requires both a newly unsupported changed digit and a newly missing original digit. Order requires a newly unmatched exact run of 8 or more tokens present on both sides within the affected interval.",
+  "alerts": "One nonempty LCS edit gap per PDF page; adjacent insert/delete are one gap. Never merge separate gaps to meet the noise criterion.",
+  "normalization": "Whitespace, Unicode letter NFKC/ligatures, soft hyphen, letter-hyphen-newline-lowercase-letter. Preserve case, numbers, superscripts, subscripts, units and comparison symbols.",
+  "noiseRule": "PDF-only: pure page number at outer 8 percent OR exact repeated edge line at outer 8 percent on at least 3 selected pages. No numeric masking for repetition. No picture/table/formula exclusion.",
+  "acceptance": { "minimumDetectedPerKind": 2, "injectedPerKind": 3, "maximumBaselineAlertsPerPage": 1 }
+}

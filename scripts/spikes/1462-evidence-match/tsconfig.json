@@ -1,0 +1,6 @@
+{
+  "compilerOptions": {
+    "baseUrl": "../../..",
+    "paths": { "@litzio/plugin-sdk": ["packages/plugin-sdk/src/index.ts"] }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "note": "Manual primary-cause annotation of every baseline edit gap. Mixed gaps get one primary cause; these labels never affect matching or suppression.",
+  "lsr": {
+    "raw": {
+      "furniture": [1,2,5,6,9,10,11,12,17,18,28,29,34,35,38,39,46,47,49,50,58,59,67,68,69,70,71],
+      "footnote-order": [3,4,7,8,21,22,32,33,44],
+      "table-caption-structure": [13,14,15,16,19,20,23,24,25,26,27,30,31,36,37,43,45,60],
+      "picture-text": [48,51,52,53,54,55,56,57],
+      "formula": [40,41,42,61,62,63],
+      "column-order": [64,65,66],
+      "punctuation": [],
+      "hyphen-linebreak": []
+    },
+    "filtered": {
+      "furniture": [3,6,7,8,13,14,24,25,30,33,40,42,50,58,59,60],
+      "footnote-order": [1,2,4,5,17,18,28,29,38],
+      "table-caption-structure": [9,10,11,12,15,16,19,20,21,22,23,26,27,31,32,37,39,51],
+      "picture-text": [41,43,44,45,46,47,48,49],
+      "formula": [34,35,36,52,53,54],
+      "column-order": [55,56,57],
+      "punctuation": [],
+      "hyphen-linebreak": []
+    }
+  },
+  "nist": {
+    "raw": {
+      "furniture": [1,7,8,12,13,18],
+      "footnote-order": [16,17],
+      "table-caption-structure": [],
+      "picture-text": [10],
+      "formula": [],
+      "column-order": [],
+      "punctuation": [2,3,4,5,6,9,11,14,15],
+      "hyphen-linebreak": []
+    },
+    "filtered": {
+      "furniture": [1,7,11],
+      "footnote-order": [14,15],
+      "table-caption-structure": [],
+      "picture-text": [9],
+      "formula": [],
+      "column-order": [],
+      "punctuation": [2,3,4,5,6,8,10,12,13],
+      "hyphen-linebreak": []
+    }
+  }
+}
