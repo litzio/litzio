@@ -1,3 +1,4 @@
+import { inspectEvidence, evidenceMaterialSchema } from "./review-evidence.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, statSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -41,7 +42,7 @@ export class ReviewWorkspaces {
     }
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
-    const writing = !["workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
+    const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
     if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
     const unsettled = this.unsettled.get(key);
     if (writing && unsettled) throw new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`);
@@ -56,6 +57,7 @@ export class ReviewWorkspaces {
     const receipt = (outcome: "success" | "failure" | "uncertain") => ({ requestId, operation: `review.${input.action}`, version: 1, scope: root, outcome });
     if (writing) this.requests.set(requestId, { state: "pending", receipt: receipt("uncertain") });
     let staging: string | undefined, publishing = false, saved = false;
+    let evidence: Awaited<ReturnType<typeof inspectEvidence>> | undefined;
     try {
       const provider = this.declaration(input.plugin, input.job), before = revision(file);
       const check = () => { provider.assertCurrent(); accessPath(boundary.resolve(file), this.access); if (revision(file) !== before) throw new Error("Workspace baseline conflict; read before writing"); };
@@ -73,12 +75,28 @@ export class ReviewWorkspaces {
       }
       const result = (state: typeof original, baseline: string, saved: boolean) => ({ ...state, baseline, workspace: { plugin: input.plugin, job: input.job, root, workspace: input.workspace },
         ...(state.snapshot ? { document: readModel(state.snapshot.source).document, documentRevision: state.snapshot.documentRevision, contentRevision: state.snapshot.contentRevision } : {}),
+        ...(input.action === "workspace-evidence" ? { evidence: evidence ?? readEvidence(state.ledger?.inspections ?? []) } : {}),
         completion: state.ledger ? evaluateReviewCompletion(state.ledger, state.snapshot?.contentRevision ?? "", state.snapshot ? hash(Buffer.from(JSON.stringify(state.snapshot))) : null, state.cacheState === "current" && !this.unsettled.has(key)) : "not-evaluated", saved, receipt: receipt("success") });
       if (["workspace-read", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action)) {
         // Only an explicit status lookup followed by a validated file reread resolves an uncertain publication.
         check();
         if (unsettled?.checked) this.unsettled.delete(key);
         return result(original, before, false);
+      }
+      if (input.action === "workspace-evidence" && input.mode === "read") { check(); return result(original, before, false); }
+      let evidenceChange: unknown;
+      if (input.action === "workspace-evidence" && input.mode === "run") {
+        if (!original.snapshot || original.cacheState !== "current") throw new Error("Current workspace document required");
+        const material = evidenceMaterialSchema.parse(await call("workspace-evidence-material"));
+        evidence = await inspectEvidence(original.snapshot.source, material, input.pages);
+        check();
+        // Existing inspection evidence is bounded text. Chunk the observation without extending the ledger.
+        const serialized = JSON.stringify(evidence), chunks = serialized.match(/[\s\S]{1,3000}/g) ?? [];
+        evidenceChange = { kind: "inspection", comparisons: [], records: chunks.map((data, part) => ({
+          lens: "source-evidence", runId: requestId, contentRevision: original.snapshot!.contentRevision,
+          scope: { pages: evidence!.pages, targets: [] }, state: "uncertain",
+          evidence: JSON.stringify({ format: "source-evidence-1", part, total: chunks.length, data }),
+        })) };
       }
       const image = async (ref:string) => {
         const expected=original.snapshot?.images.find(image=>image.revision===ref);
@@ -133,10 +151,10 @@ export class ReviewWorkspaces {
       const candidate = path.join(staging, "candidate"); writeFileSync(candidate, "", { flag: "wx", mode: 0o600 });
       const resultFile = { path: candidate, maxBytes: JOB_FILE_MAX_BYTES };
       const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
-        ...("change" in input ? { change: input.change, requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
+        ...("change" in input || evidenceChange ? { change: evidenceChange ?? ("change" in input ? input.change : undefined), requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
       if (typeof plan.rejection === "string") throw new Error(plan.rejection);
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
-      const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
+      const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-evidence" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
       if (plan.snapshot) {
         // Providers may update a saved document through SDK Core operations. Never rebuild it from its source format.
         const snapshot = workspaceSnapshotSchema.parse(plan.snapshot);
@@ -198,4 +216,12 @@ function validateSnapshot(snapshot: WorkspaceSnapshot) {
     seen.add(key);
   }
   if (seen.size !== paths.size) throw new Error("Incomplete workspace targets");
+}
+
+function readEvidence(inspections: {lens:string;runId:string;evidence:string}[]) {
+  const latest = [...inspections].reverse().find(i => i.lens === "source-evidence");
+  if (!latest) return null;
+  const parts = inspections.filter(i => i.lens === "source-evidence" && i.runId === latest.runId).map(i => JSON.parse(i.evidence));
+  if (parts.some((p,i) => p.format !== "source-evidence-1" || p.part !== i || p.total !== parts.length)) throw new Error("Incomplete source evidence inspection");
+  return JSON.parse(parts.map(p => p.data).join(""));
 }

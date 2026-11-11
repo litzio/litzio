@@ -41,6 +41,20 @@
 
 1440px 합성 대조 [라이트](assets/docling-workspace-s3/compare-1440-light.png)·[다크](assets/docling-workspace-s3/compare-1440-dark.png), 명시 export [라이트](assets/docling-workspace-s3/export-1440-light.png)·[다크](assets/docling-workspace-s3/export-1440-dark.png)를 보관한다. source PNG가 1px인 합성 자료로 실제 PDF 품질이나 제품 실측이 아니다. 실제 서비스 재변환·AI 호출·원격 PC/설치형 Desktop·4~7단계 제품 수락은 확인하지 않았다.
 
+## 4b 원문 증거 후보·블록 삽입 구현 — 2026-11-11
+
+범위는 4단계 중 보조 원문 증거 후보와 insert 교정이다. 검사 종류·필수 여부·완료 계산은 4a의 계약을 재사용한다. `source-evidence`는 required=false이며 검사를 실행하지 않았거나 후보가 남아도 완료·내보내기를 막지 않는다. 후보를 문제 묶음으로 자동 변환하지 않으며 비서 도구는 정의만 제공한다.
+
+공용 Host `workspace-evidence`와 CLI `review evidence read|run --input <json-file> --host <origin> --json`은 저장된 리치오 문서와 원본 PDF·일반적인 블록/영역 대응을 사용한다. PDF.js legacy Node build로 독립 추출하고 [spike ① 후속 일반 규칙](../reviews/1462-spike-evidence-match.md#적용한-일반-규칙)을 적용한다. 본문은 제한된 전체 LCS, 표·캡션과 쪽별 각주는 토큰 multiset이며, 같은 변환 span에서 반복한 표 칸만 한 번 센다. 숫자·단위·비교 기호는 엄격 비교하고 수치·단위 차이를 우선 정렬한다. furniture·반복 가장자리·그림 내부·수식 영역은 범위 밖 토큰·영역으로 따로 보고한다. 영역 분류는 변환기의 가설이며 본문을 잘못 제외할 수 있다. 텍스트 레이어가 없으면 `unavailable-image-pdf`와 해당 쪽을 명시하고 후보를 만들지 않는다. 결과는 기존 inspection의 evidence 텍스트에 분할 저장하며 read는 마지막 관측의 문서 revision과 함께 반환한다. 자동 재검사는 없다.
+
+insert는 기준 블록 경로 앞/뒤에 문단 또는 수준 1~6 제목만 Core `insertParagraph`/`insertHeading`으로 삽입한다. before는 기준 블록 내용, expectedBefore는 `[null]`, after는 `[{kind,text,level?}]`다. JSON 객체 키 순서는 의미와 무관하다. 제안 target의 원문 regions만 새 블록에 대응시키며, 없으면 `no-correspondence`로 기록한다. 원본 self_ref 없는 새 블록을 재열기 후 정확히 Undo하기 위해 기존 snapshot.inputs에 삽입 binding 하나를 추가한다. 문서에 영속 블록 ID를 넣거나 공용 identity 계층을 만들지 않는다. 기존 삭제와 같은 경로 이동으로 다른 제안과 대응을 갱신하고, 기준 내용 변경·삭제는 오래됨으로 거부한다. Undo는 삽입 내용이 승인 당시와 같을 때 해당 블록을 제거한다. 빠진 머리말은 이 교정으로 복원하고 캡션→제목 분리는 계속 미지원이다. 상세 입력과 한계는 [Docling 공용 작업 안내](../../community-plugins/docling/README.md#원문-증거-후보와-블록-삽입-교정)를 따른다.
+
+고정 변환 결과를 재사용한 오프라인 정상 입력의 보수적 오경보 예산은 LSR 13쪽 4건(0.31건/쪽), NIST 물리 6·9·10쪽 6건(2.00건/쪽)이다. LSR은 raw PDF 2,298토큰 중 범위 안 1,842·범위 밖 456(furniture 416, 그림 31, 수식 9), 제외 영역 52·문서 단위 25다. NIST 3쪽은 1,029토큰 중 범위 안 1,001·범위 밖 28(furniture 3, 그림 25), 제외 영역 7·문서 단위 114다. 반복 가장자리만으로 추가 제외한 토큰은 두 입력 모두 0이다. 처음 spike의 간단한 가장자리 규칙 결과 60/13·15/3과 비교하면 작은 후보 수지만, 이후 승인된 영역 제외·표/캡션 multiset·문장부호 규칙이 함께 달라졌으므로 정확도 개선율이나 재현율로 환산하지 않는다. 같은 입력의 정상 변환 차이를 전부 경보 예산에 포함하며 실제 오류·오경보를 독립 정답으로 확정한 수치가 아니다. holdout 4쪽의 14건 결과를 재측정한 것도 아니다.
+
+독립 리뷰 후 tokenizer에서 `.5` 같은 정수부 없는 소수와 `!=`, `<=`, `>=`, `==` 복합 비교 기호를 문장부호 제거 전에 보존했다. 기존 공용 검사에 `.5 ↔ 5`와 `!= ↔ =` 네 방향 후보와 `5 m → 5 h`의 단위 우선순위를 추가해 수정 전 실패·수정 후 통과를 확인했다. 기본 단위 `m`·`h`를 우선순위 목록에 보완했으며 새 상태·계층은 추가하지 않았다. 위 토큰 수는 이 수정 후 재측정한 값이고 후보 수는 바뀌지 않았다.
+
+검증은 기존 Host 검사에서 두 삽입·다른 제안의 경로 갱신, 기준 내용 변경/삭제의 오래됨 거부, 제안 증거 bbox 대응·증거 없는 대응, 저장 실패 보존을 보완했다. 고정 LSR에서는 문단/제목 insert를 기존 네 교정과 함께 승인→저장→새 Host 재열기→Undo하고 원본 PDF·JSON·manifest bytes를 비교했다. 같은 기존 subprocess 한 개로 실제 `review evidence run` stdout JSON과 저장 inspection의 일치를 검사했다. 새 subprocess나 무거운 E2E 조합은 추가하지 않았다. 이 고정 LSR 검사는 병행 실행에서 약 49초였으며 전체 관련 Host 세 파일 59개 검사는 약 121초였다. 공용 검사 계층의 작은 PDF로 수치·단위/부호, 수치 후보 우선 정렬, 독립 칸 개수/원본 span 복사본, 이미지 PDF를 검사했다. NIST 고정 JSON은 외부 PNG URI여서 원본 bytes를 유지하는 embedded-image 작업공간 저장 검사에는 사용하지 않았다. NIST의 근거는 PDF+고정 JSON→Core 문서의 오프라인 후보 검사이고, NIST archive 저장·Editor/설치형 Desktop·실제 사람 검수·AI 제안의 수락 근거가 아니다. 새 Docling 변환과 AI 호출은 0회다.
+
 ## 소유자 결정 — 2026-11-10
 
 이 절은 [#1462](https://github.com/litzio/litzio/issues/1462)의 소유자가 추가로 전달한 결정이다. 아래 실험의 수치·당시 제안은 보존하되, 이전의 “전 페이지 이미지 대조가 완료 필수” 권고와 패치 보류안은 이 결정으로 대체한다. 이슈 본문과 측정 당시 문구를 현재 결정의 대체 근거로 사용하지 않는다.

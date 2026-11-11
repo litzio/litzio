@@ -252,9 +252,9 @@ test("Docling saved document corrections preserve independent proposals, mapping
   const write=(action:string,extra={},baseline=digest(readFileSync(file)),requestId:string=randomUUID())=>host.execute({...base,action,baseline,requestId,...extra});
   const human={actor:"person",reason:"Compared the exact original and current document",confirmed:true};
   const change=(value:unknown,baseline?:string,requestId?:string)=>write("workspace-review-change",{change:value},baseline,requestId);
-  const propose=async(operations:any[],before:any[],after:any[],reason="manual")=>{
+  const propose=async(operations:any[],before:any[],after:any[],reason="manual",regions:any[]=[])=>{
     const state=await read(),id=`g${++sequence}`;
-    const targets=operations.map((op,index)=>({id:`${id}-${index}`,locator:{self_ref:op.self_ref,...(op.cell===undefined?{}:{cell:op.cell})},pages:[1],regions:[],before:[before[index]],
+    const targets=operations.map((op,index)=>({id:`${id}-${index}`,locator:op.type==="insert"?{anchorPath:op.anchorPath}:{self_ref:op.self_ref,...(op.cell===undefined?{}:{cell:op.cell})},pages:[1],regions,before:[before[index]],
       evidence:[{observation:"Compared source and current target",materialRef:"page-1",materialHash:digest(document.pages[1].image.uri),inspector:"human",scope:{pages:[1],targets:[`${id}-${index}`]}}],
       patch:{expectedBefore:[before[index]],expectedContentRevision:state.documentRevision,operations:[op],after:[after[index]],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}));
     const group={id,reasonCode:reason,reason:"Observed difference",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:archive.readDoclingArchive(readFileSync(file)).manifest.document.sha256,contentRevision:state.documentRevision,
@@ -298,7 +298,7 @@ test("Docling saved document corrections preserve independent proposals, mapping
     // Owner-approved scope change: source-only furniture and embedded captions are rejected at propose, not approval.
     for(const self_ref of ["#/texts/0","#/texts/7"]){
       const before=readFileSync(file),{result}=await propose([{type:"kind",self_ref,kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}]);
-      assert.equal(result.receipt.outcome,"failure");assert.match(result.error,/독립 블록.*후속 단계/);assert.deepEqual(readFileSync(file),before);
+      assert.equal(result.receipt.outcome,"failure");assert.match(result.error,/독립 블록.*블록 삽입 교정을 사용/);assert.deepEqual(readFileSync(file),before);
     }
     const inspectionRevision=opened.contentRevision;
     const required=opened.items.filter((item:any)=>["tables","pictures"].includes(item.kind)).map((item:any)=>({id:item.self_ref,kind:item.kind==="tables"?"table":"picture",locator:{self_ref:item.self_ref},pages:[1],regions:[],disposition:"supported",derivedFrom:[]}));
@@ -359,6 +359,49 @@ test("Docling saved document corrections preserve independent proposals, mapping
     assert.ok(oldEquation);assert.equal(deleted.document.blocks.find((block:any)=>block.block==="equation").path[0],4);
     assert.equal((await decide("groups-undo",exclusions.group)).receipt.outcome,"success");host=service();assert.equal((await read()).snapshot.source,opened.snapshot.source);
     unchangedSources();
+    {
+    // Inserts retain the anchor's content check while paths shift; evidence comes only from the proposal.
+    const anchor=opened.document.blocks.find((b:any)=>b.block==="paragraph"),anchorPath=anchor.path;
+    const evidenceRegion={page:1,bbox:[12,14,98,26],ref:"pdf-text-evidence"};
+    const heading={type:"insert",anchorPath,position:"before",kind:"heading",level:2,text:"Recovered header"};
+    const insertA=await propose([heading],[null],[{kind:"heading",level:2,text:heading.text}],"insert-heading",[evidenceRegion]);
+    const paragraph={type:"insert",anchorPath,position:"after",kind:"paragraph",text:"Recovered paragraph"};
+    const insertB=await propose([paragraph],[null],[{kind:"paragraph",text:paragraph.text}],"insert-paragraph");
+    const laterText=await propose([{type:"text",self_ref:"#/texts/4",text:"After insertion"}],[textBefore],["After insertion"],"after-insertion");
+    for(const kind of ["table","figure","list"]){
+      const before=readFileSync(file),bad=await propose([{...paragraph,kind}],[null],[{}],`unsupported-${kind}`);
+      assert.equal(bad.result.receipt.outcome,"failure");assert.deepEqual(readFileSync(file),before);
+    }
+    assert.equal(insertA.result.receipt.outcome,"success",JSON.stringify(insertA.result));
+    const insertionFailureBytes=readFileSync(file);fail="workspace-prepare";
+    assert.equal((await decide("groups-approve",insertA.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),insertionFailureBytes);fail="";
+    const insertedA=await decide("groups-approve",insertA.group);assert.equal(insertedA.receipt.outcome,"success",JSON.stringify(insertedA));host=service();
+    const correspondence=()=>JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
+    assert.deepEqual(correspondence().insertions[0].regions,[evidenceRegion]);
+    const comparedInsert=await host.execute({...base,action:"workspace-compare"});assert.equal(comparedInsert.state,"ready",JSON.stringify(comparedInsert));
+    const insertedRegion=comparedInsert.snapshot.page.regions.find((r:any)=>r.id.startsWith("insert-"));
+    assert.deepEqual(insertedRegion.bbox,evidenceRegion.bbox);
+    const mappedInsert=comparedInsert.snapshot.mapping.entries.find((e:any)=>e.sourceIds.includes(insertedRegion.id));
+    assert.deepEqual(mappedInsert.targets[0].path,anchorPath);
+    assert.equal((await decide("groups-approve",insertB.group)).receipt.outcome,"success");host=service();
+    assert.equal(correspondence().insertions[1].status,"no-correspondence");assert.deepEqual(correspondence().insertions[1].regions,[]);
+    assert.equal((await decide("groups-approve",laterText.group)).receipt.outcome,"success");
+    assert.equal((await decide("groups-undo",laterText.group)).receipt.outcome,"success");
+    assert.equal((await decide("groups-undo",insertA.group)).receipt.outcome,"success");host=service();
+    assert.equal((await decide("groups-undo",insertB.group)).receipt.outcome,"success");assert.equal((await read()).snapshot.source,opened.snapshot.source);
+    // Editing the anchor changes before content; deletion never rebinds it to the next identical paragraph.
+    const staleInsert=await propose([paragraph],[null],[{kind:"paragraph",text:paragraph.text}],"stale-insert");
+    const sourceAnchor=correspondence().items.find((i:any)=>i.targets.length===1&&JSON.stringify(i.targets[0].path)===JSON.stringify(anchorPath));
+    const editAnchor=await propose([{type:"kind",self_ref:sourceAnchor.self_ref,kind:"heading",level:4}],[{kind:"paragraph"}],[{kind:"heading",level:4}],"anchor-kind");
+    assert.equal((await decide("groups-approve",editAnchor.group)).receipt.outcome,"success");
+    const beforeStale=readFileSync(file);assert.equal((await decide("groups-approve",staleInsert.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale);
+    assert.equal((await decide("groups-undo",editAnchor.group)).receipt.outcome,"success");
+    const anchorBlock=(await read()).document.blocks.find((b:any)=>JSON.stringify(b.path)===JSON.stringify(anchorPath));
+    const removeAnchor=await propose([{type:"exclude",self_ref:sourceAnchor.self_ref,excluded:true}],[{excluded:false,blocks:JSON.parse(JSON.stringify([anchorBlock],(key,value)=>key==="path"?undefined:value))}],[{excluded:true,blocks:[]}],"anchor-removal");
+    assert.equal((await decide("groups-approve",removeAnchor.group)).receipt.outcome,"success");
+    const beforeMissingAnchor=readFileSync(file);assert.equal((await decide("groups-approve",staleInsert.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeMissingAnchor);
+    assert.equal((await decide("groups-undo",removeAnchor.group)).receipt.outcome,"success");unchangedSources();
+    }
     // A page-sized bundle may remove the whole body; Undo must still insert after native front matter.
     const allSources=state.snapshot.inputs.filter((input:any)=>input.targets.length).map((input:any)=>input.key);
     const allExcluded=await propose(allSources.map((self_ref:string)=>({type:"exclude",self_ref,excluded:true})),allSources.map(excludeBefore),allSources.map(()=>({excluded:true,blocks:[]})),"whole-body");
@@ -431,11 +474,13 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       [{type:"kind",self_ref:item.self_ref,kind:"heading",level:3},{kind:"paragraph"},{kind:"heading",level:3}],
       [{type:"cell",self_ref:tableItem.self_ref,cell:tableItem.cells[0].index,text:"Corrected fixed LSR cell"},table.rows[position.row].cells[position.column].text,"Corrected fixed LSR cell"],
       [{type:"exclude",self_ref:item.self_ref,excluded:true},excludeBefore,{excluded:true,blocks:[]}],
+      [{type:"insert",anchorPath:block.path,position:"before",kind:"heading",level:2,text:"Recovered fixed heading"},null,{level:2,text:"Recovered fixed heading",kind:"heading"}],
+      [{type:"insert",anchorPath:block.path,position:"after",kind:"paragraph",text:"Recovered fixed paragraph"},null,{text:"Recovered fixed paragraph",kind:"paragraph"}],
     ];
     let n=0;
     for(const [op,before,after] of cases){
       const state=await read(),id=`fixed-${++n}`;
-      const target={id,locator:{self_ref:(op as any).self_ref,...((op as any).cell===undefined?{}:{cell:(op as any).cell})},pages:[1],regions:[],before:[before],
+      const target={id,locator:(op as any).type==="insert"?{anchorPath:(op as any).anchorPath}:{self_ref:(op as any).self_ref,...((op as any).cell===undefined?{}:{cell:(op as any).cell})},pages:[1],regions:(op as any).type==="insert"?[{page:1,bbox:[10,10,100,25],ref:"fixed-pdf-region"}]:[],before:[before],
         evidence:[{observation:"Compared fixed source PDF and current document",materialRef:"fixed-pdf",materialHash:digest(pdf),inspector:"human",scope:{pages:[1],targets:[id]}}],
         patch:{expectedBefore:[before],expectedContentRevision:state.documentRevision,operations:[op],after:[after],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]};
       const proposed=await change({kind:"groups-propose",groups:[{id,reasonCode:id,reason:"Fixed sample correction",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:original.manifest.document.sha256,contentRevision:state.documentRevision,
@@ -447,15 +492,22 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       host=service();assert.equal((await read()).snapshot.source,opened.snapshot.source);
       const current=archive.readDoclingArchive(readFileSync(file));for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(current[key],original[key]);
     }
+    const evidenceRun=await host.execute({...base,action:"workspace-evidence",mode:"run",baseline:digest(readFileSync(file)),requestId:randomUUID()});
+    assert.equal(evidenceRun.receipt.outcome,"success",JSON.stringify(evidenceRun));assert.equal(evidenceRun.evidence.status,"inspected");
+    assert.equal(evidenceRun.snapshot.source,opened.snapshot.source);assert.equal(evidenceRun.ledger.groups.length,cases.length);
+    assert.ok(evidenceRun.evidence.candidates.length>0);assert.ok(evidenceRun.evidence.coverage.outside.furniture>0);
+    let sawText=false;for(const candidate of evidenceRun.evidence.candidates){if(candidate.priority==="text")sawText=true;else assert.equal(sawText,false,"numeric/unit candidates come first");}
+    host=service();const evidenceRead=await host.execute({...base,action:"workspace-evidence",mode:"read"});assert.deepEqual(evidenceRead.evidence,evidenceRun.evidence);
+    console.log("LSR evidence",JSON.stringify({candidates:evidenceRun.evidence.candidates.length,coverage:{...evidenceRun.evidence.coverage,outsideRegions:evidenceRun.evidence.coverage.outsideRegions.length}}));
     const {createServer}=await import("node:http"),{spawn}=await import("node:child_process"),{DAEMON_PROTOCOL}=await import("../shared/daemon-version.ts");
     const server=createServer(async(req,res)=>{res.setHeader("Content-Type","application/json");if(req.url==="/daemon/health"){res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL}));return;}try{let body="";for await(const chunk of req)body+=chunk;res.end(JSON.stringify(await host.execute(JSON.parse(body))));}catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}});
     await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
     try {
-      const input=path.join(root,"read.json");writeFileSync(input,JSON.stringify(base));
-      const cli=spawn(process.execPath,["--import","tsx",fileURLToPath(new URL("../../../packages/cli/src/cli.ts",import.meta.url)),"review","workspace-read","--input",input,"--host",`http://127.0.0.1:${(server.address() as any).port}`,"--json"],{windowsHide:true});
+      const input=path.join(root,"read.json");writeFileSync(input,JSON.stringify({...base,baseline:digest(readFileSync(file)),requestId:randomUUID()}));
+      const cli=spawn(process.execPath,["--import","tsx",fileURLToPath(new URL("../../../packages/cli/src/cli.ts",import.meta.url)),"review","evidence","run","--input",input,"--host",`http://127.0.0.1:${(server.address() as any).port}`,"--json"],{windowsHide:true});
       let stdout="",stderr="";cli.stdout.on("data",chunk=>stdout+=chunk);cli.stderr.on("data",chunk=>stderr+=chunk);
       const code=await new Promise((resolve,reject)=>{cli.once("error",reject);cli.once("exit",resolve);});assert.equal(code,0,stderr+stdout);
-      const result=JSON.parse(stdout);assert.equal(result.snapshot.source,opened.snapshot.source);assert.equal(result.ledger.groups.length,4);assert.ok(result.ledger.groups.every((group:any)=>group.targets[0].history.at(-1).action==="undone"));
+      const result=JSON.parse(stdout);assert.deepEqual(result.evidence,evidenceRun.evidence);assert.equal(result.snapshot.source,opened.snapshot.source);assert.equal(result.ledger.groups.length,cases.length);assert.ok(result.ledger.groups.every((group:any)=>group.targets[0].history.at(-1).action==="undone"));
     }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
     assert.equal(readFileSync(new URL("converted/document.json",sample),"utf8"),json);
   }finally{for(const name of fs.readdirSync(root))fs.unlinkSync(path.join(root,name));fs.rmdirSync(root);}
