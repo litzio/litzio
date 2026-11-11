@@ -1,4 +1,5 @@
 import { applyDocumentBatch, machineNodes } from "./document-edit-commands.ts";
+import { figureReadiness } from "./figure-readiness.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -82,8 +83,9 @@ export class AssistantChanges {
     try { result = applyDocumentBatch(source, value.operations); }
     catch (error) { return fail("invalid_input", String(error)); }
     try {
+      const readiness = figureReadiness(result.markdown, copy, scope.access);
       commitFile(copy, result.markdown, copyRevision);
-      return { receipt: { outcome: "success" }, change: value.change, copyRevision: textRevision(result.markdown), applied: result.applied };
+      return { receipt: { outcome: "success" }, change: value.change, copyRevision: textRevision(result.markdown), applied: result.applied, readiness };
     } catch (error) {
       return fail(error instanceof FileChangedError ? "conflict" : error instanceof FileAccessError ? "forbidden" : "uncertain", String(error));
     }
