@@ -13,7 +13,7 @@ export class AgentScreenRequests {
     return pending && validForMs > 0 ? { id: pending.request.id, validForMs } : undefined;
   }
   execute(input: unknown, conversation: string, client?: string): Promise<ScreenInfo> {
-    if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length) throw new Error("Screen query takes no arguments.");
+    if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length) throw Object.assign(new Error("Screen query takes no arguments."),{errorKind:"invalid_input"});
     if (typeof client !== "string" || !client || client.length > 100) throw new Error("No originating Litzio window. Send from an open assistant panel.");
     if ([...this.pending.values()].some(item => item.conversation === conversation)) throw new Error("A screen query is already pending.");
     const id = randomUUID();

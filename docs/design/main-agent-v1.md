@@ -42,6 +42,18 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 - 비서 수락 시험: 모델 없는 Host·Core 단위 검사, 일상 점검은 Codex `gpt-6.1-terra` high, 핵심 업무 수락은 Codex `gpt-6.1-sol` medium(소유자 주력). 문서 수정 과제의 완료 상태는 '사본 완료·사람 적용 대기'다.
 - 직접 수정(사본 없이 원본 반영)은 수정 전 원본 보존, 원본 revision·파일 identity 검사, 성공·실패·불확실 receipt, 조건부 복원, 미저장 Editor 충돌 처리, 위임 범위 표시가 갖춰진 뒤 '이번 작업의 원본 반영까지 위임했는가'를 기준으로 재검토한다.
 
+### 실패 분류와 자율 복구 (4단계)
+
+공용 비서 dispatch는 Codex dynamic tools와 Copilot MCP에 같은 성공 transport 상태와 실패 시 `receipt.outcome` (`failure|uncertain`), `errorKind` (`invalid_input|conflict|forbidden|unavailable|uncertain`), `recovery`를 반환한다. 기존 작업 receipt와 requestId는 보존한다. 플러그인 공개 오류의 auth/forbidden은 forbidden, 나머지 가용성 오류는 unavailable로 비서 출력에서 매핑하며 플러그인 내부 계약은 유지한다. 새 오류 클래스·승인 엔진·자동 재시도 실행기는 없다.
+
+- `invalid_input`: 보고된 입력과 도구 schema를 확인하고 수정한 새 요청을 보낸다. 검수 후보가 여럿이면 `candidates`와 `find_review_workspaces`로 스스로 좁힌다. 의도가 끝내 모호할 때만 묻는다.
+- `conflict`: 사본은 `inspect_staged_document({change})`, 검수는 `read_review_document({path})`, 플러그인 관리는 `manage_plugins({action:"list"})`로 최신 상태를 읽고 재분석한다. 새 revision/baseline/등록 정보를 써서 새 요청을 보낸다.
+- `forbidden`: 필요한 열린 폴더/Full access 또는 서비스 자격·권한, 사람의 검수 결정을 안내한다. 비서가 권한을 바꾸거나 승인 경계를 우회하지 않는다. 읽기 전용 플러그인 도구에 쓰기 권한을 늘려도 private/write 작업은 허용되지 않는다.
+- `unavailable`: 대상·플러그인 목록이나 원래 창의 화면 상태를 안전하게 재조회하고 가능한 공식 경로를 찾는다.
+- `uncertain`: 쓰기를 자동 재실행하지 않는다. 검수는 기존 requestId로 `read_review_request_status`, 플러그인 job은 `job-status`부터 조회한다. 상태 도구가 없는 사본 편집은 사본을 다시 inspect하고 결과를 대조한다. 상태 미발견은 무쓰기 증거가 아니다.
+
+`recovery`는 action, 가능한 tool/arguments, 필요한 requestId와 행동 설명을 담는다. 안전한 읽기·입력 수정·충돌 재분석은 사용자 확인 없이 비서가 수행한다. 알 수 없는 쓰기 예외는 uncertain으로 보수적으로 공개한다. 이 분류는 비서 결과 전달 계약이며 공용 CLI 작업이나 Core 의미를 새로 구현하지 않는다. 실제 모델 수락 근거와 미확인 범위는 PR에 따로 기록한다.
+
 ## 비서 뷰 기능 제거 (#1341, 2026-11-09)
 
 #1306에서 전용 Generate view·Ask assistant 진입을 제거한 뒤, #1341에서 일반 Send의

@@ -33,11 +33,11 @@ export function executeDocumentTool(name: string, input: unknown, scope: Documen
   if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.path !== "string" || !path.isAbsolute(value.path)) invalid("An absolute path is required.");
   const keys = name === "create_document" ? ["path", "title", "blocks"] : ["path"];
   if (Object.keys(value).some(key => !keys.includes(key))) invalid("Unsupported tool input.");
-  if (!scope.folders) throw new Error("No opened folders for this turn.");
+  if (!scope.folders) throw Object.assign(new Error("No opened folders for this turn."),{errorKind:"forbidden"});
   const create = name === "create_document";
-  if (create && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw new Error("Document creation is read-only for this turn.");
+  if (create && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw Object.assign(new Error("Document creation is read-only for this turn."),{errorKind:"forbidden"});
   if (name === "stage_document") {
-    if (!scope.changes || !scope.conversation) throw new Error("Pending changes unavailable.");
+    if (!scope.changes || !scope.conversation) throw Object.assign(new Error("Pending changes unavailable."),{errorKind:"unavailable"});
     return scope.changes.start(scope.conversation, value.path, scope);
   }
   const file = scope.folders.resolve(accessPath(value.path, scope.access, create), create);

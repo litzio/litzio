@@ -1017,6 +1017,9 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.equal(readFileSync(staged.copy, "utf8"), editedBytes);
   const stale = await one.callTool({ name: "edit_staged_document", arguments: editInput });
   assert.equal(stale.isError, true); assert.equal(payload(stale).errorKind, "conflict");
+  assert.equal(payload(stale).recovery.tool,"inspect_staged_document");
+  const refreshed=await one.callTool({name:payload(stale).recovery.tool,arguments:payload(stale).recovery.arguments});
+  assert.equal(payload(refreshed).copyRevision,payload(edited).copyRevision);
   assert.equal(readFileSync(original, "utf8"), source, "MCP edits only the pending copy, awaiting human Apply");
   const other = await conversations.send(input, settings);
   const otherClient = await connect(endpoint());

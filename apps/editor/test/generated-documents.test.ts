@@ -93,6 +93,7 @@ test("generic workspace groups preserve source and history through partial decis
     try {
       const failed = await mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true});
       assert.equal(failed.error,"Injected commit failure");
+      assert.equal(failed.errorKind,"uncertain");
       assert.equal(failed.receipt.outcome,"uncertain");assert.deepEqual(readFileSync(file),beforeCommit);
       await assert.rejects(mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true}),/Uncertain workspace/);
       await host.execute({action:"workspace-status",requestId:failed.receipt.requestId}); await read();
@@ -107,7 +108,9 @@ test("generic workspace groups preserve source and history through partial decis
     assert.deepEqual(approved.record.original,original); assert.notEqual(approved.documentRevision,opened.documentRevision);
     assert.equal((await host.execute({action:"workspace-status",requestId})).receipt.outcome,"success");
     await assert.rejects(mutate({kind:"groups-undo",groupId:"g2",targetIds:["a"],human},approved.baseline,requestId),/Duplicate requestId/);
-    assert.equal((await mutate({kind:"groups-undo",groupId:"g2",targetIds:["a"],human},opened.baseline)).receipt.outcome,"failure");
+    const staleWorkspace=await mutate({kind:"groups-undo",groupId:"g2",targetIds:["a"],human},opened.baseline);
+    assert.equal(staleWorkspace.receipt.outcome,"failure");
+    assert.equal(staleWorkspace.errorKind,"conflict");
     const undone = await mutate({kind:"groups-undo",groupId:"g2",targetIds:["a"],human});
     const histories = undone.ledger.groups[1].targets[0].history;
     assert.deepEqual(histories.map((h:any)=>h.action),["approved","undone"]);

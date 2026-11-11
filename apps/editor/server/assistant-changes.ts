@@ -29,7 +29,7 @@ export class AssistantChanges {
     return record;
   }
   start(conversation: string, requested: string, scope: Scope) {
-    if (!["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("This turn is read-only; no copy was created.");
+    if (!["opened-folders", "full-access"].includes(scope.permissionMode)) throw Object.assign(new Error("This turn is read-only; no copy was created."),{errorKind:"forbidden"});
     if (!scope.folders || !path.isAbsolute(requested)) throw new Error("An absolute path inside an opened folder is required.");
     const original = canonicalFilePath(scope.folders.resolve(accessPath(requested, scope.access)));
     if (path.basename(original).startsWith(".")) throw new Error("A pending copy cannot itself be staged.");

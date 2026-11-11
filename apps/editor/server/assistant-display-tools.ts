@@ -19,7 +19,7 @@ export class AgentDisplayRequests {
   }
   async execute(name: string, input: unknown, conversation: string, client?: string) {
     if (!displayTools.some(tool => tool.name === name)) throw new Error("Unknown display tool.");
-    if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some(key => name !== "change_display_settings" || key !== "changes")) throw new Error("Unsupported display tool input.");
+    if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some(key => name !== "change_display_settings" || key !== "changes")) throw Object.assign(new Error("Unsupported display tool input."),{errorKind:"invalid_input"});
     const changes = name === "change_display_settings" ? displayValues((input as { changes?: unknown }).changes) : undefined;
     const { id, reply } = await this.request(conversation, client, changes);
     if (!changes) { if (reply.error) throw new Error(reply.error); return reply.after; }
