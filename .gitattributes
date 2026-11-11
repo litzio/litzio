@@ -9,3 +9,4 @@ community-plugins/docling/sample/lsr-1.1/** -text
 
 # Retain verbatim upstream font notice whitespace.
 community-plugins/docling/sample/lsr-1.1/resources/fonts/DejaVu-LICENSE.txt -whitespace
+community-plugins/docling/sample/nist-sp1108r4/** -text
