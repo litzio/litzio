@@ -38,6 +38,8 @@ export type DraftOptions = {
   clauseTitles?: Record<string, string>;
   /** Clauses (prefixes) to include; default all clauses with candidates. */
   clauses?: string[];
+  /** Sentence keys (`anchor~sN`) left out of the draft, for example sentences kept for later review. */
+  skip?: readonly string[];
 };
 
 const level = (clause: string) => Math.min(clause.split(".").length, 4);
@@ -49,7 +51,7 @@ const level = (clause: string) => Math.min(clause.split(".").length, 4);
  */
 export function draftSystemDocument(standard: EditableDocument, options: DraftOptions): string {
   const report = checkTraceability(standard, { blocks: [] }, options.standardName);
-  const candidates = extractCandidates(standard, report).filter(item => !options.clauses || options.clauses.some(prefix => item.clause === prefix || item.clause.startsWith(`${prefix}.`)));
+  const candidates = extractCandidates(standard, report).filter(item => !options.skip?.includes(`${item.anchor}~s${item.sentence}`)).filter(item => !options.clauses || options.clauses.some(prefix => item.clause === prefix || item.clause.startsWith(`${prefix}.`)));
   const empty = createDocument();
   let document = updateDocumentTitle(createDocument(), options.title);
   const push = (part: MystDocument) => { document.children.push(...part.children.slice(1)); };

@@ -136,6 +136,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Inline math size verification](reviews/inline-math-size-2026-10-09.md) | Historical | 인라인 수식 크기 후보 비교, 실제 Before/After와 테스트 클릭 지점. 현재 규범은 Visual Language. |
 | [ProseMirror focus restore and caret keys](reviews/prosemirror-focus-caret-2026-10-09.md) | Historical | 포커스 직후 caret 키가 되돌려지던 원인, `prosemirror-view@1.42.4` 패치의 적용 버전·전후 검증·제거 조건. 현재 계약은 Continuous editing. |
 | [Persistent Figure Draft spike](reviews/persistent-figure-draft-spike-v1.md) | Historical | 콘텐츠 없는 Figure의 MyST 표현·공식 번호/참조·Core/Editor PoC 근거와 CONDITIONAL GO 권고. 현재 Figure 계약은 Document support와 Editing session. |
+| [요구사항 추적 spike](reviews/requirements-traceability-spike-2026-11.md) | Historical | 표준 문서↔시스템 요구사항 문서의 문장 단위 추적. 요구사항 블록·앵커·해시, 추출·검토·점검, 비교 탭, ReqIF 1.2(XSD·StrictDoc 확인)와 한계. 제품 계약이 아닌 실험 기록. |
 
 ## Verification
 

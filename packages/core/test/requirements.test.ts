@@ -154,6 +154,10 @@ test("extraction drafts a valid system document whose requirements link back to 
   const first = system.blocks.find(block => block.block === "requirement");
   assert.ok(first?.block === "requirement" && first.body.startsWith("The pump shall"));
   assert.deepEqual(candidates.map(candidate => candidate.clause), ["1.1", "1.1", "1.1", "1.2", "1.2"]);
+  const partial = getEditableDocument(parse(draftSystemDocument(anchored, { title: "Draft", standardName: "std.md", idPrefix: "REQ-", intro: [], skip: ["std-1-1-p1~s2"] })));
+  const left = checkTraceability(anchored, partial, "std.md");
+  assert.equal(left.counts.requirements, candidates.length - 1);
+  assert.deepEqual(left.sentences.filter(sentence => sentence.state === "uncovered").map(sentence => `${sentence.anchor}~s${sentence.sentence}`), ["std-1-1-p1~s2"]);
 });
 
 test("ReqIF export maps sections, requirements and trace relations and validates against the official XSD", (t) => {

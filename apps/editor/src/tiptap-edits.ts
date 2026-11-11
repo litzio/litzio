@@ -3,6 +3,7 @@ import { SaveContentError } from "../shared/save-error.ts";
 import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
 import { defaultHeadingNumbering, referenceTemplatesError, NUMBERED_KINDS, type ReferenceTemplates } from "@litzio/core/numbering";
 import { figureCaptionContent, figureContentError } from "@litzio/core/figure";
+import { formatSource, parseSource, type EditableBlock } from "@litzio/core";
 import { fromTiptapContent, toTiptapContent, type TiptapJSON } from "./tiptap-inline.ts";
 import {
   isNewBlockPath,
@@ -17,6 +18,7 @@ import type {
   HeadingLevelEdit,
   ParagraphEdit,
   EquationEdit,
+  RequirementEdit,
   FigureEdit,
   AdmonitionEdit,
   TableCellEdit,
@@ -53,6 +55,7 @@ const KNOWN_BLOCKS = new Set([
   "divider",
   "figure",
   "equation",
+  "requirement",
   "table",
   "bulletList",
   "orderedList",
@@ -93,6 +96,7 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
   const headingLevels: HeadingLevelEdit[] = [];
   const paragraphs: ParagraphEdit[] = [];
   const equations: EquationEdit[] = [];
+  const requirements: RequirementEdit[] = [];
   const figures: FigureEdit[] = [];
   const cells: TableCellEdit[] = [];
   const tables: TableShapeEdit[] = [];
@@ -169,6 +173,9 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
         if (latex !== block.latex) equations.push({ path: block.path, from: block.latex, to: latex });
         const label = blockLabel(node);
         if (label !== block.label) labels.push({ path: block.path, from: block.label, to: label });
+      } else if (block.block === "requirement") {
+        const changes = requirementChanges(block, node);
+        if (Object.keys(changes).length) requirements.push({ path: block.path, changes });
       } else if (block.block === "figure" && block.editable) {
         const label = blockLabel(node);
         if (label !== block.label) labels.push({ path: block.path, from: block.label, to: label });
@@ -262,6 +269,7 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
     ...(headingLevels.length ? { headingLevels } : {}),
     paragraphs,
     ...(equations.length ? { equations } : {}),
+    ...(requirements.length ? { requirements } : {}),
     ...(figures.length ? { figures } : {}),
     ...(cells.length ? { cells } : {}),
     ...(tables.length ? { tables } : {}),
@@ -561,6 +569,14 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
     codeContent(after);
     return;
   }
+  if (beforeType === "requirement") {
+    // The persistent ID and the locator are the block's identity; everything else is edited through Core.
+    for (const key of ["sourcePath", "id"]) {
+      if (normalizeAttr(before.attrs?.[key]) !== normalizeAttr(after.attrs?.[key])) throw new Error(`requirement identity cannot change (${key})`);
+    }
+    if ((after.content ?? []).length > 0) throw new Error("requirement content cannot change");
+    return;
+  }
   if (beforeType === "equation") {
     const beforeAttrs = before.attrs ?? {};
     const afterAttrs = after.attrs ?? {};
@@ -789,4 +805,26 @@ function atEditorBlock<T>(document: TiptapJSON, node: TiptapJSON, apply: () => T
       ...(detail ? { action: detail.action, cell: detail.cell } : {}),
     });
   }
+}
+
+/** Attributes of a requirement node that differ from the Core block. Core validates the values on replay. */
+function requirementChanges(block: Extract<EditableBlock, { block: "requirement" }>, node: TiptapJSON): RequirementEdit["changes"] {
+  const attrs = node.attrs ?? {};
+  const changes: RequirementEdit["changes"] = {};
+  for (const key of ["title", "body"] as const) {
+    if (typeof attrs[key] !== "string") throw new Error(`requirement ${key} must be a string`);
+    if (attrs[key] !== block[key]) changes[key] = attrs[key];
+  }
+  for (const key of ["status", "type", "strength"] as const) {
+    if (typeof attrs[key] !== "string") throw new Error(`requirement ${key} must be a string`);
+    if (attrs[key] !== block[key]) (changes as Record<string, string>)[key] = attrs[key];
+  }
+  const sources = attrs.sources, parents = attrs.parents;
+  if (!Array.isArray(sources) || !sources.every(item => typeof item === "string")) throw new Error("requirement sources must be a list of links");
+  if (!Array.isArray(parents) || !parents.every(item => typeof item === "string")) throw new Error("requirement parents must be a list of IDs");
+  if (JSON.stringify(sources) !== JSON.stringify(block.sources.map(formatSource))) {
+    changes.sources = sources.map(item => parseSource(item) ?? (() => { throw new Error(`invalid source link ${item}`); })());
+  }
+  if (JSON.stringify(parents) !== JSON.stringify(block.parents)) changes.parents = parents;
+  return changes;
 }

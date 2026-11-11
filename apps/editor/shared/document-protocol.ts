@@ -45,6 +45,12 @@ export type EquationEdit = {
   to: string;
 };
 
+/** Changed attributes and body of a requirement block. The persistent ID is never part of an edit. */
+export type RequirementEdit = {
+  path: NodePath;
+  changes: Partial<Omit<import("@litzio/core").RequirementContent, "id">>;
+};
+
 export type FigureEdit = {
   path: NodePath;
   from: FigureContent;
@@ -137,6 +143,7 @@ export type SupportedEdits = {
   headingLevels?: HeadingLevelEdit[];
   paragraphs?: ParagraphEdit[];
   equations?: EquationEdit[];
+  requirements?: RequirementEdit[];
   figures?: FigureEdit[];
   cells?: TableCellEdit[];
   tables?: TableShapeEdit[];

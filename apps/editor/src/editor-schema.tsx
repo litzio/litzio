@@ -37,6 +37,7 @@ import { TableCellFocus } from "./table-tools.tsx";
 import { AdmonitionView } from "./node-views/admonition-view.tsx";
 import { CodeBlockView } from "./node-views/code-block-view.tsx";
 import { createEquationNodeView } from "./node-views/equation-view.tsx";
+import { RequirementView } from "./node-views/requirement-view.tsx";
 import { createFigureNodeView, FigureView, resolveFigureSource, type FigureValidator, type ImageChooser } from "./node-views/figure-view.tsx";
 import { FootnoteDefinitionView } from "./node-views/footnote-definition-view.tsx";
 import { InlineMathView } from "./node-views/inline-math-view.tsx";
@@ -408,6 +409,26 @@ const Equation = Node.create({
   },
 });
 
+/** A requirement block (atom): persistent ID, attributes and body live in attributes, edited in a properties panel. */
+const Requirement = Node.create({
+  name: "requirement",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: false,
+  addAttributes() {
+    return blockAttrs({
+      id: hiddenAttr(""), title: hiddenAttr(""), status: hiddenAttr("draft"), type: hiddenAttr("functional"), strength: hiddenAttr("shall"), body: hiddenAttr(""),
+      sources: { default: [], rendered: false }, parents: { default: [], rendered: false },
+    });
+  },
+  parseHTML() { return [{ tag: "div[data-requirement]" }]; },
+  renderHTML({ node, HTMLAttributes }) {
+    return ["div", { ...HTMLAttributes, "data-requirement": "", "data-requirement-id": String(node.attrs.id ?? "") }, `${String(node.attrs.id ?? "")} ${String(node.attrs.title ?? "")}`];
+  },
+  addNodeView() { return ReactNodeViewRenderer(RequirementView); },
+});
+
 function equationNode(onDraftChange?: DraftListener) {
   return Equation.extend({
     addNodeView() {
@@ -694,6 +715,7 @@ export function editorExtensions(
     Divider,
     figureNode(documentPath, onDraftChange, validateFigure, chooseImage),
     equationNode(onDraftChange),
+    Requirement,
     tableNode(onDraftChange),
     TableRow,
     TableCaption,

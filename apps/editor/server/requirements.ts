@@ -18,6 +18,8 @@ export const requirementsOperation = { name: "requirements", scope: "two documen
 export type RequirementsAction = "check" | "extract" | "adopt" | "exclude" | "anchor" | "draft" | "export";
 export type RequirementsInput = {
   standard?: string; system?: string; keys?: string[]; undo?: boolean; idPrefix?: string; title?: string; language?: string;
+  /** Include both parsed documents (for the editor's compare view); the CLI does not need them. */
+  documents?: boolean;
 };
 export type RequirementsResult = {
   report?: TraceReport;
@@ -27,6 +29,7 @@ export type RequirementsResult = {
   anchored?: number;
   written?: string;
   reqif?: string;
+  documents?: { standard: EditableDocument; system: EditableDocument };
   revisions?: { standard?: string; system?: string };
 };
 
@@ -102,7 +105,8 @@ export function executeRequirementsOperation(action: RequirementsAction, input: 
   let exclusions = readExclusions(systemFile);
   const revisions = { standard: textRevision(standardSource), system: textRevision(systemSource) };
   const report = () => checkTraceability(standard, getEditableDocument(parse(systemSource)), name, exclusions);
-  if (action === "check") return { report: report(), excluded: exclusions, revisions };
+  const documents = input.documents ? { standard, system: getEditableDocument(parse(systemSource)) } : undefined;
+  if (action === "check") return { report: report(), excluded: exclusions, revisions, ...(documents ? { documents } : {}) };
   if (action === "extract") return { candidates: extractCandidates(standard, report()), excluded: exclusions, revisions };
   const wanted = keysOf(input.keys);
   if (action === "exclude") {

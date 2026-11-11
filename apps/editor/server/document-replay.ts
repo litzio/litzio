@@ -34,6 +34,7 @@ import {
   updateHeadingLevel,
   updateHeadingInlineContent,
   updateEquationLatex,
+  updateRequirement,
   updateAdmonitionInlineContent,
   updateAdmonitionVariant,
   insertQuote,
@@ -193,6 +194,16 @@ export function saveEdits(
         throw new Error(`code block edit is not allowed at [${edit.path.join(",")}]`);
       }
       document = editAt(target, () => updateCodeBlock(document, edit.path, edit.code));
+    });
+  }
+  for (const edit of edits.requirements ?? []) {
+    const target = { path: [edit.path[0]], part: 0 };
+    editAt(target, () => {
+      assertPath(edit.path, "requirement");
+      if (edit.path.length !== 1 || blockAt(editable, edit.path)?.block !== "requirement" || !edit.changes || typeof edit.changes !== "object" || "id" in edit.changes) {
+        throw new Error(`requirement edit is not allowed at [${edit.path.join(",")}]`);
+      }
+      document = editAt(target, () => updateRequirement(document, edit.path, edit.changes));
     });
   }
   for (const equation of edits.equations ?? []) {
@@ -357,6 +368,7 @@ export function saveEdits(
     ...(edits.headingLevels ?? []).map(edit => edit.path),
     ...(edits.paragraphs ?? []).map(edit => edit.path),
     ...(edits.equations ?? []).map(edit => edit.path),
+    ...(edits.requirements ?? []).map(edit => edit.path),
     ...(edits.figures ?? []).map(edit => edit.path),
     ...(edits.admonitions ?? []).map(edit => edit.path),
     ...(edits.quotes ?? []).map(edit => edit.path),

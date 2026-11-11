@@ -1,3 +1,4 @@
+import { formatSource } from "@litzio/core";
 import type { EditableBlock, EditableDocument, InlineContent, ListContent, NodePath } from "@litzio/core";
 import { toTiptapContent, type TiptapJSON } from "./tiptap-inline.ts";
 
@@ -55,6 +56,8 @@ export function toTiptapBlock(block: EditableBlock): TiptapJSON {
     case "figure": return { type: "figure", attrs: { ...attrs, label: block.label, imageUrl: block.imageUrl, imageAlt: block.imageAlt,
       ...(block.contentKind === "mermaid" ? { mermaidSource: block.mermaidSource } : {}) }, content: paragraphContent(block.caption.content) };
     case "equation": return { type: "equation", attrs: { ...attrs, latex: block.latex, label: block.label } };
+    case "requirement": return { type: "requirement", attrs: { ...attrs, id: block.id, title: block.title, status: block.status, type: block.type,
+      strength: block.strength, sources: block.sources.map(formatSource), parents: block.parents, body: block.body } };
     case "code": return { type: "codeBlock", attrs: { ...attrs, language: block.language }, content: block.code ? [{ type: "text", text: block.code }] : [] };
     case "list": { const node = listNode(block); return { ...node, attrs: { ...node.attrs, ...attrs } }; }
     case "table": return {

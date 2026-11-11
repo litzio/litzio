@@ -86,6 +86,7 @@ import { SaveTemplateDialog } from "./shell/SaveTemplateDialog.tsx";
 import type { TemplateSummary } from "../shared/template-protocol.ts";
 import { templateLanguage } from "./template-api.ts";
 const PdfViewer = lazy(() => import("./shell/PdfViewer.tsx").then(module => ({ default: module.PdfViewer })));
+const RequirementsCompare = lazy(() => import("./shell/RequirementsCompare.tsx").then(module => ({ default: module.RequirementsCompare })));
 const TemplateGallery = lazy(() => import("./shell/TemplateGallery.tsx").then(module => ({ default: module.TemplateGallery })));
 const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 
@@ -266,9 +267,12 @@ function EditorApp() {
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
+  const requirementsGroup = navigation.groups.find(group => group.tabs.includes("requirements"));
+  const requirementsOpen = requirementsGroup?.active === "requirements";
+  const requirementsFocused = activeId === "requirements";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? (tab.comparison ? comparisonPath(tab.comparison) : undefined) ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? (tab.comparison ? comparisonPath(tab.comparison) : undefined) ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(requirementsGroup ? [{ id: "requirements", path: "requirements", title: i18n.t("Requirements comparison") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -419,7 +423,7 @@ function EditorApp() {
   const emptyImageRef = useRef<HTMLElement | null>(null);
   const session = activeId ? sessions.current.get(activeId) : undefined;
   // Hiding task tabs must not change the user's document navigation preference.
-  const documentPanelOpen = panelOpen && !settingsFocused && !galleryFocused && !activeViewTab && session?.kind !== "text";
+  const documentPanelOpen = panelOpen && !settingsFocused && !galleryFocused && !requirementsFocused && !activeViewTab && session?.kind !== "text";
   const nativeSession = session?.kind === "native" ? session : undefined;
   // A fresh editor action replaces an older shell notice such as Copy path.
   useLayoutEffect(() => { if (nativeSession?.noticeAction) setNotice(""); }, [nativeSession?.noticeAction]);
@@ -720,7 +724,7 @@ function EditorApp() {
       setViewTabs(previous => previous.filter(tab => tab.id !== id));
       navigate({ type: "close", id }); focusAfterClose.current = true; return;
     }
-    if (id === "settings" || id === "templates") {
+    if (id === "settings" || id === "templates" || id === "requirements") {
       if (busy || continuation) return;
       if (id === "settings") setHighlightUpdate(false);
       navigate({ type: "close", id }); focusAfterClose.current = true; return;
@@ -865,6 +869,13 @@ function EditorApp() {
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
+  }
+  function openRequirementsCompare(): void {
+    if (busy || continuation) return;
+    if (sidebarOverlay) closeSidebar();
+    if (assistantOverlay) setAssistantOpen(false);
+    focusAfterClose.current = true;
+    placeTab("requirements", requirementsGroup?.id ?? navigation.focused);
   }
   function openAssistantChange(hostId: string, conversation: string, change: string, path: string) {
     const existing = viewTabs.find(tab => tab.hostId === hostId && tab.assistantChange?.change === change && tab.assistantChange.conversation === conversation);
@@ -1243,6 +1254,8 @@ function EditorApp() {
     })),
     { id: "template-gallery", kind: "command", label: i18n.t("Template gallery"), icon: FileText, takesFocus: true,
       disabled: busy || Boolean(continuation), keywords: ["templates", "템플릿"], run: openTemplateGallery },
+    { id: "requirements-compare", kind: "command", label: i18n.t("Requirements comparison"), icon: FileText, takesFocus: true,
+      disabled: busy || Boolean(continuation), keywords: ["requirements", "traceability", "reqif", "요구사항", "추적"], run: openRequirementsCompare },
     { id: "save-template", kind: "command", label: i18n.t("Save as template…"), icon: Save, takesFocus: true,
       disabled: !session || session.kind !== "native" || busy || Boolean(continuation), keywords: ["template", "템플릿 저장"],
       run: () => {
@@ -1463,7 +1476,7 @@ function EditorApp() {
           if (event.button === 0 && event.target instanceof HTMLElement && event.target.classList.contains("document-column") && (owner?.kind === "text" || owner?.view === "visual") &&
             owner.editorRef.current?.focusEnd(event.clientY)) event.preventDefault();
         }}>
-          {tabs.length === 0 && !settingsGroup && !galleryGroup && !viewTabs.length && start ? (
+          {tabs.length === 0 && !settingsGroup && !galleryGroup && !requirementsGroup && !viewTabs.length && start ? (
             <DocumentScroll data-active="true"><div className="document-column"><DocumentStart
               mark={productMark} darkMark={darkIcon}
               recovery={<RecoveryList records={recoveryRecords.filter(record => !tabs.some(tab => tab.recoveryId === record.id))} unavailable={Boolean(recoveryProblem)} onReview={reviewRecovery} />}
@@ -1505,6 +1518,12 @@ function EditorApp() {
             onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
             <HostContext.Provider value={galleryHostId}><Suspense fallback={null}><TemplateGallery key={galleryHostId} hostId={galleryHostId} onHost={setGalleryHostId} active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
               onCreate={(item, focus, client) => newDocument(focus, { ...item, client, hostId: galleryHostId })} onOpenFolder={path => openGalleryFolder(galleryHostId, path)} /></Suspense></HostContext.Provider>
+          </div> : null}
+          {requirementsGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-requirements" aria-labelledby="tab-requirements"
+            hidden={!requirementsOpen} inert={!requirementsOpen} data-document-tab="requirements" data-active={requirementsFocused ? "true" : "false"}
+            data-group-index={navigation.groups.indexOf(requirementsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(requirementsGroup) } as React.CSSProperties}
+            onFocusCapture={() => focusDocument("requirements")} onPointerDownCapture={() => focusDocument("requirements")}>
+            <Suspense fallback={null}><RequirementsCompare active={requirementsOpen} paths={tabs.map(tab => tab.path).filter(path => path.endsWith(".md"))} /></Suspense>
           </div> : null}
           {settingsGroup ? <div className="shell-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
