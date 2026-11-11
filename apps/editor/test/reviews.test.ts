@@ -464,3 +464,50 @@ test("observed deletion invalidates only the matching review bundle after byte r
     assert.equal(calls, 0, "No invalid or stale mutation reaches the plugin");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+
+test("common evidence keeps numbers/units/signs strict, exposes missing and unsupported text, and reports image PDFs", async () => {
+  const {inspectEvidence,evidenceWords}=await import("../server/plugins/review-evidence.ts");
+  assert.deepEqual(evidenceWords('“quality”—check; 12.5 µg/L ≤ -2%'),evidenceWords('quality check 12.5 µg/L ≤ -2%'));
+  for(const text of ["12.6 µg/L ≤ -2%","12.5 mg/L ≤ -2%","12.5 µg/L < -2%","12.5 µg/L ≤ 2%","12.5 μg/L ≤ -2%","12.5 µg/L ≤ -2²%"])
+    assert.notDeepEqual(evidenceWords(text),evidenceWords("12.5 µg/L ≤ -2%"));
+  const pdf=(text:string)=>{
+    const stream=text?`BT /F1 12 Tf 50 700 Td (${text}) Tj ET`:"";
+    const objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+    let output="%PDF-1.7\n";const offsets=[0];
+    objects.forEach((o,i)=>{offsets.push(output.length);output+=`${i+1} 0 obj\n${o}\nendobj\n`;});const xref=output.length;
+    output+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    return Buffer.from(output).toString("base64");
+  };
+  const material={pdfBase64:pdf("Sample 12.5 mg/L < -2%"),regions:[],bindings:[]};
+  const baseline=await inspectEvidence(nativeSource("Sample 12.5 mg/L < -2%\n"),material);assert.equal(baseline.candidates.length,0);
+  const changed=await inspectEvidence(nativeSource("Sample 12.6 kg/L < -2%\n"),material);
+  assert.ok(changed.candidates.some(c=>c.missing.some(t=>t.text==="12.5")&&c.unsupported.some(t=>t.text==="12.6")));
+  assert.ok(changed.candidates.some(c=>c.missing.some(t=>t.text==="mg")&&c.unsupported.some(t=>t.text==="kg")));
+  assert.ok(changed.candidates.flatMap(c=>c.missing).every(t=>t.page===1&&t.bbox?.length===4));
+  const tableSource=nativeSource(":::{table}\n:enumerated: false\n\n| Sample | |\n| --- | --- |\n| 1 | 1 |\n:::\n");
+  const table=getEditableDocument(parse(tableSource)).blocks.find(b=>b.block==="table")!;
+  const cells=table.rows.flatMap(r=>r.cells);
+  const grouped={pdfBase64:pdf("Sample 1 1"),regions:[{id:"table",page:1,bbox:[0,0,612,792] as [number,number,number,number],group:"table"}],
+    bindings:[{path:[...table.path],group:"table",page:1},...cells.map((c,i)=>({path:[...c.path],group:"table",page:1,cellKey:`cell-${i}`}))]};
+  assert.equal((await inspectEvidence(tableSource,grouped)).candidates.length,0,"distinct cells with equal numbers preserve multiplicity");
+  const missingCell=tableSource.replace("| 1 | 1 |","| 1 | |"),cellGaps=await inspectEvidence(missingCell,grouped);
+  assert.equal(cellGaps.candidates.flatMap(c=>c.missing).filter(t=>t.text==="1").length,1);
+  const repeatedSpan={...grouped,pdfBase64:pdf("Sample 1"),bindings:grouped.bindings.map(b=>({...b,...(b.path.length===3&&b.path[1]===1?{cellKey:"one-source-span"}:{})}))};
+  assert.equal((await inspectEvidence(tableSource,repeatedSpan)).candidates.length,0,"only copies of one declared source span collapse");
+  const image=await inspectEvidence(nativeSource("Saved text\n"),{...material,pdfBase64:pdf("")});assert.equal(image.status,"unavailable-image-pdf");assert.deepEqual(image.imagePages,[1]);assert.deepEqual(image.candidates,[]);
+});
+
+test("fixed NIST evidence uses independent PDF text and converter-neutral scope, without reconversion", async () => {
+  const {doclingConverter}=await import("./docling-fixture.ts"),{inspectEvidence}=await import("../server/plugins/review-evidence.ts");
+  const {convertDocument,evidenceMaterial}=await doclingConverter();
+  const sample=new URL("../../../community-plugins/docling/sample/nist-sp1108r4/",import.meta.url);
+  const original=readFileSync(new URL("converted/document.json",sample)),pdf=readFileSync(new URL("source.pdf",sample));
+  const document=JSON.parse(original.toString()),converted=await convertDocument(document,"0".repeat(64));
+  const result=await inspectEvidence(converted.source,evidenceMaterial({document,sourcePdf:pdf},converted.report),[6,9,10]);
+  assert.equal(result.status,"inspected");assert.deepEqual(result.pages,[6,9,10]);assert.ok(result.candidates.length>0);assert.ok(result.coverage.outside.furniture>0);
+  assert.deepEqual(readFileSync(new URL("converted/document.json",sample)),original);assert.deepEqual(readFileSync(new URL("source.pdf",sample)),pdf);
+  console.log("NIST evidence",JSON.stringify({candidates:result.candidates.length,coverage:{...result.coverage,outsideRegions:result.coverage.outsideRegions.length}}));
+});

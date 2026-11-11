@@ -273,7 +273,7 @@ litzio review workspace-compare --input compare.json --host <origin> --json
 litzio review workspace-status --input status.json --host <origin> --json
 ```
 
-교정은 저장된 리치오 문서에 기존 Core 의미 연산으로 적용합니다. 글자는 지정 경로, 종류는 독립 문단↔제목, 제외는 대응 블록 삭제, 칸은 원본 셀에 대응하는 모든 native grid 칸입니다. 종류 교정에서 빠진 머리말 복원과 캡션→제목 분리는 propose 시 이유를 밝혀 거부합니다. 블록 삽입 교정은 후속입니다. `workspace-patch`는 사용하지 않으며 Docling이 거부합니다.
+교정은 저장된 리치오 문서에 기존 Core 의미 연산으로 적용합니다. 글자는 지정 경로, 종류는 독립 문단↔제목, 제외는 대응 블록 삭제, 칸은 원본 셀에 대응하는 모든 native grid 칸입니다. 독립 블록이 없는 종류 교정은 propose 시 블록 삽입 교정을 안내합니다. 빠진 머리말은 `insert`로 복원할 수 있으며 캡션→제목 분리는 계속 미지원입니다. `workspace-patch`는 사용하지 않으며 Docling이 거부합니다.
 
 target locator는 `{self_ref,cell?}`입니다. patch.expectedBefore/after는 현재 리치오 값 배열, before는 propose 시 provider가 결합한 Core 대상 내용입니다. 같은 블록의 글자·종류 중 다른 필드가 바뀌어도 제안/Undo를 거부합니다. 다른 칸이나 목록 항목은 독립적입니다. 종류 값은 `{kind,level?}`, 제외 값은 `{excluded,blocks}`(Core editable block에서 path를 제외한 내용)입니다. content/expectedContentRevision은 제안 당시 근거이며 전체 문서 revision이 달라졌다는 이유로 승인하지 못하게 하지 않습니다. 실제 대상의 before 값이 바뀌면 승인·Undo를 거부합니다. 원본 대응 경로는 삭제 뒤 당기고 원본 증거는 남겨 “대응 문단 없음”으로 표시합니다. Undo는 승인 당시 before를 되돌리며 같은 대응 갱신을 사용합니다. 한 묶음의 여러 제외는 원자적으로 처리합니다.
 
@@ -282,6 +282,18 @@ target locator는 `{self_ref,cell?}`입니다. patch.expectedBefore/after는 현
 검사·그림/표 필수 확인과 사람 판단 이력, 동결된 묶음 모델은 유지합니다. 검사의 contentRevision은 불변 원본 JSON hash여서 교정 때문에 기존 검사 coverage를 무효화하지 않습니다. 실패 페이지는 `record.failedPages`와 최초 대응에 있고 원본 geometry가 있는 쪽은 기존 unsupported reason으로 표시합니다. 자유 편집·대응 불확실 표시·블록 삽입·분할/합치기·새 비서/검사/화면은 이번 단계에 없습니다.
 
 대조·이미지·명시 export는 기존 공용 작업을 사용합니다. 이미지 bytes는 원본 JSON에 한 번만 있고 내부 문서는 `review-asset:<sha256>`를 바인딩합니다. 내보내기는 별도 일반 `.md`이며 기존 파일의 revision과 overwrite:true를 확인합니다. 결과는 아직 검수 완료 선언이나 후속 공식 내보내기가 아닙니다. 상세 현재 계약은 [플러그인 1단계](../../docs/design/plugin-stage1-v1.md#review-workspace-기반-1462-p1a), 검증 기록은 [3단계 설계](../../docs/design/docling-review-stage3.md)를 따릅니다.
+
+### 원문 증거 후보와 블록 삽입 교정
+
+`review evidence read|run --input <json-file> --host <origin> --json`은 공용 `workspace-evidence` 작업입니다. 입력은 기존 `root/workspace/plugin/job`이고 run에는 `baseline/requestId`가 필요합니다. 선택 `pages`는 물리 PDF 쪽 번호 배열입니다. 결과 `evidence`에는 검사한 `documentRevision`, `pages`, 텍스트가 없는 `imagePages`, 범위 안/밖 토큰·영역 수와 양방향 `candidates`가 있습니다. 누락 토큰은 PDF 쪽·TOPLEFT pt 영역, 근거 없는 토큰은 리치오 블록/칸 경로를 가집니다. 숫자·단위·비교 기호를 엄격히 비교하고 수치·단위 후보를 먼저 표시합니다. 텍스트 레이어가 전혀 없으면 `unavailable-image-pdf`(검사 불가: 이미지 PDF)이며 후보를 만들지 않습니다.
+
+PDF.js legacy Node build가 PDF 텍스트를 독립 추출합니다. 어댑터는 PDF bytes와 일반적인 영역 분류·블록 대응만 공용 Host로 전달하며 Docling ref·cell span 해석은 어댑터 안에 둡니다. furniture·반복 가장자리·그림 내부·수식 영역은 검사 범위 밖입니다. 표와 캡션·쪽별 각주는 순서 없이 토큰 개수를, 나머지 본문은 제한된 전체 LCS로 순서를 비교합니다. 영역 분류가 잘못되면 본문을 잘못 제외할 수 있으며 표의 칸 위치 교환은 찾지 못합니다. 검사 크기 한도를 넘으면 실패하고 기존 파일을 보존합니다.
+
+결과는 `source-evidence` inspection의 evidence 텍스트에 나눠 저장합니다. 검사 종류는 required=false이며 완료·내보내기를 막지 않고 문제 묶음도 만들지 않습니다. read는 마지막 저장 결과와 당시 문서 revision을 반환합니다. 교정 후 자동 재검사나 비서 연결은 없습니다. 사람은 남은 후보와 범위 밖 자료를 직접 판단해야 합니다.
+
+삽입 제안의 locator는 `{anchorPath:[현재 블록 경로]}`이고 operations의 한 항목은 `{type:"insert",anchorPath:[경로],position:"before"|"after",kind:"paragraph"|"heading",text:"삽입 글자",level?:1..6}`입니다. 제목만 level을 받습니다. 표·그림·목록은 거부합니다. `expectedBefore`는 `[null]`, `after`는 `[{kind,text,level?}]`이고 propose는 기준 블록의 전체 내용을 before에 결합합니다. JSON 객체 키 순서는 값의 의미에 영향을 주지 않습니다. 기준 내용이 바뀌거나 기준이 삭제되면 승인을 거부합니다. 다른 삽입·삭제가 기준 경로만 바꾸면 제안은 유지됩니다.
+
+삽입 블록은 제안 target의 `regions`(물리 쪽, TOPLEFT pt bbox, 증거 ref)에 연결합니다. 영역이 없으면 기준 블록의 출처를 빌리지 않고 `no-correspondence`로 기록합니다. 새 입력 binding은 원본 self_ref가 없는 블록을 재열기 후 Undo에서 정확히 제거하기 위한 작업공간 내부 binding이며, 문서에 영속 블록 ID를 넣지 않습니다. Undo는 삽입 내용이 승인 당시와 같을 때 그 블록만 제거하고 후속 경로를 갱신합니다. 원본 PDF·JSON과 제안의 증거는 유지됩니다.
 
 ## 측정·실험용 고정 변환 결과
 

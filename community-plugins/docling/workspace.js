@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { REVIEW_AUTHORING_CONTRACT, workspaceSnapshotSchema, updateReviewLedger, authorDocument,
   parse, serialize, getEditableDocument, updateNodeTextAtPath, convertBlock, removeBlock, updateTableCell,
@@ -6,15 +7,15 @@ import { REVIEW_AUTHORING_CONTRACT, workspaceSnapshotSchema, updateReviewLedger,
   insertFigure, insertList, insertCodeBlock, insertEquation, updateLabel, updateEnumerator, updateEnumeration,
   updateTableCaption, updateList, updateCodeBlock, updateEquationLatex, updateFigure, inlineContentText, bodyEndIndex } from "@litzio/plugin-sdk";
 import { readDoclingArchive, rewriteReview } from "./archive.js";
-import { readReview, reviewItems, setProgress, comparison, originalReviewTarget } from "./review.js";
+import { readReview, reviewItems, setProgress, comparison, originalReviewTarget, evidenceMaterial } from "./review.js";
 import { convertDocument } from "./document.js";
 
 export const WORKSPACE_ADAPTER_VERSION = "docling-document-1/converter-1/mapping-2";
 const hash = value => createHash("sha256").update(value).digest("hex");
-const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
+const same = (a,b) => isDeepStrictEqual(a,b);
 const cacheKey = snapshot => hash(JSON.stringify([snapshot.documentRevision,snapshot.adapterVersion,snapshot.authoringContract,snapshot.images]));
 const metadataOf = archive => JSON.parse(archive.cacheEntries.get("current/snapshot.json").toString("utf8"));
-const kindReason = "리치오 문서에 독립 블록이 없어 종류 교정을 지원하지 않습니다(블록 삽입 교정은 후속 단계)";
+const kindReason = "리치오 문서에 독립 블록이 없어 종류 교정을 지원하지 않습니다(블록 삽입 교정을 사용하세요; 캡션→제목 분리는 계속 미지원)";
 
 export function workspaceState(archive) {
   const record = readReview(archive.reviewBytes);
@@ -78,6 +79,7 @@ export async function initializeWorkspace(bytes) {
 
 function correctionSession(archive,snapshot,report) {
   let document=parse(snapshot.source);
+  const shifts=[];
   const blocks=()=>getEditableDocument(document).blocks;
   const itemFor=op=>{
     originalReviewTarget(archive.document,op);
@@ -90,7 +92,28 @@ function correctionSession(archive,snapshot,report) {
     if(!block)throw new Error("Target path no longer exists");
     return block;
   });
+  const inputBlock=key=>{
+    const targets=snapshot.inputs.find(input=>input.key===key)?.targets;
+    if(targets?.length!==1)throw new Error("Insert anchor or inserted block no longer exists uniquely");
+    const block=blocks().find(block=>same(block.path,targets[0].path));
+    if(!block)throw new Error("Insert block path unavailable");return block;
+  };
+  const anchorBlock=op=>{
+    let index=op.anchorPath?.length===1?op.anchorPath[0]:-1;
+    for(const shift of shifts){if(index===shift.index&&shift.delta<0)index=-1;else if(index>=shift.index)index+=shift.delta;}
+    const block=blocks().find(block=>same(block.path,[index]));
+    if(!block)throw new Error("Insert anchor no longer exists");return block;
+  };
+  function bindInsert(op) {
+    if(op.type!=="insert")return;
+    if(!same(Object.keys(op).sort(),["type","anchorPath","position","kind","text",...(op.kind==="heading"?["level"]:[])].sort()))throw new Error("Invalid insert correction fields");
+    anchorBlock(op);op.insertedKey=`insert:${randomUUID()}`;
+  }
   function validate(op) {
+    if(op.type==="insert") {
+      if(!["before","after"].includes(op.position)||!["paragraph","heading"].includes(op.kind)||op.kind==="heading"&&(!Number.isInteger(op.level)||op.level<1||op.level>6)||typeof op.text!=="string"||!op.text.trim()||op.text.length>100000)throw new Error("Insert supports nonempty paragraph or heading 1–6 only");
+      anchorBlock(op);return null;
+    }
     const item=itemFor(op),targets=targetBlocks(item);
     const fields={text:["type","self_ref","text"],kind:["type","self_ref","kind",...(op.kind==="heading"?["level"]:[])],
       cell:["type","self_ref","cell","text"],exclude:["type","self_ref","excluded"]}[op.type];
@@ -128,6 +151,10 @@ function correctionSession(archive,snapshot,report) {
     return block.text;
   }
   function value(op) {
+    if(op.type==="insert") {
+      if(!snapshot.inputs.some(input=>input.key===op.insertedKey))return null;
+      const block=inputBlock(op.insertedKey);return {kind:block.block,text:block.text,...(block.block==="heading"?{level:block.level}:{})};
+    }
     const item=itemFor(op),targets=targetBlocks(item);
     if(op.type==="exclude")return {excluded:item.status==="excluded",blocks:JSON.parse(JSON.stringify(targets,(key,value)=>key==="path"?undefined:value))};
     if(op.type==="kind")return {kind:targets[0]?.block,...(targets[0]?.block==="heading"?{level:targets[0].level}:{})};
@@ -143,6 +170,7 @@ function correctionSession(archive,snapshot,report) {
   // a text proposal for that block; another cell or list item remains independent.
   function fingerprint(operations) {
     const values=operations.map(op=>{
+      if(op.type==="insert")return anchorBlock(op);
       const item=itemFor(op);
       if(op.type==="exclude")return value(op);
       if(op.type==="cell")return cellPaths(item,op).map(path=>blocks().find(block=>block.path[0]===path[0]).rows[path[1]].cells[path[2]]);
@@ -155,11 +183,26 @@ function correctionSession(archive,snapshot,report) {
   }
   // Delete/restore shift every surviving path. Original items/regions remain as evidence.
   function shift(index,delta,restore=false) {
+    shifts.push({index,delta});
     const adjust=targets=>targets.flatMap(target=>!restore && target.path[0]===index?[]:[{...target,path:[target.path[0]>=index?target.path[0]+delta:target.path[0],...target.path.slice(1)]}]);
     for(const input of snapshot.inputs)input.targets=adjust(input.targets);
+    for(const insertion of report.insertions??[])insertion.targets=adjust(insertion.targets);
     for(const item of report.items){item.targets=adjust(item.targets);for(const cell of item.cells??[])cell.targets=adjust(cell.targets);}
   }
-  function apply(op) {
+  function apply(op,regions=[]) {
+    if(op.type==="insert") {
+      validate(op);
+      if(value(op)!==null)throw new Error("Insertion already exists");
+      const anchor=anchorBlock(op),index=anchor.path[0]+(op.position==="after"?1:0),content=[{kind:"text",text:op.text}];
+      document=op.kind==="heading"?insertHeading(document,index,op.level,content):insertParagraph(document,index,content);
+      shift(index,1,true);
+      const target={path:[index],documentRevision:snapshot.documentRevision,documentHash:snapshot.documentRevision};
+      snapshot.inputs.push({key:op.insertedKey,targets:[target]});
+      // Explicit absence is distinct from uncertain correspondence; evidence is never copied from the anchor.
+      (report.insertions??=[]).push({key:op.insertedKey,targets:[target],regions:structuredClone(regions),kind:op.kind,status:regions.length?"evidence":"no-correspondence"});
+      const block=inputBlock(op.insertedKey);
+      return [{insertion:op.insertedKey,block:JSON.parse(JSON.stringify(block,(key,value)=>key==="path"?undefined:value)),correspondence:regions.length?"evidence":"no-correspondence"}];
+    }
     const item=validate(op),before=value(op),targets=targetBlocks(item);
     if(op.type==="exclude") {
       const inverse=[];
@@ -193,6 +236,13 @@ function correctionSession(archive,snapshot,report) {
     return [{operation:op,before,after:value(op),afterTarget:fingerprint([op])}];
   }
   function undo(entry) {
+    if(entry.insertion) {
+      const block=inputBlock(entry.insertion),content=JSON.parse(JSON.stringify(block,(key,value)=>key==="path"?undefined:value));
+      if(!same(content,entry.block))throw new Error("Undo inserted content conflict");
+      document=removeBlock(document,block.path[0]);shift(block.path[0],-1);
+      snapshot.inputs=snapshot.inputs.filter(input=>input.key!==entry.insertion);
+      report.insertions=(report.insertions??[]).filter(item=>item.key!==entry.insertion);return;
+    }
     if(!entry.block) {
       if(!same(value(entry.operation),entry.after) || !same(fingerprint([entry.operation]),entry.afterTarget))throw new Error("Undo expected value conflict");
       const operation={...entry.operation,...(entry.operation.type==="kind"?entry.before:{text:entry.before})};
@@ -224,12 +274,20 @@ function correctionSession(archive,snapshot,report) {
       for(const cellIndex of binding.cells)item.cells.find(cell=>cell.index===cellIndex).targets.push(target);
     }
   }
-  return {validate,value,fingerprint,apply,undo,finish(){
+  return {bindInsert,validate,value,fingerprint,apply,undo,updateAnchors(ledger){
+    for(const group of ledger.groups)for(const target of group.targets)for(const op of target.patch.operations){
+      if(op.type!=="insert")continue;
+      let index=op.anchorPath[0]??-1;
+      for(const shift of shifts){if(index===shift.index&&shift.delta<0)index=-1;else if(index>=shift.index)index+=shift.delta;}
+      op.anchorPath=index<0?[]:[index];target.locator={anchorPath:op.anchorPath};
+    }
+  },finish(){
     const source=serialize(document),revision=hash(source),current=getEditableDocument(parse(source)).blocks;
     for(const input of snapshot.inputs)for(const target of input.targets)if(!current.some(block=>same(block.path,target.path)))throw new Error("Canonical write changed target paths");
     const rebind=targets=>targets.sort((a,b)=>a.path[0]-b.path[0]).map(target=>({...target,documentRevision:revision,documentHash:revision}));
     snapshot.source=source;snapshot.documentRevision=revision;
     for(const input of snapshot.inputs)input.targets=rebind(input.targets);
+    for(const insertion of report.insertions??[])insertion.targets=rebind(insertion.targets);
     report.documentRevision=revision;report.documentHash=revision;
     for(const item of report.items){item.targets=rebind(item.targets);for(const cell of item.cells??[])cell.targets=rebind(cell.targets);}
   }};
@@ -241,6 +299,7 @@ export async function workspaceOperation(input) {
   if(hash(raw)!==input.sourceRevision)throw new Error("Workspace revision changed");
   const archive=readDoclingArchive(raw),state=workspaceState(archive),record=readReview(archive.reviewBytes);
   if(input.mode==="workspace-read")return state;
+  if(input.mode==="workspace-evidence-material")return evidenceMaterial(archive,metadataOf(archive).correspondence);
   if(input.mode==="workspace-material") {
     if(!state.snapshot)throw new Error("Workspace document unavailable");
     if(input.ref){
@@ -265,7 +324,12 @@ export async function workspaceOperation(input) {
     if(input.change.kind==="groups-propose"){
       if(input.change.groups.some(group=>group.sourceRevision!==archive.manifest.document.sha256))throw new Error("Mixed group source revision");
       for(const group of change.groups)for(const target of group.targets){
-        originalReviewTarget(archive.document,target.locator);
+        const inserts=target.patch.operations.filter(op=>op.type==="insert");
+        if(inserts.length){
+          if(inserts.length!==1||target.patch.operations.length!==1||!same(target.locator,{anchorPath:inserts[0].anchorPath}))throw new Error("Insert locator must address its anchor path");
+          session.bindInsert(inserts[0]);
+          for(const r of target.regions){const page=archive.document.pages[r.page];if(!page||r.bbox[0]<0||r.bbox[1]<0||r.bbox[2]>page.size.width||r.bbox[3]>page.size.height||r.bbox[2]<r.bbox[0]||r.bbox[3]<r.bbox[1])throw new Error("Invalid insert evidence region");}
+        }else originalReviewTarget(archive.document,target.locator);
         for(const operation of target.patch.operations)try{session.validate(operation);}catch(error){return {rejection:error.message};}
         target.before=session.fingerprint(target.patch.operations);
       }
@@ -280,9 +344,9 @@ export async function workspaceOperation(input) {
       requestId:input.requestId,revision:input.revision,at:input.at,
       apply(target){
         const operations=target.patch.operations;
-        if(operations.some(op=>op.self_ref!==target.locator.self_ref||op.type==="cell"&&op.cell!==target.locator.cell))throw new Error("Correction outside reviewed locator");
+        if(operations.some(op=>op.type!=="insert"&&(op.self_ref!==target.locator.self_ref||op.type==="cell"&&op.cell!==target.locator.cell)))throw new Error("Correction outside reviewed locator");
         if(!same(operations.map(session.value),target.patch.expectedBefore)||!same(session.fingerprint(operations),target.before))throw new Error("Expected before conflict");
-        const inverse=[];for(const op of operations)inverse.unshift(...session.apply(op));
+        const inverse=[];for(const op of operations)inverse.unshift(...session.apply(op,target.regions));
         if(!same(operations.map(session.value),target.patch.after))throw new Error("Expected after conflict");return inverse;
       },
       undo(target,inverse){
@@ -292,6 +356,7 @@ export async function workspaceOperation(input) {
     });
   }
   if(input.progress)setProgress(archive.document,record,input.progress);
+  session.updateAnchors(record.ledger);
   session.finish();
   const changed=snapshot.documentRevision!==state.snapshot.documentRevision;
   if(changed){record.checkedPages=[];record.lastPage=null;record.ledger.approval=null;}
