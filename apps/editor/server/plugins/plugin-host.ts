@@ -59,6 +59,7 @@ export class PluginHost {
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
     this.generatedDocuments = new GeneratedDocuments(this.access, (plugin, job) => {
       const live = this.loaded.get(plugin), binding = live?.manifest.contributes.jobs.find(item => item.id === job);
+      if(live && binding && (binding.resultKind!=="native-document" || !binding.generatedDocument))throw new Error(`Job ${plugin}.${job} does not create a review workspace or generated document. Use a native-document job with a generated-document provider.`);
       const operation = binding?.resultKind === "native-document" && binding.generatedDocument;
       const op = operation && live?.manifest.contributes.operations.find(item => item.id === operation);
       if (!live || !op || op.effect !== "read") throw new Error("Generated document provider unavailable");

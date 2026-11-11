@@ -245,7 +245,7 @@ test("Docling saved document corrections preserve independent proposals, mapping
       if(fail==="race" && raw.mode==="workspace-prepare")writeFileSync(file,original);
       if(fail==="mixed" && raw.mode==="workspace-read" && raw.file!==file && result.snapshot)result.snapshot.inputs.find((input:any)=>input.targets.length).targets[0].documentHash="0".repeat(64);
       return {result};
-    },(...args)=>reviews.publish(...args),input=>reviews.execute(input));
+    },(...args)=>reviews.publish(...args),input=>reviews.execute(input),()=>[{plugin:"fixture",job:"import",accept:[".docling"]}]);
   };
   let host=service(),sequence=0;
   const base={root,workspace:"source.docling",plugin:"fixture",job:"import"};
@@ -419,7 +419,7 @@ test("Docling saved document corrections preserve independent proposals, mapping
     const requestId=randomUUID(),approved=await decide("groups-approve",a.group,digest(before),requestId);assert.equal(approved.saved,true,JSON.stringify(approved));
     await assert.rejects(decide("groups-approve",a.group,approved.baseline,requestId),/Duplicate requestId/);
     host=service();assert.equal((await host.execute({action:"workspace-status",requestId})).state,"unknown");assert.deepEqual((await read()).snapshot,approved.snapshot);
-    const assistant=await executeReadReviewDocument({generatedDocuments:host},base,{folders:access,access,permissionMode:"read-only"});assert.deepEqual(assistant.snapshot,approved.snapshot);
+    const assistant=await executeReadReviewDocument({generatedDocuments:host},{path:file},{folders:access,access,permissionMode:"read-only"});assert.equal(assistant.documentRevision,approved.documentRevision);assert.equal("snapshot" in assistant,false);
     let signal!:()=>void;const waiting=new Promise<void>(resolve=>{signal=resolve;});entered=signal;
     const pending=write("workspace-progress",{progress:{checkedPages:[],lastPage:1}});await waiting;
     await assert.rejects(host.execute({...base,workspace:process.platform==="win32"?"SOURCE.DOCLING":"source.docling",action:"workspace-progress",baseline:digest(readFileSync(file)),requestId:randomUUID(),progress:{checkedPages:[],lastPage:1}}),/operation in progress/);
@@ -459,7 +459,7 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
   const original=archive.readDoclingArchive(readFileSync(file));
   const binaryHash=/"binary_hash"\s*:\s*(\d+)/.exec(json)?.[1];assert.ok(binaryHash);assert.match(original.documentJson,new RegExp(`"binary_hash":${binaryHash}`));
   const base={root,workspace:"lsr.docling",plugin:"fixture",job:"import"},human={actor:"person",reason:"Compared fixed source and exact target",confirmed:true};
-  const service=()=>new GeneratedDocuments(new RootAccess([root]),()=>({operation:"fixture",version:1,workspace:true,assertCurrent(){}}),async(_op,input)=>({result:await workspaceOperation(input)}));
+  const service=()=>new GeneratedDocuments(new RootAccess([root]),()=>({operation:"fixture",version:1,workspace:true,assertCurrent(){}}),async(_op,input)=>({result:await workspaceOperation(input)}),undefined,undefined,()=>[{plugin:"fixture",job:"import",accept:[".docling"]}]);
   let host=service();
   const read=()=>host.execute({...base,action:"workspace-read"});
   const change=(change:unknown)=>host.execute({...base,action:"workspace-review-change",baseline:digest(readFileSync(file)),requestId:randomUUID(),change});
@@ -522,32 +522,41 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       assert.ok(tools.some((tool:any)=>tool.name==="propose_review_groups"));
       assert.ok(!tools.some((tool:any)=>/review.*(approve|reject|undo|completion|complete)/.test(tool.name)),"no human decision tools");
       const invoke=async(tool:string,args:any)=>{const reply:any=await connection.client.request("fixture/tool",{threadId:c.id,tool,arguments:args});return {reply:reply.result,value:JSON.parse(reply.result.contentItems[0].text)};};
+      const {ASSISTANT_TRANSPORT_LIMITS}=await import("../shared/assistant-limits.ts");
+      const assistantBase={path:"lsr.docling"};
+      const firstRead=await invoke("read_review_document",assistantBase);
+      const readBytes=Buffer.byteLength(JSON.stringify(firstRead.value));
+      const repeat=18; // Before the fix, these fixed-result reads exceeded 8 MiB.
+      for(let i=1;i<repeat;i++)await invoke("read_review_document",assistantBase);
+      const historyBytes=Buffer.byteLength(JSON.stringify(conversations.current(c.id)));
+      console.log("Review repeated read bytes",JSON.stringify({readBytes,repeat,historyBytes,limit:ASSISTANT_TRANSPORT_LIMITS.responseBytes}));
+      assert.ok(historyBytes<ASSISTANT_TRANSPORT_LIMITS.responseBytes,"repeated workspace reads must not strand the conversation above the transport limit");
       for(const kind of ["lenses","required-checks","groups","source-evidence"]){
-        const result=await invoke("read_review_material",{...base,kind});assert.equal(result.reply.success,true);
+        const result=await invoke("read_review_material",{...assistantBase,kind});assert.equal(result.reply.success,true);
         if(kind==="source-evidence")assert.deepEqual(result.value.evidence,evidenceRun.evidence);
         if(kind==="required-checks")assert.ok(result.value.ledger.inventory.requiredChecks.length>0);
       }
-      const material=(await invoke("read_review_material",{...base,kind:"page",pageNo:2})).value.material;
+      const material=(await invoke("read_review_material",{...assistantBase,kind:"page",pageNo:2})).value.material;
       assert.deepEqual(material.pages,[1,2,3]);assert.ok(material.items.some((item:any)=>item.prov.length && item.correspondence));assert.ok(material.blocks.length);
       assert.doesNotMatch(JSON.stringify(material),/data:image|base64|pdfBase64/);
       const group=structuredClone((await read()).ledger.groups[0]);group.id="assistant-saved";group.reasonCode="assistant-local";group.runId="assistant-local";
       group.targets=group.targets.map((target:any)=>({...target,id:"assistant-target",history:[],proposal:"proposed",result:null,resolved:false}));group.representativeTargetId="assistant-target";
       const beforeProposal=(await read()).snapshot;
-      const proposed=await invoke("propose_review_groups",{...base,baseline:(await read()).baseline,requestId:randomUUID(),change:{kind:"groups-propose",groups:[group]}});
+      const proposed=await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[group]}});
       assert.equal(proposed.reply.success,true,JSON.stringify(proposed));
-      assert.equal((await invoke("read_review_request_status",{...base,requestId:proposed.value.receipt.requestId})).value.baseline,proposed.value.baseline);
+      assert.equal((await invoke("read_review_request_status",{...assistantBase,requestId:proposed.value.receipt.requestId})).value.baseline,proposed.value.baseline);
       assert.deepEqual((await read()).snapshot,beforeProposal,"proposal storage never changes document/mapping");
       const invalidGroup={...group,id:"invalid-target",targets:[{...group.targets[0],patch:{...group.targets[0].patch,expectedBefore:["wrong before"]}}]};
-      assert.equal((await invoke("propose_review_groups",{...base,baseline:(await read()).baseline,requestId:randomUUID(),change:{kind:"groups-propose",groups:[invalidGroup]}})).reply.success,false);
+      assert.equal((await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[invalidGroup]}})).reply.success,false);
       const selection={pages:[1],targets:["#/texts/0"]};
-      const estimate=(await invoke("estimate_review_images",{...base,selection})).value;
+      const estimate=(await invoke("estimate_review_images",{...assistantBase,selection})).value;
       assert.ok(estimate.estimatedInputTokens>0);assert.equal(estimate.pageCount,1);assert.ok(estimate.regionCount>0);assert.equal(estimate.images[0].base64,undefined);
-      const imageArgs=()=>({...base,baseline:digest(readFileSync(file)),pageNo:1,target:selection.targets[0]});
+      const imageArgs=()=>({...assistantBase,pageNo:1,target:selection.targets[0]});
       assert.equal((await invoke("read_review_images",{...imageArgs(),runId:"unapproved"})).reply.success,false);
-      assert.equal((await invoke("record_review_inspection",{...base,baseline:digest(readFileSync(file)),requestId:randomUUID(),records:[],comparisons:[{selected:true,confirmed:true}]})).reply.success,false);
-      assert.equal((await invoke("propose_review_groups",{...base,baseline:digest(readFileSync(file)),requestId:randomUUID(),change:{kind:"groups-approve",human,groupId:group.id,targetIds:["assistant-target"]}})).reply.success,false);
-      const ask=()=>invoke("request_litzio_user_input",{questions:[{title:"Assistant title is replaced"}],reviewImage:{...base,selection,estimateHash:estimate.estimateHash}});
-      assert.equal((await invoke("request_litzio_user_input",{questions:[{title:"Wrong estimate"}],reviewImage:{...base,selection,estimateHash:"0".repeat(64)}})).value.accepted,false);
+      assert.equal((await invoke("record_review_inspection",{...assistantBase,records:[],comparisons:[{selected:true,confirmed:true}]})).reply.success,false);
+      assert.equal((await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-approve",human,groupId:group.id,targetIds:["assistant-target"]}})).reply.success,false);
+      const ask=()=>invoke("request_litzio_user_input",{questions:[{title:"Assistant title is replaced"}],reviewImage:{...assistantBase,selection,estimateHash:estimate.estimateHash}});
+      assert.equal((await invoke("request_litzio_user_input",{questions:[{title:"Wrong estimate"}],reviewImage:{...assistantBase,selection,estimateHash:"0".repeat(64)}})).value.accepted,false);
       const declined=ask();for(let attempt=0;!c.userInput && attempt<100;attempt++)await new Promise(resolve=>setTimeout(resolve,10));
       const declineQuestion=c.userInput!;conversations.questionVisible(c.id,declineQuestion.turnId,declineQuestion.requestId,"review-window");await declined;
       await conversations.answer(c.id,declineQuestion.turnId,declineQuestion.requestId,{"0":{answers:["Decline"]}},"review-window");
@@ -560,14 +569,14 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       await conversations.answer(c.id,q.turnId,q.requestId,{"0":{answers:["Approve image comparison"]}},"review-window");
       const run=(await read()).ledger.comparisons.at(-1);assert.equal(run.selected,true);
       const inspection={contentRevision:opened.contentRevision,lens:"source-evidence",scope:selection,state:"uncertain",evidence:"Local original comparison is uncertain; no quality claim"};
-      const record=()=>invoke("record_review_inspection",{...base,baseline:digest(readFileSync(file)),requestId:randomUUID(),imageRunId:run.runId,records:[inspection]});
+      const record=()=>invoke("record_review_inspection",{...assistantBase,imageRunId:run.runId,records:[inspection]});
       assert.equal((await record()).reply.success,false,"unread images cannot be recorded as compared");
       assert.equal((await invoke("read_review_images",{...imageArgs(),pageNo:2,runId:run.runId})).reply.success,false);
       const {target,...wholePage}=imageArgs();assert.equal((await invoke("read_review_images",{...wholePage,runId:run.runId})).reply.success,false,"region approval cannot release a full page");
       const images=await invoke("read_review_images",{...imageArgs(),runId:run.runId});assert.equal(images.reply.success,true,JSON.stringify(images.value));
       assert.ok(images.reply.contentItems.some((item:any)=>item.type==="inputImage" && item.imageUrl.startsWith("data:image/png;base64,")));
       assert.equal((await record()).reply.success,true);assert.equal((await read()).ledger.comparisons.at(-1).state,"compared");
-      assert.deepEqual((await invoke("read_review_material",{...base,kind:"source-evidence"})).value.evidence,evidenceRun.evidence,"image records cannot replace source candidates");
+      assert.deepEqual((await invoke("read_review_material",{...assistantBase,kind:"source-evidence"})).value.evidence,evidenceRun.evidence,"image records cannot replace source candidates");
       const state=await read();assert.deepEqual(state.snapshot,beforeProposal);
       assert.equal((await change({kind:"groups-approve",groupId:group.id,targetIds:["assistant-target"],human,resolvesIssue:true})).receipt.outcome,"success");
       assert.equal((await invoke("read_review_images",{...imageArgs(),runId:run.runId})).reply.success,false,"changed document invalidates image approval");
@@ -580,7 +589,7 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       }
       assert.ok((await read()).ledger.inspections.some((record:any)=>{try{const data=JSON.parse(record.evidence);return data.format==="review-image-usage-1" && data.usage.inputTokens===100 && data.source==="provider-turn-total-not-per-image";}catch{return false;}}),JSON.stringify(c.turns.flatMap(t=>t.items).filter(item=>item.status==="failed")));
       const restricted=await conversations.send({message:"Read only",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},{...settings,permissionMode:"read-only"},"review-window");
-      const denied:any=await connection.client.request("fixture/tool",{threadId:restricted.id,tool:"propose_review_groups",arguments:{...base,baseline:(await read()).baseline,requestId:randomUUID(),change:{kind:"groups-propose",groups:[{...group,id:"read-only"}]}}});assert.equal(denied.result.success,false);
+      const denied:any=await connection.client.request("fixture/tool",{threadId:restricted.id,tool:"propose_review_groups",arguments:{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"read-only"}]}}});assert.equal(denied.result.success,false);assert.match(denied.result.contentItems[0].text,/Opened folders/);
       for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(archive.readDoclingArchive(readFileSync(file))[key],original[key]);
     } finally {await conversations.close();await connection.close();}
     assert.equal(readFileSync(new URL("converted/document.json",sample),"utf8"),json);

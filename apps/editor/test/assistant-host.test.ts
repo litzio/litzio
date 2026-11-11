@@ -108,6 +108,19 @@ test("question metadata and answers use the same HTTP and explicit-Host CLI conv
     assert.equal(await runCliAsync(["assistant", "conversation", c.id, "--host", origin]), 0);
     assert.deepEqual(JSON.parse(output.pop()!).turns[0].items.find((item: any) => item.id === "http-travel-question").question.answers, { "0": { answers: ["음식 탐방"] } });
   } finally { stdout.mock.restore(); }
+  // Restore an already oversized provider history, then GET and continue the same conversation.
+  // Reuse this fixture process/HTTP path rather than launching another provider.
+  const {ASSISTANT_TRANSPORT_LIMITS}=await import("../shared/assistant-limits.ts");
+  const legacy={type:"dynamicToolCall",id:"legacy-review",tool:"read_review_document",status:"completed",success:true,contentItems:[{type:"inputText",text:"x".repeat(ASSISTANT_TRANSPORT_LIMITS.responseBytes+1)}]};
+  const request=agent.client.request.bind(agent.client);
+  t.mock.method(agent.client,"request",async(method:string,args:any)=>method==="thread/turns/list" ? {data:[{id:record.turnId,status:"completed",items:[legacy]}],nextCursor:null} : request(method,args));
+  const resumed=await post({action:"resume",id:c.id});
+  assert.equal(resumed.id,c.id);assert.ok(Buffer.byteLength(JSON.stringify(resumed))<ASSISTANT_TRANSPORT_LIMITS.responseBytes);
+  assert.match(resumed.turns[0].items[0].toolResult.contentItems[0].text,/omitted/);
+  assert.equal(legacy.contentItems[0].text.length,ASSISTANT_TRANSPORT_LIMITS.responseBytes+1,"display projection does not modify provider history");
+  const loaded=await fetch(`${origin}/api/assistant/conversations?id=${c.id}`).then(r=>r.json());assert.equal(loaded.id,c.id);
+  const continued=await post({action:"send",id:c.id,submissionId:"continue-large-review",message:"Continue review",folders:[],model:"gpt-6.1-sol",reasoningEffort:"medium"});
+  assert.equal(continued.submission.status,"accepted");assert.equal(continued.conversation.id,c.id);
 });
 
 test("unavailable provider rejects new work with a reason; settings do not close admitted conversations", async t => {

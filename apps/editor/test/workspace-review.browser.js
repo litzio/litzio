@@ -13,6 +13,30 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   const open=async()=>{await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});await row().focus();await row().press('Enter');await expect(page.locator('.review-renderer')).toBeVisible();await page.locator('.review-region').first().waitFor({state:'visible'});await expect(page.locator('.review-region').first()).toBeEnabled();await expect(page.locator('.review-image-loading')).toHaveCount(0);};
   await open();
   await expect(page.getByRole('button',{name:'Open document',exact:true})).toHaveCount(0);
+  // The active comparison is advisory path context; no internal provider/job values in send.
+  const settings={provider:'codex',permissionMode:'opened-folders',model:'gpt-6.1-sol',reasoningEffort:'medium'};
+  await page.route('**/api/assistant/settings*',route=>route.fulfill({json:settings}));
+  await page.route('**/api/assistant/models*',route=>route.fulfill({json:{provider:'codex',models:[{id:'sol',model:settings.model,displayName:'Sol',defaultReasoningEffort:'medium',supportedReasoningEfforts:[{reasoningEffort:'medium'}]}]}}));
+  await page.route('**/api/assistant/diagnostics*',route=>route.fulfill({json:{provider:'codex',connected:true,account:{type:'chatgpt'}}}));
+  let sent;
+  const conversation={id:'review-context',title:'Review',folders:[root],createdAt:Date.now(),updatedAt:Date.now(),...settings,turns:[]};
+  await page.route('**/api/assistant/conversations*',route=>{
+    const body=route.request().method()==='POST'?route.request().postDataJSON():null;
+    if(body?.action==='send'){
+      sent=body;
+      conversation.turns=[{id:'review-turn',status:'completed',items:[{id:'review-user',kind:'user',text:body.message,submissionId:body.submissionId}]}];
+      return route.fulfill({json:{submission:{id:body.submissionId,status:'accepted',conversationId:conversation.id},conversation}});
+    }
+    return route.fulfill({json:route.request().url().includes('?id=')?conversation:[]});
+  });
+  await page.getByRole('button',{name:/^Assistant(?: — |$)/}).click();
+  const panel=page.getByTestId('assistant-panel');
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  await panel.getByRole('textbox').fill('Review this document');
+  await panel.getByRole('button',{name:'Send message',exact:true}).click();
+  await expect.poll(()=>sent?.reviewWorkspace?.path.replaceAll('\\','/')).toBe((root+'/'+workspace).replaceAll('\\','/'));
+  expect(sent.document).toBeUndefined();expect(Object.keys(sent.reviewWorkspace)).toEqual(['path']);
+  await panel.getByRole('button',{name:'Close assistant',exact:true}).click();
   const state=await docling.review('workspace-read',base);
   expect(state.snapshot.source).toBeTruthy();expect(state.documentPath).toBeUndefined();
   const sourceBeforeExport=state.baseline;

@@ -225,8 +225,10 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const conversations = new AssistantConversations(connection, new RootAccess([root]), plugins);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
+    reviewWorkspace:{path:path.join(root,"review.docling"),source:"UNSAVED REVIEW CONTEXT"},
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
   writeFileSync(input.document.path, "ON DISK");
+  writeFileSync(input.reviewWorkspace.path,"WORKSPACE CONTENT IS NOT CONTEXT");
   writeFileSync(path.join(root, "image.png"), "image fixture");
   writeFileSync(path.join(root, "report.pdf"), "REFERENCE CONTENT MUST NOT BE IN INPUT");
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
@@ -288,6 +290,8 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
 
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
+  assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).reviewWorkspace,{path:input.reviewWorkspace.path});
+  assert.equal(start.input[1].text.includes("UNSAVED REVIEW CONTEXT"),false);
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
   assert.equal(rpc.find(item => item.method === "turn/steer").params.expectedTurnId, conversation.turns[0]!.id);
   await connection.close();

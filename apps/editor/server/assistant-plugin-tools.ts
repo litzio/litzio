@@ -1,5 +1,7 @@
 import type { DocumentToolScope } from "./assistant-document-tools.ts";
-import { accessPath } from "./file-access.ts";
+import { listFolder } from "./document-api.ts";
+import { statSync } from "node:fs";
+import { accessPath, canonicalFilePath, inside } from "./file-access.ts";
 import { PLUGIN_REGISTRATION_CHANGED, pluginManagementSchema, jobRequestSchema, PLUGIN_JOBS } from "@litzio/plugin-sdk";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { z } from "zod";
@@ -8,13 +10,29 @@ import { workspaceRequestSchema, reviewLedgerChangeSchema, reviewLedgerSchema } 
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-export const reviewDocumentTools = [{ type: "function", name: "read_review_document", description: "Read the canonical document, revisions and progress of a prepared review workspace on this Host. Uses the common review reader; never pass an archive-internal or fake Markdown path. Does not prepare or write the workspace.", inputSchema: z.toJSONSchema(workspaceRequestSchema.options[0]!.omit({ action: true })) }];
-export async function executeReadReviewDocument(host: Pick<PluginHost, "generatedDocuments">, input: unknown, scope: DocumentToolScope) {
-  const parsed = workspaceRequestSchema.parse({ ...(input as object), action: "workspace-read" });
-  if (parsed.action !== "workspace-read" || !scope.folders) throw new Error("No opened folders for this review.");
-  const root = scope.folders.resolve(accessPath(parsed.root, scope.access));
-  scope.folders.resolve(accessPath(path.resolve(root, parsed.workspace), scope.access));
-  return host.generatedDocuments.execute(parsed);
+const reviewPath = z.strictObject({path:z.string().min(1)});
+/** Codex retains a thread's registered schemas. Keep in-use conversations callable after resume;
+ * new registrations expose only path. Internal provider IDs are always rediscovered. */
+function reviewInput(raw:unknown) {
+  const value=raw as Record<string,unknown>;
+  if(!value || typeof value!=="object" || Array.isArray(value) || "path" in value || !("root" in value && "workspace" in value))return raw;
+  const {root,workspace,plugin,job,baseline,requestId,...fields}=value;
+  const location=workspaceRequestSchema.options[0]!.omit({action:true}).parse({root,workspace,plugin,job});
+  if(!path.isAbsolute(location.root) || path.isAbsolute(location.workspace))throw new Error("Expected an absolute Root and relative workspace");
+  return {...fields,path:path.resolve(location.root,location.workspace)};
+}
+
+export const reviewDocumentTools = [{ type: "function", name: "read_review_document", description: "Read a prepared review workspace summary by path relative to an opened folder or absolute inside it. Returns revisions, progress and target counts, not the full document. Use read_review_material for page details. Does not prepare or write the workspace.", inputSchema: z.toJSONSchema(reviewPath) }];
+export async function executeReadReviewDocument(host: ReviewHost, input: unknown, scope: DocumentToolScope) {
+  const location=await resolveReview(host,reviewPath.parse(reviewInput(input)).path,scope);
+  const result=await scopedReview(host,{...location,action:"workspace-read"},scope);
+  if(result.receipt?.outcome!=="success")return result;
+  return {workspace:result.workspace,baseline:result.baseline,documentRevision:result.documentRevision,contentRevision:result.contentRevision,
+    cacheState:result.cacheState,completion:result.completion,receipt:result.receipt,
+    summary:{pages:result.ledger?.inventory?.pages??[],targets:result.ledger?.inventory?.targets.length??0,
+      groups:result.ledger?.groups.length??0,openTargets:result.ledger?.groups.flatMap((group:any)=>group.targets).filter((target:any)=>!target.resolved && target.proposal!=="superseded").length??0,
+      checkedPages:result.record?.checkedPages??[],lenses:result.ledger?.inventory?.lenses??[],
+      inspections:result.ledger?.inspections.length??0,requiredChecks:result.ledger?.inventory?.requiredChecks.length??0}};
 }
 
 const pluginOperationInput = z.strictObject({ operation: z.string().min(1), input: z.unknown().refine(value => value !== undefined) });
@@ -72,64 +90,142 @@ export async function executePluginJobTool(host: PluginHost, input: unknown, sco
   return host.invoke(action, args);
 }
 
-const workspaceFields = workspaceRequestSchema.options[0]!.omit({action:true});
-const writeFields = workspaceFields.extend({baseline:z.string().regex(/^[a-f0-9]{64}$/),requestId:z.uuid()});
+type ReviewHost = Pick<PluginHost,"generatedDocuments">;
+type ReviewLocation = {root:string;workspace:string;plugin:string;job:string};
+type MaterialRead = {documentRevision:string;contentRevision:string;scope:{pages:number[];targets:string[]}};
+// The authorized turn owns observations. A new scope on the next turn cannot inherit reading proof.
+const reviewRequests = new WeakMap<DocumentToolScope,Map<string,string>>();
+const reviewReads = new WeakMap<DocumentToolScope,Map<string,{baseline:string;materials:MaterialRead[]}>>();
+const locationKey = (location:ReviewLocation) => JSON.stringify([canonicalFilePath(path.resolve(location.root,location.workspace)),location.plugin,location.job]);
+function observations(scope:DocumentToolScope) {
+  let reads=reviewReads.get(scope);if(!reads){reads=new Map();reviewReads.set(scope,reads);}return reads;
+}
+async function findReviewWorkspaces(host:ReviewHost, scope:DocumentToolScope, requested?:string) {
+  if(!scope.folders)throw new Error("No opened folders for this review.");
+  const candidates:any[]=[], seen=new Set<string>();
+  const visit=async(root:string,file:string):Promise<void>=>{
+    file=scope.folders!.resolve(accessPath(file,scope.access));
+    const key=canonicalFilePath(file);if(seen.has(key))return;seen.add(key);
+    if(statSync(file).isDirectory()) {
+      for(const entry of listFolder(root,file,scope.access).entries)await visit(root,entry.path);
+    } else {
+      const result=await host.generatedDocuments.execute({action:"workspace-find",root,path:file});
+      candidates.push(...result.targets??[]);
+    }
+  };
+  for(const root of scope.folders.roots) {
+    const file=requested ? path.resolve(root,requested) : root;
+    if(!inside(root,file))continue;
+    try {await visit(root,file);} catch(error) {if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}
+  }
+  return {targets:candidates};
+}
+async function resolveReview(host:ReviewHost, requested:string, scope:DocumentToolScope):Promise<ReviewLocation> {
+  const {targets}=await findReviewWorkspaces(host,scope,requested);
+  if(targets.length!==1)throw new Error(`${targets.length ? "Ambiguous review workspace" : "No review workspace found"} for ${requested}. Candidates: ${JSON.stringify(targets)}. Use find_review_workspaces to find an opened-folder path.`);
+  const {root,workspace,plugin,job}=targets[0];return {root,workspace,plugin,job};
+}
 const actionSchema = (action:string): any => workspaceRequestSchema.options.find((schema:any)=>schema.shape?.action?.value===action);
-const materialInput = workspaceFields.extend({kind:z.enum(["lenses","source-evidence","required-checks","groups","page"]),pageNo:z.number().int().positive().optional()});
-const proposeInput = writeFields.extend({change:reviewLedgerChangeSchema.options[0]!});
-const inspectionInput = writeFields.extend({records:z.array(reviewLedgerSchema.shape.inspections.element.omit({runId:true})).min(1).max(1000),imageRunId:z.string().min(1).optional()});
-export const reviewImageQuestionSchema = actionSchema("workspace-image-estimate").omit({action:true}).extend({estimateHash:z.string().regex(/^[a-f0-9]{64}$/)});
+const materialInput = reviewPath.extend({kind:z.enum(["lenses","source-evidence","required-checks","groups","page"]),pageNo:z.number().int().positive().optional()});
+const proposeInput = reviewPath.extend({change:reviewLedgerChangeSchema.options[0]!});
+const inspectionInput = reviewPath.extend({records:z.array(reviewLedgerSchema.shape.inspections.element.omit({runId:true})).min(1).max(1000),imageRunId:z.string().min(1).optional()});
+export const reviewImageQuestionSchema = reviewPath.extend({selection:actionSchema("workspace-image-estimate").shape.selection,estimateHash:z.string().regex(/^[a-f0-9]{64}$/)});
+export const parseReviewImageQuestion = (raw:unknown) => reviewImageQuestionSchema.parse(reviewInput(raw));
 const reviewInputs = {
+  find_review_workspaces:z.strictObject({path:z.string().min(1).optional()}),
   read_review_material:materialInput,
-  run_review_source_evidence:writeFields.extend({pages:z.array(z.number().int().positive()).min(1).max(10000).optional()}),
+  run_review_source_evidence:reviewPath.extend({pages:z.array(z.number().int().positive()).min(1).max(10000).optional()}),
   propose_review_groups:proposeInput,
   record_review_inspection:inspectionInput,
-  estimate_review_images:actionSchema("workspace-image-estimate").omit({action:true}),
-  read_review_images:actionSchema("workspace-image-read").omit({action:true}),
+  estimate_review_images:reviewImageQuestionSchema.omit({estimateHash:true}),
+  read_review_images:reviewPath.extend({runId:z.string().min(1),pageNo:z.number().int().positive(),target:z.string().min(1).optional()}),
 };
 const descriptions: Record<keyof typeof reviewInputs,string> = {
+  find_review_workspaces:"Find review workspaces inside opened folders using the common workspace-find reader. Optional path names a file or folder; omitted searches opened folders. Returns paths and matching providers, never document contents.",
   read_review_material:"Read review lenses, source-evidence candidates (numeric/unit first), required picture/table checks, groups, or a page fragment with neighboring items, relations, original text/provenance and current block correspondence. No images.",
-  run_review_source_evidence:"Run the common source-evidence operation and save candidates, never proposals or document changes. Generate one requestId; on uncertainty read status, never replay.",
+  run_review_source_evidence:"Run the common source-evidence operation and save candidates, never proposals or document changes. Host supplies the requestId; on uncertainty query the returned ID with read_review_request_status, never replay.",
   propose_review_groups:"Save proposed review groups only through the common validated operation. Does not approve or change the document. Target before-content must match; insert requires source evidence. Never bypass rejection. On uncertainty read status; never replay.",
   record_review_inspection:"Record only scopes you actually read. Use uncertain when evidence is insufficient. Cannot select/approve an image run, complete required checks or change documents. With imageRunId, record comparison results only after reading all approved images in this turn.",
   estimate_review_images:"Calculate selected page/region counts and estimated input tokens without returning images. Show the returned estimateHash and selection using request_litzio_user_input reviewImage. Acceptance is display only; wait for the human answer and its runId.",
-  read_review_images:"Read only images selected by a real human question-card answer, using its runId and the latest workspace baseline. Pages require whole-page approval; target regions require that exact target/page. Cannot self-confirm. Record findings with record_review_inspection; provider turn usage is recorded separately.",
+  read_review_images:"Read only images selected by a real human question-card answer, using its runId and workspace path. Pages require whole-page approval; target regions require that exact target/page. Cannot self-confirm. Record findings with record_review_inspection; provider turn usage is recorded separately.",
 };
-export const reviewAssistantTools = Object.entries(reviewInputs).map(([name,schema])=>({type:"function",name,description:descriptions[name as keyof typeof reviewInputs],inputSchema:z.toJSONSchema(schema)}));
-reviewAssistantTools.push({type:"function",name:"read_review_request_status",description:"Observe the same requestId after an uncertain review write; never replay it.",inputSchema:z.toJSONSchema(workspaceFields.extend({requestId:z.uuid()}))});
+export const reviewAssistantTools: {type:string;name:string;description:string;inputSchema:object}[] = Object.entries(reviewInputs).map(([name,schema])=>({type:"function",name,description:descriptions[name as keyof typeof reviewInputs],inputSchema:z.toJSONSchema(schema)}));
+reviewAssistantTools.push({type:"function",name:"read_review_request_status",description:"Observe the same requestId after an uncertain review write; never replay it.",inputSchema:z.toJSONSchema(reviewPath.extend({requestId:z.uuid()}))});
 
-async function scopedReview(host:Pick<PluginHost,"generatedDocuments">, input:any, scope:DocumentToolScope, writing=false) {
-  if (writing && !["opened-folders","full-access"].includes(scope.permissionMode)) throw new Error("Review writes are unavailable in read-only turns.");
+async function scopedReview(host:ReviewHost, input:any, scope:DocumentToolScope, writing=false) {
+  if (writing && !["opened-folders","full-access"].includes(scope.permissionMode)) throw new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.');
   if (!scope.folders) throw new Error("No opened folders for this review.");
   const root=scope.folders.resolve(accessPath(input.root,scope.access));
   scope.folders.resolve(accessPath(path.resolve(root,input.workspace),scope.access));
-  return host.generatedDocuments.execute({...input,root});
+  const key=locationKey(input), reads=observations(scope);
+  if((writing || input.action==="workspace-image-read") && input.baseline===undefined && input.action!=="workspace-image-usage") {
+    // Keep the last observed baseline: an external write after reading must still conflict.
+    if(!reads.has(key)) {
+      const read=await scopedReview(host,{root,workspace:input.workspace,plugin:input.plugin,job:input.job,action:"workspace-read"},scope);
+      if(!reads.has(key))throw new Error(read.error??"Read a current review workspace before writing");
+    }
+    input={...input,baseline:reads.get(key)!.baseline};
+  }
+  const requestId=writing ? input.requestId??randomUUID() : undefined;
+  try {
+    const result=await host.generatedDocuments.execute({...input,root,...(requestId?{requestId}:{})});
+    if(result.baseline && result.receipt?.outcome==="success")reads.set(key,{baseline:result.baseline,materials:reads.get(key)?.materials??[]});
+    return result;
+  } catch(error) {
+    if(requestId)throw new Error(`${String(error)}. Review requestId: ${requestId}; query read_review_request_status, do not replay.`);
+    throw error;
+  }
 }
-export async function executeReviewAssistantTool(host:Pick<PluginHost,"generatedDocuments">,name:string,input:unknown,scope:DocumentToolScope, delivered: {input:any;runId:string;documentRevision:string;scope:{pages:number[];targets:string[]}}[] = []) {
+export async function executeReviewAssistantTool(host:ReviewHost,name:string,input:unknown,scope:DocumentToolScope, delivered: {input:any;runId:string;documentRevision:string;scope:{pages:number[];targets:string[]}}[] = [], callId?:string) {
   if(name==="read_review_request_status") {
-    const {requestId,...location}=workspaceFields.extend({requestId:z.uuid()}).parse(input);
+    const normalized=reviewInput(input) as Record<string,unknown>;
+    const {requestId,path:requested}=reviewPath.extend({requestId:z.uuid()}).parse({...normalized,requestId:(input as any)?.requestId});
+    const location=await resolveReview(host,requested,scope);
     await scopedReview(host,{...location,action:"workspace-read"},scope);
     const result=await host.generatedDocuments.execute({action:"workspace-status",requestId});
-    if(result.receipt && result.receipt.scope!==accessPath(location.root,scope.access) || result.workspace && ["plugin","job","workspace"].some(key=>result.workspace[key]!==location[key as keyof typeof location]))throw new Error("Review request belongs to another workspace");
+    if(result.receipt && result.receipt.scope!==location.root || result.workspace && ["plugin","job","workspace"].some(key=>result.workspace[key]!==location[key as keyof typeof location]))throw new Error("Review request belongs to another workspace");
     return result;
   }
   const schema=reviewInputs[name as keyof typeof reviewInputs];
   if(!schema)throw new Error("Unknown review assistant tool");
-  const args=schema.parse(input);
+  const normalized=reviewInput(input);
+  const parsed:any=schema.parse(normalized);
+  if(name==="find_review_workspaces")return findReviewWorkspaces(host,scope,parsed.path);
+  if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name) && !["opened-folders","full-access"].includes(scope.permissionMode))throw new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.');
+  const {path:requested,...fields}=parsed;
+  const location=await resolveReview(host,requested!,scope), args={...location,...fields} as any;
+  if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name)) {
+    let requests=reviewRequests.get(scope);if(!requests){requests=new Map();reviewRequests.set(scope,requests);}
+    const legacyId=normalized!==input && (input as any)?.requestId!==undefined ? z.uuid().parse((input as any).requestId) : undefined;
+    args.requestId=legacyId??(callId ? requests.get(callId)??randomUUID() : randomUUID());
+    if(callId)requests.set(callId,args.requestId);
+  }
   let action:string, extra:object={}, writing=false;
   if(name==="read_review_material") {
     const {kind,pageNo,...common}=args;
     if(kind==="page" && !pageNo || kind!=="page" && pageNo!==undefined)throw new Error("pageNo is required only for page material");
     action=({lenses:"workspace-lenses","source-evidence":"workspace-evidence","required-checks":"workspace-required-checks",groups:"workspace-groups-read",page:"workspace-material"} as any)[kind];
-    return scopedReview(host,{...common,action,...(kind==="page"?{pageNo}:{}),...(kind==="source-evidence"?{mode:"read"}:{})},scope);
+    const result=await scopedReview(host,{...common,action,...(kind==="page"?{pageNo}:{}),...(kind==="source-evidence"?{mode:"read"}:{})},scope);
+    if(kind==="page" && result.material && result.receipt?.outcome==="success") {
+      observations(scope).get(locationKey(location))!.materials.push({documentRevision:result.documentRevision,contentRevision:result.contentRevision,
+        scope:{pages:result.material.pages,targets:result.material.items.map((item:any)=>item.self_ref)}});
+    }
+    return result;
   }
   if(name==="run_review_source_evidence"){action="workspace-evidence";extra={mode:"run"};writing=true;}
   else if(name==="propose_review_groups"){action="workspace-review-change";writing=true;}
   else if(name==="record_review_inspection") {
     const {records,imageRunId,...common}=args;
     const comparisons=[];
+    // This validation read must not replace the baseline from the actual material read.
+    const prior=observations(scope).get(locationKey(location));
+    const state=await host.generatedDocuments.execute({...location,action:"workspace-read"});
+    const material=prior?.materials.filter(read=>read.documentRevision===state.documentRevision && read.contentRevision===state.contentRevision)??[];
+    if(!imageRunId && records.some((record:any)=>!(record.scope.pages.length || record.scope.targets.length) ||
+      record.contentRevision!==state.contentRevision ||
+      !record.scope.pages.every((page:number)=>material.some(read=>read.scope.pages.includes(page))) ||
+      !record.scope.targets.every((target:string)=>material.some(read=>read.scope.targets.includes(target)))))throw new Error("Read page material for this workspace and revision in this turn before recording inspection");
     if(imageRunId){
-      const state=await scopedReview(host,{root:args.root,workspace:args.workspace,plugin:args.plugin,job:args.job,action:"workspace-read"},scope);
       const run=state.ledger?.comparisons.findLast((run:any)=>run.runId===imageRunId);
       const approval=state.ledger?.inspections.find((r:any)=>r.runId===imageRunId && (()=>{try{return JSON.parse(r.evidence).format==="review-image-approval-1";}catch{return false;}})());
       const approved=approval?JSON.parse(approval.evidence):null;
@@ -140,12 +236,14 @@ export async function executeReviewAssistantTool(host:Pick<PluginHost,"generated
     }
     return scopedReview(host,{...common,action:"workspace-review-change",change:{kind:"inspection",comparisons,records:records.map((record:any)=>({...record,runId:imageRunId??randomUUID()}))}},scope,true);
   } else action=name==="estimate_review_images"?"workspace-image-estimate":"workspace-image-read";
-  return scopedReview(host,{...args,...extra,action},scope,writing);
+  const result=await scopedReview(host,{...args,...extra,action},scope,writing);
+  return name==="read_review_images" ? {...result,workspace:location} : result;
 }
 
 /** Called exclusively from the validated human-answer path, never a provider tool. */
 export async function answerReviewImageQuestion(host:Pick<PluginHost,"generatedDocuments">, raw:unknown, scope:DocumentToolScope, actor:string, assertActive:()=>void) {
-  const {estimateHash,...request}=reviewImageQuestionSchema.parse(raw);
+  const {estimateHash,path:requested,selection}=parseReviewImageQuestion(raw);
+  const request={...await resolveReview(host,requested,scope),selection};
   const estimate=await scopedReview(host,{...request,action:"workspace-image-estimate"},scope);
   if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw new Error("Image estimate changed; request a new human approval");
   assertActive();
