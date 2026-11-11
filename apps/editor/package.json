@@ -16,6 +16,7 @@
     "@litzio/core": "workspace:*",
     "@litzio/file-commit": "workspace:*",
     "@litzio/plugin-sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@tiptap/core": "3.31.3",
     "@tiptap/extension-code": "3.31.3",
     "@tiptap/extension-code-block-lowlight": "3.31.3",

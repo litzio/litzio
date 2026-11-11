@@ -550,7 +550,7 @@ AI permissions/provider/model, plugins, navigation, document content and front
 matter are excluded. Document write scope is unchanged; these appearance-only
 operations also work in read-only turns and without opened folders. They add no
 Core semantic operation, CLI command, MCP server, registry or public Plugin API.
-Copilot and terminal sessions have no display-tool handler. Start a new Codex
+Copilot uses the same Host display handler when sent from a Litzio window; terminal sessions have no originating window. Start a new Codex
 conversation to acquire the added specs; existing thread registrations are not
 retrofitted.
 
@@ -1121,15 +1121,44 @@ The user message includes product instructions, opened-folder paths, the active
 document path and validated reference paths. It reads saved file content on demand;
 unsaved native/text editor content is excluded (#1106). Copilot receives image
 references as paths, without Codex localImage inputs. Native Copilot tools may
-read references. Litzio dynamic document tools/result cards and Codex skill
-selection are not exposed. Existing-document editing remains text suggestions
-only. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
+read references. Copilot receives the same Host tool definitions and dispatch as Codex through HTTP MCP (#1500); Codex skill selection remains unavailable. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
+
+### Copilot Host tools over HTTP MCP (#1500)
+
+The existing daemon HTTP listener serves `/api/assistant/mcp/<random-turn-token>`.
+Codex dynamicTools and MCP tools/list read one Host-owned array and both execute
+through one provider-neutral dispatch. Future tools added to that array therefore
+reach both providers. No second document/plugin registry is maintained.
+
+ACP newSession/loadSession receive an HTTP server named `litzio_host`. Each send
+loads existing sessions again to replace the endpoint and rebuild provider history;
+CLIs without loadSession must start a new conversation. The Host generates each
+capability, binds it to the provider session and current turn, and supplies folders,
+permission mode and originating window from admitted Host state. Tool arguments
+cannot select another conversation, turn or permission. Setup permits discovery;
+execution requires an active matching turn. Completion, failure, cancellation,
+disconnection and shutdown revoke capabilities; previous turn URLs cannot be reused.
+This is conversation isolation, not daemon authentication (#1145 remains deferred).
+
+Copilot 1.0.109 refused MCP calls with host_policy before sending ACP permissions.
+`--allow-tool=litzio_host` skips only this provider approval, while restricted
+launches retain `--deny-tool=shell` and every MCP execution still checks Host scope.
+Question cards are deliberately unsupported; ordinary text questions and the
+existing image approval protection remain. ACP/MCP elicitation is follow-up work.
+The cwd litzio-guide skill is discovered by Copilot; instructions are also injected
+in the prompt. This change does not consolidate those instruction sources.
+
+Verification (2026-11-11): fake ACP plus real SDK HTTP clients protect tool discovery,
+folder isolation, permission hints, cancellation and endpoint rotation. Two real
+Auto prompts: the first discovered tools but host_policy denied them; the second
+completed list_documents and read_document with shell denied. These small localhost
+reads do not establish long sessions, remote Hosts or real plugin/image workflows.
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
 Only read/edit requests carrying absolute paths inside those folders and Host
 Roots can receive the returned `allow_once` option. Edits additionally require
 `opened-folders`; `read-only` denies them. Fetch (URL/network) requests receive allow_once in opened-folders and are denied in read-only.
-Missing paths on read/edit, execution and unknown requests are cancelled in restricted access. The owner-approved `full-access`
+Missing paths on native read/edit, execution and unknown requests are cancelled in restricted access. Known Litzio MCP tool permission requests can receive allow_once during an active turn; execution independently enforces Host scope. The owner-approved `full-access`
 value instead selects an allow_once (or allow_always) response for every active-turn
 request, including tool execution, paths outside opened folders and URLs. Like Paseo,
 Host sends `allow_all=on` when advertised; Agent/Plan remains the selected session
@@ -1418,7 +1447,7 @@ remain PR3b's responsibility; remote panels do not dispatch the local Settings s
 
 Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md). Management is a separate Codex tool without per-call confirmation. Its action, target plugin ID and success/failure appear in the existing conversation tool activity and result, without settings values or secrets. `reload` uses the same Host operation as CLI. Display tools remain restricted to their existing fields. Plugin execution belongs to the target Host; Secret values are supplied only through the settings UI and passed privately to the target plugin runtime; assistant management cannot input or retrieve them. View runtime contributions remain unsupported.
 
-K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 start/status/stop/result/list를 제공한다([계약](plugin-stage1-v1.md#k1-파일-작업)). 건별 승인은 없고 turn의 기존 tool 활동에 작업·성공/실패·결과가 남는다. 쓰기 모드와 열린 폴더 범위, 대상 Host 및 응답 상실 뒤 같은 ID 조회/no replay는 유지한다. 이 추가는 Copilot custom dynamic-tool 공급을 구현한 증거가 아니다.
+K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 start/status/stop/result/list를 제공한다([계약](plugin-stage1-v1.md#k1-파일-작업)). 건별 승인은 없고 turn의 기존 tool 활동에 작업·성공/실패·결과가 남는다. 쓰기 모드와 열린 폴더 범위, 대상 Host 및 응답 상실 뒤 같은 ID 조회/no replay는 유지한다. Copilot은 #1500의 HTTP MCP 경로로 같은 도구를 사용한다.
 
 Codex `invoke_plugin_operation`은 현재 대화 Host의 `assistant:true` 읽기 작업과 manifest 연결 확인을 같은 공용 실행 경로로 호출한다([계약](plugin-stage1-v1.md#비서의-플러그인-읽기-호출-1425)). 쓰기·비공개 일반 작업·읽기 전용 turn은 거부한다. 출력 검증·secret 제거·고정 오류 분류와 receipt를 유지하며 활동에는 작업·시각·결과 상태·receipt만 남긴다. 입력·출력 원문은 활동이나 재개된 활동에 포함하지 않는다.
 
@@ -2027,7 +2056,7 @@ conditions. Captures exclude unrelated Host identity and local paths.
 
 Codex registers the common review read/material, source-evidence run, proposal-only storage, inspection, image-estimate/image-read and request-status tools. [The plugin contract](plugin-stage1-v1.md#비서-국소-제안-1462-5단계) defines their inputs, CLI parity and boundaries. Human correction approval/rejection/Undo/completion are not assistant tools or question-card actions.
 
-The existing question tool accepts optional `reviewImage` (estimate input plus estimateHash). Host replaces the model's question with the current scope, counts and estimated input tokens. Only an actual answer to the rendered active card selects that comparison in the existing ledger; accepted:true alone does not. Ordinary provider/native questions and prose cannot create the selection. Decline, expiry and invalid/stale estimates grant no image access. The question index retains this estimate linkage with the existing interaction, without a new approval engine. Actual provider turn usage is recorded in inspection evidence, explicitly without per-image attribution. Copilot custom tool delivery remains unsupported.
+The existing question tool accepts optional `reviewImage` (estimate input plus estimateHash). Host replaces the model's question with the current scope, counts and estimated input tokens. Only an actual answer to the rendered active card selects that comparison in the existing ledger; accepted:true alone does not. Ordinary provider/native questions and prose cannot create the selection. Decline, expiry and invalid/stale estimates grant no image access. The question index retains this estimate linkage with the existing interaction, without a new approval engine. Actual provider turn usage is recorded in inspection evidence, explicitly without per-image attribution. Copilot receives these Host tools via MCP, but interactive question cards remain unsupported: request_litzio_user_input returns an explicit error and prose never grants review image access.
 
 이미지 대조 승인 카드는 Host의 구조화된 쪽·대상·예상량 기록을 화면 언어로 표시한다. 선택지는 승인/거절이며 전송 값은 `approve`/`decline`으로 고정한다. 직접 입력은 범위 승인에 해당하지 않아 제공하지 않는다. 계산 방식과 대상 상세는 공통 Tooltip에서 hover·keyboard focus로 읽는다. 실제 사람 답변·estimateHash 검증·렌더 확인과 승인 분리는 유지한다.
 

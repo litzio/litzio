@@ -16,6 +16,19 @@
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
 - Scope: local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
 
+## Copilot MCP transport (#1500)
+
+The existing HTTP listener routes `/api/assistant/mcp/<random-turn-token>` to the
+official assistant's SDK Streamable HTTP transport (JSON responses, no persistent
+MCP session store or second listener). ACP receives the Host socket's local address,
+not a client-supplied origin. Each token selects only Host-owned conversation/turn
+state; tool inputs cannot grant folders or permissions. Tool discovery is available
+during session setup, while execution requires the matching active turn. Tokens
+are revoked at completion, failure, cancellation, disconnect and shutdown and rotate
+through ACP loadSession before another turn. Existing HTTP Host/Origin checks remain;
+this capability is not daemon authentication. See [Main agent](main-agent-v1.md#copilot-host-tools-over-http-mcp-1500)
+for provider approval flags and unsupported question cards.
+
 ## Host별 클라이언트 경계 (#1174 PR2)
 
 로컬 재연결로 origin이 바뀌면 기존 세션·receipt의 후속 요청(저장·rollback·비서·템플릿)은 전송 전에 명시적으로 거부한다. 새 작업만 새 client를 얻으며 같은 origin으로 다시 연결한 경우에는 기존 세션을 유지한다. 이미 전송한 요청은 재전송하지 않는다.

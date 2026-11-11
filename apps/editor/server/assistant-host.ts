@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import type { PluginService } from "./plugin-service.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
@@ -113,5 +114,14 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       await draining;
     })();
   };
-  return { invoke, route, close };
+  const http = async (req: IncomingMessage, res: ServerResponse) => {
+    const url = new URL(req.url ?? "", "http://localhost");
+    if (!url.pathname.startsWith("/api/assistant/")) return false;
+    if (closed) throw new Error("The Assistant Host is closing.");
+    const address = req.socket.localAddress;
+    if (req.socket.localPort) history().mcp.base = `http://${address?.includes(":") ? `[${address}]` : address}:${req.socket.localPort}`;
+    if (!url.pathname.startsWith("/api/assistant/mcp/")) return false;
+    await history().mcp.handle(req, res); return true;
+  };
+  return { invoke, route, close, http };
 }
