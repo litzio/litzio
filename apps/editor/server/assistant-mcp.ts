@@ -57,4 +57,3 @@ export class AssistantMcp {
     finally { await transport.close(); await server.close(); }
   }
 }
-
