@@ -1457,7 +1457,7 @@ The Codex model catalog reads the official `configRequirements/read` request and
 whether `allowedSandboxModes` permits `danger-full-access`; no organization identifiers are returned.
 Settings and composer disable Full access with a reason in the existing permission Tooltip.
 Servers that report an unsupported method keep the choice available. A turn-start rejection
-for DangerFullAccess outside the allowed sandbox set retries once with opened-folders, only after an explicit turn/start RPC rejection before execution with no active turn. Transport failures and execution errors are never retried. The conversation remembers opened-folders, including resume; global settings remain unchanged. The panel shows the status with a hover/focus explanation.
+for DangerFullAccess outside the allowed sandbox set retries once with opened-folders, only after an explicit turn/start RPC rejection before execution with no active turn. Transport failures and execution errors are never retried. The conversation remembers opened-folders, including resume; global settings remain unchanged. The panel shows the status with a hover/focus explanation. An explicit different permission on a subsequent turn clears the remembered fallback notice; steering keeps the active turn scope.
 A rejected submission retains its message row with an explicit Restore to input action; existing conversation history remains available.
 Requirements can change after discovery; the turn rejection remains authoritative.
 

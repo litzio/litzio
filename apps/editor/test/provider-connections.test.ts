@@ -904,6 +904,13 @@ test("Codex requirements disable full access; policy rejection retries once befo
   await conversations.send({ ...input, id: restored.id }, { ...settings, permissionMode: "full-access" });
   assert.equal(policies.at(-1), "workspaceWrite", "next turn does not repeat the rejection");
   await conversations.interrupt(restored.id);
+  const changed = await conversations.send({ ...input, id: restored.id, permissionMode: "read-only" }, settings);
+  assert.equal(changed.permissionMode, "read-only");
+  assert.equal(changed.permissionFallback, undefined, "explicit changed permission clears the fallback notice");
+  await conversations.interrupt(changed.id);
+  const reopened = await new AssistantConversations(connection, null).resume(changed.id, settings);
+  assert.equal(reopened.permissionFallback, undefined, "cleared notice stays cleared on resume");
+  assert.equal(reopened.permissionMode, "read-only");
   uncertain = true;
   const attempts = policies.length;
   await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access" }, settings), /Connection closed before response/);

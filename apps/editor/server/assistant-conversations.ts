@@ -350,6 +350,7 @@ export class AssistantConversations {
       if (active) {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
+        if (input.permissionMode !== undefined && input.permissionMode !== conversation.permissionMode) delete conversation.permissionFallback;
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
         this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient });
         const writableRoots = [...folders];
