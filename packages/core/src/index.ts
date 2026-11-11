@@ -13,6 +13,7 @@ import { createDocument as createNativeDocument, parseNativeDocument as parseTre
   canonicalWriteError as canonicalWriteErrorTree, canonicalWriteIssue as canonicalWriteIssueTree } from "./myst/native.ts";
 import type { MystDocument } from "./myst/tree.ts";
 import * as operations from "./operations.ts";
+import * as requirementOperations from "./requirement-operations.ts";
 import { unresolvedReferences as unresolvedReferencesTree } from "./references.ts";
 import { validateStructure as validateTree } from "./validation.ts";
 import { updateDocumentTitle as updateDocumentTitleTree } from "./myst/title.ts";
@@ -143,6 +144,11 @@ export const insertFootnote = fence(operations.insertFootnote);
 export const insertFootnoteDefinition = fence(operations.insertFootnoteDefinition);
 export const updateFootnoteDefinition = fence(operations.updateFootnoteDefinition);
 export const updateLabel = fence(operations.updateLabel);
+export const insertRequirement = fence(requirementOperations.insertRequirement);
+export const updateRequirement = fence(requirementOperations.updateRequirement);
+export const assignAnchors = fence(requirementOperations.assignAnchors);
+export type { RequirementContent, RequirementSource, RequirementStatus, RequirementType, RequirementStrength } from "./myst/requirement.ts";
+export { REQUIREMENT_STATUSES, REQUIREMENT_TYPES, REQUIREMENT_STRENGTHS, requirementIdError, requirementContentError, formatSource, parseSource } from "./myst/requirement.ts";
 export const insertTarget = fence(operations.insertTarget);
 export const validateFigure = operations.validateFigure;
 export { evaluateBibliography, BIBLIOGRAPHY_LIMITS } from "./bibliography.ts";
@@ -155,3 +161,14 @@ export const createDocumentFromTemplate = fence(templates.createDocumentFromTemp
 
 export type { DocumentComparison, BlockChange } from "./compare.ts";
 export const compareDocuments = fence(compareTrees);
+
+export {
+  splitSentences, normativeStrength, sentenceHash, normalizeSentence, standardUnits, checkTraceability, extractCandidates,
+  candidateType, sourceOf, nextRequirementId, insertionIndexForClause, requirementBlocks,
+} from "./requirements.ts";
+export type {
+  StandardSentence, StandardUnit, TraceReport, TraceIssue, TraceIssueKind, RequirementCheck, SourceCheck, SourceState,
+  SentenceCheck, SentenceState, Candidate, Exclusion,
+} from "./requirements.ts";
+export { exportReqif, type ReqifOptions } from "./reqif.ts";
+export { draftSystemDocument, rewriteStatement, requirementTitle, type DraftOptions } from "./requirement-draft.ts";

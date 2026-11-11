@@ -5,6 +5,7 @@ import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-erro
 import { validateStructure } from "../validation.ts";
 import { supportedAdmonitionContent } from "./admonition.ts";
 import { supportedCodeBlock } from "./code.ts";
+import { isRequirementNode, readRequirement } from "./requirement.ts";
 import { isFigure, supportedFigureContent } from "./figure.ts";
 import { supportedFootnoteContent } from "./footnote.ts";
 import { supportedListContent } from "./list.ts";
@@ -95,6 +96,7 @@ function supportedBlock(node: MystNode): boolean {
   if (node.type === "heading") return supportedHeadingContent(node) !== undefined;
   if (node.type === "paragraph") return fields(node, ["children"]) && projectInlineContent(node) !== undefined;
   if (node.type === "admonition") return supportedAdmonitionContent(node) !== undefined;
+  if (isRequirementNode(node)) return "content" in readRequirement(node);
   if (node.type === "blockquote") return supportedQuoteContent(node) !== undefined;
   if (node.type === "footnoteDefinition") return supportedFootnoteContent(node) !== undefined;
   if (node.type === "math") return fields(node, ["value", "label", "identifier", "html_id", "enumerator"]) && typeof node.value === "string" &&
@@ -150,6 +152,10 @@ export function assertNativeDocument(document: MystDocument): void {
   }
   document.children.forEach((node, index) => {
     if (index === 0) return;
+    if (isRequirementNode(node)) {
+      const read = readRequirement(node);
+      if ("error" in read) throw new NativeDocumentError("native-content", `Unsupported requirement block: ${read.error}`, [index], node.position?.start.line);
+    }
     if (!supportedBlock(node)) throw new NativeDocumentError("native-content", `Unsupported native content: ${node.type}${node.kind ? ` (${node.kind})` : ""}`, [index], node.position?.start.line);
     assertInlineContent(node, [index]);
   });

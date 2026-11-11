@@ -8,6 +8,7 @@ import { getReferenceTemplates } from "./myst/reference-templates.ts";
 import { tableCellContent, tableOf, tableCaptionParagraph } from "./myst/table.ts";
 import { inlineContentText, projectInlineContent, type InlineContent } from "./inline.ts";
 import { supportedAdmonitionContent } from "./myst/admonition.ts";
+import { isRequirementNode, readRequirement, type RequirementContent } from "./myst/requirement.ts";
 import type { ListContent } from "./list.ts";
 import type { CodeBlockContent } from "./code.ts";
 import { supportedCodeBlock } from "./myst/code.ts";
@@ -133,6 +134,12 @@ export type EditableBlock =
       latex: string;
       label: string;
     }
+  | ({
+      /** A requirement block (spike): persistent ID, attributes, source links and a plain-text body. */
+      block: "requirement";
+      path: NodePath;
+      editable: true;
+    } & RequirementContent)
   | {
       /** A `(label)=` target: it labels the block after it, typically a section heading. */
       block: "target";
@@ -188,6 +195,11 @@ function toBlock(node: MystNode, path: NodePath): EditableBlock {
       content,
       editable: true as const,
     };
+  }
+  if (isRequirementNode(node)) {
+    const read = readRequirement(node);
+    if (!("content" in read)) throw new Error(`Unsupported requirement at [${path.join(",")}]: ${read.error}`);
+    return { block: "requirement", path, editable: true as const, ...read.content };
   }
   if (node.type === "blockquote") {
     const content = requireContent(supportedQuoteContent(node));
