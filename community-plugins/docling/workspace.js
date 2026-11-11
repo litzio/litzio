@@ -38,7 +38,7 @@ export function workspaceState(archive) {
       const mapped=report.items.find(entry=>entry.self_ref===item.self_ref);
       item.excluded=mapped?.status==="excluded";
       const block=mapped?.targets.length===1 && blocks.find(block=>same(block.path,mapped.targets[0].path));
-      if(block && ["paragraph","heading"].includes(block.block) && item.kind==="texts" && !["caption","list_item"].includes(item.label)) {
+      if(block && ["paragraph","heading"].includes(block.block) && item.kind==="texts") {
         item.text=block.text; item.label=block.block==="heading"?"section_header":"text";
         if(block.block==="heading")item.level=block.level;else delete item.level;
       }
@@ -95,12 +95,14 @@ function correctionSession(archive,snapshot,report) {
     const fields={text:["type","self_ref","text"],kind:["type","self_ref","kind",...(op.kind==="heading"?["level"]:[])],
       cell:["type","self_ref","cell","text"],exclude:["type","self_ref","excluded"]}[op.type];
     if(!fields || !same(Object.keys(op).sort(),fields.sort()))throw new Error("Invalid correction fields");
-    const independent=targets.length===1 && ["paragraph","heading"].includes(targets[0].block) && op.self_ref.startsWith("#/texts/") &&
-      !["caption","list_item"].includes(originalReviewTarget(archive.document,op).label);
+    const independent=targets.length===1 && ["paragraph","heading"].includes(targets[0].block) && op.self_ref.startsWith("#/texts/");
     if(op.type==="kind" && !independent)throw new Error(kindReason);
     if(op.type==="kind" && (!["paragraph","heading"].includes(op.kind) || op.kind==="heading" && (!Number.isInteger(op.level)||op.level<1||op.level>6)))throw new Error("Expected paragraph or heading 1–6");
     if(["text","cell"].includes(op.type) && (typeof op.text!=="string" || op.text.length>100000 || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(op.text)))throw new Error("Expected Unicode text");
-    if(op.type==="text")textTarget(item);
+    if(op.type==="text"){
+      if(!op.self_ref.startsWith("#/texts/"))throw new Error("Text correction requires an original text item");
+      textTarget(item);
+    }
     if(op.type==="exclude" && (op.excluded!==true || !targets.length))throw new Error("Exclude existing blocks; restore through Undo");
     if(op.type==="cell" && (!item.cells?.some(cell=>cell.index===op.cell) || !targets.some(block=>block.block==="table")))throw new Error("Cell correspondence unavailable");
     return item;
