@@ -411,8 +411,9 @@ test("Docling saved document corrections preserve independent proposals, mapping
     // Provider/canonical validation/commit failures retain the complete document and judgment history.
     const before=readFileSync(file),approval=()=>decide("groups-approve",a.group);
     for(const mode of ["workspace-prepare","mixed"]){fail=mode;assert.equal((await approval()).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),before);}fail="";
-    const rename=fs.renameSync,fault=t.mock.method(fs,"renameSync",(from:fs.PathLike,to:fs.PathLike)=>{if(to===file)throw Object.assign(new Error("Injected replacement failure"),{code:"EACCES"});return rename(from,to);});syncBuiltinESMExports();
-    try{const failed=await approval();assert.equal(failed.receipt.outcome,"uncertain");assert.deepEqual(readFileSync(file),before);await assert.rejects(approval(),/Uncertain workspace/);await host.execute({action:"workspace-status",requestId:failed.receipt.requestId});await read();}finally{fault.mock.restore();syncBuiltinESMExports();}
+    // File commit resolves aliases (including Windows 8.3 temp roots) before rename.
+    const rename=fs.renameSync,commitTarget=canonicalFilePath(file),fault=t.mock.method(fs,"renameSync",(from:fs.PathLike,to:fs.PathLike)=>{if(to===commitTarget)throw Object.assign(new Error("Injected replacement failure"),{code:"EACCES"});return rename(from,to);});syncBuiltinESMExports();
+    try{const failed=await approval();assert.equal(failed.error,"Injected replacement failure");assert.equal(failed.receipt.outcome,"uncertain");assert.deepEqual(readFileSync(file),before);await assert.rejects(approval(),/Uncertain workspace/);await host.execute({action:"workspace-status",requestId:failed.receipt.requestId});await read();}finally{fault.mock.restore();syncBuiltinESMExports();}
     assert.equal((await decide("groups-approve",a.group,opened.baseline)).receipt.outcome,"failure");
     const requestId=randomUUID(),approved=await decide("groups-approve",a.group,digest(before),requestId);assert.equal(approved.saved,true,JSON.stringify(approved));
     await assert.rejects(decide("groups-approve",a.group,approved.baseline,requestId),/Duplicate requestId/);

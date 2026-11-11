@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { commitFile, textRevision } from "@litzio/file-commit";
 import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
-import { RootAccess } from "../server/file-access.ts";
+import { RootAccess, canonicalFilePath } from "../server/file-access.ts";
 import { loadDocumentFile } from "../server/document-reader.ts";
 import { generatedDocumentIdentity, generatedDocumentLinkPath, isManagedGeneratedDocument } from "../server/generated-document.ts";
 import { emptyReviewLedger, updateReviewLedger, workspaceSnapshotSchema, type ReviewGroupTarget } from "@litzio/plugin-sdk";
@@ -83,11 +83,13 @@ test("generic workspace groups preserve source and history through partial decis
     assert.equal((await mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true})).receipt.outcome,"failure");
     fail="";
     const fs = (await import("node:fs")).default, { syncBuiltinESMExports } = await import("node:module");
-    const rename = fs.renameSync, beforeCommit = readFileSync(file);
-    const fault = t.mock.method(fs,"renameSync",(from: import("node:fs").PathLike,to: import("node:fs").PathLike)=>{if(to===file)throw Object.assign(new Error("Injected commit failure"),{code:"EACCES"});return rename(from,to);});
+    // File commit resolves aliases (including Windows 8.3 temp roots) before rename.
+    const rename = fs.renameSync, beforeCommit = readFileSync(file), commitTarget = canonicalFilePath(file);
+    const fault = t.mock.method(fs,"renameSync",(from: import("node:fs").PathLike,to: import("node:fs").PathLike)=>{if(to===commitTarget)throw Object.assign(new Error("Injected commit failure"),{code:"EACCES"});return rename(from,to);});
     syncBuiltinESMExports();
     try {
       const failed = await mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true});
+      assert.equal(failed.error,"Injected commit failure");
       assert.equal(failed.receipt.outcome,"uncertain");assert.deepEqual(readFileSync(file),beforeCommit);
       await assert.rejects(mutate({kind:"groups-approve",groupId:"g2",targetIds:["a"],human,resolvesIssue:true}),/Uncertain workspace/);
       await host.execute({action:"workspace-status",requestId:failed.receipt.requestId}); await read();
