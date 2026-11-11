@@ -1022,6 +1022,15 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   const original = path.join(root, "a.md"), source = "---\nlitzio: 1\n---\n\nFirst paragraph.\n\nSecond paragraph.\n";
   writeFileSync(original, source);
   const payload = (result: any) => JSON.parse(result.content[0].text);
+  const structuredPath=path.join(root,"structured-mcp.md");
+  const operations=[{command:"insert-table",at:"end",cells:[["Task","State"],["A","Done"]]},{command:"insert-figure",at:"end",image:"missing.png",caption:"Chart"}];
+  const rejectedStructure=await one.callTool({name:"create_document",arguments:{path:structuredPath,title:"Report",operations:[...operations,{command:"remove-block",at:99999}]}});
+  assert.equal(rejectedStructure.isError,true);assert.equal(payload(rejectedStructure).errorKind,"invalid_input");
+  assert.equal(payload(rejectedStructure).recovery.action,"correct_input");assert.equal(existsSync(structuredPath),false);
+  const structured=await one.callTool({name:"create_document",arguments:{path:structuredPath,title:"Report",operations}});
+  assert.equal(structured.isError,false);assert.equal(payload(structured).receipt.outcome,"success");
+  assert.equal(payload(structured).path,structuredPath);assert.ok(payload(structured).revision);
+  assert.equal(payload(structured).readiness[0].status,"missing_or_unreadable","asset warnings must survive without becoming a document-write failure");
   const stagedResult = await one.callTool({ name: "stage_document", arguments: { path: original } });
   assert.equal(stagedResult.isError, false);
   const staged = payload(stagedResult);
@@ -1043,8 +1052,13 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.equal(payload(atomic).errorKind, "invalid_input");
   assert.match(payload(atomic).error, /operation 2/);
   assert.equal(readFileSync(staged.copy, "utf8"), editedBytes);
+  const badScreenAction=await one.callTool({name:"close_tabs",arguments:{}});
+  assert.equal(badScreenAction.isError,true);assert.equal(payload(badScreenAction).errorKind,"invalid_input");
   const stale = await one.callTool({ name: "edit_staged_document", arguments: editInput });
   assert.equal(stale.isError, true); assert.equal(payload(stale).errorKind, "conflict");
+  assert.equal(payload(stale).recovery.tool,"inspect_staged_document");
+  const refreshed=await one.callTool({name:payload(stale).recovery.tool,arguments:payload(stale).recovery.arguments});
+  assert.equal(payload(refreshed).copyRevision,payload(edited).copyRevision);
   assert.equal(readFileSync(original, "utf8"), source, "MCP edits only the pending copy, awaiting human Apply");
   const other = await conversations.send(input, settings);
   const otherClient = await connect(endpoint());
@@ -1088,8 +1102,11 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
     assert.throws(() => conversations.screenActions.reply("other-conversation", "mcp-window-one", action.id, reply), /another window/);
     conversations.screenActions.reply(first.id, "mcp-window-one", action.id, reply);
     const result = await actionCall;
-    assert.equal(result.isError, false);
-    assert.deepEqual(JSON.parse((result.content as {text: string}[])[0]!.text), reply);
+    assert.equal(result.isError, true);
+    const {receipt,errorKind,recovery,...targets}=payload(result);
+    assert.deepEqual(targets,reply);
+    assert.equal(receipt.outcome,"failure");assert.equal(errorKind,"conflict");
+    assert.equal(recovery.tool,"read_screen_context");
   }
   const permission = (serverName: string, toolName: string, metadata = true) => connection.copilot.permission!({ sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title: "litzio_host-list_documents", ...(metadata ? { rawInput: { serverName, toolName } } : {}) }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] });
   assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "selected");
@@ -1102,6 +1119,7 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.equal(noWindow.isError, true);
   assert.match(JSON.stringify(noWindow.content), /No originating Litzio window/);
   const noActionWindow = await two.callTool({name: "close_tabs", arguments: {tabIds: "all"}});
+  assert.equal(noActionWindow.isError,true);
   assert.equal(JSON.parse((noActionWindow.content as {text: string}[])[0]!.text).outcome, "unavailable");
   assert.equal((await two.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "read-only MCP dispatch uses the same Host plugin operation path");
   assert.equal((await two.callTool({ name: "list_documents", arguments: { path: root } })).isError, true, "a second conversation cannot inherit the first folder scope");
@@ -1115,6 +1133,8 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.ok(conversations.screenActions.snapshot(first.id, "mcp-window-one"));
   await conversations.interrupt(first.id);
   const endedAction = await endingAction;
+  assert.equal(endedAction.isError,true);
+  assert.equal(payload(endedAction).recovery.tool,"read_screen_context");
   assert.equal(JSON.parse((endedAction.content as {text: string}[])[0]!.text).outcome, "uncertain");
   assert.equal(conversations.screenActions.snapshot(first.id, "mcp-window-one"), undefined);
 

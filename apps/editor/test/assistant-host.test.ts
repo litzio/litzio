@@ -436,6 +436,74 @@ test("staged Host tools edit atomically by conversation receipt with scoped revi
   assert.equal(fs.existsSync(original),false,"editing a copy must not recreate a deleted original");
 });
 
+test("provider-neutral tool failures expose executable recovery without replaying writes", async t => {
+  const { AssistantConversations } = await import("../server/assistant-conversations.ts");
+  const { RootAccess } = await import("../server/file-access.ts");
+  const root = mkdtempSync(path.join(tmpdir(),"tool-recovery-"));
+  const connection = new ProviderConnections(path.join(root,"assistant"));
+  const history:any = new AssistantConversations(connection,null);
+  t.after(async()=>{await history.close();await connection.close();rmSync(root,{recursive:true,force:true});});
+  const original=path.join(root,"a.md");writeFileSync(original,"---\nlitzio: 1\n---\n\nBefore.\n");
+  history.conversations.set("one",{id:"one",title:"fixture",folders:[root],createdAt:1,updatedAt:1,turns:[{id:"turn",status:"inProgress",items:[]}]});
+  const scope={folders:new RootAccess([root]),access:null,permissionMode:"opened-folders",turnId:"turn"};
+  history.scopes.set("one",scope);
+  const invoke=async(tool:string,args:any)=>{
+    const result:any=await connection.client.toolCall!({threadId:"one",turnId:"turn",callId:"call",tool,arguments:args});
+    return {success:result.success,...JSON.parse(result.contentItems[0].text)};
+  };
+  const badAction=await invoke("close_tabs",{});
+  assert.equal(badAction.success,false);assert.equal(badAction.errorKind,"invalid_input");
+  const noWindow=await invoke("close_tabs",{tabIds:"all"});
+  assert.equal(noWindow.errorKind,"unavailable");assert.equal(noWindow.recovery.tool,"read_screen_context");
+  const {AgentScreenActionRequests}=await import("../server/assistant-screen-action-tools.ts");
+  history.screenActions=new AgentScreenActionRequests(1);
+  (scope as any).displayClient="window";
+  const timedOut=await invoke("close_tabs",{tabIds:"all"});
+  assert.equal(timedOut.success,false);assert.equal(timedOut.errorKind,"uncertain");
+  assert.equal(timedOut.recovery.tool,"read_screen_context");assert.deepEqual(timedOut.completed,[]);
+  assert.equal(timedOut.remaining.length,1);delete (scope as any).displayClient;
+  const invalid=await invoke("read_document",{path:"relative"});
+  assert.equal(invalid.errorKind,"invalid_input");assert.equal(invalid.recovery.action,"correct_input");
+  for(const [tool,input] of [["create_document",{path:"report.md",template:"builtin:ai-report"}],["save_template",{from:"source.md",name:"Relative"}]] as const) {
+    const relative=await invoke(tool,input);
+    assert.equal(relative.success,false);assert.equal(relative.errorKind,"invalid_input");
+    assert.equal(relative.recovery.action,"correct_input");assert.match(relative.recovery.instruction,/absolute path.*opened folder/i);
+    const folders=scope.folders;(scope as any).folders=null;
+    const missingFolder=await invoke(tool,tool === "create_document" ? {...input,path:path.join(root,"report.md")} : {...input,from:original});
+    assert.equal(missingFolder.errorKind,"forbidden");scope.folders=folders;
+  }
+  const staged=await invoke("stage_document",{path:original});
+  const inspected=await invoke("inspect_staged_document",{change:staged.id});
+  const args={change:staged.id,copyRevision:inspected.copyRevision,operations:[{command:"insert-block",at:"end",text:"Intended."}]};
+  assert.equal((await invoke("edit_staged_document",args)).success,true);
+  const conflict=await invoke("edit_staged_document",args);
+  assert.equal(conflict.success,false);assert.equal(conflict.errorKind,"conflict");
+  const current=await invoke(conflict.recovery.tool,conflict.recovery.arguments);
+  assert.equal((await invoke("edit_staged_document",{...args,copyRevision:current.copyRevision})).success,true);
+  scope.permissionMode="read-only";
+  const forbidden=await invoke("edit_staged_document",args);
+  assert.equal(forbidden.errorKind,"forbidden");assert.match(forbidden.recovery.instruction,/Opened folders/);
+  scope.permissionMode="opened-folders";
+  const location={root,workspace:"a.md",plugin:"fixture",job:"workspace"};
+  let writes=0;
+  history.plugins={generatedDocuments:{execute:async(input:any)=>{
+    if(input.action==="workspace-find")return {targets:[location]};
+    if(input.action==="workspace-read")return {receipt:{outcome:"success"},baseline:"a".repeat(64)};
+    if(input.action==="workspace-status")return {state:"unknown"};
+    writes++;throw new Error("Lost response");
+  }}};
+  const uncertain=await invoke("run_review_source_evidence",{path:original});
+  assert.equal(uncertain.errorKind,"uncertain");assert.equal(uncertain.receipt.outcome,"uncertain");
+  assert.match(uncertain.receipt.requestId,/^[a-f0-9-]{36}$/);
+  assert.equal(uncertain.recovery.arguments.requestId,uncertain.receipt.requestId);
+  const status=await invoke(uncertain.recovery.tool,uncertain.recovery.arguments);
+  assert.equal(status.errorKind,"uncertain");assert.equal(writes,1,"status observation must never replay a write");
+  history.plugins.generatedDocuments.execute=async()=>({targets:[location,{...location,plugin:"other"}]});
+  const ambiguous=await invoke("read_review_document",{path:original});
+  assert.equal(ambiguous.errorKind,"invalid_input");assert.equal(ambiguous.candidates.length,2);
+  assert.equal(ambiguous.recovery.action,"narrow_candidates");
+});
+
 test("structured creation and pending edits reuse Core batches and report image readiness separately", async t => {
   const { executeDocumentTool } = await import("../server/assistant-document-tools.ts");
   const { AssistantChanges } = await import("../server/assistant-changes.ts");

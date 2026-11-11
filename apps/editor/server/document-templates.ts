@@ -11,7 +11,7 @@ import { BUILTIN_TEMPLATES } from "./builtin-templates.ts";
 import { hostPaths } from "./host-paths.ts";
 
 export function templateLanguage(value: unknown = "en"): TemplateLanguage {
-  if (value !== "ko" && value !== "en") throw new Error("Template language must be ko or en.");
+  if (value !== "ko" && value !== "en") throw Object.assign(new Error("Template language must be ko or en."),{errorKind:"invalid_input"});
   return value;
 }
 
@@ -55,7 +55,7 @@ export function listTemplates(language: TemplateLanguage = "en", directory = hos
 }
 
 export function readTemplate(name: string, language: TemplateLanguage = "en", directory = hostPaths().templates): TemplateContent {
-  if (typeof name !== "string" || !name) throw new Error("Template name or id is required.");
+  if (typeof name !== "string" || !name) throw Object.assign(new Error("Template name or id is required."),{errorKind:"invalid_input"});
   const defaults = builtins(language);
   const item = defaults.find(item => item.id === name || identity(item.name) === identity(name));
   if (item) return item;
@@ -73,17 +73,17 @@ export function templateDocumentSource(name: string, language: TemplateLanguage 
 }
 
 export function saveTemplate(request: SaveTemplateRequest, access: FileAccess = LOCAL_FILE_ACCESS, directory = hostPaths().templates): TemplateContent {
-  if (!request || typeof request.name !== "string" || !validFileStem(request.name)) throw new Error("Template name must be a valid file stem.");
-  if (typeof request.from !== "string" || !request.from.trim()) throw new Error("Source document path is required.");
+  if (!request || typeof request.name !== "string" || !validFileStem(request.name)) throw Object.assign(new Error("Template name must be a valid file stem."),{errorKind:"invalid_input"});
+  if (typeof request.from !== "string" || !request.from.trim()) throw Object.assign(new Error("Source document path is required."),{errorKind:"invalid_input"});
   const { name } = request;
-  if (reserved(name)) throw new Error("Template name is reserved for an app default.");
+  if (reserved(name)) throw Object.assign(new Error("Template name is reserved for an app default."),{errorKind:"invalid_input"});
   const file = resolveDocumentPath(request.from, access);
   const document = parse(decodeUtf8(fs.readFileSync(accessPath(file, access))));
   const description = request.description ?? getTemplateMetadata(document)?.description ?? "";
   const source = serialize(updateTemplateMetadata(document, { name, description }));
   const inventory = listTemplates("en", directory);
   if (inventory.templates.some(item => identity(item.name) === identity(name)) ||
-      (fs.existsSync(directory) && fs.readdirSync(directory).some(file => identity(file) === identity(`${name}.md`)))) throw new Error("Template already exists.");
+      (fs.existsSync(directory) && fs.readdirSync(directory).some(file => identity(file) === identity(`${name}.md`)))) throw Object.assign(new Error("Template already exists."),{errorKind:"conflict"});
   realDirectory(directory);
   fs.mkdirSync(directory, { recursive: true });
   fs.writeFileSync(path.join(directory, `${name}.md`), source, { encoding: "utf8", flag: "wx" });
@@ -110,19 +110,20 @@ export function executeTemplateOperation(operation: "read" | "save", input: unkn
 export function executeTemplateOperation(operation: "create", input: unknown, scope?: TemplateScope): DocumentCreationReceipt;
 export function executeTemplateOperation(operation: keyof typeof templateOperations, input: unknown, scope: TemplateScope = { access: LOCAL_FILE_ACCESS }) {
   const spec = templateOperations[operation];
-  if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some(key => !Object.hasOwn(spec.inputSchema.properties, key))) throw new Error("Unsupported template operation input.");
+  if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some(key => !Object.hasOwn(spec.inputSchema.properties, key))) throw Object.assign(new Error("Unsupported template operation input."),{errorKind:"invalid_input"});
   const value = input as Record<string, unknown>;
   for (const [key, property] of Object.entries(spec.inputSchema.properties)) {
-    if (value[key] !== undefined && property.type === "string" && typeof value[key] !== "string") throw new Error(`Invalid template ${key}.`);
+    if (value[key] !== undefined && property.type === "string" && typeof value[key] !== "string") throw Object.assign(new Error(`Invalid template ${key}.`),{errorKind:"invalid_input"});
   }
-  if ("required" in spec.inputSchema && spec.inputSchema.required.some(key => typeof value[key] !== "string" || !(value[key] as string).trim())) throw new Error("Required template operation input is missing.");
+  if ("required" in spec.inputSchema && spec.inputSchema.required.some(key => typeof value[key] !== "string" || !(value[key] as string).trim())) throw Object.assign(new Error("Required template operation input is missing."),{errorKind:"invalid_input"});
   const lang = templateLanguage(value.language);
   if (operation === "list") return listTemplates(lang, scope.directory);
   if (operation === "read") return readTemplate(value.template as string, lang, scope.directory);
-  if (scope.permissionMode !== undefined && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw new Error("Template writes are read-only for this turn.");
+  if (scope.permissionMode !== undefined && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw Object.assign(new Error("Template writes are read-only for this turn."),{errorKind:"forbidden"});
   const requested = (operation === "save" ? value.from : value.path) as string;
   const create = operation === "create";
-  if (scope.folders !== undefined && (!scope.folders || !path.isAbsolute(requested))) throw new Error("An absolute path inside an opened folder is required.");
+  if (scope.folders !== undefined && !scope.folders) throw Object.assign(new Error("An opened folder is required."),{errorKind:"forbidden"});
+  if (scope.folders !== undefined && !path.isAbsolute(requested)) throw Object.assign(new Error("Use an absolute path inside the current opened folder."),{errorKind:"invalid_input"});
   const file = accessPath(requested, scope.access, create);
   const target = scope.folders ? scope.folders.resolve(file, create) : file;
   if (operation === "save") return saveTemplate({ name: value.name as string, from: target, description: value.description as string | undefined }, scope.access, scope.directory);

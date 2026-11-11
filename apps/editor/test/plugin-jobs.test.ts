@@ -406,6 +406,23 @@ test("K1 admission classifies safe start failures and reserves numbered sibling 
     assert.equal(failed.startFailure?.kind, "start_failed");
     assert.equal(failed.state, "uncertain");
     assert.equal(failed.errorKind, "failed");
+    const {assistantToolValue}=await import("../server/assistant-tool-results.ts");
+    const mixed=await batch(["nested/report.txt","nested/wrong.pdf"]);
+    assert.equal(mixed.receipt.outcome,"uncertain");
+    const uncertainId=mixed.files[0]!.requestId!;
+    const call={threadId:"thread",turnId:"turn",callId:"call",tool:"plugin_jobs",arguments:{action:"job-start-many"}};
+    const published=assistantToolValue(mixed,call);
+    assert.notEqual(published.recovery.requestId,mixed.receipt.requestId);
+    assert.deepEqual(published.recovery.queries.map((query:any)=>query.arguments.requestId),[uncertainId]);
+    assert.equal(published.recovery.requestId,undefined,"the batch receipt is not a queryable job ID");
+    for(const query of published.recovery.queries) {
+      assert.equal(query.tool,"plugin_jobs");assert.equal(query.arguments.action,"job-status");
+      const observed=await jobs.execute(query.arguments);
+      assert.ok("job" in observed);assert.equal(observed.job.requestId,uncertainId);
+    }
+    const single=assistantToolValue(await jobs.execute({action:"job-status",requestId:uncertainId}),{...call,arguments:{action:"job-status",requestId:uncertainId}});
+    assert.equal(single.recovery.arguments.requestId,uncertainId,"single-job recovery stays unchanged");
+
     assert.ok(!JSON.stringify(jobs.list()).includes("private"));
     // A writer outside this daemon can race the reservation. Exclusive publication
     // must preserve that file; it must not silently overwrite or resend start.

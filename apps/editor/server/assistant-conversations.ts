@@ -1,3 +1,4 @@
+import { assistantToolFailure, assistantToolResult } from "./assistant-tool-results.ts";
 import { AgentScreenActionRequests, screenActionTools } from "./assistant-screen-action-tools.ts";
 import { AssistantMcp, type HostToolCall, type HostToolResult } from "./assistant-mcp.ts";
 import { AgentScreenRequests, screenTool } from "./assistant-screen-tools.ts";
@@ -111,9 +112,13 @@ export class AssistantConversations {
     });
   }
   private executeTool = async (params: HostToolCall): Promise<HostToolResult> => {
+    try { return assistantToolResult(await this.dispatchTool(params), params); }
+    catch (error) { return {success:false,contentItems:[{type:"inputText",text:JSON.stringify(assistantToolFailure(error,params))}]}; }
+  };
+  private dispatchTool = async (params: HostToolCall): Promise<HostToolResult> => {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
-      if (this.closed || !scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
+      if (this.closed || !scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw Object.assign(new Error("No authorized active turn for this tool call."),{errorKind:"forbidden"});
       if (params.tool === questionTool.name && this.current(params.threadId).provider === "copilot") throw new Error("Copilot question cards are unavailable. Ask in ordinary text; review image approval requires a supported question card.");
       if (params.tool === questionTool.name) return this.requestQuestion(this.current(params.threadId), active, params.callId, params.arguments, scope.displayClient);
       if (params.tool === "invoke_plugin_operation" && this.plugins) {
@@ -134,7 +139,7 @@ export class AssistantConversations {
           return { ...activity.toolResult };
         } catch (error) {
           activity.status = "failed";
-          activity.toolResult = { success: false, contentItems: [{ type: "inputText", text: String(error) }] };
+          activity.toolResult = { success: false, contentItems: [{ type: "inputText", text: JSON.stringify(assistantToolFailure(error,params)) }] };
           this.save(this.current(params.threadId));
           return { ...activity.toolResult };
         }
@@ -149,7 +154,7 @@ export class AssistantConversations {
             return {success:true,contentItems:[{type:"inputText",text:JSON.stringify({...result,images:images.map(({base64,...image}:any)=>image)})},...images.map((image:any)=>({type:"inputImage",imageUrl:`data:${image.mime};base64,${image.base64}`}))]};
           }
           return {success:result.receipt?.outcome!=="failure" && result.receipt?.outcome!=="uncertain",contentItems:[{type:"inputText",text:JSON.stringify(result)}]};
-        } catch(error) {return {success:false,contentItems:[{type:"inputText",text:JSON.stringify({error:String(error)})}]};}
+        } catch(error) {return {success:false,contentItems:[{type:"inputText",text:JSON.stringify(assistantToolFailure(error,params))}]};}
       }
       const templateScope = { ...scope, directory: this.connection.templatesDirectory, changes: new AssistantChanges(path.join(this.connection.cwd, "changes"), this.access), conversation: params.threadId };
       const result = params.tool === "manage_plugins" && this.plugins

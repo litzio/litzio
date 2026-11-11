@@ -707,11 +707,12 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     const empty = await invoke("fixture.lookup.read", { mode: "empty" });
     assert.equal(empty.success, true); assert.deepEqual(empty.result, []);
     const auth = await invoke("fixture.lookup.read", { mode: "auth" });
-    assert.equal(auth.success, false); assert.equal(auth.errorKind, "auth"); assert.equal(auth.receipt.outcome, "failure");
+    assert.equal(auth.recovery.action,"request_permission");
+    assert.equal(auth.success, false); assert.equal(auth.errorKind, "forbidden"); assert.equal(auth.receipt.outcome, "failure");
     for (const name of ["echo", "nested"]) {
       const refused = await invoke(`fixture.lookup.${name}`, {});
       assert.equal(refused.success, false, "Secret-bearing dynamic keys must not reach the provider");
-      assert.equal(refused.errorKind, "failed"); assert.equal(refused.receipt.outcome, "failure");
+      assert.equal(refused.errorKind, "unavailable"); assert.equal(refused.receipt.outcome, "failure");
       assert.ok(!("result" in refused)); assert.equal(JSON.stringify(refused).includes(secret), false);
     }
     for (const name of ["hidden", "write"]) {
@@ -720,7 +721,7 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     }
     for (const input of [{ mode: "invalid" }, { mode: 1 }]) {
       const invalid = await invoke("fixture.lookup.read", input);
-      assert.equal(invalid.success, false); assert.equal(invalid.errorKind, "failed"); assert.ok(!("result" in invalid));
+      assert.equal(invalid.success, false); assert.equal(invalid.errorKind, "unavailable"); assert.ok(!("result" in invalid));
     }
     for (const action of ["list", "scaffold", "reload"]) {
       const response: any = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: action === "list" ? { action } : action === "scaffold" ? { action, directory: path.join(root, "scaffolded"), id: "local.fixture" } : { action, id: "missing.plugin" } });

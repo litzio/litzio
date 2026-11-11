@@ -1,7 +1,7 @@
 import type { DocumentToolScope } from "./assistant-document-tools.ts";
 import { listFolder } from "./document-api.ts";
 import { statSync } from "node:fs";
-import { accessPath, canonicalFilePath, inside } from "./file-access.ts";
+import { FileAccessError, accessPath, canonicalFilePath, inside } from "./file-access.ts";
 import { PLUGIN_REGISTRATION_CHANGED, pluginManagementSchema, jobRequestSchema, PLUGIN_JOBS } from "@litzio/plugin-sdk";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { z } from "zod";
@@ -18,7 +18,7 @@ function reviewInput(raw:unknown) {
   if(!value || typeof value!=="object" || Array.isArray(value) || "path" in value || !("root" in value && "workspace" in value))return raw;
   const {root,workspace,plugin,job,baseline,requestId,...fields}=value;
   const location=workspaceRequestSchema.options[0]!.omit({action:true}).parse({root,workspace,plugin,job});
-  if(!path.isAbsolute(location.root) || path.isAbsolute(location.workspace))throw new Error("Expected an absolute Root and relative workspace");
+  if(!path.isAbsolute(location.root) || path.isAbsolute(location.workspace))throw Object.assign(new Error("Expected an absolute Root and relative workspace"),{errorKind:"invalid_input"});
   return {...fields,path:path.resolve(location.root,location.workspace)};
 }
 
@@ -49,7 +49,7 @@ export async function executePluginOperationTool(host: PluginHost, input: unknow
     activity.receipt = result.receipt;
     return { ...result, activity };
   } catch (error) {
-    const failure = publicOperationError(error, "read");
+    const failure = error instanceof z.ZodError ? {errorKind:"invalid_input",error:"Invalid plugin operation input; inspect the operation schema."} : publicOperationError(error, "read");
     return { ...failure, ...(failure.errorKind === "forbidden" ? { error: "Plugin operation refused: the assistant requires a declared read operation with assistant:true, or a health check. Broader turn permissions do not enable writes or private operations through this tool; use the dedicated authorized workflow." } : {}), activity };
   }
 }
@@ -57,38 +57,38 @@ export async function executePluginOperationTool(host: PluginHost, input: unknow
 export const pluginTools = [{ type: "function", name: "manage_plugins", description: "Manage plugins on this Host. Management runs without per-call approval and is recorded in conversation activity. Never supply secrets. Use list to inspect artifacts, registrationId and digests. Trust and enable with trust:true require the registrationId you inspected.", inputSchema: { type: "object", properties: { action: { type: "string", enum: ["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"] }, id: { type: "string" }, directory: { type: "string" }, template: { type: "string", enum: ["greet", "query", "file"] }, digest: { type: "string" }, registrationId: { type: "string" }, trust: { type: "boolean" }, settings: { type: "object", additionalProperties: true } }, required: ["action"], additionalProperties: false } }];
 export async function executePluginTool(host: PluginHost, input: unknown, activity: (entry: { action: string; id?: string; outcome: "success" | "failure" }) => void, scope?: DocumentToolScope) {
   input = pluginManagementSchema.parse(input);
-  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid plugin management input");
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw Object.assign(new Error("Invalid plugin management input"),{errorKind:"invalid_input"});
   const { action, ...args } = input as Record<string, any>;
-  if (!["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"].includes(action) || Object.keys(args).some(key => !["template", "id", "directory", "digest", "registrationId", "trust", "settings"].includes(key))) throw new Error("Invalid plugin management action");
+  if (!["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"].includes(action) || Object.keys(args).some(key => !["template", "id", "directory", "digest", "registrationId", "trust", "settings"].includes(key))) throw Object.assign(new Error("Invalid plugin management action"),{errorKind:"invalid_input"});
   const writes = !["list", "validate"].includes(action) && !(action === "settings" && args.settings === undefined);
   if (writes && scope?.permissionMode === "read-only") {
     const entry = { action, id: args.id, outcome: "failure" as const };
     activity(entry);
-    return { error: `Plugin management action ${action} is blocked in read-only turns. Switch to Opened folders or Full access to change plugins.`, activity: entry };
+    return { errorKind:"forbidden", error: `Plugin management action ${action} is blocked in read-only turns. Switch to Opened folders or Full access to change plugins.`, activity: entry };
   }
   try {
     let creationScope = scope?.folders;
     if (action === "scaffold") {
-      if (!scope || !["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("Plugin creation is read-only for this turn.");
+      if (!scope || !["opened-folders", "full-access"].includes(scope.permissionMode)) throw Object.assign(new Error("Plugin creation is read-only for this turn."),{errorKind:"forbidden"});
       if (scope.permissionMode === "opened-folders" && args.directory === undefined) creationScope = host.authoringAccess(true);
-      if (!creationScope) throw new Error("No writable folder for this turn.");
+      if (!creationScope) throw Object.assign(new Error("No writable folder for this turn."),{errorKind:"forbidden"});
       if (args.directory !== undefined) args.directory = creationScope.resolve(accessPath(args.directory, scope.access, true), true);
     }
     const result = await host.invoke(action, args, action === "scaffold" ? creationScope : undefined);
     const value = result as { id?: string; receipt?: { outcome: string } };
     const entry = { action, id: value.id ?? args.id, outcome: value.receipt?.outcome === "failure" ? "failure" as const : "success" as const };
     activity(entry);
-    return { result, ...(entry.outcome === "failure" ? { error: "Plugin validation failed; see result.errors." } : {}), activity: entry };
-  } catch (error) { activity({ action, id: args.id, outcome: "failure" }); return { error: error instanceof Error && error.message === PLUGIN_REGISTRATION_CHANGED ? PLUGIN_REGISTRATION_CHANGED : "Plugin management failed; inspect plugin status.", activity: { action, id: args.id, outcome: "failure" } }; }
+    return { result, ...(entry.outcome === "failure" ? { errorKind:"invalid_input", error: "Plugin validation failed; see result.errors." } : {}), activity: entry };
+  } catch (error) { activity({ action, id: args.id, outcome: "failure" }); return { errorKind:error instanceof Error && error.message === PLUGIN_REGISTRATION_CHANGED ? "conflict" : (error as any)?.errorKind ?? (error instanceof FileAccessError ? "forbidden" : ["list","validate"].includes(action) ? "unavailable" : "uncertain"), error: error instanceof Error && error.message === PLUGIN_REGISTRATION_CHANGED ? PLUGIN_REGISTRATION_CHANGED : "Plugin management failed; inspect plugin status.", activity: { action, id: args.id, outcome: "failure" } }; }
 }
 
 export const pluginJobTools = [{ type: "function", name: "plugin_jobs", description: "Start, observe, stop, read the result or list plugin jobs on this conversation's Host. Use the declared job bindings. Files and output are relative to the named Host Root. Generate one UUID for start; on uncertainty query that same requestId, never resend start. No per-call approval. Calls appear in conversation activity.", inputSchema: PLUGIN_JOBS.inputSchema }];
 export async function executePluginJobTool(host: PluginHost, input: unknown, scope: import("./assistant-document-tools.ts").DocumentToolScope) {
   const parsed = jobRequestSchema.parse(input);
   if (parsed.action === "job-start" || parsed.action === "job-start-many" || parsed.action === "job-stop") {
-    if (!["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("Plugin job writes are read-only for this turn.");
+    if (!["opened-folders", "full-access"].includes(scope.permissionMode)) throw Object.assign(new Error("Plugin job writes are read-only for this turn."),{errorKind:"forbidden"});
     const root = "root" in parsed ? parsed.root : host.jobs.list().jobs.find(job => job.requestId === parsed.requestId)?.root;
-    if (!root || !scope.folders) throw new Error("No opened folder for this job.");
+    if (!root || !scope.folders) throw Object.assign(new Error("No opened folder for this job."),{errorKind:"forbidden"});
     scope.folders.resolve(root);
   }
   const { action, ...args } = parsed;
@@ -106,7 +106,7 @@ function observations(scope:DocumentToolScope) {
   let reads=reviewReads.get(scope);if(!reads){reads=new Map();reviewReads.set(scope,reads);}return reads;
 }
 async function findReviewWorkspaces(host:ReviewHost, scope:DocumentToolScope, requested?:string) {
-  if(!scope.folders)throw new Error("No opened folders for this review.");
+  if(!scope.folders)throw Object.assign(new Error("No opened folders for this review."),{errorKind:"forbidden"});
   const candidates:any[]=[], seen=new Set<string>();
   const visit=async(root:string,file:string):Promise<void>=>{
     file=scope.folders!.resolve(accessPath(file,scope.access));
@@ -127,7 +127,7 @@ async function findReviewWorkspaces(host:ReviewHost, scope:DocumentToolScope, re
 }
 async function resolveReview(host:ReviewHost, requested:string, scope:DocumentToolScope):Promise<ReviewLocation> {
   const {targets}=await findReviewWorkspaces(host,scope,requested);
-  if(targets.length!==1)throw new Error(`${targets.length ? "Ambiguous review workspace" : "No review workspace found"} for ${requested}. Candidates: ${JSON.stringify(targets)}. Use find_review_workspaces to find an opened-folder path.`);
+  if(targets.length!==1)throw Object.assign(new Error(`${targets.length ? "Ambiguous review workspace" : "No review workspace found"} for ${requested}. Candidates: ${JSON.stringify(targets)}. Use find_review_workspaces to find an opened-folder path.`),{errorKind:targets.length ? "invalid_input" : "unavailable",candidates:targets});
   const {root,workspace,plugin,job}=targets[0];return {root,workspace,plugin,job};
 }
 const actionSchema = (action:string): any => workspaceRequestSchema.options.find((schema:any)=>schema.shape?.action?.value===action);
@@ -158,8 +158,8 @@ export const reviewAssistantTools: {type:string;name:string;description:string;i
 reviewAssistantTools.push({type:"function",name:"read_review_request_status",description:"Observe the same requestId after an uncertain review write; never replay it.",inputSchema:z.toJSONSchema(reviewPath.extend({requestId:z.uuid()}))});
 
 async function scopedReview(host:ReviewHost, input:any, scope:DocumentToolScope, writing=false) {
-  if (writing && !["opened-folders","full-access"].includes(scope.permissionMode)) throw new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.');
-  if (!scope.folders) throw new Error("No opened folders for this review.");
+  if (writing && !["opened-folders","full-access"].includes(scope.permissionMode)) throw Object.assign(new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.'),{errorKind:"forbidden"});
+  if (!scope.folders) throw Object.assign(new Error("No opened folders for this review."),{errorKind:"forbidden"});
   const root=scope.folders.resolve(accessPath(input.root,scope.access));
   scope.folders.resolve(accessPath(path.resolve(root,input.workspace),scope.access));
   const key=locationKey(input), reads=observations(scope);
@@ -167,7 +167,7 @@ async function scopedReview(host:ReviewHost, input:any, scope:DocumentToolScope,
     // Keep the last observed baseline: an external write after reading must still conflict.
     if(!reads.has(key)) {
       const read=await scopedReview(host,{root,workspace:input.workspace,plugin:input.plugin,job:input.job,action:"workspace-read"},scope);
-      if(!reads.has(key))throw new Error(read.error??"Read a current review workspace before writing");
+      if(!reads.has(key))throw Object.assign(new Error(read.error??"Read a current review workspace before writing"),{errorKind:"invalid_input"});
     }
     input={...input,baseline:reads.get(key)!.baseline};
   }
@@ -177,7 +177,7 @@ async function scopedReview(host:ReviewHost, input:any, scope:DocumentToolScope,
     if(result.baseline && result.receipt?.outcome==="success")reads.set(key,{baseline:result.baseline,materials:reads.get(key)?.materials??[]});
     return result;
   } catch(error) {
-    if(requestId)throw new Error(`${String(error)}. Review requestId: ${requestId}; query read_review_request_status, do not replay.`);
+    if(requestId && !(error as any)?.receipt)throw Object.assign(new Error(`${String(error)}. Review requestId: ${requestId}; query read_review_request_status, do not replay.`),{errorKind:"uncertain",receipt:{outcome:"uncertain",requestId}});
     throw error;
   }
 }
@@ -188,15 +188,15 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
     const location=await resolveReview(host,requested,scope);
     await scopedReview(host,{...location,action:"workspace-read"},scope);
     const result=await host.generatedDocuments.execute({action:"workspace-status",requestId});
-    if(result.receipt && result.receipt.scope!==location.root || result.workspace && ["plugin","job","workspace"].some(key=>result.workspace[key]!==location[key as keyof typeof location]))throw new Error("Review request belongs to another workspace");
+    if(result.receipt && result.receipt.scope!==location.root || result.workspace && ["plugin","job","workspace"].some(key=>result.workspace[key]!==location[key as keyof typeof location]))throw Object.assign(new Error("Review request belongs to another workspace"),{errorKind:"forbidden"});
     return result;
   }
   const schema=reviewInputs[name as keyof typeof reviewInputs];
-  if(!schema)throw new Error("Unknown review assistant tool");
+  if(!schema)throw Object.assign(new Error("Unknown review assistant tool"),{errorKind:"invalid_input"});
   const normalized=reviewInput(input);
   const parsed:any=schema.parse(normalized);
   if(name==="find_review_workspaces")return findReviewWorkspaces(host,scope,parsed.path);
-  if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name) && !["opened-folders","full-access"].includes(scope.permissionMode))throw new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.');
+  if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name) && !["opened-folders","full-access"].includes(scope.permissionMode))throw Object.assign(new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.'),{errorKind:"forbidden"});
   const {path:requested,...fields}=parsed;
   const location=await resolveReview(host,requested!,scope), args={...location,...fields} as any;
   if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name)) {
@@ -208,7 +208,7 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
   let action:string, extra:object={}, writing=false;
   if(name==="read_review_material") {
     const {kind,pageNo,...common}=args;
-    if(kind==="page" && !pageNo || kind!=="page" && pageNo!==undefined)throw new Error("pageNo is required only for page material");
+    if(kind==="page" && !pageNo || kind!=="page" && pageNo!==undefined)throw Object.assign(new Error("pageNo is required only for page material"),{errorKind:"invalid_input"});
     action=({lenses:"workspace-lenses","source-evidence":"workspace-evidence","required-checks":"workspace-required-checks",groups:"workspace-groups-read",page:"workspace-material"} as any)[kind];
     const result=await scopedReview(host,{...common,action,...(kind==="page"?{pageNo}:{}),...(kind==="source-evidence"?{mode:"read"}:{})},scope);
     if(kind==="page" && result.material && result.receipt?.outcome==="success") {
@@ -229,14 +229,14 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
     if(!imageRunId && records.some((record:any)=>!(record.scope.pages.length || record.scope.targets.length) ||
       record.contentRevision!==state.contentRevision ||
       !record.scope.pages.every((page:number)=>material.some(read=>read.scope.pages.includes(page))) ||
-      !record.scope.targets.every((target:string)=>material.some(read=>read.scope.targets.includes(target)))))throw new Error("Read page material for this workspace and revision in this turn before recording inspection");
+      !record.scope.targets.every((target:string)=>material.some(read=>read.scope.targets.includes(target)))))throw Object.assign(new Error("Read page material for this workspace and revision in this turn before recording inspection"),{errorKind:"invalid_input"});
     if(imageRunId){
       const run=state.ledger?.comparisons.findLast((run:any)=>run.runId===imageRunId);
       const approval=state.ledger?.inspections.find((r:any)=>r.runId===imageRunId && (()=>{try{return JSON.parse(r.evidence).format==="review-image-approval-1";}catch{return false;}})());
       const approved=approval?JSON.parse(approval.evidence):null;
-      if(!run?.selected || run.withdrawn || approved?.documentRevision!==state.documentRevision || records.some((r:any)=>r.state==="not-inspected" || !r.scope.pages.length || r.scope.pages.some((p:number)=>!run.scope.pages.includes(p)) || r.scope.targets.some((t:string)=>!run.scope.targets.includes(t))))throw new Error("Inspection outside approved image scope/revision");
-      if(!approved.images.every((image:any)=>delivered.some(d=>d.runId===imageRunId && d.documentRevision===state.documentRevision && ["root","workspace","plugin","job"].every(key=>d.input[key]===args[key]) && d.scope.pages.includes(image.page) && (image.target?d.scope.targets.includes(image.target):!d.scope.targets.length))))throw new Error("Read approved images before recording comparison");
-      if(!run.scope.pages.every((p:number)=>records.some((r:any)=>r.scope.pages.includes(p))) || !run.scope.targets.every((t:string)=>records.some((r:any)=>r.scope.targets.includes(t))))throw new Error("Record the complete approved image scope, or leave it not compared");
+      if(!run?.selected || run.withdrawn || approved?.documentRevision!==state.documentRevision || records.some((r:any)=>r.state==="not-inspected" || !r.scope.pages.length || r.scope.pages.some((p:number)=>!run.scope.pages.includes(p)) || r.scope.targets.some((t:string)=>!run.scope.targets.includes(t))))throw Object.assign(new Error("Inspection outside approved image scope/revision"),{errorKind:"forbidden"});
+      if(!approved.images.every((image:any)=>delivered.some(d=>d.runId===imageRunId && d.documentRevision===state.documentRevision && ["root","workspace","plugin","job"].every(key=>d.input[key]===args[key]) && d.scope.pages.includes(image.page) && (image.target?d.scope.targets.includes(image.target):!d.scope.targets.length))))throw Object.assign(new Error("Read approved images before recording comparison"),{errorKind:"invalid_input"});
+      if(!run.scope.pages.every((p:number)=>records.some((r:any)=>r.scope.pages.includes(p))) || !run.scope.targets.every((t:string)=>records.some((r:any)=>r.scope.targets.includes(t))))throw Object.assign(new Error("Record the complete approved image scope, or leave it not compared"),{errorKind:"invalid_input"});
       comparisons.push({...run,state:"compared"});
     }
     return scopedReview(host,{...common,action:"workspace-review-change",change:{kind:"inspection",comparisons,records:records.map((record:any)=>({...record,runId:imageRunId??randomUUID()}))}},scope,true);
@@ -250,14 +250,14 @@ export async function answerReviewImageQuestion(host:Pick<PluginHost,"generatedD
   const {estimateHash,path:requested,selection}=parseReviewImageQuestion(raw);
   const request={...await resolveReview(host,requested,scope),selection};
   const estimate=await scopedReview(host,{...request,action:"workspace-image-estimate"},scope);
-  if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw new Error("Image estimate changed; request a new human approval");
+  if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw Object.assign(new Error("Image estimate changed; request a new human approval"),{errorKind:"invalid_input"});
   assertActive();
   const runId=randomUUID();
   const result=await scopedReview(host,{root:request.root,workspace:request.workspace,plugin:request.plugin,job:request.job,action:"workspace-review-change",baseline:estimate.baseline,requestId:randomUUID(),change:{kind:"inspection",
     comparisons:[{runId,contentRevision:estimate.contentRevision,scope:request.selection,state:"not-compared",selected:true,withdrawn:null}],
     records:[{runId,lens:"source-evidence",contentRevision:estimate.contentRevision,scope:request.selection,state:"not-inspected",
       evidence:JSON.stringify({format:"review-image-approval-1",human:{actor,reason:"Approved displayed image estimate",confirmed:true},documentRevision:estimate.documentRevision,images:estimate.images,estimatedInputTokens:estimate.estimatedInputTokens})}] }},scope,true);
-  if(result.receipt.outcome!=="success")throw new Error(`Image approval was not saved; query review request status ${result.receipt.requestId}`);
+  if(result.receipt.outcome!=="success")throw Object.assign(new Error(`Image approval was not saved; query review request status ${result.receipt.requestId}`),{errorKind:"invalid_input"});
   return {runId,baseline:result.baseline,selection:request.selection};
 }
 
@@ -265,5 +265,5 @@ export async function answerReviewImageQuestion(host:Pick<PluginHost,"generatedD
 export async function recordReviewImageUsage(host:Pick<PluginHost,"generatedDocuments">,input:any,scope:DocumentToolScope,usage:unknown,turnId:string) {
   const {root,workspace,plugin,job}=input.input;
   const result=await scopedReview(host,{root,workspace,plugin,job,action:"workspace-image-usage",requestId:randomUUID(),runId:input.runId,scope:input.scope,turnId,usage},scope,true);
-  if(result.receipt.outcome!=="success")throw new Error(`Image usage not saved; query request status ${result.receipt.requestId}`);
+  if(result.receipt.outcome!=="success")throw Object.assign(new Error(`Image usage not saved; query request status ${result.receipt.requestId}`),{errorKind:"invalid_input"});
 }

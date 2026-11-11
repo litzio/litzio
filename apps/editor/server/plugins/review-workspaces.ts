@@ -9,7 +9,7 @@ import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, 
 import { validatedAuthoringRequest, exportReviewDocumentFile } from "../document-authoring.ts";
 import { validateImage } from "../image-validation.ts";
 import { readModel } from "../document-replay.ts";
-import { RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
+import { FileAccessError, RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
 
 type Provider = { workspace?:boolean; operation: string; version: number; comparison?: string; assertCurrent(): void };
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -43,9 +43,9 @@ export class ReviewWorkspaces {
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
     const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-material","workspace-image-estimate","workspace-image-read","workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
-    if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
+    if (writing && this.requests.has(requestId)) throw Object.assign(new Error("Duplicate requestId; query status"),{errorKind:"uncertain",receipt:{requestId,outcome:"uncertain"}});
     const unsettled = this.unsettled.get(key);
-    if (writing && unsettled) throw new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`);
+    if (writing && unsettled) throw Object.assign(new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`),{errorKind:"uncertain",receipt:{requestId:unsettled.requestId,outcome:"uncertain"}});
     if (this.busy.has(key)) {
       const current=this.admissions.get(key);
       if((!writing || input.action==="workspace-image-usage")&&current){await current.done;return this.execute(raw);}
@@ -61,14 +61,14 @@ export class ReviewWorkspaces {
     try {
       const provider = this.declaration(input.plugin, input.job), before = revision(file);
       if(!provider.workspace)throw new Error(`Job ${input.plugin}.${input.job} does not create a review workspace. Choose a workspace provider job.`);
-      const check = () => { provider.assertCurrent(); accessPath(boundary.resolve(file), this.access); if (revision(file) !== before) throw new Error("Workspace baseline conflict; read before writing"); };
+      const check = () => { provider.assertCurrent(); accessPath(boundary.resolve(file), this.access); if (revision(file) !== before) throw Object.assign(new Error("Workspace baseline conflict; read before writing"),{errorKind:"conflict"}); };
       const call = async (mode: string, target = file, extra = {}) => {
         check();
         const response = await this.invoke(provider.operation, { mode, file: target, sourceRevision: revision(target), ...extra }, provider.version);
-        check(); if (response.error) throw new Error("Workspace provider unavailable or rejected input");
+        check(); if (response.error) throw Object.assign(new Error("Workspace provider unavailable or rejected input"),{errorKind:"unavailable"});
         return response.result;
       };
-      if ("baseline" in input && input.baseline !== undefined && input.baseline !== before) throw new Error("Workspace baseline conflict; read before writing");
+      if ("baseline" in input && input.baseline !== undefined && input.baseline !== before) throw Object.assign(new Error("Workspace baseline conflict; read before writing"),{errorKind:"conflict"});
       const original = workspaceStateSchema.parse(await call("workspace-read"));
       if (original.snapshot) {
         try { validateSnapshot(original.snapshot); }
@@ -243,7 +243,7 @@ export class ReviewWorkspaces {
       const value = result(prepared, after, true); this.requests.set(requestId, value); return value;
     } catch (error) {
       if (publishing && !saved) this.unsettled.set(key, { requestId, checked: false });
-      const value = { state: publishing && !saved ? "uncertain" : "failed", saved, error: error instanceof Error ? error.message : "Workspace operation failed",
+      const value = { state: publishing && !saved ? "uncertain" : "failed", saved, errorKind: publishing && !saved ? "uncertain" : (error as any)?.errorKind ?? (error instanceof FileAccessError || ["EACCES","EPERM"].includes((error as NodeJS.ErrnoException)?.code ?? "") ? "forbidden" : "invalid_input"), error: error instanceof Error ? error.message : "Workspace operation failed",
         guidance: "Read the workspace before another write. After a lost response query this requestId; never automatically resend.", receipt: receipt(publishing && !saved ? "uncertain" : "failure") };
       if (writing) this.requests.set(requestId, value); return value;
     } finally {

@@ -16,7 +16,7 @@ export function createDocumentSourceFile(requestedPath: string, source: string, 
   let fd: number;
   try { fd = openSync(accessPath(file, access, true), "wx"); }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("file already exists");
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw Object.assign(new Error("file already exists"),{errorKind:"conflict"});
     throw error;
   }
   try {

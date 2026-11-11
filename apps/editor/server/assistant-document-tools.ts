@@ -30,7 +30,8 @@ export function executeDocumentTool(name: string, input: unknown, scope: Documen
     if (name !== "create_document") throw error;
     const message = error instanceof Error ? error.message : String(error);
     const code = (error as NodeJS.ErrnoException).code;
-    const errorKind = error instanceof FileAccessError || ["EACCES", "EPERM"].includes(code ?? "") || /read-only|No opened folders/.test(message) ? "forbidden"
+    const classified = (error as {errorKind?: string})?.errorKind;
+    const errorKind = classified && ["invalid_input", "conflict", "forbidden", "unavailable", "uncertain"].includes(classified) ? classified : error instanceof FileAccessError || ["EACCES", "EPERM"].includes(code ?? "") || /read-only|No opened folders/.test(message) ? "forbidden"
       : /file already exists/.test(message) ? "conflict"
       : code === "ENOENT" || /parent directory does not exist/.test(message) ? "unavailable"
       : code ? "uncertain" : "invalid_input";
@@ -50,11 +51,11 @@ function execute(name: string, input: unknown, scope: DocumentToolScope) {
   if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.path !== "string" || !path.isAbsolute(value.path)) invalid("An absolute path is required.");
   const keys = name === "create_document" ? ["path", "title", "blocks", "operations"] : ["path"];
   if (Object.keys(value).some(key => !keys.includes(key))) invalid("Unsupported tool input.");
-  if (!scope.folders) throw new Error("No opened folders for this turn.");
+  if (!scope.folders) throw Object.assign(new Error("No opened folders for this turn."),{errorKind:"forbidden"});
   const create = name === "create_document";
-  if (create && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw new Error("Document creation is read-only for this turn.");
+  if (create && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw Object.assign(new Error("Document creation is read-only for this turn."),{errorKind:"forbidden"});
   if (name === "stage_document") {
-    if (!scope.changes || !scope.conversation) throw new Error("Pending changes unavailable.");
+    if (!scope.changes || !scope.conversation) throw Object.assign(new Error("Pending changes unavailable."),{errorKind:"unavailable"});
     return scope.changes.start(scope.conversation, value.path, scope);
   }
   const file = scope.folders.resolve(accessPath(value.path, scope.access, create), create);
