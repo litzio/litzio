@@ -18,14 +18,12 @@
 
 ## Copilot MCP transport (#1500)
 
-The existing HTTP listener routes `/api/assistant/mcp/<random-turn-token>` to the
+The existing HTTP listener routes `/api/assistant/mcp/<random-session-token>` to the
 official assistant's SDK Streamable HTTP transport (JSON responses, no persistent
 MCP session store or second listener). ACP receives the Host socket's local address,
-not a client-supplied origin. ACP receives an explicit Origin header for that endpoint; MCP POSTs pass the existing Host/Origin gate with no policy exception. A regression uses real startHttpHost, an active fake-ACP turn and the official SDK client with those supplied headers to discover tools and read a document; missing/foreign Origins remain refused. Each token selects only Host-owned conversation/turn
+not a client-supplied origin. ACP receives an explicit Origin header for that endpoint; MCP POSTs pass the existing Host/Origin gate with no policy exception. A regression uses real startHttpHost, an active fake-ACP turn and the official SDK client with those supplied headers to discover tools and read a document; missing/foreign Origins remain refused. Each token selects only one Host-owned conversation and its current turn
 state; tool inputs cannot grant folders or permissions. Tool discovery is available
-during session setup, while execution requires the matching active turn. Tokens
-are revoked at completion, failure, cancellation, disconnect and shutdown and rotate
-through ACP loadSession before another turn. Existing HTTP Host/Origin checks remain;
+during session setup, while execution requires the matching active turn. Completion, failure and cancellation clear turn authority; the endpoint remains idle until another admitted turn supplies its own scope. Tokens are revoked on session creation/load failure, deletion, disconnect and shutdown. A session loads once per CLI process and gets a new endpoint after restart (#1521). Existing HTTP Host/Origin checks remain;
 this capability is not daemon authentication. See [Main agent](main-agent-v1.md#copilot-host-tools-over-http-mcp-1500)
 for provider approval flags and unsupported question cards.
 

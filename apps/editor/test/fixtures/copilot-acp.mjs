@@ -10,6 +10,7 @@ const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ..
 let session = 0, pending;
 const prompts = new Map();
 const selectedModels = new Map();
+const loaded = new Set();
 const optionsFor = id => selectedModels.get(id) === "auto" ? configOptions.filter(option => option.id !== "reasoning") : configOptions;
 createInterface({ input: process.stdin }).on("line", line => {
   const request = JSON.parse(line); if (log) appendFileSync(log, line + "\n");
@@ -25,9 +26,14 @@ createInterface({ input: process.stdin }).on("line", line => {
   if (method === "initialize") reply({ protocolVersion: 1, agentCapabilities: { loadSession: true }, agentInfo: { name: "fake-copilot", version: "1" } });
   else if (method === "session/new") {
     if (process.argv.includes("--fixture-session-error")) { send({ id, error: { code: -32000, message: "Copilot session fixture failure", data: { token: "must-not-be-displayed" } } }); return; }
-    reply({ sessionId: `copilot-${process.pid}-${++session}`, ...sessionState() });
+    const sessionId = `copilot-${process.pid}-${++session}`;
+    loaded.add(sessionId);
+    reply({ sessionId, ...sessionState() });
   }
-  else if (method === "session/load") reply(sessionState());
+  else if (method === "session/load") {
+    if (loaded.has(params.sessionId)) { send({ id, error: { code: -32603, message: `Session ${params.sessionId} is already loaded` } }); return; }
+    loaded.add(params.sessionId); reply(sessionState());
+  }
   else if (method === "session/set_mode") { modes.currentModeId = params.modeId; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "current_mode_update", currentModeId: params.modeId } } }); reply({}); }
   else if (method === "session/set_config_option") {
     if (params.configId === "model") {
@@ -53,6 +59,7 @@ createInterface({ input: process.stdin }).on("line", line => {
   }
   else if (method === "session/prompt") {
     if (params.prompt[0].text.includes("FAIL THIS TURN")) { send({ id, error: { code: -32000, message: "Copilot quota fixture failure" } }); return; }
+    if (params.prompt[0].text.includes("COMPLETE THIS TURN")) { reply({ stopReason: "end_turn" }); return; }
     pending = { id, sessionId: params.sessionId }; prompts.set(params.sessionId, pending);
     if (process.argv.includes("--fixture-question")) {
       send({ id: "question-unsupported", method: "session/request_user_input", params: { sessionId: params.sessionId, questions: [{ title: "Travel style?", options: ["Rest", "Food"] }] } }); return;

@@ -115,10 +115,13 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.equal(conversation.turns.at(-1)!.items[0]!.userMessageSource, "host", "a Host row is not provider persistence proof");
     assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown");
     assert.equal(conversations.submission(failedInput.submissionId).submission.turnFailed, true);
+    await connection.copilot.useLaunchSettings("low", false);
     const resumedFailure = await conversations.resume(conversation.id, settings);
     assert.equal(resumedFailure.turns.flatMap(turn => turn.items).some(item => item.submissionId === failedInput.submissionId), false);
     assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown", "missing provider history must not erase uncertainty");
     assert.ok(resumedFailure.turns.flatMap(turn => turn.items).filter(item => item.kind === "user").every(item => item.userMessageSource === "provider-history"));
+    await connection.copilot.useLaunchSettings("low", false);
+    await connection.copilot.useLaunchSettings("high", false);
     const client = await connection.copilot.connect(), load = client.loadSession.bind(client);
     const prompt = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(message => message.method === "session/prompt").params.prompt[0];
     const replay = t.mock.method(client, "loadSession", async (params: Parameters<typeof client.loadSession>[0]) => {
@@ -987,7 +990,7 @@ test("screen actions validate inputs, isolate windows and classify unconfirmed e
   host.cancel("thread"); assert.equal((await cancelled).outcome, "uncertain");
 });
 
-test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revokes ended turns", async t => {
+test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", async t => {
   const { createServer } = await import("node:http");
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
@@ -1140,28 +1143,46 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   assert.equal(conversations.screenActions.snapshot(first.id, "mcp-window-one"), undefined);
 
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: first.id, modelId: "auto" }));
-  assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);
+  await assert.rejects(one.callTool({ name: "list_documents", arguments: { path: root } }), /No authorized active turn/);
   assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "cancelled");
   const deadline = Date.now() + 5000;
   while (first.turns.at(-1)?.status === "inProgress" && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
   assert.notEqual(first.turns.at(-1)?.status, "inProgress");
-  await assert.rejects(one.callTool({ name: "edit_staged_document", arguments: { ...editInput, copyRevision: payload(edited).copyRevision } }), { code: 403 });
+  await assert.rejects(one.callTool({ name: "edit_staged_document", arguments: { ...editInput, copyRevision: payload(edited).copyRevision } }), /No authorized active turn/);
   assert.equal(readFileSync(staged.copy, "utf8"), editedBytes, "an ended MCP turn cannot edit its earlier copy");
   assert.equal(readFileSync(original, "utf8"), source);
 
-  await conversations.send({ ...input, id: first.id }, settings);
-  assert.notEqual(endpoint(), firstUrl, "loadSession rotates the turn capability");
-  assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);
+  const previousTurn = first.turns.at(-1)!.id;
+  await conversations.send({ ...input, id: first.id, folders: [] }, { ...settings, permissionMode: "read-only" });
+  assert.equal(rows().some(row => row.method === "session/load"), false, "a loaded session must not be loaded twice");
+  assert.notEqual(first.turns.at(-1)!.id, previousTurn);
+  assert.equal((await one.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "the original endpoint serves the new admitted turn");
+  assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, true, "the new turn cannot inherit earlier folders");
+  assert.equal((await one.callTool({ name: "edit_staged_document", arguments: editInput })).isError, true, "the new turn cannot inherit write access");
   assert.ok(rows().find(row => row.args)?.args.includes("--deny-tool=shell"));
   assert.ok(rows().find(row => row.args)?.args.includes("--allow-tool=litzio_host"));
   assert.ok(rows().filter(row => row.args).every(row => !row.args.includes("--disable-builtin-mcps")));
   await conversations.interrupt(first.id); await conversations.interrupt(second.id);
   const idleDeadline = Date.now() + 5000;
   while ([first.id, second.id].some(id => conversations.current(id).turns.some(turn => turn.status === "inProgress")) && Date.now() < idleDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  for (const [message, status] of [["COMPLETE THIS TURN", "completed"], ["FAIL THIS TURN", "failed"]]) {
+    await conversations.send({ ...input, id: first.id, message: message! }, settings);
+    const deadline = Date.now() + 5000;
+    while (first.turns.at(-1)!.status === "inProgress" && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(first.turns.at(-1)!.status, status);
+    await assert.rejects(one.callTool({ name: "list_documents", arguments: { path: root } }), /No authorized active turn/);
+  }
+  assert.equal(rows().some(row => row.method === "session/load"), false);
+  await connection.copilot.useLaunchSettings("medium", false);
   await conversations.resume(first.id, settings);
   const idleUrl = endpoint();
+  assert.notEqual(idleUrl, firstUrl, "process restart replaces the session endpoint");
+  assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);
+  await conversations.resume(first.id, settings);
+  assert.equal(rows().filter(row => row.method === "session/load" && row.params.sessionId === first.id).length, 1);
   conversations.remove(first.id, () => {});
   assert.equal((await fetch(idleUrl, { method: "POST" })).status, 403, "deleting an idle resumed conversation revokes its lease");
+  await connection.models("copilot");
   const acp = await connection.copilot.connect();
   let failedUrl = "";
   const failedSetup = t.mock.method(acp, "newSession", async (params: Parameters<typeof acp.newSession>[0]) => {
@@ -1171,10 +1192,15 @@ test("Copilot HTTP MCP reuses Host tools, isolates conversation scopes and revok
   await assert.rejects(conversations.send(input, settings), /fixture session setup failure/);
   assert.equal((await fetch(failedUrl, { method: "POST" })).status, 403);
   failedSetup.mock.restore();
-  const failedConfiguration = t.mock.method(acp, "setSessionMode", async () => { throw new Error("fixture session configuration failure"); });
+  let correctionId = "";
+  const failedConfiguration = t.mock.method(acp, "setSessionMode", async (params: Parameters<typeof acp.setSessionMode>[0]) => { correctionId = params.sessionId; throw new Error("fixture session configuration failure"); });
   await assert.rejects(conversations.send(input, settings), /fixture session configuration failure/);
-  assert.equal((await fetch(endpoint(), { method: "POST" })).status, 403);
+  const idle = await connect(endpoint());
+  await assert.rejects(idle.callTool({ name: "list_documents", arguments: { path: root } }), /No authorized active turn/);
   failedConfiguration.mock.restore();
+  await conversations.send({ ...input, id: correctionId }, settings);
+  assert.equal((await idle.callTool({ name: "list_documents", arguments: { path: root } })).isError, false, "corrected settings reuse the created session endpoint");
+  await conversations.interrupt(correctionId);
   t.mock.method(acp, "loadSession", async (params: Parameters<typeof acp.loadSession>[0]) => {
     failedUrl = (params.mcpServers[0] as { url: string }).url;
     throw new Error("fixture resume setup failure");

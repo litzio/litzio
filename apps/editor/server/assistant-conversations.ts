@@ -263,6 +263,7 @@ export class AssistantConversations {
     settings = { ...settings, provider: info.provider ?? "codex", permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
+    if (info.provider === "copilot" && this.loaded.has(id)) return this.current(id);
     const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
@@ -528,7 +529,7 @@ export class AssistantConversations {
     this.save(conversation);
     this.screen.cancel(id); this.screenActions.cancel(id); this.display.cancel(id);
     if (turn && conversation.provider === "copilot") {
-      this.mcp.revokeConversation(id);
+      this.mcp.endTurn(id);
       const client = await this.connection.copilot.connect();
       await this.connection.copilot.call(() => client.cancel({ sessionId: id }));
     } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
@@ -548,8 +549,8 @@ export class AssistantConversations {
     const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
     await this.prepareCopilotLaunch(effort, settings);
-    if (conversation) {
-      // loadSession replaces the endpoint and replays authoritative history on every turn.
+    if (conversation && !this.loaded.has(conversation.id)) {
+      // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.
       const previous = conversation;
       const restored = await this.resume(previous.id, settings, settings.permissionMode);
@@ -626,12 +627,18 @@ export class AssistantConversations {
         }
       }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => {
         this.screen.cancel(id); this.screenActions.cancel(id); this.display.cancel(id);
-        this.mcp.revoke(lease);
+        if (lease.turnId === turn.id) lease.turnId = undefined;
         if (this.scopes.get(id)?.turnId === turn.id) this.scopes.delete(id);
         if (this.expireQuestion(conversation!, turn.id)) this.save(conversation!);
       });
       return conversation;
-    } catch (error) { this.mcp.revoke(lease); throw error; }
+    } catch (error) {
+      // Configuration rejection does not unload a successfully created session.
+      // Keep its endpoint idle so a corrected send can reuse the loaded session.
+      if (!lease.conversationId) this.mcp.revoke(lease);
+      else lease.turnId = undefined;
+      throw error;
+    }
   }
   private async prepareCopilotLaunch(effort: string, settings: AssistantSettings) {
     const acp = this.connection.copilot, fullAccess = settings.permissionMode === "full-access";

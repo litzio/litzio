@@ -9,7 +9,7 @@ export type HostToolResult = { success: boolean | null; contentItems: { type: st
 type Tool = { name: string; description: string; inputSchema: object };
 type Lease = { token: string; name: string; conversationId?: string; turnId?: string; servers: { type: "http"; name: string; url: string; headers: { name: string; value: string }[] }[] };
 
-/** HTTP is owned by the existing Host listener. Tokens are turn capabilities, not daemon authentication. */
+/** HTTP is owned by the existing Host listener. Session endpoints require an admitted turn, not daemon authentication. */
 export class AssistantMcp {
   base?: string;
   private leases = new Map<string, Lease>();
@@ -26,6 +26,7 @@ export class AssistantMcp {
   }
   lease(id: string) { const lease = [...this.leases.values()].find(lease => lease.conversationId === id); if (!lease) throw new Error("Missing Copilot MCP connection."); return lease; }
   revokeConversation(id: string) { for (const lease of this.leases.values()) if (lease.conversationId === id) this.revoke(lease); }
+  endTurn(id: string) { for (const lease of this.leases.values()) if (lease.conversationId === id) lease.turnId = undefined; }
   revoke(lease: Lease) { this.leases.delete(lease.token); }
   close() { this.leases.clear(); }
   permission(id: string, raw: unknown) {
