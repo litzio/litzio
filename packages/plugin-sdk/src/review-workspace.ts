@@ -16,6 +16,7 @@ export const workspaceStateSchema = z.strictObject({
   record: z.record(z.string(), z.unknown()), items: z.array(z.record(z.string(), z.unknown())).max(10000),
   snapshot: workspaceSnapshotSchema.nullable(), cacheState: z.enum(["missing", "invalid", "current", "created-version"]),
   ledger: reviewLedgerSchema.optional(),
+  lenses: z.record(z.string(), z.unknown()).optional(),
 });
 const common = { root: id, workspace: id, plugin: id, job: id };
 export const workspaceRequestSchema = z.discriminatedUnion("action", [
@@ -30,7 +31,7 @@ export const workspaceRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ ...common, action: z.literal("workspace-progress"), baseline: hash, requestId: z.uuid(), progress: generatedProgressSchema }),
   z.strictObject({ action: z.literal("workspace-status"), requestId: z.uuid() }),
   z.strictObject({ ...common, action: z.literal("workspace-groups-read") }),
-  ...(["workspace-inspection", "workspace-required-checks", "workspace-completion"] as const).map(action => z.strictObject({ ...common, action: z.literal(action) })),
+  ...(["workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"] as const).map(action => z.strictObject({ ...common, action: z.literal(action) })),
   z.strictObject({ ...common, action: z.literal("workspace-review-change"), baseline: hash, requestId: z.uuid(), change: reviewLedgerChangeSchema }),
 ]);
 /** P5 adapter contract only: these use the same dispatcher schema, with no AI registration in P2.
@@ -39,6 +40,6 @@ export const workspaceRequestSchema = z.discriminatedUnion("action", [
  * it closes only open proposals with linked history, and grants no approval or relaxed target-content check.
  */
 export const REVIEW_LEDGER_OPERATIONS = { version: 1, scope: "workspace", inputSchema: z.toJSONSchema(workspaceRequestSchema),
-  assistant: { propose: "workspace-review-change:groups-propose", read: "workspace-groups-read", inspection: "workspace-inspection", requiredChecks: "workspace-required-checks", completion: "workspace-completion" },
+  assistant: { propose: "workspace-review-change:groups-propose", read: "workspace-groups-read", lenses: "workspace-lenses", inspection: "workspace-inspection", requiredChecks: "workspace-required-checks", completion: "workspace-completion" },
   humanOnly: ["groups-approve", "groups-reject", "groups-undo", "completion"] } as const;
 export type WorkspaceSnapshot = z.infer<typeof workspaceSnapshotSchema>;

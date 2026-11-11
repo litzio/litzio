@@ -1,12 +1,18 @@
 import { emptyReviewLedger, reviewLedgerSchema } from "@litzio/plugin-sdk";
 
-export const emptyReview = () => ({ version: 4, checkedPages: [], lastPage: null, approval: null, ledger: emptyReviewLedger() });
+export const emptyReview = () => ({ version: 4, checkedPages: [], lastPage: null, approval: null, ledger: emptyReviewLedger(), lenses: {} });
 export function readReview(bytes) {
   const record = bytes === undefined ? emptyReview() : JSON.parse(Buffer.from(bytes).toString("utf8"));
-  if (!record || record.version !== 4 || Object.keys(record).sort().join() !== ["version", "checkedPages", "lastPage", "approval", "ledger"].sort().join() ||
+  if (!record || record.version !== 4 || Object.keys(record).sort().join() !== ["version", "checkedPages", "lastPage", "approval", "ledger", "lenses"].sort().join() || !record.lenses || typeof record.lenses !== "object" || Array.isArray(record.lenses) ||
       !Array.isArray(record.checkedPages) || record.checkedPages.some(p => !Number.isInteger(p) || p < 1) ||
       record.lastPage !== null && (!Number.isInteger(record.lastPage) || record.lastPage < 1) || record.approval !== null) throw new Error("Invalid review record");
   record.ledger = reviewLedgerSchema.parse(record.ledger);
+  for (const kind of record.ledger.inventory?.lenses ?? []) {
+    if (!kind.required || !kind.extracted) continue;
+    const material=record.lenses[kind.kind];
+    if (!material || !Object.hasOwn(material,"official") || !Array.isArray(material.auxiliary) ||
+        JSON.stringify(material.scope)!==JSON.stringify(kind.scope)) kind.extracted=false;
+  }
   return record;
 }
 

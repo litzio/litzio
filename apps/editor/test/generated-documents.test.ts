@@ -55,7 +55,7 @@ test("generic workspace groups preserve source and history through partial decis
     assert.equal(opened.receipt.outcome, "success", JSON.stringify(opened));
     assert.equal(opened.snapshot.inputs[0].targets.length, 2, "one source binds to multiple final Core targets");
     assert.deepEqual(opened.record.lineage.a,opened.snapshot.inputs[0].targets);
-    await mutate({kind:"required-checks",inventory:{contentRevision:opened.contentRevision,pages:[1],targets:["a"],lenses:["text"],requiredChecks:[],complete:true},records:[]});
+    await mutate({kind:"required-checks",inventory:{contentRevision:opened.contentRevision,pages:[1],targets:["a"],lenses:[{kind:"text",required:true,scope:{pages:[1],targets:["a"]},extracted:true}],requiredChecks:[],complete:true},records:[]});
     await mutate({kind:"inspection",records:[{lens:"text",runId:"run-initial",contentRevision:opened.contentRevision,scope:{pages:[1],targets:["a"]},state:"no-issue",evidence:"Complete fixture scope"}],comparisons:[]});
     const completed=await mutate({kind:"completion",human});
     assert.equal(completed.completion.approved,true,JSON.stringify(completed));
