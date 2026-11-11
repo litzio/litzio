@@ -1170,19 +1170,13 @@ read references. Copilot receives the same Host tool definitions and dispatch as
 
 ### Copilot Host tools over HTTP MCP (#1500)
 
-The existing daemon HTTP listener serves `/api/assistant/mcp/<random-turn-token>`.
+The existing daemon HTTP listener serves `/api/assistant/mcp/<random-session-token>`.
 Codex dynamicTools and MCP tools/list read one Host-owned array and both execute
 through one provider-neutral dispatch. Future tools added to that array therefore
 reach both providers. MCP adds the required top-level object type to object-union schemas without changing their constraints or Host validation. No second document/plugin registry is maintained.
 
-ACP newSession/loadSession receive an HTTP server named `litzio_host`, including an Origin header equal to the endpoint origin. This passes the existing daemon POST Origin policy without exceptions. Each send
-loads existing sessions again to replace the endpoint and rebuild provider history;
-CLIs without loadSession must start a new conversation. The Host generates each
-capability, binds it to the provider session and current turn, and supplies folders,
-permission mode and originating window from admitted Host state. Tool arguments
-cannot select another conversation, turn or permission. Setup permits discovery;
-execution requires an active matching turn. Failed session setup and conversation deletion also revoke leases. Completion, failure, cancellation,
-disconnection and shutdown revoke capabilities; previous turn URLs cannot be reused.
+ACP newSession/loadSession receive an HTTP server named `litzio_host`, including an Origin header equal to the endpoint origin. This passes the existing daemon POST Origin policy without exceptions. A session already loaded in the current CLI process retains its endpoint and in-memory history; sends and explicit resume do not call loadSession again (#1521). After process/Host restart, loadSession restores it once with a new endpoint; CLIs without loadSession must start a new conversation. Model, mode and advertised configuration changes still apply before each prompt; launch-setting changes still restart the process as described below.
+The Host generates each endpoint token and binds it to one provider session. Each admitted turn supplies a fresh turn ID, folders, permission mode and originating window from Host state. Tool arguments cannot select another conversation, turn or permission. Setup and idle sessions permit discovery; execution requires the current matching active turn. Completion, failure and cancellation clear turn authority while keeping the loaded session endpoint idle. A later turn reuses that endpoint with only its newly admitted scope. Failed session creation/load, conversation deletion, disconnection and shutdown revoke endpoints. Configuration rejection leaves a successfully loaded session idle for correction.
 This is conversation isolation, not daemon authentication (#1145 remains deferred).
 
 Copilot 1.0.109 refused MCP calls with host_policy before sending ACP permissions.
