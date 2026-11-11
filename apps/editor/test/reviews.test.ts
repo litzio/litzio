@@ -487,6 +487,11 @@ test("common evidence keeps numbers/units/signs strict, exposes missing and unsu
   assert.ok(changed.candidates.some(c=>c.missing.some(t=>t.text==="12.5")&&c.unsupported.some(t=>t.text==="12.6")));
   assert.ok(changed.candidates.some(c=>c.missing.some(t=>t.text==="mg")&&c.unsupported.some(t=>t.text==="kg")));
   assert.ok(changed.candidates.flatMap(c=>c.missing).every(t=>t.page===1&&t.bbox?.length===4));
+  const sorted=await inspectEvidence(nativeSource("Beta stable 12.6 end\n"),{...material,pdfBase64:pdf("Alpha stable 12.5 end")});
+  assert.equal(sorted.candidates[0].priority,"numeric-unit");assert.equal(sorted.candidates.at(-1)!.priority,"text");
+  assert.ok(sorted.candidates[0].missing.some(t=>t.text==="12.5"),"numeric mismatch precedes earlier text mismatch");
+  const unitOnly=await inspectEvidence(nativeSource("Sample 12.5 kg/L < -2%\n"),material);
+  assert.equal(unitOnly.candidates[0].priority,"numeric-unit","matched numbers do not hide a unit-only difference");
   const tableSource=nativeSource(":::{table}\n:enumerated: false\n\n| Sample | |\n| --- | --- |\n| 1 | 1 |\n:::\n");
   const table=getEditableDocument(parse(tableSource)).blocks.find(b=>b.block==="table")!;
   const cells=table.rows.flatMap(r=>r.cells);

@@ -281,7 +281,7 @@ target locator는 `{self_ref,cell?}`입니다. patch.expectedBefore/after는 현
 
 공통 Host는 후보 source·canonical round-trip·실제 경로·revision·이미지 binding을 재검증한 뒤 baseline을 확인하고 `.docling` 전체를 한 번 교체합니다. 실패하면 문서·대응·판단 이력을 함께 보존합니다. uncertain 뒤에는 같은 requestId status와 파일 read를 마치기 전까지 쓰기가 차단됩니다. 재시작 뒤 status는 unknown이며 자동 재전송하지 않습니다.
 
-검사·그림/표 필수 확인과 사람 판단 이력, 동결된 묶음 모델은 유지합니다. 검사의 contentRevision은 불변 원본 JSON hash여서 교정 때문에 기존 검사 coverage를 무효화하지 않습니다. 실패 페이지는 `record.failedPages`와 최초 대응에 있고 원본 geometry가 있는 쪽은 기존 unsupported reason으로 표시합니다. 자유 편집·대응 불확실 표시·블록 삽입·분할/합치기·새 비서/검사/화면은 이번 단계에 없습니다.
+검사·그림/표 필수 확인과 사람 판단 이력, 동결된 묶음 모델은 유지합니다. 검사의 contentRevision은 불변 원본 JSON hash여서 교정 때문에 기존 검사 coverage를 무효화하지 않습니다. 실패 페이지는 `record.failedPages`와 최초 대응에 있고 원본 geometry가 있는 쪽은 기존 unsupported reason으로 표시합니다. 자유 편집·대응 불확실 표시·분할/합치기와 새 비서·화면은 후속입니다. 블록 삽입과 보조 원문 검사는 아래 4b 작업을 사용합니다.
 
 대조·이미지·명시 export는 기존 공용 작업을 사용합니다. 이미지 bytes는 원본 JSON에 한 번만 있고 내부 문서는 `review-asset:<sha256>`를 바인딩합니다. 내보내기는 별도 일반 `.md`이며 기존 파일의 revision과 overwrite:true를 확인합니다. 결과는 아직 검수 완료 선언이나 후속 공식 내보내기가 아닙니다. 상세 현재 계약은 [플러그인 1단계](../../docs/design/plugin-stage1-v1.md#review-workspace-기반-1462-p1a), 검증 기록은 [3단계 설계](../../docs/design/docling-review-stage3.md)를 따릅니다.
 
