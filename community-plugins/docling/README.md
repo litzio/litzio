@@ -275,7 +275,7 @@ litzio review workspace-status --input status.json --host <origin> --json
 
 교정은 저장된 리치오 문서에 기존 Core 의미 연산으로 적용합니다. 글자는 지정 경로, 종류는 독립 문단↔제목, 제외는 대응 블록 삭제, 칸은 원본 셀에 대응하는 모든 native grid 칸입니다. 종류 교정에서 빠진 머리말 복원과 캡션→제목 분리는 propose 시 이유를 밝혀 거부합니다. 블록 삽입 교정은 후속입니다. `workspace-patch`는 사용하지 않으며 Docling이 거부합니다.
 
-target locator는 `{self_ref,cell?}`입니다. patch.expectedBefore/after는 현재 리치오 값 배열, before는 같은 예상 전 값입니다. 종류 값은 `{kind,level?}`, 제외 값은 `{excluded,blocks}`(Core editable block에서 path를 제외한 내용)입니다. content/expectedContentRevision은 제안 당시 근거이며 전체 문서 revision이 달라졌다는 이유로 승인하지 못하게 하지 않습니다. 실제 대상의 before 값이 바뀌면 승인·Undo를 거부합니다. 원본 대응 경로는 삭제 뒤 당기고 원본 증거는 남겨 “대응 문단 없음”으로 표시합니다. Undo는 승인 당시 before를 되돌리며 같은 대응 갱신을 사용합니다. 한 묶음의 여러 제외는 원자적으로 처리합니다.
+target locator는 `{self_ref,cell?}`입니다. patch.expectedBefore/after는 현재 리치오 값 배열, before는 propose 시 provider가 결합한 Core 대상 내용입니다. 같은 블록의 글자·종류 중 다른 필드가 바뀌어도 제안/Undo를 거부합니다. 다른 칸이나 목록 항목은 독립적입니다. 종류 값은 `{kind,level?}`, 제외 값은 `{excluded,blocks}`(Core editable block에서 path를 제외한 내용)입니다. content/expectedContentRevision은 제안 당시 근거이며 전체 문서 revision이 달라졌다는 이유로 승인하지 못하게 하지 않습니다. 실제 대상의 before 값이 바뀌면 승인·Undo를 거부합니다. 원본 대응 경로는 삭제 뒤 당기고 원본 증거는 남겨 “대응 문단 없음”으로 표시합니다. Undo는 승인 당시 before를 되돌리며 같은 대응 갱신을 사용합니다. 한 묶음의 여러 제외는 원자적으로 처리합니다.
 
 공통 Host는 후보 source·canonical round-trip·실제 경로·revision·이미지 binding을 재검증한 뒤 baseline을 확인하고 `.docling` 전체를 한 번 교체합니다. 실패하면 문서·대응·판단 이력을 함께 보존합니다. uncertain 뒤에는 같은 requestId status와 파일 read를 마치기 전까지 쓰기가 차단됩니다. 재시작 뒤 status는 unknown이며 자동 재전송하지 않습니다.
 

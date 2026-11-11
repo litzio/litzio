@@ -139,6 +139,20 @@ function correctionSession(archive,snapshot,report) {
     }
     throw new Error("Unsupported correction");
   }
+  // Bind the complete addressed content, not just the field being changed. A kind change also stales
+  // a text proposal for that block; another cell or list item remains independent.
+  function fingerprint(operations) {
+    const values=operations.map(op=>{
+      const item=itemFor(op);
+      if(op.type==="exclude")return value(op);
+      if(op.type==="cell")return cellPaths(item,op).map(path=>blocks().find(block=>block.path[0]===path[0]).rows[path[1]].cells[path[2]]);
+      const block=op.type==="text"?textTarget(item):targetBlocks(item)[0];
+      if(block.block==="list")return {block:"list",item:block.items[item.listItem]};
+      if(block.block==="figure")return {block:"figure",caption:block.caption.content};
+      return block;
+    });
+    return JSON.parse(JSON.stringify(values,(key,value)=>key==="path"?undefined:value));
+  }
   // Delete/restore shift every surviving path. Original items/regions remain as evidence.
   function shift(index,delta,restore=false) {
     const adjust=targets=>targets.flatMap(target=>!restore && target.path[0]===index?[]:[{...target,path:[target.path[0]>=index?target.path[0]+delta:target.path[0],...target.path.slice(1)]}]);
@@ -176,11 +190,11 @@ function correctionSession(archive,snapshot,report) {
       else document=before?updateNodeTextAtPath(document,block.path,before,op.text):
         (block.block==="heading"?updateHeadingInlineContent:updateParagraphInlineContent)(document,block.path,content);
     } else for(const path of cellPaths(item,op))document=updateTableCell(document,path,op.text);
-    return [{operation:op,before,after:value(op)}];
+    return [{operation:op,before,after:value(op),afterTarget:fingerprint([op])}];
   }
   function undo(entry) {
     if(!entry.block) {
-      if(!same(value(entry.operation),entry.after))throw new Error("Undo expected value conflict");
+      if(!same(value(entry.operation),entry.after) || !same(fingerprint([entry.operation]),entry.afterTarget))throw new Error("Undo expected value conflict");
       const operation={...entry.operation,...(entry.operation.type==="kind"?entry.before:{text:entry.before})};
       if(operation.type==="kind" && operation.kind==="paragraph")delete operation.level;
       apply(operation);return;
@@ -210,7 +224,7 @@ function correctionSession(archive,snapshot,report) {
       for(const cellIndex of binding.cells)item.cells.find(cell=>cell.index===cellIndex).targets.push(target);
     }
   }
-  return {validate,value,apply,undo,finish(){
+  return {validate,value,fingerprint,apply,undo,finish(){
     const source=serialize(document),revision=hash(source),current=getEditableDocument(parse(source)).blocks;
     for(const input of snapshot.inputs)for(const target of input.targets)if(!current.some(block=>same(block.path,target.path)))throw new Error("Canonical write changed target paths");
     const rebind=targets=>targets.sort((a,b)=>a.path[0]-b.path[0]).map(target=>({...target,documentRevision:revision,documentHash:revision}));
@@ -247,11 +261,13 @@ export async function workspaceOperation(input) {
   if(!state.snapshot||state.cacheState!=="current")throw new Error("Saved document is damaged or uses another contract; never regenerate it from Docling");
   const snapshot=structuredClone(state.snapshot),report=metadataOf(archive).correspondence,session=correctionSession(archive,snapshot,report);
   if(input.change){
+    const change=structuredClone(input.change);
     if(input.change.kind==="groups-propose"){
       if(input.change.groups.some(group=>group.sourceRevision!==archive.manifest.document.sha256))throw new Error("Mixed group source revision");
-      for(const group of input.change.groups)for(const target of group.targets){
+      for(const group of change.groups)for(const target of group.targets){
         originalReviewTarget(archive.document,target.locator);
         for(const operation of target.patch.operations)try{session.validate(operation);}catch(error){return {rejection:error.message};}
+        target.before=session.fingerprint(target.patch.operations);
       }
     }
     if(input.change.kind==="required-checks" && input.change.inventory){
@@ -259,13 +275,13 @@ export async function workspaceOperation(input) {
       if(sources.length!==inventory.requiredChecks.length||sources.some(source=>inventory.requiredChecks.filter(check=>check.locator.self_ref===source.ref&&check.kind===source.kind).length!==1))throw new Error("Inventory must retain every original picture and table");
       if(inventory.complete&&(inventory.lenses.length!==7||!same([...inventory.pages].sort((a,b)=>a-b),Object.keys(archive.document.pages).map(Number).sort((a,b)=>a-b))||state.items.some(item=>!inventory.targets.includes(item.self_ref))))throw new Error("Incomplete lens/page/item inventory");
     }
-    record.ledger=updateReviewLedger(record.ledger,input.change,{
+    record.ledger=updateReviewLedger(record.ledger,change,{
       contentRevision:snapshot.contentRevision,snapshotHash:hash(JSON.stringify(state.snapshot)),current:true,
       requestId:input.requestId,revision:input.revision,at:input.at,
       apply(target){
         const operations=target.patch.operations;
         if(operations.some(op=>op.self_ref!==target.locator.self_ref||op.type==="cell"&&op.cell!==target.locator.cell))throw new Error("Correction outside reviewed locator");
-        if(!same(operations.map(session.value),target.patch.expectedBefore)||!same(target.before,target.patch.expectedBefore))throw new Error("Expected before conflict");
+        if(!same(operations.map(session.value),target.patch.expectedBefore)||!same(session.fingerprint(operations),target.before))throw new Error("Expected before conflict");
         const inverse=[];for(const op of operations)inverse.unshift(...session.apply(op));
         if(!same(operations.map(session.value),target.patch.after))throw new Error("Expected after conflict");return inverse;
       },

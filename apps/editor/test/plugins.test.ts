@@ -247,13 +247,20 @@ test("Docling saved document corrections preserve independent proposals, mapping
     const a=await propose([{type:"text",self_ref:"#/texts/4",text:"Corrected canonical text"}],[textBefore],["Corrected canonical text"]);
     const b=await propose([{type:"kind",self_ref:"#/texts/1",kind:"paragraph"}],[{kind:"heading",level:2}],[{kind:"paragraph"}]);
     const stale=await propose([{type:"text",self_ref:"#/texts/4",text:"Stale replacement"}],[textBefore],["Stale replacement"],"other-reason");
-    for(const proposal of [a,b,stale])assert.equal(proposal.result.receipt.outcome,"success",JSON.stringify(proposal.result));
+    const crossKind=await propose([{type:"kind",self_ref:"#/texts/4",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"cross-kind");
+    const crossText=await propose([{type:"text",self_ref:"#/texts/1",text:"Other title"}],[textBefore],["Other title"],"cross-text");
+    for(const proposal of [a,b,stale,crossKind,crossText])assert.equal(proposal.result.receipt.outcome,"success",JSON.stringify(proposal.result));
     assert.equal((await decide("groups-approve",a.group)).receipt.outcome,"success");
     host=service();const afterText=await read();assert.match(afterText.snapshot.source,/Corrected canonical text/);
     assert.equal(afterText.document.blocks.find((block:any)=>block.block==="heading").text,textBefore);
     const independent=await decide("groups-approve",b.group);assert.equal(independent.receipt.outcome,"success",JSON.stringify(independent));
     assert.deepEqual(independent.ledger.inspections,inspected.ledger.inspections);assert.deepEqual(independent.ledger.checks,inspected.ledger.checks);
     const beforeStale=readFileSync(file);assert.equal((await decide("groups-approve",stale.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale);
+    for(const group of [crossKind.group,crossText.group]){assert.equal((await decide("groups-approve",group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale,"another field change at the same target makes a proposal stale");}
+    const followupKind=await propose([{type:"kind",self_ref:"#/texts/4",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"kind-followup");
+    const changedKind=await decide("groups-approve",followupKind.group);assert.equal(changedKind.receipt.outcome,"success",JSON.stringify(changedKind));
+    const beforeUndoConflict=readFileSync(file);assert.equal((await decide("groups-undo",a.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeUndoConflict,"Undo cannot cross another field change on its target");
+    assert.equal((await decide("groups-undo",followupKind.group)).receipt.outcome,"success");
     for(const group of [b.group,a.group]){assert.equal((await decide("groups-undo",group)).receipt.outcome,"success");host=service();}
     assert.equal((await read()).snapshot.source,opened.snapshot.source);
     // Existing source text kinds keep their native meaning (list item, code, equation, figure/table caption).

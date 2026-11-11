@@ -917,7 +917,7 @@ publication 결과가 uncertain이면 파일 identity별 Host 잠금을 유지�
 `REVIEW_LEDGER_OPERATIONS`의 비서 계약은 같은 입력 schema와 read/propose/inspection 작업을
 가리키며 approve/reject/Undo/최종 승인은 humanOnly다. 실제 AI adapter 등록·실행은 P5다.
 
-Docling은 format 4 / record 4 / plugin 0.0.11이다. 원본 PDF·JSON·manifest bytes는 저장 전후 불변이다. ledger는 판단 이력이고 ordered source patches는 없다. 교정 값 배열 expectedBefore/after는 리치오 문서의 현재 값이다. 글자는 지정 경로의 Core 연산(목록·코드·수식·캡션은 해당 Core 연산), 종류는 convertBlock, 칸은 updateTableCell, 제외는 removeBlock을 쓴다. 원본 병합 칸은 최초 대응의 모든 직사각 grid 위치를 함께 바꾼다. 제외의 before/after 값은 `{excluded,blocks}`이며 blocks는 path를 제외한 Core editable block들이다. 다른 삭제로 경로가 당겨져도 내용이 같으면 제안은 유효하다.
+Docling은 format 4 / record 4 / plugin 0.0.11이다. 원본 PDF·JSON·manifest bytes는 저장 전후 불변이다. ledger는 판단 이력이고 ordered source patches는 없다. 교정 값 배열 expectedBefore/after는 리치오 문서의 현재 값이다. propose 때 provider가 target.before를 해당 Core 대상의 전체 내용에 결합한다. 같은 블록의 다른 필드가 바뀌어도 제안/Undo는 오래됨으로 거부하며 다른 칸·목록 항목은 독립적이다. 글자는 지정 경로의 Core 연산(목록·코드·수식·캡션은 해당 Core 연산), 종류는 convertBlock, 칸은 updateTableCell, 제외는 removeBlock을 쓴다. 원본 병합 칸은 최초 대응의 모든 직사각 grid 위치를 함께 바꾼다. 제외의 before/after 값은 `{excluded,blocks}`이며 blocks는 path를 제외한 Core editable block들이다. 다른 삭제로 경로가 당겨져도 내용이 같으면 제안은 유효하다.
 
 종류 교정은 독립된 문단·제목만 받는다. 빠진 머리말이나 다른 블록의 캡션은 propose 시 명확한 이유로 거부하며 블록 삽입/캡션 분리는 만들지 않는다. 삭제는 모든 뒤 경로를 갱신하되 원본 항목·영역을 보존해 대조에서 대응 문단 없음을 표시한다. Undo는 승인 때 기록한 before로 기존 Core 연산을 실행하고 삭제 복원도 같은 경로 갱신을 사용한다. 한 묶음의 여러 제외는 한 staging 후보에서 모두 검증하고 한 번 교체한다. 중간 대상 실패는 문서·대응·ledger 전체를 보존한다.
 
