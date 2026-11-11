@@ -55,7 +55,7 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 
 - **범위:** 대상 이슈 목록. 열린 이슈는 `gh issue list --state open --json number,title,labels`로 확인한다. 결정 이슈(`type:decision`), 규모가 큰 기능, 원인이 확정되지 않은 버그, `status:deferred`는 이번 범위에서 빼거나 결정만 받는 후보로 분류한다.
 - **결정 이슈의 결정:** 각 결정 이슈마다 추천안을 쓰고 승인받는다. 승인 전에는 구현을 맡기지 않는다.
-- **작업자 모델:** 사용자가 지정한 provider/model을 우선한다. 쓰지 말라고 한 provider는 어떤 단계에서도 쓰지 않는다. 아래 작은 조사 기본값 외에는 지정이 없으면 물어본다. 규모별 effort 기본값: 작은 UI·CSS·문구는 medium, 일반 기능은 high, schema·셸 구조·상태 경합은 xhigh. `ultra`처럼 스스로 하위 agent를 만드는 설정은 쓰지 않는다. 리뷰어도 사용자가 지정한 작업자 provider/model에서 고른다. 사용자가 둔 예외(예: "설계 판단 작업은 다른 모델")를 리뷰어 선정이나 다른 단계로 넓히지 않는다.
+- **작업자 모델:** 사용자가 지정한 provider/model을 우선한다. 쓰지 말라고 한 provider는 어떤 단계에서도 쓰지 않는다. 아래 작은 조사 기본값 외에는 지정이 없으면 물어본다. effort 기본값은 medium(작은 UI·CSS·문구, 재현이 명확한 작은 버그) 또는 high(일반 기능, schema·셸 구조·상태 경합)다. xhigh는 같은 작업에서 high가 실제로 부족했다는 근거를 소유자에게 보고한 뒤에만 쓴다(2026-11-11 소유자 권고: 근거 없이 xhigh를 기본으로 쓰지 않는다). Astra 리뷰·상담은 medium, 저장 경로·데이터 변경·AI 권한 경계 같은 위험 PR 리뷰만 high이며 xhigh는 쓰지 않는다. 결함 발견은 추론 강도보다 중점 확인 항목의 구체성이 좌우했다. `ultra`처럼 스스로 하위 agent를 만드는 설정은 쓰지 않는다. 리뷰어도 사용자가 지정한 작업자 provider/model에서 고른다. 사용자가 둔 예외(예: "설계 판단 작업은 다른 모델")를 리뷰어 선정이나 다른 단계로 넓히지 않는다.
 - **작은 조사 작업:** 사용자가 달리 지정하지 않으면 좁은 범위의 조사 전용 작업자는 `codex/gpt-6.1-terra`, 추론 강도 `xhigh`, Fast 모드(`service_tier: priority`)로 생성한다. 이 설정을 구현 작업자나 리뷰어에게 확대 적용하지 않는다.
 - **리뷰 범위:** 기본은 CONTRIBUTING 2단계의 위험 기준이다. 위험 PR에만 독립 리뷰를 붙이고, 나머지는 오케스트레이터 확인 기록으로 승인한다. 사용자가 모든 PR 리뷰를 원하면 그대로 따른다.
 - **병합 권한:** 조건을 만족한 PR을 오케스트레이터가 queue에 넣어도 되는지, 시각 변경은 승인을 기다릴지 확인한다.
