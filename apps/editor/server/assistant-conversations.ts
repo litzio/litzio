@@ -675,6 +675,10 @@ export class AssistantConversations {
       let item = turn.items.find(item => item.id === update.toolCallId);
       if (!item) { item = { id: update.toolCallId, kind: "tool", text: "" }; turn.items.push(item); }
       if (update.title) item.text = update.title;
+      item.work = { ...item.work, kind: update.kind ?? item.work?.kind ?? "tool" };
+      if (update.content) Object.assign(item.work, boundedWork(update.content.map((part: any) => part.type === "content" && part.content?.type === "text" ? part.content.text : part.type === "diff" ? `${part.path}\n${part.newText}` : "").filter(Boolean).join("\n")));
+      const paths = update.locations?.map((location: any) => location.path).filter((file: string) => !item!.text.includes(file));
+      if (paths?.length) item.text += " · " + paths.join(", ");
       if (update.status) item.status = update.status === "in_progress" ? "inProgress" : update.status;
     }
   }
@@ -753,6 +757,9 @@ export class AssistantConversations {
       let item = turn.items.find(item => item.id === params.itemId);
       if (!item) { item = { id: params.itemId, kind: method.includes("reasoning") ? "reasoning" : method.includes("plan") ? "plan" : "assistant", text: "" }; turn.items.push(item); }
       item.text += params.delta;
+    } else if (method === "item/commandExecution/outputDelta") {
+      const item = turn.items.find(item => item.id === params.itemId);
+      if (item?.work && !item.work.truncated) Object.assign(item.work, boundedWork((item.work.detail ?? "") + params.delta));
     } else if (method === "turn/plan/updated") {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
@@ -773,6 +780,10 @@ function validQuestionAnswers(question: AssistantQuestionRecord, answers: Assist
     return Array.isArray(values) && values.length === 1 && typeof values[0] === "string" && !!values[0].trim() &&
       (!q.options?.length || q.isOther || q.options.some(option => option.label === values[0]));
   });
+}
+// Bounded display payload per step.
+function boundedWork(text: string) {
+  return { detail: text.slice(0, 16_000), truncated: text.length > 16_000 };
 }
 function itemFrom(item: any, userMessageSource: AssistantConversationItem["userMessageSource"] = "provider-live", turnId = ""): AssistantConversationItem | null {
   if (item.type === "userMessage") {
@@ -818,8 +829,8 @@ function itemFrom(item: any, userMessageSource: AssistantConversationItem["userM
   if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
   if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };
   if (item.type === "plan") return { id: item.id, kind: "plan", text: item.text };
-  if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: item.status };
-  if (item.type === "mcpToolCall") return { id: item.id, kind: "tool", text: `${item.server} · ${item.tool}`, status: item.status };
+  if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: item.status, work: { kind: "execute", ...boundedWork(item.aggregatedOutput ?? "") } };
+  if (item.type === "mcpToolCall") return { id: item.id, kind: "tool", text: `${item.server} · ${item.tool}`, status: item.status, work: { kind: "tool", ...boundedWork(JSON.stringify(item.arguments ?? {})) } };
   if (item.type === "dynamicToolCall" && item.tool === "invoke_plugin_operation") {
     for (const part of item.contentItems ?? []) {
       try {
@@ -829,9 +840,9 @@ function itemFrom(item: any, userMessageSource: AssistantConversationItem["userM
     return { id: item.id, kind: "tool", text: "invoke_plugin_operation", status: item.status };
   }
   if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: pluginActivityText(item) ?? [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.success === false ? "failed" : item.status,
-    toolResult: displayToolResult({ success: item.success ?? null, contentItems: item.contentItems ?? [] }) };
+    work: { kind: "tool", ...boundedWork(JSON.stringify(item.arguments ?? {})) }, toolResult: displayToolResult({ success: item.success ?? null, contentItems: item.contentItems ?? [] }) };
   if (item.type === "webSearch") return { id: item.id, kind: "tool", text: item.query };
-  if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status };
+  if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status, work: { kind: "edit" } };
   return null;
 }
 /** Keep only invocation metadata in app activity, including provider history restoration. */
