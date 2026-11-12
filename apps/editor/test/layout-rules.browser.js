@@ -310,6 +310,8 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   // Outline toggle stay uncovered, at every supported width. Escape closes it and returns focus.
   const outlineToggle=page.getByRole('button',{name:'Outline',exact:true});
   const shell=async()=>{
+    // Header height may stay unchanged while Explorer is still crossing its breakpoint.
+    await waitForExplorerLayout(page);
     // Viewport changes complete before the next ResizeObserver delivery. Wait for its
     // actual measurement, then assert heading/panel geometry without a retry or reload.
     await page.waitForFunction(()=>parseFloat(getComputedStyle(document.querySelector('.app-shell')).getPropertyValue('--app-header-height'))===document.querySelector('.app-titlebar').offsetHeight+document.querySelector('.app-header').offsetHeight);
