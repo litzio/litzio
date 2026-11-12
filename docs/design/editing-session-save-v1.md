@@ -68,7 +68,7 @@ sits above the input, below the shared tab/Save row. Text has no unapplied prope
 Save captures a string and acknowledges only that submitted string plus its returned
 revision. It keeps the mounted input, selection and native history. Input typed while
 Save waits remains dirty and recoverable. Failure/conflict keeps local text; external
-bytes remain untouched. Reload uses the shared discard confirmation and asks Host to
+bytes remain untouched. Reload confirms before discarding local text and asks Host to
 classify the file again, replacing the editor only after a successful read. Unedited
 source preserves BOM, CRLF and trailing whitespace. Once edited, the submitted text
 is the textarea value (browser line breaks are LF); Host performs no normalization.
@@ -748,12 +748,18 @@ Late checks cannot replace a newer acknowledged revision or a replaced session.
 Own Save, Reload and Host-acknowledged Figure image rename retire the prior observed
 revision when accepting their checkpoint; these writes are not external changes.
 
-A notification offers Reload from disk and Compare with disk. Native comparison reuses
+On an external revision, clean native and text tabs automatically use the existing Reload
+path (#1565 decision 2). Unsaved content, unapplied property drafts or pending operations
+(including Save) prevent automatic replacement. The live unsaved state is checked again
+before accepting the read, so input arriving after detection or during the read is retained.
+Reload failure uses the existing failure display and retains the open document.
+
+For tabs with local work, a notification offers Reload from disk and Compare with disk. Native comparison reuses
 the #655 applied-content Save preview and source diff; text comparison uses current input
 against disk text, captured from the live session when Compare is clicked (including input
 typed after the notification). Comparison is read-only and excludes unapplied native property drafts.
 Reload uses the existing explicit Reload path, including confirmation before discarding
-unsaved content or drafts. No automatic reload, overwrite action or merge is introduced.
+unsaved content or drafts. No overwrite action or merge is introduced.
 The existing Save-time revision check remains the final defense for missed changes: a 409
 keeps local work and disk bytes, and offers the same Reload/Compare actions directly.
 This adds no Core semantic operation or CLI command and no OS-level atomic compare-and-swap.

@@ -13,7 +13,7 @@ import { MessageArea } from "./shell/MessageArea.tsx";
 import { ExternalChangeNotice } from "./shell/ExternalChangeNotice.tsx";
 import type { EditorSession } from "./DocumentTab.tsx";
 
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { CopyButton } from "./components/CopyButton.tsx";
 import { renderPlainMarkdown } from "./plain-markdown.ts";
 import { openExternalLink } from "./link-opening.ts";
@@ -90,7 +90,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
       return false;
     } finally { if (current()) busyRef.current = false; }
   }
-  async function load(path: string): Promise<string | null> {
+  async function load(path: string, preserveLocalEdits = false): Promise<string | null> {
     if (busyRef.current) return null;
     const current = lifetime.beginOpen();
     busyRef.current = true; setStatus("opening"); setError(""); setReloadDialog(true);
@@ -98,8 +98,10 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
       const file = await requestDocument("GET", path);
       if (!current()) return null;
       if ("start" in file) throw new Error("The Host did not return a document.");
+      // A queued input event before the modal commits must still keep local text.
+      if (preserveLocalEdits && dirty()) { setStatus("ready"); return null; }
       void recorder.discard();
-      replaceFile(file);
+      if (preserveLocalEdits) flushSync(() => replaceFile(file)); else replaceFile(file);
       return "";
     } catch (cause) {
       if (!current()) return null;
@@ -111,7 +113,9 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
     acknowledgedRevision: revision.current,
     externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== revision.current,
     observeRevision(next: string | null, expected: string) {
-      if (input.current?.isConnected && pathRef.current === openedPath && revision.current === expected && !busyRef.current) setExternalRevision(next);
+      if (!input.current?.isConnected || pathRef.current !== openedPath || revision.current !== expected || busyRef.current) return;
+      setExternalRevision(next);
+      if (next !== revision.current && next !== externalRevision && !dirty()) void load(pathRef.current, true);
     },
     openedPath, documentDirty, draftActive: false, draftNotice: "", assetPending: false,
     isCurrent: () => Boolean(input.current?.isConnected),
