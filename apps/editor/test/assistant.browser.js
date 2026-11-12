@@ -367,7 +367,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.press('Tab');
   try {
     await expect(permissionButton).toBeFocused();
-    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Opened folders allows network access');
+    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Opened folders allows folder edits and network access');
+    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Provider requests beyond these defaults ask for approval');
     await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Your organization does not allow Full access');
   } catch (error) {
     // Capture only on failure; keep the original assertion and its timeout.
