@@ -61,7 +61,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const [settings, setSettings] = useState<AssistantSettings>();
   const [models, setModels] = useState<AiModels>();
   const [changes, setChanges] = useState<{id:string;path:string;copyRevision:string}[]>([]);
-  const changeObserver = useRef<{id:string;turn?:string;revisions:Map<string,string>;armed:boolean} | null>(null);
+  const changeObserver = useRef<{id:string;turn?:string;revisions:Map<string,string>;armed:boolean;waiting:boolean} | null>(null);
   const freshSend = useRef(false);
   const reviewChange = useRef(onReviewChange); reviewChange.current = onReviewChange;
   const [conversation, setConversation] = useState<AssistantConversation>();
@@ -126,10 +126,11 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     const id = conversation.id, turn = changeTurn?.id, running = changeTurn?.status === "inProgress";
     if (changeObserver.current?.id !== id) {
       setChanges([]);
-      changeObserver.current = { id, turn, revisions: new Map(), armed: running || freshSend.current };
+      changeObserver.current = { id, turn, revisions: new Map(), armed: running || freshSend.current, waiting: false };
       freshSend.current = false;
     }
     const observer = changeObserver.current;
+    if (observer.turn !== turn || running) observer.waiting = false;
     if (running) observer.armed = true;
     const read = async () => {
       if (reading) return;
@@ -138,7 +139,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         const value = await request<{id:string;path:string;copyRevision:string}[]>(ASSISTANT.conversationsRoute, { action: "changes-list", id });
         if (!live || !Array.isArray(value)) return;
         setChanges(value);
-        if (running) return; // Retain the pre-turn baseline until the final copy is available.
+        if (running || observer.waiting) return; // Retain the pre-turn baseline until the final copy is available.
         const changed = value.filter(change => observer.revisions.get(change.id) !== change.copyRevision);
         const reveal = observer.armed || observer.turn !== turn;
         observer.revisions = new Map(value.map(change => [change.id, change.copyRevision]));
@@ -373,7 +374,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     jumpToBottom();
     if (!conversation) freshSend.current = true;
-    else if (changeObserver.current) changeObserver.current.armed = true;
+    else if (!active && changeObserver.current) { changeObserver.current.armed = true; changeObserver.current.waiting = true; }
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, displayClient, id: conversation?.id, message: value,
         provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, reviewWorkspace: reviewWorkspacePath ? {path:reviewWorkspacePath} : undefined, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(120_000));
