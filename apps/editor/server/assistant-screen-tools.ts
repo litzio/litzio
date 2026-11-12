@@ -1,3 +1,4 @@
+import { ASSISTANT_WINDOW_WORK_TIMEOUT_MS } from "../shared/assistant-limits.ts";
 import { randomUUID } from "node:crypto";
 import { screenInfo, type ScreenInfo, type ScreenRequest } from "../shared/assistant-screen.ts";
 
@@ -25,8 +26,14 @@ export class AgentScreenRequests {
   acknowledge(conversation: string, client: string, id: string) {
     const pending = this.pending.get(id);
     if (!pending || pending.conversation !== conversation || pending.client !== client || performance.now() >= pending.deadline) throw new Error("Request expired or belongs to another window.");
+    // Polls can repeat the ACK; the fixed work bound starts only on first delivery.
+    if (pending.deadline === Infinity) return;
     clearTimeout(pending.timer);
     pending.deadline = Infinity;
+    pending.timer = setTimeout(() => {
+      this.pending.delete(id);
+      pending.reject(new Error("Screen query cancelled; screen state is unavailable."));
+    }, ASSISTANT_WINDOW_WORK_TIMEOUT_MS);
   }
   reply(conversation: string, client: string, id: string, input: ScreenInfo) {
     const pending = this.pending.get(id);

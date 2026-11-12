@@ -1,3 +1,4 @@
+import { ASSISTANT_WINDOW_WORK_TIMEOUT_MS } from "../shared/assistant-limits.ts";
 import { randomUUID } from "node:crypto";
 import { DISPLAY_SETTINGS, displayValues, type DisplayChanges, type DisplayReply, type DisplayRequest, type DisplayReceipt, type DisplaySettings } from "../shared/assistant-display.ts";
 
@@ -41,8 +42,14 @@ export class AgentDisplayRequests {
   acknowledge(conversation: string, client: string, id: string) {
     const pending = this.pending.get(id);
     if (!pending || pending.conversation !== conversation || pending.client !== client || performance.now() >= pending.deadline) throw new Error("Request expired or belongs to another window.");
+    // Polls can repeat the ACK; the fixed work bound starts only on first delivery.
+    if (pending.deadline === Infinity) return;
     clearTimeout(pending.timer);
     pending.deadline = Infinity;
+    pending.timer = setTimeout(() => {
+      this.pending.delete(id);
+      pending.reject(new Error("Display request cancelled; application is unconfirmed."));
+    }, ASSISTANT_WINDOW_WORK_TIMEOUT_MS);
   }
   reply(conversation: string, client: string, id: string, input: DisplayReply) {
     const pending = this.pending.get(id);

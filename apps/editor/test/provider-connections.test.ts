@@ -877,6 +877,17 @@ test("display requests report absent windows, expire honestly, cancel and reject
   const failed = host.execute("change_display_settings", { changes: { theme: "dark" } }, "thread", "window");
   host.reply("thread", "window", host.snapshot("thread", "window")!.id, { before, after: { ...before, theme: "dark" }, error: "Storage blocked" });
   assert.equal((await failed as { error?: string }).error, "Storage blocked");
+  const abandoned = host.execute("change_display_settings", { changes: { theme: "dark" } }, "thread", "window").catch(error => error);
+  const abandonedCommand = host.snapshot("thread", "window")!;
+  host.acknowledge("thread", "window", abandonedCommand.id);
+  t.mock.timers.tick(5 * 60_000 - 1);
+  assert.ok(host.snapshot("thread", "window"));
+  // Repeated polling/ACK must not extend the work bound after the window disappears.
+  host.acknowledge("thread", "window", abandonedCommand.id);
+  t.mock.timers.tick(1);
+  assert.equal(host.snapshot("thread", "window"), undefined, "An ACKed display request without a window response must expire");
+  assert.match((await abandoned).message, /unconfirmed/);
+  assert.throws(() => host.reply("thread", "window", abandonedCommand.id, { before, after: { ...before, theme: "dark" } }), /expired/);
   const timers = t.mock.timers;
   for (const skew of [-60_000, 60_000]) await t.test(`remote clock offset ${skew}ms keeps fresh requests and rejects delayed snapshots`, async t => {
     let hostNow = 20_000, screenNow = 5_000_000, screen = false;
@@ -1000,6 +1011,16 @@ test("screen queries isolate originating windows, omit undeclared data and fail 
   const expired = host.snapshot("thread", "window")!;
   t.mock.timers.tick(10_000); await timeout;
   assert.throws(() => host.reply("thread", "window", expired.id, reply), /expired/);
+  const abandoned = host.execute({}, "thread", "window").catch(error => error);
+  const abandonedCommand = host.snapshot("thread", "window")!;
+  host.acknowledge("thread", "window", abandonedCommand.id);
+  t.mock.timers.tick(5 * 60_000 - 1);
+  assert.ok(host.snapshot("thread", "window"));
+  host.acknowledge("thread", "window", abandonedCommand.id);
+  t.mock.timers.tick(1);
+  assert.equal(host.snapshot("thread", "window"), undefined, "An ACKed screen query without a window response must expire");
+  assert.match((await abandoned).message, /unavailable/);
+  assert.throws(() => host.reply("thread", "window", abandonedCommand.id, reply), /expired/);
   const cancelled = assert.rejects(host.execute({}, "thread", "window"), /cancelled/);
   host.cancel("thread"); await cancelled;
 });
@@ -1023,13 +1044,25 @@ test("screen actions validate inputs, isolate windows and classify unconfirmed e
     assert.equal((await host.execute(name, input, "thread", "window")).outcome, "conflict");
     assert.throws(() => host.acknowledge("thread", "other", command.id), /another window/);
     host.acknowledge("thread", "window", command.id);
-    t.mock.timers.tick(10_001);
+    t.mock.timers.tick(name === "open_folder" ? 5 * 60_000 - 1 : 10_001);
     host.reply("thread", "window", command.id, reply);
     assert.deepEqual(await result, reply);
     assert.throws(() => host.reply("thread", "window", command.id, reply), /expired/);
   }
   const timeout = host.execute("close_tabs", {tabIds: "all"}, "thread", "window");
   t.mock.timers.tick(10_000); assert.equal((await timeout).outcome, "uncertain");
+  const abandoned = host.execute("open_folder", {hostId: "remote", path: "/slow"}, "thread", "window");
+  const abandonedCommand = host.snapshot("thread", "window")!;
+  host.acknowledge("thread", "window", abandonedCommand.id);
+  t.mock.timers.tick(5 * 60_000 - 1);
+  assert.ok(host.snapshot("thread", "window"));
+  assert.equal(host.snapshot("thread", "reloaded-window"), undefined);
+  assert.throws(() => host.acknowledge("thread", "reloaded-window", abandonedCommand.id), /another window/);
+  host.acknowledge("thread", "window", abandonedCommand.id);
+  t.mock.timers.tick(1);
+  assert.equal(host.snapshot("thread", "window"), undefined, "An ACKed action without a window response must expire");
+  assert.equal((await abandoned).outcome, "uncertain");
+  assert.throws(() => host.reply("thread", "window", abandonedCommand.id, {outcome: "success", completed: ["/slow"], remaining: []}), /expired/);
   const cancelled = host.execute("close_tabs", {tabIds: "all"}, "thread", "window");
   host.cancel("thread"); assert.equal((await cancelled).outcome, "uncertain");
 });

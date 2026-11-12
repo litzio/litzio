@@ -1,3 +1,4 @@
+import { ASSISTANT_WINDOW_WORK_TIMEOUT_MS } from "../shared/assistant-limits.ts";
 import { randomUUID } from "node:crypto";
 import { screenAction, type ScreenActionRequest, type ScreenActionResult } from "../shared/assistant-screen.ts";
 const targets = { anyOf: [{ type: "string", enum: ["all"] }, { type: "array", minItems: 1, items: { type: "string" } }] };
@@ -31,8 +32,14 @@ export class AgentScreenActionRequests {
   acknowledge(conversation: string, client: string, id: string) {
     const pending = this.pending.get(id);
     if (!pending || pending.conversation !== conversation || pending.client !== client || performance.now() >= pending.deadline) throw new Error("Request expired or belongs to another window.");
+    // Polls can repeat the ACK; the fixed work bound starts only on first delivery.
+    if (pending.deadline === Infinity) return;
     clearTimeout(pending.timer);
     pending.deadline = Infinity;
+    pending.timer = setTimeout(() => {
+      this.pending.delete(id);
+      pending.resolve(failure("uncertain", "Window did not complete the action within five minutes. Query screen state before retrying."));
+    }, ASSISTANT_WINDOW_WORK_TIMEOUT_MS);
   }
   reply(conversation: string, client: string, id: string, input: ScreenActionResult) {
     const value = this.pending.get(id);
