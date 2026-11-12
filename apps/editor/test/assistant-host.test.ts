@@ -417,6 +417,14 @@ test("image import shares add-only Host and CLI behavior with document tools and
   assert.equal(invoke({ path: file, source: external }).errorKind, "forbidden");
   assert.equal(invoke({ path: file, source: external }, { permissionMode: "full-access", folders: documentFolders([], "full-access", access) }).receipt.outcome, "success");
   assert.equal(invoke({ path: file, source: external }, { permissionMode: "full-access", access: new RootAccess([root]) }).errorKind, "forbidden");
+  const fullScope = { permissionMode: "full-access", access: new RootAccess([root, outside]), folders: documentFolders([root], "full-access", new RootAccess([root, outside])) };
+  const created = path.join(outside, "created.md");
+  assert.equal((executeDocumentTool("create_document", { path: created, title: "Outside", blocks: [] }, fullScope) as any).receipt.outcome, "success");
+  assert.match((executeDocumentTool("read_document", { path: created }, fullScope) as any).source, /Outside/);
+  assert.ok((executeDocumentTool("list_documents", { path: outside }, fullScope) as any).entries.some((entry: any) => entry.path === created));
+  assert.throws(() => executeDocumentTool("read_document", { path: created }, { folders, access, permissionMode: "opened-folders" }), /outside/);
+  const operatorScope = { ...fullScope, access: new RootAccess([root]), folders: documentFolders([root], "full-access", new RootAccess([root])) };
+  assert.throws(() => executeDocumentTool("read_document", { path: created }, operatorScope), /outside/);
   writeFileSync(source, "invalid png");
   assert.equal(invoke(input).errorKind, "invalid_input");
   assert.deepEqual(readFileSync(path.join(root, first.path)), png);

@@ -36,7 +36,7 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 소유자 승인 원칙이며 이후 비서 기능과 리뷰의 기준이다. 단계 계획과 진행은 [#1500](https://github.com/litzio/litzio/issues/1500)을 따른다.
 
-- 자율성은 되돌릴 수 있는가로 정한다. 읽기·분석, 원본 수정·검사 기록, 새 문서 생성은 비서가 스스로 한다. Docling 검수 교정은 비서가 즉시 적용하며 Undo·완료는 사람, 큰 비용·외부 전송은 사람에게 확인한다.
+- 자율성은 되돌릴 수 있는가로 정한다. 읽기·분석, 원본 수정·검사 기록, 새 문서 생성은 비서가 스스로 한다. Docling 검수 교정은 비서가 즉시 적용하며 Undo·완료는 사람이 한다.
 - 보호 장치는 작업별 확정 경계에 둔다. 그 경계에서 Host가 유효성·권한·revision·결과 기록을 책임지고, 비서와 화면은 같은 공용 계약을 재사용한다. 내부 식별자(baseline·requestId 등)는 Host가 채우고 사람과 모델에게 요구하지 않는다.
 - 비서에게 새 제약을 걸 때는 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명한다([AGENTS.md](../../AGENTS.md)). 읽기와 문서 변경은 막기보다 수행 방법을 먼저 찾는다.
 - [적용]은 정상 경로에서 Host가 통제한다. 전체 접근에서는 비서가 셸로 원본을 고치는 것까지 기술적으로 막지 않으며, 이 부분은 지침으로 지키는 약속이다.
@@ -708,7 +708,7 @@ the source/destination document. Save writes only the app-owned template directo
 so opened-folder shell access to that directory is unnecessary. A template is not
 applied to an existing document; its original and source document remain intact.
 
-`litzio-guide` requires a fresh template lookup, selection within the creation request and direct application without extra consent (Refs #1542). Missing named templates never silently fall back. Save uses name/source and optional description, asks only for missing information, uses the saved disk version, then reads back and refreshes the catalog. Unsaved content must be saved first if intended. Both providers expose the same Host template tools.
+`litzio-guide` requires a fresh template lookup, selection within the creation request and direct application without extra consent (Refs #1542). Missing named templates never silently fall back. Save uses name/source and optional description, asks only for missing information, uses the saved disk version, and verifies the saved result without a prescribed tool order. Template structure must be preserved regardless of authoring method. Unsaved content must be saved first if intended. Both providers expose the same Host template tools.
 
 CLI instructions now serve terminal continuation. Before Codex launch the Host
 prepends a private `<assistant cwd>/bin/<CLI identity>` launcher for its own CLI to the child PATH,
@@ -1081,8 +1081,9 @@ used. New conversation clears the draft. Sending snapshots the draft into a mess
 message is valid, including steering an active turn.
 
 Host checks both opened-folder RootAccess and its own access policy. Each relative
-path segment must appear in Explorer's current listing: hidden entries, symlinks,
+path segment must appear in Explorer's current listing in opened-folders and read-only modes: hidden entries, symlinks,
 directories, unavailable files and paths outside opened folders are rejected.
+Full-access permits hidden files and paths outside opened folders, including without any opened folder; Host operator Roots still apply. Directories and symlinks (including ancestor links) remain rejected. Attachments do not expand a restricted turn's permissions. The existing Explorer Add to chat action offers only visible files inside opened folders; no outside-file picker is added.
 Checks run again immediately before submission. All files, including `.md` and
 `.txt`, remain path descriptors in `references:[{path,name,kind}]` in the existing
 `Litzio read-only context (JSON)` text. PNG/JPEG/WebP/GIF additionally send
@@ -2105,7 +2106,7 @@ The image-estimate card and its special question linkage are removed. Ordinary a
 
 ### 기존 문서 직접 편집과 새 문서 생성 (#1565)
 
-기존 문서는 공급자의 파일 편집 도구나 셸로 원본 텍스트를 바로 수정하고 `litzio check <file> --format json`으로 검사해 오류를 고친다. 사본·적용·버리기 도구와 API·UI·CLI는 제거했다. 남은 과거 대기 사본은 이전하지 않는다. 비서 작업 폴더는 유지하며 임시 산출물은 그곳에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
+기존 문서는 표·목록·그림·캡션·수식의 삽입·수정도 공급자 패치로 본문을 먼저 고치고 `litzio check <file> --format json`으로 검사한다. 쓰기 CLI(insert-*·apply-batch 등)도 사용할 수 있지만 제한 권한에서는 실행 승인이 필요할 수 있다. 그림의 최소 본문 예시는 litzio-guide에 둔다. 사본·적용·버리기 도구와 API·UI·CLI는 제거했다. 남은 과거 대기 사본은 이전하지 않는다. 비서 작업 폴더는 유지하며 임시 산출물은 그곳에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
 
 검증: 실제 Codex `gpt-6-luna` / `low` / Full access 1회에서 임시 문서 제목 변경·표 행 추가와 `litzio check`가 성공했다. 셸 도구 2회, 19.9초이며 별도 검사도 통과했다. 작은 임시 문서의 Host 대화 경로만 확인했으며 앱 UI·원격 Host의 실제 AI 검증은 아니다. 패널은 기존 Button·결과 카드·composer를 유지하고 사본 목록만 제거했다. 기존 결과 카드 시나리오의 1440px 밝은/한국어 다크 캡처에서 잘림·잔여 빈 자리 없이 표시되는지 수동 확인했다. 새 공통 상호작용 예외는 없다.
 
@@ -2115,7 +2116,7 @@ Tables, lists, figures and captions use existing `insert-table`, `insert-list`, 
 
 Ordinary creation adds `receipt.outcome:success` to its existing path/source/revision/identity receipt. Creation failures use `receipt.outcome:failure|uncertain` and `errorKind:invalid_input|conflict|forbidden|unavailable|uncertain`; existing target is conflict, bad operations are invalid_input, denied scope is forbidden, missing parent is unavailable and unconfirmed I/O is uncertain. Do not replay uncertain writes.
 
-Creation and copy-edit success also report a separate `readiness` array for Figure assets: path, label, source and status `available|missing_or_unreadable|unavailable|unchecked|pending|embedded`. Canonical validity does not establish image existence or decoding. Host document-relative media resolution and access checks determine availability; outside-directory references are unavailable, remote/absolute sources are unchecked, missing/unreadable local files warn without blocking valid document writes, as with CLI check. Figure operations alone do not generate or copy image files. Use `import_document_image` before inserting a local image. Asset checks are point-in-time file checks, not rendered-image verification.
+Creation and copy-edit success also report a separate `readiness` array for Figure assets: path, label, source and status `available|missing_or_unreadable|unavailable|unchecked|pending|embedded`. Canonical validity does not establish image existence or decoding. Host document-relative media resolution and access checks determine availability; outside-directory references are unavailable, remote/absolute sources are unchecked, missing/unreadable local files warn without blocking valid document writes, as with CLI check. Figure operations alone do not generate or copy image files. `import_document_image` is a convenient import path; regardless of insertion method, use `litzio check` to verify figure paths. Asset checks are point-in-time file checks, not rendered-image verification.
 
 ## Smooth assistant output (#1522, #1523)
 

@@ -253,7 +253,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
-  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 본문은 공급자 파일 편집(패치)으로 먼저 원본을 고친다"));
+  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 표·목록·그림·캡션·수식의 삽입·수정도 공급자 패치로 본문을 먼저 고친다"));
   await connection.close();
   for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
 });
@@ -373,6 +373,20 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const real = path.join(root, "real"); mkdirSync(real); writeFileSync(path.join(real, "file.txt"), "reference");
     const linked = path.join(root, "linked"); symlinkSync(real, linked, process.platform === "win32" ? "junction" : "dir");
     await assert.rejects(resumed.send({ ...input, references: [path.join(linked, "file.txt")] }, settings), /unavailable/);
+    for (const permissionMode of ["opened-folders", "read-only"] as const) {
+      await assert.rejects(resumed.send({ ...input, permissionMode, folders: [cwd], references: [input.document.path] }, settings), /outside/);
+      await assert.rejects(resumed.send({ ...input, permissionMode, references: [path.join(root, ".hidden")] }, settings), /unavailable/);
+    }
+    const full = { ...input, permissionMode: "full-access" as const, reviewWorkspace: undefined, folders: [], references: [input.document.path, path.join(root, ".hidden"), input.document.path] };
+    const attached = await resumed.send(full, settings);
+    assert.deepEqual(attached.turns[0]!.items.find(item => item.kind === "user")!.references!.map(file => file.path), [input.document.path, path.join(root, ".hidden")]);
+    await resumed.interrupt(attached.id);
+    await assert.rejects(resumed.send({ ...full, references: [root] }, settings), /unavailable/);
+    await assert.rejects(resumed.send({ ...full, references: [path.join(linked, "file.txt")] }, settings), /unavailable/);
+    await assert.rejects(resumed.send({ ...full, references: [fakeServer] }, settings), /outside/);
+    const restricted = await resumed.send({ ...input, references: [] }, settings);
+    await assert.rejects(resumed.send({ ...full, id: restricted.id }, settings), /outside/);
+    await resumed.interrupt(restricted.id);
     const many = Array.from({ length: 11 }, (_, i) => path.join(root, `file-${i}.txt`));
     for (const file of many) writeFileSync(file, "reference");
     const eleven = await resumed.send({ ...input, references: many }, settings);
@@ -443,7 +457,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(instructions, /상태 미발견은 쓰기가 없었다는 증거가 아니다/);
   assert.match(instructions, /accepted:true.*저장.*렌더 확인·답변 수신을 뜻하지 않는다/);
   assert.match(instructions, /apply_review_groups로 즉시 적용/);
-  assert.match(instructions, /공급자 파일 편집\(패치\).*litzio check/);
+  assert.match(instructions, /표·목록·그림·캡션·수식.*공급자 패치로 본문을 먼저.*litzio check/);
   assert.match(instructions, /AGENTS.md.*작업하기 전에 읽는다/);
   const parentPath = process.env.PATH;
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
@@ -1016,6 +1030,10 @@ test("Codex requirements disable full access; policy rejection retries once befo
   const reopened = await new AssistantConversations(connection, null).resume(changed.id, settings);
   assert.equal(reopened.permissionFallback, undefined, "cleared notice stays cleared on resume");
   assert.equal(reopened.permissionMode, "read-only");
+  writeFileSync(outside, "outside reference");
+  const beforeReferenceFallback = policies.length;
+  await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access", references: [outside] }, settings), /outside/);
+  assert.equal(policies.length, beforeReferenceFallback + 1, "a policy downgrade must reject outside attachments before restricted submission");
   uncertain = true;
   const attempts = policies.length;
   await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access" }, settings), /Connection closed before response/);
