@@ -30,7 +30,12 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
   // Use a tiny static Editor fixture; production Save/Reload remains in the existing browser test.
   fs.mkdirSync(path.join(base, "editor")); fs.writeFileSync(path.join(base, "editor/index.html"), "<!doctype html><title>Fixture</title>");
   await build({ entryPoints: [fileURLToPath(new URL("../src/cli.ts", import.meta.url))], outfile: entry, bundle: true, platform: "node", format: "esm", logLevel: "silent",
-    define: { __LITZIO_CLI_BUILD__: JSON.stringify({ version: "test-version", desktop: false, commit: "test" }) },
+    define: {
+      __LITZIO_CLI_BUILD__: JSON.stringify({ version: "test-version", desktop: false, commit: "test" }),
+      // Match the production CLI build: relocated bundles have no source Markdown files.
+      __LITZIO_ASSISTANT_INSTRUCTIONS__: JSON.stringify(fs.readFileSync(new URL("../../../apps/editor/server/assistant/AGENTS.md", import.meta.url), "utf8")),
+      __LITZIO_ASSISTANT_GUIDE__: JSON.stringify(fs.readFileSync(new URL("../../../apps/editor/server/assistant/litzio-guide/SKILL.md", import.meta.url), "utf8")),
+    },
     banner: { js: 'import {createRequire as __testCreateRequire} from "node:module"; const require=__testCreateRequire(import.meta.url);' } });
   const execute = (args: string[], inspect?: () => Promise<void>) => new Promise<{ code: number | null; stdout: string; stderr: string; failureDiagnostics: () => string }>((resolve, reject) => {
     const diagnostics = new CliDiagnostics(args);
