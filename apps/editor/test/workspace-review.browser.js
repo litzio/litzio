@@ -69,8 +69,30 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await page.getByRole('button',{name:'되돌리기',exact:true}).click();
   await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===group.id).targets[0].proposal).toBe('proposed');
   await expect(page.getByRole('button',{name:'거절',exact:true})).toBeEnabled();
-  await page.getByRole('button',{name:'거절',exact:true}).click();
-  await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===group.id).targets[0].proposal).toBe('rejected');
+  // Ledger publication precedes the screen's refresh. Hold that refresh to verify
+  // the existing pending controls, then wait for visible completion before an external CLI write.
+  let enteredRefresh,releaseRefresh;
+  const refreshEntered=new Promise(resolve=>{enteredRefresh=resolve;});
+  const refreshReleased=new Promise(resolve=>{releaseRefresh=resolve;});
+  let holdRefresh=true;
+  await page.route('**/api/reviews',async route=>{
+    const body=route.request().postDataJSON();
+    if(holdRefresh && body?.action==='workspace-evidence' && body.mode==='read'){
+      holdRefresh=false;enteredRefresh();await refreshReleased;
+    }
+    await route.fallback();
+  });
+  try {
+    await page.getByRole('button',{name:'거절',exact:true}).click();
+    await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===group.id).targets[0].proposal).toBe('rejected');
+    await refreshEntered;
+    await expect(list.locator('[aria-current=page]')).toBeDisabled();
+    await expect(page.getByRole('button',{name:'Export current state…',exact:true})).toBeDisabled();
+  } finally {releaseRefresh();}
+  await expect(list.getByRole('button',{name:'2쪽 · 거절함',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+  await expect(page.locator('.review-region').first()).toBeEnabled();
+  await expect(page.locator('.review-image-loading')).toHaveCount(0);
   const rejected=await docling.review('workspace-read',base);
   const second={...group,id:'browser-kind-second',contentRevision:rejected.documentRevision};
   await docling.review('workspace-review-change',{...base,baseline:rejected.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-propose',groups:[second]}});

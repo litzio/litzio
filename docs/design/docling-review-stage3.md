@@ -22,6 +22,8 @@
 
 1440px 합성 fixture [라이트](assets/review-direct-apply/after-1440-light.png)·[다크](assets/review-direct-apply/after-1440-dark.png)를 직접 확인했다. 기존 compact 행·머리글 정렬·내부 스크롤·다크 대비를 유지하며 새 편집 UI는 없다. 같은 브라우저 실행에서 적용됨 목록·승인 버튼 없음·Undo·사람 쪽 제외/Undo·진행 저장·cold Host·export를 확인했다. 원본 이미지는 기존 1px 합성 fixture이며 실제 PDF 품질이나 소유자 시각 승인은 아니다. 실제 AI 호출·재변환·패키지 Desktop 검사는 실행하지 않았다.
 
+#1538 후속 검증: queue run 43141457766의 CLI receipt가 `Workspace operation in progress`를 보존해 이전 간헐 실패의 원인을 확인했다. 기존 검사는 ledger의 rejected 저장 직후 화면의 후속 대조 읽기·근처 쪽 이미지 읽기가 끝나기 전에 외부 CLI 쓰기를 시작했다. 같은 browser 경로에서 거절 뒤 읽기를 신호로 보류해 ledger는 rejected여도 선택 행·내보내기가 비활성임을 확인한다. 보류 해제 뒤 실제 행·새로고침·영역 control 활성과 이미지 로딩 없음까지 기다린 다음 최신 baseline을 읽고 한 번만 propose한다. 고정 대기·재시도·timeout 변경·단언 완화는 없으며 Host busy 거부와 제품 코드는 유지한다. 즉시 apply 한 호출은 기존 propose에 Core 적용을 합치지만 실패 지점은 이미 끝난 apply가 아니라 변경하지 않은 거절 후 읽기 경로다. busy 유지 시간을 늘리는 제품 변경은 없다. 앞서 기록한 “간헐” 분류를 테스트 완료 동기화 결함으로 대체한다. 수정 후 Windows persistent profile의 같은 workspace-review를 순차 3회 실행해 HTTP 복구 포함 총 6개가 통과했다(각 약 1.7~1.8분). 관련 fixture/비서 자료 단위 16개와 Editor typecheck·docs check도 통과했다.
+
 ## 2026-11-11 아키텍처 확정(소유자 승인)
 
 [소유자 확정 결정](https://github.com/litzio/litzio/issues/1462#issuecomment-6783018003)과 2026-11-11 승인된 설계 정리 지시를 반영한다. 교정 대상을 리치오 문서로 고정하며 이 방향은 다시 변경하지 않는다는 소유자 결정이다. **아래는 구현할 방향이고 현재 동작의 구현 완료 선언이 아니다.** 충돌하는 과거 계획에는 이 절이 우선한다. 기존 실험 수치는 보존한다.
