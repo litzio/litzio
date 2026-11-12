@@ -133,14 +133,15 @@ test("generic workspace groups preserve source and history through partial decis
       const input=path.join(root,"input.json"), replacement=structuredClone(group);
       replacement.id="cli-replacement";replacement.targets=[replacement.targets[0]!];replacement.contentRevision=undone.contentRevision;
       replacement.targets[0]!.patch.expectedContentRevision=undone.contentRevision;
-      writeFileSync(input,JSON.stringify({...base,baseline:undone.baseline,requestId:randomUUID(),change:{groups:[replacement],supersedes:[{groupId:"g2",targetIds:["a"],replacementGroupId:replacement.id}]}}));
+      writeFileSync(input,JSON.stringify({...base,baseline:undone.baseline,requestId:randomUUID(),change:{actor:{source:"human",...human},groups:[replacement],supersedes:[{groupId:"g2",targetIds:["a"],replacementGroupId:replacement.id}]}}));
       const address=server.address() as {port:number};
-      const cli = spawn(process.execPath,["--import","tsx",path.resolve("../../packages/cli/src/cli.ts"),"review","groups","propose","--input",input,"--host",`http://127.0.0.1:${address.port}`,"--json"],{windowsHide:true});
+      const cli = spawn(process.execPath,["--import","tsx",path.resolve("../../packages/cli/src/cli.ts"),"review","groups","apply","--input",input,"--host",`http://127.0.0.1:${address.port}`,"--json"],{windowsHide:true});
       let stdout="",stderr="";cli.stdout.on("data",b=>stdout+=b);cli.stderr.on("data",b=>stderr+=b);
       const exit=await new Promise<number|null>((resolve,reject)=>{cli.on("error",reject);cli.on("exit",resolve);});
       assert.equal(exit,0,stderr+stdout);
       const fromCli=JSON.parse(stdout);assert.deepEqual(fromCli.ledger.groups[0],undone.ledger.groups[0]);
       assert.deepEqual(fromCli.ledger.groups[1].targets[0].history.map((event:any)=>event.action),["approved","undone","superseded"]);
+      assert.equal(fromCli.ledger.groups[2].targets[0].result,"applied");assert.deepEqual(fromCli.ledger.groups[2].targets[0].history.at(-1).human,human);
       assert.equal(fromCli.ledger.groups[2].id,replacement.id);assert.equal(fromCli.ledger.groups[1].targets[0].history.at(-1).supersededBy.groupId,replacement.id);
     } finally { await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve())); }
   } finally { rmSync(root, { recursive: true, force: true }); }

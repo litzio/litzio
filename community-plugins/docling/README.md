@@ -315,7 +315,7 @@ PDF.js legacy Node build가 PDF 텍스트를 독립 추출합니다. 어댑터�
 
 ## 비서 국소 제안 (5단계)
 
-Codex 비서는 공용 `read_review_material`로 렌즈·source-evidence 후보·그림/표 필수 확인·해당/앞뒤 페이지 조각을 읽고 `propose_review_groups`로 제안만 저장한다. 문서를 적용하는 승인·거절·Undo·완료 승인 도구는 제공하지 않는다. 교정 결정은 기존 사람 CLI 경로를 사용한다.
+2026-11-12 소유자 결정(#1531)은 이전 제안 전용/사람 승인 계획을 대체한다. Codex 비서는 공용 `read_review_material`로 자료를 읽고 `apply_review_groups`로 검증된 교정을 리치오 문서에 바로 적용한다. 같은 공용 groups-apply는 기존 제안→적용을 한 candidate·원자적 저장으로 묶으며 CLI는 `review groups apply --input <json-file> --host <origin> --json`이다. 사람/비서 출처를 이력에 구분하며, 사람은 적용된 교정을 보고 Undo하거나 대화로 추가 수정을 지시한다. Undo 뒤 재교정은 열린 제안을 supersedes로 대체한다. 쪽 제외의 사람 제안 검토/승인과 완료·필수 확인은 유지한다. 직접 편집은 후속이다.
 
 이미지는 `read_review_images {path,pageNo,target?}`로 사전 승인 없이 바로 읽는다(2026-11-12 소유자 결정, #1529). 현재 파일·문서 revision과 페이지/대상 유효성을 확인한다. 반환 runId는 검사·사용량의 측정 식별자이며 승인이 아니다. 현재 revision에서 실제 반환된 자료 이력으로 턴을 넘어 검사 부분을 누적하고 나머지는 미대조로 남긴다. 사용량은 실행 조건이 아니며 사람 필수 확인을 자동 완료하지 않는다.
 

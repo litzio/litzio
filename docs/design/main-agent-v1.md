@@ -33,7 +33,7 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 소유자 승인 원칙이며 이후 비서 기능과 리뷰의 기준이다. 단계 계획과 진행은 [#1500](https://github.com/litzio/litzio/issues/1500)을 따른다.
 
-- 자율성은 되돌릴 수 있는가로 정한다. 읽기·분석, 사본 수정·제안·검사 기록, 새 문서 생성은 비서가 스스로 한다. 원본(SSOT) 반영은 사람의 [적용] 한 번, Docling 검수 승인·완료는 사람, 큰 비용·외부 전송은 사람에게 확인한다.
+- 자율성은 되돌릴 수 있는가로 정한다. 읽기·분석, 사본 수정·제안·검사 기록, 새 문서 생성은 비서가 스스로 한다. 원본(SSOT) 반영은 사람의 [적용] 한 번, Docling 검수 교정은 비서가 즉시 적용하며 Undo·완료는 사람, 큰 비용·외부 전송은 사람에게 확인한다.
 - 보호 장치는 작업별 확정 경계에 둔다. 그 경계에서 Host가 유효성·권한·revision·결과 기록을 책임지고, 비서와 화면은 같은 공용 계약을 재사용한다. 내부 식별자(baseline·requestId 등)는 Host가 채우고 사람과 모델에게 요구하지 않는다.
 - 비서에게 새 제약을 걸 때는 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명한다([AGENTS.md](../../AGENTS.md)). 읽기와 사본 변경은 막기보다 수행 방법을 먼저 찾는다.
 - [적용]은 정상 경로에서 Host가 통제한다. 전체 접근에서는 비서가 셸로 원본을 고치는 것까지 기술적으로 막지 않으며, 이 부분은 지침으로 지키는 약속이다.
@@ -2094,11 +2094,11 @@ conditions. Captures exclude unrelated Host identity and local paths.
 
 ## Review workspace tools (#1462 stage 5)
 
-Codex registers the common review read/material, source-evidence run, proposal-only storage, inspection, image-read and request-status tools. [The plugin contract](plugin-stage1-v1.md#비서-국소-제안-1462-5단계) defines their inputs, CLI parity and boundaries. Human correction approval/rejection/Undo/completion are not assistant tools or question-card actions.
+Codex registers the common review read/material, source-evidence run, immediate correction application, inspection, image-read and request-status tools. [The plugin contract](plugin-stage1-v1.md#비서-국소-제안-1462-5단계) defines their inputs, CLI parity and boundaries. The assistant applies corrections without a question or human approval using `apply_review_groups`; rejection/Undo/completion retain human paths.
 
 2026-11-12 owner decision (#1529): image reads need no estimate, question or human preapproval. `read_review_images {path,pageNo,target?}` returns the valid page or target regions directly. The returned runId correlates measurement and inspection only; it grants no permission. Workspace/file baseline, document revision and page/target validity remain checked. Actual provider turn usage is recorded separately without per-image attribution and never gates reads.
 
-`record_review_inspection` uses material actually returned in this conversation at the current workspace and document/content revision, including previous turns. Image inspections record inspected subsets cumulatively using the returned image runId; unread or uninspected portions remain not compared. Summary/inventory alone is no reading proof. Correction approval/rejection/Undo/completion remain human-only. Invalid proposal input retains existing validation reasons with `invalid_input`, field paths/expected formats or current revision/baseline when known. No new validation rule is introduced.
+`record_review_inspection` uses material actually returned in this conversation at the current workspace and document/content revision, including previous turns. Image inspections record inspected subsets cumulatively using the returned image runId; unread or uninspected portions remain not compared. Summary/inventory alone is no reading proof. Correction application is immediate (#1531); rejection/Undo/completion retain human paths. Invalid proposal input retains existing validation reasons with `invalid_input`, field paths/expected formats or current revision/baseline when known. No new validation rule is introduced.
 
 The image-estimate card and its special question linkage are removed. Ordinary async questions follow the retained-question lifecycle in #1530 above. The earlier image-card captures document the removed UI, not current behavior.
 
@@ -2183,7 +2183,6 @@ Fixed LSR conversion results were reused; no conversion was run. The existing Ho
 
 One actual Codex `gpt-6-luna`/`low` turn called `read_review_images` once, returned one image with success, and completed with `IMAGE_READ_OK`. This verifies image transport only, not findings or inspection quality. Before removing preapproval, the #1527 fake provider reproduced immediate turn completion after question-tool return and rejection of the human answer. Code inspection of [Codex dynamic response forwarding](https://github.com/openai/codex/blob/d7840f9f22f330dd67e0a1638f66591ae221df36/codex-rs/app-server/src/dynamic_tools.rs) and [Core response waiting](https://github.com/openai/codex/blob/d7840f9f22f330dd67e0a1638f66591ae221df36/codex-rs/core/src/tools/handlers/dynamic.rs) found response/cancellation waiting without a dynamic-tool timer. Litzio's 15-second outbound RPC timer is separate from inbound tool calls. No actual multi-minute human-wait test was run; #1529 removes that wait entirely.
 
-
 ### Retained question UI evidence (#1530)
 
 The existing AssistantQuestion form, compact Button/Input and theme tokens are reused;
@@ -2194,3 +2193,7 @@ answerable question after its turn has completed, followed by reopened answer hi
 [1440 Light history](assets/assistant-question-1530/reopened-1440-light.png),
 [1440 Dark history](assets/assistant-question-1530/reopened-1440-dark.png).
 These are manual review evidence, not owner visual approval or a real model response.
+
+## Immediate review corrections (#1531, 2026-11-12)
+
+The owner decision supersedes the 11-11 proposal-only/human-approval plan. `apply_review_groups {path,change}` accepts the existing groups-propose schema (including supersedes) and calls shared groups-apply with Host-supplied assistant attribution. Proposal validation and Core application share one candidate and atomic commit. Before/locator validation, observed baseline, request status and no automatic replay remain unchanged. History records assistant separately from human evidence. People see applied corrections, Undo them and request further edits in conversation; after Undo the assistant supersedes the reopened proposal when correcting again. Page-exclusion proposals keep their human review path. Completion and required checks are unchanged. Direct editing of the workspace document is a follow-up; no edit entry is added here. General staged document editing (#1494) is unchanged.

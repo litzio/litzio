@@ -519,7 +519,7 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       const settings={provider:"codex" as const,permissionMode:"opened-folders" as const,model:"gpt-6.1-sol",reasoningEffort:"medium"};
       const c=await conversations.send({message:"Inspect local review evidence",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},settings,"review-window");
       const tools=readFileSync(log,"utf8").split("\n").filter(Boolean).map(line=>JSON.parse(line)).find(row=>row.method==="thread/start").params.dynamicTools;
-      assert.ok(tools.some((tool:any)=>tool.name==="propose_review_groups"));
+      assert.ok(tools.some((tool:any)=>tool.name==="apply_review_groups"));
       assert.ok(!tools.some((tool:any)=>/review.*(approve|reject|undo|completion|complete)/.test(tool.name)),"no human decision tools");
       const invoke=async(tool:string,args:any)=>{const reply:any=await connection.client.request("fixture/tool",{threadId:c.id,tool,arguments:args});return {reply:reply.result,value:JSON.parse(reply.result.contentItems[0].text)};};
       const {ASSISTANT_TRANSPORT_LIMITS}=await import("../shared/assistant-limits.ts");
@@ -542,22 +542,37 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       const group=structuredClone((await read()).ledger.groups[0]);group.id="assistant-saved";group.reasonCode="assistant-local";group.runId="assistant-local";
       group.targets=group.targets.map((target:any)=>({...target,id:"assistant-target",history:[],proposal:"proposed",result:null,resolved:false}));group.representativeTargetId="assistant-target";
       const beforeProposal=(await read()).snapshot;
-      const proposed=await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[group]}});
+      const atomicBytes=readFileSync(file), lateFailure=structuredClone(group);
+      lateFailure.id="late-conflict";lateFailure.reasonCode="other-reason";lateFailure.representativeTargetId="late-target";lateFailure.targets[0].id="late-target";
+      const failedBatch=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[group,lateFailure]}});
+      assert.equal(failedBatch.reply.success,false);assert.deepEqual(readFileSync(file),atomicBytes,"a later target conflict discards earlier Core edits and all proposal records");
+      const proposed=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[group]}});
       assert.equal(proposed.reply.success,true,JSON.stringify(proposed));
       assert.equal((await invoke("read_review_request_status",{...assistantBase,requestId:proposed.value.receipt.requestId})).value.baseline,proposed.value.baseline);
-      assert.deepEqual((await read()).snapshot,beforeProposal,"proposal storage never changes document/mapping");
+      assert.notEqual((await read()).documentRevision,beforeProposal.documentRevision,"assistant corrections apply immediately");
+      const applied=(await read()).ledger.groups.find((g:any)=>g.id===group.id).targets[0];
+      assert.equal(applied.result,"applied");assert.equal(applied.history[0].human,null);assert.equal(applied.history[0].assistant.actor,"assistant");
+      assert.equal((await change({kind:"groups-undo",groupId:group.id,targetIds:group.targets.map((t:any)=>t.id),human,resolvesIssue:false})).receipt.outcome,"success");
+      assert.equal((await read()).documentRevision,beforeProposal.documentRevision);
+      await invoke("read_review_document",assistantBase);
+      const reapplied=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"assistant-again"}],supersedes:[{groupId:group.id,targetIds:group.targets.map((t:any)=>t.id),replacementGroupId:"assistant-again"}]}});
+      assert.equal(reapplied.reply.success,true,JSON.stringify(reapplied));
+      const beforeInvalid=readFileSync(file);
       const invalidGroup={...group,id:"invalid-target",targets:[{...group.targets[0],patch:{...group.targets[0].patch,expectedBefore:["wrong before"]}}]};
-      assert.equal((await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[invalidGroup]}})).reply.success,false);
-      const badRevision=await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"wrong-source",sourceRevision:"0".repeat(64)}]}});
+      assert.equal((await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[invalidGroup]}})).reply.success,false);
+      assert.deepEqual(readFileSync(file),beforeInvalid,"stale before refuses both document and proposal writes");
+      const badRevision=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"wrong-source",sourceRevision:"0".repeat(64)}]}});
       assert.equal(badRevision.value.errorKind,"invalid_input");assert.match(badRevision.value.error,/source revision/i);
       assert.equal(badRevision.value.current.documentRevision,(await read()).documentRevision);
       assert.equal(badRevision.value.current.baseline,(await read()).baseline);
       const malformed=structuredClone(group);malformed.targets[0].regions=[{ref:"#/texts/0",page:1,bbox:"0,0,1,1"}];
-      const bboxFailure=await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[malformed]}});
+      const bboxFailure=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[malformed]}});
       assert.equal(bboxFailure.value.errorKind,"invalid_input");assert.match(bboxFailure.value.error,/bbox/);assert.match(bboxFailure.value.error,/tuple/);
       const cliOperation=structuredClone(group);cliOperation.targets[0].patch.operations=[{command:"update-text",path:"0",text:"bad"}];
-      const operationFailure=await invoke("propose_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[cliOperation]}});
+      const operationFailure=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[cliOperation]}});
       assert.equal(operationFailure.value.errorKind,"invalid_input");assert.match(operationFailure.value.error,/operations/);assert.match(operationFailure.value.error,/type/);
+      assert.equal((await change({kind:"groups-undo",groupId:"assistant-again",targetIds:["assistant-target"],human,resolvesIssue:false})).receipt.outcome,"success");
+      await invoke("read_review_material",{...assistantBase,kind:"page",pageNo:2});
       const selection={pages:[1],targets:["#/texts/0"]};
       const imageArgs=()=>({...assistantBase,pageNo:1,target:selection.targets[0]});
       assert.ok(!tools.some((tool:any)=>tool.name==="estimate_review_images"));
@@ -578,9 +593,9 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       assert.equal(textRecord.reply.success,true,JSON.stringify(textRecord.value));
       assert.deepEqual((await invoke("read_review_material",{...assistantBase,kind:"source-evidence"})).value.evidence,evidenceRun.evidence,"image records cannot replace source candidates");
       const state=await read();assert.deepEqual(state.snapshot,beforeProposal);
-      assert.equal((await change({kind:"groups-approve",groupId:group.id,targetIds:["assistant-target"],human,resolvesIssue:true})).receipt.outcome,"success");
+      assert.equal((await change({kind:"groups-approve",groupId:"assistant-again",targetIds:["assistant-target"],human,resolvesIssue:true})).receipt.outcome,"success");
       assert.equal((await record()).reply.success,false,"changed document invalidates returned material history");
-      assert.equal((await change({kind:"groups-undo",groupId:group.id,targetIds:["assistant-target"],human,resolvesIssue:false})).receipt.outcome,"success");
+      assert.equal((await change({kind:"groups-undo",groupId:"assistant-again",targetIds:["assistant-target"],human,resolvesIssue:false})).receipt.outcome,"success");
       await connection.client.request("fixture/token-usage",{threadId:c.id,turnId:c.turns.at(-1)!.id,tokenUsage:{last:{totalTokens:123,inputTokens:100,outputTokens:23,cachedInputTokens:0},modelContextWindow:1000}});
       await connection.client.request("fixture/finish",{threadId:c.id});
       for(let attempt=0;attempt<100;attempt++) {
@@ -589,7 +604,7 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       }
       assert.ok((await read()).ledger.inspections.some((record:any)=>{try{const data=JSON.parse(record.evidence);return data.format==="review-image-usage-1" && data.usage.inputTokens===100 && data.source==="provider-turn-total-not-per-image";}catch{return false;}}),JSON.stringify(c.turns.flatMap(t=>t.items).filter(item=>item.status==="failed")));
       const restricted=await conversations.send({message:"Read only",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},{...settings,permissionMode:"read-only"},"review-window");
-      const denied:any=await connection.client.request("fixture/tool",{threadId:restricted.id,tool:"propose_review_groups",arguments:{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"read-only"}]}}});assert.equal(denied.result.success,false);assert.match(denied.result.contentItems[0].text,/Opened folders/);
+      const denied:any=await connection.client.request("fixture/tool",{threadId:restricted.id,tool:"apply_review_groups",arguments:{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"read-only"}]}}});assert.equal(denied.result.success,false);assert.match(denied.result.contentItems[0].text,/Opened folders/);
       for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(archive.readDoclingArchive(readFileSync(file))[key],original[key]);
     } finally {await conversations.close();await connection.close();}
     assert.equal(readFileSync(new URL("converted/document.json",sample),"utf8"),json);
