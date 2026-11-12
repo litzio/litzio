@@ -2177,6 +2177,7 @@ Copilot ACP는 diff content의 `oldText`·`newText`를 사용한다. 같은 턴�
 표시한다. 리치오 문서는 기존 VisualCompare도 제공하고 일반 텍스트는 원문만 비교한다.
 설명은 공용 Tooltip의 hover·focus 안내이며 파일 대상과 두 행동만 상시 표시한다.
 U24 비교 Dialog, 비서 작업 과정과 생성 카드의 Button·확인 패턴을 재사용하며 공통 표면 예외는 없다.
+비교는 초기 포커스 이전에도 Escape로 닫히며, 비서 패널은 유지하고 원래 버튼에 포커스를 돌린다.
 
 되돌리기는 현재 내용이 비서의 마지막 결과와 같을 때만 `packages/file-commit`의 revision 확인·
 임시 sibling 교체로 첫 내용으로 복원한다. 이후 변경은 거부하고 이유를 알린다.

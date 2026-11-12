@@ -43,13 +43,31 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await expect(cards).toHaveCount(3);
   const editRows = panel.getByTestId('assistant-file-change');
   await expect(editRows).toHaveCount(2);
-  await editRows.first().getByRole('button', { name: 'View changes', exact: true }).click();
+  const firstChange = editRows.first().getByRole('button', { name: 'View changes', exact: true, includeHidden: true });
   const comparison = page.getByRole('dialog', { name: /View changes/ });
-  await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('Before assistant edit.');
-  await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('After assistant edit.');
-  await expect(comparison.getByRole('group', { name: 'Comparison view' })).toHaveCount(0);
-  await page.keyboard.press('Escape'); await expect(comparison).toBeHidden(); await expect(panel).toBeVisible();
-  await expect(editRows.first().getByRole('button', { name: 'View changes', exact: true })).toBeFocused();
+  // CI recorded Escape 77ms after clicking, before the Dialog's queued initial focus.
+  // Hold only that focus transfer to exercise the same human-reachable window deterministically.
+  const resumeDialogFocus = await page.evaluateHandle(() => {
+    const focus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function (...args) {
+      if (this.closest('[role="dialog"]')) return;
+      focus.apply(this, args);
+    };
+    return () => { HTMLElement.prototype.focus = focus; };
+  });
+  try {
+    await firstChange.click();
+    await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('Before assistant edit.');
+    await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('After assistant edit.');
+    await expect(comparison.getByRole('group', { name: 'Comparison view' })).toHaveCount(0);
+    await expect(firstChange).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(comparison).toBeHidden(); await expect(panel).toBeVisible();
+    await expect(firstChange).toBeFocused();
+  } finally {
+    await resumeDialogFocus.evaluate(resume => resume());
+    await resumeDialogFocus.dispose();
+  }
   await editRows.nth(1).getByRole('button', { name: 'View changes', exact: true }).click();
   await expect(comparison.getByRole('region', { name: 'Before assistant edit', exact: true })).toContainText('Before assistant edit.');
   await expect(comparison.getByRole('region', { name: 'Current disk file', exact: true })).toContainText('Beta.');

@@ -459,8 +459,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
     onKeyDown={event => {
       if (event.defaultPrevented) return;
-      // Portalled comparison keys belong to its Dialog, not the panel beneath it.
-      if (changeComparison) { event.stopPropagation(); return; }
+      // Dialog owns these keys, including document-level Escape before its queued initial focus.
+      if (changeComparison) return;
       if (event.key === "Escape" && !event.nativeEvent.isComposing) {
         event.preventDefault();
         // Focus can still be on a chip before the portalled popup autofocus runs.
