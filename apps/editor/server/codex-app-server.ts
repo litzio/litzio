@@ -33,6 +33,7 @@ function command(bin: string) {
 }
 export class CodexAppServer extends EventEmitter {
   userInput?: (id: string | number, params: any, respond: (answers: unknown) => void) => void;
+  approval?: (id: string | number, method: string, params: any, respond: (result: unknown) => void) => void;
   toolCall?: (params: any) => unknown;
   private child?: ChildProcessWithoutNullStreams;
   private ready?: Promise<void>;
@@ -96,7 +97,15 @@ export class CodexAppServer extends EventEmitter {
         } catch (error) { this.write({ id: message.id, error: { code: -32602, message: (error as Error).message } }); }
         return;
       }
-      // All other server requests (including approvals) remain unsupported.
+      if (["item/commandExecution/requestApproval", "item/fileChange/requestApproval", "mcpServer/elicitation/request"].includes(message.method) && this.approval) {
+        const child = this.child;
+        try { this.approval(message.id, message.method, message.params, result => {
+          if (this.child !== child || !child || child.exitCode !== null || child.stdin.destroyed || this.closed) throw new Error("Question expired.");
+          this.write({ id: message.id, result });
+        }); } catch (error) { this.write({ id: message.id, error: { code: -32602, message: (error as Error).message } }); }
+        return;
+      }
+      // Unknown extensions remain unsupported.
       this.write({ id: message.id, error: { code: -32601, message: "Unsupported client request." } }); return;
     }
     if (message.id !== undefined) {

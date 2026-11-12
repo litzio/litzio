@@ -86,3 +86,20 @@ function execute(name: string, input: unknown, scope: DocumentToolScope) {
   const readiness = figureReadiness(source, file, scope.access);
   return { ...createDocumentSourceFile(scope.folders.resolve(accessPath(file, scope.access, true), true), source, scope.access), receipt: { outcome: "success" }, readiness };
 }
+
+
+/** Full access removes conversation folder limits; the selected Host policy still applies. */
+export function documentFolders(folders: string[], permissionMode: string, access: FileAccess): DocumentToolScope["folders"] {
+  if (permissionMode === "full-access") return new class extends RootAccess {
+    override readonly roots = folders;
+    override resolve(value: string, create = false) { return accessPath(value, access, create); }
+    override boundary(value: string) { return access instanceof RootAccess ? access.boundary(value) : path.parse(value).root; }
+  }(folders.length ? folders : [process.cwd()]);
+  if (!folders.length) return null;
+  const limited = new RootAccess(folders), resolve = limited.resolve.bind(limited);
+  limited.resolve = (value, create = false) => {
+    try { return resolve(value, create); }
+    catch (error) { if (error instanceof FileAccessError) throw Object.assign(new Error('Path is outside this turn opened folders. Ask the user to choose Full access or open the containing folder, then retry.'), { errorKind: "forbidden" }); throw error; }
+  };
+  return limited;
+}

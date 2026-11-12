@@ -16,6 +16,24 @@
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
 - Scope: local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
 
+## Assistant provider approvals (#1536)
+
+The existing assistant conversations answer operation (HTTP and CLI) also responds
+to blocking Codex command/file approvals, MCP elicitation and Copilot ACP permission
+requests. It returns the provider decision/option ID once, using the existing
+conversation question records. Restricted Codex modes use on-request; Full access
+uses never. Copilot restricted out-of-scope and shell requests wait for the same
+cards instead of automatic rejection. The inbound RPC owns the wait; turn end,
+request resolution, interruption and disconnect expire it without a new timeout.
+The shared Host question tool also supports Copilot over its HTTP MCP connection;
+there is no native ACP interactive-question extension in the current SDK.
+
+Full access document/review Host tools can address paths outside opened folders
+but still obey this Host's fixed --root policy. Restricted Host tools retain their
+folder boundary and explain how the user can open the folder or select Full access.
+Staged-copy revision checks, plugin secret/private-write restrictions and explicit
+Host selection are unchanged. See [Main agent](main-agent-v1.md#provider-approvals-1536).
+
 ## Copilot MCP transport (#1500)
 
 The existing HTTP listener routes `/api/assistant/mcp/<random-session-token>` to the
