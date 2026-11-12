@@ -405,7 +405,12 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       },
       async review(action: string, data: unknown) {
         writeFileSync(this.input, JSON.stringify(data));
-        return this.cli(["review", ...(action === "workspace-review-change" ? ["groups", (data as any).change.kind.slice(7)] : [action]), "--input", this.input]);
+        try {
+          return await this.cli(["review", ...(action === "workspace-review-change" ? ["groups", (data as any).change.kind.slice(7)] : [action]), "--input", this.input]);
+        } catch (error) {
+          const failure = error as Error & { stdout?: string; stderr?: string };
+          throw new Error(`${failure.message}\n${failure.stdout ?? ""}\n${failure.stderr ?? ""}`, { cause: error });
+        }
       },
       async cli(args: string[]) {
         if (args[0] === "plugins" && args[1] === "start") {
