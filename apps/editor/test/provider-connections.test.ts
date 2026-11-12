@@ -40,6 +40,7 @@ test("Copilot session creation errors retain a readable message across the Host 
   const root = mkdtempSync(path.join(tmpdir(), "copilot-error-"));
   const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), "", "--fixture-session-error"] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  assert.equal((await connection.diagnostics("copilot")).error, "Copilot session fixture failure");
   await assert.rejects(connection.models("copilot"), error => {
     assert.ok(error instanceof Error, "Host boundaries require Error to preserve the message instead of [object Object]");
     assert.equal(error.message, "Copilot session fixture failure");
@@ -60,7 +61,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.deepEqual(catalog.models[0]!.supportedReasoningEfforts.map(value => value.reasoningEffort), ["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
   assert.deepEqual(catalog.copilot?.modes.map(mode => mode.id), ["agent", "plan"]);
   assert.equal((await connection.diagnostics("copilot")).connected, true);
-  assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 1);
+  assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 2);
   const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "high" };
   const input = { submissionId: "copilot-submission", provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
   await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
@@ -556,11 +557,23 @@ test("malformed output, process loss and request timeout reject without replay",
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const method of ["malformed", "exit", "hang"]) {
     const client = new CodexAppServer(root, { bin: process.execPath, args: [fakeServer], timeoutMs: 2000 });
-    try { await client.connect(); await assert.rejects(client.request(method), method === "malformed" ? /Invalid/ : method === "exit" ? /exited/ : /timed out: hang/); }
+    try {
+      await client.connect();
+      const disconnected = method === "exit" ? new Promise(resolve => client.once("disconnected", resolve)) : undefined;
+      await assert.rejects(client.request(method), method === "malformed" ? /Invalid/ : method === "exit" ? /exited/ : /timed out: hang/);
+      if (disconnected) await disconnected;
+      if (method !== "malformed") assert.ok((await client.request("model/list")).data.length);
+    }
     finally { await client.close(); }
   }
-  const client = new CodexAppServer(root, { bin: path.join(root, "absent-codex") });
-  try { await assert.rejects(client.connect(), /could not be executed/); } finally { await client.close(); }
+  const client = new CodexAppServer(root, { bin: path.join(root, "absent-codex"), args: [fakeServer] });
+  try {
+    await assert.rejects(client.connect(), /could not be executed/);
+    const restored = t.mock.getter(client, "executable", () => process.execPath);
+    await client.connect();
+    assert.ok((await client.request("model/list")).data.length);
+    restored.mock.restore();
+  } finally { await client.close(); }
 });
 
 test("installed CLI launcher paths with spaces support version diagnostics and reject old Codex before app-server launch", async t => {
@@ -1342,6 +1355,102 @@ test("PowerShell inventory warns only for Store-only installations", () => {
   assert.equal(onlyStorePowerShell([]), false);
 });
 
+test("Copilot recovery preserves active prompts and never replays timed out requests", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-recovery-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log], timeoutMs: 2000 });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  connection.environment();
+  const acp = connection.copilot, first = await acp.catalog(), client = await acp.connect();
+  const disconnected = new Promise(resolve => acp.once("disconnected", resolve));
+  await assert.rejects(acp.call(() => client.unstable_setSessionModel({ sessionId: first.sessionId, modelId: "EXIT PROCESS" })));
+  await disconnected;
+  assert.equal((await connection.diagnostics("copilot")).connected, true);
+  assert.notEqual((await acp.catalog()).sessionId, first.sessionId);
+  for (const pipe of ["stdin", "stdout"] as const) {
+    const beforeStreamLoss = await acp.catalog();
+    // Inject OS pipe errors at the Node stream boundary. The fake child still
+    // owns a real ACP connection, and the next catalog must use a new child.
+    const streamLost = new Promise(resolve => acp.once("disconnected", resolve));
+    const interrupted = acp.call(() => new Promise<never>(() => {}));
+    const child = (acp as unknown as { child: import("node:child_process").ChildProcessWithoutNullStreams }).child;
+    if (pipe === "stdout") child.stdout.destroy(new Error("Fixture pipe failure"));
+    else child.stdin.emit("error", new Error("Fixture pipe failure"));
+    await assert.rejects(interrupted, /Fixture pipe failure/);
+    await streamLost;
+    assert.notEqual((await acp.catalog()).sessionId, beforeStreamLoss.sessionId);
+  }
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
+  const input = { message: "Wait for cancellation", folders: [], model: "auto", reasoningEffort: "medium" };
+  const active = await conversations.send(input, settings), running = await acp.connect();
+  await assert.rejects(acp.call(() => running.unstable_setSessionModel({ sessionId: active.id, modelId: "HANG REQUEST" })), /timed out/);
+  assert.equal((await connection.diagnostics("copilot")).connected, true);
+  assert.equal(await acp.connect(), running);
+  assert.equal(active.turns.at(-1)!.status, "inProgress");
+  const fresh = await conversations.send({ ...input, message: "COMPLETE THIS TURN" }, settings);
+  await acp.call(() => running.unstable_setSessionModel({ sessionId: fresh.id, modelId: "auto" }));
+  assert.equal(fresh.turns.at(-1)!.status, "completed");
+  await conversations.interrupt(active.id);
+  const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(requests.filter(row => row.params?.modelId === "HANG REQUEST").length, 1);
+  assert.equal(requests.filter(row => row.method === "session/prompt").length, 2);
+});
+
+test("Copilot resolved spawn failure reconnects the same owner", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-start-")), cwd = path.join(root, "missing");
+  const connection = new ProviderConnections(cwd, undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url))], timeoutMs: 2000 });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  connection.environment();
+  const missing = t.mock.getter(connection.copilot, "executable", () => path.join(root, "missing-executable"));
+  await assert.rejects(connection.copilot.connect());
+  missing.mock.restore();
+  assert.equal((await connection.diagnostics("copilot")).connected, true);
+  assert.ok((await connection.copilot.catalog()).sessionId);
+});
+
+test("Copilot late session load cannot trap explicit resume on an already loaded session", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-late-load-")), log = path.join(root, "rpc.jsonl"), cwd = path.join(root, "assistant");
+  const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-delay-load-once"] };
+  const first = new ProviderConnections(cwd, undefined, options);
+  const connection = new ProviderConnections(cwd, undefined, options);
+  t.after(async () => { await first.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
+  const input = { message: "COMPLETE THIS TURN", folders: [], model: "auto", reasoningEffort: "medium" };
+  const original = new AssistantConversations(first, new RootAccess([root]));
+  const saved = await original.send(input, settings);
+  await first.copilot.call(async () => (await first.copilot.connect()).unstable_setSessionModel({ sessionId: saved.id, modelId: "auto" }));
+  assert.equal(saved.turns.at(-1)!.status, "completed");
+  await first.close();
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const active = await conversations.send({ ...input, message: "Wait for cancellation" }, settings);
+  let accepted!: () => void;
+  const loadAccepted = new Promise<void>(resolve => { accepted = resolve; });
+  const late = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Missing delayed load response")), 5000);
+    connection.copilot.on("update", params => {
+      if (params.update.content?.text === "Delayed load accepted") accepted();
+      if (params.update.content?.text === "Delayed load completed") { clearTimeout(timer); resolve(); }
+    });
+  });
+  // Advance only the admitted load's Host deadline. CLI startup/diagnosis must
+  // not inherit an artificial 300ms speed requirement from this fault injection.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const restoring = conversations.resume(saved.id, settings);
+    await Promise.race([loadAccepted, late.then(() => { throw new Error("Load completed before fault injection"); })]);
+    t.mock.timers.tick(15000);
+    await assert.rejects(restoring, /timed out/);
+  } finally { t.mock.timers.reset(); }
+  await late; // Provider accepted the load; only its success response was delayed.
+  const diagnostic = await connection.diagnostics("copilot");
+  assert.equal(diagnostic.connected, true, diagnostic.error);
+  assert.equal((await conversations.resume(saved.id, settings)).id, saved.id);
+  assert.equal((await conversations.resume(saved.id, settings)).id, saved.id);
+  assert.equal(active.turns.at(-1)!.status, "failed", "uncertain session ownership retires the transport including its other active turn");
+  const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(requests.filter(row => row.method === "session/load").length, 2, "only the two explicit restore attempts dispatch; successful resume reuses the loaded session");
+  assert.equal(requests.filter(row => row.method === "session/prompt").length, 2, "no failed work is automatically replayed");
+});
 
 test("Copilot ACP usage stays on its conversation and survives in-memory resume without summing prompt reports", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-1581-"));

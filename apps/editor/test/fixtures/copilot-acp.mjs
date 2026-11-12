@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 const log = process.argv[2];
 if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, args: process.argv.slice(3) }) + "\n");
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
@@ -7,7 +7,7 @@ const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", cur
   ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model", "max-only"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
 const sessionState = () => ({ models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions });
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
-let session = 0, pending;
+let session = 0, pending, delayedLoad;
 const prompts = new Map();
 const selectedModels = new Map();
 const loaded = new Set();
@@ -33,7 +33,19 @@ createInterface({ input: process.stdin }).on("line", line => {
   }
   else if (method === "session/load") {
     if (loaded.has(params.sessionId)) { send({ id, error: { code: -32603, message: `Session ${params.sessionId} is already loaded` } }); return; }
-    loaded.add(params.sessionId); reply(sessionState());
+    loaded.add(params.sessionId);
+    if (process.argv.includes("--fixture-delay-load-once") && !existsSync(log + ".loaded")) {
+      writeFileSync(log + ".loaded", "loaded");
+      send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Delayed load accepted" } } } });
+      // Complete only after the Host retires the timed-out connection, not
+      // after an assumed wall-clock delay or platform-specific exit ordering.
+      delayedLoad = () => {
+        reply(sessionState());
+        send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Delayed load completed" } } } });
+      };
+      return;
+    }
+    reply(sessionState());
   }
   else if (method === "session/set_mode") { modes.currentModeId = params.modeId; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "current_mode_update", currentModeId: params.modeId } } }); reply({}); }
   else if (method === "session/set_config_option") {
@@ -50,6 +62,8 @@ createInterface({ input: process.stdin }).on("line", line => {
     reply({ configOptions: optionsFor(params.sessionId) });
   }
   else if (method === "session/set_model") {
+    if (params.modelId === "EXIT PROCESS") process.exit(23);
+    if (params.modelId === "HANG REQUEST") return;
     selectedModels.set(params.sessionId, params.modelId);
     if (process.argv.includes("--fixture-config")) {
       const reasoning = configOptions.find(option => option.id === "reasoning");
@@ -85,4 +99,4 @@ createInterface({ input: process.stdin }).on("line", line => {
     const prompt = prompts.get(params.sessionId);
     if (prompt) { send({ id: prompt.id, result: { stopReason: "cancelled" } }); prompts.delete(params.sessionId); }
   } else send({ id, error: { code: -32601, message: `Unsupported fixture method: ${method}` } });
-});
+}).on("close", () => delayedLoad?.());

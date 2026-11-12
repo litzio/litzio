@@ -14,6 +14,9 @@ export class CopilotAcp extends EventEmitter {
   private ready?: Promise<ClientSideConnection>;
   private closing?: Promise<void>;
   private closed = false;
+  private stopping?: Promise<void>;
+  private diagnostic?: CopilotAcp;
+  private diagnosis?: Promise<string | null>;
   private probe?: Promise<Awaited<ReturnType<ClientSideConnection["newSession"]>>>;
   version: string | null = null;
   loadSession = false;
@@ -28,7 +31,8 @@ export class CopilotAcp extends EventEmitter {
     }
     return null;
   }
-  connect() {
+  async connect() {
+    await this.stopping;
     if (this.closed) return Promise.reject(new Error("Copilot ACP is closed."));
     return this.ready ??= this.initialize().catch(async error => { await this.stop(); this.ready = undefined; throw error; });
   }
@@ -41,6 +45,13 @@ export class CopilotAcp extends EventEmitter {
       { cwd: this.cwd, env: this.options.env?.() ?? process.env, shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     child.stderr.on("data", () => {});
+    // SDK 0.17's NDJSON reader does not catch input read errors. End its input
+    // after reporting the Node pipe error below, so transport loss is recoverable.
+    const reader = (Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>).getReader();
+    const input = new ReadableStream<Uint8Array>({ async pull(controller) {
+      try { const { done, value } = await reader.read(); if (done) controller.close(); else controller.enqueue(value); }
+      catch { controller.close(); }
+    } });
     const connection = new ClientSideConnection(() => ({
       requestPermission: async request => this.permission?.(request) ?? { outcome: { outcome: "cancelled" } },
       sessionUpdate: async params => {
@@ -49,23 +60,32 @@ export class CopilotAcp extends EventEmitter {
         if (session && update.sessionUpdate === "current_mode_update" && session.modes) session.modes.currentModeId = update.currentModeId;
         this.emit("update", params);
       },
-    }), ndJsonStream(Writable.toWeb(child.stdin) as WritableStream<Uint8Array>, Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>));
-    child.on("error", () => { void this.close().catch(() => {}); });
-    child.stdin.on("error", () => {});
-    void connection.closed.then(() => {
-      if (this.child === child) {
-        this.probe = undefined; this.sessions.clear(); this.emit("disconnected", "Copilot ACP disconnected.");
-        this.ready = undefined; void stopAgentProcess(child).catch(() => {});
-      }
-    });
-    const initialized = await this.call(() => connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "Litzio", version: "0.0.0" } }));
-    this.loadSession = initialized.agentCapabilities?.loadSession ?? false;
+    }), ndJsonStream(Writable.toWeb(child.stdin) as WritableStream<Uint8Array>, input));
+    let initialized = false;
+    const disconnected = (message: string) => {
+      if (this.child !== child) return;
+      this.child = undefined; if (initialized) this.ready = undefined; this.probe = undefined;
+      this.sessions.clear(); this.loadSession = false; this.version = null;
+      this.stopping = stopAgentProcess(child);
+      void this.stopping.catch(() => {});
+      this.emit("disconnected", message);
+    };
+    child.on("error", error => disconnected(error.message));
+    child.stdin.on("error", error => disconnected(error.message));
+    child.stdout.on("error", error => disconnected(error.message));
+    child.once("exit", (code, signal) => disconnected(`Copilot ACP exited (code ${code}, signal ${signal}).`));
+    child.once("close", (code, signal) => disconnected(`Copilot ACP exited (code ${code}, signal ${signal}).`));
+    void connection.closed.then(() => disconnected(`Copilot ACP stream closed (code ${child.exitCode}, signal ${child.signalCode}).`));
+    const response = await this.call(() => connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "Litzio", version: "0.0.0" } }));
+    if (this.child !== child) throw new Error("Copilot ACP disconnected during initialization.");
+    this.loadSession = response.agentCapabilities?.loadSession ?? false;
+    initialized = true;
     return connection;
   }
   /** No prompt: reuse one catalog session until the process exits. */
   async catalog() {
     const client = await this.connect();
-    return this.probe ??= this.call(() => client.newSession({ cwd: this.cwd, mcpServers: [] })).then(session => this.remember(session)).catch(error => { this.probe = undefined; throw error; });
+    return this.probe ??= this.call(() => client.newSession({ cwd: this.cwd, mcpServers: [] }), true).then(session => this.remember(session)).catch(error => { this.probe = undefined; throw error; });
   }
   remember(session: NewSessionResponse) { this.sessions.set(session.sessionId, session); return session; }
   /** CLI fallback is fixed for a conversation. Caller must exclude active turns before restarting. */
@@ -77,9 +97,23 @@ export class CopilotAcp extends EventEmitter {
     if (client) await client.closed;
     this.ready = undefined; this.probe = undefined; this.reasoningEffort = effort; this.fullAccess = fullAccess;
   }
-  async call<T>(operation: () => Promise<T>): Promise<T> {
+  async call<T>(operation: () => Promise<T>, discardOnTimeout = false): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    try { return await Promise.race([operation(), new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new Error("Copilot ACP request timed out.")); void this.close().catch(() => {}); }, this.options.timeoutMs ?? 15000); })]); }
+    let onDisconnect: (message: string) => void = () => {};
+    const disconnected = new Promise<never>((_, reject) => {
+      onDisconnect = message => reject(new Error(message));
+      this.once("disconnected", onDisconnect);
+    });
+    try {
+      return await Promise.race([disconnected, operation(), new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error("Copilot ACP request timed out."));
+          // Late creation/load leaves session ownership uncertain. Retire the
+          // transport, including other active turns, without replaying work.
+          if (discardOnTimeout) { this.stopping = stopAgentProcess(this.child); void this.stopping.catch(() => {}); }
+        }, this.options.timeoutMs ?? 15000);
+      })]);
+    }
     catch (error) {
       // ACP rejects RPC failures with plain {code, message, data} objects.
       // Host boundaries preserve Error.message; never stringify provider data.
@@ -87,10 +121,27 @@ export class CopilotAcp extends EventEmitter {
       const message = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "Copilot ACP request failed.";
       throw new Error(message);
     }
-    finally { clearTimeout(timer); }
+    finally { clearTimeout(timer); this.off("disconnected", onDisconnect); }
   }
-  close() { this.closed = true; return this.closing ??= this.stop(); }
-  private async stop() { await stopAgentProcess(this.child); }
+  /** Independent probe: diagnostics must never disconnect an admitted turn. */
+  diagnose(): Promise<string | null> {
+    if (this.closed) return Promise.reject(new Error("Copilot ACP is closed."));
+    if (this.diagnosis) return this.diagnosis;
+    const probe = this.diagnostic = new CopilotAcp(this.cwd, this.options);
+    probe.reasoningEffort = this.reasoningEffort; probe.fullAccess = this.fullAccess;
+    return this.diagnosis = (async () => {
+      try { await probe.catalog(); return probe.version; }
+      finally { try { await probe.close(); } finally { this.diagnostic = undefined; this.diagnosis = undefined; } }
+    })();
+  }
+  close() {
+    this.closed = true;
+    return this.closing ??= (async () => {
+      const results = await Promise.allSettled([this.stop(), this.diagnostic?.close()]);
+      for (const result of results) if (result.status === "rejected") throw result.reason;
+    })();
+  }
+  private async stop() { await this.stopping; await stopAgentProcess(this.child); }
 }
 
 export const COPILOT_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];

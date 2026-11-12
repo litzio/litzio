@@ -293,7 +293,7 @@ export class AssistantConversations {
         this.loaded.delete(id);
         const client = await this.connection.copilot.connect();
         if (!this.connection.copilot.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
-        const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: this.mcp.servers(id) }));
+        const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: this.mcp.servers(id) }), true);
         conversation.model = session.models?.currentModelId ?? settings.model;
         this.connection.copilot.remember({ ...session, sessionId: id });
         conversation.copilot = copilotOptions({ ...session, sessionId: id });
@@ -545,7 +545,7 @@ export class AssistantConversations {
     const lease = conversation ? this.mcp.lease(conversation.id) : this.mcp.create();
     try {
       if (!conversation) {
-        const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: lease.servers })));
+        const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: lease.servers }), true));
         conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
           folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
         this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);

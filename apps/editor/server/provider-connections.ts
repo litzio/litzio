@@ -117,8 +117,7 @@ export class ProviderConnections {
     if (provider === "copilot") {
       this.environment();
       const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
-      try { await this.copilot.catalog(); result.connected = true; } catch (error) { result.error = (error as Error).message; }
-      result.version = this.copilot.version;
+      try { result.version = await this.copilot.diagnose(); result.connected = true; } catch (error) { result.error = (error as Error).message; }
       return result;
     }
     this.environment();
