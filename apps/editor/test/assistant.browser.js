@@ -204,7 +204,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   let resumeFailure = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
   let revealLost = false, receiptGate, releaseReceipt, receiptReads = 0;
-  let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
+  let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, snapshotGateEntered = 0, answerGate;
   await page.unroute('**/api/assistant/diagnostics*');
   await page.route('**/api/assistant/diagnostics*', route => route.request().url().includes('summary=account-usage') ? diagnosticReply(route) : route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
     error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
@@ -283,7 +283,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       return route.fulfill({ json: result });
     }
     const id = decodeURIComponent((route.request().url().split('?id=')[1] ?? '').split('&')[0]);
-    if (id) { snapshots++; await snapshotGate; }
+    if (id) { snapshots++; if (snapshotGate) { snapshotGateEntered++; await snapshotGate; } }
     return route.fulfill({ json: id ? { ...conversations.get(id), displayRequest, screenRequest } : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
@@ -807,9 +807,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const hiddenSnapshots = snapshots;
   await expect.poll(() => snapshots, 'Open windows keep observing requests in background tabs').toBeGreaterThan(hiddenSnapshots);
   let releaseSnapshot;
+  const blockedBefore = snapshotGateEntered;
   snapshotGate = new Promise(resolve => { releaseSnapshot = resolve; });
   await visibility('visible');
-  await expect.poll(() => snapshots).toBeGreaterThan(hiddenSnapshots);
+  await expect.poll(() => snapshotGateEntered).toBeGreaterThan(blockedBefore);
   const resumedSnapshots = snapshots;
   await visibility('hidden'); await visibility('visible'); await visibility('visible');
   await page.waitForTimeout(1300);
