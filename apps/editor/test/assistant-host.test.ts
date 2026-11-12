@@ -595,4 +595,10 @@ test("structured creation and pending edits reuse Core batches and report image 
   changes.apply("structured", staged.id, preview.copyRevision, preview.diskRevision);
   assert.match(readFileSync(file, "utf8"), /Revised chart/);
   assert.match(readFileSync(file, "utf8"), /missing.png/);
+  const unsupported = invoke("stage_document", { path: file });
+  writeFileSync(unsupported.copy, created.source + "\n![Desk](images/writing-desk.png)\n");
+  assert.throws(() => changes.preview("structured", unsupported.id), /Unsupported native content: image.*Discard.*insert-figure/s);
+  assert.throws(() => changes.apply("structured", unsupported.id, "unused", "unused"), /Discard/);
+  assert.match(readFileSync(file, "utf8"), /Revised chart/);
+
 });
