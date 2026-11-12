@@ -167,6 +167,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await page.evaluate(prefix=>{localStorage.setItem(prefix+'.uiLanguage','en');localStorage.setItem(prefix+'.theme','light');},brand.storagePrefix);
   await page.getByRole('tab',{name:/a.md/}).first().click();
   conversation.turns.at(-1).status='inProgress';
+  await expect(panel.getByRole('button',{name:/^(Stop response|응답 중단)$/})).toBeVisible();
   await panel.getByRole('button',{name:/^(Close assistant|비서 닫기)$/}).click();
   screenReply=undefined;
   screenRequest={id:'hidden-panel-read',validForMs:10000};
