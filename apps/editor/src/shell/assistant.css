@@ -109,3 +109,5 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-submission-status { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2); font-size: var(--font-size-xs); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
 .assistant-submission-status > span:not(:first-child) { flex-basis: 100%; text-align: right; }
 .assistant-submission-status [role="alert"] { color: var(--id-color-danger); }
+
+.assistant-approval-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }

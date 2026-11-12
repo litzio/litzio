@@ -1,6 +1,7 @@
 async (page, { expect, brand, screenshots }) => {
   const settings = { provider: 'codex', permissionMode: 'read-only', model: 'gpt-6-luna', reasoningEffort: 'low' };
   let conversation, receipt, resumes = 0;
+  const approvalAnswers = [];
   const refreshInput = () => { conversation.userInput = conversation.turns.flatMap(t => t.items).map(i => i.question).find(q => q?.status === 'pending'); };
   await page.route('**/api/assistant/settings*', r => r.fulfill({ json: settings }));
   await page.route('**/api/assistant/models*', r => r.fulfill({ json: { models: [{ id: 'luna', model: settings.model, displayName: 'GPT Luna', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
@@ -15,6 +16,7 @@ async (page, { expect, brand, screenshots }) => {
         return r.fulfill({ json: receipt });
       }
       if (body.action === 'answer') {
+        if (body.requestId.startsWith('permission-')) approvalAnswers.push(body.answers);
         expect(body.displayClient).toBeTruthy();
         const q = conversation.turns.flatMap(t => t.items).find(i => i.question?.requestId === body.requestId).question;
         q.status = 'answered'; q.answers = body.answers; refreshInput();
@@ -70,7 +72,7 @@ async (page, { expect, brand, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   conversation.turns[0].status = 'inProgress';
   conversation.turns[0].items.push({ id: 'permission-card', kind: 'question', text: '', question: {
-    requestId: 'permission-card', turnId: 'travel-turn', delivery: 'blocking', status: 'pending',
+    requestId: 'permission-card', turnId: 'travel-turn', delivery: 'blocking', status: 'pending', approval: true,
     questions: [{ id: 'decision', header: 'Permission request', question: '열린 폴더 밖의 문서를 읽도록 허용할까요?\nC:\\Documents\\outside.txt', isOther: false, isSecret: false,
       options: ['Allow once', 'Allow for this session', 'Reject'].map(label => ({ label, description: '' })) }] } });
   refreshInput();
@@ -84,8 +86,22 @@ async (page, { expect, brand, screenshots }) => {
     expect(await pending.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     await page.screenshot({ path: `tmp/1536-evidence/approval-1440-${theme}.png`, style: ".sidebar-host-account { visibility: hidden; }" });
   }
-  await pending.getByRole('radio', { name: screenshots ? '이번만 허용' : 'Allow once', exact: true }).check();
-  await pending.getByRole('button').click();
+  await expect(pending.getByRole('radio')).toHaveCount(0);
+  await expect(pending.getByRole('button', { name: /Submit answers|답변 제출/ })).toHaveCount(0);
+  await pending.getByRole('button', { name: screenshots ? '허용' : 'Allow', exact: true }).click();
+  await expect.poll(() => approvalAnswers).toEqual([{ decision: { answers: ['Allow once'] } }]);
   await expect(panel.locator('[data-question-status="answered"]').last()).toContainText('Allow once');
+  for (const [index, label] of ['Allow for this session', 'Reject'].entries()) {
+    const item = JSON.parse(JSON.stringify(conversation.turns[0].items.find(i => i.id === 'permission-card')));
+    item.id = 'permission-' + index; item.question.requestId = item.id;
+    item.question.status = 'pending'; delete item.question.answers;
+    conversation.turns[0].items.push(item); refreshInput();
+    await expect(pending).toBeVisible();
+    const button = pending.getByRole('button', { name: screenshots ? (index === 0 ? '이번 세션 동안 허용' : '거절') : label, exact: true });
+    await button.focus(); await button.press('Enter');
+    await expect(panel.locator('[data-question-status="answered"]').last()).toContainText(label);
+    expect(approvalAnswers.at(-1)).toEqual({ decision: { answers: [label] } });
+  }
+  expect(approvalAnswers).toHaveLength(3);
 
 }

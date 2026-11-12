@@ -108,7 +108,7 @@ export class AssistantConversations {
       const conversation = this.current(params.threadId);
       const turnId = params.turnId ?? [...conversation.turns].reverse().find(t => t.status === "inProgress")?.id;
       const approval = codexApproval(method, params);
-      this.blockingCard(conversation.id, turnId, requestId, approval.questions, answers => respond(approval.result(answers)), () => respond(approval.cancel), approval.result);
+      this.blockingCard(conversation.id, turnId, requestId, approval.questions, answers => respond(approval.result(answers)), () => respond(approval.cancel), approval.result, approval.immediate);
     };
     connection.client.toolCall = params => this.executeTool(params);
     connection.client.on("notification", (method, params) => this.notification(method, params));
@@ -605,11 +605,11 @@ export class AssistantConversations {
     if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
     await acp.useLaunchSettings(effort, fullAccess);
   }
-  private blockingCard(id: string, turnId: string, requestId: string | number, questions: AssistantQuestionRecord["questions"], respond: (answers: AssistantUserInputAnswers) => void, cancel: () => void, validate?: (answers: AssistantUserInputAnswers) => unknown) {
+  private blockingCard(id: string, turnId: string, requestId: string | number, questions: AssistantQuestionRecord["questions"], respond: (answers: AssistantUserInputAnswers) => void, cancel: () => void, validate?: (answers: AssistantUserInputAnswers) => unknown, approval = true) {
     const conversation = this.current(id), turn = conversation.turns.find(t => t.id === turnId && t.status === "inProgress");
     const key = this.answerKey(id, turnId, requestId);
     if (!turn || this.answers.has(key)) throw new Error("Invalid or inactive approval request.");
-    const question: AssistantQuestionRecord = { requestId, turnId, questions, delivery: "blocking", status: "pending" };
+    const question: AssistantQuestionRecord = { requestId, turnId, questions, delivery: "blocking", status: "pending", approval };
     turn.items.push({ id: `approval-${typeof requestId}-${requestId}`, kind: "question", text: "", question });
     this.answers.set(key, respond); this.cancellations.set(key, cancel);
     if (validate) this.validators.set(key, validate);

@@ -409,6 +409,7 @@ export const en = {
 
   "Permission request": "Permission request",
   "MCP request": "MCP request",
+  "Allow": "Allow",
   "Allow once": "Allow once",
   "Allow for this session": "Allow for this session",
   "Reject": "Reject",
@@ -1771,6 +1772,7 @@ export const ko: Record<keyof typeof en, string> = {
 
   "Permission request": "권한 요청",
   "MCP request": "MCP 요청",
+  "Allow": "허용",
   "Allow once": "이번만 허용",
   "Allow for this session": "이번 세션 동안 허용",
   "Reject": "거절",

@@ -2205,8 +2205,12 @@ starts at the opened folders. Restricted Host tools retain that limit and return
 an actionable reason to change permission or open the containing folder, rather
 than introducing a second Host approval state. Original revision checks, staged
 copy review, secret/private plugin-operation restrictions and Host selection remain.
-The UI reuses AssistantQuestion, compact Button and existing tokens; no new surface
-or common interaction pattern is introduced.
+Permission records carry approval:true. AssistantQuestion renders their allow,
+session-allow and reject choices as compact buttons: one click or Enter sends the
+provider choice immediately, using the same submission lock and response path.
+Title, target path and answer history remain in the card. General questions and
+elicitation forms that collect values keep their existing selection/input and
+submit flow. The UI reuses AssistantQuestion, compact Button and existing tokens.
 
 
 #1536 verification (2026-11-12): fake Codex and ACP cover allow, reject, session
@@ -2218,6 +2222,6 @@ cards and completed the same read. Its ACP catalog offered only Auto, so no chea
 named model could be selected. These probes used Host answers, not UI clicks;
 they do not establish long waits, remote Hosts or real MCP elicitation. Browser
 fixture clicks separately verify the existing card UI at 1440px in both themes.
-[Light capture](../reviews/1536-approval-light.png) and
-[dark capture](../reviews/1536-approval-dark.png) omit local account identity.
+[Light capture](assets/assistant-provider-approvals/approval-1440-light.png) and
+[dark capture](assets/assistant-provider-approvals/approval-1440-dark.png) omit local account identity.
 Owner visual approval is not claimed.

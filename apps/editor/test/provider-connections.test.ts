@@ -80,6 +80,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     const card = conversation.userInput!;
     assert.ok(card, "ACP fixture permission must become a card");
+    assert.equal(turn.items.find(item => item.question?.requestId === card.requestId)!.question!.approval, true);
     const received = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => { connection.copilot.off("update", inspect); reject(new Error("Missing ACP permission reply")); }, 5000);
       const inspect = () => { if (turn.items.some(item => item.text.includes('"optionId":"session"'))) { clearTimeout(timer); connection.copilot.off("update", inspect); resolve(); } };
@@ -1240,6 +1241,7 @@ test("Codex approvals forward card answers to the provider RPC", async t => {
     const requestId = `approval-${index}`;
     await connection.client.request("fixture/approval", { threadId: c.id, requestId, method, input: { command: "read outside.txt", mode: "form", message: "Continue?", requestedSchema: { type: "object", properties: {} } } });
     assert.equal(c.userInput?.requestId, requestId);
+    assert.equal(c.turns.at(-1)!.items.find(item => item.question?.requestId === requestId)!.question!.approval, !method.includes("elicitation"));
     conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { decision: { answers: [label] } });
     assert.throws(() => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { decision: { answers: [label] } }), /expired/);
     await connection.client.request("notify");

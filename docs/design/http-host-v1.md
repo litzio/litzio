@@ -21,7 +21,9 @@
 The existing assistant conversations answer operation (HTTP and CLI) also responds
 to blocking Codex command/file approvals, MCP elicitation and Copilot ACP permission
 requests. It returns the provider decision/option ID once, using the existing
-conversation question records. Restricted Codex modes use on-request; Full access
+conversation question records. Permission records expose approval:true for direct
+allow/session-allow/reject buttons; the answer operation and duplicate prevention
+are unchanged. General question forms keep their existing submit flow. Restricted Codex modes use on-request; Full access
 uses never. Copilot restricted out-of-scope and shell requests wait for the same
 cards instead of automatic rejection. The inbound RPC owns the wait; turn end,
 request resolution, interruption and disconnect expire it without a new timeout.

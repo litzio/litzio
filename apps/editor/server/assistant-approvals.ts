@@ -18,5 +18,5 @@ export function codexApproval(method: string, params: any) {
   const questions: AssistantQuestionRecord["questions"] = [{ id: "decision", header: elicitation ? "MCP request" : "Permission request",
     question: [params.message, params.command, params.cwd, params.reason, params.url, elicitation && params.mode !== "url" ? `To submit form values, choose another answer and enter JSON: ${JSON.stringify(schema)}` : null].filter(Boolean).join("\n") || "Apply file changes?",
     isOther: elicitation && params.mode !== "url", isSecret: elicitation, options: labels.map(label => ({ label, description: "" })) }];
-  return { questions, result, cancel: elicitation ? { action: "cancel", content: null, _meta: null } : { decision: "cancel" } };
+  return { immediate: !elicitation || params.mode === "url", questions, result, cancel: elicitation ? { action: "cancel", content: null, _meta: null } : { decision: "cancel" } };
 }
