@@ -11,7 +11,7 @@ import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
-import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from "@litzio/core";
+import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse, serialize, updateNodeTextAtPath, insertParagraph } from "@litzio/core";
 import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { executeReadReviewDocument } from "../server/assistant-plugin-tools.ts";
@@ -265,6 +265,60 @@ test("Docling saved document corrections preserve independent proposals, mapping
   const decide=(kind:string,group:any,baseline?:string,requestId?:string)=>change({kind,groupId:group.id,targetIds:group.targets.map((target:any)=>target.id),human,resolvesIssue:true},baseline,requestId);
   const unchangedSources=()=>{const current=archive.readDoclingArchive(readFileSync(file)),initial=archive.readDoclingArchive(original);for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(current[key],initial[key]);};
   try {
+    // Reviewer regression: deleting A and appending D must not rebind A/B/C evidence to B/C/D.
+    const abc=structuredClone(document), refs:string[]=[];
+    for(const text of ["A","B","C"]){const index=abc.texts.length,self_ref=`#/texts/${index}`;refs.push(self_ref);abc.texts.push({...structuredClone(abc.texts[4]),self_ref,parent:{$ref:"#/body"},children:[],label:"text",text,orig:text});}
+    abc.body.children=refs.map($ref=>({$ref}));
+    const abcBytes=await initializeWorkspace(archive.createDoclingArchiveFromResult({sourceName:"abc.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
+      task:{id:"abc",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"success",errors:[],document:{json_content:abc}}))}));
+    writeFileSync(file,abcBytes);
+    const abcOpened=await read();assert.deepEqual(abcOpened.document.blocks.map((b:any)=>b.text),["A","B","C"]);
+    const [aPath,bPath,cPath]=abcOpened.document.blocks.map((b:any)=>b.path);
+    const contextRevision=abcOpened.contentRevision;
+    const textOnly=await write("workspace-save",{edits:{paragraphs:[{path:aPath,content:[{kind:"text",text:"Edited A"}]}],order:[aPath,bPath,cPath].map(path=>({path,part:0}))}});
+    assert.equal(textOnly.receipt.outcome,"success",JSON.stringify(textOnly));assert.equal(textOnly.document.blocks[0].text,"Edited A");
+    const textReport=JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
+    for(const [index,ref] of refs.entries())assert.deepEqual(textReport.items.find((item:any)=>item.self_ref===ref).targets.map((target:any)=>target.path),[abcOpened.document.blocks[index].path]);
+    const scenarios=[
+      {name:"same-content delete/insert",input:{edits:{deletes:[aPath],inserts:[{block:"paragraph",content:[{kind:"text",text:"A"}]}],order:[{insert:0},{path:bPath,part:0},{path:cPath,part:0}]}},texts:["A","B","C"]},
+      {name:"identical source without lineage",input:{source:abcOpened.snapshot.source},texts:["A","B","C"]},
+      {name:"same-count delete/insert",input:{edits:{deletes:[aPath],inserts:[{block:"paragraph",content:[{kind:"text",text:"D"}]}],order:[{path:bPath,part:0},{path:cPath,part:0},{insert:0}]}},texts:["B","C","D"]},
+      {name:"reorder",input:{edits:{order:[{path:bPath,part:0},{path:cPath,part:0},{path:aPath,part:0}]}},texts:["B","C","A"]},
+      {name:"split/merge",input:{edits:{merges:[{paths:[aPath,bPath],parts:[[{kind:"text",text:"AB"}]]}],splits:[{path:cPath,parts:[[{kind:"text",text:"C1"}],[{kind:"text",text:"C2"}]]}],order:[{path:aPath,part:0},{path:cPath,part:0},{path:cPath,part:1}]}},texts:["AB","C1","C2"]},
+      {name:"source replacement",input:{source:serialize(updateNodeTextAtPath(parse(abcOpened.snapshot.source),aPath,"A","D"))},texts:["D","B","C"]},
+    ];
+    for(const scenario of scenarios){
+      writeFileSync(file,abcBytes);host=service();
+      // An older successful scope report must not survive lost correspondence as current success.
+      assert.equal((await change({kind:"inspection",records:abcOpened.ledger.inventory.lenses.map((lens:any)=>({runId:"before-direct",lens:lens.kind,contentRevision:contextRevision,scope:lens.scope,state:"no-issue",evidence:"Fixture source compared"})),comparisons:[{runId:"before-direct",contentRevision:contextRevision,scope:{pages:[1],targets:[]},state:"compared",selected:true,withdrawn:null}]})).receipt.outcome,"success");
+      const shifted=await write("workspace-save",scenario.input);
+      assert.equal(shifted.receipt.outcome,"success",JSON.stringify(shifted));assert.deepEqual(shifted.document.blocks.map((b:any)=>b.text),scenario.texts);
+      const shiftedArchive=archive.readDoclingArchive(readFileSync(file)),shiftedReport=JSON.parse(shiftedArchive.cacheEntries.get("current/snapshot.json").toString()).correspondence;
+      assert.ok(refs.every(ref=>!shiftedReport.items.find((item:any)=>item.self_ref===ref).targets.length),`${scenario.name} must clear original correspondence`);
+      const comparison=await host.execute({...base,action:"workspace-compare",pageNo:1});
+      assert.ok(comparison.snapshot.mapping.entries.every((entry:any)=>!entry.targets.length));
+      const originalRegions=comparison.snapshot.page.regions.filter((region:any)=>refs.some(ref=>region.id.includes(ref.slice(2).replaceAll("/","-"))));
+      assert.equal(originalRegions.length,refs.length);assert.ok(originalRegions.every((region:any)=>region.status==="unsupported"));
+      const scope=await host.execute({...base,action:"workspace-completion"});
+      assert.ok(scope.completion.notComparedPages.includes(1),"lost correspondence must be reported as not compared");
+      assert.ok(scope.completion.incomplete.includes("selected-comparison-incomplete"));
+      assert.ok(scope.ledger.inventory.lenses.filter((lens:any)=>lens.required && (lens.scope.pages.length || lens.scope.targets.length)).every((lens:any)=>scope.completion.incomplete.includes(`lens-incomplete:${lens.kind}`)));
+      const uncertain=scope.ledger.inspections.filter((record:any)=>record.runId===shifted.receipt.requestId);
+      assert.deepEqual(uncertain.map((record:any)=>record.lens),scope.ledger.inventory.lenses.map((lens:any)=>lens.kind));assert.ok(uncertain.every((record:any)=>record.state==="uncertain"));
+      assert.deepEqual(shiftedArchive.sourcePdf,archive.readDoclingArchive(abcBytes).sourcePdf);
+      const directGroup=shifted.ledger.groups.find((group:any)=>group.reasonCode==="human-direct-edit");
+      const undone=await decide("groups-undo",directGroup);
+      assert.equal(undone.receipt.outcome,"success",JSON.stringify(undone));
+      assert.equal(undone.ledger.groups.find((group:any)=>group.id===directGroup.id).targets[0].history.at(-1).action,"undone");
+      host=service();const reopened=await read();
+      assert.deepEqual(reopened.snapshot,abcOpened.snapshot,`${scenario.name}: Undo must persist the restored snapshot even at the same source revision`);
+      const restoredReport=JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
+      const originalReport=JSON.parse(archive.readDoclingArchive(abcBytes).cacheEntries.get("current/snapshot.json").toString()).correspondence;
+      assert.deepEqual(restoredReport,originalReport,`${scenario.name}: Undo must persist restored correspondence`);
+      assert.ok(reopened.completion.notComparedPages.includes(1),"Undo keeps the conservative scope report until reinspection");
+
+    }
+    writeFileSync(file,original);host=service();
     assert.equal((await read()).cacheState,"current");assert.deepEqual(readFileSync(file),original);
     const opened=await write("workspace-open");assert.equal(opened.cacheState,"current",JSON.stringify(opened));
     // Actual CLI JSON reads use the common dispatcher and never prepare/write.
@@ -468,6 +522,24 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
     const item=report.items.find((item:any)=>item.self_ref.startsWith("#/texts/") && item.label==="text" && item.targets.length===1 && opened.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(item.targets[0].path))?.block==="paragraph");
     assert.ok(item,"fixed sample has a standalone paragraph");
     const block=opened.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(item.targets[0].path));
+    const directSource=serialize(updateNodeTextAtPath(parse(opened.snapshot.source),block.path,block.text,"Human fixed paragraph"));
+    const direct=await host.execute({...base,action:"workspace-save",baseline:opened.baseline,requestId:randomUUID(),edits:{paragraphs:[{path:block.path,content:[{kind:"text",text:"Human fixed paragraph"}]}]}});
+    assert.equal(direct.receipt.outcome,"success",JSON.stringify(direct));assert.equal(direct.snapshot.source,directSource);
+    assert.deepEqual(direct.snapshot.inputs.map((i:any)=>i.targets.map((t:any)=>t.path)),opened.snapshot.inputs.map((i:any)=>i.targets.map((t:any)=>t.path)));
+    const directGroup=direct.ledger.groups.find((g:any)=>g.reasonCode==="human-direct-edit");
+    assert.equal(directGroup.targets[0].history[0].human.actor,"사람 직접 수정");
+    const staleDirect=await host.execute({...base,action:"workspace-save",baseline:opened.baseline,requestId:randomUUID(),source:opened.snapshot.source});
+    assert.equal(staleDirect.errorKind,"conflict");
+    assert.equal((await read()).snapshot.source,directSource);
+    const directUndo=await change({kind:"groups-undo",groupId:directGroup.id,targetIds:directGroup.targets.map((t:any)=>t.id),human});
+    assert.equal(directUndo.snapshot.source,opened.snapshot.source);
+    const structureSource=serialize(insertParagraph(parse(opened.snapshot.source),block.path[0],[{kind:"text",text:"Inserted human paragraph"}]));
+    const structural=await host.execute({...base,action:"workspace-save",baseline:directUndo.baseline,requestId:randomUUID(),source:structureSource});
+    assert.equal(structural.receipt.outcome,"success",JSON.stringify(structural));
+    const structuralArchive=archive.readDoclingArchive(readFileSync(file));
+    assert.ok(JSON.parse(structuralArchive.cacheEntries.get("current/snapshot.json").toString()).correspondence.items.every((i:any)=>!i.targets.length),"structural edits do not guess PDF correspondence");
+    const structuralGroup=structural.ledger.groups.at(-1);
+    assert.equal((await change({kind:"groups-undo",groupId:structuralGroup.id,targetIds:structuralGroup.targets.map((t:any)=>t.id),human})).snapshot.source,opened.snapshot.source);
     const tableItem=report.items.find((item:any)=>item.self_ref.startsWith("#/tables/")&&item.cells?.length);
     const table=opened.document.blocks.find((block:any)=>block.path[0]===tableItem.targets[0].path[0]),position=tableItem.cells[0].positions[0];
     const excludeBefore={excluded:false,blocks:JSON.parse(JSON.stringify([block],(key,value)=>key==="path"?undefined:value))};
@@ -494,9 +566,10 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       host=service();assert.equal((await read()).snapshot.source,opened.snapshot.source);
       const current=archive.readDoclingArchive(readFileSync(file));for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(current[key],original[key]);
     }
+    const groupsBeforeEvidence=(await read()).ledger.groups;
     const evidenceRun=await host.execute({...base,action:"workspace-evidence",mode:"run",baseline:digest(readFileSync(file)),requestId:randomUUID()});
     assert.equal(evidenceRun.receipt.outcome,"success",JSON.stringify(evidenceRun));assert.equal(evidenceRun.evidence.status,"inspected");
-    assert.equal(evidenceRun.snapshot.source,opened.snapshot.source);assert.equal(evidenceRun.ledger.groups.length,cases.length);
+    assert.equal(evidenceRun.snapshot.source,opened.snapshot.source);assert.deepEqual(evidenceRun.ledger.groups,groupsBeforeEvidence);
     assert.ok(evidenceRun.evidence.candidates.length>0);assert.ok(evidenceRun.evidence.coverage.outside.furniture>0);
     let sawText=false;for(const candidate of evidenceRun.evidence.candidates){if(candidate.priority==="text")sawText=true;else assert.equal(sawText,false,"numeric/unit candidates come first");}
     host=service();const evidenceRead=await host.execute({...base,action:"workspace-evidence",mode:"read"});assert.deepEqual(evidenceRead.evidence,evidenceRun.evidence);
@@ -509,7 +582,7 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       const cli=spawn(process.execPath,["--import","tsx",fileURLToPath(new URL("../../../packages/cli/src/cli.ts",import.meta.url)),"review","evidence","run","--input",input,"--host",`http://127.0.0.1:${(server.address() as any).port}`,"--json"],{windowsHide:true});
       let stdout="",stderr="";cli.stdout.on("data",chunk=>stdout+=chunk);cli.stderr.on("data",chunk=>stderr+=chunk);
       const code=await new Promise((resolve,reject)=>{cli.once("error",reject);cli.once("exit",resolve);});assert.equal(code,0,stderr+stdout);
-      const result=JSON.parse(stdout);assert.deepEqual(result.evidence,evidenceRun.evidence);assert.equal(result.snapshot.source,opened.snapshot.source);assert.equal(result.ledger.groups.length,cases.length);assert.ok(result.ledger.groups.every((group:any)=>group.targets[0].history.at(-1).action==="undone"));
+      const result=JSON.parse(stdout);assert.deepEqual(result.evidence,evidenceRun.evidence);assert.equal(result.snapshot.source,opened.snapshot.source);assert.deepEqual(result.ledger.groups,groupsBeforeEvidence);
     }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
     // Stage 5: use the real common dispatcher and fixed PDF behind a fake provider.
     const log=path.join(root,"provider.jsonl");
@@ -539,7 +612,7 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
       const material=(await invoke("read_review_material",{...assistantBase,kind:"page",pageNo:2})).value.material;
       assert.deepEqual(material.pages,[1,2,3]);assert.ok(material.items.some((item:any)=>item.prov.length && item.correspondence));assert.ok(material.blocks.length);
       assert.doesNotMatch(JSON.stringify(material),/data:image|base64|pdfBase64/);
-      const group=structuredClone((await read()).ledger.groups[0]);group.id="assistant-saved";group.reasonCode="assistant-local";group.runId="assistant-local";
+      const group=structuredClone((await read()).ledger.groups.find((g:any)=>g.id==="fixed-1"));group.id="assistant-saved";group.reasonCode="assistant-local";group.runId="assistant-local";
       group.targets=group.targets.map((target:any)=>({...target,id:"assistant-target",history:[],proposal:"proposed",result:null,resolved:false}));group.representativeTargetId="assistant-target";
       const beforeProposal=(await read()).snapshot;
       const atomicBytes=readFileSync(file), lateFailure=structuredClone(group);

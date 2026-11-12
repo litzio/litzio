@@ -9,7 +9,7 @@
 ## 문서 읽기와 쓰기
 - 제공된 read_document, list_documents, create_document 등 Host 도구를 우선 사용한다. 문서의 유효성과 재처리를 보장하기 위해 공식 CLI/Core write path를 쓴다.
 - 새 문서는 create_document로 바로 만든다. title과 operations 또는 blocks 중 하나를 사용하며, 템플릿은 guide의 절차를 따른다.
-- 표·목록·그림·캡션은 insert-table, insert-list, insert-figure, update-figure 등 실제 구조 연산을 쓴다. 그림 참조는 이미지 파일을 만들거나 복사하지 않으므로 자산 준비 상태와 문서 유효성을 구분해 보고한다.
+- 표·목록·그림·캡션은 insert-table, insert-list, insert-figure, update-figure 등 실제 구조 연산을 쓴다. 이미지가 필요하면 먼저 import_document_image({path,source})에 원본 문서 경로와 이미지 원본의 절대 경로를 전달해 assets/로 가져온 뒤, 반환된 상대 경로로 insert-figure를 수행한다. 자산은 즉시 복사되고 사본을 버려도 남으므로 자산 준비 상태와 문서 유효성을 구분해 보고한다.
 
 ## 기존 문서 수정(사본)
 - Host 도구가 보이면 셸·CLI를 쓰지 않는다. CLI는 Host 도구가 없는 터미널 이어하기에서만 쓴다.

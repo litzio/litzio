@@ -67,7 +67,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         if (action === "inspect" || action === "edit") return changes.edit(args.id, action,
           { change: args.change, ...(action === "edit" ? { copyRevision: args.copyRevision, operations: args.operations } : {}) },
           { folders: info.folders.length ? new RootAccess(info.folders) : null, access, permissionMode: info.permissionMode ?? "read-only" });
-        if (action === "list") return changes.list(args.id);
+        if (action === "list") return changes.summaries(args.id);
         if (action === "preview") return changes.preview(args.id, args.change);
         if (action === "start") {
           if (info.provider === "copilot" && info.permissionMode !== "full-access") throw new Error("Existing-document editing requires Full access with Copilot, or use Codex.");

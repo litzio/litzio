@@ -25,6 +25,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
 - 기존 문서 사본: litzio assistant changes start <conversationId> --path <absolute-original-path>. conversationId는 메시지 맥락에 있다. 반환된 사본 경로에 litzio inspect <copy> --format json, litzio apply-batch <copy> --operations <json-file> --if-revision <revision>, litzio check <copy>를 사용한다. 구조 변경 뒤 inspect로 경로·revision을 갱신한다. 적용·버리기는 사람이 리치오 비교 탭에서 한다.
+- 이미지 자산: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져오고 반환된 상대 경로를 insert-figure에 사용한다. 사본 편집 중에도 원본 문서 경로를 전달한다.
 - 새 문서: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
 - 템플릿: litzio templates list --json --language <ko|en>, litzio templates read <id> --json --language <ko|en>, litzio create <new-file> --template <id> --language <ko|en>, litzio templates save <name> --from <file> --description <text>를 사용한다.
 - CLI 생성에는 리치오 결과 카드·카드 Undo가 없으므로 경로·검사 결과를 텍스트로 보고한다. 셸 실행이 거부되면 Host 도구 등 허용된 경로를 사용한다.

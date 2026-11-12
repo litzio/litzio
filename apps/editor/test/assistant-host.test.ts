@@ -408,6 +408,7 @@ test("staged Host tools edit atomically by conversation receipt with scoped revi
   const invoke = (name: string, input: any, override = {}) => executeDocumentTool(name, input, {...scope, ...override}) as any;
   const inspected = invoke("inspect_staged_document", {change: staged.id});
   assert.equal(inspected.receipt.outcome, "success");
+  assert.equal(changes.summaries("one")[0]?.copyRevision, inspected.copyRevision);
   const second = inspected.nodes.find((node: any) => node.text === "Second paragraph.");
   assert.ok(second);
   const operations = [{command: "update-node-text", path: second.path.join(","), from: second.text, to: "Revised second paragraph."}];
@@ -417,6 +418,8 @@ test("staged Host tools edit atomically by conversation receipt with scoped revi
   assert.equal(invoke("edit_staged_document", input, {conversation:"other"}).errorKind, "unavailable");
   assert.equal(invoke("edit_staged_document", input).receipt.outcome, "success");
   const updated = invoke("inspect_staged_document", {change:staged.id});
+  assert.equal(changes.summaries("one")[0]?.copyRevision, updated.copyRevision);
+  assert.notEqual(updated.copyRevision, inspected.copyRevision);
   const atomic = invoke("edit_staged_document", {...input, copyRevision:updated.copyRevision, operations:[{command:"insert-block",at:"end",text:"Must roll back"},{command:"remove-block",at:99999}]});
   assert.equal(atomic.errorKind, "invalid_input");
   assert.match(atomic.error, /operation 2/);
@@ -504,6 +507,39 @@ test("provider-neutral tool failures expose executable recovery without replayin
   assert.equal(ambiguous.recovery.action,"narrow_candidates");
 });
 
+test("image import shares add-only Host and CLI behavior with document tools and folder permissions", async t => {
+  const { executeDocumentTool, documentFolders } = await import("../server/assistant-document-tools.ts");
+  const { RootAccess, LOCAL_FILE_ACCESS } = await import("../server/file-access.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "image-import-"));
+  const outside = mkdtempSync(path.join(tmpdir(), "image-outside-"));
+  t.after(() => { rmSync(root, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); });
+  const file = path.join(root, "document.md"), source = path.join(root, "image.png"), external = path.join(outside, "external.png");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=", "base64");
+  writeFileSync(file, "---\nlitzio: 1\n---\n\nOriginal.\n"); writeFileSync(source, png); writeFileSync(external, png);
+  const access = LOCAL_FILE_ACCESS, folders = documentFolders([root], "opened-folders", access);
+  const invoke = (input: unknown, override = {}) => executeDocumentTool("import_document_image", input, { folders, access, permissionMode: "opened-folders", ...override }) as any;
+  const input = { path: file, source };
+  assert.equal(invoke(input, { permissionMode: "read-only" }).errorKind, "forbidden");
+  const first = invoke(input), second = invoke(input);
+  assert.equal(first.path, "./assets/image.png"); assert.equal(second.path, "./assets/image-2.png");
+  assert.deepEqual(readFileSync(path.join(root, first.path)), png);
+  assert.deepEqual(readFileSync(source), png);
+  assert.equal(invoke({ path: file, source: external }).errorKind, "forbidden");
+  assert.equal(invoke({ path: file, source: external }, { permissionMode: "full-access", folders: documentFolders([], "full-access", access) }).receipt.outcome, "success");
+  assert.equal(invoke({ path: file, source: external }, { permissionMode: "full-access", access: new RootAccess([root]) }).errorKind, "forbidden");
+  writeFileSync(source, "invalid png");
+  assert.equal(invoke(input).errorKind, "invalid_input");
+  assert.deepEqual(readFileSync(path.join(root, first.path)), png);
+  writeFileSync(source, png);
+  const output: string[] = [];
+  const stdout = t.mock.method(process.stdout, "write", ((value: string) => { output.push(value); return true; }) as typeof process.stdout.write);
+  try {
+    assert.equal(await runCliAsync(["assistant", "import-image", file, "--source", source]), 0);
+    assert.equal(JSON.parse(output.pop()!).path, "./assets/image-3.png");
+  } finally { stdout.mock.restore(); }
+  assert.match(readFileSync(file, "utf8"), /Original/);
+});
+
 test("structured creation and pending edits reuse Core batches and report image readiness separately", async t => {
   const { executeDocumentTool } = await import("../server/assistant-document-tools.ts");
   const { AssistantChanges } = await import("../server/assistant-changes.ts");
@@ -555,4 +591,14 @@ test("structured creation and pending edits reuse Core batches and report image 
   assert.match(readFileSync(staged.copy, "utf8"), /Revised summary/);
   assert.match(readFileSync(staged.copy, "utf8"), /Work/);
   assert.equal(changes.list("structured").length, 1);
+  const preview = changes.preview("structured", staged.id);
+  changes.apply("structured", staged.id, preview.copyRevision, preview.diskRevision);
+  assert.match(readFileSync(file, "utf8"), /Revised chart/);
+  assert.match(readFileSync(file, "utf8"), /missing.png/);
+  const unsupported = invoke("stage_document", { path: file });
+  writeFileSync(unsupported.copy, created.source + "\n![Desk](images/writing-desk.png)\n");
+  assert.throws(() => changes.preview("structured", unsupported.id), /Unsupported native content: image.*Discard.*insert-figure/s);
+  assert.throws(() => changes.apply("structured", unsupported.id, "unused", "unused"), /Discard/);
+  assert.match(readFileSync(file, "utf8"), /Revised chart/);
+
 });

@@ -519,6 +519,8 @@
             "ref": {
               "type": "string"
             },
+            "preserveCorrespondence": { "type": "boolean" },
+            "directSource": { "type": "string", "maxLength": 4194304 },
             "change": {
               "type": "object"
             },

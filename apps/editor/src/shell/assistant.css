@@ -108,6 +108,9 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-submission-status > span:not(:first-child) { flex-basis: 100%; text-align: right; }
 .assistant-submission-status [role="alert"] { color: var(--id-color-danger); }
 
+.assistant-changes { margin-bottom: var(--space-2); }
+.assistant-change-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.assistant-change-row > span { flex: 1; min-width: 0; }
 .assistant-approval-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 .assistant-steps summary { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .assistant-steps summary > svg { width: var(--space-4); height: var(--space-4); flex: none; }

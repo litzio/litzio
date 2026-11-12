@@ -69,7 +69,7 @@ export function comparison(archive, record, report, input) {
     const sourceIds=[];
     for(const [index,region]of insertion.regions.entries()){
       const page=pages.find(p=>p.pageNo===region.page);if(!page)throw new Error("Unknown insertion evidence page");
-      const id=`${insertion.key.replaceAll(":","-")}-${index}`;page.regions.push({id,bbox:region.bbox,category:"삽입 근거",kind:insertion.kind==="heading"?"heading":"text",status:"supported"});
+      const id=`${insertion.key.replaceAll(":","-")}-${index}`;page.regions.push({id,bbox:region.bbox,category:"삽입 근거",kind:insertion.kind==="heading"?"heading":"text",status:insertion.targets.length?"supported":"unsupported"});
       sourceIds.push(id);
     }
     if(sourceIds.length)entries.push({sourceIds,targets:insertion.targets});

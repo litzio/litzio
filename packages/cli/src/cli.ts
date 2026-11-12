@@ -138,7 +138,7 @@ const COMMANDS: CommandSpec[] = [
   { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
-    usage: `${brand.cliCommand} assistant changes <list|start|inspect|edit|preview|apply|discard> <conversationId> [options] | assistant delete <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry."] },
+    usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant changes <list|start|inspect|edit|preview|apply|discard> <conversationId> [options] | assistant delete <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -1340,6 +1340,14 @@ export async function runCliAsync(args: string[]): Promise<number> {
   if (args[0] !== "assistant" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
   try {
     const operation = args[1];
+    if (operation === "import-image") {
+      if (args.length !== 5 || args[3] !== "--source") throw new Error("Usage: assistant import-image <document> --source <absolute-image-path>");
+      const { executeDocumentTool, documentFolders } = await import("../../../apps/editor/server/assistant-document-tools.ts");
+      const { LOCAL_FILE_ACCESS } = await import("../../../apps/editor/server/file-access.ts");
+      const result = executeDocumentTool("import_document_image", { path: args[2], source: args[4] }, { access: LOCAL_FILE_ACCESS, permissionMode: "full-access", folders: documentFolders([], "full-access", LOCAL_FILE_ACCESS) });
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return "error" in result ? 1 : 0;
+    }
     if (operation === "changes") {
       const action = args[2], id = args[3];
       if (!["list", "start", "inspect", "edit", "preview", "apply", "discard"].includes(action) || !id) throw new Error("Usage: assistant changes <list|start|inspect|edit|preview|apply|discard> <conversationId> [--path <original> | --change <id>] [--copy-revision <hash> --disk-revision <hash>] [--operations <json-file>] [--host <origin>]");

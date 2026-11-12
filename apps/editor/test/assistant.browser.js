@@ -1438,6 +1438,25 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.locator('.assistant-submission')).toHaveCount(0);
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(1);
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  // #1548: provider history may still lack its correlated row after Stop.
+  await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
+  await message.fill('Accepted before observation'); await message.press('Enter');
+  await expect(panel.locator('.assistant-submission-status')).toHaveCount(0);
+  for (const turn of selected.turns) for (const item of turn.items) if (item.kind === 'user') item.userMessageSource = 'host';
+  const previousConversation = selected.id;
+  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'New conversation', exact: true })).toBeEnabled();
+  // Paced input leaves time for the idle observer, as ordinary user typing would.
+  await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
+  await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copilot fixture model', exact: true }).click();
+  await message.pressSequentially('A separate conversation', { delay: 100 });
+  await message.press('Enter');
+  await expect.poll(() => sent.at(-1).message).toBe('A separate conversation');
+  expect(sent.at(-1).id, 'New conversation must not send the previous provider ID').toBeUndefined();
+  expect(selected.id).not.toBe(previousConversation);
+  await expect(panel.getByText('Accepted before observation', { exact: true })).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   // Restore preferences for the other stable scenarios.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation:local'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };

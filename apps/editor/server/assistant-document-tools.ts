@@ -1,3 +1,4 @@
+import { importDocumentImageAsset } from "./asset-api.ts";
 import { COMMAND_OPTIONS, isEditCommand, applyDocumentBatch } from "./document-edit-commands.ts";
 import path from "node:path";
 import { createDocument, updateDocumentTitle, insertParagraph, insertHeading, bodyEndIndex, serialize, validateStructure, DocumentDiagnosticError } from "@litzio/core";
@@ -10,8 +11,9 @@ import { loadEditorFile, listFolder } from "./document-api.ts";
 export type DocumentToolScope = { folders: RootAccess | null; permissionMode: string; access: FileAccess; directory?: string; changes?: import("./assistant-changes.ts").AssistantChanges; conversation?: string };
 const string = { type: "string" };
 const operations = { type: "array", minItems: 1, items: { type: "object", properties: { command: { type: "string", enum: Object.keys(COMMAND_OPTIONS).filter(isEditCommand) } }, required: ["command"], additionalProperties: true } };
-const structuredHelp = "Use existing apply-batch commands: insert-table {at:'end',cells:[['Name','Status'],['A','Done']],caption:'Summary'}, insert-list {at:'end',list:{ordered:false,items:[{content:[{kind:'text',text:'Item'}]}]}}, insert-figure {at:'end',image:'images/chart.png',caption:'Chart',alt:'Chart'}, update-figure {path:'2',caption:'Revised'}, update-table-caption {path:'1',text:'Summary'}, update-table-cell {path:'1,0,0',text:'Name'}. Also supports existing code, equation, quote, admonition and other CLI/Core commands. Image references do not create or copy image files.";
+const structuredHelp = "Use existing apply-batch commands: insert-table {at:'end',cells:[['Name','Status'],['A','Done']],caption:'Summary'}, insert-list {at:'end',list:{ordered:false,items:[{content:[{kind:'text',text:'Item'}]}]}}, insert-figure {at:'end',image:'images/chart.png',caption:'Chart',alt:'Chart'}, update-figure {path:'2',caption:'Revised'}, update-table-caption {path:'1',text:'Summary'}, update-table-cell {path:'1,0,0',text:'Name'}. Also supports existing code, equation, quote, admonition and other CLI/Core commands. For images, first use import_document_image with the original document path and absolute source file path, then use the returned relative path in insert-figure. Report asset readiness separately.";
 export const documentTools = [
+  { type: "function", name: "import_document_image", description: "Copy an existing image file into the target document assets folder and return its relative path for insert-figure. Use the original document path, even when editing a pending copy. Adds a file immediately without changing document text; discarding the copy leaves the asset. Never overwrites. Requires opened-folders or full-access; outside-folder sources require opening the containing folder or Full access.", inputSchema: { type: "object", properties: { path: string, source: string }, required: ["path", "source"], additionalProperties: false } },
   { type: "function", name: "inspect_staged_document", description: "Read current pending-copy nodes, paths and copyRevision by change ID. Inspect again after structural edits.", inputSchema: { type: "object", properties: { change: string }, required: ["change"], additionalProperties: false } },
   { type: "function", name: "edit_staged_document", description: "Apply an atomic Litzio apply-batch to this conversation pending copy only. Requires the inspected copyRevision. Each operation uses command plus its apply-batch options. Text replacement example: {\"command\":\"update-node-text\",\"path\":\"1\",\"from\":\"Old text\",\"to\":\"New text\"}. Use the inspected node path and exact current text for from. Paths are comma-separated node indices. Inspect again after structural edits. A failed operation writes nothing. Success means copy complete, awaiting human Apply; never original applied. " + structuredHelp, inputSchema: { type: "object", properties: { change: string, copyRevision: string, operations }, required: ["change", "copyRevision", "operations"], additionalProperties: false } },
   { type: "function", name: "stage_document", description: "Start or find this conversation's pending copy of an existing document, only after an explicit edit request. Use inspect_staged_document and edit_staged_document without a shell; never edit the original. Applying and discarding belong to the human review UI.", inputSchema: { type: "object", properties: { path: string }, required: ["path"], additionalProperties: false } },
@@ -27,7 +29,7 @@ export const documentTools = [
 export function executeDocumentTool(name: string, input: unknown, scope: DocumentToolScope) {
   try { return execute(name, input, scope); }
   catch (error) {
-    if (name !== "create_document") throw error;
+    if (name !== "create_document" && name !== "import_document_image") throw error;
     const message = error instanceof Error ? error.message : String(error);
     const code = (error as NodeJS.ErrnoException).code;
     const classified = (error as {errorKind?: string})?.errorKind;
@@ -49,9 +51,17 @@ function execute(name: string, input: unknown, scope: DocumentToolScope) {
   const value = input as { path: string; title: string; operations?: unknown; blocks: { type: string; text: string; level: number }[] };
   const invalid = (message: string): never => { throw new DocumentDiagnosticError("invalid-operation", message); };
   if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.path !== "string" || !path.isAbsolute(value.path)) invalid("An absolute path is required.");
-  const keys = name === "create_document" ? ["path", "title", "blocks", "operations"] : ["path"];
+  const keys = name === "import_document_image" ? ["path", "source"] : name === "create_document" ? ["path", "title", "blocks", "operations"] : ["path"];
   if (Object.keys(value).some(key => !keys.includes(key))) invalid("Unsupported tool input.");
   if (!scope.folders) throw Object.assign(new Error("No opened folders for this turn."),{errorKind:"forbidden"});
+  if (name === "import_document_image") {
+    if (!["opened-folders", "full-access"].includes(scope.permissionMode)) throw Object.assign(new Error("Image import is read-only for this turn."), { errorKind: "forbidden" });
+    const source = (input as { source: string }).source;
+    if (typeof source !== "string" || !path.isAbsolute(source)) invalid("An absolute image source path is required.");
+    const target = scope.folders.resolve(accessPath(value.path, scope.access));
+    const file = scope.folders.resolve(accessPath(source, scope.access));
+    return importDocumentImageAsset(target, file, scope.access);
+  }
   const create = name === "create_document";
   if (create && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw Object.assign(new Error("Document creation is read-only for this turn."),{errorKind:"forbidden"});
   if (name === "stage_document") {

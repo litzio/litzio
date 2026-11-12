@@ -706,3 +706,7 @@ Existing `GET /api/folder` responses include an opaque `rootId` computed from th
 ## Plugin-managed generated documents (#1364)
 
 Host app data holds canonical-path connections for generated documents; the document folder and Markdown carry no management metadata. GET document/editor-file exposes managedGenerated for the shared Editor/CLI warning. Moving/renaming may disconnect that warning. Opaque source revision replacement, source-first corrections, explicit same-path document regeneration and receipts use the [plugin contract](plugin-stage1-v1.md#generated-document-correction-and-regeneration-1364).
+
+## Assistant image import (#1554)
+
+The shared `importDocumentImageAsset(document,source,access)` operation validates a local absolute image file and adds it through the existing Editor image publisher. It returns the document-relative asset path and success receipt, never overwrites and leaves source bytes unchanged. The assistant tool and local CLI share this operation; folder/turn restrictions and immediate asset lifetime are specified in [Main agent](main-agent-v1.md#image-assets-1554-1555). No new storage format or document semantic operation is introduced.
