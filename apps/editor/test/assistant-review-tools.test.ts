@@ -3,17 +3,17 @@ import { test } from "node:test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { executeReviewAssistantTool, executeReadReviewDocument, reviewAssistantTools, parseReviewImageQuestion } from "../server/assistant-plugin-tools.ts";
+import { executeReviewAssistantTool, executeReadReviewDocument, reviewAssistantTools } from "../server/assistant-plugin-tools.ts";
 import { AssistantConversations, conversationForDisplay } from "../server/assistant-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
 
-test("text inspection requires material actually delivered in this turn", async () => {
+test("text inspection requires material actually delivered at the current revision across turns", async () => {
   const root=mkdtempSync(path.join(tmpdir(),"review-tools-"));
   try {
     writeFileSync(path.join(root,"a.docling"),"fixture");
     const location={root,workspace:"a.docling",plugin:"fixture",job:"workspace"};
     const scope={folders:new RootAccess([root]),permissionMode:"opened-folders",access:null};
-    const calls:any[]=[], ids=new Set<string>();let baseline="a".repeat(64), documentRevision="b".repeat(64), fail=false, ambiguous=false;
+    const comparisons:any[]=[];const calls:any[]=[], ids=new Set<string>();let baseline="a".repeat(64), documentRevision="b".repeat(64), fail=false, ambiguous=false;
     const host:any={generatedDocuments:{execute:async(input:any)=>{
       calls.push(input);
       if(input.action==="workspace-find")return {targets:ambiguous?[location,{...location,plugin:"other"}]:[location]};
@@ -22,9 +22,10 @@ test("text inspection requires material actually delivered in this turn", async 
         if(ids.has(input.requestId))throw new Error("Duplicate requestId; query status");ids.add(input.requestId);
         if(fail)throw new Error("Publication uncertain");
         if(input.baseline!==baseline)throw new Error("Workspace baseline conflict");
+        comparisons.push(...input.change.comparisons??[]);
       }
       return {baseline,documentRevision,contentRevision:"c".repeat(64),receipt:{outcome:"success"},workspace:location,
-        material:{pages:[1,2],items:[{self_ref:"target-1"}]},ledger:{inventory:{pages:[1,2,3],targets:["target-1"],requiredChecks:[]},groups:[],inspections:[]}};
+        material:{pages:[1,2],items:[{self_ref:"target-1"}]},ledger:{inventory:{pages:[1,2,3],targets:["target-1"],requiredChecks:[]},groups:[],inspections:[],comparisons}};
     }}};
     const invoke=(name:string,args:any,turn=scope,callId?:string)=>executeReviewAssistantTool(host,name,{path:"a.docling",...args},turn,[],callId);
     const record={lens:"text",contentRevision:"c".repeat(64),scope:{pages:[1],targets:[]},state:"no-issue",evidence:"Read actual page"};
@@ -34,7 +35,14 @@ test("text inspection requires material actually delivered in this turn", async 
     await invoke("record_review_inspection",{records:[record]},scope,"record-once");
     await assert.rejects(invoke("record_review_inspection",{records:[record]},scope,"record-once"),/Duplicate requestId/);
     await assert.rejects(invoke("record_review_inspection",{records:[{...record,scope:{pages:[3],targets:[]}}]}),/Read page material/);
-    await assert.rejects(invoke("record_review_inspection",{records:[record]},{...scope}),/Read page material/,"another turn cannot inherit proof");
+    await executeReviewAssistantTool(host,"record_review_inspection",{path:"a.docling",records:[record]},{...scope},[{workspace:location,documentRevision,contentRevision:"c".repeat(64),material:{pages:[1],items:[]}}]);
+    const imageHistory=[{workspace:location,documentRevision,contentRevision:"c".repeat(64),runId:"images",images:[{page:1,target:"target-1"},{page:2,target:"target-1"}]}];
+    const imageRecord=(pages:number[],history=imageHistory)=>executeReviewAssistantTool(host,"record_review_inspection",{path:"a.docling",imageRunId:"images",records:[{...record,scope:{pages,targets:["target-1"]}}]},scope,history);
+    await imageRecord([1]);assert.deepEqual(comparisons.at(-1).scope.pages,[1],"a partial record does not require all delivered images");
+    await imageRecord([2]);assert.deepEqual(comparisons.at(-1).scope.pages,[1,2],"later inspected subsets accumulate");
+    assert.equal(comparisons.at(-1).selected,false,"measurement never selects a human approval gate");
+    await assert.rejects(imageRecord([3]),/Read the recorded image scope/);
+    await assert.rejects(imageRecord([1],[{...imageHistory[0],workspace:{...location,workspace:"other.docling"}}]),/Read the recorded image scope/);
     baseline="d".repeat(64);
     await assert.rejects(invoke("record_review_inspection",{records:[record]}),/baseline conflict/,"Host retains observed baseline across external writes");
     documentRevision="e".repeat(64);
@@ -54,8 +62,6 @@ test("text inspection requires material actually delivered in this turn", async 
     const legacyRequest={...location,baseline,requestId:"00000000-0000-4000-8000-000000000001",records:[record]};
     await executeReviewAssistantTool(host,"record_review_inspection",legacyRequest,scope);
     await assert.rejects(executeReviewAssistantTool(host,"record_review_inspection",legacyRequest,scope),/Duplicate requestId/);
-    const question=parseReviewImageQuestion({...location,selection:{pages:[1],targets:[]},estimateHash:"f".repeat(64)});
-    assert.equal(question.path,path.join(root,"a.docling"));assert.equal("plugin" in question,false);
     assert.ok(calls.some(input=>input.action==="workspace-review-change" && input.baseline && input.requestId));
     for(const tool of reviewAssistantTools.filter(tool=>tool.name!=="read_review_request_status"))assert.ok(!["root","plugin","job","baseline","requestId"].some(key=>key in ((tool.inputSchema as any).properties??{})));
   } finally {rmSync(root,{recursive:true,force:true});}
@@ -86,4 +92,8 @@ test("display projects already-loaded large results while preserving creation re
   assert.ok(JSON.parse(parts[1]!.text!).omitted);
   assert.ok(Buffer.byteLength(JSON.stringify(display))<1024);
   assert.equal(JSON.parse(conversation.turns[0].items[0].toolResult.contentItems[0].text).source,source);
+  conversation.turns[0].items.push({id:"material",text:"read_review_material",kind:"tool",toolResult:{success:true,contentItems:[{type:"inputText",text:JSON.stringify({workspace:{root:"/root",workspace:"a.docling",plugin:"fixture",job:"review"},documentRevision:"b".repeat(64),contentRevision:"c".repeat(64),material:{pages:[1],items:[{self_ref:"target",text:source}]}})}]}});
+  const retained=JSON.parse(conversationForDisplay(conversation).turns[0]!.items[1]!.toolResult!.contentItems[0]!.text!);
+  assert.deepEqual(retained.material,{pages:[1],items:[{self_ref:"target"}]},"display projection retains returned material identity across history resume");
+  assert.equal(retained.documentRevision,"b".repeat(64));
 });

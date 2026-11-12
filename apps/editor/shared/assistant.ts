@@ -16,7 +16,7 @@ export type AssistantSkill = { displayName?: string; name: string; path: string;
 export type AssistantSkills = { skills: AssistantSkill[]; errors: { path: string; message: string }[] };
 export type AssistantFileReference = { path: string; name: string; kind: string };
 export type AssistantConversationItem = { id: string; submissionId?: string; userMessageSource?: "host" | "provider-live" | "provider-history"; kind: "user" | "assistant" | "reasoning" | "tool" | "plan" | "question"; text: string; question?: AssistantQuestionRecord; questionAnswer?: { requestId: string | number; turnId: string; answers: AssistantUserInputAnswers }; references?: AssistantFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
-export type AssistantUserInput = { reviewImageEstimate?: { pages: number[]; targets: string[]; pageCount: number; regionCount: number; estimatedInputTokens: number }; requestId: string | number; turnId: string; questions: {
+export type AssistantUserInput = { requestId: string | number; turnId: string; questions: {
   id: string; header: string; question: string; isOther: boolean; isSecret: boolean;
   options: { label: string; description: string }[] | null;
 }[] };
@@ -28,7 +28,6 @@ export type AssistantQuestionRecord = AssistantUserInput & {
   sourceQuestions?: { title: string; options: string[] | null }[];
   answers?: AssistantUserInputAnswers;
   error?: string;
-  reviewImage?: { path:string; selection:{pages:number[];targets:string[]}; estimateHash:string };
   requiresDisplayAck?: boolean;
   displayed?: boolean;
 };

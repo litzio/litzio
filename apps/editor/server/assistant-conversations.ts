@@ -4,7 +4,7 @@ import { AssistantMcp, type HostToolCall, type HostToolResult } from "./assistan
 import { AgentScreenRequests, screenTool } from "./assistant-screen-tools.ts";
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
-import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, parseReviewImageQuestion, answerReviewImageQuestion, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -119,7 +119,7 @@ export class AssistantConversations {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (this.closed || !scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw Object.assign(new Error("No authorized active turn for this tool call."),{errorKind:"forbidden"});
-      if (params.tool === questionTool.name && this.current(params.threadId).provider === "copilot") throw new Error("Copilot question cards are unavailable. Ask in ordinary text; review image approval requires a supported question card.");
+      if (params.tool === questionTool.name && this.current(params.threadId).provider === "copilot") throw new Error("Copilot question cards are unavailable. Ask in ordinary text.");
       if (params.tool === questionTool.name) return this.requestQuestion(this.current(params.threadId), active, params.callId, params.arguments, scope.displayClient);
       if (params.tool === "invoke_plugin_operation" && this.plugins) {
         const result = await executePluginOperationTool(this.plugins, params.arguments, scope);
@@ -146,10 +146,10 @@ export class AssistantConversations {
       }
       if (reviewAssistantTools.some(tool=>tool.name===params.tool) && this.plugins) {
         try {
-          const result=await executeReviewAssistantTool(this.plugins,params.tool,params.arguments,scope,active.items.filter(item=>item.id.startsWith("review-image-")).map(item=>JSON.parse(item.toolResult!.contentItems[0]!.text!)),params.callId);
+          const result=await executeReviewAssistantTool(this.plugins,params.tool,params.arguments,scope,this.current(params.threadId).turns.flatMap(turn=>turn.items).flatMap(item=>{ if(!["read_review_material","read_review_images"].includes(item.text) || item.toolResult?.success!==true)return []; try {return [JSON.parse(item.toolResult.contentItems[0]!.text!)];}catch{return [];} }),params.callId);
           const images=result.images?.filter((image:any)=>image.base64);
           if(images?.length) {
-            active.items.push({id:`review-image-${params.callId}`,kind:"tool",text:"read_review_images",status:"completed",toolResult:{success:true,contentItems:[{type:"inputText",text:JSON.stringify({input:result.workspace,runId:result.runId,scope:{pages:[params.arguments.pageNo],targets:params.arguments.target?[params.arguments.target]:[]},documentRevision:result.documentRevision})}]}});
+            active.items.push({id:`review-image-${params.callId}`,kind:"tool",text:"read_review_images",status:"completed",toolResult:{success:true,contentItems:[{type:"inputText",text:JSON.stringify({input:result.workspace,workspace:result.workspace,images:images.map(({base64,...image}:any)=>image),contentRevision:result.contentRevision,runId:result.runId,scope:{pages:[params.arguments.pageNo],targets:params.arguments.target?[params.arguments.target]:[]},documentRevision:result.documentRevision})}]}});
             this.save(this.current(params.threadId));
             return {success:true,contentItems:[{type:"inputText",text:JSON.stringify({...result,images:images.map(({base64,...image}:any)=>image)})},...images.map((image:any)=>({type:"inputImage",imageUrl:`data:${image.mime};base64,${image.base64}`}))]};
           }
@@ -411,27 +411,10 @@ export class AssistantConversations {
     const result = (accepted: boolean, error?: string) => ({ success: accepted, contentItems: [{ type: "inputText", text: JSON.stringify({ accepted, questionId: `question-${callId}`, ...(error ? { error } : {}) }) }] });
     if (!client) return result(false, "Question cards require a Litzio client. No question was queued.");
     if (typeof callId !== "string" || !callId.trim()) return result(false, "Invalid question call ID.");
-    if (!input || Object.keys(input).some(key => !["questions","reviewImage"].includes(key)) || !Array.isArray(input.questions) || input.questions.some((q: any) => !q || Object.keys(q).some(key => !["title", "options"].includes(key)))) return result(false, "Invalid question input.");
-    let reviewImage: AssistantQuestionRecord["reviewImage"];
-    let reviewImageEstimate: AssistantQuestionRecord["reviewImageEstimate"];
-    if (input.reviewImage !== undefined) {
-      try {
-        reviewImage=parseReviewImageQuestion(input.reviewImage);
-        if(!this.plugins)throw new Error("Review Host unavailable");
-        const {estimateHash,...request}=reviewImage!;
-        const estimate=await executeReviewAssistantTool(this.plugins,"estimate_review_images",request,this.scopes.get(conversation.id)!);
-        if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw new Error("Image estimate changed; calculate again");
-        reviewImageEstimate = { ...request.selection, pageCount: estimate.pageCount, regionCount: estimate.regionCount, estimatedInputTokens: estimate.estimatedInputTokens };
-        input={...input,questions:[{title:"Review image comparison",options:["approve","decline"]}]};
-      }catch(error){return result(false,String(error));}
-    }
+    if (!input || Object.keys(input).some(key => !["questions"].includes(key)) || !Array.isArray(input.questions) || input.questions.some((q: any) => !q || Object.keys(q).some(key => !["title", "options"].includes(key)))) return result(false, "Invalid question input.");
     const item = itemFrom({ type: "agentMessage", id: `question-${callId}`, text: "", delivery: "async", questions: input.questions.map((q: any) => ({ ...q, options: q.options ?? null })) }, "provider-live", turn.id)!;
     const question = item.question!;
     if (question.status !== "pending") return result(false, "Invalid question input.");
-    if(reviewImage) {
-      question.reviewImage=reviewImage; question.reviewImageEstimate=reviewImageEstimate;
-      question.questions[0]!.isOther=false;
-    }
     question.requiresDisplayAck = true;
     turn.items.push(item); this.refreshQuestion(conversation);
     try {
@@ -506,13 +489,8 @@ export class AssistantConversations {
       const assertActive=()=>{
         if(!conversation.turns.some(turn=>turn.id===question.turnId && turn.status==="inProgress") || this.scopes.get(conversation.id)?.turnId!==question.turnId)throw new Error("Question expired.");
       };
-      let reviewImages;
-      if(question.reviewImage && answers["0"]?.answers[0]==="approve") {
-        if(!this.plugins)throw new Error("Review Host unavailable");
-        reviewImages=await answerReviewImageQuestion(this.plugins,question.reviewImage,this.scopes.get(conversation.id)!,`conversation:${conversation.id}/question:${question.requestId}`,assertActive);
-      }
       assertActive();
-      const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ ...(reviewImages?{reviewImages}:{}), requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
+      const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
       await this.send({ id: conversation.id, message, folders: conversation.folders, model: conversation.model, reasoningEffort: conversation.reasoningEffort },
         { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort }, displayClient);
       question.status = "answered"; this.save(conversation);
@@ -909,9 +887,12 @@ function displayToolResult(result:NonNullable<AssistantConversationItem["toolRes
   const bytes=Buffer.byteLength(JSON.stringify(result.contentItems),"utf8");
   if(bytes<=16*1024)return result;
   // Creation cards use the small receipt, never the returned source, for Open/Undo.
-  const receipts=result.contentItems.flatMap(part=>{
+  const receipts=result.contentItems.flatMap<any>(part=>{
     if(part.type!=="inputText" || !part.text)return [];
-    try {const value=JSON.parse(part.text);return typeof value.path==="string" && /^[a-f0-9]{64}$/.test(value.revision) ? [{path:value.path,revision:value.revision,identity:value.identity}] : [];} catch {return [];}
+    try {const value=JSON.parse(part.text);
+      if(value.workspace && value.documentRevision && (value.material || value.images))return [{workspace:value.workspace,documentRevision:value.documentRevision,contentRevision:value.contentRevision,
+        ...(value.material ? {material:{pages:value.material.pages,items:value.material.items.map((item:any)=>({self_ref:item.self_ref}))}} : {runId:value.runId,images:value.images})}];
+      return typeof value.path==="string" && /^[a-f0-9]{64}$/.test(value.revision) ? [{path:value.path,revision:value.revision,identity:value.identity}] : [];} catch {return [];}
   });
   return {...result,contentItems:[...receipts.map(value=>({type:"inputText",text:JSON.stringify(value)})),{type:"inputText",text:JSON.stringify({omitted:true,bytes,summary:"Tool result retained in provider history; omitted from display."})}]};
 }
