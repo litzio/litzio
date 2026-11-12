@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| Copilot 사용량 확인 (#1581) | 기존 컨텍스트 링 hover/focus | AssistantUsageTooltip·Base UI Tooltip·기존 토큰 | 컨텍스트와 세션 보고값 표시, 계정 한도 미제공 명시 | [Copilot 사용량](main-agent-v1.md#copilot-context-and-session-usage-1581) | 없음 |
 | 문제 목록에서 검수한다 (#1462 6-2) | 승인된 A 배치: 목록·가운데 제안/기존 대조·접힌 쪽 칸 | 기존 ReviewRenderer, Button sm/ghost/outline, Input, Checkbox(Base UI), Notice, Tooltip, native details/Lucide chevron·탐색기 행 선택 | 기존 evidence/그룹 판단/필수 확인 작업과 블록 제외 묶음, 비서 승인 권한 추가 없음 | [6-2 화면](docling-review-stage3.md#6단계-최소-검수-화면--6-2) | 배치는 소유자 승인. 새 공통 control/token 예외 없음. 큰 머리글·하단 반복 설명 없음 |
 | 파일 없는 검수 snapshot을 대조·중간 내보내기한다 (#1462 P1b) | 기존 comparison 작업 탭·명시 export Dialog | ReviewRenderer/DocumentEditor readOnly preview·Dialog/Input/Button/checkbox | 내부 source/이미지·effective 대응, 실제 파일 열기는 export 결과만, revision/overwrite·미저장 보호 | [P1b](docling-review-stage3.md#p1b-내부-대조이미지명시-export) | 기존 공통 구현, 새 token/control 예외 없음. 완료 승인/final export는 후속 |
 

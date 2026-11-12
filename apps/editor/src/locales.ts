@@ -1,6 +1,13 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "This conversation": "This conversation",
+  "Session cost": "Session cost",
+  "Latest reported usage": "Latest reported usage",
+  "Input tokens": "Input tokens",
+  "Output tokens": "Output tokens",
+  "Copilot does not provide account limit information.": "Copilot does not provide account limit information.",
+
   "The file changed after the assistant edit. Undo was refused.": "The file changed after the assistant edit. Undo was refused.",
   "This change is unavailable in this Host session.": "This change is unavailable in this Host session.",
   "Wait for the assistant response to finish.": "Wait for the assistant response to finish.",
@@ -1384,6 +1391,13 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "This conversation": "이 대화",
+  "Session cost": "세션 비용",
+  "Latest reported usage": "최근 보고된 사용량",
+  "Input tokens": "입력 토큰",
+  "Output tokens": "출력 토큰",
+  "Copilot does not provide account limit information.": "Copilot은 계정 한도 정보를 제공하지 않습니다.",
+
   "The file changed after the assistant edit. Undo was refused.": "비서 수정 이후 파일이 바뀌어 되돌리지 않았습니다.",
   "This change is unavailable in this Host session.": "현재 Host 세션에서는 이 변경을 확인하거나 되돌릴 수 없습니다.",
   "Wait for the assistant response to finish.": "비서 응답이 끝날 때까지 기다리세요.",

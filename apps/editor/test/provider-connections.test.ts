@@ -253,7 +253,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
-  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 사본 없이 원본을 바로 고친다"));
+  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 본문은 공급자 파일 편집(패치)으로 먼저 원본을 고친다"));
   await connection.close();
   for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
 });
@@ -314,6 +314,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const start = rpc.find(item => item.method === "turn/start").params;
   assert.equal(start.summary, "auto");
+  assert.equal(JSON.parse(start.input[1].text.split("(JSON):\n")[1]).permissionMode, "opened-folders");
   assert.match(start.input[1].text, /Litzio plugin authoring skill/);
   const refs = [{ path: input.document.path, name: "notes.md", kind: "document" }, { path: path.join(root, "image.png"), name: "image.png", kind: "image" }, { path: path.join(root, "report.pdf"), name: "report.pdf", kind: "file" }];
   assert.deepEqual(JSON.parse(start.input[1].text.split("(JSON):\n")[1]).references, refs);
@@ -442,7 +443,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(instructions, /상태 미발견은 쓰기가 없었다는 증거가 아니다/);
   assert.match(instructions, /accepted:true.*저장.*렌더 확인·답변 수신을 뜻하지 않는다/);
   assert.match(instructions, /apply_review_groups로 즉시 적용/);
-  assert.match(instructions, /파일 편집 도구나 셸.*litzio check/);
+  assert.match(instructions, /공급자 파일 편집\(패치\).*litzio check/);
   assert.match(instructions, /AGENTS.md.*작업하기 전에 읽는다/);
   const parentPath = process.env.PATH;
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
@@ -973,7 +974,7 @@ test("Codex requirements disable full access; policy rejection retries once befo
       if (!discovery) throw new Error("Method not found");
       return { requirements: { allowedSandboxModes: ["read-only", "workspace-write"] } };
     }
-    if (method === "turn/start") { policies.push(params.sandboxPolicy.type); if (uncertain) throw new Error("Connection closed before response"); }
+    if (method === "turn/start") { policies.push(params.sandboxPolicy.type); assert.equal(JSON.parse(params.input[1].text.split("(JSON):\n")[1]).permissionMode, params.sandboxPolicy.type === "dangerFullAccess" ? "full-access" : params.sandboxPolicy.type === "readOnly" ? "read-only" : "opened-folders"); if (uncertain) throw new Error("Connection closed before response"); }
     if (method === "turn/start" && params.sandboxPolicy.type === "dangerFullAccess") throw new Error("invalid thread settings override: invalid value for sandbox_mode: DangerFullAccess is not in the allowed set [ReadOnly, WorkspaceWrite] (set by enterprise-managed requirements private-organization)");
     return original(method, params);
   });
@@ -1437,4 +1438,30 @@ test("Copilot late session load cannot trap explicit resume on an already loaded
   const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   assert.equal(requests.filter(row => row.method === "session/load").length, 2, "only the two explicit restore attempts dispatch; successful resume reuses the loaded session");
   assert.equal(requests.filter(row => row.method === "session/prompt").length, 2, "no failed work is automatically replayed");
+});
+
+test("Copilot ACP usage stays on its conversation and survives in-memory resume without summing prompt reports", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1581-"));
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url))] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  t.after(async () => { await conversations.close(); await connection.close(); });
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "high" };
+  const input = { message: "USAGE FIXTURE", folders: [root], model: "auto", reasoningEffort: "high" };
+  const used = await conversations.send(input, settings);
+  const finished = async (value: typeof used) => {
+    for (let i = 0; i < 100 && value.turns.at(-1)?.status === "inProgress"; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(value.turns.at(-1)?.status, "completed");
+  };
+  await finished(used);
+  assert.deepEqual(used.tokenUsage, { used: 15000, limit: 200000 });
+  assert.deepEqual(used.copilotUsage, { cost: { amount: 0.25, currency: "USD" }, prompt: { totalTokens: 14000, inputTokens: 13995, outputTokens: 5, thoughtTokens: undefined, cachedReadTokens: undefined, cachedWriteTokens: undefined } });
+  const resumed = await conversations.resume(used.id, settings);
+  assert.deepEqual(resumed.tokenUsage, used.tokenUsage);
+  assert.deepEqual(resumed.copilotUsage, used.copilotUsage);
+  await finished(await conversations.send({ ...input, id: used.id }, settings));
+  assert.equal(conversations.current(used.id).copilotUsage?.prompt?.totalTokens, 14000);
+  const absent = await conversations.send({ ...input, message: "COMPLETE THIS TURN" }, settings);
+  await finished(absent);
+  assert.equal(absent.tokenUsage, undefined);
+  assert.equal(absent.copilotUsage, undefined);
 });

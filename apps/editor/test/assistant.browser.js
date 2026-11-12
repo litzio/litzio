@@ -243,6 +243,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         if (!body.id) { selected = { provider: body.provider ?? settings.provider, permissionMode: body.permissionMode ?? settings.permissionMode, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
           updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
         else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
+        if (body.message === 'After provider switch') { selected.tokenUsage = { used: 15000, limit: 200000 }; selected.copilotUsage = { cost: { amount: 0.25, currency: 'USD' }, prompt: { totalTokens: 14000, inputTokens: 13995, outputTokens: 5 } }; }
         if (body.message === 'After provider switch') selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: [] };
         if (body.message === 'Recover supported model') {
           selected.model = body.model; selected.reasoningEffort = 'max';
@@ -260,7 +261,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
         else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: body.message ? 'Direction updated: focus on the unsaved paragraph.' : 'File reference received.' });
         if (body.message === 'Prompt lost before provider record' && promptReject) turn.unrecordedPrompt = true;
-        selected.tokenUsage = { used: 810, limit: 1000 };
+        selected.tokenUsage = selected.provider === "copilot" ? { used: 15000, limit: 200000 } : { used: 810, limit: 1000 };
       }
       if (body.action === 'answer') { submittedAnswers.push(body); await answerGate; delete selected.userInput; }
       if (body.action === 'interrupt') selected.turns.at(-1).status = 'interrupted';
@@ -577,6 +578,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await skillOptions.getByRole('option').click();
   await expect(draftChips).toHaveCount(1);
   await message.press('End'); await page.keyboard.type('Focus on the unsaved paragraph.', { delay: 30 });
+  await expect(panel.locator('.assistant-footer button')).toHaveCount(1);
+  await expect(panel.getByRole('button', { name: 'Stop response', exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Steer conversation' }).click();
   await expect(message).toHaveValue('');
   await panel.locator('.assistant-steps').filter({ hasText: 'Direction updated: focus on the unsaved paragraph.' }).last().locator('summary').click();
@@ -788,7 +791,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   selected.turns[0].status = 'inProgress';
   await expect(panel.getByRole('button', { name: 'Stop response' })).toBeEnabled();
 
-  await panel.getByRole('button', { name: 'Stop response' }).click();
+  const actionButton = panel.locator('.assistant-footer button');
+  const buttonNode = await actionButton.elementHandle();
+  await message.fill('Draft direction');
+  await expect(actionButton).toHaveAccessibleName('Steer conversation');
+  expect(await actionButton.evaluate((element, original) => element === original, buttonNode)).toBe(true);
+  await actionButton.focus();
+  selected.turns[0].status = 'completed';
+  await expect(actionButton).toHaveAccessibleName('Send message');
+  await expect(actionButton).toBeFocused();
+  selected.turns[0].status = 'inProgress';
+  await expect(actionButton).toHaveAccessibleName('Steer conversation');
+  await expect(actionButton).toBeFocused();
+  await message.fill('');
+  await expect(actionButton).toHaveAccessibleName('Stop response');
+  await expect(actionButton).toHaveCount(1);
+  await actionButton.click();
+  expect(selected.turns.at(-1).status).toBe('interrupted');
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeEnabled();
   // Assert direct completion state, without a reload or a polling assertion masking it.
   expect(await panel.locator('details').first().evaluate(element => element.open)).toBe(false);
@@ -938,6 +957,14 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         await panel.locator('.assistant-transcript').evaluate(element => { element.scrollTop = 0; });
         expect(await panel.locator('.assistant-transcript').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
         await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}.png` });
+        selected.turns[0].status = 'inProgress';
+        await expect(panel.getByRole('button', { name: '응답 중단', exact: true })).toBeEnabled();
+        await page.screenshot({ path: `tmp/1485-running-${width}-${theme}-ko.png` });
+        await panel.locator('textarea').fill('진행 중인 작업에 추가');
+        await page.screenshot({ path: `tmp/1485-steer-${width}-${theme}-ko.png` });
+        await panel.locator('textarea').fill('');
+        selected.turns[0].status = 'completed';
+        await expect(panel.getByRole('button', { name: '메시지 보내기', exact: true })).toBeDisabled();
         await panel.getByRole('button', { name: '답변 복사', exact: true }).scrollIntoViewIfNeeded();
         await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}-bottom.png` });
       }
@@ -1206,10 +1233,20 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent.at(-1).reasoningEffort).toBe('high');
   expect(sent.at(-1).id).toBeUndefined();
   expect(sent.at(-1).skills).toEqual([]);
+  await message.fill('Wait until completion');
+  await expect(panel.locator('.assistant-footer button')).toHaveAccessibleName('Stop response');
+  const copilotSendCount = sent.length;
+  await message.press('Enter');
+  expect(sent.length).toBe(copilotSendCount);
+  await message.fill('');
   const readsBeforeCopilot = summaryReads;
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).toBeVisible();
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).not.toContainText('Account');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('15,000 / 200,000');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Session cost: 0.25 USD');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Latest reported usage: 14,000');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Copilot does not provide account limit information.');
   expect(summaryReads).toBe(readsBeforeCopilot);
   await page.mouse.move(0, 0);
   await expect(panel.getByRole('alert')).toHaveCount(0);

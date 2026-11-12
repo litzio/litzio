@@ -8,10 +8,10 @@
 
 ## 문서 읽기와 쓰기
 - `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
-- 기존 문서는 사본 없이 원본을 바로 고친다. 리치오 문서는 텍스트 파일이므로 파일 편집 도구나 셸로 수정하고, `litzio check <file> --format json`으로 검사해 오류를 고친다.
+- 기존 본문은 공급자 파일 편집(패치)으로 먼저 원본을 고친다. 사람이 변경을 보고 되돌릴 수 있고 셸 인용에 따른 역슬래시 변형을 피한다. `litzio check <file> --format json`으로 검사한다.
 - 중간 산출물과 임시 스크립트는 사용자 폴더가 아닌 비서 작업 폴더(현재 디렉터리)에 둔다. 사용자가 연 폴더에 AGENTS.md 같은 지시 파일이 있으면 그 폴더에서 작업하기 전에 읽는다.
 - 새 문서는 create_document로 바로 만든다. title과 operations 또는 blocks 중 하나를 사용하며, 템플릿은 guide의 절차를 따른다.
-- 표·목록·그림·캡션은 insert-table, insert-list, insert-figure, update-figure 등 실제 구조 연산을 쓴다. 이미지가 필요하면 먼저 import_document_image({path,source})에 원본 문서 경로와 이미지 원본의 절대 경로를 전달해 assets/로 가져온 뒤, 반환된 상대 경로로 insert-figure를 수행한다. 자산은 즉시 복사되고 문서와 별개로 남으므로 자산 준비 상태와 문서 유효성을 구분해 보고한다.
+- 셸은 읽기·검사·변환·일괄 처리 등 편집 도구로 할 수 없는 일에 쓴다. CLI 도움말·inspect는 문법·구조 확인에 쓴다. 이미지는 import_document_image({path,source})로 assets/에 가져와 반환된 상대 경로를 쓴다. 자산 복사와 문서 삽입의 성공은 구분한다.
 
 ## 창·화면 조작과 표시 설정
 - 활성 탭이 문서가 아니거나 현재 창 확인이 필요하면 read_screen_context를 쓴다. 탭·폴더 메타데이터만 반환하며 미저장 본문·선택·플러그인 결과 내용은 알 수 없다.

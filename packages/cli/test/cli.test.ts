@@ -43,6 +43,27 @@ process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 after(() => rmSync(fixtures, { recursive: true, force: true }));
 const fixture = path.join(fixtures, "document.md");
 
+test("read-only CLI commands run without a reset lease while writers still refuse a blocked guard", () => {
+  const blockedGuard = path.join(fixtures, "guard-is-a-file");
+  writeFileSync(blockedGuard, "blocked");
+  const document = path.join(fixtures, "read-only-guard.md");
+  writeFileSync(document, nativeSource("Keep this document."));
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+  const execute = (args: string[]) => spawnSync(process.execPath, ["--import", "tsx", cli, ...args], {
+    encoding: "utf8", env: { ...process.env, LITZIO_RESET_DIR: blockedGuard }, windowsHide: true,
+  });
+  for (const args of [["check", document, "--format", "json"], ["inspect", document, "--format", "json"], ["compare", document, document, "--json"], ["insert-figure", "-h"], ["--help"], ["-h"], ["--version"]]) {
+    const result = execute(args);
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const target = path.join(fixtures, "guard-refused.md"), write = execute(["create", target]);
+  assert.equal(write.status, 1);
+  assert.match(write.stderr, /app-reset writer guard/);
+  assert.match(write.stderr, /file editing tool or request execution approval/);
+  assert.equal(fs.existsSync(target), false);
+  assert.equal(readFileSync(document, "utf8"), nativeSource("Keep this document."));
+});
+
 test("folder-trash CLI shares Host receipts, inspection and unavailable-trash refusal", async t => {
   const root = path.join(fixtures, "folder-cli"); mkdirSync(root);
   const child = path.join(root, "child"); mkdirSync(child);
