@@ -301,9 +301,9 @@ HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filte
 
 ## Windows Desktop regression
 
-Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit foundation·editor 두 묶음(`desktop`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`). 대표 제거(silent empty·user·foreign)는 package job에서 항상 실행한다. 전체 제거는 기존 설치 경로 분류의 `fullRemoval`로 선택하며 설치·업데이트 코드, 공유 빌드 입력과 unknown 변경에서 실행한다. Published beta.6는 릴리스 전 검사에만 남기고, 모든 release 모드에서 Published·Stable·Beta·전체 제거를 실행해 게시를 차단한다. PR·merge queue의 clean package·Save/Reload·crash recovery·reset과 Beta 대표 설치 보호는 유지한다. 필수 aggregate는 선택된 모든 job의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
+Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit foundation·editor 두 묶음(`desktop`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`). 대표 제거(silent empty·user·foreign)는 package job에서 항상 실행한다. 전체 제거는 기존 설치 경로 분류의 `fullRemoval`로 선택하며 설치·업데이트 코드, 공유 빌드 입력과 unknown 변경에서 실행한다. Published 0.0.2 Stable는 릴리스 전 검사에만 남기고, 모든 release 모드에서 Published·Stable·Beta·전체 제거를 실행해 게시를 차단한다. PR·merge queue의 clean package·Save/Reload·crash recovery·reset과 Beta 대표 설치 보호는 유지한다. 필수 aggregate는 선택된 모든 job의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
 
-공개 beta.6 fixture는 `GH_TOKEN`이 있으면 GitHub Releases asset API에 인증하여 다운로드하고, 토큰이 없으면 공개 URL을 사용한다. 두 경로 모두 기존 크기·SHA-256·업데이트 SHA-512 검증과 HTTP 504 재시도 횟수를 유지한다. 인증 여부와 요청 URL은 Actions 로그에 남기며 토큰은 출력하지 않는다. 다운로드 캐시의 실제 경로·키·master 저장 정책은 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다.
+공개 0.0.2 Stable fixture는 `GH_TOKEN`이 있으면 GitHub Releases asset API에 인증하여 다운로드하고, 토큰이 없으면 공개 URL을 사용한다. 두 경로 모두 기존 크기·SHA-256·업데이트 SHA-512 검증과 HTTP 504 재시도 횟수를 유지한다. 인증 여부와 요청 URL은 Actions 로그에 남기며 토큰은 출력하지 않는다. 다운로드 캐시의 실제 경로·키·master 저장 정책은 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다.
 
 
 Packaged 테스트의 모든 직접 실행은 `--lang=en-US`로 Chromium UI 언어를 고정하여 OS 언어와 무관하게 영어 UI를 검증한다(#449). 이 인자는 `.md`가 아니므로 Desktop의 문서 인자 처리에서 무시된다. 업데이트 테스트는 설치기가 인자 없이 재실행해도 영어를 유지하도록 테스트 소유 profile의 `litzio.uiLanguage`도 `en`으로 저장한다. 공개 beta.4는 영어 전용이며, 해당 바이너리의 `Ready`와 현재 `ready` 상태 속성은 대소문자를 무시하여 기다린다.
@@ -346,7 +346,7 @@ CI의 Windows Desktop job이 선택되면 clean package·release 자산 검증·
 
 ## Real GitHub Beta update
 
-현재 소스·공개 버전은 Litzio `0.0.2-beta.6`다([#1088 배포 기록](../releases/v0.0.2-beta.6.md)). 직전 공개는 Litzio `0.0.2-beta.5`, 이전은 IeumDoc `0.0.2-beta.4`다. 아래 opt-in 명령은 같은 Litzio 브랜드의 `0.0.2-beta.5 → 0.0.2-beta.6`를 대상으로 하며 두 버전이 모두 공개되어 실행 가능하지만 실행하지 않았다. **제품 이름 변경으로 앱 ID·설치·데이터 경로가 바뀌어 IeumDoc beta.4는 Litzio로 자동 업데이트되지 않는다. 새로 설치해야 하며 IeumDoc 데이터·설정·복구 기록은 이전되지 않는다.** 이 harness로 브랜드 간 migration을 검증하지 않는다. **이 PC의 설치 상태를 바꾸지 않는다는 제약으로 실제 GitHub 설치·업데이트는 미실행·미검증이다.** [#926 배포 기록](../releases/v0.0.2-beta.5.md)과 [#758 공개 기록](../releases/v0.0.2-beta.4.md)을 구분한다. 별도 승인으로 실행할 경우 `litzio: 1` 표식이 있는 Markdown의 저장·보존을 확인한다. CI local-feed는 현재 소스를 테스트 버전으로 각각 빌드하므로 Stable `0.0.1 → 0.0.2`, Beta `0.1.0-beta.1 → 0.1.0-beta.2` fixture를 그대로 유지하며 공개 버전 쌍과 구별한다. 이전 배포·철회 근거는 [#632 기록](../releases/v0.0.2-beta.1.md)에 보존한다.
+현재 소스는 Litzio `0.0.3-beta.1` Beta 후보이며 아직 게시 전이다([준비 기록](../releases/v0.0.3-beta.1.md)). 최신 공개는 `0.0.2` Stable, 직전 Beta는 `0.0.2-beta.10`이다. opt-in 대상은 `0.0.2 → 0.0.3-beta.1`이며 두 버전 공개 후에만 실행한다. 실제 GitHub 설치·업데이트는 설치 상태 보존 제약으로 **미실행·미검증**이다. IeumDoc beta.4는 Litzio로 자동 업데이트되지 않으며 새 설치가 필요하고 데이터·설정·복구 기록은 이전되지 않는다. CI local-feed의 같은 소스 fixture(Stable `0.0.1 → 0.0.2`, Beta `0.1.0-beta.1 → 0.1.0-beta.2`)는 유지한다. 릴리스 전 공개 설치본 회귀는 실제 `0.0.2` Stable 설치 파일에서 후보로 갱신하며 저장된 Stable 채널을 보존한다.
 
 이 opt-in 검증은 두 버전의 공개 후 명시적 승인 범위에서 실행한다. 모의 Feed 성공은 이 검증의 성공이 아니다. 이미 설치된 Litzio나 사용자 데이터·cache를 삭제해서 실행하지 않는다. 별도 Windows 테스트 계정/VM을 권장한다. 테스트는 기존 설치, `%APPDATA%\litzio`, `%LOCALAPPDATA%\litzio-updater`, 기본 설치 폴더가 하나라도 있으면 거부한다. 이 검사 후에만 테스트가 소유하는 per-user 설치와 profile/cache를 만들고 정리한다. Markdown은 `tmp/desktop-update/documents/`에만 만든다.
 
@@ -354,7 +354,7 @@ CI의 Windows Desktop job이 선택되면 clean package·release 자산 검증·
 pnpm --filter @litzio/desktop test:update:github
 ```
 
-이 opt-in 경로는 두 버전이 이미 public Prerelease인지 확인한 다음 공식 0.0.2-beta.5 installer를 HTTPS로 내려받아 GitHub SHA-256·metadata SHA-512·크기를 대조하고 설치한다. 테스트용 빌드나 HTTP Feed를 사용하지 않는다. 설치된 0.0.2-beta.5의 실제 GitHub Provider로 Beta 업데이트 확인 → 정확히 0.0.2-beta.6 알림 → 사용자 요청 다운로드/검증 → 일반 종료가 설치하지 않음 → IPC 실패/미저장 문서가 재시작 거부 → Save → 설치/재실행 → PE FileVersion·실행 로그·저장된 채널/preferences·user-data canary·Markdown 보존을 확인한다. 더 최신 Beta가 제공되면 0.0.2-beta.6 대신 설치하지 않고 실패한다. 테스트는 Release/tag/asset을 변경하는 API를 호출하지 않는다.
+이 opt-in 경로는 두 버전의 public 상태와 각각의 Stable/Beta metadata를 확인하고 공식 0.0.2 installer를 HTTPS로 받아 GitHub SHA-256·metadata SHA-512·크기를 대조한다. 설치된 0.0.2의 Beta 채널에서 실제 GitHub Provider로 정확히 0.0.3-beta.1 알림 → 사용자 요청 다운로드/검증 → 일반 종료 시 설치 없음 → IPC 실패/미저장 문서의 재시작 거부 → Save → 설치/재실행 → PE FileVersion·실행 로그·채널/preferences·user-data canary·Markdown 보존을 확인한다. 더 최신 Beta가 제공되면 다른 버전을 설치하지 않고 실패한다. Release/tag/asset 변경 API는 호출하지 않는다.
 
 공개 버전 안내는 실제 게시 결과를 확인한 뒤 갱신한다. 서명 인증·SmartScreen reputation 검증은 이 unsigned 경로의 판정 범위가 아니다.
 

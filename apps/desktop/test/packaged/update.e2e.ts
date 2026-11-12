@@ -41,9 +41,9 @@ const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL ==
 const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
-// Litzio Stable candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
+// Litzio Beta candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
 // Both Litzio releases must be public before this opt-in harness can run.
-const [OLD, NEW] = LIVE ? ["0.0.2-beta.10", "0.0.2"]
+const [OLD, NEW] = LIVE || PUBLISHED_BASE ? ["0.0.2", "0.0.3-beta.1"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
@@ -510,22 +510,22 @@ test("installs per user, then updates from Settings only after the open document
 // The old installer comes from GitHub; only the candidate is built. Rebuilding the old
 // version here would miss installer bootstrap defects. Release verification runs this as a separate early step.
 // beta.9 and earlier assets were withdrawn on 2026-11-12 for CVE-2026-111497.
-// beta.10 includes the helper: this no longer covers beta.6's helperless first update.
-test("published beta.10 upgrades to the candidate and preserves installed data", {
+// 0.0.2 Stable includes the helper: this no longer covers beta.6's helperless first update.
+test("published 0.0.2 Stable upgrades to the candidate and preserves installed data", {
   skip: !PUBLISHED_BASE || LIVE, timeout: 5 * 60_000,
 }, async () => {
   requireCleanUser();
   const started = Date.now();
   rmSync(work, { recursive: true, force: true });
-  const published = "0.0.2-beta.10";
+  const published = "0.0.2";
   const oldBuild = await publicBeta([published], published);
   const oldSetup = path.join(oldBuild, `${brand.executableName}-Setup-${published}.exe`);
   const digest = createHash("sha256").update(readFileSync(oldSetup)).digest("hex");
-  assert.equal(digest, "2bf320a953d62e60871948baedf26808b5d182dfbee625d72a8671cd2028277f", "the exact public beta.10 installer, not a rebuilt version");
+  assert.equal(digest, "7271f9bd7c22ee3da5bcfe4cbfc263d6e1ddf77ef51819204f065786efee1e4c", "the exact public 0.0.2 Stable installer, not a rebuilt version");
   console.log(`verified public v${published}: SHA-256 ${digest}`);
   const candidate = path.join(packageVersion(NEW), `${brand.executableName}-Setup-${NEW}.exe`);
-  const install = path.join(work, "published-beta10-install");
-  const documentFile = path.join(work, "published-beta10.md");
+  const install = path.join(work, "published-stable-install");
+  const documentFile = path.join(work, "published-stable.md");
   const bytes = "---\nlitzio: 1\n---\n\n# Published update\n\nPreserve this document.\n";
   writeFileSync(documentFile, bytes);
   const environment = windowsEnvironment();
@@ -540,8 +540,8 @@ test("published beta.10 upgrades to the candidate and preserves installed data",
     ownsInstallation = true;
     const exe = path.join(install, `${brand.executableName}.exe`);
     assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), published);
-    assert.equal(existsSync(path.join(install, "resources/prepare-installation.cjs")), true, "public beta.10 includes the lifecycle helper");
-    assertNoDiscovery("beta");
+    assert.equal(existsSync(path.join(install, "resources/prepare-installation.cjs")), true, "public 0.0.2 Stable includes the lifecycle helper");
+    assertNoDiscovery("stable");
     oldApp = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
     const page = await oldApp.firstWindow();
     await page.locator('[data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
@@ -550,41 +550,41 @@ test("published beta.10 upgrades to the candidate and preserves installed data",
     assert.equal(await page.getByTestId("app-version").innerText(), published);
     await oldApp.close(); oldApp = undefined;
     const canary = path.join(appData, "published-update-canary.txt");
-    writeFileSync(canary, "Preserve existing beta.10 user data.\n");
+    writeFileSync(canary, "Preserve existing 0.0.2 Stable user data.\n");
     const preferencesFile = path.join(appData, "preferences.json");
     const preferences = readPreferences(preferencesFile, published);
     // Same NSIS command-line transaction used by electron-updater; updater UI/dirty guards
     // remain in the existing two cases. No app-update config or old ASAR is modified.
     const updated = spawnSync(candidate, ["--updated", "/S", "--force-run"], { timeout: 60_000, encoding: "utf8" });
     assert.ifError(updated.error);
-    assert.equal(updated.status, 0, "public beta.10 -> candidate NSIS update must succeed");
+    assert.equal(updated.status, 0, "public 0.0.2 Stable -> candidate NSIS update must succeed");
     const log = path.join(appData, "logs/desktop.log");
     const deadline = Date.now() + 30_000;
-    while (!(readDaemonRecord(daemonDirectory("beta"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
-      if (Date.now() >= deadline) throw new Error(`Updated beta.10 app/daemon did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
+    while (!(readDaemonRecord(daemonDirectory("stable"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
+      if (Date.now() >= deadline) throw new Error(`Updated 0.0.2 Stable app/daemon did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    desktopRecord("beta", NEW);
+    desktopRecord("stable", NEW);
     assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), NEW);
     assert.equal(readFileSync(documentFile, "utf8"), bytes);
-    assert.equal(readFileSync(canary, "utf8"), "Preserve existing beta.10 user data.\n");
+    assert.equal(readFileSync(canary, "utf8"), "Preserve existing 0.0.2 Stable user data.\n");
     assert.deepEqual(readPreferences(preferencesFile, NEW), preferences);
     assert.deepEqual((await environment.read()).user, originalPath, "first update does not opt in to CLI/PATH");
-    console.log(`public beta.10 -> ${NEW}: installed, launched and preserved data`);
+    console.log(`public 0.0.2 Stable -> ${NEW}: installed, launched and preserved data`);
   } finally {
     await oldApp?.close();
     if (ownsInstallation) {
       const exe = path.join(install, `${brand.executableName}.exe`);
       const helper = path.join(install, "resources/prepare-installation.cjs");
       if (existsSync(helper)) {
-        const record = readDaemonRecord(daemonDirectory("beta"));
+        const record = readDaemonRecord(daemonDirectory("stable"));
         const report = path.join(work, "published-cleanup.txt");
         const result = spawnSync(exe, [helper, "--prepare-installation", report], { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8" });
         assert.equal(result.status, 0, existsSync(report) ? readFileSync(report, "utf16le") : result.stderr);
         if (record) assertExited(record);
-        assertNoDiscovery("beta");
+        assertNoDiscovery("stable");
       }
-      const removal = path.join(work, "published-beta10-uninstall.exe");
+      const removal = path.join(work, "published-stable-uninstall.exe");
       copyFileSync(path.join(install, `Uninstall ${brand.executableName}.exe`), removal);
       const removed = spawnSync(removal, ["/S", "/currentuser", `_?=${install}`], { timeout: 60_000, encoding: "utf8" });
       assert.ifError(removed.error); assert.equal(removed.status, 0);
@@ -593,6 +593,6 @@ test("published beta.10 upgrades to the candidate and preserves installed data",
       for (const folder of [appData, updaterCache, sharedData]) rmSync(folder, { recursive: true, force: true });
     }
     assert.deepEqual((await environment.read()).user, originalPath);
-    console.log(`public beta.10 update case: ${Date.now() - started} ms (download, install, update, startup, cleanup)`);
+    console.log(`public 0.0.2 Stable update case: ${Date.now() - started} ms (download, install, update, startup, cleanup)`);
   }
 });
