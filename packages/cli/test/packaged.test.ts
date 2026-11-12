@@ -86,6 +86,12 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     assert.match(notices.headers.get("content-type") ?? "", /text\/plain/);
     assert.match(await notices.text(), /Tiptap GmbH/);
     assert.deepEqual((await (await fetch(url + "/api/document")).json()).allowedRoots, [a, b]);
+    // The distributed daemon must regenerate the exact bundled Markdown, outside the checkout.
+    const environmentResponse = await fetch(url + "/api/assistant/environment");
+    assert.equal(environmentResponse.status, 200);
+    const environment = await environmentResponse.json();
+    assert.equal(readFileSync(environment.instructions, "utf8"), readFileSync(new URL("../../../apps/editor/server/assistant/AGENTS.md", import.meta.url), "utf8"));
+    assert.equal(readFileSync(path.join(environment.cwd, ".agents/skills/litzio-guide/SKILL.md"), "utf8"), readFileSync(new URL("../../../apps/editor/server/assistant/litzio-guide/SKILL.md", import.meta.url), "utf8"));
     for (const folder of [a, b]) {
       const file = path.join(folder, "document.md");
       const loaded = await (await fetch(url + `/api/document?${new URLSearchParams({ path: file })}`)).json();

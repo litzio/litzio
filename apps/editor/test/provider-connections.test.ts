@@ -252,7 +252,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
-  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Edit existing documents only after an explicit user edit request"));
+  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("사용자의 수정 요청이 있으면 Codex·Copilot 모두 stage_document"));
   await connection.close();
   for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
 });
@@ -414,24 +414,35 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.equal(existsSync(log), false);
   const env = connection.environment(); assert.equal(env.cwd, cwd); assert.deepEqual(env.skills, ["litzio-guide"]);
   const guide = path.join(cwd, ".agents", "skills", "litzio-guide", "SKILL.md");
+  assert.equal(ASSISTANT_INSTRUCTIONS, readFileSync(new URL("../server/assistant/AGENTS.md", import.meta.url), "utf8"));
+  assert.equal(LITZIO_GUIDE, readFileSync(new URL("../server/assistant/litzio-guide/SKILL.md", import.meta.url), "utf8"));
   assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
   writeFileSync(guide, "stale"); connection.environment();
   assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
   assert.equal(readFileSync(env.instructions, "utf8"), ASSISTANT_INSTRUCTIONS);
-  // Generated guidance owns consent and CLI routing; CLI tests own actual writes.
+  // Generated guidance owns routing and safety; CLI tests own actual writes.
   const instructions = readFileSync(env.instructions, "utf8"), generatedGuide = readFileSync(guide, "utf8");
-  assert.doesNotMatch(instructions + generatedGuide, /docling|convert-pdf/i, "generated product guidance must not advertise removed conversion features");
-  assert.match(instructions, /Read .*litzio-guide.*SKILL\.md.*template/);
-  assert.match(instructions, /query list_templates/);
+  assert.doesNotMatch(generatedGuide, /docling|convert-pdf/i, "usage guide must not advertise removed conversion features");
+  assert.doesNotMatch(instructions, /convert-pdf/i, "review guidance must not advertise removed conversion commands");
+  assert.match(instructions, /템플릿.*litzio-guide.*SKILL\.md/);
+  assert.match(generatedGuide, /list_templates.*현재 이름/);
   assert.match(generatedGuide, /templates list --json --language <ko\|en>/);
   assert.match(generatedGuide, /templates read <id> --json --language <ko\|en>/);
-  assert.match(generatedGuide, /Propose.*user agrees.*create_document/s);
-  assert.match(generatedGuide, /explicitly names a template.*authorization/s);
+  assert.match(generatedGuide, /선택·적용에 별도 동의를 묻지 않는다/);
+  assert.match(generatedGuide, /없거나 잘못됐으면 다른 템플릿으로 몰래 대체하지/);
   assert.match(generatedGuide, /create <new-file> --template <id> --language <ko\|en>/);
   assert.match(generatedGuide, /templates save <name> --from <file> --description <text>/);
-  assert.match(generatedGuide, /Confirm.*name.*description.*source.*before saving/s);
-  assert.match(generatedGuide, /Unsaved editor changes are not supplied.*saved disk version/s);
-  assert.match(generatedGuide, /CLI creations do not produce.*result card/);
+  assert.match(generatedGuide, /save_template.*name,from,description/);
+  assert.match(generatedGuide, /미저장 편집 내용은 전달되지 않는다.*먼저 저장/);
+  assert.match(generatedGuide, /CLI 생성에는 리치오 결과 카드·카드 Undo가 없/);
+  assert.match(instructions, /Host 도구가 보이면 셸·CLI를 쓰지 않는다.*Host 도구가 없는 터미널 이어하기에서만/);
+  assert.match(generatedGuide, /CLI 절차는 Host 도구가 없는 터미널에서만.*Host 도구가 보이면 stage_document → inspect_staged_document → edit_staged_document/s);
+  assert.match(instructions, /stage_document.*사본.*inspect_staged_document.*copyRevision.*edit_staged_document/);
+  assert.match(instructions, /원본을 직접 쓰거나 변경을 적용·버리기 하지 않는다/);
+  assert.match(instructions, /uncertain.*쓰기를 재실행하지 않는다.*기존 requestId.*먼저 조회/);
+  assert.match(instructions, /상태 미발견은 쓰기가 없었다는 증거가 아니다/);
+  assert.match(instructions, /accepted:true.*저장.*렌더 확인·답변 수신을 뜻하지 않는다/);
+  assert.match(instructions, /apply_review_groups로 즉시 적용/);
   const parentPath = process.env.PATH;
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
   assert.deepEqual(models.models.map(model => model.model), ["gpt-6.1-sol", "chosen-model", "next-model"]);
