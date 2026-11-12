@@ -408,6 +408,7 @@ test("staged Host tools edit atomically by conversation receipt with scoped revi
   const invoke = (name: string, input: any, override = {}) => executeDocumentTool(name, input, {...scope, ...override}) as any;
   const inspected = invoke("inspect_staged_document", {change: staged.id});
   assert.equal(inspected.receipt.outcome, "success");
+  assert.equal(changes.summaries("one")[0]?.copyRevision, inspected.copyRevision);
   const second = inspected.nodes.find((node: any) => node.text === "Second paragraph.");
   assert.ok(second);
   const operations = [{command: "update-node-text", path: second.path.join(","), from: second.text, to: "Revised second paragraph."}];
@@ -417,6 +418,8 @@ test("staged Host tools edit atomically by conversation receipt with scoped revi
   assert.equal(invoke("edit_staged_document", input, {conversation:"other"}).errorKind, "unavailable");
   assert.equal(invoke("edit_staged_document", input).receipt.outcome, "success");
   const updated = invoke("inspect_staged_document", {change:staged.id});
+  assert.equal(changes.summaries("one")[0]?.copyRevision, updated.copyRevision);
+  assert.notEqual(updated.copyRevision, inspected.copyRevision);
   const atomic = invoke("edit_staged_document", {...input, copyRevision:updated.copyRevision, operations:[{command:"insert-block",at:"end",text:"Must roll back"},{command:"remove-block",at:99999}]});
   assert.equal(atomic.errorKind, "invalid_input");
   assert.match(atomic.error, /operation 2/);

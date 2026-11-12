@@ -1188,6 +1188,26 @@ folder isolation, permission hints, cancellation and endpoint rotation. Two real
 Auto prompts: the first discovered tools but host_policy denied them; the second
 completed list_documents and read_document with shell denied. Those two probes used a direct createServer → MCP handler and did not test the daemon Host/Origin gate. Review found missing Origin headers; before fixing them, a new real startHttpHost regression reproduced 403 Request origin is not allowed. It now uses the exact ACP-supplied headers to discover and invoke read_document in an admitted active turn, while missing/foreign Origins remain refused. A follow-up real Copilot Auto prompt through startHttpHost completed list_documents and read_document and returned Daemon MCP probe, with shell denied and built-in MCPs no longer disabled. This used one additional prompt. Small localhost reads do not establish long sessions, remote Hosts or real plugin/image workflows.
 
+#1547 verification (2026-11-12): Copilot CLI 1.0.109 Auto over the real daemon
+received the `litzio_host` HTTP configuration and discovered the staged-document tools.
+The reported complete tool refusal was not reproduced on this head. The baseline
+created and inspected a pending copy, but guessed unsupported text replacement
+options four times before succeeding. The shared edit-tool description now supplies
+an executable `update-node-text` example with `path`, exact current `from` text and
+`to` replacement, available to both providers without a shell. The existing fake ACP
+and HTTP MCP regression executes that published example through the copy-only path.
+A second real Auto prompt completed stage/inspect/edit without failed tool calls;
+the saved original stayed byte-identical and the pending copy contained the requested
+paragraph. After Host restart, real session/load received the new HTTP endpoint and
+Origin header. Two prompts total; no reasoning-effort option was advertised by Auto.
+These small localhost checks do not establish long sessions, remote Hosts or managed
+organization policies. HTTP MCP and server-scoped tool permission are standard
+[Copilot CLI capabilities](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers);
+[ACP session setup](https://agentclientprotocol.com/protocol/session-setup) supplies
+MCP servers on both new and load. No additional trust/allowlist setting was needed
+in this run; managed allowlists still apply when configured by an organization.
+
+
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
 Read/search inside the opened folders and Host roots is automatic. Opened-folders
@@ -2117,7 +2137,7 @@ The shared Host conversation actions are `changes-list`, `changes-start`, `chang
 
 CLI parity: `litzio assistant changes <list|start|preview|apply|discard> <conversationId> [--path <absolute-original>] [--change <id>] [--copy-revision <hash> --disk-revision <hash>] [--host <origin>]`. Explicit Host uses HTTP with no fallback/replay; local invocation uses the same Host operations/storage. Assistant instructions prohibit self-application; consent remains an instruction contract, as with existing document creation.
 
-Conversation cards show only pending state, target and Review. Review opens an existing task tab with SourceCompare/VisualCompare and Core block comparison, plus whole-document Apply/Discard. Relative assets render using the original path. Apply serializes/validates through Core and uses the common revision-checked file commit. Open editor drafts are preserved; the UI refuses application while that document has unsaved edits, and ordinary external-change detection and Save revision checks remain in force. During an active Assistant turn the Host refuses application/discard. No edit history, partial apply, new permission system or shared editing session is introduced.
+Pending targets and Review are compact fixed rows immediately above the composer, outside the scrolling transcript (#1539). The selected Host/conversation's changes-list includes current copyRevision. The window keeps its pre-turn revision baseline and, once a response ends, automatically opens each new or revised copy through the same Review tab path once. While a new send awaits its turn snapshot, changes-list may refresh the rows but cannot consume the pre-turn baseline or open a comparison. Unchanged polls and later turns without copy edits do not reopen comparisons. Initial resting history only populates rows. Automatic opening preserves composer focus, including the narrow overlay while typing. When focus is inside an editable document, automatic opening uses the existing group background action and keeps that document active; explicit Review still selects the comparison. With composer focus or no document editing in progress, automatic opening brings the comparison forward. Review opens an existing task tab with SourceCompare/VisualCompare and Core block comparison, plus whole-document Apply/Discard. Relative assets render using the original path. Apply serializes/validates through Core and uses the common revision-checked file commit. Open editor drafts are preserved; the UI refuses application while that document has unsaved edits, and ordinary external-change detection and Save revision checks remain in force. After successful Apply, the sending window reloads the matching clean open document through its existing session load path (#1540). A new local edit or busy session during the request prevents that reload and is reported beside the successful disk outcome. The automatic native reload also rechecks hasUnsavedChanges (including unapplied drafts) immediately before installing the GET response, retaining any edits entered during the read and the existing disk-applied/reload guidance. Explicit discard-and-reload semantics are unchanged. Unsaved-edit and original-change reasons/actions appear beside Apply; Host errors remain visible there with refreshed comparison. During an active Assistant turn the Host refuses application/discard. No edit history, partial apply, new permission system or shared editing session is introduced.
 
 Verification layers: Host tests protect persistence, permission refusal, hidden sibling discovery, CLI semantic edits, stale preview/copy and original conflicts. Browser tests protect the pending card, comparison tab, Core visual comparison and unsaved editor guard. These synthetic checks do not claim a live model invocation or Copilot sandbox equivalence.
 
@@ -2125,6 +2145,16 @@ Verification layers: Host tests protect persistence, permission refusal, hidden 
 `litzio assistant delete <id> --host <origin>` calls the Host conversation deletion action; it refuses active turns, removes pending copies and the Host index entry, and does not delete provider-owned history.
 
 Visual review uses the existing task-tab, Button and comparison patterns without a common-interaction exception: [1440px before](assets/assistant-changes-1494/before-1440.png), [pending card](assets/assistant-changes-1494/pending-1440.png), [1440px comparison](assets/assistant-changes-1494/compare-1440.png), [640px Korean dark](assets/assistant-changes-1494/compare-640-ko-dark.png). Captures use synthetic document/provider data; the local Host identity is masked. Controls, wrapping, comparison scrolling and narrow overlay return were checked. The new browser scenario is registered in the stable suite and fixture selection. Host/CLI tests own disk revision and persistence defects; browser coverage owns tab admission, unsaved-editor refusal and Discard, without duplicating disk fault combinations or introducing extra subprocesses. Targeted Host/provider/fixture tests completed in 14 seconds; the browser capture run completed in 19 seconds. No paid AI call or packaged Desktop validation was run locally.
+
+
+### Pending change review verification (#1539, #1540)
+
+The existing assistant-changes browser scenario reproduces #1540 with a fake provider: Apply writes the scratch original and reports success, but before the fix its open editor still showed `Alpha.` instead of `Proposed change.`. This establishes the stale open-tab defect, not the exact cause of every owner report. The extended scenario checks the fixed composer rows, turn-end opening, preserved input focus, no repeated reopening, same-copy revision updates, clean-tab reload and existing unsaved/Discard guards. Host coverage checks list copy revisions; disk conflict/Core protections remain unchanged. Independent-review follow-up reproduces the pending-GET overwrite in two groups at 1920px and the foreground-tab takeover while typing in another document; the same browser scenario now checks edit preservation, existing guidance, background opening and explicit Review selection. No new state, confirmation step or capture surface was added.
+
+One real Codex `gpt-6-luna` / `low` / Full access turn on a synthetic Korean paragraph used read_document → stage_document → inspect_staged_document → edit_staged_document. Two invalid operation inputs were corrected within that turn; the final copy contained the requested Tuesday wording and the original stayed unchanged. No direct-original write was observed, so provider instructions were unchanged. The installed Copilot CLI exposed only `auto`; the owner confirmed Auto as this environment's cheapest choice. One Auto / low / Full access turn, run before integrating #1537, left the original unchanged and created no pending copy: it reported that Litzio staging/edit tools were unavailable and declined the edit. Copilot editing success therefore remains unverified; no direct-original write was observed and instructions were unchanged. The missing-tool connection is outside this UI fix.
+
+Visual evidence uses the existing Button ghost/sm, Tooltip, composer and comparison task tab, with existing spacing/text/surface tokens and no new shared interaction exception: [1440px light](assets/assistant-changes-1539/light-1440.png), [1440px dark](assets/assistant-changes-1539/dark-1440.png). Synthetic provider/document data and masked Host identity are used. Captures are a separate manual review, not CI success artifacts. Direct inspection confirmed composer row/control alignment, unclipped filenames and Korean controls, and light/dark contrast.
+
 
 With default full-access, shell access can modify originals. Waiting for human [Apply] is an instruction contract, not technical shell containment.
 

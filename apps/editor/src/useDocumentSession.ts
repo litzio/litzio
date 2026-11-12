@@ -179,7 +179,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   }
 
   /** Error message, "" on success, or null for a dialog refusal or superseded request. */
-  async function load(requestedPath: string): Promise<string | null> {
+  async function load(requestedPath: string, preserveLocalEdits = false): Promise<string | null> {
     if (!isCurrent()) return null;
     const current = lifetime.beginOpen();
     setError("");
@@ -190,6 +190,12 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       if (!current()) return null;
       setReloadDialog(false);
       if ("start" in next) throw new Error("The Host did not return a document.");
+      // Automatic reads cannot replace work entered while the GET was pending.
+      // hasUnsavedChanges includes the editor's unapplied drafts.
+      if (preserveLocalEdits && editorRef.current?.hasUnsavedChanges()) {
+        setStatus("ready");
+        return i18n.t("Changes applied on disk. Save or close your local edits before reloading the document.");
+      }
       recorder?.discard();
       if (next.kind === "text") replaceFile?.(next);
       else acceptDocument(next);

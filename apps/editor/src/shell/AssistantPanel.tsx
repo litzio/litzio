@@ -35,7 +35,7 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   onScreen(): ScreenInfo;
   onScreenAction(action: ScreenAction): Promise<ScreenActionResult>;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
-  onReviewChange(hostId: string, conversation: string, change: string, path: string): void;
+  onReviewChange(hostId: string, conversation: string, change: string, path: string, automatic?: boolean): void;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
   onReferenceConsumed(request: { hostId: string; path: string }): void;
@@ -60,7 +60,10 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AssistantSettings>();
   const [models, setModels] = useState<AiModels>();
-  const [changes, setChanges] = useState<{id:string;path:string}[]>([]);
+  const [changes, setChanges] = useState<{id:string;path:string;copyRevision:string}[]>([]);
+  const changeObserver = useRef<{id:string;turn?:string;revisions:Map<string,string>;armed:boolean;waiting:boolean} | null>(null);
+  const freshSend = useRef(false);
+  const reviewChange = useRef(onReviewChange); reviewChange.current = onReviewChange;
   const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
   const [provider, setProvider] = useState<"codex" | "copilot">("codex");
@@ -118,14 +121,38 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     following.current = false;
     requestAnimationFrame(readPosition);
   };
+  const changeTurn = conversation?.turns.at(-1);
   useEffect(() => {
-    if (!conversation?.id) { setChanges([]); return; }
-    let live = true;
-    const id = conversation.id;
-    const read = () => { void request<{id:string;path:string}[]>(ASSISTANT.conversationsRoute, { action: "changes-list", id }).then(value => { if (live) setChanges(Array.isArray(value) ? value : []); }).catch(() => {}); };
-    read(); const timer = setInterval(read, 2000);
+    if (!conversation?.id) { setChanges([]); changeObserver.current = null; return; }
+    let live = true, reading = false;
+    const id = conversation.id, turn = changeTurn?.id, running = changeTurn?.status === "inProgress";
+    if (changeObserver.current?.id !== id) {
+      setChanges([]);
+      changeObserver.current = { id, turn, revisions: new Map(), armed: running || freshSend.current, waiting: false };
+      freshSend.current = false;
+    }
+    const observer = changeObserver.current;
+    if (observer.turn !== turn || running) observer.waiting = false;
+    if (running) observer.armed = true;
+    const read = async () => {
+      if (reading) return;
+      reading = true;
+      try {
+        const value = await request<{id:string;path:string;copyRevision:string}[]>(ASSISTANT.conversationsRoute, { action: "changes-list", id });
+        if (!live || !Array.isArray(value)) return;
+        setChanges(value);
+        if (running || observer.waiting) return; // Retain the pre-turn baseline until the final copy is available.
+        const changed = value.filter(change => observer.revisions.get(change.id) !== change.copyRevision);
+        const reveal = observer.armed || observer.turn !== turn;
+        observer.revisions = new Map(value.map(change => [change.id, change.copyRevision]));
+        observer.turn = turn; observer.armed = false;
+        if (reveal) for (const change of changed) reviewChange.current(hostId, id, change.id, change.path, true);
+      } catch { /* Retain the baseline for the next successful poll. */ }
+      finally { reading = false; }
+    };
+    void read(); const timer = setInterval(() => void read(), 2000);
     return () => { live = false; clearInterval(timer); };
-  }, [conversation?.id, hostId]);
+  }, [conversation?.id, changeTurn?.id, changeTurn?.status, hostId]);
   const readingScope = `${conversation?.id ?? ""}:${!!history}`;
   useLayoutEffect(jumpToBottom, [readingScope]);
   // Compare visible content, not snapshot identity: unchanged polls are not new output.
@@ -348,6 +375,8 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     setSubmissions(previous => [...previous, { hostId, provider, restores, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     jumpToBottom();
+    if (!conversation) freshSend.current = true;
+    else if (!active && changeObserver.current) { changeObserver.current.armed = true; changeObserver.current.waiting = true; }
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, displayClient, id: conversation?.id, message: value,
         provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, reviewWorkspace: reviewWorkspacePath ? {path:reviewWorkspacePath} : undefined, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(120_000));
@@ -509,10 +538,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
       onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
     <div ref={transcriptContent}>
-      {!history && conversation ? changes.map(change => <div key={change.id} className="assistant-result">
-        <strong>{i18n.t("Pending changes")}</strong><span title={change.path}>{pathName(change.path)}</span>
-        <Button size="sm" variant="secondary" onClick={() => onReviewChange(hostId, conversation.id, change.id, change.path)}>{i18n.t("Review")}</Button>
-      </div>) : null}
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id });
@@ -589,6 +614,12 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     {!history && away ? <Button className="assistant-jump" variant="outline" size="sm" onClick={jumpToBottom}><ArrowDown />{i18n.t(unread ? "New content · Jump to bottom" : "Jump to bottom")}</Button> : null}
     </div>
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
+      {!history && conversation && changes.length ? <div className="assistant-changes" aria-label={i18n.t("Pending changes")}>
+        {changes.map(change => <div key={change.id} className="assistant-change-row">
+          <Tooltip><TooltipTrigger render={<span tabIndex={0} className="truncate" />}>{pathName(change.path)}</TooltipTrigger><TooltipContent className="break-all">{change.path}</TooltipContent></Tooltip>
+          <Button type="button" size="sm" variant="ghost" onClick={() => onReviewChange(hostId, conversation.id, change.id, change.path)}>{i18n.t("Review")}</Button>
+        </div>)}
+      </div> : null}
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
       <ReferenceChips references={references} remove={removeReference} />

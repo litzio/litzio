@@ -23,6 +23,12 @@ export class AssistantChanges {
     if (!fs.existsSync(directory)) return [];
     return fs.readdirSync(directory).filter(name => name.endsWith(".json")).map(name => JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")));
   }
+  summaries(conversation: string) {
+    return this.list(conversation).map(record => {
+      const checked = this.get(conversation, record.id);
+      return { ...checked, copyRevision: textRevision(decodeUtf8(fs.readFileSync(checked.copy))) };
+    });
+  }
   private get(conversation: string, id: string): PendingDocumentChange {
     const record: PendingDocumentChange = JSON.parse(fs.readFileSync(this.file(conversation, id), "utf8"));
     if (record.conversationId !== conversation || record.id !== id) throw new Error("Pending change owner mismatch.");
