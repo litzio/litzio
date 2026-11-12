@@ -5,8 +5,8 @@ import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 import { i18n } from "../i18n.ts";
 
 type Preview = Comparison & { path: string; copyRevision: string; diskRevision: string };
-export function AssistantChangeCompare({ client, conversation, change, path, isDirty, onApplied }: {
-  client: HostClient; conversation: string; change: string; path: string; isDirty(): boolean; onApplied(): Promise<void>;
+export function AssistantChangeCompare({ client, conversation, change, path, isDirty, onApplied, onDiscarded }: {
+  client: HostClient; conversation: string; change: string; path: string; isDirty(): boolean; onApplied(): Promise<void>; onDiscarded(): void;
 }) {
   const [preview, setPreview] = useState<Preview>();
   const [revision, setRevision] = useState(0);
@@ -31,7 +31,7 @@ export function AssistantChangeCompare({ client, conversation, change, path, isD
       setOutcome(action === "apply" ? "Changes applied" : "Changes discarded");
       if (action === "apply") {
         try { await onApplied(); } catch (error) { setError((error as Error).message); }
-      }
+      } else onDiscarded();
     } catch (error) { setError(String((error as Error).message)); setPreview(undefined); setRevision(value => value + 1); }
     finally { setBusy(false); }
   }
