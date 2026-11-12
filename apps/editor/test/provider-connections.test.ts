@@ -2,7 +2,8 @@ import { AgentScreenActionRequests } from "../server/assistant-screen-action-too
 import { AgentScreenRequests } from "../server/assistant-screen-tools.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
-import { assistantCliEnvironment } from "../server/assistant-cli.ts";
+import { spawnSync } from "node:child_process";
+import { assistantCliEnvironment, hostCli } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
 import { AgentDisplayRequests } from "../server/assistant-display-tools.ts";
 import { displayRequestCurrent } from "../shared/assistant-display.ts";
@@ -457,6 +458,20 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.notEqual((other.PATH ?? other.Path)!.split(path.delimiter)[0], ownBin);
   assert.equal(readFileSync(path.join(ownBin, "cli.cjs"), "utf8"), launcher, "Another Host sharing cwd must not replace this CLI");
   assert.equal(process.env.PATH, parentPath);
+  const fallback = assistantCliEnvironment(cwd, hostCli());
+  const pathKey = Object.keys(fallback).find(key => key.toUpperCase() === "PATH")!;
+  fallback[pathKey] = (fallback[pathKey] ?? "").split(path.delimiter).slice(1).join(path.delimiter);
+  assert.ok(path.isAbsolute(fallback.LITZIO_ASSISTANT_CLI!));
+  const command = process.platform === "win32" ? '"%LITZIO_ASSISTANT_CLI%" --help' : '"$LITZIO_ASSISTANT_CLI" --help';
+  const direct = spawnSync(command, { env: fallback, encoding: "utf8", shell: true });
+  assert.equal(direct.status, 0, direct.stderr);
+  assert.match(direct.stdout, /Usage:/i);
+  if (process.platform === "linux") {
+    // Model a login profile overwriting PATH, while retaining the inherited fallback.
+    const login = spawnSync("bash", ["-lc", 'PATH=/usr/bin:/bin; command -v litzio && exit 1; "$LITZIO_ASSISTANT_CLI" --help'], { env: fallback, encoding: "utf8" });
+    assert.equal(login.status, 0, login.stderr);
+    assert.match(login.stdout, /Usage:/i);
+  }
   assert.equal(diagnostics.connected, true); assert.equal(diagnostics.accountError, "fixture error");
   assert.equal(diagnostics.rateLimits![0].windows[0].usedPercent, 28);
   assert.deepEqual(diagnostics.mcp, [{ name: "fixture", status: "unknown", authStatus: "notLoggedIn" }]);

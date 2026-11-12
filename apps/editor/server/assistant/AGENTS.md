@@ -7,6 +7,7 @@
 - 앱 사용법·템플릿·터미널 이어하기는 .agents/skills/litzio-guide/SKILL.md를 읽는다.
 
 ## 문서 읽기와 쓰기
+- `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - 기존 문서는 사본 없이 원본을 바로 고친다. 리치오 문서는 텍스트 파일이므로 파일 편집 도구나 셸로 수정하고, `litzio check <file> --format json`으로 검사해 오류를 고친다.
 - 중간 산출물과 임시 스크립트는 사용자 폴더가 아닌 비서 작업 폴더(현재 디렉터리)에 둔다. 사용자가 연 폴더에 AGENTS.md 같은 지시 파일이 있으면 그 폴더에서 작업하기 전에 읽는다.
 - 새 문서는 create_document로 바로 만든다. title과 operations 또는 blocks 중 하나를 사용하며, 템플릿은 guide의 절차를 따른다.

@@ -21,6 +21,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - Host의 템플릿 저장소는 문서 폴더 밖의 고정 앱 경로다. 원본·목적지는 이 턴의 열린 폴더/Host Root와 쓰기 권한을 따른다. 도구·접근이 없으면 제한을 설명하고 가능한 공식 경로나 텍스트 안내를 제공한다.
 
 ## CLI와 터미널 이어하기
+- `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
 - 기존 문서는 파일 편집 도구나 셸로 원본을 바로 고친 뒤 `litzio check <file> --format json`으로 검사하고 오류를 고친다. 중간 산출물과 임시 스크립트는 현재 비서 작업 폴더에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
