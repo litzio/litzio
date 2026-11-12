@@ -1748,6 +1748,8 @@ The existing #1424 observer and attention priority are unchanged.
   command and bounded output in a monospace block. File changes show paths, MCP
   calls show server/tool and arguments, and ACP tools show title/kind/content.
   Codex raw reasoning content is never projected; only its summary is available.
+- Reasoning labels use Thinking… (생각 중…) only while active, and Thinking
+  (생각) after the step. Interrupted pending/running tools display Stopped.
 - Running rows use a spinner, completed rows a kind icon and failed/declined rows
   a warning icon. Summary text ellipsizes. Each expanded tool detail is limited to
   16,000 characters with an explicit truncation notice; it does not alter tool results.
@@ -1768,9 +1770,11 @@ model offered by this PC's ACP catalog) retained thought chunks, a completed she
 step and output. Neither returned separate raw reasoning in the projected items.
 Short local turns do not prove long-session or remote performance.
 Manual 1440px Korean evidence (synthetic transcript; Host identity masked):
+[Light thinking](assets/assistant-timeline-1541/light-thinking.png),
 [Light running](assets/assistant-timeline-1541/light-running.png),
 [Light expanded](assets/assistant-timeline-1541/light-expanded.png),
 [Light completed](assets/assistant-timeline-1541/light-completed.png),
+[Dark thinking](assets/assistant-timeline-1541/dark-thinking.png),
 [Dark running](assets/assistant-timeline-1541/dark-running.png),
 [Dark expanded](assets/assistant-timeline-1541/dark-expanded.png),
 [Dark completed](assets/assistant-timeline-1541/dark-completed.png).

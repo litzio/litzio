@@ -641,7 +641,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const progressReasoning = { id: 'progress-reasoning', kind: 'reasoning', text: 'Checking the document.' };
   // Preserve provider-observed user/submission identities while streaming work.
   progressTurn.items = [...progressItems.filter(item => item.kind === 'user'), progressReasoning];
-  await expect(steps.locator('summary')).toContainText('Thinking Checking the document.');
+  await expect(steps.locator('summary')).toContainText('Thinking… Checking the document.');
   await expect(steps).not.toHaveAttribute('open');
   await steps.locator('summary').click();
   progressReasoning.text += ' More context arrived.';
@@ -652,6 +652,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const toolStep = panel.locator('.assistant-steps[data-kind=tool]').last();
   await expect(toolStep.locator('summary')).toContainText('read_document · document.md');
   await expect(toolStep).not.toHaveAttribute('open');
+  await expect(steps.locator('summary strong')).toHaveText('Thinking');
   await expect(steps).toHaveAttribute('open', '');
   await steps.locator('summary').click();
   const existingJump = panel.getByRole('button', { name: /Jump to bottom$/ });

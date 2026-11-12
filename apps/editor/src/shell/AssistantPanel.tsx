@@ -663,15 +663,16 @@ function AssistantWorkStep({ item, active, running, onDisclosure }: { running: b
   const failed = ["failed", "declined"].includes(item.status ?? "");
   const shell = item.work?.kind === "execute";
   const Icon = active ? LoaderCircle : failed ? TriangleAlert : item.kind === "reasoning" ? Brain : shell ? Terminal : item.work?.kind === "edit" ? FilePen : item.kind === "plan" ? ListChecks : Wrench;
-  const label = item.kind === "reasoning" ? i18n.t("Thinking…").replace(/…$/, "") : shell ? "Shell" : item.kind === "plan" ? i18n.t("Steps") : i18n.t("Tool");
-  return <details className="assistant-steps" data-kind={item.kind} data-status={active ? "inProgress" : failed ? "failed" : "completed"} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary onClick={onDisclosure}><Icon aria-hidden="true" className={active ? "animate-spin" : undefined} /><span title={item.text}><strong>{label}</strong> {item.text.replace(/\s+/g, " ")}</span><small>{activityStatus(active ? "inProgress" : item.status ?? "completed")}</small></summary>
+  const status = active ? "inProgress" : !running && ["inProgress", "pending"].includes(item.status ?? "") ? "interrupted" : item.status ?? "completed";
+  const label = item.kind === "reasoning" ? i18n.t(active ? "Thinking…" : "Thinking") : shell ? "Shell" : item.kind === "plan" ? i18n.t("Steps") : i18n.t("Tool");
+  return <details className="assistant-steps" data-kind={item.kind} data-status={status} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary onClick={onDisclosure}><Icon aria-hidden="true" className={active ? "animate-spin" : undefined} /><span title={item.text}><strong>{label}</strong> {item.text.replace(/\s+/g, " ")}</span><small>{activityStatus(status)}</small></summary>
     {item.kind === "tool" ? <pre>{shell ? "$ " : ""}{item.text}{item.work?.detail ? `\n${item.work.detail}` : ""}</pre> : <p>{item.text}</p>}
     {item.work?.truncated ? <p>{i18n.t("Output truncated.")}</p> : null}
   </details>;
 }
 function activityStatus(value: string) {
-  return value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
+  return value === "interrupted" ? i18n.t("Stopped") : value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
 }
 
 function createdDocument(item: import("../../shared/assistant.ts").AssistantConversationItem): { path: string; revision: string; identity?: FileIdentity } | null {
