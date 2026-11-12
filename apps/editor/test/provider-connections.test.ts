@@ -372,6 +372,20 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const real = path.join(root, "real"); mkdirSync(real); writeFileSync(path.join(real, "file.txt"), "reference");
     const linked = path.join(root, "linked"); symlinkSync(real, linked, process.platform === "win32" ? "junction" : "dir");
     await assert.rejects(resumed.send({ ...input, references: [path.join(linked, "file.txt")] }, settings), /unavailable/);
+    for (const permissionMode of ["opened-folders", "read-only"] as const) {
+      await assert.rejects(resumed.send({ ...input, permissionMode, folders: [cwd], references: [input.document.path] }, settings), /outside/);
+      await assert.rejects(resumed.send({ ...input, permissionMode, references: [path.join(root, ".hidden")] }, settings), /unavailable/);
+    }
+    const full = { ...input, permissionMode: "full-access" as const, reviewWorkspace: undefined, folders: [], references: [input.document.path, path.join(root, ".hidden"), input.document.path] };
+    const attached = await resumed.send(full, settings);
+    assert.deepEqual(attached.turns[0]!.items.find(item => item.kind === "user")!.references!.map(file => file.path), [input.document.path, path.join(root, ".hidden")]);
+    await resumed.interrupt(attached.id);
+    await assert.rejects(resumed.send({ ...full, references: [root] }, settings), /unavailable/);
+    await assert.rejects(resumed.send({ ...full, references: [path.join(linked, "file.txt")] }, settings), /unavailable/);
+    await assert.rejects(resumed.send({ ...full, references: [fakeServer] }, settings), /outside/);
+    const restricted = await resumed.send({ ...input, references: [] }, settings);
+    await assert.rejects(resumed.send({ ...full, id: restricted.id }, settings), /outside/);
+    await resumed.interrupt(restricted.id);
     const many = Array.from({ length: 11 }, (_, i) => path.join(root, `file-${i}.txt`));
     for (const file of many) writeFileSync(file, "reference");
     const eleven = await resumed.send({ ...input, references: many }, settings);
@@ -1003,6 +1017,10 @@ test("Codex requirements disable full access; policy rejection retries once befo
   const reopened = await new AssistantConversations(connection, null).resume(changed.id, settings);
   assert.equal(reopened.permissionFallback, undefined, "cleared notice stays cleared on resume");
   assert.equal(reopened.permissionMode, "read-only");
+  writeFileSync(outside, "outside reference");
+  const beforeReferenceFallback = policies.length;
+  await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access", references: [outside] }, settings), /outside/);
+  assert.equal(policies.length, beforeReferenceFallback + 1, "a policy downgrade must reject outside attachments before restricted submission");
   uncertain = true;
   const attempts = policies.length;
   await assert.rejects(conversations.send({ ...input, id: restored.id, permissionMode: "full-access" }, settings), /Connection closed before response/);

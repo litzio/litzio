@@ -94,7 +94,7 @@ const string = { type: "string" };
 const language = { type: "string", enum: ["ko", "en"] };
 /** The template slice's shared inputs/results. Transports only adapt these Host operations. */
 export const templateOperations = {
-  list: { name: "list_templates", description: "List current Litzio template names and descriptions. Propose a template and obtain permission before applying it.", inputSchema: { type: "object", properties: { language }, additionalProperties: false } },
+  list: { name: "list_templates", description: "List current Litzio template names and descriptions. Choose a template within the user request; no extra consent is needed. Never silently substitute a missing named template.", inputSchema: { type: "object", properties: { language }, additionalProperties: false } },
   read: { name: "read_template", description: "Read a Litzio template by id or name, preserving its structure.", inputSchema: { type: "object", properties: { template: string, language }, required: ["template"], additionalProperties: false } },
   create: { name: "create_document", description: "Create a new document from the user's authorized template. Never overwrites; returns a creation receipt for Open/Undo.", inputSchema: { type: "object", properties: { path: string, template: string, language }, required: ["path", "template"], additionalProperties: false } },
   save: { name: "save_template", description: "Save a disk document as a new user template. Confirm name, description and source first; never overwrites. Unsaved changes are not included.", inputSchema: { type: "object", properties: { name: string, from: string, description: string }, required: ["name", "from"], additionalProperties: false } },
