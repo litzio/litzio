@@ -130,7 +130,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm docs:check
       - run: pnpm typecheck
-      - name: Published beta.10 update regression
+      - name: Published 0.0.2 Stable update regression
         env:
           LITZIO_TEST_PUBLISHED_BASE: '1'
           GH_TOKEN: ${{ github.token }}
