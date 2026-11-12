@@ -135,12 +135,11 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.equal(conversation.turns.at(-1)!.status, "failed");
     assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
     assert.equal(conversation.turns.at(-1)!.items[0]!.userMessageSource, "host", "a Host row is not provider persistence proof");
-    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown");
-    assert.equal(conversations.submission(failedInput.submissionId).submission.turnFailed, true);
+    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "accepted");
     await connection.copilot.useLaunchSettings("low", false);
     const resumedFailure = await conversations.resume(conversation.id, settings);
     assert.equal(resumedFailure.turns.flatMap(turn => turn.items).some(item => item.submissionId === failedInput.submissionId), false);
-    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "unknown", "missing provider history must not erase uncertainty");
+    assert.equal(conversations.submission(failedInput.submissionId).submission.status, "accepted", "turn failure and missing history must not revoke admission");
     assert.ok(resumedFailure.turns.flatMap(turn => turn.items).filter(item => item.kind === "user").every(item => item.userMessageSource === "provider-history"));
     await connection.copilot.useLaunchSettings("low", false);
     await connection.copilot.useLaunchSettings("high", false);

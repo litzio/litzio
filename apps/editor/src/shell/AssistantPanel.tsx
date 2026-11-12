@@ -28,7 +28,7 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 
-export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; restores?: string[]; text: string; references: AssistantFileReference[] };
+export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
@@ -82,21 +82,17 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
-  const submissionScope = useRef(0), restoring = useRef<string[]>([]);
-  const leaveSubmissionScope = () => { submissionScope.current++; restoring.current = []; };
+  const submissionScope = useRef(0);
+  const leaveSubmissionScope = () => { submissionScope.current++; };
   // Navigation hides other owners' rows without discarding their only local copy.
   const visibleSubmissions = submissions.filter(value => value.hostId === hostId && value.provider === provider &&
     (conversation ? (value.conversationId ?? value.receipt.conversationId) === conversation.id : value.conversationId === undefined));
   const submitted = useRef(visibleSubmissions); submitted.current = visibleSubmissions;
   const applySubmission = (result: AssistantSubmissionResult, updateConversation = true) => {
     setSubmissions(previous => {
-      const accepted = result.submission.status === "accepted" && !result.submission.turnFailed;
-      const restored = accepted ? previous.find(value => value.hostId === hostId && value.receipt.id === result.submission.id)?.restores ?? [] : [];
-      return previous.filter(value => value.hostId !== hostId || !restored.includes(value.receipt.id)).map(value => value.hostId === hostId && value.receipt.id === result.submission.id ? { ...value, restores: accepted ? [] : value.restores,
-        // Once identified, a first send belongs to that conversation, not the next blank draft.
+      return previous.map(value => value.hostId === hostId && value.receipt.id === result.submission.id ? { ...value,
         conversationId: value.conversationId ?? result.submission.conversationId ?? result.conversation?.id,
-        receipt: value.receipt.status === "accepted" && ["pending", "rejected"].includes(result.submission.status) || value.receipt.status === "unknown" && result.submission.status === "pending"
-          ? value.receipt : { ...result.submission, ...(value.receipt.turnFailed ? { turnFailed: true } : {}), ...((result.submission.status === "unknown" || value.receipt.turnFailed) && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value);
+        receipt: value.receipt.status === "accepted" ? value.receipt : result.submission } : value);
     });
     if (result.conversation && updateConversation) { setConversation(result.conversation); setPermissionMode(result.conversation.permissionMode ?? permissionMode); rememberConversation(conversationKey, result.conversation.id); }
   };
@@ -198,7 +194,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   useEffect(() => { onStatus(buttonStatus); }, [buttonStatus, onStatus]);
   useEffect(() => () => { onStatus(undefined); }, [onStatus]);
   // Keep the same nonoverlapping observer for hidden work, then stop at rest.
-  const observe = open || active || !!conversation?.userInput || unresolved.some(value => ["pending", "unknown", "accepted"].includes(value.receipt.status) && !value.receipt.turnFailed);
+  const observe = open || active || !!conversation?.userInput || unresolved.some(value => value.receipt.status === "pending");
   // Closing a setup refresh must not strand an already-admitted turn/send.
   // Failed setup is still blocked by `setup` below.
   const observationReady = ready || !open && (active || unresolved.length > 0);
@@ -256,23 +252,11 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   }, [open, ready, enabled, setup]);
   useEffect(() => {
     if (!conversation) return;
-    // A live provider event or Host-created row is not evidence of resumable history.
-    const recorded = new Set(conversation.turns.filter(turn => !["failed", "inProgress"].includes(turn.status))
-      .flatMap(turn => turn.items.filter(item => item.kind === "user" && item.userMessageSource === "provider-history").map(item => item.submissionId)));
-    const failed = new Map(conversation.turns.filter(turn => turn.status === "failed")
-      .flatMap(turn => turn.items.filter(item => item.kind === "user").map(item => [item.submissionId, turn.error] as const)));
+    // Admission is enough; provider history remains provider-owned.
+    const observed = new Set(conversation.turns.flatMap(turn => turn.items.filter(item => item.kind === "user").map(item => item.submissionId)));
     setSubmissions(previous => {
-      const retired = new Set(previous.filter(value => value.hostId === hostId && !value.receipt.turnFailed && recorded.has(value.receipt.id)).map(value => value.receipt.id));
-      const restored = new Set(previous.filter(value => value.hostId === hostId && retired.has(value.receipt.id)).flatMap(value => value.restores ?? []));
-      let changed = false;
-      const retained = previous.filter(value => value.hostId !== hostId || !retired.has(value.receipt.id) && !restored.has(value.receipt.id)).map(value => {
-        if (value.hostId !== hostId || !failed.has(value.receipt.id)) return value;
-        const error = failed.get(value.receipt.id);
-        if (value.receipt.status === "unknown" && value.receipt.turnFailed && value.receipt.error === error) return value;
-        changed = true;
-        return { ...value, receipt: { ...value.receipt, status: "unknown" as const, turnFailed: true, error } };
-      });
-      return changed || retained.length !== previous.length ? retained : previous;
+      const retained = previous.filter(value => value.hostId !== hostId || !observed.has(value.receipt.id));
+      return retained.length === previous.length ? previous : retained;
     });
   }, [conversation, hostId, setSubmissions]);
   const snapshotPending = useRef(false), receiptsPending = useRef(false), windowWorkPending = useRef(false);
@@ -297,7 +281,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         receiptsPending.current = true;
         void (async () => {
           for (const value of submitted.current) {
-            if (value.receipt.status === "rejected" || current.current?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))) continue;
+            if (value.receipt.status !== "pending" || current.current?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))) continue;
             try {
               const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
               if (valid()) applySubmission(result, !current.current);
@@ -371,15 +355,14 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     const value = message.trim(); if (!value && !references.length) return;
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
-    const restores = restoring.current; restoring.current = [];
-    setSubmissions(previous => [...previous, { hostId, provider, restores, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
+    setSubmissions(previous => [...previous, { hostId, provider, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     jumpToBottom();
     if (!conversation) freshSend.current = true;
     else if (!active && changeObserver.current) { changeObserver.current.armed = true; changeObserver.current.waiting = true; }
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, displayClient, id: conversation?.id, message: value,
-        provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, reviewWorkspace: reviewWorkspacePath ? {path:reviewWorkspacePath} : undefined, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(120_000));
+        provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, reviewWorkspace: reviewWorkspacePath ? {path:reviewWorkspacePath} : undefined, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
       if (isCurrent()) applySubmission(result, current.current === conversation);
     } catch (error) {
       if (isCurrent()) setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted" ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
@@ -425,7 +408,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     setReferences(previous => {
       const remaining = previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name));
       const text = skill ? message.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join("") : message;
-      if (!remaining.length && !text.trim()) restoring.current = [];
       return remaining;
     });
   };
@@ -463,28 +445,47 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers, displayClient });
     if (isCurrent()) setConversation(next);
   });
-  const submissionActions = (value: AssistantLocalSubmission, failure?: string) => {
-    if (value.receipt.status === "accepted" && !value.receipt.turnFailed && !failure) return null;
-    const status = failure || value.receipt.status === "accepted" ? "unknown" : value.receipt.status;
-    const error = failure ?? value.receipt.error;
+  const retrySubmission = (value: AssistantLocalSubmission, sendAsNew = false) => run(async isCurrent => {
+    const before = current.current;
+    if (!sendAsNew && value.receipt.status === "unknown") {
+      const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`, undefined, AbortSignal.timeout(10_000));
+      if (!isCurrent()) return;
+      if (result.submission.status !== "rejected") {
+        if (result.submission.status === "unknown") result.submission.error = "Unable to confirm acceptance";
+        applySubmission(result, current.current === before);
+        return;
+      }
+    }
+    const submissionId = sendAsNew ? crypto.getRandomValues(new Uint32Array(4)).join("-") : value.receipt.id;
+    setSubmissions(previous => previous.map(item => item.hostId === hostId && item.receipt.id === value.receipt.id
+      ? { ...value, receipt: { id: submissionId, status: "pending", conversationId: value.conversationId } } : item));
+    try {
+      const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId,
+        displayClient, id: value.conversationId, message: value.text, provider: value.provider, permissionMode, model, reasoningEffort: effort,
+        ...(provider === "copilot" && mode ? { mode } : {}), references: value.references.filter(file => file.kind !== "skill").map(file => file.path),
+        skills: value.references.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders,
+        document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
+      if (isCurrent()) applySubmission(result, current.current === before);
+    } catch (error) {
+      if (isCurrent()) setSubmissions(previous => previous.map(item => item.hostId === hostId && item.receipt.id === submissionId && item.receipt.status !== "accepted"
+        ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
+    }
+  });
+  const submissionActions = (value: AssistantLocalSubmission) => {
+    const status = value.receipt.status;
+    if (status === "accepted") return null;
     return <div className="assistant-submission-status">
-      <span role={status === "rejected" ? "alert" : "status"}>{i18n.t(status === "rejected" ? "Failed" : status === "pending" ? "Sending…" : "Needs confirmation")}</span>
-      {error ? <span>{i18n.t(error, { defaultValue: error })}</span> : null}
-      {status !== "pending" ? <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>
-        <Button variant="outline" size="sm" disabled={!!message || !!references.length || pending} onClick={() => {
-          restoring.current = [value.receipt.id, ...(value.restores ?? [])];
-          setMessage(value.text); setReferences(value.references); input.current?.focus();
-        }}>{i18n.t("Restore to input")}</Button>
-      </TooltipTrigger><TooltipContent>{i18n.t("Restore after clearing your current draft.")}</TooltipContent></Tooltip> : null}
-      {status === "unknown" ? <Tooltip><TooltipTrigger render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void run(async isCurrent => {
-        const before = current.current;
-        const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
-        if (isCurrent()) applySubmission(result, current.current === before);
-      })}>{i18n.t("Check conversation")}</TooltipTrigger><TooltipContent>{i18n.t("Check acceptance without sending this message again.")}</TooltipContent></Tooltip> : null}
-      {status !== "pending" ? <Tooltip><TooltipTrigger render={<Button variant="ghost" size="sm" disabled={pending} />} onClick={() => {
+      <span role={status === "rejected" ? "alert" : "status"}>{i18n.t(status === "pending" ? "Sending…" : status === "rejected" ? "Failed" : "Needs confirmation")}</span>
+      {value.receipt.error ? <span>{i18n.t(value.receipt.error, { defaultValue: value.receipt.error })}</span> : null}
+      {status !== "pending" ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void retrySubmission(value)}>{i18n.t("Retry")}</Button> : null}
+      {status === "unknown" && value.receipt.error === "Unable to confirm acceptance" ? <Tooltip><TooltipTrigger
+        render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void retrySubmission(value, true)}>{i18n.t("Send as new")}</TooltipTrigger>
+        <TooltipContent>{i18n.t("Send the original message as a new request. The previous request may already have run.")}</TooltipContent>
+      </Tooltip> : null}
+      {status !== "pending" ? <Button variant="ghost" size="sm" disabled={pending} onClick={() => {
         submissionScope.current++;
         setSubmissions(previous => previous.filter(item => item.hostId !== hostId || item.receipt.id !== value.receipt.id));
-      }}>{i18n.t("Discard message")}</TooltipTrigger><TooltipContent>{i18n.t("Discard this local copy without cancelling or resending the message.")}</TooltipContent></Tooltip> : null}
+      }}>{i18n.t("Discard message")}</Button> : null}
     </div>;
   };
   return <aside ref={panel} hidden={!open} className={`assistant-panel${overlay ? " assistant-panel--overlay" : ""}`} aria-label={i18n.t("Assistant")}
@@ -507,7 +508,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     {!overlay ? <PanelResize label={i18n.t("Assistant width")} onWidth={onWidth} /> : null}
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || active || (!onNewHost && !ready)} onClick={() => { if (onNewHost) { onNewHost(); return; } void run(async isCurrent => {
+      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || (!onNewHost && !ready)} onClick={() => { if (onNewHost) { onNewHost(); return; } void run(async isCurrent => {
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
@@ -515,7 +516,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         setModels(catalog); if (settings) defaults(settings);
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AssistantConversationInfo[]>(`${ASSISTANT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AssistantConversationInfo[]>(`${ASSISTANT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
       {(["open", "reveal"] as const).map(action => <Tooltip key={action}><TooltipTrigger render={<span tabIndex={0} />}>
         <Button variant="ghost" size="icon-sm" aria-label={i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location")} disabled={!conversation || pending || hostId !== LOCAL_HOST_ID || !window.litzioDesktop?.providerSessionLog} onClick={() => void run(async () => {
           try {
@@ -548,7 +549,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
-            {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
           </div>)}
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} /> : null)}
@@ -633,7 +633,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
         const value = event.target.value, end = event.target.selectionStart;
         setReferences(previous => {
           const remaining = previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name));
-          if (!value && !remaining.length) restoring.current = [];
           return remaining;
         });
         setMessage(value); const match = /(?:^|\s)\/([^\s]*)$/.exec(value.slice(0, end));
