@@ -17,7 +17,11 @@
 
 공용 `workspace-save` 입력은 root/workspace/plugin/job, baseline, requestId와 source 또는 edits 중 하나다. UI의 edits는 일반 문서 저장과 같은 `collectSupportedEdits` → Host `saveEdits` → Core operation으로 처리한다. CLI는 `litzio review workspace-save --input <json-file> --host <origin> --json`으로 canonical 리치오 source를 넣을 수 있다. Host가 Core parse/serialize·기존 snapshot 검증을 수행하고 provider candidate를 재검증한 뒤 기존 revision gate·원자적 파일 교체로 `.docling` 안 정본을 저장한다. 비서 서버나 원본 Docling JSON·PDF는 바꾸지 않는다. 결과에는 새 baseline, snapshot, ledger와 기존 receipt가 포함된다. 결과 불확실 때 같은 requestId의 workspace-status를 조회하고 다시 읽으며 자동 재전송하지 않는다.
 
-블록 종류·경로·개수가 유지되는 글자 수정은 기존 PDF 경로 대응을 새 revision에 연결한다. 표·목록 내부 변경이나 블록 구조 변경은 전체 대응을 비워 기존 대응 없음/불확실 표시로 남긴다. 새 대응 엔진은 없다. 입력별 문서 경로는 현재 문서를 완전히 덮도록 유지한다. 확실한 일부 구간만 다시 연결하는 고도화는 범위 밖이다.
+대응 보존은 최종 블록 개수·종류·경로만으로 판정하지 않는다. Host가 기존 edits에서 문단/제목 본문 글자 수정만 있고 삭제·삽입·순서 변화·분할/병합·기타 변경이 없음을 확인한 경우에만 기존 경로 대응을 새 revision에 연결한다. 명시 order는 원래 경로/part 순서와 같아야 한다. 삭제와 삽입이 상쇄돼 같은 개수가 되거나 canonical source까지 같아져도 구조 변경 입력이면 전체 대응을 비운다. 표·목록 등 나머지 입력과 변경 이력이 없는 전체 source 교체도 보수적으로 전체 대응을 비운다(같은 모양·내용으로 블록 동일성을 추측하지 않는다). 전체 source를 넣는 CLI에도 같은 기준을 적용한다. 순수 문단/제목 글자 수정의 대응 보존이 필요하면 같은 공용 작업에 edits를 넣는다.
+
+비워진 원본/삽입 근거는 기존 대응 없음/unsupported 표시로 남긴다. 기존 inspection에 각 렌즈의 범위를 uncertain으로 추가하고, 이전 대조 실행별 최신 기록을 같은 범위의 not-compared로 추가하므로 검수 범위 보고의 미대조 쪽과 미완료 렌즈에 반영된다. 과거 기록은 보존하며 저장 후 Undo로 대응을 복원해도 재검사 전까지 이 보수적 범위 보고는 유지한다. 새 대응 엔진이나 상태 계층은 없다. 입력별 문서 경로는 현재 문서를 완전히 덮도록 유지한다. 확실한 일부 구간만 재연결하는 고도화는 범위 밖이며, 구조 변경의 영향 범위를 확정하지 못하므로 전체 대응을 비우는 쪽을 택한다.
+
+#1544 P1 재검증(2026-11-12): A/B/C에서 A 삭제·끝에 D 삽입을 기존 Host 저장 테스트에 추가해 수정 전 대응 보존 단언의 실패를 확인했다. 수정 후 같은 개수/같은 내용의 삭제·삽입, 재배열, 분할/병합, 전체 source 교체, 순수 글자 수정의 보존과 이전 성공 검사·대조 범위의 uncertain/미대조 전환을 같은 테스트에서 확인했다. 고정 LSR/NIST 및 저장 경계 3개·generated-documents 3개·전체 typecheck·boundaries·docs가 통과했다. 브라우저는 고정 LSR와 동시 실행 시 기존 전체 120초 제한을 넘겼고, 다른 검사를 끝낸 뒤 `pnpm browser:test workspace-review` 단독 실행은 2개 통과(2.3분)했다. timeout·자동 재시도·단언은 바꾸지 않았다. 새 대형 suite·subprocess·실제 AI 호출·재변환은 추가하지 않았다.
 
 저장은 기존 ledger의 적용된 교정 묶음 **사람 직접 수정**과 human 출처로 이어진다. 별도 상태 계층·저장 파일 형식은 추가하지 않는다. 저장 전에는 편집기 Undo/Redo, 저장 후에는 기존 기록의 되돌리기를 사용한다. inverseOperations에 저장 전 canonical snapshot·대응을 담고, 문서 revision이 저장 직후와 같을 때만 복원하므로 이후 비서/사람 수정을 덮어쓰지 않는다. 전체 문서 저장의 Undo는 블록별 재대응보다 단순하고 보수적이다. Undo 뒤 재편집은 새 저장으로 남기며 열린 직접 수정 기록은 기존 supersedes로 연결한다. 이전 저장의 재승인은 제공하지 않는다.
 

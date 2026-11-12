@@ -298,11 +298,11 @@ function correctionSession(archive,snapshot,report) {
   }};
 }
 
-/** Reuse paths only when the block structure is unchanged. Structural edits deliberately
- * drop correspondence rather than attach PDF evidence to a different block. */
-function replaceDocument(snapshot, report, source) {
+/** Only the Host can prove text-only edits with unchanged opening-snapshot order.
+ * Final block shape (or even identical text) cannot establish identity after replacement. */
+function replaceDocument(snapshot, report, source, preserveCorrespondence) {
   const before=getEditableDocument(parse(snapshot.source)).blocks, after=getEditableDocument(parse(source)).blocks;
-  const stable=before.length===after.length && before.every((block,index)=>block.block===after[index].block && same(block.path,after[index].path) && (!["table","list"].includes(block.block) || same(block,after[index])));
+  const stable=preserveCorrespondence===true && before.length===after.length && before.every((block,index)=>block.block===after[index].block && same(block.path,after[index].path) && (!["table","list"].includes(block.block) || same(block,after[index])));
   const revision=hash(source), rebind=targets=>stable?targets.map(target=>({...target,documentRevision:revision,documentHash:revision})):[];
   snapshot.source=source;snapshot.documentRevision=revision;
   for(const input of snapshot.inputs)input.targets=rebind(input.targets);
@@ -310,6 +310,7 @@ function replaceDocument(snapshot, report, source) {
   for(const item of report.items){item.targets=rebind(item.targets);for(const cell of item.cells??[])cell.targets=rebind(cell.targets);}
   for(const insertion of report.insertions??[])insertion.targets=rebind(insertion.targets);
   report.documentRevision=revision;report.documentHash=revision;
+  return !stable;
 }
 
 /** Host owns admission, staging validation, receipts and the atomic one-file commit. */
@@ -358,12 +359,12 @@ export async function workspaceOperation(input) {
   if(input.patches)return {rejection:"교정은 문제 묶음 제안과 사람 승인을 사용하세요."};
   if(!state.snapshot||state.cacheState!=="current")throw new Error("Saved document is damaged or uses another contract; never regenerate it from Docling");
   const snapshot=structuredClone(state.snapshot),report=metadataOf(archive).correspondence,session=correctionSession(archive,snapshot,report);
-  let restoredDirect=false;
+  let restoredDirect=false,correspondenceChanged=false;
   if(input.directSource !== undefined) {
     const before={snapshot:structuredClone(snapshot),report:structuredClone(report)};
     const source=input.directSource;
     if(serialize(parse(source))!==source)throw new Error("Direct source is not canonical");
-    replaceDocument(snapshot,report,source);
+    correspondenceChanged=replaceDocument(snapshot,report,source,input.preserveCorrespondence);
     const id=`direct-${input.requestId}`, targetId=`${id}-document`;
     const group={id,reasonCode:"human-direct-edit",reason:"사람 직접 수정",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:snapshot.contentRevision,contentRevision:state.snapshot.documentRevision,
       createdAt:input.at,runId:input.requestId,representativeTargetId:targetId,representativeReason:"사람 직접 수정",splitFrom:null,
@@ -371,10 +372,16 @@ export async function workspaceOperation(input) {
         evidence:[{observation:"사람 직접 수정",materialRef:"document",materialHash:state.snapshot.documentRevision,inspector:"human",scope:{pages:Object.keys(archive.document.pages).map(Number),targets:[]}}],
         patch:{expectedBefore:state.snapshot.documentRevision,expectedContentRevision:state.snapshot.documentRevision,operations:[{type:"direct-document"}],after:snapshot.documentRevision,supported:true,deferredReason:null},
         inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}]};
-    record.ledger=updateReviewLedger(record.ledger,{kind:"groups-apply",groups:[group],supersedes:record.ledger.groups.filter(g=>g.reasonCode==="human-direct-edit"&&g.targets.some(t=>t.proposal==="proposed")).map(g=>({groupId:g.id,targetIds:g.targets.filter(t=>t.proposal==="proposed").map(t=>t.id),replacementGroupId:id})),actor:{source:"human",actor:"사람 직접 수정",reason:"사람 직접 수정",confirmed:true}}, {
-      contentRevision:snapshot.contentRevision,snapshotHash:hash(JSON.stringify(state.snapshot)),current:true,requestId:input.requestId,revision:input.revision,at:input.at,
-      apply(){return [{directDocument:before,expectedRevision:snapshot.documentRevision}];},undo(){throw new Error("Unexpected Undo");}
-    });
+    const context={contentRevision:snapshot.contentRevision,snapshotHash:hash(JSON.stringify(state.snapshot)),current:true,requestId:input.requestId,revision:input.revision,at:input.at,
+      apply(){return [{directDocument:before,expectedRevision:snapshot.documentRevision}];},undo(){throw new Error("Unexpected Undo");}};
+    record.ledger=updateReviewLedger(record.ledger,{kind:"groups-apply",groups:[group],supersedes:record.ledger.groups.filter(g=>g.reasonCode==="human-direct-edit"&&g.targets.some(t=>t.proposal==="proposed")).map(g=>({groupId:g.id,targetIds:g.targets.filter(t=>t.proposal==="proposed").map(t=>t.id),replacementGroupId:id})),actor:{source:"human",actor:"사람 직접 수정",reason:"사람 직접 수정",confirmed:true}}, context);
+    if(correspondenceChanged && record.ledger.inventory){
+      const latestRuns=new Map(record.ledger.comparisons.map(run=>[run.runId,run]));
+      record.ledger=updateReviewLedger(record.ledger,{kind:"inspection",
+        records:record.ledger.inventory.lenses.map(lens=>({runId:input.requestId,lens:lens.kind,contentRevision:snapshot.contentRevision,scope:lens.scope,state:"uncertain",evidence:"사람 직접 수정 뒤 원본 대응 불확실: 구조 변경 또는 전체 source 교체. 다시 대조하세요."})),
+        comparisons:[...latestRuns.values()].map(run=>({...run,state:"not-compared"})),
+      },context);
+    }
   }
   if(input.change){
     try {
@@ -425,7 +432,7 @@ export async function workspaceOperation(input) {
   }
   if(input.progress)setProgress(archive.document,record,input.progress);
   if(input.directSource === undefined && !restoredDirect){session.updateAnchors(record.ledger);session.finish();}
-  const changed=snapshot.documentRevision!==state.snapshot.documentRevision;
+  const changed=snapshot.documentRevision!==state.snapshot.documentRevision || correspondenceChanged;
   if(changed){
     record.checkedPages=[];record.lastPage=null;record.ledger.approval=null;
     for(const check of record.ledger.inventory?.requiredChecks ?? []) {

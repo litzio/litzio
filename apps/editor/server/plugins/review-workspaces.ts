@@ -175,9 +175,15 @@ export class ReviewWorkspaces {
       staging = mkdtempSync(path.join(tmpdir(), "litzio-review-workspace-"));
       const candidate = path.join(staging, "candidate"); writeFileSync(candidate, "", { flag: "wx", mode: 0o600 });
       const resultFile = { path: candidate, maxBytes: JOB_FILE_MAX_BYTES };
+      // Only explicit text edits with unchanged opening-snapshot order prove block identity.
+      // A source replacement has no deletion/insertion lineage, even if its final shape matches.
+      const directEdits = input.action === "workspace-save" ? input.edits as SupportedEdits | undefined : undefined;
+      const preserveCorrespondence = !!directEdits
+        && Object.entries(directEdits).every(([key,value]) => ["paragraphs","headings","order"].includes(key) || Array.isArray(value) && value.length === 0)
+        && (directEdits.order === undefined || JSON.stringify(directEdits.order) === JSON.stringify(getEditableDocument(parse(original.snapshot!.source)).blocks.map(block => ({path:block.path,part:0}))));
       const directSource = input.action === "workspace-save" ? input.source ?? saveEdits(original.snapshot!.source, input.edits as SupportedEdits).markdown : undefined;
       if (directSource !== undefined && serialize(parse(directSource)) !== directSource) throw new Error("Direct edit source must be canonical");
-      const plan: any = await call("workspace-prepare", file, { resultFile, ...(directSource !== undefined ? {directSource, requestId, revision:randomUUID(), at:new Date().toISOString()} : {}), ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
+      const plan: any = await call("workspace-prepare", file, { resultFile, ...(directSource !== undefined ? {directSource, preserveCorrespondence, requestId, revision:randomUUID(), at:new Date().toISOString()} : {}), ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
         ...("change" in input || evidenceChange ? { change: evidenceChange ?? ("change" in input ? input.change : undefined), requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
       if (typeof plan.rejection === "string") throw Object.assign(new Error(plan.rejection), {errorKind:"invalid_input", current:{baseline:before,documentRevision:original.snapshot?.documentRevision,contentRevision:original.snapshot?.contentRevision}});
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
