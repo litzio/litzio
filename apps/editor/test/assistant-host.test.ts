@@ -143,9 +143,9 @@ test("unavailable provider rejects new work with a reason; settings do not close
   assert.equal(conversation.userInput?.requestId, "provider-switch-question");
   t.mock.method(connection, "models", async () => ({ provider: "copilot" as const, updatedAt: Date.now(), models: [{ id: "auto", model: "auto", displayName: "Auto", description: "Fixture", defaultReasoningEffort: "medium", supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Fixture" }] }] }));
   await host.invoke("configure", { ...settings, provider: "copilot", model: "auto" });
-  assert.equal(conversation.userInput, undefined);
+  assert.equal(conversation.userInput?.requestId, "provider-switch-question");
   assert.equal(turn.status, "inProgress", "provider defaults do not end an admitted turn");
-  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions[0].question.status, "expired", "provider changes persist closure of the previous provider's questions");
+  assert.equal(JSON.parse(readFileSync(path.join(connection.cwd, "conversations.json"), "utf8"))[0].questions[0].question.status, "pending", "provider defaults do not close unanswered questions");
   assert.doesNotThrow(() => process.kill(pid, 0));
   assert.equal((await host.invoke("assistantConversations", { id })).turns[0], turn);
   await assert.rejects(host.invoke("assistantConversation", { action: "send", message: "New work", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }), /AI provider copilot is unavailable: Fixture provider unavailable/);
