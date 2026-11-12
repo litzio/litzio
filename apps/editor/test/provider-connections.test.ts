@@ -1368,8 +1368,11 @@ async function resolvePermission(connection: ProviderConnections, conversations:
 }
 
 test("PowerShell inventory warns only for Store-only installations", () => {
-  const store = "C:/Users/example/AppData/Local/Microsoft/WindowsApps/Microsoft.PowerShell_7.5.0.0_x64__8wekyb3d8bbwe/pwsh.exe";
-  assert.equal(onlyStorePowerShell([store]), true);
-  assert.equal(onlyStorePowerShell([store, "C:/Program Files/PowerShell/7/pwsh.exe"]), false);
+  const store = [
+    "C:/Users/example/AppData/Local/Microsoft/WindowsApps/Microsoft.PowerShell_8wekyb3d8bbwe/pwsh.exe",
+    "C:/Users/example/AppData/Local/Microsoft/WindowsApps/pwsh.exe",
+  ];
+  assert.equal(onlyStorePowerShell(store), true);
+  assert.equal(onlyStorePowerShell([...store, "C:/Program Files/PowerShell/7/pwsh.exe"]), false);
   assert.equal(onlyStorePowerShell([]), false);
 });

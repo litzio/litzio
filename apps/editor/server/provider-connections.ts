@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync, realpathSync } from "node:fs";
+import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync, lstatSync } from "node:fs";
 import path from "node:path";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
@@ -167,15 +167,15 @@ export const LITZIO_GUIDE = typeof __LITZIO_ASSISTANT_GUIDE__ === "string"
   ? __LITZIO_ASSISTANT_GUIDE__
   : readFileSync(new URL("./assistant/litzio-guide/SKILL.md", import.meta.url), "utf8");
 
-/** Paths are resolved before classification; an empty inventory is not a warning. */
+/** Classify existing path strings without resolving execution aliases; an empty inventory is not a warning. */
 export function onlyStorePowerShell(paths: string[]): boolean {
-  return paths.length > 0 && paths.every(value => /\\windowsapps\\microsoft\.powershell_[^\\]+\\pwsh\.exe$/i.test(value.replaceAll("/", "\\")));
+  return paths.length > 0 && paths.every(value => /\\windowsapps\\/i.test(value.replaceAll("/", "\\")));
 }
 
 function storePowerShellOnly(): boolean {
   if (process.platform !== "win32") return false;
   const candidates: string[] = [];
-  const add = (file: string) => { try { candidates.push(realpathSync(file)); } catch { /* Missing or inaccessible candidate: no affirmative evidence. */ } };
+  const add = (file: string) => { try { lstatSync(file); candidates.push(file); } catch { /* Missing or inaccessible candidate: no affirmative evidence. */ } };
   for (const directory of (process.env.PATH ?? "").split(path.delimiter)) add(path.join(directory, "pwsh.exe"));
   for (const root of [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]]) {
     if (!root) continue;

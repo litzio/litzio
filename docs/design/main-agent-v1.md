@@ -244,8 +244,8 @@ Model/effort defaults still initialize each new conversation.
 | `GET /api/assistant/diagnostics` | Codex executable/version, app-server initialization, `account/read`, `account/rateLimits/read`, paginated `mcpServerStatus/list`, check time and individual errors. |
 | `GET /api/assistant/environment` | `{ cwd, instructions, skills }`; Litzio-owned environment, without starting app-server. |
 
-Windows diagnostics report a possible shell issue when resolved PowerShell 7 paths
-are exclusively Microsoft Store packages and no standard Program Files installation
+Windows diagnostics report a possible shell issue when existing PowerShell 7 path strings
+all contain a WindowsApps segment (including execution aliases and Program Files packages) and no standard Program Files installation
 is found. The existing diagnostic row shows status and replacement action; hover/focus
 Tooltip explains restricted-token launch denial and the standard installer remedy.
 This is an installation heuristic, not a shell execution probe. Other platforms do
