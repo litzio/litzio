@@ -19,6 +19,7 @@ createInterface({ input: process.stdin }).on("line", line => {
       send({ method: "session/update", params: { sessionId: pending.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: request.error ? "Interactive question unsupported" : "Unexpected question acceptance" } } } });
       send({ id: pending.id, result: { stopReason: "end_turn" } }); pending = undefined;
     }
+    if (request.id === "permission" && pending) send({ method: "session/update", params: { sessionId: pending.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: `Permission result: ${JSON.stringify(request.result)}` } } } });
     return;
   }
   const { id, method, params } = request;
@@ -65,7 +66,7 @@ createInterface({ input: process.stdin }).on("line", line => {
       send({ id: "question-unsupported", method: "session/request_user_input", params: { sessionId: params.sessionId, questions: [{ title: "Travel style?", options: ["Rest", "Food"] }] } }); return;
     }
     send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "한글 ACP answer" } } } });
-    send({ id: "permission", method: "session/request_permission", params: { sessionId: params.sessionId, toolCall: { toolCallId: "edit", kind: "edit", title: "Write file", locations: [{ path: params.prompt[0].text.match(/"folders":\["([^"]+)"/)?.[1]?.replaceAll("\\\\", "\\") + "/new.txt" }] }, options: [{ optionId: "once", kind: "allow_once", name: "Allow once" }] } });
+    send({ id: "permission", method: "session/request_permission", params: { sessionId: params.sessionId, toolCall: { toolCallId: "edit", kind: "edit", title: "Write file", locations: [{ path: params.prompt[0].text.match(/"folders":\["([^"]+)"/)?.[1]?.replaceAll("\\\\", "\\") + "/new.txt" }] }, options: [{ optionId: "once", kind: "allow_once", name: "Allow once" }, { optionId: "session", kind: "allow_always", name: "Allow for this session" }, { optionId: "no", kind: "reject_once", name: "Reject once" }] } });
   } else if (method === "session/cancel") {
     const prompt = prompts.get(params.sessionId);
     if (prompt) { send({ id: prompt.id, result: { stopReason: "cancelled" } }); prompts.delete(params.sessionId); }

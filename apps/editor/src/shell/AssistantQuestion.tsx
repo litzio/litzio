@@ -12,25 +12,38 @@ export function AssistantQuestion({ question, disabled, submit }: { question: As
   const record = "status" in question ? question as AssistantQuestionRecord : undefined;
   const status = record?.status ?? "pending";
   const waiting = status === "pending";
+  const approval = record?.approval === true;
+  const send = (answers: AssistantUserInputAnswers) => {
+    if (!waiting || lock.current || disabled) return;
+    lock.current = true; setSending(true);
+    void submit(answers).finally(() => { lock.current = false; setSending(false); });
+  };
   return <form className="assistant-question" data-testid="assistant-question" data-question-status={status} data-question-request={JSON.stringify([question.turnId, typeof question.requestId, question.requestId])} onSubmit={event => {
     event.preventDefault();
     if (!waiting || lock.current || disabled || !question.questions.every(q => values.get(q.id)?.trim())) return;
-    lock.current = true; setSending(true);
-    void submit(Object.fromEntries(question.questions.map(q => [q.id, { answers: [values.get(q.id)!] }]))).finally(() => { lock.current = false; setSending(false); });
+    send(Object.fromEntries(question.questions.map(q => [q.id, { answers: [values.get(q.id)!] }])));
   }}>
     {question.questions.map(q => <fieldset key={q.id} disabled={disabled || sending}>
-      <legend>{q.header || q.question}</legend>{q.header ? <p>{q.question}</p> : null}
+      <legend>{q.header ? i18n.t(q.header, { defaultValue: q.header }) : q.question}</legend>{q.header ? <p>{q.question}</p> : null}
 
-      {!waiting ? <p className="assistant-question-answer">{record?.answers?.[q.id]?.answers.join(" · ")}</p> : <>
+      {!waiting ? <p className="assistant-question-answer">{record?.answers?.[q.id]?.answers.join(" · ")}</p> : approval ? <div className="assistant-approval-actions">
+        {q.options?.map((option, index) => {
+          const label = option.label.replace(/^\d+\. /, "");
+          return <Button key={index} type="button" size="sm" variant={index === 0 ? "default" : "outline"} disabled={disabled || sending}
+            title={option.description || undefined} onClick={() => send({ [q.id]: { answers: [option.label] } })}>
+            {i18n.t(label === "Allow once" ? "Allow" : label, { defaultValue: label })}
+          </Button>;
+        })}
+      </div> : <>
       {q.options?.map((option, index) => <label className="assistant-question-option" key={index}>
         <input type="radio" name={q.id} checked={!other.get(q.id) && values.get(q.id) === option.label} onChange={() => { setOther(previous => new Map(previous).set(q.id, false)); setValues(previous => new Map(previous).set(q.id, option.label)); }} />
-        <span><strong>{option.label}</strong><small>{option.description}</small></span>
+        <span><strong>{i18n.t(option.label, { defaultValue: option.label })}</strong><small>{option.description}</small></span>
       </label>)}
       {q.isOther && !!q.options?.length ? <label className="assistant-question-option"><input type="radio" name={q.id} checked={!!other.get(q.id)} onChange={() => { setOther(previous => new Map(previous).set(q.id, true)); setValues(previous => new Map(previous).set(q.id, "")); }} />{i18n.t("Write another answer")}</label> : null}
       {!q.options?.length || other.get(q.id) ? <label>{i18n.t("Your answer")}<Input className="assistant-question-input" type={q.isSecret ? "password" : "text"} autoComplete="off" value={values.get(q.id) ?? ""} onChange={event => setValues(previous => new Map(previous).set(q.id, event.target.value))} /></label> : null}
       </>}
     </fieldset>)}
-    {waiting ? <Button type="submit" size="sm" disabled={disabled || sending || !question.questions.every(q => values.get(q.id)?.trim())}>{i18n.t("Submit answers")}</Button>
+    {waiting ? !approval && <Button type="submit" size="sm" disabled={disabled || sending || !question.questions.every(q => values.get(q.id)?.trim())}>{i18n.t("Submit answers")}</Button>
       : <p role="status">{i18n.t(status === "answered" ? "Answered" : status === "expired" ? "Response ended" : status === "sending" ? "Sending…" : "Answer delivery needs confirmation")}</p>}
     {record?.error ? <p role="alert">{i18n.t(record.error, { defaultValue: record.error })}</p> : null}
   </form>;

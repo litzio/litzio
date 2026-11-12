@@ -23,6 +23,7 @@ export type AssistantUserInput = { requestId: string | number; turnId: string; q
 export type AssistantUserInputAnswers = Record<string, { answers: string[] }>;
 /** Conversation-owned interaction metadata. Provider message text remains provider-owned. */
 export type AssistantQuestionRecord = AssistantUserInput & {
+  approval?: boolean;
   delivery: "blocking" | "async";
   status: "pending" | "sending" | "answered" | "expired" | "unknown";
   sourceQuestions?: { title: string; options: string[] | null }[];

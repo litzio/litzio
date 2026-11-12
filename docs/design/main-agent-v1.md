@@ -209,8 +209,8 @@ as `workspaceWrite.writableRoots`, uses `readOnly`, or disables the sandbox with
 `dangerFullAccess`. Host path checks run before
 passing folder/document context to Codex. The dedicated cwd remains Codex's
 workspace; OS temporary write exceptions remain disabled. Opened folders enables network access;
-read-only keeps network access disabled. Approval policy is `never`; unsupported client requests are
-rejected, rather than opening an unimplemented approval dialog. User Codex
+read-only keeps network access disabled. Approval policy is `on-request` in restricted modes and `never` in Full access.
+Provider approvals use the existing question cards (see #1536 below). User Codex
 configuration, MCP servers and login remain inherited. The existing-document
 rule is an agent instruction, not a new document-edit enforcement system.
 Steering retains the running turn's scope; new folder/settings choices apply to
@@ -522,7 +522,7 @@ Results contain `outcome`, `completed` targets and `remaining` targets with reas
 
 The Host registers document specs, the three [template specs](#template-workflows-936-phase-3) and the two
 [display-setting specs](#assistant-display-settings-1120) in `thread/start.dynamicTools` and handles
-server-originated `item/tool/call` and the [structured questions](#structured-user-questions-983) added in #983; other requests still return `-32601`.
+server-originated `item/tool/call` and the [structured questions](#structured-user-questions-983) added in #983; command/file approvals and MCP elicitation use the same question-card response path (#1536). Unknown extensions still return `-32601`.
 The small `assistant-document-tools.ts` module validates input and invokes Core and
 existing Host file reads/listing, independently of the Codex wire format. There
 is no tool registry, plugin registration API, MCP server or provider abstraction.
@@ -543,7 +543,8 @@ operation or CLI command is needed: this is an AI interface to existing semantic
 | Permission | Host enforcement |
 | --- | --- |
 | `permissionMode` | Captured at turn start; `read-only` refuses creation |
-| Opened folders | Pinned `RootAccess` for that turn; no folders means no file tools |
+| Opened folders / Read-only | Pinned `RootAccess`; outside paths return a concrete instruction to open the folder or select Full access |
+| Full access | Host tools may access outside opened folders; Host operator Roots still apply |
 | Host operator Roots | Existing `accessPath` checks, in addition to the turn boundary |
 | Symlink escape/root replacement | Existing pinned Root identity and real-path checks |
 | Existing file | Exclusive create, never overwrite |
@@ -941,8 +942,8 @@ closure. Host consumes it before replying, rejects duplicate/stale submissions,
 and expires the blocking request on `serverRequest/resolved`, turn completion/failure,
 interruption or disconnection. History retains the question and its answer or
 expiry. Async questions follow the [#1443 contract](#async-questions-and-answer-history-1443).
-The form locks while submitting. Approval requests and MCP
-elicitation remain unsupported (-32601); `approvalPolicy: never` is unchanged.
+The form locks while submitting. Approval requests and MCP elicitation now follow
+the same blocking-card lifecycle (#1536); restricted modes use `on-request`.
 
 The child starts with `app-server -c features.default_mode_request_user_input=true`.
 This is a process-only config override and does not write the user's Codex config.
@@ -1180,10 +1181,9 @@ The Host generates each endpoint token and binds it to one provider session. Eac
 This is conversation isolation, not daemon authentication (#1145 remains deferred).
 
 Copilot 1.0.109 refused MCP calls with host_policy before sending ACP permissions.
-`--allow-tool=litzio_host` skips only this provider approval, while restricted
-launches retain `--deny-tool=shell` and every MCP execution still checks Host scope.
-Question cards are deliberately unsupported; ordinary text questions and the
-existing image approval protection remain. ACP/MCP elicitation is follow-up work.
+`--allow-tool=litzio_host` skips only this provider approval, and every MCP execution still checks Host scope.
+The shared request_litzio_user_input tool supports structured questions over HTTP MCP.
+Native ACP question extensions remain unsupported; ACP permissions use blocking cards (#1536).
 The cwd litzio-guide skill is discovered by Copilot; instructions are also injected
 in the prompt. This change does not consolidate those instruction sources.
 
@@ -1194,22 +1194,16 @@ completed list_documents and read_document with shell denied. Those two probes u
 
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
-Read-only permits read/search requests with absolute locations inside those folders
-and Host Roots. Opened-folders also permits location-bearing edit/delete/move and
-other file tools: every source/destination location must pass the same containment
-check, using write resolution for non-read/search tools. Execute remains denied in
-both restricted modes even with inside locations. Fetch requests carrying file locations also pass this containment check. Native requests without locations
-are refused except fetch (allowed in opened-folders, denied in read-only) and known
-Litzio MCP requests with matching server/tool metadata. A title alone does not grant
-a Host tool hint. Host tool execution independently enforces its admitted scope. The owner-approved `full-access`
-value instead selects an allow_once (or allow_always) response for every active-turn
-request, including tool execution, paths outside opened folders and URLs. Like Paseo,
-Host sends `allow_all=on` when advertised; Agent/Plan remains the selected session
-mode. Restricted turns send `allow_all=off`. CLI flags deny shell tools in restricted
-access and permit them in full access. The #1500 owner amendment removes the unconditional built-in MCP disable flag, so GitHub and other built-in MCPs can be discovered under Copilot configuration. Unlike Codex, this does not install an OS sandbox or
-override every inherited Copilot permission/MCP configuration. Preauthorized
-provider actions may not ask Host for permission. Users must verify their CLI
-configuration; these settings are not represented as equivalent containment.
+Read/search inside the opened folders and Host roots is automatic. Opened-folders
+also automatically permits location-bearing file tools within that scope and fetch
+without locations. Known Litzio MCP metadata is an approval hint only; execution
+independently checks Host scope. Every other active-turn request, including shell,
+outside locations and unknown-location tools, waits on a question card. The exact
+ACP option ID is returned, including allow_always or reject options when offered.
+Full access automatically chooses allow_once or allow_always and sends allow_all=on
+when advertised. Restricted turns send allow_all=off. Shell is no longer denied by
+a launch flag. Copilot has no OS sandbox; inherited provider preauthorizations may
+bypass permission requests. This is permission mediation, not Codex sandbox parity.
 
 Docling and its feature-task exec adapter were removed in #1150 ③.
 The removed feature-task settings (`codexTaskSettings`) are not retained.
@@ -1679,8 +1673,7 @@ Shape supplements color; the localized accessible name and keyboard/hover Toolti
 explain the status without adding persistent text or changing the button size.
 Attention takes priority over work and completion: structured `userInput` questions,
 failed turns, and unresolved rejected/unknown submissions require checking the
-existing panel actions. The current providers do not expose a separate approval
-queue; no speculative approval state is introduced.
+existing panel actions. Provider approvals use the existing question-card history (#1536), with no separate approval queue.
 
 Conversation snapshots and #1417 submission receipts remain the source of truth.
 Closing the panel neither invalidates an in-flight send nor creates another poller.
@@ -1766,9 +1759,8 @@ The existing #1424 observer and attention priority are unchanged.
   reader; it does not scroll a newly expanded process to the bottom automatically.
 - Questions and options remain in AssistantQuestion directly in the transcript,
   outside every details element. Result receipts, errors and submission actions
-  remain outside too. Supported user-input transport is unchanged. The Host still
-  refuses unsupported approval requests; this change does not add approval support
-  or place actionable requests in the process disclosure.
+  remain outside too. Supported approvals now use question cards (#1536). Unknown
+  extensions remain unsupported; actionable requests stay outside process disclosure.
 
 #1492 (2026-11-11) reuses native details/summary and the shared Tooltip;
 no new surface, tokens or Host/CLI operation. Existing assistant browser checks
@@ -1915,7 +1907,7 @@ automatic retry exists.
 persistence failure returns `accepted:false`. Acceptance does not require a window,
 render confirmation or a 10-second display deadline, and does not prove user attention
 or model use of an answer. Native Codex async question events use the same retained
-question/answer path. Copilot question cards remain unsupported.
+question/answer path. Copilot uses the shared Host question tool over HTTP MCP (#1536).
 
 ### Provider scope and validation
 
@@ -1930,13 +1922,10 @@ The following #1443 evidence describes historical verification before #1530:
 The metadata test failed before implementation: the item was `assistant` instead
 of `question`. Existing blocking/prototype-key/expiry checks remain.
 
-Copilot: the current Litzio ACP connection implements no interactive-question
-extension. Its prompt and UI explicitly say that question cards are unavailable
-and the user can reply in ordinary text after the response ends. The ACP fixture
-confirms an unsupported interactive request receives `-32601`, not acceptance.
-Installed CLI 1.0.107 was identified without an AI turn. This does not claim all
-Copilot products or future ACP extensions lack questions; no real Copilot AI turn
-was used and no undocumented field is silently treated as a supported question.
+Copilot: ACP SDK 0.17.1 has no native interactive-question callback; unsupported
+session/request_user_input still receives -32601. The supported shared Host MCP
+request_litzio_user_input tool now creates the same async question records as Codex.
+This does not claim support for undocumented native ACP question extensions.
 
 Actual Codex 0.167.0 + gpt-6-luna/low was driven through the actual Host and bundled
 browser UI using the issue's travel question plus a free-text request. Rendering
@@ -2106,7 +2095,7 @@ The image-estimate card and its special question linkage are removed. Ordinary a
 
 ### Pending existing-document edits (#1494)
 
-Only an explicit user edit request authorizes editing an existing document. The Assistant starts or finds a conversation-owned pending copy and prefers the shell-free Host tools below to edit that copy. Existing CLI semantic operations (`inspect`, `apply-batch --operations <json-file> --if-revision <revision>`, `check`) remain available for full-access terminal continuation. It never edits the original or applies/discards a pending copy. New documents are still created immediately. Read-only turns cannot create copies. Both Codex and Copilot support opened-folders and full-access through the same Host tools. Copilot opened-folders retains shell denial; the Host tools require no shell exception. Read-only turns may inspect existing copies but cannot create or edit them.
+Only an explicit user edit request authorizes editing an existing document. The Assistant starts or finds a conversation-owned pending copy and prefers the shell-free Host tools below to edit that copy. Existing CLI semantic operations (`inspect`, `apply-batch --operations <json-file> --if-revision <revision>`, `check`) remain available for full-access terminal continuation. It never edits the original or applies/discards a pending copy. New documents are still created immediately. Read-only turns cannot create copies. Both Codex and Copilot support opened-folders and full-access through the same Host tools. Copilot opened-folders asks before shell execution; the Host tools require no shell exception. Read-only turns may inspect existing copies but cannot create or edit them.
 
 Host receipts live under the Assistant directory, scoped by conversation; copies are hidden `.litzio-change-<uuid>.md` siblings of the original. This keeps copies within opened folder grants and preserves relative images/attachments. The existing hidden-entry filtering omits copies from document lists and Explorer-backed search. Assistant working-directory copies would change the relative asset base and fall outside document roots. Pending records survive Host restart. Deleting a Host conversation removes its copies; provider-owned history is not deleted.
 
@@ -2130,7 +2119,7 @@ Visual review uses the existing task-tab, Button and comparison patterns without
 
 The existing assistant-changes browser scenario reproduces #1540 with a fake provider: Apply writes the scratch original and reports success, but before the fix its open editor still showed `Alpha.` instead of `Proposed change.`. This establishes the stale open-tab defect, not the exact cause of every owner report. The extended scenario checks the fixed composer rows, turn-end opening, preserved input focus, no repeated reopening, same-copy revision updates, clean-tab reload and existing unsaved/Discard guards. Host coverage checks list copy revisions; disk conflict/Core protections remain unchanged.
 
-One real Codex `gpt-6-luna` / `low` / Full access turn on a synthetic Korean paragraph used read_document → stage_document → inspect_staged_document → edit_staged_document. Two invalid operation inputs were corrected within that turn; the final copy contained the requested Tuesday wording and the original stayed unchanged. No direct-original write was observed, so provider instructions were unchanged. The installed Copilot CLI exposed only `auto`; the owner confirmed Auto as this environment's cheapest choice. One Auto / low / Full access turn left the original unchanged and created no pending copy: it reported that Litzio staging/edit tools were unavailable and declined the edit. Copilot editing success therefore remains unverified; no direct-original write was observed and instructions were unchanged. The missing-tool connection is outside this UI fix.
+One real Codex `gpt-6-luna` / `low` / Full access turn on a synthetic Korean paragraph used read_document → stage_document → inspect_staged_document → edit_staged_document. Two invalid operation inputs were corrected within that turn; the final copy contained the requested Tuesday wording and the original stayed unchanged. No direct-original write was observed, so provider instructions were unchanged. The installed Copilot CLI exposed only `auto`; the owner confirmed Auto as this environment's cheapest choice. One Auto / low / Full access turn, run before integrating #1537, left the original unchanged and created no pending copy: it reported that Litzio staging/edit tools were unavailable and declined the edit. Copilot editing success therefore remains unverified; no direct-original write was observed and instructions were unchanged. The missing-tool connection is outside this UI fix.
 
 Visual evidence uses the existing Button ghost/sm, Tooltip, composer and comparison task tab, with existing spacing/text/surface tokens and no new shared interaction exception: [1440px light](assets/assistant-changes-1539/light-1440.png), [1440px dark](assets/assistant-changes-1539/dark-1440.png). Synthetic provider/document data and masked Host identity are used. Captures are a separate manual review, not CI success artifacts. Direct inspection confirmed composer row/control alignment, unclipped filenames and Korean controls, and light/dark contrast.
 
@@ -2203,6 +2192,48 @@ answerable question after its turn has completed, followed by reopened answer hi
 [1440 Light history](assets/assistant-question-1530/reopened-1440-light.png),
 [1440 Dark history](assets/assistant-question-1530/reopened-1440-dark.png).
 These are manual review evidence, not owner visual approval or a real model response.
+
+
+## Provider approvals (#1536)
+
+Restricted Codex turns use approvalPolicy on-request; Full access keeps never.
+Command execution and file-change approvals use blocking question cards with allow,
+reject and session allow. MCP elicitation offers accept/reject; form content can be
+entered as JSON and is validated with the MCP SDK JSON Schema validator before the
+answer is consumed. URL elicitation displays the supplied URL; Litzio does not open
+it automatically. Elicitation answer content is masked in the conversation index.
+No timer or extra approval lifetime is added: the inbound provider RPC owns the
+wait. Resolution, interruption, completion, disconnect and shutdown release it.
+Callbacks are correlated by conversation, turn and typed RPC ID; parallel approvals
+and duplicate responses do not cross-deliver. Pending callbacks are never restored
+from disk. Cards remain in conversation history after the RPC ends.
+
+Full access document and review Host tools use the selected Host's file policy
+without the conversation's opened-folder limit. Discovery without a path still
+starts at the opened folders. Restricted Host tools retain that limit and return
+an actionable reason to change permission or open the containing folder, rather
+than introducing a second Host approval state. Original revision checks, staged
+copy review, secret/private plugin-operation restrictions and Host selection remain.
+Permission records carry approval:true. AssistantQuestion renders their allow,
+session-allow and reject choices as compact buttons: one click or Enter sends the
+provider choice immediately, using the same submission lock and response path.
+Title, target path and answer history remain in the card. General questions and
+elicitation forms that collect values keep their existing selection/input and
+submit flow. The UI reuses AssistantQuestion, compact Button and existing tokens.
+
+
+#1536 verification (2026-11-12): fake Codex and ACP cover allow, reject, session
+allow, cancellation, typed request IDs, validated elicitation and unchanged staged
+copy/Host boundaries. An actual Codex gpt-6-luna/low opened-folder turn issued one
+approval card, received allow-once through the Host answer operation and read an
+outside-folder scratch file. One actual Copilot Auto/low turn issued two permission
+cards and completed the same read. Its ACP catalog offered only Auto, so no cheaper
+named model could be selected. These probes used Host answers, not UI clicks;
+they do not establish long waits, remote Hosts or real MCP elicitation. Browser
+fixture clicks separately verify the existing card UI at 1440px in both themes.
+[Light capture](assets/assistant-provider-approvals/approval-1440-light.png) and
+[dark capture](assets/assistant-provider-approvals/approval-1440-dark.png) omit local account identity.
+Owner visual approval is not claimed.
 
 ## Immediate review corrections (#1531, 2026-11-12)
 

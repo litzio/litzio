@@ -107,6 +107,7 @@ function observations(scope:DocumentToolScope) {
 }
 async function findReviewWorkspaces(host:ReviewHost, scope:DocumentToolScope, requested?:string) {
   if(!scope.folders)throw Object.assign(new Error("No opened folders for this review."),{errorKind:"forbidden"});
+  if (requested && path.isAbsolute(requested)) scope.folders.resolve(accessPath(requested,scope.access));
   const candidates:any[]=[], seen=new Set<string>();
   const visit=async(root:string,file:string):Promise<void>=>{
     file=scope.folders!.resolve(accessPath(file,scope.access));
@@ -118,7 +119,7 @@ async function findReviewWorkspaces(host:ReviewHost, scope:DocumentToolScope, re
       candidates.push(...result.targets??[]);
     }
   };
-  for(const root of scope.folders.roots) {
+  for(const root of scope.permissionMode === "full-access" && requested && path.isAbsolute(requested) ? [statSync(accessPath(requested,scope.access)).isDirectory() ? requested : path.dirname(requested)] : scope.folders.roots) {
     const file=requested ? path.resolve(root,requested) : root;
     if(!inside(root,file))continue;
     try {await visit(root,file);} catch(error) {if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}

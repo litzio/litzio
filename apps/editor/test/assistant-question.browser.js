@@ -1,6 +1,7 @@
-async (page, { expect, brand }) => {
+async (page, { expect, brand, screenshots }) => {
   const settings = { provider: 'codex', permissionMode: 'read-only', model: 'gpt-6-luna', reasoningEffort: 'low' };
   let conversation, receipt, resumes = 0;
+  const approvalAnswers = [];
   const refreshInput = () => { conversation.userInput = conversation.turns.flatMap(t => t.items).map(i => i.question).find(q => q?.status === 'pending'); };
   await page.route('**/api/assistant/settings*', r => r.fulfill({ json: settings }));
   await page.route('**/api/assistant/models*', r => r.fulfill({ json: { models: [{ id: 'luna', model: settings.model, displayName: 'GPT Luna', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
@@ -15,6 +16,7 @@ async (page, { expect, brand }) => {
         return r.fulfill({ json: receipt });
       }
       if (body.action === 'answer') {
+        if (body.requestId.startsWith('permission-')) approvalAnswers.push(body.answers);
         expect(body.displayClient).toBeTruthy();
         const q = conversation.turns.flatMap(t => t.items).find(i => i.question?.requestId === body.requestId).question;
         q.status = 'answered'; q.answers = body.answers; refreshInput();
@@ -67,4 +69,39 @@ async (page, { expect, brand }) => {
   await expect(panel.locator('[data-question-status="answered"]')).toHaveCount(3);
   await page.setViewportSize({ width: 640, height: 1000 });
   expect(await panel.locator('.assistant-question').last().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  conversation.turns[0].status = 'inProgress';
+  conversation.turns[0].items.push({ id: 'permission-card', kind: 'question', text: '', question: {
+    requestId: 'permission-card', turnId: 'travel-turn', delivery: 'blocking', status: 'pending', approval: true,
+    questions: [{ id: 'decision', header: 'Permission request', question: '열린 폴더 밖의 문서를 읽도록 허용할까요?\nC:\\Documents\\outside.txt', isOther: false, isSecret: false,
+      options: ['Allow once', 'Allow for this session', 'Reject'].map(label => ({ label, description: '' })) }] } });
+  refreshInput();
+  await expect(pending).toContainText('열린 폴더 밖의 문서');
+  if (screenshots) for (const theme of ['light', 'dark']) {
+    await page.evaluate(({ prefix, theme }) => { localStorage.setItem(prefix + '.theme', theme); localStorage.setItem(prefix + '.uiLanguage', 'ko'); }, { prefix: brand.storagePrefix, theme });
+    await page.reload();
+    if (!await panel.isVisible()) await trigger.click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(pending).toBeVisible();
+    expect(await pending.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: `tmp/1536-evidence/approval-1440-${theme}.png`, style: ".sidebar-host-account { visibility: hidden; }" });
+  }
+  await expect(pending.getByRole('radio')).toHaveCount(0);
+  await expect(pending.getByRole('button', { name: /Submit answers|답변 제출/ })).toHaveCount(0);
+  await pending.getByRole('button', { name: screenshots ? '허용' : 'Allow', exact: true }).click();
+  await expect.poll(() => approvalAnswers).toEqual([{ decision: { answers: ['Allow once'] } }]);
+  await expect(panel.locator('[data-question-status="answered"]').last()).toContainText('Allow once');
+  for (const [index, label] of ['Allow for this session', 'Reject'].entries()) {
+    const item = JSON.parse(JSON.stringify(conversation.turns[0].items.find(i => i.id === 'permission-card')));
+    item.id = 'permission-' + index; item.question.requestId = item.id;
+    item.question.status = 'pending'; delete item.question.answers;
+    conversation.turns[0].items.push(item); refreshInput();
+    await expect(pending).toBeVisible();
+    const button = pending.getByRole('button', { name: screenshots ? (index === 0 ? '이번 세션 동안 허용' : '거절') : label, exact: true });
+    await button.focus(); await button.press('Enter');
+    await expect(panel.locator('[data-question-status="answered"]').last()).toContainText(label);
+    expect(approvalAnswers.at(-1)).toEqual({ decision: { answers: [label] } });
+  }
+  expect(approvalAnswers).toHaveLength(3);
+
 }

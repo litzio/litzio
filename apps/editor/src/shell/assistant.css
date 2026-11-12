@@ -113,3 +113,4 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-changes { margin-bottom: var(--space-2); }
 .assistant-change-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .assistant-change-row > span { flex: 1; min-width: 0; }
+.assistant-approval-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }

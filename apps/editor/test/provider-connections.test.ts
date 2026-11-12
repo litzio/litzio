@@ -32,7 +32,7 @@ test("Copilot ACP rejects unsupported interactive questions instead of acknowled
   assert.equal(c.userInput, undefined);
   const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   assert.equal(requests.find(row => row.id === "question-unsupported").error.code, -32601);
-  assert.match(requests.find(row => row.method === "session/prompt").params.prompt[0].text, /does not support interactive question cards/);
+  assert.match(requests.find(row => row.method === "session/prompt").params.prompt[0].text, /request_litzio_user_input through the Litzio Host MCP server/);
 });
 
 test("Copilot session creation errors retain a readable message across the Host error boundary", async t => {
@@ -77,34 +77,53 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       const inspect = () => { if (turn.items.some(item => item.text === "한글 ACP answer")) { clearTimeout(deadline); resolve(); } };
       connection.copilot.on("update", inspect); t.after(() => connection.copilot.off("update", inspect)); inspect();
     });
+    await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
+    const card = conversation.userInput!;
+    assert.ok(card, "ACP fixture permission must become a card");
+    assert.equal(turn.items.find(item => item.question?.requestId === card.requestId)!.question!.approval, true);
+    const received = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => { connection.copilot.off("update", inspect); reject(new Error("Missing ACP permission reply")); }, 5000);
+      const inspect = () => { if (turn.items.some(item => item.text.includes('"optionId":"session"'))) { clearTimeout(timer); connection.copilot.off("update", inspect); resolve(); } };
+      connection.copilot.on("update", inspect);
+    });
+    conversations.answer(conversation.id, card.turnId, card.requestId, { decision: { answers: ["2. Allow for this session"] } });
+    await received;
     assert.equal(turn.status, "inProgress");
     await assert.rejects(conversations.send({ ...input, reasoningEffort: "low" }, settings), /Stop/);
     await assert.rejects(conversations.send({ ...input, id: conversation.id }, settings), /Stop/);
     const request = { sessionId: conversation.id, toolCall: { toolCallId: "write", kind: "edit" as const, locations: [{ path: path.join(root, "new.txt") }] }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
-    assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "cancelled" } });
+    assert.deepEqual((await resolvePermission(connection, conversations, request)), { outcome: { outcome: "cancelled" } });
     for (const kind of ["read", "search", "edit", "delete", "move", "execute", "fetch"] as const) {
-      const result = connection.copilot.permission!({ ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: log }] } });
+      const result = (await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: log }] } }));
       assert.equal(result.outcome.outcome, kind === "read" || kind === "search" ? "selected" : "cancelled", `read-only ${kind}`);
-      assert.equal(connection.copilot.permission!({ ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: path.join(root, "..", "outside.txt") }] } }).outcome.outcome, "cancelled", `read-only outside ${kind}`);
+      assert.equal((await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: path.join(root, "..", "outside.txt") }] } })).outcome.outcome, "cancelled", `read-only outside ${kind}`);
     }
-    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "cancelled" } });
+    assert.deepEqual((await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: "url", kind: "fetch" } })), { outcome: { outcome: "cancelled" } });
+    const rejectRequest = { ...request, options: [{ optionId: "yes", name: "Allow", kind: "allow_once" as const }, { optionId: "no", name: "Deny", kind: "reject_once" as const }] };
+    const rejection = connection.copilot.permission!(rejectRequest);
+    const rejecting = conversation.userInput!;
+    conversations.answer(conversation.id, rejecting.turnId, rejecting.requestId, { decision: { answers: ["2. Deny"] } });
+    assert.deepEqual(await rejection, { outcome: { outcome: "selected", optionId: "no" } });
+    const cancelled = connection.copilot.permission!(request), expiring = conversation.userInput!;
     await conversations.interrupt(conversation.id);
+    assert.deepEqual(await cancelled, { outcome: { outcome: "cancelled" } });
+    assert.equal(conversation.turns.flatMap(t => t.items).find(i => i.question?.requestId === expiring.requestId)?.question?.status, "expired");
     // A protocol barrier ensures prompt completion is processed, without a timing assumption.
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     assert.equal(turn.status, "interrupted");
     await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
-    assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "selected", optionId: "once" } });
+    assert.deepEqual((await resolvePermission(connection, conversations, request)), { outcome: { outcome: "selected", optionId: "once" } });
     writeFileSync(path.join(root, "target.txt"), "move destination fixture");
     for (const kind of ["read", "search", "edit", "delete", "move", "other", "fetch"] as const) {
       const scoped = { ...request, toolCall: { toolCallId: kind, kind, locations: [{ path: log }, { path: path.join(root, "target.txt") }] } };
-      assert.equal(connection.copilot.permission!(scoped).outcome.outcome, "selected", `opened-folders ${kind}`);
-      assert.equal(connection.copilot.permission!({ ...scoped, toolCall: { ...scoped.toolCall, locations: [...scoped.toolCall.locations, { path: path.join(root, "..", "outside.txt") }] } }).outcome.outcome, "cancelled", `mixed outside locations ${kind}`);
+      assert.equal((await resolvePermission(connection, conversations, scoped)).outcome.outcome, "selected", `opened-folders ${kind}`);
+      assert.equal((await resolvePermission(connection, conversations, { ...scoped, toolCall: { ...scoped.toolCall, locations: [...scoped.toolCall.locations, { path: path.join(root, "..", "outside.txt") }] } })).outcome.outcome, "cancelled", `mixed outside locations ${kind}`);
     }
-    assert.equal(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "shell", kind: "execute", locations: [{ path: log }] } }).outcome.outcome, "cancelled", "even an inside location cannot authorize shell");
-    assert.equal(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "move", kind: "move" } }).outcome.outcome, "cancelled", "a file mutation still needs locations");
-    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { ...request.toolCall, locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "cancelled" } });
-    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "selected", optionId: "once" } });
-    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { toolCallId: "shell", kind: "execute" } }), { outcome: { outcome: "cancelled" } });
+    assert.equal((await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: "shell", kind: "execute", locations: [{ path: log }] } })).outcome.outcome, "cancelled", "even an inside location cannot authorize shell");
+    assert.equal((await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: "move", kind: "move" } })).outcome.outcome, "cancelled", "a file mutation still needs locations");
+    assert.deepEqual((await resolvePermission(connection, conversations, { ...request, toolCall: { ...request.toolCall, locations: [{ path: path.join(root, "..", "outside.txt") }] } })), { outcome: { outcome: "cancelled" } });
+    assert.deepEqual((await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: "url", kind: "fetch" } })), { outcome: { outcome: "selected", optionId: "once" } });
+    assert.deepEqual((await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: "shell", kind: "execute" } })), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     const failedInput = { ...input, id: conversation.id, submissionId: "copilot-prompt-failed", message: "FAIL THIS TURN" };
@@ -146,9 +165,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   await assert.rejects(conversations.send({ ...input, mode: "autopilot" }, settings), /mode/);
   const full = await conversations.send(input, { ...settings, permissionMode: "full-access" });
   const execution = { sessionId: full.id, toolCall: { toolCallId: "shell", kind: "execute" as const }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
-  assert.deepEqual(connection.copilot.permission!(execution), { outcome: { outcome: "selected", optionId: "once" } });
-  assert.deepEqual(connection.copilot.permission!({ ...execution, toolCall: { toolCallId: "outside", kind: "edit", locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "selected", optionId: "once" } });
-  assert.deepEqual(connection.copilot.permission!({ ...execution, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "selected", optionId: "once" } });
+  assert.deepEqual((await resolvePermission(connection, conversations, execution)), { outcome: { outcome: "selected", optionId: "once" } });
+  assert.deepEqual((await resolvePermission(connection, conversations, { ...execution, toolCall: { toolCallId: "outside", kind: "edit", locations: [{ path: path.join(root, "..", "outside.txt") }] } })), { outcome: { outcome: "selected", optionId: "once" } });
+  assert.deepEqual((await resolvePermission(connection, conversations, { ...execution, toolCall: { toolCallId: "url", kind: "fetch" } })), { outcome: { outcome: "selected", optionId: "once" } });
   await conversations.interrupt(full.id);
   // cancel is a notification: wait for the existing RPC barrier before reading child-owned JSONL.
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: full.id, modelId: input.model }));
@@ -158,12 +177,12 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.ok(!launch.args.includes("--disable-builtin-mcps"));
   assert.ok(fullRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "allow_all" && message.params.value === "on"));
   const restricted = await conversations.send({ ...input, id: full.id, permissionMode: "read-only" }, settings);
-  assert.deepEqual(connection.copilot.permission!({ ...execution, sessionId: restricted.id }), { outcome: { outcome: "cancelled" } });
+  assert.deepEqual((await resolvePermission(connection, conversations, { ...execution, sessionId: restricted.id })), { outcome: { outcome: "cancelled" } });
   await conversations.interrupt(restricted.id);
   // Wait for the fixture to finish logging prior requests before reading its JSONL.
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: restricted.id, modelId: input.model }));
   const restrictedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-  assert.ok(restrictedRpc.filter(message => message.args).at(-1).args.includes("--deny-tool=shell"));
+  assert.ok(!restrictedRpc.filter(message => message.args).at(-1).args.includes("--deny-tool=shell"));
   assert.equal(restrictedRpc.filter(message => message.method === "session/set_config_option" && message.params.configId === "allow_all").at(-1).params.value, "off");
   await t.test("CLI history restores A high after B low and after Host restart", async () => {
     const barrier = () => connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: restricted.id, modelId: input.model }));
@@ -635,6 +654,15 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     assert.equal(catalogWithoutFolders.result.success, true);
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
+    await history.interrupt(conversation.id);
+    await history.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings);
+    const outsideFile = path.join(outside, "Full.md");
+    for (const [tool, arguments_] of [["create_document", { ...args, path: outsideFile }], ["read_document", { path: outsideFile }], ["stage_document", { path: outsideFile }]] as const) {
+      const response = await next.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: arguments_ });
+      assert.equal(response.result.success, true, `${tool} outside opened folders in Full access`);
+    }
+    const hostDenied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "read_document", arguments: { path: path.join(root, "..", "outside-host.md") } });
+    assert.equal(hostDenied.result.success, false, "Full access preserves Host roots");
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "close_tabs", "open_folder", "close_folders", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
@@ -867,6 +895,7 @@ test("display requests report absent windows, expire honestly, cancel and reject
 
 test("Codex requirements disable full access; policy rejection retries once before execution and remembers reduced access", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-policy-"));
+  const opened = path.join(root, "opened"); mkdirSync(opened);
   const connection = new ProviderConnections(root, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const original = connection.client.request.bind(connection.client);
@@ -887,7 +916,7 @@ test("Codex requirements disable full access; policy rejection retries once befo
   assert.equal((await connection.models()).fullAccessAllowed, undefined);
   const conversations = new AssistantConversations(connection, null);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
-  const input = { message: "Keep this conversation", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort };
+  const input = { message: "Keep this conversation", folders: [opened], model: settings.model, reasoningEffort: settings.reasoningEffort };
   const conversation = await conversations.send(input, settings);
   await conversations.interrupt(conversation.id);
   const before = conversation.turns.length;
@@ -897,6 +926,15 @@ test("Codex requirements disable full access; policy rejection retries once befo
   assert.equal(retry.permissionMode, "opened-folders");
   assert.equal(retry.permissionFallback, true);
   assert.deepEqual(policies, ["workspaceWrite", "dangerFullAccess", "workspaceWrite"]);
+  const outside = path.join(root, "fallback-outside.md");
+  const create = (file: string) => connection.client.request("fixture/tool", { threadId: retry.id, tool: "create_document", arguments: { path: file, title: "Fallback scope", blocks: [{ type: "paragraph", text: "Policy fallback" }] } });
+  const denied = await create(outside);
+  assert.equal(denied.result.success, false, "fallback Host writes must obey opened-folder scope");
+  assert.equal(JSON.parse(denied.result.contentItems[0].text).errorKind, "forbidden");
+  assert.equal(existsSync(outside), false, "a rejected Full access turn must not create a file outside opened folders");
+  const inside = path.join(opened, "fallback-inside.md");
+  assert.equal((await create(inside)).result.success, true, "fallback keeps legitimate opened-folder Host writes available");
+  assert.equal(existsSync(inside), true);
   await conversations.interrupt(retry.id);
   const restored = await new AssistantConversations(connection, null).resume(retry.id, { ...settings, permissionMode: "full-access" });
   assert.equal(restored.permissionMode, "opened-folders");
@@ -1094,11 +1132,11 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
     assert.equal(receipt.outcome,"failure");assert.equal(errorKind,"conflict");
     assert.equal(recovery.tool,"read_screen_context");
   }
-  const permission = (serverName: string, toolName: string, metadata = true) => connection.copilot.permission!({ sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title: "litzio_host-list_documents", ...(metadata ? { rawInput: { serverName, toolName } } : {}) }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] });
-  assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "selected");
-  assert.equal(permission("foreign", "list_documents").outcome.outcome, "cancelled");
-  assert.equal(permission("litzio_host", "missing_tool").outcome.outcome, "cancelled");
-  assert.equal(permission("litzio_host", "list_documents", false).outcome.outcome, "cancelled", "a matching title alone does not identify a Host tool");
+  const permission = async (serverName: string, toolName: string, metadata = true) => (await resolvePermission(connection, conversations, { sessionId: first.id, toolCall: { toolCallId: "mcp", kind: "other", title: "litzio_host-list_documents", ...(metadata ? { rawInput: { serverName, toolName } } : {}) }, options: [{ optionId: "once", kind: "allow_once", name: "Once" }] }));
+  assert.equal((await permission("litzio_host", "list_documents")).outcome.outcome, "selected");
+  assert.equal((await permission("foreign", "list_documents")).outcome.outcome, "cancelled");
+  assert.equal((await permission("litzio_host", "missing_tool")).outcome.outcome, "cancelled");
+  assert.equal((await permission("litzio_host", "list_documents", false)).outcome.outcome, "cancelled", "a matching title alone does not identify a Host tool");
   const second = await conversations.send({ ...input, folders: [] }, { ...settings, permissionMode: "read-only" });
   const two = await connect(endpoint());
   const noWindow = await two.callTool({ name: "read_screen_context", arguments: {} });
@@ -1113,6 +1151,9 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   assert.equal(readOnlyEdit.isError, true); assert.equal(payload(readOnlyEdit).errorKind, "forbidden");
 
   assert.equal((await one.callTool({ name: "request_litzio_user_input", arguments: {} })).isError, true, "text questions must not create review image approval");
+  const asked = await one.callTool({ name: "request_litzio_user_input", arguments: { questions: [{ title: "Which result?", options: ["Summary", "Details"] }] } });
+  assert.equal(asked.isError, false, "Copilot supports the shared structured question tool over HTTP MCP");
+  assert.ok(first.turns.flatMap(t => t.items).some(item => item.question?.sourceQuestions?.[0]?.title === "Which result?"));
   const endingAction = one.callTool({name: "close_tabs", arguments: {tabIds: "all"}});
   const endingDeadline = Date.now() + 5000;
   while (!conversations.screenActions.snapshot(first.id, "mcp-window-one") && Date.now() < endingDeadline) await new Promise(resolve => setTimeout(resolve, 10));
@@ -1126,7 +1167,7 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
 
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: first.id, modelId: "auto" }));
   await assert.rejects(one.callTool({ name: "list_documents", arguments: { path: root } }), /No authorized active turn/);
-  assert.equal(permission("litzio_host", "list_documents").outcome.outcome, "cancelled");
+  assert.equal((await permission("litzio_host", "list_documents")).outcome.outcome, "cancelled");
   const deadline = Date.now() + 5000;
   while (first.turns.at(-1)?.status === "inProgress" && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
   assert.notEqual(first.turns.at(-1)?.status, "inProgress");
@@ -1141,7 +1182,7 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   assert.equal((await one.callTool({ name: "invoke_plugin_operation", arguments: { operation: "fixture.read", input: {} } })).isError, false, "the original endpoint serves the new admitted turn");
   assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, true, "the new turn cannot inherit earlier folders");
   assert.equal((await one.callTool({ name: "edit_staged_document", arguments: editInput })).isError, true, "the new turn cannot inherit write access");
-  assert.ok(rows().find(row => row.args)?.args.includes("--deny-tool=shell"));
+  assert.ok(!rows().find(row => row.args)?.args.includes("--deny-tool=shell"));
   assert.ok(rows().find(row => row.args)?.args.includes("--allow-tool=litzio_host"));
   assert.ok(rows().filter(row => row.args).every(row => !row.args.includes("--disable-builtin-mcps")));
   await conversations.interrupt(first.id); await conversations.interrupt(second.id);
@@ -1190,3 +1231,58 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   await assert.rejects(conversations.resume(second.id, settings), /fixture resume setup failure/);
   assert.equal((await fetch(failedUrl, { method: "POST" })).status, 403);
 });
+
+
+test("Codex approvals forward card answers to the provider RPC", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ai-approval-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
+  const conversations = new AssistantConversations(connection, null);
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const c = await conversations.send({ message: "Approve", folders: [root], model: settings.model, reasoningEffort: "medium" }, settings);
+  const cases = [
+    ["item/commandExecution/requestApproval", "Allow once", { decision: "accept" }],
+    ["item/commandExecution/requestApproval", "Allow for this session", { decision: "acceptForSession" }],
+    ["item/fileChange/requestApproval", "Reject", { decision: "decline" }],
+    ["mcpServer/elicitation/request", "Allow once", { action: "accept", content: {}, _meta: null }],
+    ["mcpServer/elicitation/request", "Reject", { action: "decline", content: null, _meta: null }],
+  ] as const;
+  for (const [index, [method, label, result]] of cases.entries()) {
+    const requestId = `approval-${index}`;
+    await connection.client.request("fixture/approval", { threadId: c.id, requestId, method, input: { command: "read outside.txt", mode: "form", message: "Continue?", requestedSchema: { type: "object", properties: {} } } });
+    assert.equal(c.userInput?.requestId, requestId);
+    assert.equal(c.turns.at(-1)!.items.find(item => item.question?.requestId === requestId)!.question!.approval, !method.includes("elicitation"));
+    conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { decision: { answers: [label] } });
+    assert.throws(() => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { decision: { answers: [label] } }), /expired/);
+    await connection.client.request("notify");
+    assert.deepEqual(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(row => row.id === requestId).result, result);
+  }
+  const ask = (requestId: string | number, input = {}) => connection.client.request("fixture/approval", { threadId: c.id, requestId, method: "mcpServer/elicitation/request", input: { mode: "form", requestedSchema: { type: "object", properties: { value: { type: "integer" } }, required: ["value"] }, ...input } });
+  await ask("form");
+  const answer = (requestId: string | number, text: string) => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { decision: { answers: [text] } });
+  assert.throws(() => answer("form", "Allow once"), /JSON/);
+  assert.equal(c.userInput?.requestId, "form", "invalid form input leaves the RPC answerable");
+  answer("form", '{"value":7}');
+  await connection.client.request("notify");
+  assert.deepEqual(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(row => row.id === "form").result.content, { value: 7 });
+  await ask(0); await ask("0");
+  answer("0", "Reject");
+  assert.equal(c.userInput?.requestId, 0, "parallel typed request IDs remain independent");
+  await connection.client.request("fixture/resolved", { threadId: c.id, requestId: 0 });
+  assert.throws(() => answer(0, "Reject"), /expired/);
+  await ask("ended");
+  await connection.client.request("fixture/finish", { threadId: c.id });
+  assert.throws(() => answer("ended", "Reject"), /expired/);
+
+});
+
+
+async function resolvePermission(connection: ProviderConnections, conversations: AssistantConversations, request: Parameters<NonNullable<ProviderConnections["copilot"]["permission"]>>[0]) {
+  const result = connection.copilot.permission!(request);
+  if (result instanceof Promise) {
+    const conversation = conversations.current(request.sessionId), question = conversation.turns.flatMap(t => t.items).findLast(item => item.question?.status === "pending")!.question!;
+    assert.ok(question, "out-of-scope access must ask instead of silently rejecting");
+    conversations.answer(conversation.id, question.turnId, question.requestId, { decision: { answers: ["Reject"] } });
+  }
+  return result;
+}
