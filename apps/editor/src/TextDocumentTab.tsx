@@ -115,7 +115,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
     observeRevision(next: string | null, expected: string) {
       if (!input.current?.isConnected || pathRef.current !== openedPath || revision.current !== expected || busyRef.current) return;
       setExternalRevision(next);
-      if (next !== revision.current && next !== externalRevision && !dirty()) void load(pathRef.current, true);
+      if (next !== null && next !== revision.current && next !== externalRevision && !dirty()) void load(pathRef.current, true);
     },
     openedPath, documentDirty, draftActive: false, draftNotice: "", assetPending: false,
     isCurrent: () => Boolean(input.current?.isConnected),

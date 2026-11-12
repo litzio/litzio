@@ -111,12 +111,35 @@ async (page, { openPath, activeDocument, removeTabFixture, screenshots, expect }
     await page.clock.fastForward(2100);
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   };
+  // Missing paths (including a rename) notify without attempting a failing Reload.
+  const missingPath = async () => {
+    let reads = 0;
+    const countRead = request => { if (request.method() === 'GET' && request.url().includes('/api/document?')) reads++; };
+    page.on('request', countRead);
+    try {
+      removeTabFixture();
+      await detect();
+      await page.getByTestId('external-change').waitFor();
+      await expect(page.getByRole('dialog', { name: 'Reloading…', exact: true })).toBeHidden();
+      check(reads === 0, 'A missing path triggered automatic Reload');
+    } finally { page.off('request', countRead); }
+  };
+  await missingPath();
+  await expect(activeDocument(page)).toContainText('Focus disk change.');
+  removeTabFixture(disk.source + '\nRestored native content.\n');
+  await detect();
+  await activeDocument(page).getByText('Restored native content.', { exact: true }).waitFor();
   removeTabFixture('Plain disk text.');
   await detect();
   await expect(page.getByTestId('plain-markdown')).toContainText('Plain disk text.');
   removeTabFixture('New plain disk text.');
   await detect();
   await expect(page.getByTestId('plain-markdown')).toContainText('New plain disk text.');
+  await missingPath();
+  await expect(page.getByTestId('plain-markdown')).toContainText('New plain disk text.');
+  removeTabFixture('Restored plain text.');
+  await detect();
+  await expect(page.getByTestId('plain-markdown')).toContainText('Restored plain text.');
   await page.getByTestId('view-visual').click();
   const input = page.getByTestId('text-editor');
   await input.fill('Keep local text.');

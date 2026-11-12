@@ -385,7 +385,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     observeRevision(revision: string | null, expected: string) {
       if (!isCurrent() || openedPathRef.current !== openedPath || sourceRevision.current !== expected || busyRef.current) return;
       setExternalRevision(revision);
-      if (revision !== sourceRevision.current && revision !== externalRevision && editorRef.current && !editorRef.current.hasUnsavedChanges()) {
+      if (revision !== null && revision !== sourceRevision.current && revision !== externalRevision && editorRef.current && !editorRef.current.hasUnsavedChanges()) {
         void reloadFromDisk(true);
       }
     },
