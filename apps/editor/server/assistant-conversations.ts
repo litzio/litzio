@@ -1,3 +1,4 @@
+import { codexApproval } from "./assistant-approvals.ts";
 import { assistantToolFailure, assistantToolResult } from "./assistant-tool-results.ts";
 import { AgentScreenActionRequests, screenActionTools } from "./assistant-screen-action-tools.ts";
 import { AssistantMcp, type HostToolCall, type HostToolResult } from "./assistant-mcp.ts";
@@ -16,7 +17,7 @@ import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
 import { listFolder } from "./document-api.ts";
 import { AssistantChanges } from "./assistant-changes.ts";
-import { documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
+import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption } from "./copilot-acp.ts";
@@ -73,6 +74,9 @@ export class AssistantConversations {
   }
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
+  private validators = new Map<string, (answers: AssistantUserInputAnswers) => unknown>();
+  private cancellations = new Map<string, () => void>();
+  private answerKey(id: string, turnId: string, requestId: string | number) { return JSON.stringify([id, turnId, typeof requestId, requestId]); }
   private closed = false;
   private reviewUsageWrites = new Set<Promise<unknown>>();
   private loaded = new Set<string>();
@@ -89,7 +93,7 @@ export class AssistantConversations {
     connection.copilot.permission = request => this.copilotPermission(request);
     connection.client.userInput = (requestId, params, respond) => {
       const conversation = this.conversations.get(params?.threadId);
-      if (!conversation?.turns.some(turn => turn.id === params.turnId && turn.status === "inProgress") || this.answers.has(conversation.id) ||
+      if (!conversation?.turns.some(turn => turn.id === params.turnId && turn.status === "inProgress") || this.answers.has(this.answerKey(conversation.id, params.turnId, requestId)) ||
         !Array.isArray(params.questions) || !params.questions.length || params.questions.some((q: any) =>
           typeof q.id !== "string" || typeof q.header !== "string" || typeof q.question !== "string" ||
           typeof q.isOther !== "boolean" || typeof q.isSecret !== "boolean" ||
@@ -97,8 +101,14 @@ export class AssistantConversations {
         new Set(params.questions.map((q: any) => q.id)).size !== params.questions.length) throw new Error("Invalid or inactive question.");
       const question: AssistantQuestionRecord = { requestId, turnId: params.turnId, questions: params.questions, delivery: "blocking", status: "pending" };
       conversation.turns.find(turn => turn.id === params.turnId)!.items.push({ id: `question-${typeof requestId}-${requestId}`, kind: "question", text: "", question });
-      this.answers.set(conversation.id, respond);
+      this.answers.set(this.answerKey(conversation.id, params.turnId, requestId), respond);
       this.refreshQuestion(conversation); this.save(conversation);
+    };
+    connection.client.approval = (requestId, method, params, respond) => {
+      const conversation = this.current(params.threadId);
+      const turnId = params.turnId ?? [...conversation.turns].reverse().find(t => t.status === "inProgress")?.id;
+      const approval = codexApproval(method, params);
+      this.blockingCard(conversation.id, turnId, requestId, approval.questions, answers => respond(approval.result(answers)), () => respond(approval.cancel), approval.result, approval.immediate);
     };
     connection.client.toolCall = params => this.executeTool(params);
     connection.client.on("notification", (method, params) => this.notification(method, params));
@@ -118,7 +128,6 @@ export class AssistantConversations {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (this.closed || !scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw Object.assign(new Error("No authorized active turn for this tool call."),{errorKind:"forbidden"});
-      if (params.tool === questionTool.name && this.current(params.threadId).provider === "copilot") throw new Error("Copilot question cards are unavailable. Ask in ordinary text.");
       if (params.tool === questionTool.name) return this.requestQuestion(this.current(params.threadId), active, params.callId, params.arguments);
       if (params.tool === "invoke_plugin_operation" && this.plugins) {
         const result = await executePluginOperationTool(this.plugins, params.arguments, scope);
@@ -286,7 +295,7 @@ export class AssistantConversations {
       } catch (error) { this.mcp.revokeConversation(id); throw error; }
     }
     const result = await this.connection.client.request("thread/resume", { threadId: id, cwd: this.connection.cwd,
-      approvalPolicy: "never", sandbox: "read-only", excludeTurns: true });
+      approvalPolicy: settings.permissionMode === "full-access" ? "never" : "on-request", sandbox: "read-only", excludeTurns: true });
     // Codex uses paginated histories; hydrate full turns rather than only the latest page.
     const turns: any[] = []; let cursor: string | null = null;
     do {
@@ -351,7 +360,7 @@ export class AssistantConversations {
       }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
-          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: this.tools });
+          approvalPolicy: settings.permissionMode === "full-access" ? "never" : "on-request", sandbox: "read-only", ephemeral: false, dynamicTools: this.tools });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
@@ -370,14 +379,14 @@ export class AssistantConversations {
       } else {
         if (input.permissionMode !== undefined && input.permissionMode !== conversation.permissionMode) delete conversation.permissionFallback;
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
-        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient });
+        this.scopes.set(conversation.id, { folders: documentFolders(folders, settings.permissionMode, this.access), permissionMode: settings.permissionMode, access: this.access, displayClient });
         const writableRoots = [...folders];
         if (settings.permissionMode === "opened-folders" && this.plugins) {
           const directory = this.plugins.authoringPath();
           if (directory) writableRoots.push(directory);
         }
         const start = () => this.connection.client.request("turn/start", { threadId: conversation!.id, input: messages,
-          cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
+          cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: settings.permissionMode === "full-access" ? "never" : "on-request",
           sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots,
             networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
         const turnsBeforeStart = conversation.turns.length;
@@ -389,7 +398,11 @@ export class AssistantConversations {
           settings = { ...settings, permissionMode: "opened-folders" };
           conversation.permissionMode = "opened-folders";
           conversation.permissionFallback = true;
-          const scope = this.scopes.get(conversation.id); if (scope) scope.permissionMode = "opened-folders";
+          const scope = this.scopes.get(conversation.id);
+          if (scope) {
+            scope.permissionMode = "opened-folders";
+            scope.folders = documentFolders(folders, "opened-folders", this.access);
+          }
           if (this.plugins) { const directory = this.plugins.authoringPath(); if (directory) writableRoots.push(directory); }
           this.save(conversation);
           result = await start();
@@ -423,17 +436,21 @@ export class AssistantConversations {
   async close() {
     for(const conversation of this.conversations.values())for(const turn of conversation.turns)this.saveReviewUsage(conversation,turn);
     this.closed = true;
+    for (const conversation of this.conversations.values()) this.expireQuestion(conversation);
     this.mcp.close();
     this.screen.cancel(); this.screenActions.cancel(); this.display.cancel();
     await Promise.allSettled(this.reviewUsageWrites);
   }
-  private expireQuestion(conversation: AssistantConversation, turnId?: string) {
+  private expireQuestion(conversation: AssistantConversation, turnId?: string, requestId?: string | number) {
     let changed = false;
     for (const item of conversation.turns.flatMap(turn => turn.items)) {
       const q = item.question;
-      if (q?.status !== "pending" || q.delivery !== "blocking" || turnId !== undefined && q.turnId !== turnId) continue;
+      if (q?.status !== "pending" || q.delivery !== "blocking" || turnId !== undefined && q.turnId !== turnId || requestId !== undefined && q.requestId !== requestId) continue;
       q.status = "expired"; changed = true;
-      if (q.delivery === "blocking") this.answers.delete(conversation.id);
+      const key = this.answerKey(conversation.id, q.turnId, q.requestId);
+      this.answers.delete(key);
+      try { this.cancellations.get(key)?.(); } catch { /* Provider already disconnected. */ }
+      this.cancellations.delete(key); this.validators.delete(key);
     }
     this.refreshQuestion(conversation);
     return changed;
@@ -443,13 +460,14 @@ export class AssistantConversations {
   }
   answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers, displayClient?: string) {
     const conversation = this.current(id), question = conversation.turns.find(turn => turn.id === turnId)?.items.find(item => item.question?.requestId === requestId)?.question;
-    const respond = this.answers.get(id);
+    const key = this.answerKey(id, turnId, requestId), respond = this.answers.get(key);
     if (!question || question.status !== "pending" || question.delivery === "blocking" && !respond) throw new Error("Question expired.");
     if (!validQuestionAnswers(question, answers)) throw new Error("Invalid question answers.");
     if (question.delivery === "async") return this.answerAsync(conversation, question, answers, displayClient);
+    this.validators.get(key)?.(answers);
     question.status = "answered";
     question.answers = recordedAnswers(question, answers);
-    this.answers.delete(id); this.refreshQuestion(conversation);
+    this.answers.delete(key); this.cancellations.delete(key); this.validators.delete(key); this.refreshQuestion(conversation);
     try { respond!(answers); this.save(conversation); }
     catch (error) { question.status = "unknown"; question.error = (error as Error).message; throw error; }
     return conversation;
@@ -461,7 +479,7 @@ export class AssistantConversations {
       const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
       await this.send({ id: conversation.id, message, folders: conversation.folders, model: conversation.model, reasoningEffort: conversation.reasoningEffort },
         { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort }, displayClient);
-      question.status = "answered"; this.save(conversation);
+    question.status = "answered"; this.save(conversation);
       return conversation;
     } catch (error) {
       question.status = "unknown"; question.error = (error as Error).message;
@@ -558,7 +576,7 @@ export class AssistantConversations {
       conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
       conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
       lease.turnId = turn.id;
-      this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, displayClient });
+      this.scopes.set(id, { folders: documentFolders(folders, settings.permissionMode, this.access), access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, displayClient });
       this.save(conversation);
       // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
       const failedPrompt = (message: string) => {
@@ -566,7 +584,7 @@ export class AssistantConversations {
         const receipt = input.submissionId ? this.submissions.get(input.submissionId)?.receipt : undefined;
         if (receipt) { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = message; }
       };
-      void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nThis Copilot ACP connection does not support interactive question cards or async question tools. Do not claim a question was accepted. Ask in ordinary text and let the user reply after the response ends.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
+      void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUse request_litzio_user_input through the Litzio Host MCP server for structured questions. Native ACP question extensions are not supported.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
         if (turn.status === "inProgress") {
           turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
           if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
@@ -591,7 +609,17 @@ export class AssistantConversations {
     if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
     await acp.useLaunchSettings(effort, fullAccess);
   }
-  private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse {
+  private blockingCard(id: string, turnId: string, requestId: string | number, questions: AssistantQuestionRecord["questions"], respond: (answers: AssistantUserInputAnswers) => void, cancel: () => void, validate?: (answers: AssistantUserInputAnswers) => unknown, approval = true) {
+    const conversation = this.current(id), turn = conversation.turns.find(t => t.id === turnId && t.status === "inProgress");
+    const key = this.answerKey(id, turnId, requestId);
+    if (!turn || this.answers.has(key)) throw new Error("Invalid or inactive approval request.");
+    const question: AssistantQuestionRecord = { requestId, turnId, questions, delivery: "blocking", status: "pending", approval };
+    turn.items.push({ id: `approval-${typeof requestId}-${requestId}`, kind: "question", text: "", question });
+    this.answers.set(key, respond); this.cancellations.set(key, cancel);
+    if (validate) this.validators.set(key, validate);
+    this.refreshQuestion(conversation); this.save(conversation);
+  }
+  private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse | Promise<RequestPermissionResponse> {
     const scope = this.scopes.get(request.sessionId), tool = request.toolCall;
     const active = this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
     const reading = tool.kind === "read" || tool.kind === "search";
@@ -607,7 +635,17 @@ export class AssistantConversations {
     const network = !!scope && !!active && scope.permissionMode === "opened-folders" && tool.kind === "fetch" && !tool.locations?.length;
     const hostTool = !!scope && !!active && tool.kind !== "execute" && this.mcp.permission(request.sessionId, tool.rawInput);
     const option = allowed || network || fullAccess || hostTool ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
-    return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } };
+    if (option) return { outcome: { outcome: "selected", optionId: option.optionId } };
+    if (!active) return { outcome: { outcome: "cancelled" } };
+    return new Promise(resolve => {
+      const choices: { label: string; description: string }[] = request.options.map((option, index) => ({ label: `${index + 1}. ${option.name}`, description: "" }));
+      choices.push({ label: "Reject", description: "" });
+      this.blockingCard(request.sessionId, scope!.turnId!, `approval-${randomUUID()}`, [{ id: "decision", header: "Permission request", question: [tool.title, ...(tool.locations ?? []).map(location => location.path)].filter(Boolean).join("\n"), isOther: false, isSecret: false, options: choices }], answers => {
+        const selected = choices.findIndex(choice => choice.label === answers.decision!.answers[0]);
+        const option = request.options[selected];
+        resolve(option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } });
+      }, () => resolve({ outcome: { outcome: "cancelled" } }));
+    });
   }
   private copilotUpdate({ sessionId, update }: SessionNotification) {
     const conversation = this.conversations.get(sessionId); if (!conversation || conversation.provider !== "copilot") return;
@@ -642,7 +680,7 @@ export class AssistantConversations {
   }
   private saveReviewUsage(conversation:AssistantConversation,turn:AssistantConversationTurn) {
     if(this.closed || !this.plugins)return;
-    const scope=this.scopes.get(conversation.id) ?? {folders:conversation.folders.length?new RootAccess(conversation.folders):null,permissionMode:conversation.permissionMode??"read-only",access:this.access};
+    const scope=this.scopes.get(conversation.id) ?? {folders:documentFolders(conversation.folders,conversation.permissionMode??"read-only",this.access),permissionMode:conversation.permissionMode??"read-only",access:this.access};
     const inputs=turn.items.filter(item=>item.id.startsWith("review-image-")).flatMap(item=>{
       const part=item.toolResult!.contentItems[0]!,input=JSON.parse(part.text!);
       if(!input.providerUsage)return [];
@@ -672,7 +710,8 @@ export class AssistantConversations {
     const conversation = this.conversations.get(params.threadId);
     if (!conversation) return;
     if (method === "serverRequest/resolved") {
-      if (conversation.userInput?.requestId === params.requestId && this.expireQuestion(conversation)) this.save(conversation);
+      for (const q of conversation.turns.flatMap(t => t.items).map(i => i.question)) if (q && q.requestId === params.requestId) this.cancellations.delete(this.answerKey(conversation.id, q.turnId, q.requestId));
+      if (this.expireQuestion(conversation, undefined, params.requestId)) this.save(conversation);
       return;
     }
     if (method === "thread/tokenUsage/updated") {

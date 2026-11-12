@@ -43,7 +43,12 @@ createInterface({ input: process.stdin }).on("line", line => {
   if (method === "fixture/tool") {
     const callId = randomUUID(), turn = threads[params.threadId].turns.at(-1);
     toolPending.set(callId, { id, params });
-    send({ id: callId, method: params.method === "unsupported" ? "item/commandExecution/requestApproval" : "item/tool/call", params: { ...params, namespace: null, turnId: params.turnId ?? turn.id, callId } }); return;
+    send({ id: callId, method: params.method === "unsupported" ? "unsupported/request" : "item/tool/call", params: { ...params, namespace: null, turnId: params.turnId ?? turn.id, callId } }); return;
+  }
+  if (method === "fixture/approval") {
+    const turn = threads[params.threadId].turns.at(-1);
+    send({ id: params.requestId, method: params.method, params: { threadId: params.threadId, turnId: turn.id, ...params.input } });
+    send({ id, result: {} }); return;
   }
   if (method === "fixture/question") {
     const turn = threads[params.threadId].turns.at(-1);

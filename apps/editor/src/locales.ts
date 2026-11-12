@@ -394,7 +394,7 @@ export const en = {
   "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.",
   "Model, reasoning effort and mode changes apply to the next message.": "Model, reasoning effort and mode changes apply to the next message.",
   "Current model reasoning effort: {{value}}.": "Current model reasoning effort: {{value}}.",
-  "Full access removes the sandbox and automatically approves tools, paths and network access. Requested document edits wait for review.": "Read-only blocks file writes and network access. Opened folders allows network access and writes inside opened folders and Host Roots. OS temporary write exceptions remain disabled. Copilot denies shell requests but has no OS sandbox; inherited preauthorizations may bypass mediation. Full access removes the Codex sandbox and approves tools, paths and network access. Requested document edits wait for review. Copilot requires Full access to edit existing documents; use Codex in Opened folders.",
+  "Opened folders allows folder edits and network access; Read-only allows reads. Provider requests beyond these defaults ask for approval. Full access automatically approves provider tools and allows Host tools outside opened folders, within Host roots. Document edits wait for review.": "Opened folders allows folder edits and network access; Read-only allows reads. Provider requests beyond these defaults ask for approval. Full access automatically approves provider tools and allows Host tools outside opened folders, within Host roots. Document edits wait for review.",
 
   "{{name}} settings": "{{name}} settings",
   "Copilot diagnostics": "Copilot diagnostics",
@@ -407,6 +407,12 @@ export const en = {
   "Could not load some skills.": "Could not load some skills.",
   "No matching skills.": "No matching skills.",
 
+  "Permission request": "Permission request",
+  "MCP request": "MCP request",
+  "Allow": "Allow",
+  "Allow once": "Allow once",
+  "Allow for this session": "Allow for this session",
+  "Reject": "Reject",
   "Write another answer": "Write another answer",
   "Your answer": "Your answer",
   "Submit answers": "Submit answers",
@@ -1751,7 +1757,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI 추론 강도는 대화마다 고정됩니다. 강도를 바꾸려면 새 대화를 시작하세요.",
   "Model, reasoning effort and mode changes apply to the next message.": "모델·추론 강도·모드 변경은 다음 메시지에 적용됩니다.",
   "Current model reasoning effort: {{value}}.": "현재 모델의 추론 강도: {{value}}.",
-  "Full access removes the sandbox and automatically approves tools, paths and network access. Requested document edits wait for review.": "읽기 전용은 파일 쓰기와 네트워크를 차단합니다. 열린 폴더는 네트워크와 열린 폴더·Host Root 안 쓰기를 허용하며 OS 임시 폴더 쓰기 예외는 허용하지 않습니다. Copilot은 셸 요청을 거부하지만 OS sandbox가 없어 기존 사전 승인이 중재를 우회할 수 있습니다. 전체 접근은 Codex sandbox를 해제하고 도구·경로·네트워크를 승인합니다. 요청한 문서 수정은 검토 후 적용합니다. Copilot에서 기존 문서를 수정하려면 전체 접근을 선택하거나 열린 폴더 권한의 Codex를 사용하세요.",
+  "Opened folders allows folder edits and network access; Read-only allows reads. Provider requests beyond these defaults ask for approval. Full access automatically approves provider tools and allows Host tools outside opened folders, within Host roots. Document edits wait for review.": "열린 폴더는 폴더 편집과 네트워크를, 읽기 전용은 읽기를 허용합니다. 이 기본 범위를 넘는 공급자 요청은 승인을 묻습니다. 전체 접근은 공급자 도구를 자동 허용하고 Host 도구도 Host 허용 경로 안에서 열린 폴더 밖에 접근합니다. 문서 편집은 검토를 기다립니다.",
 
   "{{name}} settings": "{{name}} 설정",
   "Copilot diagnostics": "Copilot 진단",
@@ -1764,6 +1770,12 @@ export const ko: Record<keyof typeof en, string> = {
   "Could not load some skills.": "일부 스킬을 불러오지 못했습니다.",
   "No matching skills.": "일치하는 스킬이 없습니다.",
 
+  "Permission request": "권한 요청",
+  "MCP request": "MCP 요청",
+  "Allow": "허용",
+  "Allow once": "이번만 허용",
+  "Allow for this session": "이번 세션 동안 허용",
+  "Reject": "거절",
   "Write another answer": "직접 입력",
   "Your answer": "답변",
   "Submit answers": "답변 제출",

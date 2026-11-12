@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { executeReviewAssistantTool, executeReadReviewDocument, reviewAssistantTools } from "../server/assistant-plugin-tools.ts";
 import { AssistantConversations, conversationForDisplay } from "../server/assistant-conversations.ts";
+import { documentFolders } from "../server/assistant-document-tools.ts";
 import { RootAccess } from "../server/file-access.ts";
 
 test("text inspection requires material actually delivered at the current revision across turns", async () => {
@@ -28,6 +29,11 @@ test("text inspection requires material actually delivered at the current revisi
         material:{pages:[1,2],items:[{self_ref:"target-1"}]},ledger:{inventory:{pages:[1,2,3],targets:["target-1"],requiredChecks:[]},groups:[],inspections:[],comparisons}};
     }}};
     const invoke=(name:string,args:any,turn=scope,callId?:string)=>executeReviewAssistantTool(host,name,{path:"a.docling",...args},turn,[],callId);
+    const opened=path.join(root,"opened"); mkdirSync(opened);
+    const full={folders:documentFolders([opened],"full-access",new RootAccess([root])),permissionMode:"full-access",access:new RootAccess([root])};
+    const outsideRead=await executeReadReviewDocument(host,{path:path.join(root,"a.docling")},full);
+    assert.equal(outsideRead.documentRevision,documentRevision,"Full access reads review workspaces outside opened folders");
+    await assert.rejects(executeReadReviewDocument(host,{path:path.join(root,"a.docling")},{...full,permissionMode:"opened-folders",folders:documentFolders([opened],"opened-folders",full.access)}),/Full access/);
     const record={lens:"text",contentRevision:"c".repeat(64),scope:{pages:[1],targets:[]},state:"no-issue",evidence:"Read actual page"};
     await executeReadReviewDocument(host,{path:"a.docling"},scope);
     await assert.rejects(invoke("record_review_inspection",{records:[record]}),/Read page material/);
@@ -60,7 +66,7 @@ test("text inspection requires material actually delivered at the current revisi
     const requestId=/requestId: ([a-f0-9-]{36})/.exec(uncertain)![1];await invoke("read_review_request_status",{requestId});
     await assert.rejects(invoke("record_review_inspection",{records:[record]},{...scope,permissionMode:"read-only"}),/Opened folders/);
     ambiguous=true;await assert.rejects(invoke("read_review_material",{kind:"page",pageNo:1}),/Ambiguous.*Candidates:.*other/);ambiguous=false;
-    await assert.rejects(invoke("read_review_material",{kind:"page",pageNo:1,path:path.join(root,"..","outside.docling")}),/No review workspace found/);
+    await assert.rejects(invoke("read_review_material",{kind:"page",pageNo:1,path:path.join(root,"..","outside.docling")}),/outside the allowed folders/);
     const discovered=await invoke("find_review_workspaces",{});assert.equal(discovered.targets.length,1);
     await executeReadReviewDocument(host,{path:path.join(root,"a.docling")},scope);
     const resumedRead=await executeReadReviewDocument(host,location,scope);
