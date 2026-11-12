@@ -1365,15 +1365,19 @@ test("Copilot recovery preserves active prompts and never replays timed out requ
   await disconnected;
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   assert.notEqual((await acp.catalog()).sessionId, first.sessionId);
-  const beforeStreamLoss = await acp.catalog();
-  // Inject an OS pipe error at the Node stream boundary; Windows retains the
-  // child's stdout handle until process exit even if the fixture closes fd 1.
-  const streamLost = new Promise(resolve => acp.once("disconnected", resolve));
-  const interrupted = acp.call(() => new Promise<never>(() => {}));
-  (acp as unknown as { child: import("node:child_process").ChildProcessWithoutNullStreams }).child.stdin.emit("error", new Error("Fixture pipe failure"));
-  await assert.rejects(interrupted, /Fixture pipe failure/);
-  await streamLost;
-  assert.notEqual((await acp.catalog()).sessionId, beforeStreamLoss.sessionId);
+  for (const pipe of ["stdin", "stdout"] as const) {
+    const beforeStreamLoss = await acp.catalog();
+    // Inject OS pipe errors at the Node stream boundary. The fake child still
+    // owns a real ACP connection, and the next catalog must use a new child.
+    const streamLost = new Promise(resolve => acp.once("disconnected", resolve));
+    const interrupted = acp.call(() => new Promise<never>(() => {}));
+    const child = (acp as unknown as { child: import("node:child_process").ChildProcessWithoutNullStreams }).child;
+    if (pipe === "stdout") child.stdout.destroy(new Error("Fixture pipe failure"));
+    else child.stdin.emit("error", new Error("Fixture pipe failure"));
+    await assert.rejects(interrupted, /Fixture pipe failure/);
+    await streamLost;
+    assert.notEqual((await acp.catalog()).sessionId, beforeStreamLoss.sessionId);
+  }
   const conversations = new AssistantConversations(connection, new RootAccess([root]));
   const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
   const input = { message: "Wait for cancellation", folders: [], model: "auto", reasoningEffort: "medium" };

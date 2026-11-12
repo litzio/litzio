@@ -45,6 +45,13 @@ export class CopilotAcp extends EventEmitter {
       { cwd: this.cwd, env: this.options.env?.() ?? process.env, shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     child.stderr.on("data", () => {});
+    // SDK 0.17's NDJSON reader does not catch input read errors. End its input
+    // after reporting the Node pipe error below, so transport loss is recoverable.
+    const reader = (Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>).getReader();
+    const input = new ReadableStream<Uint8Array>({ async pull(controller) {
+      try { const { done, value } = await reader.read(); if (done) controller.close(); else controller.enqueue(value); }
+      catch { controller.close(); }
+    } });
     const connection = new ClientSideConnection(() => ({
       requestPermission: async request => this.permission?.(request) ?? { outcome: { outcome: "cancelled" } },
       sessionUpdate: async params => {
@@ -53,7 +60,7 @@ export class CopilotAcp extends EventEmitter {
         if (session && update.sessionUpdate === "current_mode_update" && session.modes) session.modes.currentModeId = update.currentModeId;
         this.emit("update", params);
       },
-    }), ndJsonStream(Writable.toWeb(child.stdin) as WritableStream<Uint8Array>, Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>));
+    }), ndJsonStream(Writable.toWeb(child.stdin) as WritableStream<Uint8Array>, input));
     let initialized = false;
     const disconnected = (message: string) => {
       if (this.child !== child) return;
@@ -65,6 +72,7 @@ export class CopilotAcp extends EventEmitter {
     };
     child.on("error", error => disconnected(error.message));
     child.stdin.on("error", error => disconnected(error.message));
+    child.stdout.on("error", error => disconnected(error.message));
     child.once("exit", (code, signal) => disconnected(`Copilot ACP exited (code ${code}, signal ${signal}).`));
     child.once("close", (code, signal) => disconnected(`Copilot ACP exited (code ${code}, signal ${signal}).`));
     void connection.closed.then(() => disconnected(`Copilot ACP stream closed (code ${child.exitCode}, signal ${child.signalCode}).`));
