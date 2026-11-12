@@ -16,7 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { _electron as electron, type Page } from "@playwright/test";
+import { _electron as electron, expect, type Page } from "@playwright/test";
 import { RELEASE_REPOSITORY } from "../../src/update-policy.ts";
 import { readUpdateInfo } from "../../scripts/verify-release.ts";
 import { readPreferences, writePreferences } from "../../src/preferences.ts";
@@ -555,9 +555,28 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     await page.getByRole("button", { name: "About & updates", exact: true }).click();
     assert.equal(await page.getByTestId("app-version").innerText(), published);
     assert.equal(await page.getByRole("radio", { name: /^Stable/ }).isChecked(), true, "public Stable starts on Stable");
-    // A Stable user opts into Beta before installing a Beta candidate.
-    await page.getByRole("radio", { name: /^Beta/ }).check();
-    assert.equal(await page.getByRole("radio", { name: /^Beta/ }).isChecked(), true);
+    // The controlled radio reflects the channel only after the save/check IPC returns.
+    const betaRadio = page.getByRole("radio", { name: /^Beta/ });
+    await betaRadio.click();
+    try {
+      await expect(betaRadio).toBeChecked();
+    } catch (error) {
+      const screen = await page.evaluate(() => ({
+        updateStatus: document.querySelector('[data-testid="update-status"]')?.textContent,
+        errors: [...document.querySelectorAll('[data-testid="update-problem"], [role="alert"]')]
+          .filter(node => node.getClientRects().length > 0).map(node => node.textContent),
+        radios: [...document.querySelectorAll<HTMLInputElement>('input[name="release-channel"]')]
+          .map(node => ({ value: node.value, checked: node.checked, disabled: node.matches(":disabled") })),
+      })).catch(cause => ({ unavailable: String(cause) }));
+      let desktopLog: string;
+      try {
+        desktopLog = readFileSync(path.join(appData, "logs/desktop.log"), "utf8").split(/\r?\n/).slice(-80).join("\n");
+      } catch { desktopLog = "desktop.log unavailable"; }
+      const diagnostic = `${String(error)}\nChannel selection: ${JSON.stringify(screen)}\ndesktop.log (tail):\n${desktopLog}`
+        .replaceAll(os.homedir(), "<user-home>")
+        .replace(/([A-Z]:[\\/]+Users[\\/]+)[^\\/\s"']+/gi, "$1<user>");
+      throw new Error(diagnostic);
+    }
     await page.waitForFunction(() => window.litzioDesktop?.info().then(info => info.channel === "beta"));
     await oldApp.close(); oldApp = undefined;
     const canary = path.join(appData, "published-update-canary.txt");
