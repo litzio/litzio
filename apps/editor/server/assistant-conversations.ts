@@ -829,7 +829,7 @@ function itemFrom(item: any, userMessageSource: AssistantConversationItem["userM
   if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
   if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };
   if (item.type === "plan") return { id: item.id, kind: "plan", text: item.text };
-  if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: item.status, work: { kind: "execute", ...boundedWork(item.aggregatedOutput ?? "") } };
+  if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: typeof item.exitCode === "number" && item.exitCode !== 0 ? "failed" : item.status, work: { kind: "execute", ...boundedWork(item.aggregatedOutput ?? "") } };
   if (item.type === "mcpToolCall") return { id: item.id, kind: "tool", text: `${item.server} · ${item.tool}`, status: item.status, work: { kind: "tool", ...boundedWork(JSON.stringify(item.arguments ?? {})) } };
   if (item.type === "dynamicToolCall" && item.tool === "invoke_plugin_operation") {
     for (const part of item.contentItems ?? []) {

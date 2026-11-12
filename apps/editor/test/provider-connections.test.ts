@@ -291,6 +291,9 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   connection.client.emit("notification", "item/commandExecution/outputDelta", { threadId: conversation.id, turnId: conversation.turns[0]!.id, itemId: shell.id, delta: "x".repeat(16_001) });
   assert.equal(shell.work!.detail!.length, 16_000);
   assert.equal(shell.work!.truncated, true);
+  connection.client.emit("notification", "item/completed", { threadId: conversation.id, turnId: conversation.turns[0]!.id, item: { id: "failed-command", type: "commandExecution", command: "exit 1", status: "completed", exitCode: 1, aggregatedOutput: "failed" } });
+  assert.equal(conversation.turns[0]!.items.find(item => item.id === "failed-command")?.status, "failed");
+
   connection.client.emit("notification", "item/commandExecution/outputDelta", { threadId: conversation.id, turnId: conversation.turns[0]!.id, itemId: shell.id, delta: "ignored" });
   assert.equal(shell.work!.detail!.length, 16_000);
 
