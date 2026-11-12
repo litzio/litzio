@@ -7,7 +7,7 @@ const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", cur
   ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model", "max-only"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
 const sessionState = () => ({ models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions });
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
-let session = 0, pending;
+let session = 0, pending, delayedLoad;
 const prompts = new Map();
 const selectedModels = new Map();
 const loaded = new Set();
@@ -36,10 +36,13 @@ createInterface({ input: process.stdin }).on("line", line => {
     loaded.add(params.sessionId);
     if (process.argv.includes("--fixture-delay-load-once") && !existsSync(log + ".loaded")) {
       writeFileSync(log + ".loaded", "loaded");
-      setTimeout(() => {
+      send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Delayed load accepted" } } } });
+      // Complete only after the Host retires the timed-out connection, not
+      // after an assumed wall-clock delay or platform-specific exit ordering.
+      delayedLoad = () => {
         reply(sessionState());
         send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Delayed load completed" } } } });
-      }, 650);
+      };
       return;
     }
     reply(sessionState());
@@ -96,4 +99,4 @@ createInterface({ input: process.stdin }).on("line", line => {
     const prompt = prompts.get(params.sessionId);
     if (prompt) { send({ id: prompt.id, result: { stopReason: "cancelled" } }); prompts.delete(params.sessionId); }
   } else send({ id, error: { code: -32601, message: `Unsupported fixture method: ${method}` } });
-});
+}).on("close", () => delayedLoad?.());

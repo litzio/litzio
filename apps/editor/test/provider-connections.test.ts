@@ -1410,7 +1410,7 @@ test("Copilot resolved spawn failure reconnects the same owner", async t => {
 
 test("Copilot late session load cannot trap explicit resume on an already loaded session", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-late-load-")), log = path.join(root, "rpc.jsonl"), cwd = path.join(root, "assistant");
-  const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-delay-load-once"], timeoutMs: 300 };
+  const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-delay-load-once"] };
   const first = new ProviderConnections(cwd, undefined, options);
   const connection = new ProviderConnections(cwd, undefined, options);
   t.after(async () => { await first.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
@@ -1423,15 +1423,27 @@ test("Copilot late session load cannot trap explicit resume on an already loaded
   await first.close();
   const conversations = new AssistantConversations(connection, new RootAccess([root]));
   const active = await conversations.send({ ...input, message: "Wait for cancellation" }, settings);
+  let accepted!: () => void;
+  const loadAccepted = new Promise<void>(resolve => { accepted = resolve; });
   const late = new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Missing delayed load response")), 5000);
     connection.copilot.on("update", params => {
+      if (params.update.content?.text === "Delayed load accepted") accepted();
       if (params.update.content?.text === "Delayed load completed") { clearTimeout(timer); resolve(); }
     });
   });
-  await assert.rejects(conversations.resume(saved.id, settings), /timed out/);
+  // Advance only the admitted load's Host deadline. CLI startup/diagnosis must
+  // not inherit an artificial 300ms speed requirement from this fault injection.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const restoring = conversations.resume(saved.id, settings);
+    await Promise.race([loadAccepted, late.then(() => { throw new Error("Load completed before fault injection"); })]);
+    t.mock.timers.tick(15000);
+    await assert.rejects(restoring, /timed out/);
+  } finally { t.mock.timers.reset(); }
   await late; // Provider accepted the load; only its success response was delayed.
-  assert.equal((await connection.diagnostics("copilot")).connected, true);
+  const diagnostic = await connection.diagnostics("copilot");
+  assert.equal(diagnostic.connected, true, diagnostic.error);
   assert.equal((await conversations.resume(saved.id, settings)).id, saved.id);
   assert.equal((await conversations.resume(saved.id, settings)).id, saved.id);
   assert.equal(active.turns.at(-1)!.status, "failed", "uncertain session ownership retires the transport including its other active turn");
