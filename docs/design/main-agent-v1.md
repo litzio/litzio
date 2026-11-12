@@ -1,6 +1,7 @@
 # Assistant connection, settings and conversations
 
 - Status: Implemented
+- New-conversation isolation verification (#1548, 2026-11-12): the existing assistant browser scenario reproduces Stop → New conversation → model change → paced typing with a retained first submission lacking provider-history proof. Before the fix its receipt restored the old conversation and the next send carried the old ID; after ownership association the send has no ID and a different conversation is created. Fixture provider/Host validation only, no real AI call or frequency measurement.
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Dynamic UI removal (#1341, 2026-11-09): assistant view tools, generation/correction, material snapshots, result cards, favorites and saved views are removed. Ordinary conversations, references, document tools and requestUserInput remain. Retained plugin screens/query/Table and review boundaries are defined in [Plugin screens v1](plugin-screens-v1.md); [Generated views v1](generated-views-v1.md) is Historical.
 - Last verified: 2026-11-12 — #1530 retains unanswered async questions across turn end and reuses ordinary message send for answers; fake Host/provider and browser validation only. Previous 2026-11-10 — #1443의 질문 메타데이터·답변·기록과 Codex 0.167.0/gpt-6-luna low의 실제 Host·브라우저 전달/수신/재열기를 확인. Copilot ACP 미지원 거부는 fixture, 실제 원격 연결·Copilot AI 호출은 미검증.
@@ -1626,7 +1627,11 @@ the Host turn; reopening reconciles retained submission rows and preserves the n
 draft. App memory owns the submitted text, references and receipt, keyed by Host,
 provider and the conversation selected at submission. A first submission without a
 conversation ID belongs to that Host/provider's new-conversation scope; its receipt
-can subsequently identify the conversation. Provider changes, New conversation and
+can subsequently identify the conversation. Once a receipt identifies it, the local
+submission is owned by that conversation, including while provider-history proof is
+still missing. New conversation must not observe that row as a new first send or
+restore its conversation via receipt lookup (#1548). The existing scope invalidation
+continues to reject earlier in-flight poll responses. Provider changes, New conversation and
 explicit history selection invalidate late screen updates and hide rows outside the
 selected scope without deleting their content. Returning to the original provider's
 new-conversation scope or the original conversation restores unresolved/rejected rows
