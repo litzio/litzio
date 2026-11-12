@@ -2,7 +2,7 @@
 
 ## Project status
 
-Litzio는 **초기 Beta** 단계다. 현재 소스와 공개 버전은 `0.0.2-beta.10`이며 [배포 기록](docs/releases/v0.0.2-beta.10.md)을 따른다. 소스 버전은 [Desktop package.json](apps/desktop/package.json), 최신 공개 결과는 [beta.10 배포 기록](docs/releases/v0.0.2-beta.10.md)을 참고한다. 일반 사용자 설치는 [README](README.md#windows-desktop), 개발자 빌드와 릴리즈는 아래 절차를 따른다. Visual Editor의 Vite 개발 실행도 유지한다. 공개 API와 문서 지원 범위는 바뀔 수 있다.
+Litzio는 **초기 검증** 단계다. 현재 소스는 `0.0.2` Stable 후보이며 [준비 기록](docs/releases/v0.0.2.md)을 따른다. 최신 공개 버전은 `0.0.2-beta.10`이다. 소스 버전은 [Desktop package.json](apps/desktop/package.json), 최신 공개 결과는 [beta.10 배포 기록](docs/releases/v0.0.2-beta.10.md)을 참고한다. 일반 사용자 설치는 [README](README.md#windows-desktop), 개발자 빌드와 릴리즈는 아래 절차를 따른다. Visual Editor의 Vite 개발 실행도 유지한다. 공개 API와 문서 지원 범위는 바뀔 수 있다.
 
 제품 브랜드·아이콘·배포 식별자는 [패키저용 안내](docs/guides/branding.md)와 `brand.ts`를 따른다. 공식 기본값은 Litzio이며 이전 공개 Beta의 데이터/업데이트 경로를 이전하지 않는다.
 
@@ -201,9 +201,9 @@ pnpm --filter @litzio/desktop test:packaged
 
 **작업용 PC에서 하지 말 것.** `test:update`와 `test:uninstall`은 일회용 CI 전용이다. 자세한 조건은 [Windows Desktop 회귀 검증](docs/test/README.md#windows-desktop-regression)을 따른다.
 
-현재 소스와 공개 버전은 `0.0.2-beta.10`이며 [배포 기록](docs/releases/v0.0.2-beta.10.md)을 따른다. 소스 버전은 [Desktop package.json](apps/desktop/package.json), 최신 공개 결과는 [beta.10 배포 기록](docs/releases/v0.0.2-beta.10.md)을 참고한다. 과거 기록은 [배포 기록 목록](docs/releases/)에 보존한다.
+현재 소스는 `0.0.2` Stable 후보이며 [준비 기록](docs/releases/v0.0.2.md)을 따른다. 최신 공개 버전은 `0.0.2-beta.10`이다. 소스 버전은 [Desktop package.json](apps/desktop/package.json), 최신 공개 결과는 [beta.10 배포 기록](docs/releases/v0.0.2-beta.10.md)을 참고한다. 과거 기록은 [배포 기록 목록](docs/releases/)에 보존한다.
 
-공개된 최신 버전은 `0.0.2-beta.10`이며 Stable 공개는 보류한다. Beta 설치본의 최초 실행 기본 채널은 Beta, Stable 설치본은 Stable이다. 유효하게 저장된 사용자 선택은 버전이 바뀌어도 유지한다. Beta는 제한된 unsigned 게시 모드를 사용할 수 있으며 Stable은 서명된 릴리즈 절차만 허용한다.
+다음 배포 후보는 `0.0.2` Stable이다. Beta 설치본의 최초 실행 기본 채널은 Beta, Stable 설치본은 Stable이다. 유효하게 저장된 사용자 선택은 버전이 바뀌어도 유지한다. 2026-11-12 소유자 결정에 따라 Stable/Beta 모두 `unsigned` 게시 모드를 사용할 수 있으며 서명 없음 경고를 유지한다.
 
 패키징·설치/업데이트·배포 경계를 변경하지 않은 작업에서는 package·자산 검증·packaged 회귀와 대표 install/update/removal 회귀를 필수 Windows Desktop CI에, Published와 전체 제거 조합을 위 경로·릴리스 정책에 맡기고, 관련 tests/typecheck·browser 회귀를 로컬 실행한다.
 
@@ -235,7 +235,7 @@ merge-group/전체 master push CI는 unsigned package 생성·release 자산 검
 
 **제품 이름 변경(IeumDoc → Litzio)으로 앱 ID·설치·데이터 경로가 바뀌어, IeumDoc beta.4 설치본은 Litzio로 자동 업데이트되지 않습니다. 새로 설치해야 하며 IeumDoc 데이터·설정·복구 기록은 이전되지 않습니다.**
 
-실제 GitHub harness의 대상은 같은 Litzio 브랜드의 `0.0.2-beta.9 → 0.0.2-beta.10`이다. beta.10은 공개됐지만 opt-in harness는 실행하지 않았으며 업데이트 검증 결과가 아니다([배포 기록](docs/releases/v0.0.2-beta.10.md)). 이 PC의 설치 상태 보존 제약으로 실제 GitHub 설치·업데이트는 **미실행·미검증**이다.
+실제 GitHub harness의 대상은 같은 Litzio 브랜드의 `0.0.2-beta.10 → 0.0.2`이다. Stable은 배포 전이며 opt-in harness는 실행하지 않았고 업데이트 검증 결과가 아니다([배포 기록](docs/releases/v0.0.2-beta.10.md)). 이 PC의 설치 상태 보존 제약으로 실제 GitHub 설치·업데이트는 **미실행·미검증**이다.
 
 다음 Stable/Beta 발행 순서: 버전 변경과 로컬 후보 검증 → 명시적 원격 승인 → 변경 push/CI/master 반영 → 실제 환경 보호 확인 → 검증된 master commit에 해당 버전 tag 게시 → master에서 해당 tag와 `unsigned` 또는 `signed`로 수동 실행 → 모든 빌드·테스트·자산 검증 성공 후 추가 environment 승인 없이 게시 → 공개 결과와 [실제 GitHub 업데이트 검증](docs/test/README.md#real-github-beta-update) 확인 → 한국어 Release 본문·릴리즈 기록 갱신. README에는 정확한 공개 버전이나 설치 파일 이름을 반복하지 않고 Releases 목록으로 안내한다. README는 제품 목적·지원 플랫폼·설치 절차·호환성 경계가 바뀔 때만 갱신한다. 게시 모드도 전체 검증을 실행하므로 동일 후보의 `verify`와 게시 빌드를 연속으로 반복할 필요는 없다. 게시 여부를 결정하기 전 산출물만 검토하려면 `verify`를 사용한다. 0.0.2-beta.1의 공개·철회 결과와 실제 GitHub 업데이트 미검증 범위는 [릴리즈 기록](docs/releases/v0.0.2-beta.1.md), 동작 계약은 [Desktop contract](docs/design/desktop-distribution-v1.md)를 참고한다. 이미 공개된 tag나 자산은 재작성하지 않는다.
 
