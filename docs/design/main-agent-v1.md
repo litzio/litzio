@@ -3,6 +3,7 @@
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Dynamic UI removal (#1341, 2026-11-09): assistant view tools, generation/correction, material snapshots, result cards, favorites and saved views are removed. Ordinary conversations, references, document tools and requestUserInput remain. Retained plugin screens/query/Table and review boundaries are defined in [Plugin screens v1](plugin-screens-v1.md); [Generated views v1](generated-views-v1.md) is Historical.
+- Instruction verification: 2026-11-12 — 한국어 지시문과 현행 도구 정의 대조, provider/Host/review 대상 단위 검사 및 Codex gpt-6-luna low 사본 편집·템플릿 생성 확인. 실제 AI는 임시 문서·로컬 Host만 확인하며 UI·패키지 검증은 포함하지 않는다.
 - Last verified: 2026-11-12 — #1530 retains unanswered async questions across turn end and reuses ordinary message send for answers; fake Host/provider and browser validation only. Previous 2026-11-10 — #1443의 질문 메타데이터·답변·기록과 Codex 0.167.0/gpt-6-luna low의 실제 Host·브라우저 전달/수신/재열기를 확인. Copilot ACP 미지원 거부는 fixture, 실제 원격 연결·Copilot AI 호출은 미검증.
 - Previous shell verification: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 정적 대조와 문서 검사.
 - Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
@@ -158,8 +159,16 @@ Linux uses XDG data home and macOS uses Application Support. Source execution
 `packages/cli/dist/cli.mjs` retains distributed defaults. `LITZIO_ASSISTANT_CWD` explicitly overrides this directory
 for local integration/testing. Litzio regenerates its product-owned `AGENTS.md`
 there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
-instructs the agent to leave existing documents intact and propose edits in text.
+instructs the agent to edit existing documents through a pending copy and leave application/discard to the human comparison UI.
 Litzio also regenerates `.agents/skills/litzio-guide/SKILL.md` here. It has name/description frontmatter and usage/CLI guidance, with no executable scripts.
+
+### 제품 지시문 구성 (2026-11-12)
+
+`provider-connections.ts`의 두 상수는 한국어 여러 줄 Markdown이다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 공식 write path와 사본 편집, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다.
+
+별도 Markdown 런타임 파일로 분리하지 않는다. CLI는 서버 코드를 esbuild로 번들하고 Desktop daemon은 그 CLI 배포본을 복사한다. 별도 자산 읽기는 개발 서버·분산 HTTP Host·패키지 자산 복사 경로를 추가로 바꿔야 하므로 이번 지시문 변경은 기존 문자열 번들 경로를 유지한다.
+
+검수는 `apply_review_groups`로 즉시 교정하고 사람은 Undo·재지시·직접 수정한다. 이미지 읽기는 사전 승인 없이 수행한다. 질문의 `accepted:true`는 대화 저장이며 렌더 확인이 아니고, 턴 종료 뒤 답변은 후속 메시지로 온다. 권한 요청은 공급자 승인 카드로 전달한다. 템플릿과 요청된 표시 설정의 별도 사전 동의는 제거하되 사본 적용/버리기, 공식 write path, 불확실 쓰기 no replay, 비밀 값과 조직 정책 경계는 유지한다.
 
 The shared daemon owns provider connections and in-memory conversations. Closing
 a Desktop window, assistant panel or browser does not stop a turn while that
@@ -600,10 +609,7 @@ Copilot uses the same Host display handler when sent from a Litzio window; termi
 conversation to acquire the added specs; existing thread registrations are not
 retrofitted.
 
-Generated AGENTS.md and litzio-guide require proposal → permission → application;
-an explicit user change request supplies permission. Consent is an agent
-instruction, rather than a natural-language permission parser. The fixed Host
-allowlist is enforced independently of those instructions.
+Generated AGENTS.md directs requested display changes without an extra proposal or permission step (Refs #1542). The fixed Host allowlist is enforced independently. The tool description still carries the former proposal wording until #1542 updates that surface.
 
 `AgentDisplayRequests` owns provider-neutral validation, volatile pending requests
 and change receipts. Codex's `item/tool/call` is only its current adapter. The
@@ -699,11 +705,7 @@ the source/destination document. Save writes only the app-owned template directo
 so opened-folder shell access to that directory is unnecessary. A template is not
 applied to an existing document; its original and source document remain intact.
 
-Generated AGENTS.md and `litzio-guide` require a fresh template lookup and
-proposal → permission → application. Explicit template requests supply consent;
-missing names never fall back. Save requires name/description/source confirmation,
-uses the saved disk version, then reads back and refreshes the catalog. Unsaved
-content must be saved first if intended. Copilot offers text guidance only.
+`litzio-guide` requires a fresh template lookup, selection within the creation request and direct application without extra consent (Refs #1542). Missing named templates never silently fall back. Save uses name/source and optional description, asks only for missing information, uses the saved disk version, then reads back and refreshes the catalog. Unsaved content must be saved first if intended. Both providers expose the same Host template tools.
 
 CLI instructions now serve terminal continuation. Before Codex launch the Host
 prepends a private `<assistant cwd>/bin/<CLI identity>` launcher for its own CLI to the child PATH,
