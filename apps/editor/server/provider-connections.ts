@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync, lstatSync } from "node:fs";
 import path from "node:path";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
@@ -116,13 +116,13 @@ export class ProviderConnections {
   async diagnostics(provider: AiProvider = "codex"): Promise<AssistantDiagnostics> {
     if (provider === "copilot") {
       this.environment();
-      const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false };
+      const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
       try { await this.copilot.catalog(); result.connected = true; } catch (error) { result.error = (error as Error).message; }
       result.version = this.copilot.version;
       return result;
     }
     this.environment();
-    const result: AssistantDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false };
+    const result: AssistantDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
     try { await this.client.connect(); result.connected = true; }
     catch (error) { result.error = String((error as Error).message); return result; }
     const [usage, mcp] = await Promise.all([
@@ -166,3 +166,25 @@ function usageNumber(value: unknown): number | null {
 export const LITZIO_GUIDE = typeof __LITZIO_ASSISTANT_GUIDE__ === "string"
   ? __LITZIO_ASSISTANT_GUIDE__
   : readFileSync(new URL("./assistant/litzio-guide/SKILL.md", import.meta.url), "utf8");
+
+/** Classify existing path strings without resolving execution aliases; an empty inventory is not a warning. */
+export function onlyStorePowerShell(paths: string[]): boolean {
+  return paths.length > 0 && paths.every(value => /\\windowsapps\\/i.test(value.replaceAll("/", "\\")));
+}
+
+function storePowerShellOnly(): boolean {
+  if (process.platform !== "win32") return false;
+  const candidates: string[] = [];
+  const add = (file: string) => { try { lstatSync(file); candidates.push(file); } catch { /* Missing or inaccessible candidate: no affirmative evidence. */ } };
+  for (const directory of (process.env.PATH ?? "").split(path.delimiter)) add(path.join(directory, "pwsh.exe"));
+  for (const root of [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]]) {
+    if (!root) continue;
+    try { for (const version of readdirSync(path.join(root, "PowerShell"))) add(path.join(root, "PowerShell", version, "pwsh.exe")); } catch { /* Optional installation root. */ }
+  }
+  // Store package directories can be selected by Codex even without a PATH entry.
+  if (process.env.LOCALAPPDATA) {
+    const root = path.join(process.env.LOCALAPPDATA, "Microsoft", "WindowsApps");
+    try { for (const entry of readdirSync(root)) if (/^Microsoft\.PowerShell_/i.test(entry)) add(path.join(root, entry, "pwsh.exe")); } catch { /* Optional Store aliases. */ }
+  }
+  return onlyStorePowerShell(candidates);
+}

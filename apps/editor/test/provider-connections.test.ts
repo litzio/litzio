@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
-import { ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
+import { onlyStorePowerShell, ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
 import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-access.ts";
 
@@ -1315,3 +1315,13 @@ async function resolvePermission(connection: ProviderConnections, conversations:
   }
   return result;
 }
+
+test("PowerShell inventory warns only for Store-only installations", () => {
+  const store = [
+    "C:/Users/example/AppData/Local/Microsoft/WindowsApps/Microsoft.PowerShell_8wekyb3d8bbwe/pwsh.exe",
+    "C:/Users/example/AppData/Local/Microsoft/WindowsApps/pwsh.exe",
+  ];
+  assert.equal(onlyStorePowerShell(store), true);
+  assert.equal(onlyStorePowerShell([...store, "C:/Program Files/PowerShell/7/pwsh.exe"]), false);
+  assert.equal(onlyStorePowerShell([]), false);
+});
