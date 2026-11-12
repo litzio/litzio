@@ -465,3 +465,44 @@ test("structured creation reuse Core batches and report image readiness separate
   assert.equal(invoke("create_document", { path: bad, title: "Bad", operations }, { permissionMode: "read-only" }).errorKind, "forbidden");
 
 });
+
+
+test("provider edits retain turn-before content and refuse later or out-of-scope writes", async t => {
+  const { AssistantConversations } = await import("../server/assistant-conversations.ts");
+  const { RootAccess } = await import("../server/file-access.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1565-changes-"));
+  const folder = path.join(root, "opened");
+  const { mkdirSync } = await import("node:fs"); mkdirSync(folder);
+  const file = path.join(folder, "sample.txt"), outside = path.join(root,"outside.txt");
+  writeFileSync(file,"before\n"); writeFileSync(outside,"outside\n");
+  const connection = new ProviderConnections(path.join(root,"assistant"), {bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/codex-app-server.mjs",import.meta.url))]}, {bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/copilot-acp.mjs",import.meta.url))]});
+  const history = new AssistantConversations(connection,new RootAccess([root]));
+  t.after(async()=>{await history.close();await connection.close();});
+  const settings = {provider:"codex" as const,permissionMode:"opened-folders" as const,model:"gpt-6.1-sol",reasoningEffort:"medium",responseLanguage:"en" as const};
+  const conversation = await history.send({message:"edit",folders:[folder],model:settings.model,reasoningEffort:settings.reasoningEffort},settings);
+  const edit = (target:string,after:string,diff:string) => connection.client.request("fixture/edit",{threadId:conversation.id,path:target,after,diff});
+  await edit(file,"after\n","@@ -1 +1 @@\n-before\n+after\n");
+  await edit(process.platform === "win32" ? file.toUpperCase() : file,"final\n","@@ -1 +1 @@\n-after\n+final\n");
+  const unsafe=path.join(folder,"unsafe.txt");writeFileSync(unsafe,"before\n");
+  await edit(unsafe,"after\n","@@ -1 +1 @@\n-wrong\n+different\n");
+  await edit(outside,"changed outside\n","@@ -1 +1 @@\n-outside\n+changed outside\n");
+  await connection.client.request("fixture/finish",{threadId:conversation.id});
+  const turn=conversation.turns[0]!;
+  assert.ok(turn.items.some(item=>item.fileChanges?.includes(file)));
+  assert.deepEqual(history.fileChange(conversation.id,turn.id,file),{before:"before\n",after:"final\n",sourceOnly:true,changed:false,missing:false});
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,outside),/outside the allowed folders/);
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,unsafe),/unavailable/);
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,file,false,[]),/root/);
+  writeFileSync(file,"human edit\n");
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,file,true),/refused/);
+  assert.equal(readFileSync(file,"utf8"),"human edit\n");
+  writeFileSync(file,"final\n"); history.fileChange(conversation.id,turn.id,file,true);
+  assert.equal(readFileSync(file,"utf8"),"before\n");
+  const acpSettings={...settings,provider:"copilot" as const,model:"copilot-model",reasoningEffort:"low"};
+  const acp=await history.send({message:"EDIT FIXTURE "+JSON.stringify(file),folders:[folder],provider:"copilot",model:"copilot-model",reasoningEffort:"low"},acpSettings);
+  await new Promise<void>((resolve,reject)=>{const deadline=setTimeout(()=>reject(Error("ACP edit did not finish")),5000);const check=()=>{if(acp.turns.at(-1)?.status!=="inProgress"){clearTimeout(deadline);resolve();}else setTimeout(check,10);};check();});
+  const acpTurn=acp.turns[0]!;
+  assert.equal(acpTurn.items.find(item=>item.fileChanges)?.fileChanges?.[0],file);
+  assert.equal((history.fileChange(acp.id,acpTurn.id,file) as any).before,"before\n");
+  history.fileChange(acp.id,acpTurn.id,file,true);assert.equal(readFileSync(file,"utf8"),"before\n");
+});

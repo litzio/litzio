@@ -70,6 +70,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.action === "screen-action-result") { history().screenActions.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "screen-result") { history().screen.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
+      if (args.action === "file-change-compare" || args.action === "file-change-undo") return history().fileChange(args.id, args.turnId, args.path, args.action === "file-change-undo", args.folders ?? []);
       if (args.action === "display-undo") return history().display.undo(args.id, args.displayClient, args.requestId);
       if (args.action === "resume") return history().resume(args.id, currentSettings);
       if (args.action === "send") {

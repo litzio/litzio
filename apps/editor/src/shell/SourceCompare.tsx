@@ -8,9 +8,9 @@ import type { RecoveryDiff, RecoveryDiffReply } from "../recovery-diff.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { i18n } from "../i18n.ts";
 
-export type Comparison = { before: string; after: string; fallback?: string; bibliography?: DocumentFileResponse["bibliography"]; changed: boolean; missing: boolean; failure?: Error };
+export type Comparison = { before: string; after: string; sourceOnly?: boolean; fallback?: string; bibliography?: DocumentFileResponse["bibliography"]; changed: boolean; missing: boolean; failure?: Error };
 
-export default function SourceCompare({ load, recovery = false, visual }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; visual?: { client: HostClient; path: string; bibliography?: DocumentFileResponse["bibliography"]; unsupported?: string } }) {
+export default function SourceCompare({ load, recovery = false, assistant = false, visual }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; assistant?: boolean; visual?: { client: HostClient; path: string; bibliography?: DocumentFileResponse["bibliography"]; unsupported?: string } }) {
   useTranslation();
   const [view, setView] = useState<"visual" | "source">(visual && !visual.unsupported ? "visual" : "source");
   const [visualError, setVisualError] = useState("");
@@ -34,7 +34,7 @@ export default function SourceCompare({ load, recovery = false, visual }: { load
       clearTimeout(timeout);
       if (!live) return;
       setResult(value);
-      if (value.fallback) setView("source");
+      if (value.fallback || value.sourceOnly) setView("source");
       if (value.failure) return;
       // A request-owned worker keeps even a single expensive library call off the UI thread.
       worker = new Worker(new URL("../recovery-diff.worker.ts", import.meta.url), { type: "module" });
@@ -58,8 +58,8 @@ export default function SourceCompare({ load, recovery = false, visual }: { load
     const target = region.current?.querySelector<HTMLElement>(`[data-change-start="${next}"]`);
     target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "nearest" });
   }
-  return <section className="recovery-comparison" aria-label={i18n.t(recovery ? "Recovery comparison" : "Changes before saving")}>
-    {view === "source" ? <p>{i18n.t("Current disk file → content Save would write. Canonical formatting changes are included.")}</p> : null}
+  return <section className="recovery-comparison" aria-label={i18n.t(assistant ? "View changes" : recovery ? "Recovery comparison" : "Changes before saving")}>
+    {!assistant && view === "source" ? <p>{i18n.t("Current disk file → content Save would write. Canonical formatting changes are included.")}</p> : null}
     {(!result || view === "source" && !diff) && !error && !result?.failure ? <p role="status">{result ? i18n.t("Calculating differences…") : i18n.t("Loading comparison…")}</p> : null}
     {result?.failure ? <p role="alert">{i18n.t("Save preview unavailable: {{reason}}", { reason: result.failure.message })}</p> : null}
     {(view === "source" || !result) && error ? <p role="alert">{i18n.t("Comparison unavailable: {{reason}}", { reason: error })}</p> : null}
@@ -67,12 +67,12 @@ export default function SourceCompare({ load, recovery = false, visual }: { load
     {result?.changed ? <p role="status">{i18n.t(recovery ? "The file changed after this record. Comparing with the current disk file." : "The file changed outside {{product}}. Comparing with the current disk file; Save will still report a conflict.")}</p> : null}
     <MissingFileNotice result={result} diff={diff} recovery={recovery} />
     {result?.fallback ? <p role="status">{i18n.t("Plaintext comparison instead of Save preview: {{reason}}", { reason: result.fallback })}</p> : null}
-    {visual ? <ChoiceGroup<"visual" | "source"> aria-label={i18n.t("Comparison view")} value={view} onValueChange={setView} options={[
+    {visual && !result?.sourceOnly ? <ChoiceGroup<"visual" | "source"> aria-label={i18n.t("Comparison view")} value={view} onValueChange={setView} options={[
       { value: "visual", label: i18n.t("Visual"), disabled: !!visualError || !!visual?.unsupported || !!result?.failure || !!result?.fallback },
       { value: "source", label: i18n.t("Source") },
     ]} /> : null}
     {visualError || visual?.unsupported || visual && result?.failure ? <p role="status">{i18n.t("Visual unavailable: {{reason}}. Use Source comparison.", { reason: visualError || visual?.unsupported || result?.failure?.message || "" })}</p> : null}
-    {view === "visual" && result && !result.failure && !result.fallback && visual ? <VisualCompare result={result} client={visual.client} path={visual.path} recovery={recovery} bibliography={result.bibliography ?? visual.bibliography} onUnavailable={unavailable} /> : null}
+    {view === "visual" && result && !result.failure && !result.fallback && !result.sourceOnly && visual ? <VisualCompare result={result} client={visual.client} path={visual.path} recovery={recovery} assistant={assistant} bibliography={result.bibliography ?? visual.bibliography} onUnavailable={unavailable} /> : null}
     {view === "source" && diff ? <>
       {diff.wordsOmitted ? <p role="status">{i18n.t("Word highlighting omitted to keep comparison responsive.")}</p> : null}
       <div className="recovery-diff-toolbar">
@@ -81,7 +81,7 @@ export default function SourceCompare({ load, recovery = false, visual }: { load
         <Button size="sm" variant="secondary" disabled={!diff.count} onClick={() => move(1)}>{i18n.t("Next change")}</Button>
         <span aria-live="polite">{current ? i18n.t("Change {{current}} of {{count}}", { current, count: diff.count }) : ""}</span>
       </div>
-      <p>{i18n.t(recovery ? "Line numbers: disk / recovery. − removed, + added. Long lines wrap." : "Line numbers: disk / Save preview. − removed, + added. Long lines wrap.")}</p>
+      <p>{i18n.t(assistant ? "Line numbers: before / current disk. − removed, + added. Long lines wrap." : recovery ? "Line numbers: disk / recovery. − removed, + added. Long lines wrap." : "Line numbers: disk / Save preview. − removed, + added. Long lines wrap.")}</p>
       <div className="recovery-diff" ref={region} tabIndex={0} role="region" aria-label={i18n.t("Source differences")}>
         {diff.groups.map((group, g) => <div key={g} data-kind={group.kind} data-change-start={group.start ? group.change : undefined}
           data-current={group.change > 0 && group.change === current} tabIndex={group.start ? -1 : undefined}

@@ -1,3 +1,4 @@
+import { AssistantFileChanges } from "./assistant-file-changes.ts";
 import { codexApproval } from "./assistant-approvals.ts";
 import { assistantToolFailure, assistantToolResult } from "./assistant-tool-results.ts";
 import { AgentScreenActionRequests, screenActionTools } from "./assistant-screen-action-tools.ts";
@@ -32,6 +33,21 @@ export class AssistantConversations {
   readonly screenActions = new AgentScreenActionRequests();
   readonly screen = new AgentScreenRequests();
   readonly display = new AgentDisplayRequests();
+  private fileChanges = new Map<string, AssistantFileChanges>();
+  fileChange(id: string, turnId: string, file: string, undo = false, folders?: string[]) {
+    const conversation = this.current(id);
+    if (conversation.turns.some(turn => turn.status === "inProgress")) throw new Error("Wait for the assistant response to finish.");
+    const changes = this.fileChanges.get(id);
+    if (!changes) throw new Error("This change is unavailable in this Host session.");
+    const result = undo ? changes.undo(turnId, file, folders ?? conversation.folders) : changes.compare(turnId, file, folders ?? conversation.folders);
+    if (undo) for (const item of conversation.turns.find(turn => turn.id === turnId)?.items ?? []) item.fileChanges = item.fileChanges?.filter(path => path !== file);
+    return result;
+  }
+  private changes(id: string) {
+    let changes = this.fileChanges.get(id);
+    if (!changes) { changes = new AssistantFileChanges(this.access); this.fileChanges.set(id, changes); }
+    return changes;
+  }
   private conversations = new Map<string, AssistantConversation>();
   private pending = new Set<string>();
   private submissions = new Map<string, { receipt: AssistantSubmission; result: Promise<AssistantSubmissionResult>; dispatched: boolean }>();
@@ -206,7 +222,7 @@ export class AssistantConversations {
     try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }
     finally { if (existsSync(temporary)) unlinkSync(temporary); }
     this.mcp.revokeConversation(id);
-    this.conversations.delete(id); this.loaded.delete(id); this.scopes.delete(id);
+    this.fileChanges.delete(id); this.conversations.delete(id); this.loaded.delete(id); this.scopes.delete(id);
   }
   current(id: string) {
     const conversation = this.conversations.get(id);
@@ -433,6 +449,7 @@ export class AssistantConversations {
   async close() {
     for(const conversation of this.conversations.values())for(const turn of conversation.turns)this.saveReviewUsage(conversation,turn);
     this.closed = true;
+    this.fileChanges.clear();
     for (const conversation of this.conversations.values()) this.expireQuestion(conversation);
     this.mcp.close();
     this.screen.cancel(); this.screenActions.cancel(); this.display.cancel();
@@ -674,6 +691,10 @@ export class AssistantConversations {
       if (update.content) Object.assign(item.work, boundedWork(update.content.map((part: any) => part.type === "content" && part.content?.type === "text" ? part.content.text : part.type === "diff" ? `${part.path}\n${part.newText}` : "").filter(Boolean).join("\n")));
       const paths = update.locations?.map((location: any) => location.path).filter((file: string) => !item!.text.includes(file));
       if (paths?.length) item.text += " · " + paths.join(", ");
+      if (turn.status === "inProgress" && this.scopes.get(sessionId)?.turnId === turn.id) {
+        const files = this.changes(sessionId).copilot(turn.id, item.id, update.content, update.status === "completed", [...(this.scopes.get(sessionId)?.folders?.roots ?? [])]);
+        if (files.length) item.fileChanges = [...new Set([...(item.fileChanges ?? []), ...files])];
+      }
       if (update.status) item.status = update.status === "in_progress" ? "inProgress" : update.status;
     }
   }
@@ -735,6 +756,9 @@ export class AssistantConversations {
       if (params.turn.error) turn.error = permissionError(params.turn.error.message);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
+      if (item && params.item.type === "fileChange" && method === "item/completed" && params.item.status === "completed" && turn.status === "inProgress" && this.scopes.get(conversation.id)?.turnId === turn.id) {
+        item.fileChanges = params.item.changes.filter((change: any) => this.changes(conversation.id).codex(turn.id, change, [...(this.scopes.get(conversation.id)?.folders?.roots ?? [])])).map((change: any) => change.path);
+      }
       if (item) {
         if (item.questionAnswer) {
           const reply = item.questionAnswer;

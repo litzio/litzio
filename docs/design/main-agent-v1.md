@@ -2156,3 +2156,34 @@ Read-only turns refuse imports. Opened-folders mode checks both target and sourc
 On the #1543 baseline, Host regressions confirm that valid Figures with available, missing and outside-directory local references survive preview and Apply: asset readiness does not block canonical writes. The original owner-reported no-apply symptom was not reproduced by these inputs. Existing revision/unsaved-work/active-response refusals remain enforced and reported; missing-image rendering falls back to source comparison without certifying an image preview. The browser regression additionally imports an image through the shared tool, edits the copy, decodes it in comparison, applies via the revision-checked Host operation and verifies the refreshed original image. This fixture evidence is separate from real provider verification.
 
 A separate synthetic raw Markdown image (`![Desk](images/writing-desk.png)`, outside a Figure) does reproduce Core `Unsupported native content: image` refusal. This is not proof that the owner's copy used that syntax. Preview and Apply now retain the Core reason and tell the human to discard/recreate the copy with supported document tools (`insert-figure` for images); the original stays unchanged. Malformed copies cannot be repaired by semantic operations that require a valid native input, so the guidance does not promise in-place repair. Existing comparison error rendering shows this refusal while Apply remains unavailable.
+
+
+## 비서 파일 변경 확인과 되돌리기 (#1565)
+
+공급자 편집 도구의 기존 파일 변경 항목에 **변경 보기**와 **되돌리기**를 제공한다.
+Codex `fileChange`의 완료 diff를 현재 파일에 역적용하고 정방향 재적용 일치를 확인한다.
+시작 이벤트는 실제 호출에서 디스크 쓰기 전후 모두 관찰되어 사전 읽기의 근거로 쓰지 않는다.
+Copilot ACP는 diff content의 `oldText`·`newText`를 사용한다. 같은 턴의 같은 파일은 첫 변경 전
+내용과 마지막 결과만 대화 소유 Host 메모리에 둔다. Host 재시작 후에는 경로만 남는다.
+셸 직접 쓰기, 공급자 생성·삭제·이동, 이진·비 UTF-8·1 MiB 초과 파일, diff/결과 불일치는
+행동을 제공하지 않는다. 별도 스냅샷·파일 감시·로컬 이력은 없다.
+
+`assistantConversation`의 `file-change-compare` / `file-change-undo`는 대화 ID·턴 ID·경로·현재
+열린 폴더를 받는 화면 행동이다. 생성 카드 되돌리기처럼 별도 CLI 명령을 추가하지 않는다.
+저장된 대화 범위·현재 열린 폴더와 Host 접근 범위를 다시 확인한 파일만 읽고 쓴다.
+진행 중인 대화에서는 거부하며, 비교는 변경 전 내용과 현재 디스크를 기존 Dialog·SourceCompare로
+표시한다. 리치오 문서는 기존 VisualCompare도 제공하고 일반 텍스트는 원문만 비교한다.
+설명은 공용 Tooltip의 hover·focus 안내이며 파일 대상과 두 행동만 상시 표시한다.
+U24 비교 Dialog, 비서 작업 과정과 생성 카드의 Button·확인 패턴을 재사용하며 공통 표면 예외는 없다.
+
+되돌리기는 현재 내용이 비서의 마지막 결과와 같을 때만 `packages/file-commit`의 revision 확인·
+임시 sibling 교체로 첫 내용으로 복원한다. 이후 변경은 거부하고 이유를 알린다.
+열린 탭의 미저장 편집·복구 기록은 기존 DangerConfirmation으로 확인하고 확인 중 변경도 거부한다.
+성공 후 해당 탭을 명시적으로 다시 읽으므로 외부 변경 자동 재읽기에 의존하지 않는다.
+생성 카드의 기존 삭제 되돌리기는 유지하며 공급자 생성 파일의 삭제는 제공하지 않는다.
+
+검증: fake Codex·ACP, 실제 Codex `gpt-6-luna`/`low`의 수정→비교 데이터→되돌리기와 원래 내용
+일치를 확인했다. Copilot 실제 호출은 미확인이다. 1440px 동일 fixture의
+[Light 전](assets/assistant-changes-1565/before-light.png) / [후](assets/assistant-changes-1565/after-light.png),
+[한국어 Dark 전](assets/assistant-changes-1565/before-dark.png) / [후](assets/assistant-changes-1565/after-dark.png)는
+작업 행의 세로 중심·여백·잘림·한국어 줄바꿈을 수동 검토하는 합성 화면이며 소유자 시각 승인이 아니다.
