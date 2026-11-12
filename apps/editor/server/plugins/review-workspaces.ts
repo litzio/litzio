@@ -42,7 +42,7 @@ export class ReviewWorkspaces {
     }
     if (path.isAbsolute(input.workspace) || /^[a-z]:|^\\\\/i.test(input.workspace)) throw new Error("Expected a Root-relative workspace");
     const file = accessPath(boundary.resolve(path.join(root, input.workspace)), this.access), key = canonicalFilePath(file);
-    const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-material","workspace-image-estimate","workspace-image-read","workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
+    const writing = !(input.action === "workspace-evidence" && input.mode === "read") && !["workspace-material","workspace-image-read","workspace-read","workspace-compare","workspace-image","workspace-export-check", "workspace-groups-read", "workspace-lenses", "workspace-inspection", "workspace-required-checks", "workspace-completion"].includes(input.action), requestId = "requestId" in input ? input.requestId : randomUUID();
     if (writing && this.requests.has(requestId)) throw Object.assign(new Error("Duplicate requestId; query status"),{errorKind:"uncertain",receipt:{requestId,outcome:"uncertain"}});
     const unsettled = this.unsettled.get(key);
     if (writing && unsettled) throw Object.assign(new Error(`Uncertain workspace request ${unsettled.requestId}; query its status and read the workspace before changing it`),{errorKind:"uncertain",receipt:{requestId:unsettled.requestId,outcome:"uncertain"}});
@@ -90,48 +90,22 @@ export class ReviewWorkspaces {
         const material = await call("workspace-review-material", file, {pageNo:input.pageNo});
         return {material, baseline:before, documentRevision:original.snapshot.documentRevision, contentRevision:original.snapshot.contentRevision, receipt:receipt("success")};
       }
-      if (input.action === "workspace-image-estimate") {
-        if (!original.snapshot || original.cacheState !== "current" || !original.ledger?.inventory) throw new Error("Current review inventory required");
-        const selection = input.selection, inventory = original.ledger.inventory;
-        if (selection.pages.some(p=>!inventory.pages.includes(p)) || selection.targets.some(t=>!inventory.targets.includes(t))) throw new Error("Unknown image selection");
-        const images: {page:number;target?:string;bbox:number[]}[] = [];
-        let textCharacters = 0;
-        for (const page of selection.pages) {
-          const material:any = await call("workspace-review-material",file,{pageNo:page});
-          textCharacters += JSON.stringify(material).length;
-          if (!selection.targets.length) {
-            const size=material.pageSizes.find((p:any)=>p.page===page);
-            if (!size) throw new Error("Image page unavailable");
-            images.push({page,bbox:[0,0,size.width,size.height]});
-          } else for (const region of material.regions) if (region.page===page && selection.targets.includes(region.target)) images.push(region);
-        }
-        if(images.some(image=>image.bbox.some(n=>!Number.isFinite(n)) || image.bbox[2]!<=image.bbox[0]! || image.bbox[3]!<=image.bbox[1]! || Math.ceil((image.bbox[2]!-image.bbox[0]!)*2)*Math.ceil((image.bbox[3]!-image.bbox[1]!)*2)>16_000_000))throw new Error("Image pixel limit exceeded or invalid region; select a smaller scope");
-        if (!images.length || selection.targets.some(target=>!images.some(image=>image.target===target))) throw new Error("Selection has no image regions");
-        // Model-independent planning heuristic, not billed usage. Include repeated neighboring text conservatively.
-        const estimatedInputTokens = textCharacters + images.reduce((n,image)=>n+85+170*Math.ceil((image.bbox[2]!-image.bbox[0]!)*2/512)*Math.ceil((image.bbox[3]!-image.bbox[1]!)*2/512),0);
-        const estimate = {baseline:before,documentRevision:original.snapshot.documentRevision,contentRevision:original.snapshot.contentRevision,selection,images,
-          pageCount:selection.pages.length,regionCount:images.length,estimatedInputTokens,estimation:"Text characters plus 85+170 per 512px image tile at 2x; heuristic, model-dependent, not billed tokens"};
-        if (JSON.stringify({images,documentRevision:estimate.documentRevision}).length > 8000) throw new Error("Image approval record limit; select a smaller scope");
-        return {...estimate,estimateHash:hash(Buffer.from(JSON.stringify(estimate))),receipt:receipt("success")};
-      }
       if (input.action === "workspace-image-read") {
-        const run = [...(original.ledger?.comparisons??[])].reverse().find(run=>run.runId===input.runId);
-        const approval = original.ledger?.inspections.find(record=>record.runId===input.runId && (()=>{try{return JSON.parse(record.evidence).format==="review-image-approval-1";}catch{return false;}})());
-        const approved = approval ? JSON.parse(approval.evidence) : null;
-        if (!run?.selected || run.withdrawn || run.contentRevision!==original.snapshot?.contentRevision || approved?.documentRevision!==original.snapshot?.documentRevision) throw new Error("Human image approval required for this document revision");
-        const image = approved.images.find((image:any)=>image.page===input.pageNo && image.target===input.target);
-        if (!image) throw new Error("Image outside human-approved scope");
-        // A target may span several regions; return each approved region, never the containing page.
-        const selected = approved.images.filter((image:any)=>image.page===input.pageNo && image.target===input.target);
+        if (!original.snapshot || original.cacheState !== "current" || !original.ledger?.inventory) throw new Error("Current review inventory required");
+        const inventory=original.ledger.inventory;
+        if(!inventory.pages.includes(input.pageNo) || input.target && !inventory.targets.includes(input.target))throw new Error("Unknown image page or target");
+        const page:any=await call("workspace-review-material",file,{pageNo:input.pageNo});
+        const size=page.pageSizes.find((p:any)=>p.page===input.pageNo);
+        const selected=input.target ? page.regions.filter((region:any)=>region.page===input.pageNo && region.target===input.target) : size ? [{page:input.pageNo,bbox:[0,0,size.width,size.height]}] : [];
+        if(!selected.length)throw new Error("Target has no image regions on this page");
         const material=evidenceMaterialSchema.parse(await call("workspace-evidence-material"));
         const images=[];
-        for(const image of selected) images.push({...image,...await renderEvidenceImage(material,image.page,image.bbox)});
-        check(); return {runId:input.runId,images,documentRevision:original.snapshot!.documentRevision,receipt:receipt("success")};
+        for(const image of selected)images.push({...image,...await renderEvidenceImage(material,image.page,image.bbox)});
+        check(); return {runId:randomUUID(),images,documentRevision:original.snapshot.documentRevision,contentRevision:original.snapshot.contentRevision,baseline:before,receipt:receipt("success")};
       }
       let evidenceChange: unknown;
       if(input.action==="workspace-image-usage") {
-        const run=[...(original.ledger?.comparisons??[])].reverse().find(run=>run.runId===input.runId);
-        if(!original.snapshot || original.cacheState!=="current" || !run || input.scope.pages.some(p=>!run.scope.pages.includes(p)) || input.scope.targets.some(t=>!run.scope.targets.includes(t)))throw new Error("Usage requires an existing image run and its scope");
+        if(!original.snapshot || original.cacheState!=="current" || !original.ledger?.inventory || input.scope.pages.some(p=>!original.ledger!.inventory!.pages.includes(p)) || input.scope.targets.some(t=>!original.ledger!.inventory!.targets.includes(t)))throw new Error("Usage requires valid workspace pages and targets");
         evidenceChange={kind:"inspection",comparisons:[],records:[{runId:input.runId,lens:"source-evidence",contentRevision:original.snapshot.contentRevision,scope:input.scope,state:"not-inspected",
           evidence:JSON.stringify({format:"review-image-usage-1",source:"provider-turn-total-not-per-image",turnId:input.turnId,usage:input.usage})}]};
       }
@@ -202,7 +176,7 @@ export class ReviewWorkspaces {
       const resultFile = { path: candidate, maxBytes: JOB_FILE_MAX_BYTES };
       const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
         ...("change" in input || evidenceChange ? { change: evidenceChange ?? ("change" in input ? input.change : undefined), requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
-      if (typeof plan.rejection === "string") throw new Error(plan.rejection);
+      if (typeof plan.rejection === "string") throw Object.assign(new Error(plan.rejection), {errorKind:"invalid_input", current:{baseline:before,documentRevision:original.snapshot?.documentRevision,contentRevision:original.snapshot?.contentRevision}});
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
       const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-evidence" || input.action === "workspace-image-usage" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
       if (plan.snapshot) {
@@ -244,6 +218,7 @@ export class ReviewWorkspaces {
     } catch (error) {
       if (publishing && !saved) this.unsettled.set(key, { requestId, checked: false });
       const value = { state: publishing && !saved ? "uncertain" : "failed", saved, errorKind: publishing && !saved ? "uncertain" : (error as any)?.errorKind ?? (error instanceof FileAccessError || ["EACCES","EPERM"].includes((error as NodeJS.ErrnoException)?.code ?? "") ? "forbidden" : "invalid_input"), error: error instanceof Error ? error.message : "Workspace operation failed",
+        ...((error as any)?.current ? {current:(error as any).current} : {}),
         guidance: "Read the workspace before another write. After a lost response query this requestId; never automatically resend.", receipt: receipt(publishing && !saved ? "uncertain" : "failure") };
       if (writing) this.requests.set(requestId, value); return value;
     } finally {

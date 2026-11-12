@@ -746,28 +746,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   delete selected.userInput;
   await expect(questionCard).toHaveCount(0);
   expect(submittedAnswers.length).toBe(2);
-  const checkImageQuestion = async (korean) => {
-    selected.userInput = { requestId: `image-${korean}`, turnId: selected.turns[0].id,
-      reviewImageEstimate: { pages: [11], targets: [], pageCount: 1, regionCount: 1, estimatedInputTokens: 63998 },
-      questions: [{ id: '0', header: '', question: 'Review image comparison', isOther: false, isSecret: false,
-        options: [{ label: 'approve', description: '' }, { label: 'decline', description: '' }] }] };
-    await expect(questionCard).toBeVisible();
-    await expect(questionCard).toContainText(korean ? '11쪽 이미지 대조' : 'Image comparison');
-    await expect(questionCard.getByRole('radio')).toHaveCount(2);
-    const details = questionCard.getByLabel(korean ? '이미지 대조 상세' : 'Image comparison details');
-    await details.focus();
-    await page.keyboard.press("Tab"); await page.keyboard.press("Shift+Tab");
-    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText(korean ? '청구 토큰이 아닙니다' : 'not billed tokens');
-    await page.keyboard.press('Escape');
-    await questionCard.getByRole('radio', { name: korean ? '승인' : 'Decline', exact: true }).check();
-    if (screenshots) await page.screenshot({ path: `tmp/1462-evidence/image-${korean ? 'ko' : 'en'}.png` });
-    await questionCard.getByRole('button', { name: korean ? '답변 제출' : 'Submit answers' }).click();
-    await expect(questionCard).toHaveCount(0);
-    expect(submittedAnswers.at(-1).answers).toEqual({ '0': { answers: [korean ? 'approve' : 'decline'] } });
-  };
-  await checkImageQuestion(false);
-
-
   // Completion arrives while closed; opening acknowledges it and re-closing stays quiet.
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
   // Closing an unfinished reopen/setup refresh retains the admitted turn observer.
@@ -1014,7 +992,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-640.png' });
-  await checkImageQuestion(true);
+
   selected.userInput = { requestId: 'ko-983', turnId: selected.turns.at(-1).id, questions: [{ id: 'ko', header: '설명 범위', question: '문서에서 어떤 내용을 자세히 설명할까요?', isOther: true, isSecret: false, options: [{ label: '핵심 내용', description: '문서의 핵심 내용과 주요 조건을 함께 설명합니다.' }, { label: '단계별 설명', description: '각 단계의 근거와 가정을 자세히 설명합니다.' }] }] };
   await expect(questionCard).toBeVisible();
   await questionCard.scrollIntoViewIfNeeded();

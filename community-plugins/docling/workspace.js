@@ -118,10 +118,11 @@ function correctionSession(archive,snapshot,report) {
       if(!["before","after"].includes(op.position)||!["paragraph","heading"].includes(op.kind)||op.kind==="heading"&&(!Number.isInteger(op.level)||op.level<1||op.level>6)||typeof op.text!=="string"||!op.text.trim()||op.text.length>100000)throw new Error("Insert supports nonempty paragraph or heading 1–6 only");
       anchorBlock(op);return null;
     }
+    const formats={text:["type","self_ref","text"],kind:["type","self_ref","kind",...(op.kind==="heading"?["level"]:[])],
+      cell:["type","self_ref","cell","text"],exclude:["type","self_ref","excluded"]};
+    const fields=formats[op.type];
+    if(!fields || !same(Object.keys(op).sort(),fields.sort()))throw new Error(`patch.operations: expected objects with type and exact fields ${JSON.stringify(formats)}; insert uses anchorPath, position, kind, text and optional heading level`);
     const item=itemFor(op),targets=targetBlocks(item);
-    const fields={text:["type","self_ref","text"],kind:["type","self_ref","kind",...(op.kind==="heading"?["level"]:[])],
-      cell:["type","self_ref","cell","text"],exclude:["type","self_ref","excluded"]}[op.type];
-    if(!fields || !same(Object.keys(op).sort(),fields.sort()))throw new Error("Invalid correction fields");
     const independent=targets.length===1 && ["paragraph","heading"].includes(targets[0].block) && op.self_ref.startsWith("#/texts/");
     if(op.type==="kind" && !independent)throw new Error(kindReason);
     if(op.type==="kind" && (!["paragraph","heading"].includes(op.kind) || op.kind==="heading" && (!Number.isInteger(op.level)||op.level<1||op.level>6)))throw new Error("Expected paragraph or heading 1–6");
@@ -344,41 +345,47 @@ export async function workspaceOperation(input) {
   if(!state.snapshot||state.cacheState!=="current")throw new Error("Saved document is damaged or uses another contract; never regenerate it from Docling");
   const snapshot=structuredClone(state.snapshot),report=metadataOf(archive).correspondence,session=correctionSession(archive,snapshot,report);
   if(input.change){
-    const change=structuredClone(input.change);
-    if(input.change.kind==="groups-propose"){
-      if(input.change.groups.some(group=>group.sourceRevision!==archive.manifest.document.sha256))throw new Error("Mixed group source revision");
-      for(const group of change.groups)for(const target of group.targets){
-        const inserts=target.patch.operations.filter(op=>op.type==="insert");
-        if(inserts.length){
-          if(inserts.length!==1||target.patch.operations.length!==1||!same(target.locator,{anchorPath:inserts[0].anchorPath}))throw new Error("Insert locator must address its anchor path");
-          session.bindInsert(inserts[0]);
-          for(const r of target.regions){const page=archive.document.pages[r.page];if(!page||r.bbox[0]<0||r.bbox[1]<0||r.bbox[2]>page.size.width||r.bbox[3]>page.size.height||r.bbox[2]<r.bbox[0]||r.bbox[3]<r.bbox[1])throw new Error("Invalid insert evidence region");}
-        }else originalReviewTarget(archive.document,target.locator);
-        for(const operation of target.patch.operations)try{session.validate(operation);}catch(error){return {rejection:error.message};}
-        target.before=session.fingerprint(target.patch.operations);
+    try {
+      const change=structuredClone(input.change);
+      if(input.change.kind==="groups-propose"){
+        if(input.change.groups.some(group=>group.sourceRevision!==archive.manifest.document.sha256))throw new Error(`Mixed group source revision; expected ${archive.manifest.document.sha256}`);
+        for(const group of change.groups)for(const target of group.targets){
+          const inserts=target.patch.operations.filter(op=>op.type==="insert");
+          if(inserts.length){
+            if(inserts.length!==1||target.patch.operations.length!==1||!same(target.locator,{anchorPath:inserts[0].anchorPath}))throw new Error("Insert locator must address its anchor path");
+            session.bindInsert(inserts[0]);
+            for(const r of target.regions){const page=archive.document.pages[r.page];if(!page||r.bbox[0]<0||r.bbox[1]<0||r.bbox[2]>page.size.width||r.bbox[3]>page.size.height||r.bbox[2]<r.bbox[0]||r.bbox[3]<r.bbox[1])throw new Error("Invalid insert evidence region");}
+          }else originalReviewTarget(archive.document,target.locator);
+          for(const operation of target.patch.operations)try{session.validate(operation);}catch(error){return {rejection:error.message};}
+          target.before=session.fingerprint(target.patch.operations);
+        }
       }
+      if(input.change.kind==="required-checks" && input.change.inventory){
+        const inventory=input.change.inventory,sources=["pictures","tables"].flatMap(kind=>(archive.document[kind]??[]).map(item=>({ref:item.self_ref,kind:kind==="pictures"?"picture":"table"})));
+        if(sources.length!==inventory.requiredChecks.length||sources.some(source=>inventory.requiredChecks.filter(check=>check.locator.self_ref===source.ref&&check.kind===source.kind).length!==1))throw new Error("Inventory must retain every original picture and table");
+        if(inventory.complete&&(!same([...inventory.pages].sort((a,b)=>a-b),Object.keys(archive.document.pages).map(Number).sort((a,b)=>a-b))||state.items.some(item=>!inventory.targets.includes(item.self_ref))))throw new Error("Incomplete lens/page/item inventory");
+        if(record.ledger.inventory.lenses.some(kind=>!inventory.lenses.some(next=>same(kind,next))))throw new Error("Original lens extraction and scope are immutable");
+      }
+      record.ledger=updateReviewLedger(record.ledger,change,{
+        contentRevision:snapshot.contentRevision,snapshotHash:hash(JSON.stringify(state.snapshot)),current:true,
+        requestId:input.requestId,revision:input.revision,at:input.at,
+        apply(target){
+          const operations=target.patch.operations;
+          if(operations.some(op=>op.type!=="insert"&&(op.self_ref!==target.locator.self_ref||op.type==="cell"&&op.cell!==target.locator.cell)))throw new Error("Correction outside reviewed locator");
+          if(!same(operations.map(session.value),target.patch.expectedBefore)||!same(session.fingerprint(operations),target.before))throw new Error("Expected before conflict");
+          const inverse=[];for(const op of operations)inverse.unshift(...session.apply(op,target.regions));
+          if(!same(operations.map(session.value),target.patch.after))throw new Error("Expected after conflict");return inverse;
+        },
+        undo(target,inverse){
+          if(target.patch.operations.some(op=>op.type==="exclude" && session.value(op).excluded!==true))throw new Error("Undo exclusion conflict");
+          for(const entry of inverse)session.undo(entry);
+        },
+      });
+    } catch (error) {
+      // Validation only: publish through the existing schema-checked, secret-redacted result.
+      if(input.change.kind==="groups-propose")return {rejection:error.message};
+      throw error;
     }
-    if(input.change.kind==="required-checks" && input.change.inventory){
-      const inventory=input.change.inventory,sources=["pictures","tables"].flatMap(kind=>(archive.document[kind]??[]).map(item=>({ref:item.self_ref,kind:kind==="pictures"?"picture":"table"})));
-      if(sources.length!==inventory.requiredChecks.length||sources.some(source=>inventory.requiredChecks.filter(check=>check.locator.self_ref===source.ref&&check.kind===source.kind).length!==1))throw new Error("Inventory must retain every original picture and table");
-      if(inventory.complete&&(!same([...inventory.pages].sort((a,b)=>a-b),Object.keys(archive.document.pages).map(Number).sort((a,b)=>a-b))||state.items.some(item=>!inventory.targets.includes(item.self_ref))))throw new Error("Incomplete lens/page/item inventory");
-      if(record.ledger.inventory.lenses.some(kind=>!inventory.lenses.some(next=>same(kind,next))))throw new Error("Original lens extraction and scope are immutable");
-    }
-    record.ledger=updateReviewLedger(record.ledger,change,{
-      contentRevision:snapshot.contentRevision,snapshotHash:hash(JSON.stringify(state.snapshot)),current:true,
-      requestId:input.requestId,revision:input.revision,at:input.at,
-      apply(target){
-        const operations=target.patch.operations;
-        if(operations.some(op=>op.type!=="insert"&&(op.self_ref!==target.locator.self_ref||op.type==="cell"&&op.cell!==target.locator.cell)))throw new Error("Correction outside reviewed locator");
-        if(!same(operations.map(session.value),target.patch.expectedBefore)||!same(session.fingerprint(operations),target.before))throw new Error("Expected before conflict");
-        const inverse=[];for(const op of operations)inverse.unshift(...session.apply(op,target.regions));
-        if(!same(operations.map(session.value),target.patch.after))throw new Error("Expected after conflict");return inverse;
-      },
-      undo(target,inverse){
-        if(target.patch.operations.some(op=>op.type==="exclude" && session.value(op).excluded!==true))throw new Error("Undo exclusion conflict");
-        for(const entry of inverse)session.undo(entry);
-      },
-    });
   }
   if(input.progress)setProgress(archive.document,record,input.progress);
   session.updateAnchors(record.ledger);

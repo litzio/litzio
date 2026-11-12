@@ -317,6 +317,6 @@ PDF.js legacy Node build가 PDF 텍스트를 독립 추출합니다. 어댑터�
 
 Codex 비서는 공용 `read_review_material`로 렌즈·source-evidence 후보·그림/표 필수 확인·해당/앞뒤 페이지 조각을 읽고 `propose_review_groups`로 제안만 저장한다. 문서를 적용하는 승인·거절·Undo·완료 승인 도구는 제공하지 않는다. 교정 결정은 기존 사람 CLI 경로를 사용한다.
 
-이미지는 `estimate_review_images` → `request_litzio_user_input`의 reviewImage(예상량 입력+estimateHash) → 실제 사람 답변의 runId → `read_review_images` 순서다. Host가 질문에 정확한 쪽·영역 수·대상·예상 입력 토큰을 표시하며, 승인 영역만 PDF.js로 반환한다. 영역 승인으로 페이지 전체를 받거나 변경된 문서에 승인을 재사용할 수 없다. 렌더 accepted는 사람 승인이 아니다. 실제 turn 토큰 관측과 검사 결과는 기존 inspection evidence를 재사용하고 필수 확인을 자동 완료하지 않는다.
+이미지는 `read_review_images {path,pageNo,target?}`로 사전 승인 없이 바로 읽는다(2026-11-12 소유자 결정, #1529). 현재 파일·문서 revision과 페이지/대상 유효성을 확인한다. 반환 runId는 검사·사용량의 측정 식별자이며 승인이 아니다. 현재 revision에서 실제 반환된 자료 이력으로 턴을 넘어 검사 부분을 누적하고 나머지는 미대조로 남긴다. 사용량은 실행 조건이 아니며 사람 필수 확인을 자동 완료하지 않는다.
 
-공용 CLI는 `review workspace-material|workspace-image-estimate|workspace-image-read|workspace-image-usage --input <json-file> --host <origin> --json`이며 SDK의 같은 입력·receipt를 사용한다. 페이지 조각은 이미지 대조 없이도 조회할 수 있다. 상세 입력·예상량 한계와 사람 경계는 [현재 플러그인 계약](../../docs/design/plugin-stage1-v1.md#비서-국소-제안-1462-5단계)을 따른다. 고정 sample/converted와 fixture만 사용하며 Docling을 재변환하지 않는다. 실제 품질·6단계 화면/실측 수락을 뜻하지 않는다.
+공용 CLI는 `review workspace-material|workspace-image-read|workspace-image-usage --input <json-file> --host <origin> --json`이며 SDK의 같은 입력·receipt를 사용한다. 페이지 조각은 이미지 대조 없이도 조회할 수 있다. 상세 입력과 사람 교정 경계는 [현재 플러그인 계약](../../docs/design/plugin-stage1-v1.md#비서-국소-제안-1462-5단계)을 따른다. 고정 sample/converted와 fixture만 사용하며 Docling을 재변환하지 않는다. 실제 품질·6단계 화면/실측 수락을 뜻하지 않는다.

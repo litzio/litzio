@@ -19,7 +19,7 @@
 3. **원본 대응:** [spike ②](../reviews/1462-spike-block-identity.md)의 방식 A인 경로 기준을 쓴다. Core 연산마다 작은 갱신 함수로 대응을 고친다. 나누기는 같은 원본 영역을 **추정**으로 공유하고 합치기는 영역 합집합, 삭제는 대응을 지우되 원본 증거를 남겨 **대응 문단 없음**으로 보인다. 사람이 에디터에서 자유롭게 크게 고친 블록은 억지로 맞추지 않고 **대응 불확실**로 표시한다. 완벽 추적은 하지 않는다.
 4. **교정과 오래됨:** Core의 경로 기반 글자 수정(`updateNodeTextAtPath`), `convertBlock`, `removeBlock`, `updateTableCell`, `splitParagraph`, `mergeParagraphWithPrevious`를 쓴다. 첫 일치를 찾는 `replaceText`는 대상 교정에 쓰지 않는다. 제안의 오래됨은 전체 문서 revision 대신 제안의 **바꾸기 전 내용이 대상에 그대로 있는지**로 판정한다. A 승인 뒤 무관한 B는 유효하다. Undo는 승인 때 기록한 바꾸기 전 내용으로 되돌린다. 저장의 baseline·revision 충돌 보호는 유지한다.
    독립 블록이 없는 대상의 종류 교정(빠진 머리말 복원, 캡션→제목 분리)은 블록 삽입 교정이 생기는 후속 단계에서 다룬다.
-5. **검사:** 렌즈는 불변 원본 변환 결과에 최초 한 번 실행하며 교정 때문에 무효화하지 않는다. [spike ①](../reviews/1462-spike-evidence-match.md)의 pdf.js 텍스트 증거↔리치오 문서 양방향 대응은 **보조 후보 탐지**로 쓴다. 두 실험의 주입 오류 합계 24/24 탐지에도 holdout 오경보 3.5건/쪽으로 사전 기준에 미달했다. 후보 목록은 사람에게 보여 주고 숫자·단위 차이를 위에 올린다. 비서 필터링은 6단계 실측 뒤 판단한다. 그림·표 사람 필수 확인과 이미지 대조의 사람 승인·예상량 경계는 유지한다. 첫 지원은 텍스트 레이어가 있는 PDF이며 스캔 PDF는 후속이다.
+5. **검사:** 렌즈는 불변 원본 변환 결과에 최초 한 번 실행하며 교정 때문에 무효화하지 않는다. [spike ①](../reviews/1462-spike-evidence-match.md)의 pdf.js 텍스트 증거↔리치오 문서 양방향 대응은 **보조 후보 탐지**로 쓴다. 두 실험의 주입 오류 합계 24/24 탐지에도 holdout 오경보 3.5건/쪽으로 사전 기준에 미달했다. 후보 목록은 사람에게 보여 주고 숫자·단위 차이를 위에 올린다. 비서 필터링은 6단계 실측 뒤 판단한다. 그림·표 사람 필수 확인은 유지한다. 당시 이미지 대조의 사람 승인·예상량 경계는 2026-11-12 소유자 결정(#1529)으로 대체됐다. 이미지는 사전 승인 없이 읽고 실제 읽고 검사한 부분만 누적 기록한다. 첫 지원은 텍스트 레이어가 있는 PDF이며 스캔 PDF는 후속이다.
 6. **완료와 내보내기:** 공식 내보내기를 막는 조건을 두지 않는다. 기존 완료 조건 계산은 **검증 범위 보고서** 항목으로 재사용한다. 화면·CLI로 확인한 그림·표, 이미지 대조 안 한 쪽, 남은 원문 차이 후보, 변환 실패 페이지, 대응 불확실 블록과 한계를 보여 준다. 소유자 지시대로 100% 무결을 당장 목표로 하지 않는다.
 7. **제거 범위:** `review.js`의 `applyCorrections`·`correctionValue`·`inverseCorrection`, `host.js`의 patch/build 재생성 분기, `workspace.js`의 patch 기반 revision·seal 전제와 P2의 문서 전체 revision 기준 오래됨 판정을 걷어낸다. 최초 변환·최초 대응 생성은 유지한다. 개발 단계이므로 기존 `.docling` 호환은 하지 않는다.
 8. **유지 범위:** `.docling` 단일 작업공간, 원본 불변·원자적 ZIP 교체, baseline·staging·receipt·uncertain 보호, 대조 화면·명시 export·자료 조회·Host/CLI 공용 작업 틀을 유지한다. P2의 대상별 근거·사람 판단 이력·필수 확인 기록을 유지하고 묶음 모델은 동결한다(새 전이 추가 금지).
@@ -79,6 +79,9 @@ insert는 기준 블록 경로 앞/뒤에 문단 또는 수준 1~6 제목만 Cor
 
 ## 5단계 비서 국소 제안 구현 — 2026-11-11
 
+2026-11-12 소유자 결정(#1529, #1528): 아래 11-11 승인 카드·같은 턴·전량 기록 설명과 측정은 이전 구현의 이력이다. 현재는 이미지 예상량 도구·사전 승인 카드·estimateHash·승인 runId 결합을 제거하고 `read_review_images`로 바로 읽는다. 반환 runId는 검사/사용량의 측정 식별자이며 허가가 아니다. 텍스트와 이미지 검사는 대화에서 실제 반환된 현재 workspace·문서/content revision의 자료 이력으로 턴을 넘어 누적하며, 이미지 전량 읽기·전량 기록을 요구하지 않는다. 읽지 않거나 검사하지 않은 나머지는 미대조로 남긴다. 페이지·대상·파일/문서 revision 무결성, 측정용 사용량, 사람의 교정 승인·거절·Undo·완료 경계는 유지한다. 제안 입력 오류는 기존 구체 검증 사유와 알려진 현재 revision·baseline을 반환한다. 일반 질문 수명은 #1530의 별도 범위다.
+
+
 `master`에 병합된 1~4단계 위에서 Codex 비서 읽기·제안 저장을 연결했다. 공용 페이지 조각은 해당/앞뒤 쪽의 항목·관계·원문·provenance·현재 블록/삽입 대응을 제공한다. 이미지 예상량을 Host 질문 카드에 표시하고 실제 사람 응답만 기존 selected comparison/inspection에 저장한다. 승인 영역만 PDF.js로 반환하며 문서 변경·범위 밖 요청·비서 자체 확인을 거부한다. 교정 승인·거절·Undo·완료 승인은 비서에 등록하지 않고 사람 CLI 경로에 남긴다. P2 묶음 모델·전이는 그대로다. 상세 계약과 도구 목록은 [현재 플러그인 계약](plugin-stage1-v1.md#비서-국소-제안-1462-5단계)을 따른다.
 
 6-0 사용성 보완: 비서는 `.docling` 경로로 대상을 지정하고 Host가 기존 workspace-find로 내부 식별자를 결정한다. 대조 탭 맥락은 참고이며 화면 없이도 읽기·제안 저장이 가능하다. Host가 baseline/requestId를 관리하고 읽기 전용 저장 거부의 권한 안내를 제공한다. 일반 검사 기록은 이번 턴 실제 페이지 자료 반환 범위만 허용하며 같은 이미지 run의 사용량 scope는 합친다. 작업공간 기본 읽기는 모델에도 요약만 반환하고, 화면 이력의 큰 도구 결과는 크기 요약으로 투영해 사용 중 대화의 반복 읽기·재개가 응답 한도를 소진하지 않게 한다. 이미지 예상량·질문 카드의 실제 사람 승인 범위는 유지한다.
@@ -94,8 +97,8 @@ Windows에서 기존 고정 LSR 검사에 가짜 provider를 연결해 읽기 �
 이 절은 [#1462](https://github.com/litzio/litzio/issues/1462)의 소유자가 추가로 전달한 결정이다. 아래 실험의 수치·당시 제안은 보존하되, 이전의 “전 페이지 이미지 대조가 완료 필수” 권고와 패치 보류안은 이 결정으로 대체한다. 이슈 본문과 측정 당시 문구를 현재 결정의 대체 근거로 사용하지 않는다.
 
 1. 기본 자동 검사는 **7개 렌즈 방식만** 실행한다. 수식·표 렌즈의 확대 원본 이미지는 이 기본 범위에 포함한다. 후보를 찾았다고 페이지 조각+이미지 검사를 자동으로 추가하지 않는다.
-2. **모든 그림·표**를 “사람 필수 확인 항목” 묶음에 남긴다. 대조 화면에서 빠르게 직접 확인하거나, 사람이 “비서에게 이미지 대조 맡기기”를 요청하고 예상 입력량을 보고 승인한 범위만 페이지 조각+이미지 방식으로 검사한다. 수식·표 렌즈가 문제를 찾지 않았다는 이유로 필수 항목을 자동 완료하지 않는다.
-3. 그림·표 외 본문 페이지의 이미지 대조도 사람의 요청·예상 입력량 확인·승인 뒤에만 실행한다. 대조하지 않은 페이지는 **“본문 대조 안 함”**이며 “문제 없음”과 다르다.
+2. **이미지 사전 승인 조건은 2026-11-12 #1529로 대체됨.** 당시 **모든 그림·표**를 “사람 필수 확인 항목” 묶음에 남긴다. 대조 화면에서 빠르게 직접 확인하거나, 사람이 “비서에게 이미지 대조 맡기기”를 요청하고 예상 입력량을 보고 승인한 범위만 페이지 조각+이미지 방식으로 검사한다. 수식·표 렌즈가 문제를 찾지 않았다는 이유로 필수 항목을 자동 완료하지 않는다.
+3. **이미지 사전 승인 조건은 2026-11-12 #1529로 대체됨.** 당시 그림·표 외 본문 페이지의 이미지 대조도 사람의 요청·예상 입력량 확인·승인 뒤에만 실행하도록 정했다. 대조하지 않은 페이지는 **“본문 대조 안 함”**이며 “문제 없음”과 다르다.
 4. **대체됨: [2026-11-11 아키텍처 확정](#2026-11-11-아키텍처-확정소유자-승인)** — 완료는 **렌즈 검사 전 범위 완료 + 열린 문제 묶음·판단 불가 0 + 사람 필수 확인 항목 처리 + 검사 못 함 0**으로 판정한다. “본문 대조 안 함”은 완료를 막지 않지만 완료 기록에 남긴다. 승인된 교정의 저장/재생성·revision 보호는 계속 적용한다.
 5. 최종 구조 수정 범위는 **문단 나누기, 문단 합치기(페이지 경계 포함), 표 빈칸 채우기·없는 칸 추가, 쪽을 넘어 이어진 표 합치기**다. 각 구조 수정은 별도 구현 PR로 둔다. 앞서 전달된 “없는 표 칸 추가를 후속으로 보류” 결정은 이 최종 범위로 대체한다. **셀 합치기·나누기로 병합 셀 모양을 바꾸는 기능은 제외**한다. 병합 셀은 걸치는 모든 Litzio 칸에 같은 값을 채운다.
 6. 결정적 렌즈 추출은 DoclingDocument 표준 필드 의미를 따른다. 제품은 JS 플러그인이므로 변환에 사용한 버전의 **공식 DoclingDocument JSON Schema로 검증하고 그 스키마에 타입을 맞춘다**. 실험의 Python venv를 제품 실행 의존성으로 만들거나 검증 없는 임의 JSON 해석을 하지 않는다.
@@ -130,7 +133,7 @@ Windows에서 기존 고정 LSR 검사에 가짜 provider를 연결해 읽기 �
 - **동결:** P2 묶음 상태 모델에는 새 상태 전이를 추가하지 않는다. 실사용 뒤 불필요한 전이를 줄인다.
   300쪽 저장 성능은 실제 큰 문서에서 막힐 때 다룬다.
 
-**검사 방식 전환 대비:** 기본 검사는 계속 렌즈 방식이며 페이지 조각+이미지는 사람이 승인한 범위에서만 실행한다
+**검사 방식 전환 대비(이전 결정):** 기본 검사는 계속 렌즈 방식이며 페이지 조각+이미지는 사람이 승인한 범위에서만 실행하도록 했으나, 이미지 사전 승인은 2026-11-12 #1529로 제거됐다
 (2026-11-10 결정 유지). P4 완료 계산은 7개 렌즈를 코드에 고정하지 않고 **필수 검사 종류와 각 적용 범위** 목록만
 보며, 페이지 전체를 덮는 이미지 검사를 필수 종류로 넣는 것만으로 향후 전환할 수 있어야 한다. P5는 해당 페이지와
 앞뒤 쪽의 항목·관계·원문·provenance를 이미지 대조 전용이 아닌 공용 `review material` 조회로 제공하고 비서는 두 방식에서
@@ -201,7 +204,7 @@ Undo는 과거 승인을 삭제하지 않고 `undone` 처리 이력을 추가한
 
 1. 7개 렌즈가 문서 전 범위를 처리했고, 필수 입력·페이지/항목 inventory의 누락이나 검사 못 함이 0이다. 렌즈와 수식·표 crop의 실제 coverage를 기록한다. 전체 본문 이미지 검사를 했다는 뜻은 아니다.
 2. 열린 문제 묶음과 판단 불가가 0이고, 사람이 문제 묶음을 승인 또는 근거 있는 거절로 처리했다. 규칙 후보의 기각·확정 문제의 해소·재검사 결과도 남는다.
-3. 모든 그림·표의 필수 확인 항목이 처리됐다. 직접 사람 확인, 또는 예상량 승인 뒤 실제 이미지 대조를 끝내고 결과를 검수 상태에 반영한 기록이 필요하다. 실행 승인만으로는 완료하지 않으며 발견된 문제/판단 불가는 2번 조건으로 남는다.
+3. 모든 그림·표의 필수 확인 항목이 처리됐다. 직접 사람 확인, 또는 실제 이미지 대조를 끝내고 결과를 검수 상태에 반영한 기록이 필요하다. 이 절의 이전 예상량 사전 승인 조건은 2026-11-12 #1529로 제거됐다. 이미지 읽기만으로는 완료하지 않으며 발견된 문제/판단 불가는 2번 조건으로 남는다.
 4. 승인 변경이 `.docling`에 저장되고 SDK/Core 공식 작성 경로로 검증한 canonical snapshot과 현재 mapping·문서 revision이 일치한다. 재생성 필요, 작업공간 외부 수정, stale 자료, pending/unknown 요청은 0이다. 교정 뒤 필요한 재검사도 마친다. 외부 `.md` 존재/최신 여부는 검사하지 않는다.
 
 선택하지 않은 본문 이미지 대조는 완료를 막지 않는다. 완료 기록에는 content revision, 렌즈별 범위/결과, 필수 확인의 대상·처리 방식, 이미지 대조한 페이지/범위와 **본문 대조 안 함** 페이지, 확인된 제약·사람 결정, canonical snapshot/mapping revision을 함께 남긴다. “모든 본문이 원본과 일치함”으로 표시하지 않는다. 사람의 최종 완료 승인은 이 ledger/content revision과 snapshot hash에 고정하고 이후 교정/Undo로 무효화한다. 이 승인 기록은 export 이력과 다르다.
@@ -314,7 +317,7 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 | `review.inspection` (write) | `review inspection` / `record_review_inspection` | requestId, baseline, run/model/effort, 실제 읽은 자료 refs/hash, 페이지별 modality·결과·한계 → 저장 revision과 검사 coverage. 단순 호출자가 claimed한 완료를 전체 검사 증거로 취급하지 않는다. |
 | `review.lenses` (read) | `review lenses` / `read_review_lenses` | baseline, lens IDs/version → 표준 schema로 검증한 effective 렌즈 자료·공식 필드/보조 후보 구분·필수 확인 inventory·losses. 이 추출 작업 자체는 별도 AI를 실행하지 않는다. |
 | `review.inspect` (run) | `review inspect` / `run_review_inspection` | 대상 비서 대화/Host, baseline, 기본 mode `lenses` → 공식 비서의 렌즈 분석·저장된 검사 run/문제 제안. 선택 이미지 대조로 자동 확대하지 않는다. |
-| `review.image-estimate/compare` (read/run) | `review image-estimate/image-compare` / `estimate_review_images/compare_review_images` | 대상 페이지/항목과 baseline → 예상 입력·호출·범위. 실행은 이 예상에 대한 사람 승인·같은 범위/requestId를 요구하고 실제 coverage/usage·결과를 반환한다. |
+| `workspace-image-read` (read) | `review workspace-image-read` / `read_review_images` | 2026-11-12 결정: 사전 승인 없이 페이지/영역을 읽고 실제 검사 부분·usage를 누적한다. 현재 파일/문서 revision·페이지·대상은 검증한다. |
 | `review.required-checks` (read/write) | `review required-checks` / `read_review_required_checks/record_review_required_check` | baseline과 전체 그림/표 목록, write는 requestId·확인한 정확한 대상·사람 확인 또는 승인된 대조 run/결과 → 필수 확인 처리 기록·남은 대상·새 baseline. 보기만 한 항목을 완료하지 않는다. |
 | `review.groups.propose` (write) | `review groups propose` / `propose_review_groups` | requestId, baseline, 묶음·개별 근거·제안 패치 → 검증된 묶음 IDs, 지원/보류, 새 baseline. 원본/문서 변경 없이 제안만 저장. |
 | `review.groups.read` (read) | `review groups read` / `read_review_groups` | baseline, groupId 또는 상태 필터/continuation → 전체 대상·대표·근거·제안·판단·처리 이력·열린 문제 수. 잘라서 완전 목록처럼 표시하지 않는다. |
@@ -628,7 +631,7 @@ S09는 두 표·continued caption이 렌즈 문맥에 있었지만 모델이 놓
 | --- | --- |
 | 3단계 전환 구현 | Docling 패치 경로 제거, Core 연산 교정·대응 갱신·대상 내용 기준 오래됨 판정. 대응 불확실 표시는 6단계에서 다룬다. 기존 글자·종류·제외·칸 교정 4종을 새 방식으로 동작시키고 실패 페이지를 기록한다. |
 | 4단계 문제 찾기 | 공식 schema 검증·그림/표 inventory·검사 종류별 적용 범위를 가진 렌즈와 원문 증거 후보 목록. 7개 렌즈를 코드에 고정하지 않는다. |
-| 5단계 비서 국소 제안 | 의심 지점만 원본 이미지·문맥으로 판단해 제안한다. 승인·Undo는 실제 사람 응답으로만 실행하고 비서 도구에 넣지 않는다. 이미지 대조는 예상량 승인 범위만, 페이지 조각 자료는 공용 `review material`로 제공한다. |
+| 5단계 비서 국소 제안 | 의심 지점만 원본 이미지·문맥으로 판단해 제안한다. 승인·Undo는 실제 사람 응답으로만 실행하고 비서 도구에 넣지 않는다. 2026-11-12 결정으로 이미지 사전 승인을 제거하고 실제 검사 범위를 누적하며, 페이지 조각 자료는 공용 `review material`로 제공한다. |
 | 6단계 최소 검수 화면·실측 | 시안 선택 후 LSR 13쪽에서 발견→제안→승인→교정→저장→재열기→출처 역추적→내보내기 전체 흐름을 실측한다. 렌즈 방식과 페이지 조각+이미지 방식 모두 측정하며 첫 제품 수락 조건으로 삼는다. |
 | 7단계 검증 범위 보고서·공식 내보내기 | 화면·CLI 보고서와 비차단 공식 내보내기, 이어진 표 합치기 등 나머지 구조 수정. 두 번째 어댑터와 #347은 별도 결정이다. |
 
@@ -644,7 +647,7 @@ P 번호는 계획 식별자이며 GitHub PR 번호가 아니다. 모든 PR의 b
 | **P2 공용 묶음·저장 경계** | 공통 문제/필수 확인 모델·coverage·상태·receipt, 제안 저장/조회/승인/거절/Undo를 P1 workspace snapshot 경로에 연결한다. Host는 범위/전체 교체, source-format record와 파생 replay는 provider 소유. 최종 완료 승인 모델도 정의하되 공식 export gate는 P11에서 연결한다. | `review groups propose/read/approve/reject/undo`, `inspection/required-checks/completion/status`. 같은 dispatcher의 비서 도구 계약을 정의하고 실제 AI 연결은 P5. | 일반 workspace provider fixture로 승인/거절/Undo·snapshot과 원본 보존·후보 작성/commit 실패·stale/중복/재시작 unknown, 실제 CLI JSON. 파생 계보 fixture의 1→N/N→1 binding을 Core 작성 경로로 확인. | P1 |
 | **P3 기존 칸 locator 교정 회귀** | 문제 보고는 표 단위로 하고 Docling 원본 cell index locator를 교정에 재사용한다. Core·Host 일반 칸 target과 새 칸 material은 추가하지 않는다. 확대 구현은 `archive/1462-p3-cell-targets`(`d10392a1b3907719de47bb6dcba3181c06143836`)에 보관하고 P9에서 필요한 부분만 가져온다. | 기존 `review groups propose/approve`·workspace snapshot 재생성 경로. 새 CLI·비서 도구 없음. | 기존 workspace fixture에서 원본 cell locator의 제안→사람 승인→저장된 snapshot 재파싱을 대표 사례 하나로 실행해 병합 span의 모든 칸 변경·다른 칸 보존 확인. 새 subprocess·browser 없음. | P1, P2 |
 | **P4 Docling schema 렌즈·필수 확인** | 변환 버전의 공식 JSON Schema 검증/타입과 7개 결정적 렌즈·보조 후보 구분, 전체 그림/표 inventory, 원본/effective 계보와 변환 losses 연결을 구현한다. 필수 검사 종류와 각 적용 범위를 정의해 완료 계산이 각 범위만 요구하게 고친다. 추출 누락을 빈 범위 성공으로 처리하지 않는다. 원본 bytes 보존, plugin에 AI 실행 없음. | `review lenses/rules/required-checks/material`, 도구 `read_review_lenses/run_review_rules/read_review_required_checks`의 공용 정의. | 고정 공식 schema로 valid/invalid/미지원 버전, body/furniture·관계·표 점유, inventory 누락 없음, 전후 effective 자료·loss 분류, 인계/reload·CLI. 전체 페이지/대상을 모든 렌즈에 요구하는 현재 `evaluateReviewCompletion`의 범위 결함과 추출 실패를 보호. 완료 계산은 7개 렌즈를 고정하지 않고 필수 검사 종류/적용 범위 목록만 사용. 모델 정확도와 구별한 추출 검사. | P1, P3 |
-| **P5 공식 비서·예상량/요청 승인** | 공식 비서가 읽기→검사→제안 저장을 실행한다. 추가 페이지 조각+이미지는 예상량·대상/content revision·사람 승인 범위에만 실행하고 usage/결과·미대조 본문을 기록한다. 해당/앞뒤 페이지의 항목·관계·원문·provenance를 공용 material로 제공한다. AI 대화/모델은 기존 제품 기능, plugin은 자료/도구만 제공한다. | `review inspect`, `image-estimate/image-compare`, `material/inspection/required-checks`; 두 검사 방식은 동일 공용 도구를 사용. 승인·완료 승인은 질문 카드·화면의 사람 응답으로만 실행하며 비서 도구에 넣지 않는다. CLI도 같은 비서 대화/Host를 지정하고 별도 AI를 띄우지 않음. | 요청/미승인 시 추가 호출 0, 승인 범위·revision 변경 거부, 실패/취소/응답 유실·no-replay, 결과/실제 usage 반영, 필수 확인/미대조 완료 조건. 기존 질문 카드/CLI로 실행 확인. P6 전에는 교정 적용을 개방하지 않고 제안 저장까지 검증. | P4, P2 |
+| **P5 공식 비서·국소 검사** | 2026-11-12 결정: 읽기→검사→제안 저장. 이미지는 질문 없이 바로 읽고 검사 부분만 누적한다. 미대조 부분과 실제 usage를 기록한다. | `workspace-material/image-read`, inspection, proposals. 교정 승인·거절·Undo·완료는 사람 전용. | 직접 이미지 반환, 현재 revision·페이지·대상 거부, 턴을 넘는 실제 반환 이력·부분 검사 누적, 입력 사유 반환. | P4, P2 |
 | **P6 안전장치 + P11 최소 묶음 화면** | 기존 4종(text/kind/exclude/cell) 교정에서 보이지 않는 글자 삭제·번호만의 제목 교정·근거 없는 수식/관계·미지원 patch 우회를 공용 검수 판정과 plugin 의미 검증에서 거부한다. 묶음 보기·승인·거절·Undo·필수 확인 화면을 함께 제공하고 새 화면 구조는 시안 선택을 거친다. baseline·권한·원본 보존은 P1부터 유지. | 같은 `groups propose/approve/reject/undo`와 필수 확인 공용 작업. 비서는 제안만, 사람 응답이 승인/거절/Undo를 실행. 실패를 판단 불가/거부 이유로 공개하며 우회 명령 없음. | 기존 fixture 강화와 실제 제품 수락을 구분한다. LSR 13쪽 전체에서 렌즈와 페이지 조각+이미지 양쪽을 제품에서 실행해 탐지·정확한 수정·잘못된 수정·사람 처리 횟수/시간·토큰·시간·저장 지연을 비교한다. 기본 방식 전환은 실측 뒤 소유자가 결정한다. 실측에서 재제안 부담이 확인되면 여러 묶음을 승인 입력으로 받아 한 번 저장·한 번 재검사하는 최소 변경을 추가. | P5, P1 |
 | **P11 완료 경로** | 완료 조건 표시·4단계 사람 완료 승인·공식 export·미대조 범위 표시를 완결한다. 화면이 별도 완료 권한을 갖지 않는다. 칸별 anchor/연결선은 P9에서 필요한 칸 target 이후 이 단계의 후속 화면으로 연결한다. | 기존 공용 결과 + `review complete-approve/export --mode final`. 완료 승인은 비서 도구 없이 사람 응답으로만 실행. focus/selection만 CLI parity 제외. | 기존 `pnpm browser:test`로 workspace 교정→대조/필수 확인→완료 승인→공식 일반 `.md`/assets·연결 없음. 완료 전 final 거부·current 허용, 승인 후 교정/Undo의 final 무효화·overwrite 보호. 1440px/한국어 Dark 640px와 LSR·실제 문서 수락 기록. | P6 + P11 최소 화면 |
 | **P7 문단 나누기** | 첫 구조 operation. 원문 보존 분할·파생 append/트리·prov/영역 추정·사람 경계 지정과 1→N 대응·Core 여러 paragraph 작성을 제공한다. 이미지 경계 좌표 입력도 공용 operation이며 UI만의 의미가 아니다. | 같은 `review patch/groups`로 typed split 입력, 비서는 제안만; 경계 지정도 `review material/patch`와 동일 schema. | S03/S20 분할·Unicode/공백 보존·잘못된 경계 거부, exact/추정 영역 구분, 재생성/인계/Undo·후속 의존 충돌, CLI 저장→공식 재파싱과 기존 화면 연결. | P11 완료 경로, P1 |

@@ -117,7 +117,7 @@ export function evaluateReviewCompletion(ledger: ReviewLedger, contentRevision: 
   const selected = comparisons.filter(c => c.selected && !c.withdrawn);
   if (selected.some(c => c.state !== "compared")) incomplete.push("selected-comparison-incomplete");
   if (!current || !snapshotHash) incomplete.push("snapshot-not-current-or-request-unsettled");
-  const comparedPages = new Set(comparisons.filter(c => c.state === "compared" && !c.withdrawn).flatMap(c => c.scope.pages));
+  const comparedPages = new Set(comparisons.filter(c => c.state === "compared" && !c.withdrawn && !c.scope.targets.length).flatMap(c => c.scope.pages));
   return { ready: !incomplete.length, incomplete, contentRevision, snapshotHash, ledgerRevision: ledger.revision,
     notComparedPages: inventory?.pages.filter(p => !comparedPages.has(p)) ?? [],
     approved: !incomplete.length && ledger.approval?.ledgerRevision === ledger.revision && ledger.approval.contentRevision === contentRevision && ledger.approval.snapshotHash === snapshotHash };

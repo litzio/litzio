@@ -19,18 +19,13 @@ export const workspaceStateSchema = z.strictObject({
   lenses: z.record(z.string(), z.unknown()).optional(),
 });
 const common = { root: id, workspace: id, plugin: id, job: id };
-export const reviewImageSelectionSchema = reviewScopeSchema.extend({
-  // Empty targets selects whole pages; otherwise only these original inventory regions.
-  targets: reviewScopeSchema.shape.targets,
-});
 export const workspaceRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ ...common, action: z.literal("workspace-read") }),
   z.strictObject({ action: z.literal("workspace-find"), root: id, path: id.optional() }),
   z.strictObject({ ...common, action: z.literal("workspace-compare"), pageNo: z.number().int().positive().optional(), baseline: hash.optional() }),
   z.strictObject({ ...common, action: z.literal("workspace-material"), pageNo: z.number().int().positive() }),
-  z.strictObject({ ...common, action: z.literal("workspace-image-estimate"), selection: reviewImageSelectionSchema }),
   z.strictObject({ ...common, action: z.literal("workspace-image-usage"), requestId:z.uuid(), runId:id, turnId:id, scope:reviewScopeSchema, usage:z.record(z.string(),z.number().int().nonnegative()) }),
-  z.strictObject({ ...common, action: z.literal("workspace-image-read"), baseline: hash, runId: id, pageNo: z.number().int().positive(), target: id.optional() }),
+  z.strictObject({ ...common, action: z.literal("workspace-image-read"), baseline: hash, pageNo: z.number().int().positive(), target: id.optional() }),
   z.strictObject({ ...common, action: z.literal("workspace-image"), baseline: hash, ref: hash }),
   z.strictObject({ ...common, action: z.literal("workspace-export-check"), baseline: hash, output: id.optional() }),
   z.strictObject({ ...common, action: z.literal("workspace-export"), mode: z.literal("current"), baseline: hash, requestId: z.uuid(), output: id.optional(), targetRevision: hash.nullable(), overwrite: z.boolean().default(false) }),

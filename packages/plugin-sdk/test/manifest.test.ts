@@ -147,6 +147,9 @@ test("portable review completion keeps inspection, required confirmation and opt
   assert.throws(()=>change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope:{pages:[1],targets:["figure"]},state:"not-compared",selected:false,withdrawn:null}]}),/withdrawal requires human/);
   change({kind:"inspection",records:[],comparisons:[{runId:"image",contentRevision:hash,scope:{pages:[1],targets:["figure"]},state:"compared",selected:true,withdrawn:null}]});
   assert.equal(evaluateReviewCompletion(ledger,hash,hash,true).ready,true,"a later completed run supersedes its earlier partial status");
+  assert.deepEqual(evaluateReviewCompletion(ledger,hash,hash,true).notComparedPages,[1,2],"a target-region comparison leaves the rest of its page not compared");
+  change({kind:"inspection",records:[],comparisons:[{runId:"whole-page",contentRevision:hash,scope:{pages:[1],targets:[]},state:"compared",selected:false,withdrawn:null}]});
+  assert.deepEqual(evaluateReviewCompletion(ledger,hash,hash,true).notComparedPages,[2]);
   change({kind:"required-checks",records:[{targetIds:["figure"],contentRevision:hash,result:"uncertain",method:"direct",human,runId:null,approvedRun:null,at:context.at}]});
   assert.ok(evaluateReviewCompletion(ledger,hash,hash,true).incomplete.includes("required-checks-incomplete"));
   assert.throws(()=>change({kind:"required-checks",inventory:{...inventory,requiredChecks:[]},records:[]}),/cannot lose/);

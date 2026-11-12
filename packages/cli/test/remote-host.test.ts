@@ -228,7 +228,7 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const input = path.join(root, "input.json"), request = {root:"/host/documents",workspace:"fixed.docling",plugin:"fixture",job:"import",pageNo:1};
   writeFileSync(input, JSON.stringify(request));
-  for (const action of ["workspace-material", "workspace-image-estimate", "workspace-image-read", "workspace-image-usage"]) {
+  for (const action of ["workspace-material", "workspace-image-read", "workspace-image-usage"]) {
     assert.equal(await runCliAsync(["review",action,"--input",input,"--host","http://127.0.0.1:5180","--json"]),1);
     assert.deepEqual(bodies.at(-1), {...request,action}, "CLI forwards common input and preserves Host rejection without replay");
   }

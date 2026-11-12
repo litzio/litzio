@@ -1,8 +1,6 @@
 import { useRef, useState } from "react";
 import type { AssistantQuestionRecord, AssistantUserInput, AssistantUserInputAnswers } from "../../shared/assistant.ts";
 import { Button } from "../components/ui/button.tsx";
-import { Info } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { i18n } from "../i18n.ts";
 
@@ -12,12 +10,6 @@ export function AssistantQuestion({ question, disabled, submit }: { question: As
   const [sending, setSending] = useState(false);
   const lock = useRef(false);
   const record = "status" in question ? question as AssistantQuestionRecord : undefined;
-  const estimate = question.reviewImageEstimate;
-  const label = (value: string) => estimate ? value === "approve" ? i18n.t("Approve") : value === "decline" ? i18n.t("Decline") : value : value;
-  const title = estimate ? i18n.t("Image comparison · {{pages}} · about {{tokens}} input tokens", {
-    pages: estimate.pages.length <= 3 ? i18n.t("Pages: {{pages}}", { pages: estimate.pages.join(", ") }) : i18n.t("{{count}} pages", { count: estimate.pageCount }),
-    tokens: new Intl.NumberFormat(i18n.resolvedLanguage, { notation: "compact", maximumFractionDigits: 1 }).format(estimate.estimatedInputTokens),
-  }) : undefined;
   const status = record?.status ?? "pending";
   const waiting = status === "pending";
   disabled ||= !!record?.requiresDisplayAck && !record.displayed;
@@ -28,16 +20,12 @@ export function AssistantQuestion({ question, disabled, submit }: { question: As
     void submit(Object.fromEntries(question.questions.map(q => [q.id, { answers: [values.get(q.id)!] }]))).finally(() => { lock.current = false; setSending(false); });
   }}>
     {question.questions.map(q => <fieldset key={q.id} disabled={disabled || sending}>
-      <legend>{title ?? (q.header || q.question)}{estimate ? <Tooltip><TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="align-middle" aria-label={i18n.t("Image comparison details")} />}><Info size={14} /></TooltipTrigger><TooltipContent className="block break-words">
-        <p>{i18n.t("Pages: {{pages}}", { pages: estimate.pages.join(", ") })}</p>
-        <p>{i18n.t("Targets: {{targets}} · {{count}} regions", { targets: estimate.targets.join(", ") || i18n.t("Whole pages"), count: estimate.regionCount })}</p>
-        <p>{i18n.t("Text plus 85+170 tokens per 512px tile at 2x. Model-dependent estimate, not billed tokens.")}</p>
-      </TooltipContent></Tooltip> : null}</legend>{!estimate && q.header ? <p>{q.question}</p> : null}
+      <legend>{q.header || q.question}</legend>{q.header ? <p>{q.question}</p> : null}
 
-      {!waiting ? <p className="assistant-question-answer">{record?.answers?.[q.id]?.answers.map(label).join(" · ")}</p> : <>
+      {!waiting ? <p className="assistant-question-answer">{record?.answers?.[q.id]?.answers.join(" · ")}</p> : <>
       {q.options?.map((option, index) => <label className="assistant-question-option" key={index}>
         <input type="radio" name={q.id} checked={!other.get(q.id) && values.get(q.id) === option.label} onChange={() => { setOther(previous => new Map(previous).set(q.id, false)); setValues(previous => new Map(previous).set(q.id, option.label)); }} />
-        <span><strong>{label(option.label)}</strong><small>{option.description}</small></span>
+        <span><strong>{option.label}</strong><small>{option.description}</small></span>
       </label>)}
       {q.isOther && !!q.options?.length ? <label className="assistant-question-option"><input type="radio" name={q.id} checked={!!other.get(q.id)} onChange={() => { setOther(previous => new Map(previous).set(q.id, true)); setValues(previous => new Map(previous).set(q.id, "")); }} />{i18n.t("Write another answer")}</label> : null}
       {!q.options?.length || other.get(q.id) ? <label>{i18n.t("Your answer")}<Input className="assistant-question-input" type={q.isSecret ? "password" : "text"} autoComplete="off" value={values.get(q.id) ?? ""} onChange={event => setValues(previous => new Map(previous).set(q.id, event.target.value))} /></label> : null}

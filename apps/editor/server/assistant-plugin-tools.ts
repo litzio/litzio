@@ -98,7 +98,7 @@ export async function executePluginJobTool(host: PluginHost, input: unknown, sco
 type ReviewHost = Pick<PluginHost,"generatedDocuments">;
 type ReviewLocation = {root:string;workspace:string;plugin:string;job:string};
 type MaterialRead = {documentRevision:string;contentRevision:string;scope:{pages:number[];targets:string[]}};
-// The authorized turn owns observations. A new scope on the next turn cannot inherit reading proof.
+// Turn observations retain optimistic write baselines; prior returned material comes from conversation history.
 const reviewRequests = new WeakMap<DocumentToolScope,Map<string,string>>();
 const reviewReads = new WeakMap<DocumentToolScope,Map<string,{baseline:string;materials:MaterialRead[]}>>();
 const locationKey = (location:ReviewLocation) => JSON.stringify([canonicalFilePath(path.resolve(location.root,location.workspace)),location.plugin,location.job]);
@@ -130,29 +130,24 @@ async function resolveReview(host:ReviewHost, requested:string, scope:DocumentTo
   if(targets.length!==1)throw Object.assign(new Error(`${targets.length ? "Ambiguous review workspace" : "No review workspace found"} for ${requested}. Candidates: ${JSON.stringify(targets)}. Use find_review_workspaces to find an opened-folder path.`),{errorKind:targets.length ? "invalid_input" : "unavailable",candidates:targets});
   const {root,workspace,plugin,job}=targets[0];return {root,workspace,plugin,job};
 }
-const actionSchema = (action:string): any => workspaceRequestSchema.options.find((schema:any)=>schema.shape?.action?.value===action);
 const materialInput = reviewPath.extend({kind:z.enum(["lenses","source-evidence","required-checks","groups","page"]),pageNo:z.number().int().positive().optional()});
 const proposeInput = reviewPath.extend({change:reviewLedgerChangeSchema.options[0]!});
 const inspectionInput = reviewPath.extend({records:z.array(reviewLedgerSchema.shape.inspections.element.omit({runId:true})).min(1).max(1000),imageRunId:z.string().min(1).optional()});
-export const reviewImageQuestionSchema = reviewPath.extend({selection:actionSchema("workspace-image-estimate").shape.selection,estimateHash:z.string().regex(/^[a-f0-9]{64}$/)});
-export const parseReviewImageQuestion = (raw:unknown) => reviewImageQuestionSchema.parse(reviewInput(raw));
 const reviewInputs = {
   find_review_workspaces:z.strictObject({path:z.string().min(1).optional()}),
   read_review_material:materialInput,
   run_review_source_evidence:reviewPath.extend({pages:z.array(z.number().int().positive()).min(1).max(10000).optional()}),
   propose_review_groups:proposeInput,
   record_review_inspection:inspectionInput,
-  estimate_review_images:reviewImageQuestionSchema.omit({estimateHash:true}),
-  read_review_images:reviewPath.extend({runId:z.string().min(1),pageNo:z.number().int().positive(),target:z.string().min(1).optional()}),
+  read_review_images:reviewPath.extend({pageNo:z.number().int().positive(),target:z.string().min(1).optional()}),
 };
 const descriptions: Record<keyof typeof reviewInputs,string> = {
   find_review_workspaces:"Find workspace paths and providers inside opened folders. Optional path filters by file or folder; omitted searches all opened folders. No document contents.",
   read_review_material:"Read lenses, source-evidence candidates, required checks, groups, or page fragments with neighbors, provenance and current block correspondence. No images.",
   run_review_source_evidence:"Save source-evidence candidates for optional pages; no proposals or document changes. On uncertainty query the returned ID with read_review_request_status; never replay.",
   propose_review_groups:"Save validated proposed groups to the ledger; no approval or document changes. Never bypass rejection. On uncertainty query request status; never replay.",
-  record_review_inspection:"Save inspections for actually read scopes; insufficient evidence is uncertain. No approval, required-check completion or document changes. Image comparison requires all approved images read this turn. On uncertainty query request status; never replay.",
-  estimate_review_images:"Return page/region counts, estimated input tokens and estimateHash; no images. Submit selection and hash with request_litzio_user_input reviewImage; acceptance is not approval. Wait for the human answer and runId.",
-  read_review_images:"Return page or target-region images for the human-approved runId and exact scope only; cannot self-confirm or expand approval.",
+  record_review_inspection:"Save inspections for actually read scopes; insufficient evidence is uncertain. No approval, required-check completion or document changes. Record inspected subsets cumulatively from actual returned material history. On uncertainty query request status; never replay.",
+  read_review_images:"Read a valid workspace page or target region directly, without a question. Returns a measurement runId for subsequent inspection records.",
 };
 export const reviewAssistantTools: {type:string;name:string;description:string;inputSchema:object}[] = Object.entries(reviewInputs).map(([name,schema])=>({type:"function",name,description:descriptions[name as keyof typeof reviewInputs],inputSchema:z.toJSONSchema(schema)}));
 reviewAssistantTools.push({type:"function",name:"read_review_request_status",description:"Observe the same requestId after an uncertain review write; never replay it.",inputSchema:z.toJSONSchema(reviewPath.extend({requestId:z.uuid()}))});
@@ -181,7 +176,7 @@ async function scopedReview(host:ReviewHost, input:any, scope:DocumentToolScope,
     throw error;
   }
 }
-export async function executeReviewAssistantTool(host:ReviewHost,name:string,input:unknown,scope:DocumentToolScope, delivered: {input:any;runId:string;documentRevision:string;scope:{pages:number[];targets:string[]}}[] = [], callId?:string) {
+export async function executeReviewAssistantTool(host:ReviewHost,name:string,input:unknown,scope:DocumentToolScope, delivered: any[] = [], callId?:string) {
   if(name==="read_review_request_status") {
     const normalized=reviewInput(input) as Record<string,unknown>;
     const {requestId,path:requested}=reviewPath.extend({requestId:z.uuid()}).parse({...normalized,requestId:(input as any)?.requestId});
@@ -215,7 +210,7 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
       observations(scope).get(locationKey(location))!.materials.push({documentRevision:result.documentRevision,contentRevision:result.contentRevision,
         scope:{pages:result.material.pages,targets:result.material.items.map((item:any)=>item.self_ref)}});
     }
-    return result;
+    return {...result,workspace:location};
   }
   if(name==="run_review_source_evidence"){action="workspace-evidence";extra={mode:"run"};writing=true;}
   else if(name==="propose_review_groups"){action="workspace-review-change";writing=true;}
@@ -225,40 +220,29 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
     // This validation read must not replace the baseline from the actual material read.
     const prior=observations(scope).get(locationKey(location));
     const state=await host.generatedDocuments.execute({...location,action:"workspace-read"});
-    const material=prior?.materials.filter(read=>read.documentRevision===state.documentRevision && read.contentRevision===state.contentRevision)??[];
-    if(!imageRunId && records.some((record:any)=>!(record.scope.pages.length || record.scope.targets.length) ||
-      record.contentRevision!==state.contentRevision ||
-      !record.scope.pages.every((page:number)=>material.some(read=>read.scope.pages.includes(page))) ||
-      !record.scope.targets.every((target:string)=>material.some(read=>read.scope.targets.includes(target)))))throw Object.assign(new Error("Read page material for this workspace and revision in this turn before recording inspection"),{errorKind:"invalid_input"});
-    if(imageRunId){
-      const run=state.ledger?.comparisons.findLast((run:any)=>run.runId===imageRunId);
-      const approval=state.ledger?.inspections.find((r:any)=>r.runId===imageRunId && (()=>{try{return JSON.parse(r.evidence).format==="review-image-approval-1";}catch{return false;}})());
-      const approved=approval?JSON.parse(approval.evidence):null;
-      if(!run?.selected || run.withdrawn || approved?.documentRevision!==state.documentRevision || records.some((r:any)=>r.state==="not-inspected" || !r.scope.pages.length || r.scope.pages.some((p:number)=>!run.scope.pages.includes(p)) || r.scope.targets.some((t:string)=>!run.scope.targets.includes(t))))throw Object.assign(new Error("Inspection outside approved image scope/revision"),{errorKind:"forbidden"});
-      if(!approved.images.every((image:any)=>delivered.some(d=>d.runId===imageRunId && d.documentRevision===state.documentRevision && ["root","workspace","plugin","job"].every(key=>d.input[key]===args[key]) && d.scope.pages.includes(image.page) && (image.target?d.scope.targets.includes(image.target):!d.scope.targets.length))))throw Object.assign(new Error("Read approved images before recording comparison"),{errorKind:"invalid_input"});
-      if(!run.scope.pages.every((p:number)=>records.some((r:any)=>r.scope.pages.includes(p))) || !run.scope.targets.every((t:string)=>records.some((r:any)=>r.scope.targets.includes(t))))throw Object.assign(new Error("Record the complete approved image scope, or leave it not compared"),{errorKind:"invalid_input"});
-      comparisons.push({...run,state:"compared"});
+    const sameWorkspace=(read:any)=>{try{return read.workspace && locationKey(read.workspace)===locationKey(location) && read.documentRevision===state.documentRevision && read.contentRevision===state.contentRevision;}catch{return false;} };
+    const material=[...(prior?.materials??[]),...delivered.filter(read=>sameWorkspace(read) && read.material).map(read=>({documentRevision:read.documentRevision,contentRevision:read.contentRevision,scope:{pages:read.material.pages,targets:read.material.items.map((item:any)=>item.self_ref)}}))].filter(read=>read.documentRevision===state.documentRevision && read.contentRevision===state.contentRevision);
+    const images=delivered.filter(read=>sameWorkspace(read) && read.runId===imageRunId && read.images?.length);
+    for(const record of records) {
+      const nonempty=record.scope.pages.length || record.scope.targets.length;
+      const covered=imageRunId ? images.length && record.scope.pages.length && record.scope.pages.every((page:number)=>
+        record.scope.targets.length ? record.scope.targets.every((target:string)=>images.some(read=>read.images.some((image:any)=>image.page===page && (image.target===target || !image.target))))
+        : images.some(read=>read.images.some((image:any)=>image.page===page && !image.target)))
+        : record.scope.pages.every((page:number)=>material.some(read=>read.scope.pages.includes(page))) && record.scope.targets.every((target:string)=>material.some(read=>read.scope.targets.includes(target)));
+      if(!nonempty || record.contentRevision!==state.contentRevision || !covered)throw Object.assign(new Error(imageRunId?"Read the recorded image scope at the current workspace revision before recording comparison":"Read page material for this workspace and revision before recording inspection"),{errorKind:"invalid_input"});
+    }
+    if(imageRunId) {
+      const inspected=records.filter((record:any)=>record.state!=="not-inspected");
+      const priorComparison=state.ledger?.comparisons.findLast((run:any)=>run.runId===imageRunId && run.contentRevision===state.contentRevision && run.state==="compared");
+      if(inspected.length)comparisons.push({runId:imageRunId,contentRevision:state.contentRevision,scope:{
+        pages:[...new Set([...(priorComparison?.scope.pages??[]),...inspected.flatMap((record:any)=>record.scope.pages)])],
+        // An image run reads one page; whole-page coverage includes all target subsets.
+        targets:priorComparison?.scope.targets.length===0 || inspected.some((record:any)=>!record.scope.targets.length) ? [] : [...new Set([...(priorComparison?.scope.targets??[]),...inspected.flatMap((record:any)=>record.scope.targets)])]},state:"compared",selected:false,withdrawn:null});
     }
     return scopedReview(host,{...common,action:"workspace-review-change",change:{kind:"inspection",comparisons,records:records.map((record:any)=>({...record,runId:imageRunId??randomUUID()}))}},scope,true);
-  } else action=name==="estimate_review_images"?"workspace-image-estimate":"workspace-image-read";
+  } else action="workspace-image-read";
   const result=await scopedReview(host,{...args,...extra,action},scope,writing);
   return name==="read_review_images" ? {...result,workspace:location} : result;
-}
-
-/** Called exclusively from the validated human-answer path, never a provider tool. */
-export async function answerReviewImageQuestion(host:Pick<PluginHost,"generatedDocuments">, raw:unknown, scope:DocumentToolScope, actor:string, assertActive:()=>void) {
-  const {estimateHash,path:requested,selection}=parseReviewImageQuestion(raw);
-  const request={...await resolveReview(host,requested,scope),selection};
-  const estimate=await scopedReview(host,{...request,action:"workspace-image-estimate"},scope);
-  if(estimate.receipt.outcome!=="success" || estimate.estimateHash!==estimateHash)throw Object.assign(new Error("Image estimate changed; request a new human approval"),{errorKind:"invalid_input"});
-  assertActive();
-  const runId=randomUUID();
-  const result=await scopedReview(host,{root:request.root,workspace:request.workspace,plugin:request.plugin,job:request.job,action:"workspace-review-change",baseline:estimate.baseline,requestId:randomUUID(),change:{kind:"inspection",
-    comparisons:[{runId,contentRevision:estimate.contentRevision,scope:request.selection,state:"not-compared",selected:true,withdrawn:null}],
-    records:[{runId,lens:"source-evidence",contentRevision:estimate.contentRevision,scope:request.selection,state:"not-inspected",
-      evidence:JSON.stringify({format:"review-image-approval-1",human:{actor,reason:"Approved displayed image estimate",confirmed:true},documentRevision:estimate.documentRevision,images:estimate.images,estimatedInputTokens:estimate.estimatedInputTokens})}] }},scope,true);
-  if(result.receipt.outcome!=="success")throw Object.assign(new Error(`Image approval was not saved; query review request status ${result.receipt.requestId}`),{errorKind:"invalid_input"});
-  return {runId,baseline:result.baseline,selection:request.selection};
 }
 
 /** Actual provider turn totals, not a fabricated per-image attribution. */
