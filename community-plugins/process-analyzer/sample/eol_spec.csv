@@ -1,0 +1,9 @@
+﻿parameter,label_ko,unit,lsl,usl,target
+eff_pct,효율,%,93.5,,
+thd_pct,입력전류 THD,%,,5.0,
+pf,역률,,0.98,,
+vout_err_pct,출력전압 정확도 오차,%,-1.0,1.0,0.0
+iout_err_pct,출력전류 정확도 오차,%,-1.5,1.5,0.0
+vsense_err_pct,입력전압 센서 오차,%,-0.8,0.8,0.0
+isense_err_pct,입력전류 센서 오차,%,-1.0,1.0,0.0
+tsense_err_c,온도센서 오차,°C,-2.0,2.0,0.0

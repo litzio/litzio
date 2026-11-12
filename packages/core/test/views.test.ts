@@ -271,3 +271,26 @@ test("v2 query form preserves optional advanced presentation on round-trip", () 
  const invalid = formView(); invalid.form.fields[0].advanced = "yes";
  assert.throws(() => validateCatalogView(invalid, [inputOperation]));
 });
+
+const chartOperation: ViewOperation = { operation: "fixture.eol", version: 1, inputSchema: { type: "object", additionalProperties: false }, validateArgs: value => JSON.stringify(value) === "{}",
+  rowSchema: rowSchema.parse({ kind: { type: "string", label: "Kind" }, hour: { type: "number", label: "Hour" }, eff: { type: "number", label: "Eff" }, thd: { type: "number", label: "THD" }, cond: { type: "string", label: "Condition" }, bad: { type: "boolean", label: "Bad" }, note: { type: "string", label: "Note" } }) };
+const chartView = (chart: object = {}) => ({ ...(base() as any), sources: { stats: { kind: "operation", operation: "fixture.eol", version: 1, args: {} } },
+  layout: { component: "Panel", direction: "vertical", children: [{ component: "Chart", title: "Eff", source: "stats", data: "/rows", type: "line", x: ["hour"], y: ["eff", "thd"], defaultY: ["eff"], filters: ["cond"], flag: "bad", rowFilter: { field: "kind", value: "point" }, limits: { eff: { lsl: 93.5 } }, lines: [{ field: "thd", label: "CL", tone: "center" }], ...chart }] } });
+
+test("Chart leaf binds only declared numeric, text and flag fields", () => {
+  assert.doesNotThrow(() => validateView(chartView(), [chartOperation]));
+  const bad: Record<string, object> = {
+    "unknown field": { y: ["nope"] }, "text y": { y: ["cond"] }, "numeric filter": { filters: ["eff"] }, "numeric flag": { flag: "eff" },
+    "limits outside y": { limits: { hour: { usl: 1 } } }, "default outside y": { defaultY: ["hour"] }, "row filter type": { rowFilter: { field: "kind", value: 1 } },
+    "bars without xEnd": { type: "bars", y: ["eff"] }, "unknown property": { script: "x" }, "too many y": { y: Array.from({ length: 13 }, (_, i) => `f${i}`) },
+  };
+  for (const [name, patch] of Object.entries(bad)) assert.throws(() => validateView(chartView(patch), [chartOperation]), /./, name);
+  assert.doesNotThrow(() => validateView(chartView({ type: "bars", x: ["hour"], xEnd: "eff", y: ["thd"], curve: "eff", defaultY: [], filters: [], flag: undefined, limits: {}, lines: [] }), [chartOperation]));
+});
+
+test("Table rowFilter must match the declared field type", () => {
+  const view: any = chartView(); view.layout.children = [{ component: "Table", title: "T", source: "stats", data: "/rows", columns: ["eff"], rowFilter: { field: "kind", value: "point" } }];
+  assert.doesNotThrow(() => validateView(view, [chartOperation]));
+  view.layout.children[0].rowFilter.value = 3;
+  assert.throws(() => validateView(view, [chartOperation]), /Row filter type/);
+});

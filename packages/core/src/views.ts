@@ -25,9 +25,29 @@ export const operationSourceSchema = z.strictObject({ kind: z.literal("operation
   limit: z.number().int().min(1).max(VIEW_LIMITS.rows).default(VIEW_LIMITS.rows),
 });
 const binding = { title: label, source: z.literal("stats"), data: z.literal("/rows") };
-export const tableSchema = z.strictObject({ component: z.literal("Table"), ...binding, columns: z.array(outputField).min(1).refine(v => new Set(v).size === v.length, "Duplicate columns") });
-export const queryLeafSchema = tableSchema;
-export const queryLayoutSchema = z.strictObject({ component: z.literal("Panel"), direction: z.literal("vertical"), children: z.array(tableSchema).min(1).max(VIEW_LIMITS.panels) });
+// rowFilter keeps one operation source usable for panels that show different row kinds (display only, no data processing).
+const rowFilter = z.strictObject({ field: outputField, value: z.union([z.string().max(80), z.number().finite(), z.boolean()]) });
+export const tableSchema = z.strictObject({ component: z.literal("Table"), ...binding, columns: z.array(outputField).min(1).refine(v => new Set(v).size === v.length, "Duplicate columns"), rowFilter: rowFilter.optional() });
+const limitValue = z.number().finite();
+/** Declarative chart leaf. The app only draws operation rows; every statistic is computed by the plugin. */
+export const chartSchema = z.strictObject({ component: z.literal("Chart"), ...binding,
+  type: z.enum(["line", "bars"]),
+  // line: x field(s) (first is default) and selectable y fields. bars: x = bin start, xEnd = bin end, y[0] = observed count, curve = fitted count.
+  x: z.array(outputField).min(1).max(4).refine(v => new Set(v).size === v.length, "Duplicate x fields"),
+  xEnd: outputField.optional(), curve: outputField.optional(),
+  y: z.array(outputField).min(1).max(12).refine(v => new Set(v).size === v.length, "Duplicate y fields"),
+  defaultY: z.array(outputField).max(4).default([]),
+  filters: z.array(outputField).max(4).default([]),
+  // Points are joined by a line only once all of these filters are chosen (default: every filter), so mixed conditions never zigzag.
+  connectWhen: z.array(outputField).max(4).optional(),
+  rowFilter: rowFilter.optional(),
+  separator: outputField.optional(), flag: outputField.optional(), caption: outputField.optional(),
+  tooltip: z.array(outputField).max(6).default([]),
+  limits: z.record(outputField, z.strictObject({ lsl: limitValue.optional(), usl: limitValue.optional() })).default({}),
+  lines: z.array(z.strictObject({ field: outputField, label: label, tone: z.enum(["spec", "center", "limit", "mean"]) })).max(6).default([]),
+});
+export const queryLeafSchema = z.discriminatedUnion("component", [tableSchema, chartSchema]);
+export const queryLayoutSchema = z.strictObject({ component: z.literal("Panel"), direction: z.literal("vertical"), children: z.array(queryLeafSchema).min(1).max(VIEW_LIMITS.panels) });
 export function queryLeaves(layout: z.infer<typeof queryLayoutSchema>) { return layout.children; }
 export const viewSchema = z.strictObject({
   kind: z.literal("litzio-view"), schemaVersion: z.literal(1), catalog: z.literal("litzio-v1"),
@@ -55,7 +75,24 @@ export function validateQueryBindings(view: Pick<View, "sources" | "layout">, op
   }
   const output: RowSchema = s.groupBy ? { group: { ...get(s.groupBy.field) }, value: { type: "number", label: "value", date: false, nullable: false, secret: false } } : fields;
   const outputField = (name: string) => { if (!Object.hasOwn(output, name)) throw new Error("Binding outside operation output schema"); return output[name]!; };
-  for (const p of queryLeaves(view.layout)) for (const name of p.columns) outputField(name);
+  for (const p of queryLeaves(view.layout)) {
+    if (p.component === "Table") {
+      for (const name of p.columns) outputField(name);
+      if (p.rowFilter && outputField(p.rowFilter.field).type !== typeof p.rowFilter.value) throw new Error("Row filter type mismatch");
+      continue;
+    }
+    const kind = (name: string, type: "string" | "number" | "boolean") => { if (outputField(name).type !== type) throw new Error("Chart field type mismatch"); };
+    for (const name of [...p.x, ...p.y, ...p.lines.map(l => l.field), ...(p.xEnd ? [p.xEnd] : []), ...(p.curve ? [p.curve] : [])]) kind(name, "number");
+    for (const name of p.filters) kind(name, "string");
+    if (p.connectWhen?.some(name => !p.filters.includes(name))) throw new Error("connectWhen must name declared filters");
+    if (p.separator) kind(p.separator, "string");
+    if (p.caption) kind(p.caption, "string");
+    if (p.flag) kind(p.flag, "boolean");
+    for (const name of p.tooltip) outputField(name);
+    if (p.rowFilter) kind(p.rowFilter.field, typeof p.rowFilter.value as "string" | "number" | "boolean");
+    for (const name of [...p.defaultY, ...Object.keys(p.limits)]) if (!p.y.includes(name)) throw new Error("Chart y selection outside declared y fields");
+    if (p.type === "bars" && (!p.xEnd || p.y.length !== 1)) throw new Error("Bars need xEnd and one y field");
+  }
   if (s.sort) outputField(s.sort.field);
   return fields;
 }

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "paths": {
+      "@litzio/plugin-sdk": [
+        "./plugin-sdk.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "host.js",
+    "stats.js",
+    "plugin-sdk.d.ts"
+  ]
+}

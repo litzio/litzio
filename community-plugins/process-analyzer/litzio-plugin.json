@@ -1,0 +1,1368 @@
+{
+  "schemaVersion": 1,
+  "id": "community.process-analyzer",
+  "tier": "community",
+  "publisher": {
+    "id": "community",
+    "name": "Community"
+  },
+  "name": "공정 분석기",
+  "description": "OBCM EOL 시험 CSV를 시간 축 그래프로 보고, 공정 능력(Cp/Cpk/Pp/Ppk)·FPY·DPMO·시그마 수준과 관리도로 하루~며칠의 생산 결과를 분석합니다. 스파이크.",
+  "version": "0.0.1",
+  "requiresSdk": ">=0.4.0 <1.0.0",
+  "entry": "host.js",
+  "contributes": {
+    "operations": [
+      {
+        "id": "csv-files",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "assistant": false
+      },
+      {
+        "id": "measurements",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "assistant": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "title": "CSV 파일",
+              "description": "설정의 데이터 폴더 안 EOL CSV 파일 이름. 2글자 이상 입력하면 후보가 나와요.",
+              "minLength": 5,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\\.csv$"
+            },
+            "dateFrom": {
+              "type": "string",
+              "title": "시작일",
+              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "maxLength": 10
+            },
+            "dateTo": {
+              "type": "string",
+              "title": "종료일",
+              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "maxLength": 10
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 2000,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "processHour": {
+                    "type": "number"
+                  },
+                  "testTime": {
+                    "type": "string"
+                  },
+                  "day": {
+                    "type": "string"
+                  },
+                  "serial": {
+                    "type": "string"
+                  },
+                  "unitIndex": {
+                    "type": "number"
+                  },
+                  "station": {
+                    "type": "string"
+                  },
+                  "attempt": {
+                    "type": "number"
+                  },
+                  "step": {
+                    "type": "number"
+                  },
+                  "condition": {
+                    "type": "string"
+                  },
+                  "vinLabel": {
+                    "type": "string"
+                  },
+                  "voutLabel": {
+                    "type": "string"
+                  },
+                  "vin": {
+                    "type": "number"
+                  },
+                  "vout": {
+                    "type": "number"
+                  },
+                  "eff_pct": {
+                    "type": "number"
+                  },
+                  "thd_pct": {
+                    "type": "number"
+                  },
+                  "pf": {
+                    "type": "number"
+                  },
+                  "vout_err_pct": {
+                    "type": "number"
+                  },
+                  "iout_err_pct": {
+                    "type": "number"
+                  },
+                  "vsense_err_pct": {
+                    "type": "number"
+                  },
+                  "isense_err_pct": {
+                    "type": "number"
+                  },
+                  "tsense_err_c": {
+                    "type": "number"
+                  },
+                  "result": {
+                    "type": "string"
+                  },
+                  "fail": {
+                    "type": "boolean"
+                  },
+                  "failItems": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "processHour",
+                  "testTime",
+                  "day",
+                  "serial",
+                  "unitIndex",
+                  "station",
+                  "attempt",
+                  "step",
+                  "condition",
+                  "vinLabel",
+                  "voutLabel",
+                  "vin",
+                  "vout",
+                  "eff_pct",
+                  "thd_pct",
+                  "pf",
+                  "vout_err_pct",
+                  "iout_err_pct",
+                  "vsense_err_pct",
+                  "isense_err_pct",
+                  "tsense_err_c",
+                  "result",
+                  "fail",
+                  "failItems"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rows",
+            "truncated",
+            "total"
+          ],
+          "additionalProperties": false
+        },
+        "rowSchema": {
+          "processHour": {
+            "type": "number",
+            "label": "공정 진행 시간(h)"
+          },
+          "testTime": {
+            "type": "string",
+            "label": "시험 시각"
+          },
+          "day": {
+            "type": "string",
+            "label": "일자"
+          },
+          "serial": {
+            "type": "string",
+            "label": "생산 번호"
+          },
+          "unitIndex": {
+            "type": "number",
+            "label": "유닛 순번"
+          },
+          "station": {
+            "type": "string",
+            "label": "시험 설비"
+          },
+          "attempt": {
+            "type": "number",
+            "label": "시도"
+          },
+          "step": {
+            "type": "number",
+            "label": "단계"
+          },
+          "condition": {
+            "type": "string",
+            "label": "조건"
+          },
+          "vinLabel": {
+            "type": "string",
+            "label": "입력 전압"
+          },
+          "voutLabel": {
+            "type": "string",
+            "label": "출력 전압"
+          },
+          "vin": {
+            "type": "number",
+            "label": "Vin(Vac)"
+          },
+          "vout": {
+            "type": "number",
+            "label": "Vout(Vdc)"
+          },
+          "eff_pct": {
+            "type": "number",
+            "label": "효율 (%)"
+          },
+          "thd_pct": {
+            "type": "number",
+            "label": "입력전류 THD (%)"
+          },
+          "pf": {
+            "type": "number",
+            "label": "역률"
+          },
+          "vout_err_pct": {
+            "type": "number",
+            "label": "출력전압 정확도 오차 (%)"
+          },
+          "iout_err_pct": {
+            "type": "number",
+            "label": "출력전류 정확도 오차 (%)"
+          },
+          "vsense_err_pct": {
+            "type": "number",
+            "label": "입력전압 센서 오차 (%)"
+          },
+          "isense_err_pct": {
+            "type": "number",
+            "label": "입력전류 센서 오차 (%)"
+          },
+          "tsense_err_c": {
+            "type": "number",
+            "label": "온도센서 오차 (°C)"
+          },
+          "result": {
+            "type": "string",
+            "label": "판정"
+          },
+          "fail": {
+            "type": "boolean",
+            "label": "불합격"
+          },
+          "failItems": {
+            "type": "string",
+            "label": "불합격 항목"
+          }
+        },
+        "inputSuggestions": {
+          "file": "csv-files"
+        }
+      },
+      {
+        "id": "analysis",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "assistant": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "title": "CSV 파일",
+              "description": "설정의 데이터 폴더 안 EOL CSV 파일 이름. 2글자 이상 입력하면 후보가 나와요.",
+              "minLength": 5,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\\.csv$"
+            },
+            "dateFrom": {
+              "type": "string",
+              "title": "시작일",
+              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "maxLength": 10
+            },
+            "dateTo": {
+              "type": "string",
+              "title": "종료일",
+              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "maxLength": 10
+            },
+            "condition": {
+              "type": "string",
+              "title": "시험 조건",
+              "description": "통계는 한 조건씩 계산해요(조건마다 평균이 달라요).",
+              "enum": [
+                "180Vac/180Vdc",
+                "180Vac/400Vdc",
+                "230Vac/180Vdc",
+                "230Vac/400Vdc",
+                "260Vac/180Vdc",
+                "260Vac/400Vdc"
+              ]
+            },
+            "parameter": {
+              "type": "string",
+              "title": "관리도·분포 항목",
+              "description": "아래 관리도와 히스토그램에 그릴 항목.",
+              "enum": [
+                "효율",
+                "입력전류 THD",
+                "역률",
+                "출력전압 정확도 오차",
+                "출력전류 정확도 오차",
+                "입력전압 센서 오차",
+                "입력전류 센서 오차",
+                "온도센서 오차"
+              ]
+            }
+          },
+          "required": [
+            "file",
+            "condition",
+            "parameter"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 2000,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rowType": {
+                    "type": "string"
+                  },
+                  "seq": {
+                    "type": "number"
+                  },
+                  "processHour": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "label": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "unit": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "n": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "mean": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "sigmaWithin": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "sigmaOverall": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "lsl": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "usl": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "cp": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "cpk": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "pp": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "ppk": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "outOfSpec": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "dpmo": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "sigmaLevel": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "units": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "firstPass": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "finalPass": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "fpy": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "yield": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "defects": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "measured": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "mr": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "cl": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "ucl": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "lcl": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "mrCl": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "mrUcl": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "ooc": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "mrOoc": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "rule": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "serial": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "day": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "binFrom": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "binTo": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "count": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "expected": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "severity": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "message": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "rowType",
+                  "seq",
+                  "processHour",
+                  "label",
+                  "key",
+                  "unit",
+                  "n",
+                  "mean",
+                  "sigmaWithin",
+                  "sigmaOverall",
+                  "lsl",
+                  "usl",
+                  "cp",
+                  "cpk",
+                  "pp",
+                  "ppk",
+                  "outOfSpec",
+                  "dpmo",
+                  "sigmaLevel",
+                  "status",
+                  "units",
+                  "firstPass",
+                  "finalPass",
+                  "fpy",
+                  "yield",
+                  "defects",
+                  "measured",
+                  "mr",
+                  "cl",
+                  "ucl",
+                  "lcl",
+                  "mrCl",
+                  "mrUcl",
+                  "ooc",
+                  "mrOoc",
+                  "rule",
+                  "serial",
+                  "day",
+                  "binFrom",
+                  "binTo",
+                  "count",
+                  "expected",
+                  "severity",
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rows",
+            "truncated",
+            "total"
+          ],
+          "additionalProperties": false
+        },
+        "rowSchema": {
+          "rowType": {
+            "type": "string",
+            "label": "종류",
+            "hidden": true
+          },
+          "seq": {
+            "type": "number",
+            "label": "순번",
+            "hidden": true
+          },
+          "processHour": {
+            "type": "number",
+            "label": "공정 진행 시간(h)",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "label": "항목",
+            "nullable": true
+          },
+          "key": {
+            "type": "string",
+            "label": "항목 키",
+            "hidden": true,
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "label": "단위",
+            "nullable": true
+          },
+          "n": {
+            "type": "number",
+            "label": "n",
+            "nullable": true
+          },
+          "mean": {
+            "type": "number",
+            "label": "평균",
+            "nullable": true
+          },
+          "sigmaWithin": {
+            "type": "number",
+            "label": "σ(군내)",
+            "nullable": true
+          },
+          "sigmaOverall": {
+            "type": "number",
+            "label": "σ(전체)",
+            "nullable": true
+          },
+          "lsl": {
+            "type": "number",
+            "label": "LSL",
+            "nullable": true
+          },
+          "usl": {
+            "type": "number",
+            "label": "USL",
+            "nullable": true
+          },
+          "cp": {
+            "type": "number",
+            "label": "Cp",
+            "nullable": true
+          },
+          "cpk": {
+            "type": "number",
+            "label": "Cpk",
+            "nullable": true
+          },
+          "pp": {
+            "type": "number",
+            "label": "Pp",
+            "nullable": true
+          },
+          "ppk": {
+            "type": "number",
+            "label": "Ppk",
+            "nullable": true
+          },
+          "outOfSpec": {
+            "type": "number",
+            "label": "규격 이탈 수",
+            "nullable": true
+          },
+          "dpmo": {
+            "type": "number",
+            "label": "DPMO",
+            "nullable": true
+          },
+          "sigmaLevel": {
+            "type": "number",
+            "label": "시그마 수준(최대 6)",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "label": "판정",
+            "nullable": true
+          },
+          "units": {
+            "type": "number",
+            "label": "생산(대)",
+            "nullable": true
+          },
+          "firstPass": {
+            "type": "number",
+            "label": "최초 합격(대)",
+            "nullable": true
+          },
+          "finalPass": {
+            "type": "number",
+            "label": "최종 합격(대)",
+            "nullable": true
+          },
+          "fpy": {
+            "type": "number",
+            "label": "FPY(%)",
+            "nullable": true
+          },
+          "yield": {
+            "type": "number",
+            "label": "수율(%)",
+            "nullable": true
+          },
+          "defects": {
+            "type": "number",
+            "label": "규격 이탈 측정 수",
+            "nullable": true
+          },
+          "measured": {
+            "type": "number",
+            "label": "측정값",
+            "nullable": true
+          },
+          "mr": {
+            "type": "number",
+            "label": "이동범위(MR)",
+            "nullable": true
+          },
+          "cl": {
+            "type": "number",
+            "label": "중심선",
+            "nullable": true
+          },
+          "ucl": {
+            "type": "number",
+            "label": "UCL",
+            "nullable": true
+          },
+          "lcl": {
+            "type": "number",
+            "label": "LCL",
+            "nullable": true
+          },
+          "mrCl": {
+            "type": "number",
+            "label": "MR 평균",
+            "nullable": true
+          },
+          "mrUcl": {
+            "type": "number",
+            "label": "MR UCL",
+            "nullable": true
+          },
+          "ooc": {
+            "type": "boolean",
+            "label": "관리 이탈",
+            "nullable": true
+          },
+          "mrOoc": {
+            "type": "boolean",
+            "label": "MR 이탈",
+            "nullable": true
+          },
+          "rule": {
+            "type": "string",
+            "label": "이탈 규칙",
+            "nullable": true
+          },
+          "serial": {
+            "type": "string",
+            "label": "생산 번호",
+            "nullable": true
+          },
+          "day": {
+            "type": "string",
+            "label": "일자",
+            "nullable": true
+          },
+          "binFrom": {
+            "type": "number",
+            "label": "구간 시작",
+            "nullable": true
+          },
+          "binTo": {
+            "type": "number",
+            "label": "구간 끝",
+            "nullable": true
+          },
+          "count": {
+            "type": "number",
+            "label": "관측 수",
+            "nullable": true
+          },
+          "expected": {
+            "type": "number",
+            "label": "정규분포 기대 수",
+            "nullable": true
+          },
+          "severity": {
+            "type": "string",
+            "label": "구분",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "label": "인사이트",
+            "nullable": true
+          }
+        },
+        "inputSuggestions": {
+          "file": "csv-files"
+        }
+      }
+    ],
+    "views": [
+      {
+        "id": "graph",
+        "title": "EOL 측정 그래프",
+        "definition": {
+          "kind": "litzio-view",
+          "schemaVersion": 2,
+          "catalog": "litzio-v2",
+          "profile": "query",
+          "owner": "community.process-analyzer",
+          "title": "EOL 측정 그래프",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "kind": "operation",
+              "operation": "community.process-analyzer.measurements",
+              "version": 1,
+              "args": {
+                "file": "eol_synthetic_3days.csv"
+              }
+            }
+          },
+          "layout": {
+            "component": "Panel",
+            "direction": "vertical",
+            "children": [
+              {
+                "component": "Chart",
+                "title": "시간별 측정값",
+                "source": "stats",
+                "data": "/rows",
+                "type": "line",
+                "x": [
+                  "processHour",
+                  "unitIndex"
+                ],
+                "y": [
+                  "eff_pct",
+                  "thd_pct",
+                  "pf",
+                  "vout_err_pct",
+                  "iout_err_pct",
+                  "vsense_err_pct",
+                  "isense_err_pct",
+                  "tsense_err_c"
+                ],
+                "defaultY": [
+                  "eff_pct"
+                ],
+                "filters": [
+                  "vinLabel",
+                  "voutLabel",
+                  "station"
+                ],
+                "connectWhen": [
+                  "vinLabel",
+                  "voutLabel"
+                ],
+                "separator": "day",
+                "flag": "fail",
+                "tooltip": [
+                  "serial",
+                  "condition",
+                  "station",
+                  "testTime",
+                  "result"
+                ],
+                "limits": {
+                  "eff_pct": {
+                    "lsl": 93.5
+                  },
+                  "thd_pct": {
+                    "usl": 5
+                  },
+                  "pf": {
+                    "lsl": 0.98
+                  },
+                  "vout_err_pct": {
+                    "lsl": -1,
+                    "usl": 1
+                  },
+                  "iout_err_pct": {
+                    "lsl": -1.5,
+                    "usl": 1.5
+                  },
+                  "vsense_err_pct": {
+                    "lsl": -0.8,
+                    "usl": 0.8
+                  },
+                  "isense_err_pct": {
+                    "lsl": -1,
+                    "usl": 1
+                  },
+                  "tsense_err_c": {
+                    "lsl": -2,
+                    "usl": 2
+                  }
+                }
+              },
+              {
+                "component": "Table",
+                "title": "측정 데이터",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "serial",
+                  "testTime",
+                  "condition",
+                  "eff_pct",
+                  "thd_pct",
+                  "pf",
+                  "tsense_err_c",
+                  "result"
+                ]
+              }
+            ]
+          },
+          "form": {
+            "component": "InputForm",
+            "source": "stats",
+            "fields": [
+              {
+                "component": "TextInput",
+                "field": "file"
+              },
+              {
+                "component": "TextInput",
+                "field": "dateFrom"
+              },
+              {
+                "component": "TextInput",
+                "field": "dateTo"
+              }
+            ],
+            "submit": {
+              "component": "SubmitButton",
+              "label": "불러오기"
+            }
+          }
+        }
+      },
+      {
+        "id": "capability",
+        "title": "공정 능력 분석",
+        "definition": {
+          "kind": "litzio-view",
+          "schemaVersion": 2,
+          "catalog": "litzio-v2",
+          "profile": "query",
+          "owner": "community.process-analyzer",
+          "title": "공정 능력 분석",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "kind": "operation",
+              "operation": "community.process-analyzer.analysis",
+              "version": 1,
+              "args": {
+                "file": "eol_synthetic_3days.csv",
+                "condition": "230Vac/400Vdc",
+                "parameter": "입력전류 THD"
+              }
+            }
+          },
+          "layout": {
+            "component": "Panel",
+            "direction": "vertical",
+            "children": [
+              {
+                "component": "Table",
+                "title": "핵심 인사이트",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "severity",
+                  "message"
+                ],
+                "rowFilter": {
+                  "field": "rowType",
+                  "value": "insight"
+                }
+              },
+              {
+                "component": "Table",
+                "title": "생산 요약 (FPY·수율·DPMO)",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "label",
+                  "units",
+                  "firstPass",
+                  "finalPass",
+                  "fpy",
+                  "yield",
+                  "defects",
+                  "dpmo",
+                  "sigmaLevel"
+                ],
+                "rowFilter": {
+                  "field": "rowType",
+                  "value": "kpi"
+                }
+              },
+              {
+                "component": "Table",
+                "title": "공정 능력 지수 (최초 시험 기준)",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "label",
+                  "mean",
+                  "sigmaWithin",
+                  "sigmaOverall",
+                  "cp",
+                  "cpk",
+                  "pp",
+                  "ppk",
+                  "status"
+                ],
+                "rowFilter": {
+                  "field": "rowType",
+                  "value": "capability"
+                }
+              },
+              {
+                "component": "Table",
+                "title": "항목별 규격과 예상 불량률 (DPMO는 정규분포 예상)",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "label",
+                  "n",
+                  "lsl",
+                  "usl",
+                  "outOfSpec",
+                  "dpmo",
+                  "sigmaLevel"
+                ],
+                "rowFilter": {
+                  "field": "rowType",
+                  "value": "capability"
+                }
+              },
+              {
+                "component": "Chart",
+                "title": "히스토그램과 정규분포 적합",
+                "source": "stats",
+                "data": "/rows",
+                "type": "bars",
+                "x": [
+                  "binFrom"
+                ],
+                "xEnd": "binTo",
+                "y": [
+                  "count"
+                ],
+                "curve": "expected",
+                "caption": "label",
+                "rowFilter": {
+                  "field": "rowType",
+                  "value": "bin"
+                },
+                "lines": [
+                  {
+                    "field": "lsl",
+                    "label": "LSL",
+                    "tone": "spec"
+                  },
+                  {
+                    "field": "usl",
+                    "label": "USL",
+                    "tone": "spec"
+                  },
+                  {
+                    "field": "mean",
+                    "label": "평균",
+                    "tone": "mean"
+                  }
+                ]
+              },
+              {
+                "component": "Chart",
+                "title": "I 관리도 (개별값)",
+                "source": "stats",
+                "data": "/rows",
+                "type": "line",
+                "x": [
+                  "processHour",
+                  "seq"
+                ],
+                "y": [
+                  "measured"
+                ],
+                "caption": "label",
+                "separator": "day",
+                "flag": "ooc",
+                "tooltip": [
+                  "serial",
+                  "rule"
+                ],
+                "rowFilter": {
+                  "field": "rowType",
+                  "value": "point"
+                },
+                "lines": [
+                  {
+                    "field": "cl",
+                    "label": "CL",
+                    "tone": "center"
+                  },
+                  {
+                    "field": "ucl",
+                    "label": "UCL",
+                    "tone": "limit"
+                  },
+                  {
+                    "field": "lcl",
+                    "label": "LCL",
+                    "tone": "limit"
+                  }
+                ]
+              },
+              {
+                "component": "Chart",
+                "title": "MR 관리도 (이동범위)",
+                "source": "stats",
+                "data": "/rows",
+                "type": "line",
+                "x": [
+                  "processHour",
+                  "seq"
+                ],
+                "y": [
+                  "mr"
+                ],
+                "separator": "day",
+                "flag": "mrOoc",
+                "tooltip": [
+                  "serial"
+                ],
+                "rowFilter": {
+                  "field": "rowType",
+                  "value": "point"
+                },
+                "lines": [
+                  {
+                    "field": "mrCl",
+                    "label": "MR̄",
+                    "tone": "center"
+                  },
+                  {
+                    "field": "mrUcl",
+                    "label": "UCL",
+                    "tone": "limit"
+                  }
+                ]
+              }
+            ]
+          },
+          "form": {
+            "component": "InputForm",
+            "source": "stats",
+            "fields": [
+              {
+                "component": "TextInput",
+                "field": "file"
+              },
+              {
+                "component": "Select",
+                "field": "condition"
+              },
+              {
+                "component": "Select",
+                "field": "parameter"
+              },
+              {
+                "component": "TextInput",
+                "field": "dateFrom"
+              },
+              {
+                "component": "TextInput",
+                "field": "dateTo"
+              }
+            ],
+            "submit": {
+              "component": "SubmitButton",
+              "label": "불러오기"
+            }
+          }
+        }
+      }
+    ],
+    "screens": [
+      {
+        "id": "analyzer",
+        "title": "공정 분석기",
+        "icon": "ChartColumn",
+        "defaultViewIds": [
+          "graph",
+          "capability"
+        ],
+        "primary": true
+      }
+    ]
+  },
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "dataFolder": {
+        "type": "string",
+        "title": "데이터 폴더",
+        "description": "EOL CSV가 있는 Host 폴더의 절대 경로",
+        "default": ""
+      }
+    },
+    "additionalProperties": false
+  }
+}

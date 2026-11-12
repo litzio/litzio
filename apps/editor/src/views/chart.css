@@ -1,0 +1,23 @@
+.chart { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.chart-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3) var(--space-4); }
+.chart-field { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--font-size-sm); min-width: 0; }
+.chart-field select { width: auto; min-width: calc(var(--space-4) * 8); }
+.chart-check { flex-direction: row; align-items: center; min-height: var(--size-control); }
+.chart-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chart-chip[aria-pressed="true"] { background: var(--id-color-surface-selected); border-color: var(--id-color-interaction); }
+.chart-chip i { width: var(--space-2); height: var(--space-2); border-radius: 50%; opacity: 0.35; }
+.chart-chip[aria-pressed="true"] i { opacity: 1; }
+.chart-stack { display: flex; flex-direction: column; gap: var(--space-3); }
+.chart-plot { position: relative; min-width: 0; border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); background: var(--id-color-surface); padding: var(--space-2); }
+.chart-svg { display: block; max-width: 100%; }
+.chart-grid { stroke: var(--id-color-border-subtle); stroke-width: 1; }
+.chart-frame { fill: none; stroke: var(--id-color-border); }
+.chart-tick, .chart-axis, .chart-limit-label, .chart-sep-label { font-size: 11px; fill: var(--id-color-text-muted); }
+.chart-limit-label { font-weight: 600; }
+.chart-sep { stroke: var(--id-color-border-strong); stroke-dasharray: 3 3; }
+.chart-cursor { stroke: var(--id-color-border-strong); }
+.chart-tip, .chart-note, .chart-empty { font-size: var(--font-size-sm); color: var(--id-color-text-muted); margin: var(--space-1) 0 0; }
+.chart-legend-bar, .chart-legend-line { display: inline-block; width: 12px; height: 8px; margin: 0 var(--space-2) 0 var(--space-3); vertical-align: baseline; background: var(--id-color-accent-blue); opacity: 0.55; }
+.chart-legend-bar:first-child { margin-left: 0; }
+.chart-legend-line { height: 2px; background: var(--id-color-accent-plum); opacity: 1; vertical-align: middle; }
+.chart-caption { margin: 0; font-size: var(--font-size-sm); font-weight: 600; color: var(--id-color-text); }

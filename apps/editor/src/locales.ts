@@ -1388,6 +1388,12 @@ export const en = {
   "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.",
   "This document is read-only. No image was added.": "This document is read-only. No image was added.",
   "Wait for the current image to finish before adding another.": "Wait for the current image to finish before adding another.",
+  "X axis": "X axis",
+  "Y axis": "Y axis",
+  "Spec limits": "Spec limits",
+  "No chart data": "No chart data",
+  "{{count}} flagged points (red)": "{{count}} flagged points (red)",
+  "No flagged points": "No flagged points",
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
@@ -2778,5 +2784,11 @@ export const ko: Record<keyof typeof en, string> = {
   "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "붙여 넣으면 그림이나 수식 레이블이 중복됩니다. 원본을 잘라내어 이동하거나 복사 전에 다른 레이블을 지정하세요. 붙여 넣지 않았으며 클립보드는 유지됩니다.",
   "This document is read-only. No image was added.": "읽기 전용 문서입니다. 이미지를 추가하지 않았습니다.",
   "Wait for the current image to finish before adding another.": "현재 이미지 추가가 끝난 후 다음 이미지를 추가하세요.",
+  "X axis": "X축",
+  "Y axis": "Y축",
+  "Spec limits": "규격선",
+  "No chart data": "표시할 그래프 데이터가 없습니다",
+  "{{count}} flagged points (red)": "빨간 점 {{count}}개",
+  "No flagged points": "빨간 점 없음",
   "Home": "홈"
 };
