@@ -164,9 +164,9 @@ Litzio also regenerates `.agents/skills/litzio-guide/SKILL.md` here. It has name
 
 ### 제품 지시문 구성 (2026-11-12)
 
-`provider-connections.ts`의 두 상수는 한국어 여러 줄 Markdown이다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 공식 write path와 사본 편집, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다. 사본 편집 Host 도구가 보이면 셸·CLI를 사용하지 않으며, CLI 절차는 Host 도구가 없는 터미널 이어하기에만 적용한다.
+지시문을 튜닝할 때는 [비서 AGENTS.md](../../apps/editor/server/assistant/AGENTS.md)와 [litzio-guide SKILL.md](../../apps/editor/server/assistant/litzio-guide/SKILL.md)를 고친다. 두 파일이 한국어 지시문 원본이며 `provider-connections.ts`의 `ASSISTANT_INSTRUCTIONS`와 `LITZIO_GUIDE`는 이 내용을 사용한다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 공식 write path와 사본 편집, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다. 사본 편집 Host 도구가 보이면 셸·CLI를 사용하지 않으며, CLI 절차는 Host 도구가 없는 터미널 이어하기에만 적용한다.
 
-별도 Markdown 런타임 파일로 분리하지 않는다. CLI는 서버 코드를 esbuild로 번들하고 Desktop daemon은 그 CLI 배포본을 복사한다. 별도 자산 읽기는 개발 서버·분산 HTTP Host·패키지 자산 복사 경로를 추가로 바꿔야 하므로 이번 지시문 변경은 기존 문자열 번들 경로를 유지한다.
+개발 실행(tsx/Vite)은 모듈 상대 경로의 Markdown을 읽는다. CLI 빌드(`packages/cli/scripts/build.ts`)는 같은 파일 내용을 esbuild define으로 정적으로 포함하므로 배포 HTTP Host는 런타임 Markdown 경로에 의존하지 않는다. Desktop 빌드는 이 CLI 배포본을 `apps/desktop/build/cli`에 복사하며 daemon은 그 번들을 사용한다. 지시문 변경 후 개발 서버를 다시 시작하고 배포본은 다시 빌드한다. source 환경 생성 검사와 외부 디렉터리의 CLI HTTP·Windows packaged daemon 검사가 생성된 두 파일을 원본 Markdown 전체와 비교한다. Windows packaged 실행은 merge queue의 기존 검사에서 확인한다.
 
 검수는 `apply_review_groups`로 즉시 교정하고 사람은 Undo·재지시·직접 수정한다. 이미지 읽기는 사전 승인 없이 수행한다. 질문의 `accepted:true`는 대화 저장이며 렌더 확인이 아니고, 턴 종료 뒤 답변은 후속 메시지로 온다. 권한 요청은 공급자 승인 카드로 전달한다. 템플릿과 요청된 표시 설정의 별도 사전 동의는 제거하되 사본 적용/버리기, 공식 write path, 불확실 쓰기 no replay, 비밀 값과 조직 정책 경계는 유지한다.
 

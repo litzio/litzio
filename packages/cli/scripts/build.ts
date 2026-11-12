@@ -38,7 +38,11 @@ const result = await build({
   absWorkingDir: repo,
   entryPoints: { cli: path.join(cli, "src/cli.ts") }, outdir: destination, outExtension: { ".js": ".mjs" },
   bundle: true, splitting: true, platform: "node", format: "esm", target: "node24", metafile: true,
-  define: { __LITZIO_CLI_BUILD__: JSON.stringify({ version: desktopVersion ?? manifest.version, desktop: desktopVersion !== undefined, commit }) },
+  define: {
+    __LITZIO_CLI_BUILD__: JSON.stringify({ version: desktopVersion ?? manifest.version, desktop: desktopVersion !== undefined, commit }),
+    __LITZIO_ASSISTANT_INSTRUCTIONS__: JSON.stringify(readFileSync(path.join(repo, "apps/editor/server/assistant/AGENTS.md"), "utf8")),
+    __LITZIO_ASSISTANT_GUIDE__: JSON.stringify(readFileSync(path.join(repo, "apps/editor/server/assistant/litzio-guide/SKILL.md"), "utf8")),
+  },
   banner: { js: 'import { createRequire as __litzioCreateRequire } from "node:module"; const require = __litzioCreateRequire(import.meta.url);' },
   legalComments: "linked", logLevel: "warning",
 });

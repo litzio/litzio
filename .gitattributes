@@ -14,3 +14,7 @@ community-plugins/docling/sample/nist-sp1108r4/** -text
 # Preserve vendored upstream schema/license bytes and documented schema SHA.
 community-plugins/docling/schema/DoclingDocument-1.10.0.json -text
 community-plugins/docling/schema/LICENSE -text
+
+# Product assistant instructions retain the original template-string LF bytes.
+apps/editor/server/assistant/AGENTS.md text eol=lf
+apps/editor/server/assistant/litzio-guide/SKILL.md text eol=lf

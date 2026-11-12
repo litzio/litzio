@@ -414,6 +414,8 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.equal(existsSync(log), false);
   const env = connection.environment(); assert.equal(env.cwd, cwd); assert.deepEqual(env.skills, ["litzio-guide"]);
   const guide = path.join(cwd, ".agents", "skills", "litzio-guide", "SKILL.md");
+  assert.equal(ASSISTANT_INSTRUCTIONS, readFileSync(new URL("../server/assistant/AGENTS.md", import.meta.url), "utf8"));
+  assert.equal(LITZIO_GUIDE, readFileSync(new URL("../server/assistant/litzio-guide/SKILL.md", import.meta.url), "utf8"));
   assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
   writeFileSync(guide, "stale"); connection.environment();
   assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);

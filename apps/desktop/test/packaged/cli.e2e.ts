@@ -66,6 +66,12 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
       });
       const response = await fetch(`http://127.0.0.1:${address.port}/`);
       assert.equal(response.status, 200);
+      // The distributed daemon must regenerate the exact bundled Markdown, outside the checkout.
+      const environmentResponse = await fetch(`http://127.0.0.1:${address.port}` + "/api/assistant/environment");
+      assert.equal(environmentResponse.status, 200);
+      const environment = await environmentResponse.json();
+      assert.equal(readFileSync(environment.instructions, "utf8"), readFileSync(new URL("../../../editor/server/assistant/AGENTS.md", import.meta.url), "utf8"));
+      assert.equal(readFileSync(path.join(environment.cwd, ".agents/skills/litzio-guide/SKILL.md"), "utf8"), readFileSync(new URL("../../../editor/server/assistant/litzio-guide/SKILL.md", import.meta.url), "utf8"));
       const plugins = (await (await fetch(`http://127.0.0.1:${address.port}` + "/api/plugins")).json()).plugins;
       assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
       const onedrive = plugins.find((p: any) => p.id === "litzio.onedrive");
