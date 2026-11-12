@@ -2089,7 +2089,7 @@ The image-estimate card and its special question linkage are removed. Ordinary a
 
 ### 기존 문서 직접 편집과 새 문서 생성 (#1565)
 
-기존 문서는 공급자의 파일 편집 도구나 셸로 원본 텍스트를 바로 수정하고 `litzio check <file> --format json`으로 검사해 오류를 고친다. 사본·적용·버리기 도구와 API·UI·CLI는 제거했다. 남은 과거 대기 사본은 이전하지 않는다. 비서 작업 폴더는 유지하며 임시 산출물은 그곳에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
+기존 문서는 표·목록·그림·캡션·수식의 삽입·수정도 공급자 패치로 본문을 먼저 고치고 `litzio check <file> --format json`으로 검사한다. 쓰기 CLI(insert-*·apply-batch 등)도 사용할 수 있지만 제한 권한에서는 실행 승인이 필요할 수 있다. 그림의 최소 본문 예시는 litzio-guide에 둔다. 사본·적용·버리기 도구와 API·UI·CLI는 제거했다. 남은 과거 대기 사본은 이전하지 않는다. 비서 작업 폴더는 유지하며 임시 산출물은 그곳에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
 
 검증: 실제 Codex `gpt-6-luna` / `low` / Full access 1회에서 임시 문서 제목 변경·표 행 추가와 `litzio check`가 성공했다. 셸 도구 2회, 19.9초이며 별도 검사도 통과했다. 작은 임시 문서의 Host 대화 경로만 확인했으며 앱 UI·원격 Host의 실제 AI 검증은 아니다. 패널은 기존 Button·결과 카드·composer를 유지하고 사본 목록만 제거했다. 기존 결과 카드 시나리오의 1440px 밝은/한국어 다크 캡처에서 잘림·잔여 빈 자리 없이 표시되는지 수동 확인했다. 새 공통 상호작용 예외는 없다.
 

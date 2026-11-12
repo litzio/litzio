@@ -252,7 +252,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
-  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 본문은 공급자 파일 편집(패치)으로 먼저 원본을 고친다"));
+  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 표·목록·그림·캡션·수식의 삽입·수정도 공급자 패치로 본문을 먼저 고친다"));
   await connection.close();
   for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
 });
@@ -456,7 +456,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(instructions, /상태 미발견은 쓰기가 없었다는 증거가 아니다/);
   assert.match(instructions, /accepted:true.*저장.*렌더 확인·답변 수신을 뜻하지 않는다/);
   assert.match(instructions, /apply_review_groups로 즉시 적용/);
-  assert.match(instructions, /공급자 파일 편집\(패치\).*litzio check/);
+  assert.match(instructions, /표·목록·그림·캡션·수식.*공급자 패치로 본문을 먼저.*litzio check/);
   assert.match(instructions, /AGENTS.md.*작업하기 전에 읽는다/);
   const parentPath = process.env.PATH;
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);

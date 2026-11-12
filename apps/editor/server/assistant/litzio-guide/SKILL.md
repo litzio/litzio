@@ -20,6 +20,16 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - 기본 제공 템플릿은 읽기 전용이므로 새 이름의 사본으로 사용자 템플릿을 만든다. 같은 이름은 덮어쓰지 않으며 다른 이름을 정한다. 저장 결과를 확인한다. 목록을 외우지 말고 현재 카탈로그를 조회한다.
 - Host의 템플릿 저장소는 문서 폴더 밖의 고정 앱 경로다. 원본·목적지는 이 턴의 열린 폴더/Host Root와 쓰기 권한을 따른다. 도구·접근이 없으면 제한을 설명하고 가능한 공식 경로나 텍스트 안내를 제공한다.
 
+## 기존 문서에 그림 넣기
+본문을 패치로 편집한다. 이미지 경로는 문서 기준 상대 경로, 캡션은 빈 줄 뒤에 쓴다. 같은 폴더의 실제 이미지라면 복사 없이 참조할 수 있다.
+```markdown
+:::{figure} ./sample.png
+
+합성 표본
+:::
+```
+삽입 방법과 무관하게 `litzio check <file> --format json`으로 문서와 그림 경로를 검사한다.
+
 ## CLI와 터미널 이어하기
 - `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
