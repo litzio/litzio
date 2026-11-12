@@ -4,7 +4,6 @@
 - New-conversation isolation verification (#1548, 2026-11-12): the existing assistant browser scenario reproduces Stop → New conversation → model change → paced typing with a retained first submission lacking provider-history proof. Before the fix its receipt restored the old conversation and the next send carried the old ID; after ownership association the send has no ID and a different conversation is created. Fixture provider/Host validation only, no real AI call or frequency measurement.
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Dynamic UI removal (#1341, 2026-11-09): assistant view tools, generation/correction, material snapshots, result cards, favorites and saved views are removed. Ordinary conversations, references, document tools and requestUserInput remain. Retained plugin screens/query/Table and review boundaries are defined in [Plugin screens v1](plugin-screens-v1.md); [Generated views v1](generated-views-v1.md) is Historical.
-- Instruction verification: 2026-11-12 — 한국어 지시문과 현행 도구 정의 대조, provider/Host/review 대상 단위 검사 및 Codex gpt-6-luna low 사본 편집·템플릿 생성 확인. 실제 AI는 임시 문서·로컬 Host만 확인하며 UI·패키지 검증은 포함하지 않는다.
 - Last verified: 2026-11-12 — #1530 retains unanswered async questions across turn end and reuses ordinary message send for answers; fake Host/provider and browser validation only. Previous 2026-11-10 — #1443의 질문 메타데이터·답변·기록과 Codex 0.167.0/gpt-6-luna low의 실제 Host·브라우저 전달/수신/재열기를 확인. Copilot ACP 미지원 거부는 fixture, 실제 원격 연결·Copilot AI 호출은 미검증.
 - Previous shell verification: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 정적 대조와 문서 검사.
 - Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
@@ -37,26 +36,25 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 소유자 승인 원칙이며 이후 비서 기능과 리뷰의 기준이다. 단계 계획과 진행은 [#1500](https://github.com/litzio/litzio/issues/1500)을 따른다.
 
-- 자율성은 되돌릴 수 있는가로 정한다. 읽기·분석, 사본 수정·제안·검사 기록, 새 문서 생성은 비서가 스스로 한다. 원본(SSOT) 반영은 사람의 [적용] 한 번, Docling 검수 교정은 비서가 즉시 적용하며 Undo·완료는 사람, 큰 비용·외부 전송은 사람에게 확인한다.
+- 자율성은 되돌릴 수 있는가로 정한다. 읽기·분석, 원본 수정·검사 기록, 새 문서 생성은 비서가 스스로 한다. Docling 검수 교정은 비서가 즉시 적용하며 Undo·완료는 사람, 큰 비용·외부 전송은 사람에게 확인한다.
 - 보호 장치는 작업별 확정 경계에 둔다. 그 경계에서 Host가 유효성·권한·revision·결과 기록을 책임지고, 비서와 화면은 같은 공용 계약을 재사용한다. 내부 식별자(baseline·requestId 등)는 Host가 채우고 사람과 모델에게 요구하지 않는다.
-- 비서에게 새 제약을 걸 때는 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명한다([AGENTS.md](../../AGENTS.md)). 읽기와 사본 변경은 막기보다 수행 방법을 먼저 찾는다.
+- 비서에게 새 제약을 걸 때는 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명한다([AGENTS.md](../../AGENTS.md)). 읽기와 문서 변경은 막기보다 수행 방법을 먼저 찾는다.
 - [적용]은 정상 경로에서 Host가 통제한다. 전체 접근에서는 비서가 셸로 원본을 고치는 것까지 기술적으로 막지 않으며, 이 부분은 지침으로 지키는 약속이다.
 - 공통 작업 레지스트리·범용 승인 엔진은 만들지 않는다. 같은 도구 등록·권한 매핑·오류 변환을 반복 수정하거나 비서 연결 누락 회귀가 되풀이될 때 검토한다. 그 전까지 새 Host 작업은 입력·결과·범위·효과(읽기/쓰기/파괴)·receipt·비서 노출 여부를 설계 문서에 적는다.
 - 비서 도구의 입력·결과 계약은 공급자 중립으로 둔다. Codex와 Copilot은 같은 Host 도구 정의·실행 함수를 쓴다.
-- 비서 수락 시험: 모델 없는 Host·Core 단위 검사, 일상 점검은 Codex `gpt-6.1-terra` high, 핵심 업무 수락은 Codex `gpt-6.1-sol` medium(소유자 주력). 문서 수정 과제의 완료 상태는 '사본 완료·사람 적용 대기'다.
-- 직접 수정(사본 없이 원본 반영)은 수정 전 원본 보존, 원본 revision·파일 identity 검사, 성공·실패·불확실 receipt, 조건부 복원, 미저장 Editor 충돌 처리, 위임 범위 표시가 갖춰진 뒤 '이번 작업의 원본 반영까지 위임했는가'를 기준으로 재검토한다.
+- 비서 수락 시험: 모델 없는 Host·Core 단위 검사, 일상 점검은 Codex `gpt-6.1-terra` high, 핵심 업무 수락은 Codex `gpt-6.1-sol` medium(소유자 주력). 문서 수정은 원본 변경과 검사 결과를 확인한다.
 
 ### 실패 분류와 자율 복구 (4단계)
 
 공용 비서 dispatch는 Codex dynamic tools와 Copilot MCP에 같은 성공 transport 상태와 실패 시 `receipt.outcome` (`failure|uncertain`), `errorKind` (`invalid_input|conflict|forbidden|unavailable|uncertain`), `recovery`를 반환한다. 기존 작업 receipt와 requestId는 보존한다. 플러그인 공개 오류의 auth/forbidden은 forbidden, 나머지 가용성 오류는 unavailable로 비서 출력에서 매핑하며 플러그인 내부 계약은 유지한다. 새 오류 클래스·승인 엔진·자동 재시도 실행기는 없다.
 
 - `invalid_input`: 보고된 입력과 도구 schema를 확인하고 수정한 새 요청을 보낸다. 검수 후보가 여럿이면 `candidates`와 `find_review_workspaces`로 스스로 좁힌다. 의도가 끝내 모호할 때만 묻는다.
-- `conflict`: 사본은 `inspect_staged_document({change})`, 검수는 `read_review_document({path})`, 플러그인 관리는 `manage_plugins({action:"list"})`로 최신 상태를 읽고 재분석한다. 새 revision/baseline/등록 정보를 써서 새 요청을 보낸다.
+- `conflict`: 검수는 `read_review_document({path})`, 플러그인 관리는 `manage_plugins({action:"list"})`로 최신 상태를 읽고 재분석한다. 새 revision/baseline/등록 정보를 써서 새 요청을 보낸다.
 - `forbidden`: 필요한 열린 폴더/Full access 또는 서비스 자격·권한, 사람의 검수 결정을 안내한다. 비서가 권한을 바꾸거나 승인 경계를 우회하지 않는다. 읽기 전용 플러그인 도구에 쓰기 권한을 늘려도 private/write 작업은 허용되지 않는다.
 - `unavailable`: 대상·플러그인 목록이나 원래 창의 화면 상태를 안전하게 재조회하고 가능한 공식 경로를 찾는다.
-- `uncertain`: 쓰기를 자동 재실행하지 않는다. 검수는 기존 requestId로 `read_review_request_status`, 플러그인 job은 `job-status`부터 조회한다. 배치 시작은 바깥 receipt ID가 아니라 `files[]` 중 uncertain 작업의 개별 requestId에 대해 `recovery.queries`의 상태 조회를 수행한다. 상태 도구가 없는 사본 편집은 사본을 다시 inspect하고 결과를 대조한다. 상태 미발견은 무쓰기 증거가 아니다.
+- `uncertain`: 쓰기를 자동 재실행하지 않는다. 검수는 기존 requestId로 `read_review_request_status`, 플러그인 job은 `job-status`부터 조회한다. 배치 시작은 바깥 receipt ID가 아니라 `files[]` 중 uncertain 작업의 개별 requestId에 대해 `recovery.queries`의 상태 조회를 수행한다. 상태 도구가 없으면 현재 결과를 읽어 대조한다. 상태 미발견은 무쓰기 증거가 아니다.
 
-알려진 후속: 원본 변경 후 사본 재기준화와 수락 시험은 미구현이다. 적용 시 충돌 검사가 원본을 보존하며, 현재 비서는 `read_document`·`inspect_staged_document`로 원본과 제안을 대조하고 사람이 제안을 보존·검토 후 Discard하고 재요청하도록 안내할 수 있다. 비서의 자동 discard·재기준화는 제공하지 않는다.
+기존 문서 편집은 #1565에 따라 원본 직접 편집으로 전환했다.
 
 화면 조작의 기존 최상위 `outcome`도 같은 실패 receipt/errorKind로 매핑한다. `completed`와 `remaining`은 보존하고 충돌·불확실 결과는 `read_screen_context`로 현재 창을 대조한다. 기존 미저장 확인은 사람 결정으로 남으며, 화면 조작 timeout/취소를 성공으로 반환하거나 자동 재실행하지 않는다.
 
@@ -162,16 +160,16 @@ Linux uses XDG data home and macOS uses Application Support. Source execution
 `packages/cli/dist/cli.mjs` retains distributed defaults. `LITZIO_ASSISTANT_CWD` explicitly overrides this directory
 for local integration/testing. Litzio regenerates its product-owned `AGENTS.md`
 there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
-instructs the agent to edit existing documents through a pending copy and leave application/discard to the human comparison UI.
+instructs the agent to edit original text files directly and validate with `litzio check`.
 Litzio also regenerates `.agents/skills/litzio-guide/SKILL.md` here. It has name/description frontmatter and usage/CLI guidance, with no executable scripts.
 
 ### 제품 지시문 구성 (2026-11-12)
 
-지시문을 튜닝할 때는 [비서 AGENTS.md](../../apps/editor/server/assistant/AGENTS.md)와 [litzio-guide SKILL.md](../../apps/editor/server/assistant/litzio-guide/SKILL.md)를 고친다. 두 파일이 한국어 지시문 원본이며 `provider-connections.ts`의 `ASSISTANT_INSTRUCTIONS`와 `LITZIO_GUIDE`는 이 내용을 사용한다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 공식 write path와 사본 편집, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다. 사본 편집 Host 도구가 보이면 셸·CLI를 사용하지 않으며, CLI 절차는 Host 도구가 없는 터미널 이어하기에만 적용한다.
+지시문을 튜닝할 때는 [비서 AGENTS.md](../../apps/editor/server/assistant/AGENTS.md)와 [litzio-guide SKILL.md](../../apps/editor/server/assistant/litzio-guide/SKILL.md)를 고친다. 두 파일이 한국어 지시문 원본이며 `provider-connections.ts`의 `ASSISTANT_INSTRUCTIONS`와 `LITZIO_GUIDE`는 이 내용을 사용한다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 원본 직접 편집과 검사, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다.
 
 개발 실행(tsx/Vite)은 모듈 상대 경로의 Markdown을 읽는다. CLI 빌드(`packages/cli/scripts/build.ts`)는 같은 파일 내용을 esbuild define으로 정적으로 포함하므로 배포 HTTP Host는 런타임 Markdown 경로에 의존하지 않는다. Desktop 빌드는 이 CLI 배포본을 `apps/desktop/build/cli`에 복사하며 daemon은 그 번들을 사용한다. 지시문 변경 후 개발 서버를 다시 시작하고 배포본은 다시 빌드한다. source 환경 생성 검사와 외부 디렉터리의 CLI HTTP·Windows packaged daemon 검사가 생성된 두 파일을 원본 Markdown 전체와 비교한다. Windows packaged 실행은 merge queue의 기존 검사에서 확인한다.
 
-검수는 `apply_review_groups`로 즉시 교정하고 사람은 Undo·재지시·직접 수정한다. 이미지 읽기는 사전 승인 없이 수행한다. 질문의 `accepted:true`는 대화 저장이며 렌더 확인이 아니고, 턴 종료 뒤 답변은 후속 메시지로 온다. 권한 요청은 공급자 승인 카드로 전달한다. 템플릿과 요청된 표시 설정의 별도 사전 동의는 제거하되 사본 적용/버리기, 공식 write path, 불확실 쓰기 no replay, 비밀 값과 조직 정책 경계는 유지한다.
+검수는 `apply_review_groups`로 즉시 교정하고 사람은 Undo·재지시·직접 수정한다. 이미지 읽기는 사전 승인 없이 수행한다. 질문의 `accepted:true`는 대화 저장이며 렌더 확인이 아니고, 턴 종료 뒤 답변은 후속 메시지로 온다. 권한 요청은 공급자 승인 카드로 전달한다. 템플릿과 요청된 표시 설정의 별도 사전 동의는 제거하되 불확실 쓰기 no replay, 비밀 값과 조직 정책 경계는 유지한다.
 
 The shared daemon owns provider connections and in-memory conversations. Closing
 a Desktop window, assistant panel or browser does not stop a turn while that
@@ -510,7 +508,7 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 
 Codex dynamic tools and Copilot HTTP MCP expose the same `read_screen_context` definition (empty input) to read metadata from the window that sent the admitted turn. It uses the existing conversation/window identity and polling path even with the panel closed or hidden, with a 10-second delivery deadline charged for poll transit time. Another window cannot see or satisfy the request. Fake ACP plus an SDK MCP client verify definition parity, successful Copilot window-owned response, rejection of another window, isolation from an unrelated Codex disconnect and explicit failure without a window; no real Copilot call was made for this merge. Requests not delivered to a closed, disconnected or unresponsive window fail at the delivery deadline. If the window disappears after acknowledgement, the fixed five-minute work bound settles the request; cancellation, turn end and daemon shutdown discard pending requests. Host keeps only in-flight requests, not shared screen state.
 
-The window supplies its focused group's active tab (or null), all opened tabs and opened folders with Host identities. Tab metadata includes kind, title, Host, path/target where applicable, and unsaved flag. Kinds cover native document, text, PDF, review, comparison, staged comparison, plugin screen, plugin jobs, settings and template gallery. App-wide settings have no document Host (null). No unsaved body, selection, plugin inputs or result contents are supplied. Paths on another Host remain metadata, never an access grant. The existing per-message saved document path context remains; a null document directs the assistant to query screen metadata rather than assume a document is active.
+The window supplies its focused group's active tab (or null), all opened tabs and opened folders with Host identities. Tab metadata includes kind, title, Host, path/target where applicable, and unsaved flag. Kinds cover native document, text, PDF, review, comparison, plugin screen, plugin jobs, settings and template gallery. App-wide settings have no document Host (null). No unsaved body, selection, plugin inputs or result contents are supplied. Paths on another Host remain metadata, never an access grant. The existing per-message saved document path context remains; a null document directs the assistant to query screen metadata rather than assume a document is active.
 
 This read is autonomous and provides no UI manipulation. It is Editor-specific tab/focus context, excluded from CLI parity under AGENTS.md and ADR-0015; no CLI command is added. Copilot MCP uses the same Host dispatch and originating-window identity; an absent window fails explicitly instead of inventing screen state. The assistant uses the existing generic tool activity surface; no new visual component or layout exception is introduced.
 
@@ -1160,7 +1158,7 @@ The user message includes product instructions, opened-folder paths, the active
 document path and validated reference paths. It reads saved file content on demand;
 unsaved native/text editor content is excluded (#1106). Copilot receives image
 references as paths, without Codex localImage inputs. Native Copilot tools may
-read references. Copilot receives the same Host tool definitions and dispatch as Codex through HTTP MCP (#1500); Codex skill selection remains unavailable. Existing-document editing uses pending copies as described below; the CLI write path still requires Copilot full-access until the Host copy-edit tools land. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
+read references. Copilot receives the same Host tool definitions and dispatch as Codex through HTTP MCP (#1500); Codex skill selection remains unavailable. Existing documents are edited directly with provider file tools or shell and checked with the CLI. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
 
 ### Copilot Host tools over HTTP MCP (#1500)
 
@@ -1185,20 +1183,6 @@ folder isolation, permission hints, cancellation and endpoint rotation. Two real
 Auto prompts: the first discovered tools but host_policy denied them; the second
 completed list_documents and read_document with shell denied. Those two probes used a direct createServer → MCP handler and did not test the daemon Host/Origin gate. Review found missing Origin headers; before fixing them, a new real startHttpHost regression reproduced 403 Request origin is not allowed. It now uses the exact ACP-supplied headers to discover and invoke read_document in an admitted active turn, while missing/foreign Origins remain refused. A follow-up real Copilot Auto prompt through startHttpHost completed list_documents and read_document and returned Daemon MCP probe, with shell denied and built-in MCPs no longer disabled. This used one additional prompt. Small localhost reads do not establish long sessions, remote Hosts or real plugin/image workflows.
 
-#1547 verification (2026-11-12): Copilot CLI 1.0.109 Auto over the real daemon
-received the `litzio_host` HTTP configuration and discovered the staged-document tools.
-The reported complete tool refusal was not reproduced on this head. The baseline
-created and inspected a pending copy, but guessed unsupported text replacement
-options four times before succeeding. The shared edit-tool description now supplies
-an executable `update-node-text` example with `path`, exact current `from` text and
-`to` replacement, available to both providers without a shell. The existing fake ACP
-and HTTP MCP regression executes that published example through the copy-only path.
-A second real Auto prompt completed stage/inspect/edit without failed tool calls;
-the saved original stayed byte-identical and the pending copy contained the requested
-paragraph. After Host restart, real session/load received the new HTTP endpoint and
-Origin header. Two prompts total; no reasoning-effort option was advertised by Auto.
-These small localhost checks do not establish long sessions, remote Hosts or managed
-organization policies. HTTP MCP and server-scoped tool permission are standard
 [Copilot CLI capabilities](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers);
 [ACP session setup](https://agentclientprotocol.com/protocol/session-setup) supplies
 MCP servers on both new and load. No additional trust/allowlist setting was needed
@@ -2056,54 +2040,15 @@ The image-estimate card and its special question linkage are removed. Ordinary a
 
 
 
-### Pending existing-document edits (#1494)
+### 기존 문서 직접 편집과 새 문서 생성 (#1565)
 
-Only an explicit user edit request authorizes editing an existing document. The Assistant starts or finds a conversation-owned pending copy and prefers the shell-free Host tools below to edit that copy. Existing CLI semantic operations (`inspect`, `apply-batch --operations <json-file> --if-revision <revision>`, `check`) remain available for full-access terminal continuation. It never edits the original or applies/discards a pending copy. New documents are still created immediately. Read-only turns cannot create copies. Both Codex and Copilot support opened-folders and full-access through the same Host tools. Copilot opened-folders asks before shell execution; the Host tools require no shell exception. Read-only turns may inspect existing copies but cannot create or edit them.
+기존 문서는 공급자의 파일 편집 도구나 셸로 원본 텍스트를 바로 수정하고 `litzio check <file> --format json`으로 검사해 오류를 고친다. 사본·적용·버리기 도구와 API·UI·CLI는 제거했다. 남은 과거 대기 사본은 이전하지 않는다. 비서 작업 폴더는 유지하며 임시 산출물은 그곳에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
 
-Host receipts live under the Assistant directory, scoped by conversation; copies are hidden `.litzio-change-<uuid>.md` siblings of the original. This keeps copies within opened folder grants and preserves relative images/attachments. The existing hidden-entry filtering omits copies from document lists and Explorer-backed search. Assistant working-directory copies would change the relative asset base and fall outside document roots. Pending records survive Host restart. Deleting a Host conversation removes its copies; provider-owned history is not deleted.
+검증: 실제 Codex `gpt-6-luna` / `low` / Full access 1회에서 임시 문서 제목 변경·표 행 추가와 `litzio check`가 성공했다. 셸 도구 2회, 19.9초이며 별도 검사도 통과했다. 작은 임시 문서의 Host 대화 경로만 확인했으며 앱 UI·원격 Host의 실제 AI 검증은 아니다. 패널은 기존 Button·결과 카드·composer를 유지하고 사본 목록만 제거했다. 기존 결과 카드 시나리오의 1440px 밝은/한국어 다크 캡처에서 잘림·잔여 빈 자리 없이 표시되는지 수동 확인했다. 새 공통 상호작용 예외는 없다.
 
-`stage_document({path})` is the shared Host start/find tool for Codex and Copilot. It returns the original path, copy path, base revision and change ID. Terminal continuation can use `litzio assistant changes start <conversationId> --path <absolute-path>` through the Host-owned CLI shim. Message context includes conversationId; the shim propagates the selected Host Assistant directory. No assistant apply tool exists.
+`create_document({path,title,operations})` applies the same `document-edit-commands.ts` batch conversion used by CLI to an empty Core document in memory. All operations and canonical serialization complete before exclusive file creation; no intermediate empty file or pending copy is created. The existing paragraph/heading `blocks` input remains available, but cannot be combined with `operations`. Template input remains separate. This avoids a second per-block authoring schema and preserves the existing CLI/Core semantic boundary.
 
-The shared Host conversation actions are `changes-list`, `changes-start`, `changes-preview`, `changes-apply`, `changes-discard`. Scope is the selected Host and conversation ID; preview/apply/discard also take `change`. Apply requires the preview's `copyRevision` and `diskRevision`; the original must still match the creation revision. The result is an applied path/revision receipt or discarded path receipt. An original or pending-copy change refuses writing and requires refreshed comparison. There is no force overwrite or partial apply.
-
-CLI parity: `litzio assistant changes <list|start|preview|apply|discard> <conversationId> [--path <absolute-original>] [--change <id>] [--copy-revision <hash> --disk-revision <hash>] [--host <origin>]`. Explicit Host uses HTTP with no fallback/replay; local invocation uses the same Host operations/storage. Assistant instructions prohibit self-application; consent remains an instruction contract, as with existing document creation.
-
-Pending targets and Review are compact fixed rows immediately above the composer, outside the scrolling transcript (#1539). The selected Host/conversation's changes-list includes current copyRevision. The window keeps its pre-turn revision baseline and, once a response ends, automatically opens each new or revised copy through the same Review tab path once. While a new send awaits its turn snapshot, changes-list may refresh the rows but cannot consume the pre-turn baseline or open a comparison. Unchanged polls and later turns without copy edits do not reopen comparisons. Initial resting history only populates rows. Automatic opening preserves composer focus, including the narrow overlay while typing. When focus is inside an editable document, automatic opening uses the existing group background action and keeps that document active; explicit Review still selects the comparison. With composer focus or no document editing in progress, automatic opening brings the comparison forward. Review opens an existing task tab with SourceCompare/VisualCompare and Core block comparison, plus whole-document Apply/Discard. Relative assets render using the original path. Apply serializes/validates through Core and uses the common revision-checked file commit. Open editor drafts are preserved; the UI refuses application while that document has unsaved edits, and ordinary external-change detection and Save revision checks remain in force. After successful Apply, the sending window reloads the matching clean open document through its existing session load path (#1540). After this succeeds, it closes the pending comparison through the existing tab-close path and selects the original in its existing group, or opens the original if it is not already open (#1552). Successful Discard only closes the comparison; the existing close path restores focus to the remaining active tab. Refused or failed operations retain the comparison and its reason. A new local edit or busy session during the request prevents that reload and is reported beside the successful disk outcome. The automatic native reload also rechecks hasUnsavedChanges (including unapplied drafts) immediately before installing the GET response, retaining any edits entered during the read and the existing disk-applied/reload guidance. Explicit discard-and-reload semantics are unchanged. Unsaved-edit and original-change reasons/actions appear beside Apply; Host errors remain visible there with refreshed comparison. During an active Assistant turn the Host refuses application/discard. No edit history, partial apply, new permission system or shared editing session is introduced.
-
-Verification layers: Host tests protect persistence, permission refusal, hidden sibling discovery, CLI semantic edits, stale preview/copy and original conflicts. Browser tests protect the pending card, comparison tab, Core visual comparison and unsaved editor guard. These synthetic checks do not claim a live model invocation or Copilot sandbox equivalence.
-
-
-`litzio assistant delete <id> --host <origin>` calls the Host conversation deletion action; it refuses active turns, removes pending copies and the Host index entry, and does not delete provider-owned history.
-
-Visual review uses the existing task-tab, Button and comparison patterns without a common-interaction exception: [1440px before](assets/assistant-changes-1494/before-1440.png), [pending card](assets/assistant-changes-1494/pending-1440.png), [1440px comparison](assets/assistant-changes-1494/compare-1440.png), [640px Korean dark](assets/assistant-changes-1494/compare-640-ko-dark.png). Captures use synthetic document/provider data; the local Host identity is masked. Controls, wrapping, comparison scrolling and narrow overlay return were checked. The new browser scenario is registered in the stable suite and fixture selection. Host/CLI tests own disk revision and persistence defects; browser coverage owns tab admission, unsaved-editor refusal and Discard, without duplicating disk fault combinations or introducing extra subprocesses. Targeted Host/provider/fixture tests completed in 14 seconds; the browser capture run completed in 19 seconds. No paid AI call or packaged Desktop validation was run locally.
-
-
-### Pending change review verification (#1539, #1540)
-
-The existing assistant-changes browser scenario reproduces #1540 with a fake provider: Apply writes the scratch original and reports success, but before the fix its open editor still showed `Alpha.` instead of `Proposed change.`. This establishes the stale open-tab defect, not the exact cause of every owner report. The extended scenario checks the fixed composer rows, turn-end opening, preserved input focus, no repeated reopening, same-copy revision updates, clean-tab reload and existing unsaved/Discard guards. #1552 extends this same scenario to check successful Apply closing the comparison and showing the original (including when no original tab is open), successful Discard closing the comparison, and refusal retaining the tab. The existing tab close/focus and document open paths are reused without new controls or a shared-interaction exception. Host coverage checks list copy revisions; disk conflict/Core protections remain unchanged. Independent-review follow-up reproduces the pending-GET overwrite in two groups at 1920px and the foreground-tab takeover while typing in another document; the same browser scenario now checks edit preservation, existing guidance, background opening and explicit Review selection. No new state, confirmation step or capture surface was added.
-
-One real Codex `gpt-6-luna` / `low` / Full access turn on a synthetic Korean paragraph used read_document → stage_document → inspect_staged_document → edit_staged_document. Two invalid operation inputs were corrected within that turn; the final copy contained the requested Tuesday wording and the original stayed unchanged. No direct-original write was observed, so provider instructions were unchanged. The installed Copilot CLI exposed only `auto`; the owner confirmed Auto as this environment's cheapest choice. One Auto / low / Full access turn, run before integrating #1537, left the original unchanged and created no pending copy: it reported that Litzio staging/edit tools were unavailable and declined the edit. Copilot editing success therefore remains unverified; no direct-original write was observed and instructions were unchanged. The missing-tool connection is outside this UI fix.
-
-Visual evidence uses the existing Button ghost/sm, Tooltip, composer and comparison task tab, with existing spacing/text/surface tokens and no new shared interaction exception: [1440px light](assets/assistant-changes-1539/light-1440.png), [1440px dark](assets/assistant-changes-1539/dark-1440.png). Synthetic provider/document data and masked Host identity are used. Captures are a separate manual review, not CI success artifacts. Direct inspection confirmed composer row/control alignment, unclipped filenames and Korean controls, and light/dark contrast.
-
-
-With default full-access, shell access can modify originals. Waiting for human [Apply] is an instruction contract, not technical shell containment.
-
-### Shell-free pending-copy operations (#1500, stage 0b)
-
-The shared tool array exposes `inspect_staged_document({change})` and `edit_staged_document({change, copyRevision, operations})` beside `stage_document` through Codex dynamic tools and Copilot HTTP MCP (#1509). Both use the same dispatch; the MCP lease supplies the conversation/turn and the Host rechecks active turn, folder scope and receipt ownership. Inputs and receipts are provider-neutral; the active turn supplies the conversation, opened folders and permission. There is no path input or original-apply tool. Inspect reuses CLI inspect's current node paths/text/numbering and returns `copyRevision`. Edit takes the existing apply-batch JSON array (command plus options); inspect again after structural edits. A successful result means **사본 완료·사람 적용 대기**.
-
-Host actions `changes-inspect` and `changes-edit` share that implementation. CLI parity is `litzio assistant changes inspect <conversationId> --change <id>` and `litzio assistant changes edit <conversationId> --change <id> --copy-revision <hash> --operations <json-file>`, optionally `--host <origin>`. Failure/uncertain receipts exit nonzero; no automatic replay occurs.
-
-The Node Host adapter `document-edit-commands.ts` owns the extracted CLI JSON/flag conversion and Core operation dispatch; CLI imports it as it already imports other shared Host operations. Core still owns document semantics. No new operations are introduced. All operations and canonical validation complete before the single revision-checked copy commit. A failed step identifies its one-based operation number and reason, and writes nothing. Receipts reuse `outcome: success|failure|uncertain` and `errorKind: invalid_input|conflict|forbidden|unavailable|uncertain`: malformed/failed operations, stale revision, denied scope, missing receipt/copy, or unconfirmed commit respectively. Inspect does not require edit permission; edit rejects read-only turns and rechecks both original and copy against current folders. Copies cannot redirect writes through a symlink to the original. Human Apply retains its existing original/copy revision checks.
-
-Host tests protect atomic failure, revision conflict, ownership, permissions and commit uncertainty. Existing CLI regression tests protect the extracted conversion behavior. Actual model evidence is recorded in the PR separately from these synthetic tests. The existing fake-provider HTTP MCP test verifies the shared descriptors, copy-only success, atomic failure, revision conflicts, change-ID ownership, read-only refusal and ended-turn revocation. It does not establish a real Copilot invocation. New semantic operations, partial Apply and original writes remain outside stage 0b.
-
-### Structured creation and editing (#1500, stage 1)
-
-`create_document({path,title,operations})` applies the same `document-edit-commands.ts` batch conversion used by CLI and pending-copy edits to an empty Core document in memory. All operations and canonical serialization complete before exclusive file creation; no intermediate empty file or pending copy is created. The existing paragraph/heading `blocks` input remains available, but cannot be combined with `operations`. Template input remains separate. This avoids a second per-block authoring schema and preserves the existing CLI/Core semantic boundary.
-
-Tables, lists, figures and captions use existing `insert-table`, `insert-list`, `insert-figure`, `update-figure`, `update-table-caption`, `update-table-cell` commands; existing code, equation, quote and admonition operations are also available. Inspect pending-copy paths again after structural edits. Host scope/effect is new-file creation or conversation-owned copy writes only; original application stays with the human. CLI parity is the existing `create` plus `apply-batch`, and `assistant changes edit`. Shared document tool definitions remain provider-neutral.
+Tables, lists, figures and captions use existing `insert-table`, `insert-list`, `insert-figure`, `update-figure`, `update-table-caption`, `update-table-cell` commands; existing code, equation, quote and admonition operations are also available. Host creation scope/effect is new-file creation. CLI parity is the existing `create` plus `apply-batch`. Shared document tool definitions remain provider-neutral.
 
 Ordinary creation adds `receipt.outcome:success` to its existing path/source/revision/identity receipt. Creation failures use `receipt.outcome:failure|uncertain` and `errorKind:invalid_input|conflict|forbidden|unavailable|uncertain`; existing target is conflict, bad operations are invalid_input, denied scope is forbidden, missing parent is unavailable and unconfirmed I/O is uncertain. Do not replay uncertain writes.
 
@@ -2175,8 +2120,7 @@ Full access document and review Host tools use the selected Host's file policy
 without the conversation's opened-folder limit. Discovery without a path still
 starts at the opened folders. Restricted Host tools retain that limit and return
 an actionable reason to change permission or open the containing folder, rather
-than introducing a second Host approval state. Original revision checks, staged
-copy review, secret/private plugin-operation restrictions and Host selection remain.
+than introducing a second Host approval state. Secret/private plugin-operation restrictions and Host selection remain.
 Permission records carry approval:true. AssistantQuestion renders their allow,
 session-allow and reject choices as compact buttons: one click or Enter sends the
 provider choice immediately, using the same submission lock and response path.
@@ -2186,8 +2130,7 @@ submit flow. The UI reuses AssistantQuestion, compact Button and existing tokens
 
 
 #1536 verification (2026-11-12): fake Codex and ACP cover allow, reject, session
-allow, cancellation, typed request IDs, validated elicitation and unchanged staged
-copy/Host boundaries. An actual Codex gpt-6-luna/low opened-folder turn issued one
+allow, cancellation, typed request IDs, validated elicitation and Host boundaries. An actual Codex gpt-6-luna/low opened-folder turn issued one
 approval card, received allow-once through the Host answer operation and read an
 outside-folder scratch file. One actual Copilot Auto/low turn issued two permission
 cards and completed the same read. Its ACP catalog offered only Auto, so no cheaper
@@ -2200,13 +2143,13 @@ Owner visual approval is not claimed.
 
 ## Immediate review corrections (#1531, 2026-11-12)
 
-The owner decision supersedes the 11-11 proposal-only/human-approval plan. `apply_review_groups {path,change}` accepts the existing groups-propose schema (including supersedes) and calls shared groups-apply with Host-supplied assistant attribution. Proposal validation and Core application share one candidate and atomic commit. Before/locator validation, observed baseline, request status and no automatic replay remain unchanged. History records assistant separately from human evidence. People see applied corrections, Undo them and request further edits in conversation; after Undo the assistant supersedes the reopened proposal when correcting again. Page-exclusion proposals keep their human review path. Completion and required checks are unchanged. Direct editing of the workspace document is a follow-up; no edit entry is added here. General staged document editing (#1494) is unchanged.
+The owner decision supersedes the 11-11 proposal-only/human-approval plan. `apply_review_groups {path,change}` accepts the existing groups-propose schema (including supersedes) and calls shared groups-apply with Host-supplied assistant attribution. Proposal validation and Core application share one candidate and atomic commit. Before/locator validation, observed baseline, request status and no automatic replay remain unchanged. History records assistant separately from human evidence. People see applied corrections, Undo them and request further edits in conversation; after Undo the assistant supersedes the reopened proposal when correcting again. Page-exclusion proposals keep their human review path. Completion and required checks are unchanged. Direct editing of the workspace document is a follow-up; no edit entry is added here. General document editing follows #1565.
 
 ### Image assets (#1554, #1555)
 
 `import_document_image({path,source})` copies an absolute Host image source into the original document's `assets/` folder and returns `{path,receipt:{outcome:"success"}}`. Codex dynamic tools and Copilot HTTP MCP expose the same definition. CLI parity is `litzio assistant import-image <absolute-document> --source <absolute-image>`, executing the same Host operation locally. The CLI acts with its process filesystem access, not a conversation grant.
 
-The operation reuses Editor image validation and exclusive publication, preserving descriptive names and allocating `-2`, `-3` on collisions. PNG/JPEG/GIF/WebP and existing byte limits apply. It changes no document text. Assets are copied immediately next to the original; pending copies share that directory, so comparison media resolves from the original path. Copy discard/Undo leaves these add-only assets. This avoids an additional deferred asset lifecycle. Insert the returned relative path with `insert-figure` on the pending copy, then leave Apply to the human.
+The operation reuses Editor image validation and exclusive publication, preserving descriptive names and allocating `-2`, `-3` on collisions. PNG/JPEG/GIF/WebP and existing byte limits apply. It changes no document text. Assets are copied immediately next to the document and remain until explicitly removed. Use the returned relative path in the document text or `insert-figure`.
 
 Read-only turns refuse imports. Opened-folders mode checks both target and source; outside-folder sources return `forbidden` with the existing #1537 recovery: open the containing folder or choose Full access and retry. No independent Host grant is added. Full access still obeys Host fixed Roots. Source attachments and generated files use their absolute Host paths under the same policy.
 

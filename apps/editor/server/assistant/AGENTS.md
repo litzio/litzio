@@ -7,15 +7,10 @@
 - 앱 사용법·템플릿·터미널 이어하기는 .agents/skills/litzio-guide/SKILL.md를 읽는다.
 
 ## 문서 읽기와 쓰기
-- 제공된 read_document, list_documents, create_document 등 Host 도구를 우선 사용한다. 문서의 유효성과 재처리를 보장하기 위해 공식 CLI/Core write path를 쓴다.
+- 기존 문서는 사본 없이 원본을 바로 고친다. 리치오 문서는 텍스트 파일이므로 파일 편집 도구나 셸로 수정하고, `litzio check <file> --format json`으로 검사해 오류를 고친다.
+- 중간 산출물과 임시 스크립트는 사용자 폴더가 아닌 비서 작업 폴더(현재 디렉터리)에 둔다. 사용자가 연 폴더에 AGENTS.md 같은 지시 파일이 있으면 그 폴더에서 작업하기 전에 읽는다.
 - 새 문서는 create_document로 바로 만든다. title과 operations 또는 blocks 중 하나를 사용하며, 템플릿은 guide의 절차를 따른다.
-- 표·목록·그림·캡션은 insert-table, insert-list, insert-figure, update-figure 등 실제 구조 연산을 쓴다. 이미지가 필요하면 먼저 import_document_image({path,source})에 원본 문서 경로와 이미지 원본의 절대 경로를 전달해 assets/로 가져온 뒤, 반환된 상대 경로로 insert-figure를 수행한다. 자산은 즉시 복사되고 사본을 버려도 남으므로 자산 준비 상태와 문서 유효성을 구분해 보고한다.
-
-## 기존 문서 수정(사본)
-- Host 도구가 보이면 셸·CLI를 쓰지 않는다. CLI는 Host 도구가 없는 터미널 이어하기에서만 쓴다.
-- 사용자의 수정 요청이 있으면 Codex·Copilot 모두 stage_document로 변경 대기 사본을 시작하거나 찾는다. inspect_staged_document({change})로 노드와 copyRevision을 읽고 edit_staged_document({change,copyRevision,operations})로 고친다. 구조 변경 뒤에는 다시 inspect한다.
-- 원본을 보존하고 사람이 비교 후 결정하도록 원본을 직접 쓰거나 변경을 적용·버리기 하지 않는다. 성공은 '사본 완료·사람 적용 대기'이며 리치오 비교 탭에서 검토·적용하도록 짧게 안내한다.
-- opened-folders와 full-access에서 Host 도구로 사본을 편집할 수 있다. read-only에서는 사본을 만들거나 고칠 수 없다. 터미널 절차는 guide를 따른다.
+- 표·목록·그림·캡션은 insert-table, insert-list, insert-figure, update-figure 등 실제 구조 연산을 쓴다. 이미지가 필요하면 먼저 import_document_image({path,source})에 원본 문서 경로와 이미지 원본의 절대 경로를 전달해 assets/로 가져온 뒤, 반환된 상대 경로로 insert-figure를 수행한다. 자산은 즉시 복사되고 문서와 별개로 남으므로 자산 준비 상태와 문서 유효성을 구분해 보고한다.
 
 ## 창·화면 조작과 표시 설정
 - 활성 탭이 문서가 아니거나 현재 창 확인이 필요하면 read_screen_context를 쓴다. 탭·폴더 메타데이터만 반환하며 미저장 본문·선택·플러그인 결과 내용은 알 수 없다.
@@ -41,5 +36,5 @@
 ## 도구 실패 시 복구
 - errorKind와 recovery를 따른다. invalid_input은 schema에 맞춰 입력을 고치고, conflict는 현재 상태를 다시 읽어 분석한 뒤 새 revision으로 요청한다. 후보가 여럿이면 직접 조회해 좁힌다. 읽기·입력 수정·충돌 복구에 추가 확인은 필요 없다.
 - forbidden은 필요한 권한·사람 결정을 안내하거나 공급자 승인 경로를 쓴다. unavailable은 대상·상태를 재조회해 가능한 공식 경로를 찾는다.
-- uncertain이면 중복 쓰기를 막기 위해 쓰기를 재실행하지 않는다. 기존 requestId의 상태를 먼저 조회한다(검수는 read_review_request_status, job은 recovery의 상태 조회). 상태 도구가 없으면 사본 inspect나 현재 결과 조회로 대조한다. 상태 미발견은 쓰기가 없었다는 증거가 아니다.
+- uncertain이면 중복 쓰기를 막기 위해 쓰기를 재실행하지 않는다. 기존 requestId의 상태를 먼저 조회한다(검수는 read_review_request_status, job은 recovery의 상태 조회). 상태 도구가 없으면 현재 결과 조회로 대조한다. 상태 미발견은 쓰기가 없었다는 증거가 아니다.
 - 화면 조작 결과가 불확실하면 read_screen_context로 현재 상태를 확인한 뒤 다음 행동을 정한다.

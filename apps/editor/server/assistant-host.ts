@@ -1,7 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import path from "node:path";
-import { AssistantChanges } from "./assistant-changes.ts";
-import { RootAccess } from "./file-access.ts";
 import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import type { PluginService } from "./plugin-service.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
@@ -16,7 +13,6 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const paths = options?.paths ?? hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
   const plugins = options?.plugins;
-  const changes = new AssistantChanges(path.join(options?.agent?.cwd ?? paths.assistant, "changes"), access);
   let closed = false, closing: Promise<void> | undefined;
   let agent = options?.agent;
   let conversations: AssistantConversations | undefined;
@@ -54,31 +50,8 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     },
     assistantConversation: async (args: any): Promise<any> => {
       if (args.action === "delete") {
-        history().remove(args.id, () => changes.clear(args.id));
+        history().remove(args.id);
         return { id: args.id, outcome: "deleted" };
-      }
-      if (args.action?.startsWith("changes-")) {
-        const info = history().list().find(entry => entry.id === args.id);
-        if (!info) {
-          if (["changes-inspect", "changes-edit"].includes(args.action)) return { receipt: { outcome: "failure" }, errorKind: "unavailable", error: "Unknown conversation." };
-          throw new Error("Unknown conversation.");
-        }
-        const action = args.action.slice(8);
-        if (action === "inspect" || action === "edit") return changes.edit(args.id, action,
-          { change: args.change, ...(action === "edit" ? { copyRevision: args.copyRevision, operations: args.operations } : {}) },
-          { folders: info.folders.length ? new RootAccess(info.folders) : null, access, permissionMode: info.permissionMode ?? "read-only" });
-        if (action === "list") return changes.summaries(args.id);
-        if (action === "preview") return changes.preview(args.id, args.change);
-        if (action === "start") {
-          if (info.provider === "copilot" && info.permissionMode !== "full-access") throw new Error("Existing-document editing requires Full access with Copilot, or use Codex.");
-          return changes.start(args.id, args.path, { folders: info.folders.length ? new RootAccess(info.folders) : null, access, permissionMode: info.permissionMode ?? "read-only" });
-        }
-        let active = false;
-        try { active = history().current(args.id).turns.some(turn => turn.status === "inProgress"); } catch { /* Restarted Host has no running turn. */ }
-        if (active) throw new Error("Stop the Assistant response before applying or discarding changes.");
-        if (action === "apply") return changes.apply(args.id, args.change, args.copyRevision, args.diskRevision);
-        if (action === "discard") return changes.discard(args.id, args.change);
-        throw new Error("Unknown pending change action.");
       }
       if (args.action === "provider-log" && Object.keys(args).every(key => ["action", "id", "provider"].includes(key))) return history().providerLog(args.id, args.provider);
       if (args.action === "send" && args.submissionId !== undefined) return history().submit(args, () => sendConversation(args));

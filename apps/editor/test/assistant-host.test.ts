@@ -341,130 +341,6 @@ test("submission IDs survive event-before-response, duplicate sends and uncertai
   await replacement.close();
 });
 
-test("pending copies survive Host restart, preserve originals on conflict, and use CLI semantic edits", async t => {
-  const { AssistantChanges } = await import("../server/assistant-changes.ts");
-  const { RootAccess, canonicalFilePath } = await import("../server/file-access.ts");
-  const { createDocument, serialize } = await import("@litzio/core");
-  const { listFolder } = await import("../server/document-api.ts");
-  const root = mkdtempSync(path.join(tmpdir(), "assistant-changes-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const original = path.join(root, "original.md"), directory = path.join(root, ".assistant", "changes");
-  const source = serialize(createDocument()); writeFileSync(original, source);
-  const access = new RootAccess([root]), scope = { folders: access, access, permissionMode: "opened-folders" };
-  const changes = new AssistantChanges(directory, access);
-  assert.throws(() => changes.start("readonly", original, { ...scope, permissionMode: "read-only" }), /read-only/);
-  assert.deepEqual(changes.list("readonly"), []);
-  const record = changes.start("one", original, scope);
-  assert.equal(changes.start("one", original, scope).copy, record.copy);
-  assert.equal(path.dirname(record.copy), path.dirname(canonicalFilePath(original)), "relative attachment base must remain unchanged");
-  assert.ok(!listFolder(root, root, access).entries.some(entry => entry.path === record.copy), "hidden copies are not documents in Explorer/search");
-  assert.equal(await runCliAsync(["insert-block", record.copy, "--at", "end", "--text", "Edited by CLI"]), 0);
-  assert.equal(readFileSync(original, "utf8"), source);
-  const restarted = new AssistantChanges(directory, access);
-  assert.equal(restarted.list("one")[0]!.copy, record.copy);
-  const preview = restarted.preview("one", record.id);
-  assert.match(preview.after, /Edited by CLI/);
-  writeFileSync(record.copy, preview.after + "\n");
-  assert.throws(() => restarted.apply("one", record.id, preview.copyRevision, preview.diskRevision), /changed/);
-  const reviewed = restarted.preview("one", record.id);
-  restarted.apply("one", record.id, reviewed.copyRevision, reviewed.diskRevision);
-  assert.match(readFileSync(original, "utf8"), /Edited by CLI/);
-  assert.deepEqual(restarted.list("one"), []);
-  const next = restarted.start("one", original, scope);
-  writeFileSync(original, source);
-  const conflict = restarted.preview("one", next.id);
-  assert.equal(conflict.changed, true);
-  assert.throws(() => restarted.apply("one", next.id, conflict.copyRevision, conflict.diskRevision), /changed/);
-  assert.equal(readFileSync(original, "utf8"), source);
-  rmSync(original);
-  assert.equal(restarted.preview("one", next.id).missing, true);
-  restarted.discard("one", next.id);
-  assert.deepEqual(restarted.list("one"), []);
-});
-
-test("pending Host operations and explicit-Host CLI share receipts without resuming a provider", async t => {
-  const { hostPaths } = await import("../server/host-paths.ts");
-  const { RootAccess } = await import("../server/file-access.ts");
-  const { createDocument, serialize } = await import("@litzio/core");
-  const { mkdirSync, existsSync } = await import("node:fs");
-  const root = mkdtempSync(path.join(tmpdir(), "pending-host-"));
-  const directory = path.join(root, ".assistant"), original = path.join(root, "original.md");
-  mkdirSync(directory); writeFileSync(original, serialize(createDocument()));
-  const index = [{ id: "codex", folders: [root], provider: "codex", permissionMode: "opened-folders" }, { id: "copilot", folders: [root], provider: "copilot", permissionMode: "opened-folders" }];
-  writeFileSync(path.join(directory, "conversations.json"), JSON.stringify(index));
-  const paths = { ...hostPaths(), assistant: directory };
-  const host = createAssistantHost(new RootAccess([root]), path.join(root, "settings.json"), { paths });
-  const server = createServer((req,res) => { void handleDocumentRequest(req,res,()=>{res.statusCode=404;res.end();}, null, Infinity, undefined, undefined, { assistant: host }); });
-  await listenForFetch(server);
-  const origin = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
-  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve=>server.close(()=>resolve())); await host.close(); rmSync(root,{recursive:true,force:true}); });
-  await assert.rejects(host.invoke("assistantConversation", { action:"changes-start", id:"copilot", path:original }), /Full access/);
-  const record = await host.invoke("assistantConversation", { action:"changes-start", id:"codex", path:original });
-  assert.equal(await runCliAsync(["assistant","changes","list","codex","--host",origin]),0);
-  assert.equal(await runCliAsync(["assistant","changes","inspect","codex","--change",record.id,"--host",origin]),0);
-  const inspection = await host.invoke("assistantConversation",{action:"changes-inspect",id:"codex",change:record.id});
-  const operationsFile = path.join(root,"operations.json");
-  writeFileSync(operationsFile,JSON.stringify([{command:"insert-block",at:"end",text:"Edited through Host CLI"}]));
-  const editArgs = ["assistant","changes","edit","codex","--change",record.id,"--copy-revision",inspection.copyRevision,"--operations",operationsFile,"--host",origin];
-  assert.equal(await runCliAsync(editArgs),0);
-  assert.equal(await runCliAsync(editArgs),1,"stale CLI revision must exit nonzero");
-  assert.doesNotMatch(readFileSync(original,"utf8"),/Edited through Host CLI/);
-  const preview = await host.invoke("assistantConversation", { action:"changes-preview", id:"codex", change:record.id });
-  assert.equal(await runCliAsync(["assistant","changes","apply","codex","--change",record.id,"--copy-revision",preview.copyRevision,"--disk-revision",preview.diskRevision,"--host",origin]),0);
-  const next = await host.invoke("assistantConversation", { action:"changes-start", id:"codex", path:original });
-  await host.invoke("assistantConversation", {action:"delete",id:"codex"});
-  assert.equal(existsSync(next.copy),false);
-  assert.equal(JSON.parse(readFileSync(path.join(directory,"conversations.json"),"utf8")).some((entry:any)=>entry.id==="codex"),false);
-});
-
-
-test("staged Host tools edit atomically by conversation receipt with scoped revision checks", async t => {
-  const { AssistantChanges } = await import("../server/assistant-changes.ts");
-  const { executeDocumentTool } = await import("../server/assistant-document-tools.ts");
-  const { RootAccess } = await import("../server/file-access.ts");
-  const { textRevision } = await import("@litzio/file-commit");
-  const fs = await import("node:fs");
-  const root = mkdtempSync(path.join(tmpdir(), "staged-tools-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const original = path.join(root, "a.md"), source = "---\nlitzio: 1\n---\n\nFirst paragraph.\n\nSecond paragraph.\n";
-  writeFileSync(original, source);
-  const access = new RootAccess([root]), changes = new AssistantChanges(path.join(root, ".changes"), access);
-  const scope = { folders: access, access, permissionMode: "opened-folders", changes, conversation: "one" };
-  const staged = executeDocumentTool("stage_document", {path: original}, scope) as any;
-  const invoke = (name: string, input: any, override = {}) => executeDocumentTool(name, input, {...scope, ...override}) as any;
-  const inspected = invoke("inspect_staged_document", {change: staged.id});
-  assert.equal(inspected.receipt.outcome, "success");
-  assert.equal(changes.summaries("one")[0]?.copyRevision, inspected.copyRevision);
-  const second = inspected.nodes.find((node: any) => node.text === "Second paragraph.");
-  assert.ok(second);
-  const operations = [{command: "update-node-text", path: second.path.join(","), from: second.text, to: "Revised second paragraph."}];
-  const input = {change: staged.id, copyRevision: inspected.copyRevision, operations};
-  assert.equal(invoke("edit_staged_document", {...input, path:original}).errorKind, "invalid_input");
-  assert.equal(invoke("edit_staged_document", input, {permissionMode:"read-only"}).errorKind, "forbidden");
-  assert.equal(invoke("edit_staged_document", input, {conversation:"other"}).errorKind, "unavailable");
-  assert.equal(invoke("edit_staged_document", input).receipt.outcome, "success");
-  const updated = invoke("inspect_staged_document", {change:staged.id});
-  assert.equal(changes.summaries("one")[0]?.copyRevision, updated.copyRevision);
-  assert.notEqual(updated.copyRevision, inspected.copyRevision);
-  const atomic = invoke("edit_staged_document", {...input, copyRevision:updated.copyRevision, operations:[{command:"insert-block",at:"end",text:"Must roll back"},{command:"remove-block",at:99999}]});
-  assert.equal(atomic.errorKind, "invalid_input");
-  assert.match(atomic.error, /operation 2/);
-  assert.equal(textRevision(readFileSync(staged.copy,"utf8")), updated.copyRevision);
-  assert.equal(invoke("edit_staged_document",input).errorKind,"conflict");
-  const rename = t.mock.method(fs.default,"renameSync",()=>{throw new Error("rename unavailable");});
-  assert.equal(invoke("edit_staged_document",{...input,copyRevision:updated.copyRevision,operations:[{command:"format"}]}).errorKind,"uncertain");
-  rename.mock.restore();
-  assert.equal(readFileSync(original,"utf8"),source);
-  assert.match(readFileSync(staged.copy,"utf8"),/Revised second paragraph/);
-  assert.doesNotMatch(readFileSync(staged.copy,"utf8"),/Must roll back/);
-  const narrow = path.join(root,"narrow");fs.mkdirSync(narrow);
-  assert.equal(invoke("edit_staged_document",input,{folders:new RootAccess([narrow])}).errorKind,"forbidden");
-  rmSync(original);
-  assert.equal(invoke("inspect_staged_document",{change:staged.id}).receipt.outcome,"success","a deleted original must not prevent inspecting the pending copy");
-  assert.equal(invoke("edit_staged_document",{...input,copyRevision:updated.copyRevision,operations:[{command:"insert-block",at:"end",text:"Still staged"}]}).receipt.outcome,"success");
-  assert.equal(fs.existsSync(original),false,"editing a copy must not recreate a deleted original");
-});
-
 test("provider-neutral tool failures expose executable recovery without replaying writes", async t => {
   const { AssistantConversations } = await import("../server/assistant-conversations.ts");
   const { RootAccess } = await import("../server/file-access.ts");
@@ -501,18 +377,6 @@ test("provider-neutral tool failures expose executable recovery without replayin
     const missingFolder=await invoke(tool,tool === "create_document" ? {...input,path:path.join(root,"report.md")} : {...input,from:original});
     assert.equal(missingFolder.errorKind,"forbidden");scope.folders=folders;
   }
-  const staged=await invoke("stage_document",{path:original});
-  const inspected=await invoke("inspect_staged_document",{change:staged.id});
-  const args={change:staged.id,copyRevision:inspected.copyRevision,operations:[{command:"insert-block",at:"end",text:"Intended."}]};
-  assert.equal((await invoke("edit_staged_document",args)).success,true);
-  const conflict=await invoke("edit_staged_document",args);
-  assert.equal(conflict.success,false);assert.equal(conflict.errorKind,"conflict");
-  const current=await invoke(conflict.recovery.tool,conflict.recovery.arguments);
-  assert.equal((await invoke("edit_staged_document",{...args,copyRevision:current.copyRevision})).success,true);
-  scope.permissionMode="read-only";
-  const forbidden=await invoke("edit_staged_document",args);
-  assert.equal(forbidden.errorKind,"forbidden");assert.match(forbidden.recovery.instruction,/Opened folders/);
-  scope.permissionMode="opened-folders";
   const location={root,workspace:"a.md",plugin:"fixture",job:"workspace"};
   let writes=0;
   history.plugins={generatedDocuments:{execute:async(input:any)=>{
@@ -566,15 +430,14 @@ test("image import shares add-only Host and CLI behavior with document tools and
   assert.match(readFileSync(file, "utf8"), /Original/);
 });
 
-test("structured creation and pending edits reuse Core batches and report image readiness separately", async t => {
+test("structured creation reuse Core batches and report image readiness separately", async t => {
   const { executeDocumentTool } = await import("../server/assistant-document-tools.ts");
-  const { AssistantChanges } = await import("../server/assistant-changes.ts");
   const { RootAccess } = await import("../server/file-access.ts");
   const { parse, serialize, getEditableDocument } = await import("@litzio/core");
   const root = mkdtempSync(path.join(tmpdir(), "structured-tools-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const access = new RootAccess([root]), changes = new AssistantChanges(path.join(root, ".changes"), access);
-  const scope = { folders: access, access, permissionMode: "opened-folders", changes, conversation: "structured" };
+  const access = new RootAccess([root]);
+  const scope = { folders: access, access, permissionMode: "opened-folders" };
   const invoke = (name: string, input: unknown, override = {}) => executeDocumentTool(name, input, { ...scope, ...override }) as any;
   const file = path.join(root, "report.md");
   writeFileSync(path.join(root, "chart.png"), "synthetic image-file presence fixture");
@@ -600,31 +463,5 @@ test("structured creation and pending edits reuse Core batches and report image 
   ]) assert.equal(invoke("create_document", input).errorKind, "invalid_input");
   assert.equal(existsSync(bad), false);
   assert.equal(invoke("create_document", { path: bad, title: "Bad", operations }, { permissionMode: "read-only" }).errorKind, "forbidden");
-  const staged = invoke("stage_document", { path: file });
-  const before = invoke("inspect_staged_document", { change: staged.id });
-  const figure = before.nodes.find((node: any) => node.type === "figure");
-  const table = before.nodes.find((node: any) => node.type === "table");
-  const cell = before.nodes.find((node: any) => node.type === "cell");
-  const edited = invoke("edit_staged_document", { change: staged.id, copyRevision: before.copyRevision, operations: [
-    { command: "update-figure", path: figure.path.join(","), caption: "Revised chart" },
-    { command: "update-table-caption", path: table.path.join(","), text: "Revised summary" },
-    { command: "update-table-cell", path: cell.path.join(","), text: "Work" },
-    { command: "insert-table", at: "end", cells: [["More"], ["Rows"]] },
-  ] });
-  assert.equal(edited.receipt.outcome, "success", JSON.stringify(edited));
-  assert.equal(readFileSync(file, "utf8"), created.source, "original waits for human Apply");
-  assert.match(readFileSync(staged.copy, "utf8"), /Revised chart/);
-  assert.match(readFileSync(staged.copy, "utf8"), /Revised summary/);
-  assert.match(readFileSync(staged.copy, "utf8"), /Work/);
-  assert.equal(changes.list("structured").length, 1);
-  const preview = changes.preview("structured", staged.id);
-  changes.apply("structured", staged.id, preview.copyRevision, preview.diskRevision);
-  assert.match(readFileSync(file, "utf8"), /Revised chart/);
-  assert.match(readFileSync(file, "utf8"), /missing.png/);
-  const unsupported = invoke("stage_document", { path: file });
-  writeFileSync(unsupported.copy, created.source + "\n![Desk](images/writing-desk.png)\n");
-  assert.throws(() => changes.preview("structured", unsupported.id), /Unsupported native content: image.*Discard.*insert-figure/s);
-  assert.throws(() => changes.apply("structured", unsupported.id, "unused", "unused"), /Discard/);
-  assert.match(readFileSync(file, "utf8"), /Revised chart/);
 
 });
