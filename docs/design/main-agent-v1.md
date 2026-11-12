@@ -244,6 +244,17 @@ Model/effort defaults still initialize each new conversation.
 | `GET /api/assistant/diagnostics` | Codex executable/version, app-server initialization, `account/read`, `account/rateLimits/read`, paginated `mcpServerStatus/list`, check time and individual errors. |
 | `GET /api/assistant/environment` | `{ cwd, instructions, skills }`; Litzio-owned environment, without starting app-server. |
 
+Windows diagnostics report a possible shell issue when resolved PowerShell 7 paths
+are exclusively Microsoft Store packages and no standard Program Files installation
+is found. The existing diagnostic row shows status and replacement action; hover/focus
+Tooltip explains restricted-token launch denial and the standard installer remedy.
+This is an installation heuristic, not a shell execution probe. Other platforms do
+not run it. Provider-native shell tool output is not rewritten by the Host (#1565).
+Manual fixture review at 1440px: [English Light](assets/store-pwsh-1565/diagnostics-1440-light.png)
+and [Korean Dark](assets/store-pwsh-1565/diagnostics-1440-dark.png). Existing diagnostic
+row and shared Tooltip are reused without a new UI exception; alignment, wrapping
+and keyboard-focus details were checked. This does not verify a real Store installation.
+
 These official Host reads use the existing route/JSON transport and add no extension lifecycle
 API. Diagnostics keep partial successes: an account/rate-limit/MCP error is not
 presented as a successful probe. Unknown MCP runtime status is not inferred from

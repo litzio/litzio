@@ -49,6 +49,7 @@ export type AssistantDiagnostics = {
   provider: AiProvider; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;
   account?: { type: string; email?: string | null; planType?: string } | null;
   accountError?: string; rateLimitsError?: string; mcpError?: string;
+  storePowerShellOnly?: boolean;
   rateLimits?: {
     name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[];
     planType?: string;
