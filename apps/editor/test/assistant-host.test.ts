@@ -524,3 +524,56 @@ test("Codex rejects a repeated-block diff when its declared block changed before
   assert.throws(() => changes.undo("turn", file, [root]), /unavailable/);
   assert.equal(readFileSync(file, "utf8"), laterEdit, "neither the later first-block edit nor the untouched second block may change");
 });
+
+
+test("Codex refuses a deletion without new-side context after another deletion", async () => {
+  const { AssistantFileChanges } = await import("../server/assistant-file-changes.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1570-strict-diff-"));
+  const file = path.join(root, "deleted.txt");
+  writeFileSync(file, "A\n");
+  const changes = new AssistantFileChanges(null);
+  assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff: "@@ -3,1 +2,0 @@\n-C\n" }, [root]), false);
+  assert.throws(() => changes.compare("turn", file, [root]), /unavailable/);
+  assert.throws(() => changes.undo("turn", file, [root]), /unavailable/);
+  assert.equal(readFileSync(file, "utf8"), "A\n");
+});
+
+
+test("Codex declared-span restoration preserves exact text and rejects malformed hunks", async () => {
+  const { AssistantFileChanges } = await import("../server/assistant-file-changes.ts");
+  const { createTwoFilesPatch } = await import("diff");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1570-strict-diff-"));
+  const file = path.join(root, "text.txt");
+  const cases = [
+    ["one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n", "ONE\nextra\ntwo\nthree\nfour\nfive\nsix\nseven\nEIGHT\n"],
+    ["head\r\nold\r\ntail\r\n", "head\r\nnew\r\ntail\r\n"],
+    ["old", "new"],
+    ["old\n", "new"],
+    ["old", "new\n"],
+    ["제목\n이전 내용\n끝\n", "제목\n변경한 내용\n끝\n"],
+  ];
+  for (const [before, after] of cases) {
+    writeFileSync(file, after!);
+    const changes = new AssistantFileChanges(null);
+    const diff = createTwoFilesPatch("before", "after", before!, after!, undefined, undefined, { context: 1 });
+    assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff }, [root]), file, diff);
+    assert.equal(changes.compare("turn", file, [root]).before, before);
+    changes.undo("turn", file, [root]);
+    assert.deepEqual(readFileSync(file), Buffer.from(before!));
+  }
+  const hunk = "@@ -1 +1 @@\n-old\n+new\n";
+  for (const diff of [
+    "@@ -4 +4 @@\n-old\n+new\n", // range beyond EOF
+    "@@ -1,2 +1 @@\n-old\n+new\n", // header count mismatch
+    "@@ -1 +1 @@\n+new\n", // missing declared old line (parser normalization)
+    "@@ -2,1 +1,0 @@\n-old\n", // unanchored deletion even within file bounds
+    hunk + hunk, // overlapping spans
+    "@@ -2 +2 @@\n-old\n+new\n" + hunk, // reversed order
+  ]) {
+    writeFileSync(file, "new\nnew\n");
+    const changes = new AssistantFileChanges(null);
+    assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff }, [root]), false, diff);
+    assert.throws(() => changes.undo("turn", file, [root]), /unavailable/);
+    assert.equal(readFileSync(file, "utf8"), "new\nnew\n");
+  }
+});

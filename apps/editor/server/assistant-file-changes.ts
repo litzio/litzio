@@ -1,6 +1,6 @@
 import { editorFile } from "./document-reader.ts";
 import { readFileSync, statSync } from "node:fs";
-import { applyPatch, reversePatch, parsePatch } from "diff";
+import { parsePatch } from "diff";
 import { commitFile, decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, canonicalFilePath, RootAccess, type FileAccess } from "./file-access.ts";
 
@@ -41,15 +41,9 @@ export class AssistantFileChanges {
       key = this.key(turn, target);
       if (change.kind?.type !== "update" || change.kind.move_path || typeof change.diff !== "string" || Buffer.byteLength(change.diff) > 2 * maxBytes) throw new Error("Unsupported change.");
       const after = this.read(target);
-      const patch = `--- before\n+++ after\n${change.diff}`;
       // Provider start notifications can be delivered after the disk write.
-      const exact = { autoConvertLineEndings: false, compareLine: (_lineNumber: number, line: string, _operation: string, expected: string) => {
-        // Returning false permits offset search. Abort at the first declared-position mismatch.
-        if (line !== expected) throw new Error("Diff position mismatch.");
-        return true;
-      } };
-      const before = applyPatch(after, reversePatch(parsePatch(patch)[0]!), exact);
-      if (typeof before !== "string" || applyPatch(before, patch, exact) !== after) throw new Error("Diff mismatch.");
+      const before = applyDeclaredDiff(after, change.diff, true);
+      if (!Buffer.from(applyDeclaredDiff(before, change.diff, false), "utf8").equals(Buffer.from(after, "utf8"))) throw new Error("Diff mismatch.");
       return this.record(turn, change.path, before, after, folders);
     } catch { if (key) this.records.set(key, null); return false; }
   }
@@ -82,4 +76,51 @@ export class AssistantFileChanges {
     record.undone = true;
     return { path: file, revision: textRevision(record.before) };
   }
+}
+
+/** Compare and replace only the declared spans; parsing never authorizes offset search. */
+function applyDeclaredDiff(source: string, diff: string, reverse: boolean): string {
+  const patches = parsePatch(diff);
+  // Retain declared counts: parsePatch can normalize a missing single line to zero.
+  const headers = [...diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@.*$/gm)];
+  if (patches.length !== 1 || !headers.length || patches[0]!.hunks.length !== headers.length) throw new Error("Invalid diff hunks.");
+  const input = source.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  const output: string[] = [];
+  let cursor = 0, oldEnd = 0, newEnd = 0;
+  for (const [index, hunk] of patches[0]!.hunks.entries()) {
+    const header = headers[index]!;
+    const [oldStart, oldCount, newStart, newCount] = [Number(header[1]), Number(header[2] ?? 1), Number(header[3]), Number(header[4] ?? 1)];
+    if (![oldStart, oldCount, newStart, newCount].every(value => Number.isSafeInteger(value) && value > 0) ||
+        hunk.oldStart !== oldStart || hunk.newStart !== newStart || hunk.oldLines !== oldCount || hunk.newLines !== newCount ||
+        oldStart - 1 < oldEnd || newStart - 1 < newEnd) throw new Error("Unanchored or unordered diff hunk.");
+    const oldLines: string[] = [], newLines: string[] = [];
+    let previous = "";
+    for (const line of hunk.lines) {
+      const operation = line[0];
+      if (operation === "\\") {
+        if (line.replace(/\r$/, "") !== "\\ No newline at end of file" || !previous) throw new Error("Invalid diff newline marker.");
+        if (previous !== "+") oldLines[oldLines.length - 1] = oldLines.at(-1)!.slice(0, -1);
+        if (previous !== "-") newLines[newLines.length - 1] = newLines.at(-1)!.slice(0, -1);
+        previous = "";
+      } else {
+        if (operation !== " " && operation !== "-" && operation !== "+") throw new Error("Invalid diff line.");
+        const content = line.slice(1) + "\n";
+        if (operation !== "+") oldLines.push(content);
+        if (operation !== "-") newLines.push(content);
+        previous = operation;
+      }
+    }
+    if (oldLines.length !== oldCount || newLines.length !== newCount) throw new Error("Diff line count mismatch.");
+    const expected = reverse ? newLines : oldLines, replacement = reverse ? oldLines : newLines;
+    const start = (reverse ? newStart : oldStart) - 1, destination = (reverse ? oldStart : newStart) - 1;
+    if (start < cursor || start + expected.length > input.length || expected.some((line, offset) => input[start + offset] !== line)) throw new Error("Diff span mismatch.");
+    output.push(...input.slice(cursor, start));
+    if (output.length !== destination) throw new Error("Inconsistent diff positions.");
+    output.push(...replacement);
+    cursor = start + expected.length;
+    oldEnd = oldStart - 1 + oldCount; newEnd = newStart - 1 + newCount;
+  }
+  output.push(...input.slice(cursor));
+  if (output.slice(0, -1).some(line => !line.endsWith("\n"))) throw new Error("Non-final diff newline marker.");
+  return output.join("");
 }
