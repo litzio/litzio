@@ -60,8 +60,16 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   expect(screenReply.tabs.find(tab=>tab.id===screenReply.activeTab.id)).toEqual(screenReply.activeTab);
   expect(JSON.stringify(screenReply)).not.toContain('Proposed change.');
   await compare.getByRole('button',{name:'Apply',exact:true}).click();
-  await expect(compare.getByRole('status')).toContainText('Changes applied');
-  await page.getByRole('tab',{name:/a.md/}).first().click();
+  await expect(page.getByRole('tab',{name:/Pending changes/})).toHaveCount(0);
+  await expect(page.getByRole('tab',{name:/a.md/}).first()).toBeFocused();
+  await expect(activeDocument(page).locator('.tiptap')).toContainText('Proposed change.');
+  pending=true; applied=false;
+  await expect(panel.getByRole('button',{name:'Review',exact:true})).toBeVisible();
+  await panel.getByRole('button',{name:'Review',exact:true}).click();
+  // Applying also opens the original when its previous tab has been closed.
+  await page.getByRole('button',{name:'Close a.md',exact:true}).click();
+  await compare.getByRole('button',{name:'Apply',exact:true}).click();
+  await expect(page.getByRole('tab',{name:/Pending changes/})).toHaveCount(0);
   await expect(activeDocument(page).locator('.tiptap')).toContainText('Proposed change.');
   pending=true; applied=false;
   await expect(panel.getByRole('button',{name:'Review',exact:true})).toBeVisible();
@@ -100,6 +108,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await panel.getByRole('button',{name:'Review',exact:true}).click();
   await expect(compare.getByRole('button',{name:'Apply',exact:true})).toBeDisabled();
   await expect(compare.getByRole('alert')).toContainText('The original changed.');
+  await expect(page.getByRole('tab',{name:/Pending changes/})).toHaveCount(1);
   changed=false;
   await panel.getByRole('button',{name:'Review',exact:true}).click();
   // Unsaved human edits stay protected even when the disk revision is unchanged.
@@ -108,6 +117,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await page.getByRole('tab',{name:/Pending changes/}).click();
   await compare.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(compare.getByRole('alert')).toContainText('unsaved edits'); expect(applied).toBe(false);
+  await expect(page.getByRole('tab',{name:/Pending changes/})).toHaveCount(1);
   // A later turn editing the same copy refreshes the existing tab once.
   await page.getByRole('tab',{name:/a.md/}).first().click();
   await panel.getByRole('textbox').fill('Revise the pending copy again');
@@ -149,7 +159,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
     await page.screenshot({mask:[page.locator(".sidebar-host-account")],path:'tmp/1494-evidence/compare-640-ko-dark.png'});
   }
   await compare.getByRole('button',{name:/^(Discard|버리기)$/}).click();
-  await expect(compare.getByRole('status')).toContainText(/Changes discarded|변경 버림/);
+  await expect(page.getByRole('tab',{name:/Pending changes|변경 대기/})).toHaveCount(0);
   await expect(panel.getByRole('button',{name:/^(Review|검토)$/})).toHaveCount(0);
   await page.evaluate(prefix=>{localStorage.setItem(prefix+'.uiLanguage','en');localStorage.setItem(prefix+'.theme','light');},brand.storagePrefix);
   await page.getByRole('tab',{name:/a.md/}).first().click();
