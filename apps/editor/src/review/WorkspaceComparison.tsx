@@ -1,16 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReviewView } from "@litzio/core/views-v2";
 import type { HostClient } from "../host-client.ts";
-import { ReviewRenderer, type ReviewAdapter, type ReviewSnapshot } from "./ReviewRenderer.tsx";
+import { ReviewRenderer, type ReviewAdapter, type ReviewSnapshot, type ReviewNavigation } from "./ReviewRenderer.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 
+import { WorkspaceReviewPanel, type WorkspaceReviewState } from "./WorkspaceReviewPanel.tsx";
+import type { ReviewLedgerChange } from "@litzio/plugin-sdk";
+
 export type WorkspaceTarget = {root:string;workspace:string;plugin:string;job:string};
 export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {client:HostClient;target:WorkspaceTarget;onPending?(pending:boolean):void;onOpen(path:string):void;isDirty?(path:string):boolean}) {
   const [adapter,setAdapter]=useState<ReviewAdapter>(),[dialog,setDialog]=useState(false),[ready,setReady]=useState(false),[problem,setProblem]=useState(""),[regenerate,setRegenerate]=useState(false),[epoch,setEpoch]=useState(0);
+  const [reviewState,setReviewState]=useState<WorkspaceReviewState>(),[navigation,setNavigation]=useState<ReviewNavigation>(),[changing,setChanging]=useState(false);
+  const comparison=useRef<ReviewSnapshot | undefined>(undefined);
   const baseline=useRef<string | undefined>(undefined), pendingCount=useRef(0), pendingChanged=useRef(onPending);pendingChanged.current=onPending;
   const request=useRef<(body:Record<string,unknown>)=>Promise<any>>(undefined);
   const mark=(busy:boolean)=>{if(busy){if(!pendingCount.current++)pendingChanged.current?.(true);}else if(!--pendingCount.current)pendingChanged.current?.(false);};
@@ -20,19 +25,19 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
     const send=(body:Record<string,unknown>)=>{
       const work=tail.then(async()=>{
         if(["workspace-compare","workspace-image"].includes(String(body.action))&&body.baseline)body={...body,baseline:baseline.current};
-        if(body.action==="workspace-regenerate")pending=String(body.requestId);
+        if(["workspace-regenerate","workspace-review-change","workspace-evidence"].includes(String(body.action)) && body.requestId)pending=String(body.requestId);
         const response=await client.request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body.action==="workspace-status"?body:{...target,...body}),signal:controller.signal});
         const value=await response.json();controller.signal.throwIfAborted();
         if(!response.ok || body.action!=="workspace-status"&&(value.error || value.receipt&&value.receipt.outcome!=="success"))throw new Error(value.error??i18n.t("Data unavailable."));
-        if(body.action==="workspace-regenerate")pending=undefined;
+        if(["workspace-regenerate","workspace-review-change","workspace-evidence"].includes(String(body.action)) && body.requestId)pending=undefined;
         return value;
       });tail=work.then(()=>{},()=>{});return work;
     };
     request.current=send;
     const read=async(pageNo?:number):Promise<ReviewSnapshot>=>{
       try { setProblem("");
-      if(pending){const status=await send({action:"workspace-status",requestId:pending});if(status.state==="unknown")throw new Error("Outcome unknown; read the workspace after restarting.");pending=undefined;}
-      const state=await send({action:"workspace-read"});baseline.current=state.baseline;setRegenerate(state.cacheState==="created-version");
+      if(pending){const status=await send({action:"workspace-status",requestId:pending});if(status.state==="unknown" || !["success","failure"].includes(status.receipt?.outcome))throw new Error(`Outcome unknown. Check request ${pending}; do not repeat the change.`);pending=undefined;}
+      const state=await send({action:"workspace-evidence",mode:"read"});setReviewState(state);baseline.current=state.baseline;setRegenerate(state.cacheState==="created-version");
       if(state.cacheState==="created-version")setProblem(i18n.t("This is the snapshot from an earlier generation contract. Regenerate explicitly to compare or change review progress."));
       if(["missing","invalid"].includes(state.cacheState)){
         pending=crypto.randomUUID();mark(true);
@@ -45,7 +50,7 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
         sources[`review-asset:${image.revision}`]=images.get(image.revision)!;
       }
       const snapshot={...value.snapshot,state:value.cacheState==="created-version"?"stale":value.state,workspaceBaseline:baseline.current,contentRevision:value.contentRevision,progress,imageSources:sources};
-      failed=false;setReady(true);return snapshot;
+      comparison.current=snapshot;failed=false;setReady(true);return snapshot;
       } catch(error) {setProblem(error instanceof Error?error.message:String(error));throw error;}
     };
     setAdapter({read,async loadPage(snapshot,pageNo){
@@ -64,8 +69,32 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
     },async act(){throw new Error("Read-only workspace comparison");}});
     return()=>{controller.abort();request.current=undefined;};
   },[client,target.root,target.workspace,target.plugin,target.job]);
+  const change=async(change:ReviewLedgerChange)=>{
+    if(changing || pendingCount.current) return;
+    setChanging(true);setReady(false);mark(true);setProblem("");
+    try {const value=await request.current!({action:"workspace-review-change",baseline:baseline.current,requestId:crypto.randomUUID(),change});baseline.current=value.baseline;setEpoch(e=>e+1);}
+    catch(error){setProblem(String((error as Error).message));setReady(false);}
+    finally{mark(false);setChanging(false);}
+  };
+  const evidence=async()=>{
+    if(changing || pendingCount.current) return;
+    setChanging(true);setReady(false);mark(true);
+    try {const value=await request.current!({action:"workspace-evidence",mode:"run",baseline:baseline.current,requestId:crypto.randomUUID()});baseline.current=value.baseline;setEpoch(e=>e+1);}
+    catch(error){setProblem(String((error as Error).message));setReady(false);}
+    finally{mark(false);setChanging(false);}
+  };
+  const loadMaterial=useCallback(async(pageNo:number)=>{
+    const expected=baseline.current;
+    const value=await request.current!({action:"workspace-material",pageNo});
+    if(value.baseline!==expected || value.baseline!==baseline.current)throw new Error("Refresh review data before continuing.");
+    return value.material;
+  },[]);
+  const loadThumbnail=useCallback(async(pageNo:number)=>{
+    // Same serialized adapter queue and coherence checks as the continuous source.
+    return comparison.current && adapter?.loadPage?.(comparison.current,pageNo);
+  },[adapter]);
   const view:ReviewView={kind:"litzio-view",schemaVersion:2,catalog:"litzio-v2",profile:"review",title:target.workspace,refresh:"manual",sources:{review:{plugin:target.plugin,review:"compare",bundleRef:`${target.workspace}:${epoch}`}},layout:{component:"Panel",direction:"vertical",children:[{component:"SourceDocumentCompare",title:i18n.t("Source comparison"),source:"review"}]}};
-  return <>{problem&&<Notice tone="warning">{problem}</Notice>}{adapter&&<ReviewRenderer view={view} adapter={adapter} actions={<>{regenerate&&<Button variant="outline" size="sm" disabled={!!pendingCount.current} onClick={()=>{const id=crypto.randomUUID();mark(true);void request.current!({action:"workspace-regenerate",baseline:baseline.current,requestId:id}).then(value=>{baseline.current=value.baseline;setRegenerate(false);setEpoch(epoch=>epoch+1);}).catch(error=>{setReady(false);setRegenerate(false);setProblem(`${error.message} · Request: ${id}`);}).finally(()=>mark(false));}}>{i18n.t("Regenerate review snapshot")}</Button>}<Button variant="outline" size="sm" disabled={!ready||regenerate||!!pendingCount.current} onClick={()=>{setProblem("");setDialog(true);}}>{i18n.t("Export current state…")}</Button></>} />}
+  return <>{problem&&<Notice tone="warning">{problem}</Notice>}{adapter&&<WorkspaceReviewPanel state={reviewState} disabled={!ready||changing||regenerate||!!pendingCount.current||!!problem} onChange={change} onEvidence={evidence} onNavigate={setNavigation} loadMaterial={loadMaterial} loadThumbnail={loadThumbnail}><ReviewRenderer blocked={changing || !ready} navigation={navigation} view={view} adapter={adapter} actions={<>{regenerate&&<Button variant="outline" size="sm" disabled={!!pendingCount.current} onClick={()=>{const id=crypto.randomUUID();mark(true);void request.current!({action:"workspace-regenerate",baseline:baseline.current,requestId:id}).then(value=>{baseline.current=value.baseline;setRegenerate(false);setEpoch(epoch=>epoch+1);}).catch(error=>{setReady(false);setRegenerate(false);setProblem(`${error.message} · Request: ${id}`);}).finally(()=>mark(false));}}>{i18n.t("Regenerate review snapshot")}</Button>}<Button variant="outline" size="sm" disabled={!ready||regenerate||!!pendingCount.current} onClick={()=>{setProblem("");setDialog(true);}}>{i18n.t("Export current state…")}</Button></>} /></WorkspaceReviewPanel>}
     {dialog&&<WorkspaceExport onOpen={onOpen} isDirty={isDirty} onClose={()=>setDialog(false)} onRequest={async body=>{mark(true);try{return await request.current!(body.action==="workspace-status"?body:{...body,baseline:baseline.current});}finally{mark(false);}}} />}</>;
 }
 
