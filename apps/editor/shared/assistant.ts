@@ -28,8 +28,6 @@ export type AssistantQuestionRecord = AssistantUserInput & {
   sourceQuestions?: { title: string; options: string[] | null }[];
   answers?: AssistantUserInputAnswers;
   error?: string;
-  requiresDisplayAck?: boolean;
-  displayed?: boolean;
 };
 export type AssistantConversationTurn = { id: string; status: string; items: AssistantConversationItem[]; error?: string };
 export type AssistantConversation = AssistantConversationInfo & { turns: AssistantConversationTurn[]; userInput?: AssistantUserInput; model: string; reasoningEffort: string;

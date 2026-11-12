@@ -106,7 +106,6 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         return history().send(args, currentSettings, args.displayClient );
       }
       if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers, args.displayClient);
-      if (args.action === "question-visible") return history().questionVisible(args.id, args.turnId, args.requestId, args.displayClient);
       if (args.action === "interrupt") return history().interrupt(args.id);
       throw new Error("Unknown conversation action.");
   };

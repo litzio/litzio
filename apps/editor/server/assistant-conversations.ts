@@ -73,11 +73,10 @@ export class AssistantConversations {
   }
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
-  private questionDisplays = new Map<string, { conversation: string; question: AssistantQuestionRecord; deadline: number; timer?: ReturnType<typeof setTimeout>; resolve?(): void; reject?(error: Error): void }>();
   private closed = false;
   private reviewUsageWrites = new Set<Promise<unknown>>();
   private loaded = new Set<string>();
-  constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost, private questionDisplayTimeoutMs = 10_000) {
+  constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
@@ -120,7 +119,7 @@ export class AssistantConversations {
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (this.closed || !scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw Object.assign(new Error("No authorized active turn for this tool call."),{errorKind:"forbidden"});
       if (params.tool === questionTool.name && this.current(params.threadId).provider === "copilot") throw new Error("Copilot question cards are unavailable. Ask in ordinary text.");
-      if (params.tool === questionTool.name) return this.requestQuestion(this.current(params.threadId), active, params.callId, params.arguments, scope.displayClient);
+      if (params.tool === questionTool.name) return this.requestQuestion(this.current(params.threadId), active, params.callId, params.arguments);
       if (params.tool === "invoke_plugin_operation" && this.plugins) {
         const result = await executePluginOperationTool(this.plugins, params.arguments, scope);
         const success = !("error" in result && result.error);
@@ -221,7 +220,6 @@ export class AssistantConversations {
       if (!item) { item = { id: record.itemId, kind: "question", text: record.text, question: record.question }; turn.items.push(item); }
       else if (item.question && JSON.stringify(item.question.questions) === JSON.stringify(record.question.questions)) item.question = record.question;
       if (item.question?.delivery === "blocking" && item.question.status === "pending") item.question.status = "expired";
-      if (item.question?.requiresDisplayAck && !item.question.displayed && item.question.status === "pending") item.question.status = "expired";
       if (item.question?.status === "sending") item.question.status = "unknown";
     }
     for (const item of conversation.turns.flatMap(turn => turn.items)) {
@@ -407,59 +405,37 @@ export class AssistantConversations {
       throw new Error(permissionError((error as Error).message));
     } finally { this.pending.delete(key); }
   }
-  private async requestQuestion(conversation: AssistantConversation, turn: AssistantConversationTurn, callId: string, input: any, client?: string) {
+  private async requestQuestion(conversation: AssistantConversation, turn: AssistantConversationTurn, callId: string, input: any) {
     const result = (accepted: boolean, error?: string) => ({ success: accepted, contentItems: [{ type: "inputText", text: JSON.stringify({ accepted, questionId: `question-${callId}`, ...(error ? { error } : {}) }) }] });
-    if (!client) return result(false, "Question cards require a Litzio client. No question was queued.");
     if (typeof callId !== "string" || !callId.trim()) return result(false, "Invalid question call ID.");
     if (!input || Object.keys(input).some(key => !["questions"].includes(key)) || !Array.isArray(input.questions) || input.questions.some((q: any) => !q || Object.keys(q).some(key => !["title", "options"].includes(key)))) return result(false, "Invalid question input.");
     const item = itemFrom({ type: "agentMessage", id: `question-${callId}`, text: "", delivery: "async", questions: input.questions.map((q: any) => ({ ...q, options: q.options ?? null })) }, "provider-live", turn.id)!;
     const question = item.question!;
     if (question.status !== "pending") return result(false, "Invalid question input.");
-    question.requiresDisplayAck = true;
     turn.items.push(item); this.refreshQuestion(conversation);
-    try {
-      this.save(conversation);
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("No Litzio window confirmed question-card rendering. It may be closed, hidden or disconnected. The question was not accepted.")), this.questionDisplayTimeoutMs);
-        this.questionDisplays.set(String(question.requestId), { conversation: conversation.id, question, deadline: performance.now() + this.questionDisplayTimeoutMs, timer, resolve, reject });
-      });
-      return result(true);
-    } catch (error) {
-      question.status = "expired"; question.error = (error as Error).message;
+    try { this.save(conversation); return result(true); }
+    catch (error) {
+      question.status = "unknown"; question.error = (error as Error).message;
       this.refreshQuestion(conversation);
-      try { this.save(conversation); } catch { /* The tool still returns failure; never claim acceptance. */ }
       return result(false, question.error);
-    } finally {
-      const pending = this.questionDisplays.get(String(question.requestId));
-      if (pending) { clearTimeout(pending.timer); delete pending.timer; delete pending.resolve; delete pending.reject; }
     }
-  }
-  questionVisible(id: string, turnId: string, requestId: string | number, client: string) {
-    const pending = this.questionDisplays.get(String(requestId));
-    if (!pending || pending.conversation !== id || typeof client !== "string" || !client || pending.question.turnId !== turnId || !pending.question.displayed && (pending.question.status !== "pending" || performance.now() >= pending.deadline)) throw new Error("Question display request expired or belongs to another conversation.");
-    pending.question.displayed = true;
-    try { this.save(this.current(id)); } catch (error) { pending.question.displayed = false; throw error; }
-    pending.resolve?.();
-    return { acknowledged: true };
   }
   async close() {
     for(const conversation of this.conversations.values())for(const turn of conversation.turns)this.saveReviewUsage(conversation,turn);
     this.closed = true;
     this.mcp.close();
     this.screen.cancel(); this.screenActions.cancel(); this.display.cancel();
-    for (const pending of this.questionDisplays.values()) { clearTimeout(pending.timer); pending.reject?.(new Error("Question display was cancelled.")); }
     await Promise.allSettled(this.reviewUsageWrites);
   }
-  private expireQuestion(conversation: AssistantConversation, turnId?: string, blockingOnly = false) {
+  private expireQuestion(conversation: AssistantConversation, turnId?: string) {
     let changed = false;
     for (const item of conversation.turns.flatMap(turn => turn.items)) {
       const q = item.question;
-      if (q?.status !== "pending" || turnId !== undefined && q.turnId !== turnId || blockingOnly && q.delivery !== "blocking") continue;
+      if (q?.status !== "pending" || q.delivery !== "blocking" || turnId !== undefined && q.turnId !== turnId) continue;
       q.status = "expired"; changed = true;
       if (q.delivery === "blocking") this.answers.delete(conversation.id);
     }
     this.refreshQuestion(conversation);
-    for (const pending of this.questionDisplays.values()) if (pending.conversation === conversation.id && pending.question.status === "expired") pending.reject?.(new Error("Question display was cancelled."));
     return changed;
   }
   expireProviderQuestions(provider: AssistantSettings["provider"]) {
@@ -468,11 +444,7 @@ export class AssistantConversations {
   answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers, displayClient?: string) {
     const conversation = this.current(id), question = conversation.turns.find(turn => turn.id === turnId)?.items.find(item => item.question?.requestId === requestId)?.question;
     const respond = this.answers.get(id);
-    if (!conversation.turns.some(turn => turn.id === turnId && turn.status === "inProgress")) {
-      if (this.expireQuestion(conversation, turnId)) this.save(conversation);
-      throw new Error("Question expired.");
-    }
-    if (!question || question.status !== "pending" || question.requiresDisplayAck && !question.displayed || question.delivery === "blocking" && !respond) throw new Error("Question expired.");
+    if (!question || question.status !== "pending" || question.delivery === "blocking" && !respond) throw new Error("Question expired.");
     if (!validQuestionAnswers(question, answers)) throw new Error("Invalid question answers.");
     if (question.delivery === "async") return this.answerAsync(conversation, question, answers, displayClient);
     question.status = "answered";
@@ -486,10 +458,6 @@ export class AssistantConversations {
     question.status = "sending"; question.answers = recordedAnswers(question, answers); this.refreshQuestion(conversation);
     try {
       this.save(conversation);
-      const assertActive=()=>{
-        if(!conversation.turns.some(turn=>turn.id===question.turnId && turn.status==="inProgress") || this.scopes.get(conversation.id)?.turnId!==question.turnId)throw new Error("Question expired.");
-      };
-      assertActive();
       const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
       await this.send({ id: conversation.id, message, folders: conversation.folders, model: conversation.model, reasoningEffort: conversation.reasoningEffort },
         { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort }, displayClient);
@@ -704,7 +672,7 @@ export class AssistantConversations {
     const conversation = this.conversations.get(params.threadId);
     if (!conversation) return;
     if (method === "serverRequest/resolved") {
-      if (conversation.userInput?.requestId === params.requestId && this.expireQuestion(conversation, undefined, true)) this.save(conversation);
+      if (conversation.userInput?.requestId === params.requestId && this.expireQuestion(conversation)) this.save(conversation);
       return;
     }
     if (method === "thread/tokenUsage/updated") {

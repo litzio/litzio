@@ -3,7 +3,7 @@
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Dynamic UI removal (#1341, 2026-11-09): assistant view tools, generation/correction, material snapshots, result cards, favorites and saved views are removed. Ordinary conversations, references, document tools and requestUserInput remain. Retained plugin screens/query/Table and review boundaries are defined in [Plugin screens v1](plugin-screens-v1.md); [Generated views v1](generated-views-v1.md) is Historical.
-- Last verified: 2026-11-10 — #1443의 질문 메타데이터·답변·기록과 Codex 0.167.0/gpt-6-luna low의 실제 Host·브라우저 전달/수신/재열기를 확인. Copilot ACP 미지원 거부는 fixture, 실제 원격 연결·Copilot AI 호출은 미검증.
+- Last verified: 2026-11-12 — #1530 retains unanswered async questions across turn end and reuses ordinary message send for answers; fake Host/provider and browser validation only. Previous 2026-11-10 — #1443의 질문 메타데이터·답변·기록과 Codex 0.167.0/gpt-6-luna low의 실제 Host·브라우저 전달/수신/재열기를 확인. Copilot ACP 미지원 거부는 fixture, 실제 원격 연결·Copilot AI 호출은 미검증.
 - Previous shell verification: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 정적 대조와 문서 검사.
 - Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
 - Official AI transition: 2026-11-04 (#1150 ③). `assistant-host.ts` composes connections/conversations directly; the official AI itself requires no registration, manifest or plugin worker. Owner-initiated ADR-0020 plugin management is a separate Host feature (see Plugin stage 1 below). Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 4 refuses older daemons.
@@ -953,7 +953,7 @@ confirm the flag and its false default. The same flag exists in
 question execution on that version is unverified and questions may not arrive.
 This is conversation interaction, not a document semantic operation. #1443 adds
 explicit-Host CLI conversation read/resume and answer through the same operations;
-render acknowledgement remains a screen interaction. No approval queue or new
+Question acceptance requires persistence, without a render acknowledgement. No approval queue or new
 provider interface is introduced.
 
 
@@ -1869,29 +1869,25 @@ own origin turn and request/item ID. `conversation.userInput` is only the first
 pending question projection for existing polling and #1424 attention; it is not
 another owner. Question forms and their answered history remain outside details.
 
-The conversation owns question status and correlated answers. The existing
-atomic conversation index additionally stores these interaction records because
-provider history does not retain Litzio's rendering acknowledgement or structured
-answer relation. Provider turns/text remain provider-owned. Explicit resume merges
-question records into provider history by turn/item ID. Blocking callbacks cannot
-survive daemon restart and become expired. Every pending question, blocking or
-async, closes with its originating turn on completion, interruption or failure.
-The same conversation-index write persists that closure. Interrupt saves it even
-when completion already occurred and no further provider notification will arrive.
-Changing the default provider closes and saves the previous provider's pending
-questions without terminating its admitted turns. Resume normalizes pending
-questions whose originating turn is no longer in progress and saves the normalized
-records. A later active turn cannot revive them. Closed cards have no answer inputs
-and show **Response ended / 응답 종료됨**. Answered/uncertain cards remain read-only.
+The conversation owns question status and correlated answers. The atomic conversation
+index stores these interactions; provider turns/text remain provider-owned. Resume
+merges records by origin turn/item ID. Since #1530, unanswered async questions stay
+pending across completion, interruption, failure, disconnection and reopen, including
+daemon restart. Changing the default provider does not close them. Any window viewing
+the conversation can answer them; hidden panels and history navigation impose no
+answer lock. Answered/uncertain cards remain read-only.
+Blocking callbacks remain live-memory RPCs and expire on resolution, turn end or
+disconnection; they are not converted into follow-up messages. This preserves their
+original secret-answer boundary and avoids replaying an obsolete RPC.
 Secret blocking answers are masked in the index; the actual answer goes only to
 the original provider callback.
 
 The existing `assistantConversation { action: "answer", id, turnId, requestId,
 answers }` validates exact own keys and one nonempty answer per question. It
 consumes the pending interaction before dispatch, preventing duplicate delivery.
-A blocking answer uses its exact RPC id. An async answer uses the existing
-`turn/steer` with the originating active turn's expected ID. Answers to completed,
-stopped or failed turns are rejected; they never start a continuation. Its user
+A blocking answer uses its exact RPC id. An async answer reuses the ordinary message send path: `turn/steer` while a turn
+is active, or `turn/start` after completion, interruption or failure. The message
+retains its originating question and turn IDs even when a later turn is active. Its user
 message carries
 `Litzio question answers (JSON)` with origin IDs, question text and answers. Host
 retains that relation rather than displaying an unlabelled answer or raw JSON.
@@ -1910,41 +1906,27 @@ litzio assistant answer <id> --file <answers.json> --host <origin>
 `conversation` explicitly resumes/reads without starting a turn. The answer file is
 `{ "turnId": "...", "requestId": "...", "answers": { "0": { "answers": ["음식 탐방"] } } }`.
 Host rejection/uncertainty is nonzero; no local fallback, independent parser or
-automatic retry exists. Render acknowledgement is not a CLI command.
+automatic retry exists.
 
-### Rendering acknowledgement and the native-tool limit
+### Question acceptance (#1530)
 
-Codex's native `request_user_input_async` emits a completed async message and
-returns `accepted:true` inside Codex, without asking the client. Its
-[implementation](https://github.com/openai/codex/blob/b6d93b4cbadd6f449395d326f72465a5823f1492/codex-rs/core/src/tools/handlers/request_user_input_async.rs)
-provides no client hook to replace that result. Litzio supports those native
-question events and their answers, but does not reinterpret native acceptance as
-proof that a window displayed a card. This limitation cannot be fixed by a renderer.
-
-Litzio therefore registers `request_litzio_user_input` (same title/options input)
-and instructs Codex to use it. This Host tool returns `accepted:true` only after a
-window viewing the same conversation commits the pending card and sends
-`assistantConversation { action: "question-visible", id, turnId, requestId,
-displayClient }`. Other windows of the same conversation may confirm; this is a
-conversation interaction, not the originating-window-only display-settings action.
-The UI sends no acknowledgement while hidden or viewing history. Until confirmed,
-the form is disabled. A missing client, invalid input, persistence failure,
-cancellation or no acknowledgement within 10 seconds returns `success:false` with
-`accepted:false` and the reason to the model. The request expires and cannot be
-revived by a late acknowledgement. Lost acknowledgements are idempotent. Host
-shutdown cancels its owned acknowledgement timers. This confirms renderability,
-not the user's attention, reading or answer.
+`request_litzio_user_input` accepts title/options questions and returns
+`accepted:true` immediately after saving them in the conversation. Invalid input or
+persistence failure returns `accepted:false`. Acceptance does not require a window,
+render confirmation or a 10-second display deadline, and does not prove user attention
+or model use of an answer. Native Codex async question events use the same retained
+question/answer path. Copilot question cards remain unsupported.
 
 ### Provider scope and validation
 
-Codex: fake stdio/HTTP/CLI and browser tests cover metadata, exact question IDs,
-choices/free text, active-turn steering, index/history merge, restart, display
-acknowledgement, timeout and duplicate/stale handling. The P2 review regression
-first failed with an expired in-memory question still pending on disk. Existing
-tests now cover completion followed immediately by interrupt, interrupt without
-a subsequent provider notification, multiple pending questions on terminal error,
-disconnect/provider change, and normalization of a stale pending record on resume.
-No answer to those closed questions can start another turn.
+Codex fake stdio/HTTP/CLI and browser tests cover metadata, exact question IDs,
+choices/free text, active-turn steering, follow-up turns, index/history merge,
+restart, duplicate prevention and cross-conversation rejection. The #1530 regression
+first failed with `Question expired.` when answering after completion. Blocking RPC
+expiry and secret masking remain covered separately. No real AI invocation was
+performed for #1530; fixture delivery is not proof of model use.
+
+The following #1443 evidence describes historical verification before #1530:
 The metadata test failed before implementation: the item was `assistant` instead
 of `question`. Existing blocking/prototype-key/expiry checks remain.
 
@@ -1982,7 +1964,7 @@ and an actual non-local connection are separate.
 Before captures use the Host conversation mapping and bundled UI from parent
 `5fd8dd08`, driven by the same synthetic native async travel question event.
 The original text survives but no question card or pending-input projection exists.
-After captures exercise the Host-tool card and its rendering acknowledgement;
+Historical captures exercise the former Host-tool rendering acknowledgement;
 the question content is the same, while the transport is explicitly different.
 
 | View | Before: working question text | After: working question card | Answered record after reopening |
@@ -2118,7 +2100,7 @@ Codex registers the common review read/material, source-evidence run, immediate 
 
 `record_review_inspection` uses material actually returned in this conversation at the current workspace and document/content revision, including previous turns. Image inspections record inspected subsets cumulatively using the returned image runId; unread or uninspected portions remain not compared. Summary/inventory alone is no reading proof. Correction application is immediate (#1531); rejection/Undo/completion retain human paths. Invalid proposal input retains existing validation reasons with `invalid_input`, field paths/expected formats or current revision/baseline when known. No new validation rule is introduced.
 
-The image-estimate card and its special question linkage are removed. Ordinary question rendering acknowledgement, 10-second deadline, active-turn answers and end-of-turn expiry above remain unchanged; their lifecycle is tracked separately in #1530. The earlier image-card captures document the removed UI, not current behavior.
+The image-estimate card and its special question linkage are removed. Ordinary async questions follow the retained-question lifecycle in #1530 above. The earlier image-card captures document the removed UI, not current behavior.
 
 
 
@@ -2200,6 +2182,17 @@ scenario; the panel layout and supported minimum width are unchanged.
 Fixed LSR conversion results were reused; no conversion was run. The existing Host/provider test covers direct image delivery, no question, invalid pages/targets, current revision rejection, returned-material history across turns and proposal error details. These protect Host/provider integration rather than image quality. The small existing review-tools test covers previous-turn text material and usage; the general question browser regression remains unchanged.
 
 One actual Codex `gpt-6-luna`/`low` turn called `read_review_images` once, returned one image with success, and completed with `IMAGE_READ_OK`. This verifies image transport only, not findings or inspection quality. Before removing preapproval, the #1527 fake provider reproduced immediate turn completion after question-tool return and rejection of the human answer. Code inspection of [Codex dynamic response forwarding](https://github.com/openai/codex/blob/d7840f9f22f330dd67e0a1638f66591ae221df36/codex-rs/app-server/src/dynamic_tools.rs) and [Core response waiting](https://github.com/openai/codex/blob/d7840f9f22f330dd67e0a1638f66591ae221df36/codex-rs/core/src/tools/handlers/dynamic.rs) found response/cancellation waiting without a dynamic-tool timer. Litzio's 15-second outbound RPC timer is separate from inbound tool calls. No actual multi-minute human-wait test was run; #1529 removes that wait entirely.
+
+### Retained question UI evidence (#1530)
+
+The existing AssistantQuestion form, compact Button/Input and theme tokens are reused;
+no new surface or geometry exception is introduced. Manual fixture captures show an
+answerable question after its turn has completed, followed by reopened answer history:
+[1440 Light pending](assets/assistant-question-1530/pending-1440-light.png),
+[1440 Dark pending](assets/assistant-question-1530/pending-1440-dark.png),
+[1440 Light history](assets/assistant-question-1530/reopened-1440-light.png),
+[1440 Dark history](assets/assistant-question-1530/reopened-1440-dark.png).
+These are manual review evidence, not owner visual approval or a real model response.
 
 ## Immediate review corrections (#1531, 2026-11-12)
 
