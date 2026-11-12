@@ -23,7 +23,7 @@
 
 #1544 P1 재검증(2026-11-12): A/B/C에서 A 삭제·끝에 D 삽입을 기존 Host 저장 테스트에 추가해 수정 전 대응 보존 단언의 실패를 확인했다. 수정 후 같은 개수/같은 내용의 삭제·삽입, 재배열, 분할/병합, 전체 source 교체, 순수 글자 수정의 보존과 이전 성공 검사·대조 범위의 uncertain/미대조 전환을 같은 테스트에서 확인했다. 고정 LSR/NIST 및 저장 경계 3개·generated-documents 3개·전체 typecheck·boundaries·docs가 통과했다. 브라우저는 고정 LSR와 동시 실행 시 기존 전체 120초 제한을 넘겼고, 다른 검사를 끝낸 뒤 `pnpm browser:test workspace-review` 단독 실행은 2개 통과(2.3분)했다. timeout·자동 재시도·단언은 바꾸지 않았다. 새 대형 suite·subprocess·실제 AI 호출·재변환은 추가하지 않았다.
 
-저장은 기존 ledger의 적용된 교정 묶음 **사람 직접 수정**과 human 출처로 이어진다. 별도 상태 계층·저장 파일 형식은 추가하지 않는다. 저장 전에는 편집기 Undo/Redo, 저장 후에는 기존 기록의 되돌리기를 사용한다. inverseOperations에 저장 전 canonical snapshot·대응을 담고, 문서 revision이 저장 직후와 같을 때만 복원하므로 이후 비서/사람 수정을 덮어쓰지 않는다. 전체 문서 저장의 Undo는 블록별 재대응보다 단순하고 보수적이다. Undo 뒤 재편집은 새 저장으로 남기며 열린 직접 수정 기록은 기존 supersedes로 연결한다. 이전 저장의 재승인은 제공하지 않는다.
+저장은 기존 ledger의 적용된 교정 묶음 **사람 직접 수정**과 human 출처로 이어진다. 별도 상태 계층·저장 파일 형식은 추가하지 않는다. 저장 전에는 편집기 Undo/Redo, 저장 후에는 기존 기록의 되돌리기를 사용한다. inverseOperations에 저장 전 canonical snapshot·대응을 담고, 문서 revision이 저장 직후와 같을 때만 복원하므로 이후 비서/사람 수정을 덮어쓰지 않는다. 본문이 같고 대응만 비워진 저장도 직접 수정 Undo가 snapshot/report를 복원했다면 기존 save 경로로 영속화한다. 저장 여부를 본문 hash 차이만으로 판정하지 않는다. 전체 문서 저장의 Undo는 블록별 재대응보다 단순하고 보수적이다. Undo 뒤 재편집은 새 저장으로 남기며 열린 직접 수정 기록은 기존 supersedes로 연결한다. 이전 저장의 재승인은 제공하지 않는다.
 
 로컬 검증(2026-11-12): 전체 typecheck·boundaries·docs·diff 검사, SDK 22개, generated-documents 3개, CLI 6개, 고정 LSR/NIST schema·렌즈 및 직접 저장/교정 검사 2개(161초), 기존 저장 경계 1개(30초)를 통과했다. `pnpm browser:test workspace-review --screenshots`의 직접 입력·충돌 초안 유지·저장·재열기·대응·Undo와 기존 검수/cold Host/export 및 HTTP recovery도 통과했다. 기존 시나리오·subprocess를 보완했으며 새 대형 suite나 재시도·timeout 확대는 없다.
 

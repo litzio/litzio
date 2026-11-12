@@ -432,7 +432,7 @@ export async function workspaceOperation(input) {
   }
   if(input.progress)setProgress(archive.document,record,input.progress);
   if(input.directSource === undefined && !restoredDirect){session.updateAnchors(record.ledger);session.finish();}
-  const changed=snapshot.documentRevision!==state.snapshot.documentRevision || correspondenceChanged;
+  const changed=snapshot.documentRevision!==state.snapshot.documentRevision || correspondenceChanged || restoredDirect;
   if(changed){
     record.checkedPages=[];record.lastPage=null;record.ledger.approval=null;
     for(const check of record.ledger.inventory?.requiredChecks ?? []) {

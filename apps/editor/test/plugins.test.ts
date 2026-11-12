@@ -306,6 +306,17 @@ test("Docling saved document corrections preserve independent proposals, mapping
       const uncertain=scope.ledger.inspections.filter((record:any)=>record.runId===shifted.receipt.requestId);
       assert.deepEqual(uncertain.map((record:any)=>record.lens),scope.ledger.inventory.lenses.map((lens:any)=>lens.kind));assert.ok(uncertain.every((record:any)=>record.state==="uncertain"));
       assert.deepEqual(shiftedArchive.sourcePdf,archive.readDoclingArchive(abcBytes).sourcePdf);
+      const directGroup=shifted.ledger.groups.find((group:any)=>group.reasonCode==="human-direct-edit");
+      const undone=await decide("groups-undo",directGroup);
+      assert.equal(undone.receipt.outcome,"success",JSON.stringify(undone));
+      assert.equal(undone.ledger.groups.find((group:any)=>group.id===directGroup.id).targets[0].history.at(-1).action,"undone");
+      host=service();const reopened=await read();
+      assert.deepEqual(reopened.snapshot,abcOpened.snapshot,`${scenario.name}: Undo must persist the restored snapshot even at the same source revision`);
+      const restoredReport=JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
+      const originalReport=JSON.parse(archive.readDoclingArchive(abcBytes).cacheEntries.get("current/snapshot.json").toString()).correspondence;
+      assert.deepEqual(restoredReport,originalReport,`${scenario.name}: Undo must persist restored correspondence`);
+      assert.ok(reopened.completion.notComparedPages.includes(1),"Undo keeps the conservative scope report until reinspection");
+
     }
     writeFileSync(file,original);host=service();
     assert.equal((await read()).cacheState,"current");assert.deepEqual(readFileSync(file),original);
