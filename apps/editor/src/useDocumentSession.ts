@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import type { HostClient } from "./host-client.ts";
 import { useHostClient, useHostId } from "./host-context.tsx";
 import type { UiMessage } from "./ui-message.ts";
@@ -184,6 +185,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     const current = lifetime.beginOpen();
     setError("");
     setNotice("");
+    busyRef.current = true;
     setStatus(requestedPath ? "opening" : "loading");
     try {
       const next = await requestDocument("GET", requestedPath, bibliographyRoot);
@@ -192,13 +194,18 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       if ("start" in next) throw new Error("The Host did not return a document.");
       // Automatic reads cannot replace work entered while the GET was pending.
       // hasUnsavedChanges includes the editor's unapplied drafts.
-      if (preserveLocalEdits && editorRef.current?.hasUnsavedChanges()) {
+      if (preserveLocalEdits && (!editorRef.current || editorRef.current.hasUnsavedChanges())) {
         setStatus("ready");
         return i18n.t("Changes applied on disk. Save or close your local edits before reloading the document.");
       }
-      recorder?.discard();
-      if (next.kind === "text") replaceFile?.(next);
-      else acceptDocument(next);
+      const accept = () => {
+        recorder?.discard();
+        if (next.kind === "text") replaceFile?.(next);
+        else acceptDocument(next);
+      };
+      // Commit automatic replacement in this same task: an input event cannot reach
+      // the old editor between the live-state check and React replacing its DOM.
+      if (preserveLocalEdits) flushSync(accept); else accept();
       return "";
     } catch (cause) {
       if (!current()) return null;
@@ -206,15 +213,16 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       const message = messageOf(cause);
       setStatus("open-failed");
       return message;
-    }
+    } finally { if (current()) busyRef.current = false; }
   }
 
   async function save(): Promise<boolean> {
-    if (!isCurrent() || view === "read" || !document || !editorRef.current || !openedPath || !sessionBase.current || busy) return false;
+    if (!isCurrent() || view === "read" || !document || !editorRef.current || !openedPath || !sessionBase.current || busyRef.current) return false;
     const editor = editorRef.current;
     const base = sessionBase.current;
     setError("");
     setNotice("");
+    busyRef.current = true;
     setStatus("saving");
     let submitted: TiptapJSON | undefined;
     let payload: SupportedEdits | undefined;
@@ -249,7 +257,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       setError(display);
       setStatus(cause instanceof SaveConflictError ? "save-conflict" : "save-failed");
       return false;
-    }
+    } finally { if (isCurrent()) busyRef.current = false; }
   }
 
   /**
@@ -309,11 +317,11 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     await reloadFromDisk();
   }
 
-  async function reloadFromDisk(): Promise<void> {
+  async function reloadFromDisk(preserveLocalEdits = false): Promise<void> {
     if (!isCurrent()) return;
     // Keep a modal boundary during the read, so newly typed input cannot race a reload.
     setReloadDialog(true);
-    const message = await load(openedPath);
+    const message = await load(openedPath, preserveLocalEdits);
     // load closes only its own modal; a superseded read returns no error to report.
     if (message && isCurrent()) setError(message);
   }
@@ -375,7 +383,11 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     acknowledgedRevision: sourceRevision.current,
     externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== sourceRevision.current,
     observeRevision(revision: string | null, expected: string) {
-      if (isCurrent() && openedPathRef.current === openedPath && sourceRevision.current === expected && !busyRef.current) setExternalRevision(revision);
+      if (!isCurrent() || openedPathRef.current !== openedPath || sourceRevision.current !== expected || busyRef.current) return;
+      setExternalRevision(revision);
+      if (revision !== sourceRevision.current && revision !== externalRevision && editorRef.current && !editorRef.current.hasUnsavedChanges()) {
+        void reloadFromDisk(true);
+      }
     },
     savePreviewRequest(): SaveRequest {
       if (!isCurrent() || !editorRef.current || !document || busy) throw new Error("Editor is not ready");
