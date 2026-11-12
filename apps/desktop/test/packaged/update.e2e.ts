@@ -509,21 +509,23 @@ test("installs per user, then updates from Settings only after the open document
 
 // The old installer comes from GitHub; only the candidate is built. Rebuilding the old
 // version here would miss installer bootstrap defects. Release verification runs this as a separate early step.
-test("published beta.6 upgrades to the candidate without an installed lifecycle helper", {
+// beta.9 and earlier assets were withdrawn on 2026-11-12 for CVE-2026-111497.
+// beta.10 includes the helper: this no longer covers beta.6's helperless first update.
+test("published beta.10 upgrades to the candidate and preserves installed data", {
   skip: !PUBLISHED_BASE || LIVE, timeout: 5 * 60_000,
 }, async () => {
   requireCleanUser();
   const started = Date.now();
   rmSync(work, { recursive: true, force: true });
-  const published = "0.0.2-beta.6";
+  const published = "0.0.2-beta.10";
   const oldBuild = await publicBeta([published], published);
   const oldSetup = path.join(oldBuild, `${brand.executableName}-Setup-${published}.exe`);
   const digest = createHash("sha256").update(readFileSync(oldSetup)).digest("hex");
-  assert.equal(digest, "cbc41da8550bf5fac8b335b9bb95a9958603eb7587381a73b923f318a267a2be", "the exact public beta.6 installer, not a rebuilt version");
+  assert.equal(digest, "2bf320a953d62e60871948baedf26808b5d182dfbee625d72a8671cd2028277f", "the exact public beta.10 installer, not a rebuilt version");
   console.log(`verified public v${published}: SHA-256 ${digest}`);
   const candidate = path.join(packageVersion(NEW), `${brand.executableName}-Setup-${NEW}.exe`);
-  const install = path.join(work, "published-beta6-install");
-  const documentFile = path.join(work, "published-beta6.md");
+  const install = path.join(work, "published-beta10-install");
+  const documentFile = path.join(work, "published-beta10.md");
   const bytes = "---\nlitzio: 1\n---\n\n# Published update\n\nPreserve this document.\n";
   writeFileSync(documentFile, bytes);
   const environment = windowsEnvironment();
@@ -538,7 +540,7 @@ test("published beta.6 upgrades to the candidate without an installed lifecycle 
     ownsInstallation = true;
     const exe = path.join(install, `${brand.executableName}.exe`);
     assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), published);
-    assert.equal(existsSync(path.join(install, "resources/prepare-installation.cjs")), false, "public beta.6 has no lifecycle helper");
+    assert.equal(existsSync(path.join(install, "resources/prepare-installation.cjs")), true, "public beta.10 includes the lifecycle helper");
     assertNoDiscovery("beta");
     oldApp = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
     const page = await oldApp.firstWindow();
@@ -548,27 +550,27 @@ test("published beta.6 upgrades to the candidate without an installed lifecycle 
     assert.equal(await page.getByTestId("app-version").innerText(), published);
     await oldApp.close(); oldApp = undefined;
     const canary = path.join(appData, "published-update-canary.txt");
-    writeFileSync(canary, "Preserve existing beta.6 user data.\n");
+    writeFileSync(canary, "Preserve existing beta.10 user data.\n");
     const preferencesFile = path.join(appData, "preferences.json");
     const preferences = readPreferences(preferencesFile, published);
     // Same NSIS command-line transaction used by electron-updater; updater UI/dirty guards
     // remain in the existing two cases. No app-update config or old ASAR is modified.
     const updated = spawnSync(candidate, ["--updated", "/S", "--force-run"], { timeout: 60_000, encoding: "utf8" });
     assert.ifError(updated.error);
-    assert.equal(updated.status, 0, "public beta.6 -> candidate NSIS update must succeed without an old helper");
+    assert.equal(updated.status, 0, "public beta.10 -> candidate NSIS update must succeed");
     const log = path.join(appData, "logs/desktop.log");
     const deadline = Date.now() + 30_000;
     while (!(readDaemonRecord(daemonDirectory("beta"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
-      if (Date.now() >= deadline) throw new Error(`Updated beta.6 app/daemon did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
+      if (Date.now() >= deadline) throw new Error(`Updated beta.10 app/daemon did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     desktopRecord("beta", NEW);
     assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), NEW);
     assert.equal(readFileSync(documentFile, "utf8"), bytes);
-    assert.equal(readFileSync(canary, "utf8"), "Preserve existing beta.6 user data.\n");
+    assert.equal(readFileSync(canary, "utf8"), "Preserve existing beta.10 user data.\n");
     assert.deepEqual(readPreferences(preferencesFile, NEW), preferences);
     assert.deepEqual((await environment.read()).user, originalPath, "first update does not opt in to CLI/PATH");
-    console.log(`public beta.6 -> ${NEW}: installed, launched and preserved data`);
+    console.log(`public beta.10 -> ${NEW}: installed, launched and preserved data`);
   } finally {
     await oldApp?.close();
     if (ownsInstallation) {
@@ -582,7 +584,7 @@ test("published beta.6 upgrades to the candidate without an installed lifecycle 
         if (record) assertExited(record);
         assertNoDiscovery("beta");
       }
-      const removal = path.join(work, "published-beta6-uninstall.exe");
+      const removal = path.join(work, "published-beta10-uninstall.exe");
       copyFileSync(path.join(install, `Uninstall ${brand.executableName}.exe`), removal);
       const removed = spawnSync(removal, ["/S", "/currentuser", `_?=${install}`], { timeout: 60_000, encoding: "utf8" });
       assert.ifError(removed.error); assert.equal(removed.status, 0);
@@ -591,6 +593,6 @@ test("published beta.6 upgrades to the candidate without an installed lifecycle 
       for (const folder of [appData, updaterCache, sharedData]) rmSync(folder, { recursive: true, force: true });
     }
     assert.deepEqual((await environment.read()).user, originalPath);
-    console.log(`public beta.6 update case: ${Date.now() - started} ms (download, install, update, startup, cleanup)`);
+    console.log(`public beta.10 update case: ${Date.now() - started} ms (download, install, update, startup, cleanup)`);
   }
 });

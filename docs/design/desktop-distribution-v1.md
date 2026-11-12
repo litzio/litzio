@@ -116,8 +116,9 @@ well as record removal; a shutdown failure prevents `quitAndInstall`.
 NSIS setup and removal replace electron-builder's image-name process termination with a shared
 installation helper. Both binaries embed their own built helper, extract it to their temporary
 `$PLUGINSDIR`, and run it with the installed exe as RunAsNode. They never depend on an installed
-copy of the helper. In particular the first update from public `v0.0.2-beta.6` works even though
-that in-process-Host version has no helper or Desktop-owned daemon. No stop check is skipped.
+copy of the helper. The original public `v0.0.2-beta.6` regression covered a first update from an
+in-process-Host version without a helper or Desktop-owned daemon. Its installer is no longer
+available; the current public-baseline test below does not establish that historical path. No stop check is skipped.
 The installed helper remains available for diagnostics/tests. It compares canonical installed executable paths (including the CLI shim's junction), checks CLI ownership and OS
 creation identity, then requests installation exit intent and `WM_CLOSE` only from windows (including hidden ones) of that installation (rechecking
 path and creation identity before the request). The existing unsaved-work confirmation remains.
@@ -146,17 +147,25 @@ work, so their duration is measured by PR CI. Existing deadlines/assertions rema
 no retries or fixed sleeps were added. Unit tests cover ownership/refusal, record cleanup and
 updater failure ordering; the existing CLI lifecycle test also checks actual process exit. One owned Node child verifies actual Windows junction identity (about 1.8s locally), which in-memory ports cannot establish. The existing packaged CLI-refusal probes launch through the real integration junction.
 
-CI and release verification run one independent public-beta.6 starting case before the unit suite. It downloads the actual
+Release verification runs one independent public-beta.10 starting case before the unit suite. It downloads the actual
 GitHub Release installer and metadata, verifies each download's API size/SHA-256 plus the
-metadata's installer SHA-512 and a pinned beta.6 installer SHA-256, and installs/launches that
+metadata's installer SHA-512 and a pinned beta.10 installer SHA-256, and installs/launches that
 unmodified binary. It builds only the candidate (the old version is never rebuilt), then
 executes the same NSIS `--updated /S --force-run` transaction as electron-updater and checks
 new app/daemon startup, file version, document/user-data/preferences/PATH preservation and
 cleanup. It does not duplicate updater UI/dirty guards already covered by the existing cases.
 The same-source Stable/Beta cases remain the proof for subsequent daemon-to-daemon updates.
-The new case is CI-only (including installer download); its additional runtime is recorded in
-the PR after execution. The existing same-source Stable/Beta commands remain unchanged. This is the
-explicitly required first-release update path, not a general historical-data migration policy.
+The public-baseline case is release-CI-only (including installer download). The existing
+same-source Stable/Beta commands remain unchanged.
+On 2026-11-12 the baseline changed to beta.10 because beta.9 and earlier installer assets were
+withdrawn for CVE-2026-111497. Its pinned SHA-256 is
+`2bf320a953d62e60871948baedf26808b5d182dfbee625d72a8671cd2028277f`, matching the
+[beta.10 release record](../releases/v0.0.2-beta.10.md) and GitHub asset digest.
+Beta.10 includes the lifecycle helper and Desktop-owned daemon, so this case proves actual
+public-installer-to-candidate updates and preservation, not the original helperless first update.
+The existing live uninstall case removes the installed helper and checks the embedded payload;
+it does not replace helperless update coverage. A separate controlled helperless update fixture
+would be needed to restore that specific coverage without redistributing a withdrawn installer.
 
 ### PR3 plugin test exception
 
@@ -318,7 +327,7 @@ bridge mocks exercise the actual Settings UI at 1440px and 640px. Disposable Win
 the packaged Electron Node engines range, Desktop version identity, shim help/check JSON and exit-code parity with Node,
 argument/pipe forwarding, `daemon run`, real enable/disable, update preservation and uninstall cleanup.
 All selected Desktop package CI runs silent normal removal, user-file preservation and foreign-command failure, including long raw registry PATH preservation. Installation-sensitive, shared build input and unclassified changes run the full ten interactive/silent combinations, including damaged ownership, missing helper and environment failures. Isolated CLI integration and Windows environment tests retain state/conflict/raw PATH coverage on every product quality run.
-Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes select an independent Stable job. Release verification runs Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Published beta.6 runs only in release verification; every release mode requires it and full removal before publication. Beta reports CLI ownership, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
+Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes select an independent Stable job. Release verification runs Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Published beta.10 runs only in release verification; every release mode requires it and full removal before publication. Beta reports CLI ownership, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
 Manual acceptance still includes enabling in an installed app, running from a new terminal,
 disabling, running after update and checking cleanup after removal. Local tests must not modify
 the real user's PATH or registry; packaged Desktop/install tests run in CI for this work.
