@@ -757,7 +757,10 @@ export class AssistantConversations {
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
       if (item && params.item.type === "fileChange" && method === "item/completed" && params.item.status === "completed" && turn.status === "inProgress" && this.scopes.get(conversation.id)?.turnId === turn.id) {
-        item.fileChanges = params.item.changes.filter((change: any) => this.changes(conversation.id).codex(turn.id, change, [...(this.scopes.get(conversation.id)?.folders?.roots ?? [])])).map((change: any) => change.path);
+        item.fileChanges = params.item.changes.flatMap((change: any) => {
+          const target = this.changes(conversation.id).codex(turn.id, change, [...(this.scopes.get(conversation.id)?.folders?.roots ?? [])]);
+          return target ? [target] : [];
+        });
       }
       if (item) {
         if (item.questionAnswer) {

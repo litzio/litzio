@@ -14,14 +14,15 @@ export class AssistantFileChanges {
     if (content) this.acp.set(itemKey, content.filter(part => part.type === "diff"));
     if (!completed) return [];
     const parts = this.acp.get(itemKey) ?? []; this.acp.delete(itemKey);
-    return parts.filter(part => {
+    return parts.flatMap(part => {
       if (typeof part.oldText !== "string") {
         try { this.records.set(this.key(turn, this.checked(part.path, new RootAccess(folders))), null); }
         catch { /* Outside or deleted path: no capture. */ }
-        return false;
+        return [];
       }
-      return this.record(turn, part.path, part.oldText, part.newText, folders);
-    }).map(part => part.path);
+      const target = this.record(turn, part.path, part.oldText, part.newText, folders);
+      return target ? [target] : [];
+    });
   }
   constructor(private access: FileAccess) {}
   private key(turn: string, file: string) { return JSON.stringify([turn, file]); }
@@ -42,8 +43,13 @@ export class AssistantFileChanges {
       const after = this.read(target);
       const patch = `--- before\n+++ after\n${change.diff}`;
       // Provider start notifications can be delivered after the disk write.
-      const before = applyPatch(after, reversePatch(parsePatch(patch)[0]!), { autoConvertLineEndings: false });
-      if (typeof before !== "string" || applyPatch(before, patch, { autoConvertLineEndings: false }) !== after) throw new Error("Diff mismatch.");
+      const exact = { autoConvertLineEndings: false, compareLine: (_lineNumber: number, line: string, _operation: string, expected: string) => {
+        // Returning false permits offset search. Abort at the first declared-position mismatch.
+        if (line !== expected) throw new Error("Diff position mismatch.");
+        return true;
+      } };
+      const before = applyPatch(after, reversePatch(parsePatch(patch)[0]!), exact);
+      if (typeof before !== "string" || applyPatch(before, patch, exact) !== after) throw new Error("Diff mismatch.");
       return this.record(turn, change.path, before, after, folders);
     } catch { if (key) this.records.set(key, null); return false; }
   }
@@ -58,7 +64,7 @@ export class AssistantFileChanges {
       const previous = this.records.get(key);
       if (previous && (previous.after !== before || previous.undone)) { this.records.set(key, null); return false; }
       this.records.set(key, { path: target, before: previous?.before ?? before, after, roots });
-      return true;
+      return target;
     } catch { if (key) this.records.set(key, null); return false; }
   }
   compare(turn: string, file: string, folders: string[]) {
