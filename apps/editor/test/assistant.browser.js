@@ -203,6 +203,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
   let resumeFailure = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
+  let forgottenSubmissions = false, allowNewSend = false;
   let revealLost = false, receiptGate, releaseReceipt, receiptReads = 0;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, snapshotGateEntered = 0, answerGate;
   await page.unroute('**/api/assistant/diagnostics*');
@@ -230,6 +231,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         selected.turns = selected.turns.filter(turn => !turn.unrecordedPrompt);
       }
       if (body.action === 'send') {
+        if (receipts.get(body.submissionId)?.submission.status === 'accepted' || lostResult?.submission.id === body.submissionId) {
+          return route.fulfill({ json: lostResult?.submission.id === body.submissionId ? lostResult : receipts.get(body.submissionId) });
+        }
         sent.push(body);
         await sendGate;
         if (body.skills?.length && body.message.endsWith('Keep this rejected skill request')) {
@@ -245,7 +249,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
           selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: [{ reasoningEffort: 'max' }] };
           if (body.reasoningEffort !== 'max') {
             const result = { submission: { id: body.submissionId, status: 'rejected', conversationId: selected.id, error: 'Invalid Copilot reasoning effort for this session.' }, conversation: selected };
-            receipts.set(body.submissionId, result); return route.fulfill({ json: result });
+            receipts.set(body.submissionId, result); return route.fulfill({ status: 503, json: { error: 'Fixture rejection response lost' } });
           }
         }
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
@@ -265,7 +269,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         const result = { submission: { id: body.submissionId, status: 'accepted', conversationId: selected.id, itemId: item.id }, conversation: selected };
         if (body.message === 'Accepted before observation') result.conversation = { ...selected, turns: selected.turns.map(turn => ({ ...turn, items: turn.items.filter(item => item.submissionId !== body.submissionId) })) };
         receipts.set(body.submissionId, result);
-        if (body.message === 'Uncertain first') {
+        if (body.message === 'Uncertain first' && !allowNewSend) {
           lostResult = result; receipts.set(body.submissionId, { submission: { id: body.submissionId, status: 'unknown' } });
           return route.fulfill({ status: 503, json: { error: 'Fixture response lost' } });
         }
@@ -278,7 +282,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     const submissionId = decodeURIComponent((route.request().url().split('?submissionId=')[1] ?? '').split('&')[0]);
     if (submissionId && revealLost && lostResult?.submission.id === submissionId) receipts.set(submissionId, lostResult);
     if (submissionId) {
-      const result = receipts.get(submissionId) ?? { submission: { id: submissionId, status: 'pending' } };
+      const result = receipts.get(submissionId) ?? { submission: { id: submissionId, status: forgottenSubmissions ? 'unknown' : 'pending' } };
       receiptReads++; await receiptGate;
       return route.fulfill({ json: result });
     }
@@ -1168,25 +1172,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(editor).toHaveText(documentBeforeDisplay);
-  // Clearing the final skill token removes its chip automatically and must detach restoration.
-  const restoredSkillInput = panel.getByRole('textbox');
-  await restoredSkillInput.fill('/lit');
-  await panel.getByRole('listbox').getByRole('option').filter({ hasText: skill.displayName }).click();
-  await restoredSkillInput.press('End'); await restoredSkillInput.pressSequentially('Keep this rejected skill request', { delay: 30 });
-  await restoredSkillInput.press('Enter');
-  await expect(panel.locator('.assistant-submission')).toContainText('Keep this rejected skill request');
-  await panel.getByRole('button', { name: /^(Restore to input|입력으로 복원)$/ }).click();
-  await expect(draftChips).toHaveCount(1);
-  await restoredSkillInput.press('ControlOrMeta+A'); await restoredSkillInput.press('Backspace');
-  await expect(restoredSkillInput).toHaveValue('');
-  await expect(draftChips).toHaveCount(0);
-  await restoredSkillInput.pressSequentially('Different request after clearing restored skill', { delay: 30 });
-  await restoredSkillInput.press('Enter');
-  await expect(panel.locator('.assistant-turn .assistant-user').filter({ hasText: 'Different request after clearing restored skill' })).toHaveCount(1);
-  await expect(panel.locator('.assistant-submission')).toContainText('Keep this rejected skill request');
-  await expect(panel.locator('.assistant-submission .assistant-reference')).toContainText('$litzio-guide');
-  await panel.getByRole('button', { name: /^(Discard message|메시지 버리기)$/ }).click();
-  await panel.getByRole('button', { name: /^(Stop response|응답 중단)$/ }).click();
   await panel.getByRole('button', { name: '새 대화' }).click();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   // Global provider autosave retires the prior conversation; composer overrides above do not save settings.
@@ -1257,139 +1242,63 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).first().click();
   await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
   await expect(message).toBeEnabled();
-  await expect(panel.locator('.assistant-submission')).toContainText('Prompt lost before provider record');
-  await expect(panel.locator('.assistant-submission .assistant-reference')).toContainText('document.md');
-  await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeEnabled();
-  expect(sent.length).toBe(sendsBeforeResume);
-  await message.fill('New draft after prompt failure');
-  await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeDisabled();
-  await message.fill(''); promptReject = false;
-  await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
-  await expect(message).toHaveValue('Prompt lost before provider record');
-  await expect(draftChips).toContainText('document.md');
-  // Clearing a restored draft detaches its lineage; an unrelated accepted send cannot erase it.
-  await message.fill(''); await draftChips.getByRole('button').click();
-  await message.fill('Different request after clearing restored draft'); await message.press('Enter');
-  await expect(panel.locator('.assistant-turn .assistant-user').filter({ hasText: 'Different request after clearing restored draft' })).toHaveCount(1);
-  await expect(panel.locator('.assistant-submission')).toHaveCount(1);
-  await expect(panel.locator('.assistant-submission')).toContainText('Prompt lost before provider record');
-  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
-  await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
-  await expect(message).toHaveValue('Prompt lost before provider record');
-  await expect(draftChips).toContainText('document.md');
-  await message.press('Enter');
   await expect(panel.locator('.assistant-submission')).toHaveCount(0);
-  await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Prompt lost before provider record' })).toHaveCount(1);
-  expect(sent.length).toBe(sendsBeforeResume + 2);
-  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  expect(sent.length).toBe(sendsBeforeResume);
   await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Copilot fixture model', exact: true }).click();
-  await panel.getByRole('textbox').fill('Recover supported model');
-  await panel.getByRole('textbox').press('Enter');
-  await expect(panel.getByRole('alert')).toHaveText('Failed');
-  await expect(panel).toContainText('Invalid Copilot reasoning effort for this session.');
-  await expect(panel.getByRole('textbox')).toHaveValue('');
-  await panel.getByRole('textbox').fill('New draft');
-  await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeDisabled();
-  await panel.getByRole('button', { name: 'Discard message', exact: true }).click();
-  await expect(panel.locator('.assistant-submission')).toHaveCount(0);
-  await expect(message).toHaveValue('New draft');
   await message.fill('Recover supported model'); await message.press('Enter');
-  await expect(panel.getByRole('alert')).toHaveText('Failed');
-  await panel.getByRole('textbox').fill('');
-  await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
-  await expect(panel.getByRole('textbox')).toHaveValue('Recover supported model');
-  const recoveredEffort = panel.getByRole('button', { name: 'Reasoning effort settings', exact: true });
-  await expect(recoveredEffort).toBeVisible();
-  if (screenshots) {
-    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
-    await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
-    for (const width of [1440, 640]) {
-      await page.setViewportSize({ width, height: 1000 });
-      await panel.screenshot({ path: `tmp/1181/review-capture/recovery-${width}-dark-ko.png` });
-    }
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
-    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
-  }
-  await expect(recoveredEffort).toHaveText('high');
-  expect(sent.at(-1).reasoningEffort).toBe('high');
-  await recoveredEffort.hover();
-  await expect(page.getByText('Reasoning effort: Model, reasoning effort and mode changes apply to the next message. Current model reasoning effort: max.', { exact: true })).toBeVisible();
-  await recoveredEffort.click();
+  await expect(panel.getByText('Fixture rejection response lost', { exact: true })).toBeVisible();
+  const retryId = sent.at(-1).submissionId;
+  await message.fill('New draft survives retry');
+  await panel.getByRole('button', { name: 'Reasoning effort settings', exact: true }).click();
   await page.getByRole('menuitem', { name: 'max', exact: true }).click();
-  await message.fill('New draft through history');
-  // Selecting the same history entry must retain a rejected submission's only copy.
+  await panel.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(panel.locator('.assistant-submission')).toHaveCount(0);
+  expect(sent.at(-1).submissionId).toBe(retryId);
+  await expect(message).toHaveValue('New draft survives retry');
+  // Navigation during a response does not stop that response.
+  const runningConversation = selected;
   await panel.getByRole('button', { name: 'Conversation history', exact: true }).click();
-  await panel.locator('.assistant-history').getByRole('button').filter({ hasText: 'After provider switch' }).click();
-  await expect(panel.locator('.assistant-submission')).toContainText('Recover supported model');
-  await expect(panel.getByRole('button', { name: 'Restore to input', exact: true })).toBeDisabled();
-  await expect(message).toHaveValue('New draft through history');
-  await message.fill('');
-  await panel.getByRole('button', { name: 'Restore to input', exact: true }).click();
-  await expect(message).toHaveValue('Recover supported model');
-
-  await panel.getByRole('textbox').press('Enter');
-  await expect(panel.getByRole('textbox')).toHaveValue('');
-  await expect(panel.getByRole('alert')).toHaveCount(0);
-  expect(sent.at(-1).reasoningEffort).toBe('max');
-  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await expect(panel.locator('.assistant-history')).toBeVisible();
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
+  expect(runningConversation.turns.at(-1).status).toBe('inProgress');
   await message.fill('Uncertain first');
   const beforeLost = sent.length;
   await message.press('Enter');
-  await expect(panel.getByRole('status').filter({ hasText: 'Needs confirmation' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
   await message.fill('Preserved after lost response');
-  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
-  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).first().click();
+  if (screenshots) await panel.screenshot({ path: 'tmp/1542-retry-1440.png' });
+  revealLost = true; // Same live Host still has the accepted submission.
+  await panel.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(panel.locator('.assistant-submission')).toHaveCount(0);
+  expect(sent.length).toBe(beforeLost + 1);
   await expect(message).toHaveValue('Preserved after lost response');
-  await expect(panel.getByRole('button', { name: 'Check conversation', exact: true })).toBeVisible();
-  expect(sent.length).toBe(beforeLost + 1);
-  await panel.getByRole('button', { name: 'Check conversation', exact: true }).click();
-  revealLost = true;
-  await expect(panel.getByRole('button', { name: 'Check conversation', exact: true })).toHaveCount(0);
   await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Uncertain first' })).toHaveCount(1);
-  expect(sent.length).toBe(beforeLost + 1);
-  // An old receipt query must not restore the discarded first conversation after provider selection.
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   revealLost = false;
-  await referenceRow.click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
   await message.fill('Uncertain first'); await message.press('Enter');
-  await expect(panel.getByRole('button', { name: 'Check conversation', exact: true })).toBeVisible();
-  revealLost = true;
-  receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
-  const readsBeforeSwitch = receiptReads;
-  await expect.poll(() => receiptReads).toBeGreaterThan(readsBeforeSwitch);
-  setupMode = 'missing';
-  await panel.getByRole('button', { name: 'AI provider settings', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Codex', exact: true }).click();
-  await expect(panel.getByRole('button', { name: 'AI provider settings', exact: true })).toHaveText('Codex');
-  const staleReply = page.waitForResponse(response => response.url().includes('submissionId=' + lostResult.submission.id));
-  releaseReceipt(); receiptGate = undefined;
-  await (await staleReply).finished();
-  await page.evaluate(() => new Promise(requestAnimationFrame));
-  await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: 'AI provider settings', exact: true })).toBeEnabled();
-  setupMode = 'ready';
-  receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
-  await panel.getByRole('button', { name: 'AI provider settings', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'GitHub Copilot', exact: true }).click();
-  const retained = panel.locator('.assistant-submission');
-  await expect(retained).toContainText('Uncertain first');
-  await expect(retained.locator('.assistant-reference')).toContainText('document.md');
-  await expect(retained.getByRole('button', { name: 'Check conversation', exact: true })).toBeEnabled();
-  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
-  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).first().click();
-  await expect(retained).toContainText('Uncertain first');
-  await expect(retained.getByRole('button', { name: 'Check conversation', exact: true })).toBeEnabled();
-  const sendsBeforeCheck = sent.length;
-  await retained.getByRole('button', { name: 'Check conversation', exact: true }).click();
-  releaseReceipt(); receiptGate = undefined;
-  await expect(retained).toHaveCount(0);
-  await expect(panel.getByRole('group', { name: 'Your message', exact: true }).filter({ hasText: 'Uncertain first' })).toHaveCount(1);
-  expect(sent.length).toBe(sendsBeforeCheck);
+  await expect(panel.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+  const lostId = sent.at(-1).submissionId, beforeRestartRetry = sent.length;
+  // Response loss -> Host restart: the provider ran, but the replacement Host has no receipt.
+  receipts.clear(); lostResult = undefined; forgottenSubmissions = true;
+  await message.fill('Separate draft after restart');
+  await panel.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(panel.getByText('Unable to confirm acceptance', { exact: true })).toBeVisible();
+  expect(sent.length, 'Retry after Host restart must never dispatch the forgotten submission').toBe(beforeRestartRetry);
+  await expect(message).toHaveValue('Separate draft after restart');
+  const newSend = panel.getByRole('button', { name: 'Send as new', exact: true });
+  await newSend.hover();
+  await expect(page.getByText('Send the original message as a new request. The previous request may already have run.', { exact: true })).toBeVisible();
+  if (screenshots) await panel.screenshot({ path: 'tmp/1542-restart-retry-1440.png' });
+  allowNewSend = true;
+  await newSend.click();
+  await expect.poll(() => sent.length).toBe(beforeRestartRetry + 1);
+  expect(sent.at(-1).submissionId).not.toBe(lostId);
+  expect(sent.at(-1).message).toBe('Uncertain first');
+  await expect(panel.locator('.assistant-submission')).toHaveCount(0);
+  forgottenSubmissions = false;
+  await expect(message).toHaveValue('Separate draft after restart');
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
 
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-light-en.png' });

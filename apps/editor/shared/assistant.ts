@@ -64,5 +64,5 @@ export type AssistantAccountUsage = Pick<AssistantDiagnostics, "provider" | "che
 export type ProviderLogFailure = { available: false; reason: "unknown" | "missing" | "denied" | "unverified" | "launch" };
 
 /** Daemon-memory receipt; provider observation and RPC completion can arrive in either order. */
-export type AssistantSubmission = { id: string; status: "pending" | "accepted" | "rejected" | "unknown"; conversationId?: string; itemId?: string; turnFailed?: boolean; error?: string };
+export type AssistantSubmission = { id: string; status: "pending" | "accepted" | "rejected" | "unknown"; conversationId?: string; itemId?: string; error?: string };
 export type AssistantSubmissionResult = { submission: AssistantSubmission; conversation?: AssistantConversation };

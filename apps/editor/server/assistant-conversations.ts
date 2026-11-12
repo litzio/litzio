@@ -44,8 +44,7 @@ export class AssistantConversations {
       const item = turn?.items.find(item => item.kind === "user" && item.submissionId === id);
       if (item) {
         receipt.conversationId = conversation.id; receipt.itemId = item.id;
-        if (turn!.status === "failed") { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = turn!.error; }
-        else if (item.userMessageSource !== "host") { receipt.status = "accepted"; delete receipt.error; }
+        if (item.userMessageSource !== "host") { receipt.status = "accepted"; delete receipt.error; }
         break;
       }
     }
@@ -55,11 +54,11 @@ export class AssistantConversations {
     const id = input.submissionId!;
     if (typeof id !== "string" || !/^[a-zA-Z0-9-]{1,128}$/.test(id)) throw new Error("Invalid submission ID.");
     const previous = this.submissions.get(id);
-    if (previous) return previous.result.then(() => this.submission(id));
+    if (previous && (previous.dispatched || previous.receipt.status !== "rejected")) return previous.result.then(() => this.submission(id));
     const receipt: AssistantSubmission = { id, status: "pending", ...(input.id ? { conversationId: input.id } : {}) };
-    // Register before any asynchronous validation or provider work. IDs are never replayed.
+    // Register before asynchronous validation. Dispatched IDs are never replayed.
     const result = Promise.resolve().then(send).then(conversation => {
-      if (!receipt.turnFailed && (receipt.status !== "unknown" || !receipt.error)) receipt.status = "accepted";
+      receipt.status = "accepted";
       receipt.conversationId = conversation.id;
     }, error => {
       if (receipt.status !== "accepted") receipt.status = this.submissions.get(id)?.dispatched ? "unknown" : "rejected";
@@ -581,8 +580,7 @@ export class AssistantConversations {
       // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
       const failedPrompt = (message: string) => {
         turn.status = "failed"; turn.error = message;
-        const receipt = input.submissionId ? this.submissions.get(input.submissionId)?.receipt : undefined;
-        if (receipt) { receipt.status = "unknown"; receipt.turnFailed = true; receipt.error = message; }
+        // Turn completion failure does not revoke admission.
       };
       void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUse request_litzio_user_input through the Litzio Host MCP server for structured questions. Native ACP question extensions are not supported.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
         if (turn.status === "inProgress") {
@@ -660,8 +658,7 @@ export class AssistantConversations {
       const text = update.content.text, marker = text.indexOf("User message:\n");
       const item = itemFrom({ type: "userMessage", id: randomUUID(), content: [{ type: "text", text: marker < 0 ? text : text.slice(marker + "User message:\n".length) }] });
       if (item) {
-        const receipt = item.submissionId ? this.submissions.get(item.submissionId)?.receipt : undefined;
-        conversation.turns.push({ id: randomUUID(), status: receipt?.turnFailed ? "failed" : "completed", ...(receipt?.turnFailed ? { error: receipt.error } : {}), items: [item] });
+        conversation.turns.push({ id: randomUUID(), status: "completed", items: [item] });
       }
       return;
     }

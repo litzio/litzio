@@ -252,8 +252,9 @@ test("assistant shutdown rejects a send still waiting for plugin startup before 
 
 test("submission IDs survive event-before-response, duplicate sends and uncertain acceptance", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-submission-"));
+  const log = path.join(root, "rpc.jsonl");
   const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
-    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
   const host = createAssistantHost(null, path.join(root, "ai.json"), { agent });
   t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
   const input = { action: "send", submissionId: "submission-first", message: "Same message", folders: [root], model: "gpt-6.1-sol", reasoningEffort: "medium" };
@@ -290,15 +291,20 @@ test("submission IDs survive event-before-response, duplicate sends and uncertai
   assert.equal((await host.invoke("assistantConversations", { submissionId: input.submissionId })).conversation.id, id);
   const rejected = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-rejected", reasoningEffort: "invalid" });
   assert.equal(rejected.submission.status, "rejected");
+  const retried = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-rejected" });
+  assert.equal(retried.submission.status, "accepted", "a pre-dispatch rejection can be retried explicitly");
   const original = agent.client.request.bind(agent.client);
+  let attempts = 0;
   t.mock.method(agent.client, "request", async (method: string, params: any) => {
-    if (method === "turn/steer") throw new Error("Response lost");
+    if (method === "turn/steer") { attempts++; throw new Error("Response lost"); }
     return original(method, params);
   });
   const uncertain = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-uncertain" });
   assert.equal(uncertain.submission.status, "unknown");
   assert.equal((await host.invoke("assistantConversations", { submissionId: "submission-uncertain" })).submission.status, "unknown");
   assert.equal((await host.invoke("assistantConversations", { submissionId: "not-seen" })).submission.status, "unknown");
+  await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-uncertain" });
+  assert.equal(attempts, 1, "explicit retry of uncertain admission never dispatches twice");
   // The reverse order is valid too: RPC accepts first, then the provider user item arrives.
   let providerInput: any;
   t.mock.method(agent.client, "request", async (method: string, params: any) => {
@@ -313,6 +319,26 @@ test("submission IDs survive event-before-response, duplicate sends and uncertai
   const reconciled = await host.invoke("assistantConversations", { submissionId: "submission-late-item" });
   assert.equal(reconciled.submission.itemId, "late-user");
   assert.equal(users().at(-1).submissionId, "submission-late-item");
+  // Keep App's submission ID across a real Host/provider lifecycle restart.
+  await host.close();
+  const replacementAgent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
+    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
+  const replacement = createAssistantHost(null, path.join(root, "ai.json"), { agent: replacementAgent });
+  t.after(() => replacement.close());
+  const starts = () => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(entry => entry.method === "turn/start").length;
+  const beforeRestartRetry = starts();
+  const missing = await replacement.invoke("assistantConversations", { submissionId: input.submissionId });
+  assert.equal(missing.submission.status, "unknown");
+  assert.equal(starts(), beforeRestartRetry, "receipt lookup after restart cannot dispatch forgotten work");
+  const newInput = { ...input, submissionId: "explicit-new-submission" };
+  const [newSend, newDuplicate] = await Promise.all([
+    replacement.invoke("assistantConversation", newInput), replacement.invoke("assistantConversation", newInput),
+  ]);
+  assert.equal(newSend.submission.status, "accepted");
+  assert.equal(newDuplicate.conversation.id, newSend.conversation.id);
+  assert.notEqual(newSend.conversation.id, id);
+  assert.equal(starts(), beforeRestartRetry + 1, "explicit new send dispatches once even with a concurrent duplicate");
+  await replacement.close();
 });
 
 test("pending copies survive Host restart, preserve originals on conflict, and use CLI semantic edits", async t => {

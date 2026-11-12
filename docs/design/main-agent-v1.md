@@ -4,6 +4,7 @@
 - New-conversation isolation verification (#1548, 2026-11-12): the existing assistant browser scenario reproduces Stop → New conversation → model change → paced typing with a retained first submission lacking provider-history proof. Before the fix its receipt restored the old conversation and the next send carried the old ID; after ownership association the send has no ID and a different conversation is created. Fixture provider/Host validation only, no real AI call or frequency measurement.
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Dynamic UI removal (#1341, 2026-11-09): assistant view tools, generation/correction, material snapshots, result cards, favorites and saved views are removed. Ordinary conversations, references, document tools and requestUserInput remain. Retained plugin screens/query/Table and review boundaries are defined in [Plugin screens v1](plugin-screens-v1.md); [Generated views v1](generated-views-v1.md) is Historical.
+- Instruction verification: 2026-11-12 — 한국어 지시문과 현행 도구 정의 대조, provider/Host/review 대상 단위 검사 및 Codex gpt-6-luna low 사본 편집·템플릿 생성 확인. 실제 AI는 임시 문서·로컬 Host만 확인하며 UI·패키지 검증은 포함하지 않는다.
 - Last verified: 2026-11-12 — #1530 retains unanswered async questions across turn end and reuses ordinary message send for answers; fake Host/provider and browser validation only. Previous 2026-11-10 — #1443의 질문 메타데이터·답변·기록과 Codex 0.167.0/gpt-6-luna low의 실제 Host·브라우저 전달/수신/재열기를 확인. Copilot ACP 미지원 거부는 fixture, 실제 원격 연결·Copilot AI 호출은 미검증.
 - Previous shell verification: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 정적 대조와 문서 검사.
 - Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
@@ -161,8 +162,16 @@ Linux uses XDG data home and macOS uses Application Support. Source execution
 `packages/cli/dist/cli.mjs` retains distributed defaults. `LITZIO_ASSISTANT_CWD` explicitly overrides this directory
 for local integration/testing. Litzio regenerates its product-owned `AGENTS.md`
 there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
-instructs the agent to leave existing documents intact and propose edits in text.
+instructs the agent to edit existing documents through a pending copy and leave application/discard to the human comparison UI.
 Litzio also regenerates `.agents/skills/litzio-guide/SKILL.md` here. It has name/description frontmatter and usage/CLI guidance, with no executable scripts.
+
+### 제품 지시문 구성 (2026-11-12)
+
+지시문을 튜닝할 때는 [비서 AGENTS.md](../../apps/editor/server/assistant/AGENTS.md)와 [litzio-guide SKILL.md](../../apps/editor/server/assistant/litzio-guide/SKILL.md)를 고친다. 두 파일이 한국어 지시문 원본이며 `provider-connections.ts`의 `ASSISTANT_INSTRUCTIONS`와 `LITZIO_GUIDE`는 이 내용을 사용한다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 공식 write path와 사본 편집, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다. 사본 편집 Host 도구가 보이면 셸·CLI를 사용하지 않으며, CLI 절차는 Host 도구가 없는 터미널 이어하기에만 적용한다.
+
+개발 실행(tsx/Vite)은 모듈 상대 경로의 Markdown을 읽는다. CLI 빌드(`packages/cli/scripts/build.ts`)는 같은 파일 내용을 esbuild define으로 정적으로 포함하므로 배포 HTTP Host는 런타임 Markdown 경로에 의존하지 않는다. Desktop 빌드는 이 CLI 배포본을 `apps/desktop/build/cli`에 복사하며 daemon은 그 번들을 사용한다. 지시문 변경 후 개발 서버를 다시 시작하고 배포본은 다시 빌드한다. source 환경 생성 검사와 외부 디렉터리의 CLI HTTP·Windows packaged daemon 검사가 생성된 두 파일을 원본 Markdown 전체와 비교한다. Windows packaged 실행은 merge queue의 기존 검사에서 확인한다.
+
+검수는 `apply_review_groups`로 즉시 교정하고 사람은 Undo·재지시·직접 수정한다. 이미지 읽기는 사전 승인 없이 수행한다. 질문의 `accepted:true`는 대화 저장이며 렌더 확인이 아니고, 턴 종료 뒤 답변은 후속 메시지로 온다. 권한 요청은 공급자 승인 카드로 전달한다. 템플릿과 요청된 표시 설정의 별도 사전 동의는 제거하되 사본 적용/버리기, 공식 write path, 불확실 쓰기 no replay, 비밀 값과 조직 정책 경계는 유지한다.
 
 The shared daemon owns provider connections and in-memory conversations. Closing
 a Desktop window, assistant panel or browser does not stop a turn while that
@@ -595,10 +604,7 @@ Copilot uses the same Host display handler when sent from a Litzio window; termi
 conversation to acquire the added specs; existing thread registrations are not
 retrofitted.
 
-Generated AGENTS.md and litzio-guide require proposal → permission → application;
-an explicit user change request supplies permission. Consent is an agent
-instruction, rather than a natural-language permission parser. The fixed Host
-allowlist is enforced independently of those instructions.
+Generated AGENTS.md directs requested display changes without an extra proposal or permission step (Refs #1542). The fixed Host allowlist is enforced independently. The tool description still carries the former proposal wording until #1542 updates that surface.
 
 `AgentDisplayRequests` owns provider-neutral validation, volatile pending requests
 and change receipts. Codex's `item/tool/call` is only its current adapter. The
@@ -691,11 +697,7 @@ the source/destination document. Save writes only the app-owned template directo
 so opened-folder shell access to that directory is unnecessary. A template is not
 applied to an existing document; its original and source document remain intact.
 
-Generated AGENTS.md and `litzio-guide` require a fresh template lookup and
-proposal → permission → application. Explicit template requests supply consent;
-missing names never fall back. Save requires name/description/source confirmation,
-uses the saved disk version, then reads back and refreshes the catalog. Unsaved
-content must be saved first if intended. Copilot offers text guidance only.
+`litzio-guide` requires a fresh template lookup, selection within the creation request and direct application without extra consent (Refs #1542). Missing named templates never silently fall back. Save uses name/source and optional description, asks only for missing information, uses the saved disk version, then reads back and refreshes the catalog. Unsaved content must be saved first if intended. Both providers expose the same Host template tools.
 
 CLI instructions now serve terminal continuation. Before Codex launch the Host
 prepends a private `<assistant cwd>/bin/<CLI identity>` launcher for its own CLI to the child PATH,
@@ -1063,7 +1065,7 @@ layout remains unchanged. Current ordinary-Send view behavior follows the
 
 Removable chips above the input show only file names; shared Tooltip exposes the
 full path on hover/focus. No file-type-specific presentation or read indicator is
-used. New conversation clears the draft. Sending snapshots the draft into a message row; confirmed rejection retains that row with explicit restoration (see #1417 below). A reference-only
+used. New conversation clears the draft. Sending snapshots the draft into a message row; confirmed rejection retains that row with explicit Retry (see #1417 below). A reference-only
 message is valid, including steering an active turn.
 
 Host checks both opened-folder RootAccess and its own access policy. Each relative
@@ -1558,124 +1560,61 @@ Host conversation operation, not a new document semantic operation or CLI comman
 User items expose `submissionId`: Codex carries it in the Host context envelope and
 restores it from both notifications and CLI-owned resumed history; Copilot assigns it
 to its Host user item and includes it in the prompt context for history restoration.
-User items also expose `userMessageSource`: `host` is a Copilot row created before
-prompt dispatch; `provider-live` is a provider event/RPC item; `provider-history`
-is a user message reconstructed by a successfully completed history read.
-Codex sets `provider-history` only from `thread/turns/list` during resume, not from
-live notifications or turn/start results. Copilot sets it only after successful
-ACP loadSession replay, not from the locally created user row or prompt completion.
-Missing source metadata is not preservation proof. A live row or successful prompt
-alone never transfers ownership of the App's only copy to provider history.
-Only the ID connects temporary and observed user rows; equal text never merges them.
-The application hides the temporary row when the observed item has the same ID,
-regardless of whether provider observation/query or POST response arrives first.
+User items expose `userMessageSource` for diagnostics; it is not a preservation gate.
+Only the submission ID correlates temporary and provider rows; equal text never merges them.
+A correlated user row retires the local row immediately, including a Host-created Copilot row.
+Accepted receipts show the submitted message immediately even before the provider row arrives (#1526).
+Provider history owns subsequent replay; turn completion failure is displayed on the turn and does
+not revoke submission admission or require keeping a second local transcript.
 
-Host receipts distinguish pending, accepted, rejected and unknown. Validation/setup
-errors before dispatch to turn/start, turn/steer or ACP prompt are definite rejection.
-An error after dispatch is unknown unless a provider user item or successful RPC
-proves admission. Admission is separate from preservation in provider history.
-A Copilot prompt error marks its receipt unknown with `turnFailed:true`, including
-when resume later omits the Host-created row. Known failed replayed turns keep that
-failure status. The App retains failure knowledge even if a subsequent query only
-reports admission. A turn failure is never presented as a pre-admission rejection.
-The application's send transport ends after 120 seconds; timeout, connection loss and
-unstructured HTTP errors leave **Needs confirmation**, never **Failed**. It never
-resends automatically. **Check conversation** queries the submission and snapshot.
-A Host receipt not found after restart also stays unknown; absence is not rejection.
+Host receipts distinguish pending, accepted, rejected and unknown. Pre-dispatch validation/setup
+failure is rejected and can be retried explicitly with the same ID after correcting settings.
+Within a Host lifetime, already-dispatched IDs (pending, accepted or unknown) return their existing
+result. Unknown Retry first queries the existing submission operation; it sends only if that lookup
+confirms pre-dispatch rejection. Accepted/pending results are observed without sending. If the Host
+still reports unknown (including after restart), Retry never POSTs the forgotten ID. The existing
+receipt error shows "Unable to confirm acceptance" beside Retry, with a separate "Send as new"
+button. Only that explicit choice sends the original text/references with a new ID; its hover
+Tooltip explains that the previous request may already have run. No new state or store is added.
+Concurrent duplicate requests share the original promise. No request
+is automatically replayed. The send transport waits up to 10 seconds for admission, independently
+of the provider turn's lifetime. Connection loss and timeout retain the message and a Retry button;
+Retry queries that same ID to reconcile the result; definite rejection permits resending it.
+There is no Restore to input or Check conversation workflow. A separate composer draft and its references survive Retry and Discard.
+The existing snapshot poll observes active turns; only pending submissions need receipt polling.
 
-The Host retains the first submission record for each submission ID in the `AssistantConversations`
-instance for the daemon lifetime, registering synchronously before validation. Concurrent
-and later sends with that ID reuse its current receipt and never call the provider again; the
-first payload owns the ID, so clients must create a fresh ID for a changed message.
-This bounded scope is not durable idempotency or an exactly-once guarantee across Host
-restart, different Hosts, different IDs or direct provider calls. Receipts are memory
-only; Litzio still persists only its conversation index, with content owned by CLIs.
+Local rows belong to the target Host, provider and conversation. A first send without a conversation
+ID remains in that new-conversation scope only until a receipt identifies its owner (#1551).
+New conversation, provider changes and history selection invalidate earlier poll updates and hide
+other owners' rows. Closing/reopening the panel or switching Hosts retains App memory. Page reload,
+App unmount and Host restart do not provide durable submission recovery or cross-restart ID deduplication.
 
-Message-local **Failed** rows remain visible with **Restore to input**. Restoration
-is disabled when the current draft has any text or reference, protecting new work.
-Accepted receipts show the ordinary user message immediately, without recovery actions, even before its correlated provider row arrives. Admission does not retire the protected local copy or prove provider-history preservation. Known failed turns still expose recovery actions.
-Unknown/unconfirmed rows retain **Check conversation**, **Restore to input** and
-the available error; failed turns expose these actions beside their user message
-as well as after resume. Restoration only fills a draft and never sends it.
-The restored draft carries an explicit ID lineage. Once its new submission is
-admitted without a known turn failure, the original rejected/uncertain copies are
-removed; the replacement copy remains protected until provider-history proof.
-Rejected replacement attempts retain the lineage for a later successful restoration.
-Manually clearing the draft or changing scope detaches this restoration intent.
-Clearing is judged after automatic skill-chip removal: empty text with no remaining
-references detaches the lineage even when deleting the final skill token removed
-the last chip.
-**Discard message** explicitly removes one local copy without cancelling provider
-work or resending. It preserves any new draft and invalidates pending queries for
-that view so they cannot resurrect the discarded local row. There is no silent
-capacity eviction of unresolved input. These actions let users retire rejected or
-uncertain copies instead of accumulating them for the entire App lifetime.
-The shared Button (outline/sm for recovery, ghost/sm for discard), Tooltip and existing transcript/surface tokens implement
-these actions; longer action help is in keyboard-accessible tooltips. The existing
-assistant side panel is the selected surface from the UI decision table; no new panel,
-notification, dialog or common interaction is introduced.
+New conversation and history navigation are available while a response runs. They do not interrupt
+it. Codex supports steer on the active turn. ACP has no steer operation, so Copilot active-prompt
+submission remains disabled; after completion the same composer sends the next prompt. Provider
+selection remains tied to its conversation; model, effort, permission and mode changes stay locked
+while running because those changes cannot be applied to the admitted turn. Deleting an active
+conversation and applying/discarding copies retain their existing guards. Host selection never
+silently changes and document revision checks are unchanged.
 
-Visible-panel, visible-tab nonoverlapping polling (100ms target during running work or a pending send; 600ms idle) continues during a pending
-send and queries unresolved submissions as well as conversation snapshots. Closing
-or refreshing the panel invalidates outstanding response handlers without cancelling
-the Host turn; reopening reconciles retained submission rows and preserves the new
-draft. App memory owns the submitted text, references and receipt, keyed by Host,
-provider and the conversation selected at submission. A first submission without a
-conversation ID belongs to that Host/provider's new-conversation scope; its receipt
-can subsequently identify the conversation. Once a receipt identifies it, the local
-submission is owned by that conversation, including while provider-history proof is
-still missing. New conversation must not observe that row as a new first send or
-restore its conversation via receipt lookup (#1548). The existing scope invalidation
-continues to reject earlier in-flight poll responses. Provider changes, New conversation and
-explicit history selection invalidate late screen updates and hide rows outside the
-selected scope without deleting their content. Returning to the original provider's
-new-conversation scope or the original conversation restores unresolved/rejected rows
-and their Check conversation/Restore to input actions. Failed provider lookup does
-not discard them. Closing/reopening the panel, or selecting another Host, retains
-this App-owned memory. Automatic cleanup requires a correlated `provider-history`
-user item in a non-running, non-failed turn, with no known turn failure on the local
-receipt. Failed/uncertain copies are retained until proof resolves uncertainty or
-the user explicitly restores/discards them; merely observing the Host's Copilot row
-never retires a copy. Successful live turns remain protected until history replay
-confirms preservation. A new draft is never overwritten,
-and none of these navigation/recovery actions automatically resends a message.
-There is no new persistent store: page reload, app restart or App unmount loses this
-memory, so unresolved submissions cannot be recovered locally across those boundaries.
-Existing Codex steer, interruption, model/provider locks and daemon lifetime remain unchanged.
+Verification (#1542, first PR): existing Host/provider tests protect concurrent duplicate IDs,
+explicit retry after pre-dispatch rejection, uncertain retry without a second provider call, actual Host restart with a forgotten ID, steer,
+and admission independent of turn failure/history replay. The existing browser scenario covers
+Retry with a separate draft, active-turn New conversation/history navigation and #1551 isolation.
+The multi-host scenario also verifies that Retry retains the remote Host, submission ID and
+references without overwriting a new remote draft.
+The browser reproduces response loss followed by forgetting the Host receipts, then verifies
+query-only Retry and explicit new-ID sending with the original text and an intact separate draft.
+The restart regression failed before the fix. These are fixture checks; live provider results are recorded in the PR. Screen relay, display and
+attachment simplification remain the second PR scope of #1542.
 
-Verification extends existing assistant fake Host/browser scenarios and Host/stdio
-tests. The delayed-row browser assertion and missing Host receipt assertion failed
-before implementation. Cases cover first send, steer/reference-only input, one row
-after observation before the POST reply, confirmed rejection/restoration with a new
-draft, unknown first-send acknowledgement, query recovery without retransmission,
-provider choices and panel reopen. Review follow-up additionally covers a rejected
-row surviving history reselection with a new draft, and an uncertain first message
-with references surviving provider unavailability, a delayed old receipt, return
-to its provider and panel reopening, then recovery without retransmission. The
-Copilot prompt-failure case admits a Host row, fails before provider recording,
-resumes without that row and verifies retained text/references/recovery actions,
-new-draft protection, explicit restoration and retirement of the original on new
-admission. Discard preserves a new draft. Host tests separately verify Host versus
-live/history source metadata and an uncertain receipt after a missing replay. Host cases
-cover duplicate IDs, event-before-RPC,
-uncertain RPC failure and both providers. These are synthetic fixtures, not real
-provider latency, model entitlement or user-perceived performance measurements.
+Current manual self-review: [Retry at 1440px](assets/assistant-relay-1542/retry-1440.png),
+and [unknown after restart with the Send as new Tooltip](assets/assistant-relay-1542/restart-retry-1440.png),
+English Light, persistent Chrome fixture. Uses existing inline outline/ghost sm Buttons;
+no new surface, geometry or visual exception. This is not owner visual approval.
 
-
-Visual evidence uses the persistent Chrome runner with a held send response and
-synthetic message/provider failure, at 1440×1000 English Light and 640×1000 Korean
-Dark, 100% zoom. Images are native panel crops so unrelated OS-account labels are
-excluded. [1440 Before](assets/assistant-send-1417/before-1440.png) /
-[After](assets/assistant-send-1417/after-1440.png),
-[640 Before](assets/assistant-send-1417/before-640.png) /
-[After](assets/assistant-send-1417/after-640.png),
-[1440 rejection](assets/assistant-send-1417/after-1440-rejected.png) /
-[640 rejection](assets/assistant-send-1417/after-640-rejected.png).
-The same [manual capture procedure](assets/assistant-send-1417/capture.browser.js)
-uses the baseline panel for Before and the implementation for After; it is outside
-the stable suite and does not add screenshot-only CI traversal. Text, controls and
-message-local actions remain within the panel at both widths. These captures show
-fixture behavior and layout, not real model speed or a manual owner approval.
+Earlier #1417 captures are historical: [1440 Before](assets/assistant-send-1417/before-1440.png) /
+[After](assets/assistant-send-1417/after-1440.png). Their restoration controls have been replaced.
 
 
 ## Assistant button status (#1424)
@@ -1693,7 +1632,7 @@ existing panel actions. Provider approvals use the existing question-card histor
 Conversation snapshots and #1417 submission receipts remain the source of truth.
 Closing the panel neither invalidates an in-flight send nor creates another poller.
 The same nonoverlapping observer (100ms target for running work/pending sends, 600ms idle) continues for running work, questions and
-unresolved submissions after initial setup has admitted the work, including background tabs. Idle
+pending submissions after initial setup has admitted the work, including background tabs. Rejected/unknown submissions wait for explicit Retry. Idle
 closed conversations stop polling. Failed/incomplete setup pauses it, except already-admitted work during a closed setup refresh.
 Closed-panel observation includes `displayClient` and can apply window-owned screen/display requests. #1542 removes panel visibility as a condition and limits the 10-second deadline to delivery; ACKed work has a fixed five-minute upper bound.
 
