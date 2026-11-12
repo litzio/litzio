@@ -925,8 +925,13 @@ function EditorApp() {
     const id = existing?.id ?? `assistant-change-${++nextId.current}`;
     const entry = { id, hostId, root: splitDocumentPath(path).directory, assistantChange: { conversation, change, path, review: Date.now() }, label: i18n.t("Pending changes") };
     setViewTabs(previous => previous.some(tab => tab.id === id) ? previous.map(tab => tab.id === id ? entry : tab) : [...previous, entry]);
-    if (assistantOverlay && !(automatic && globalThis.document.activeElement?.closest(".assistant-composer"))) setAssistantOpen(false);
-    placeTab(id);
+    const focus = globalThis.document.activeElement;
+    const background = automatic && session && session.view !== "read" && !!focus?.closest("[data-document-tab]");
+    if (assistantOverlay && !(automatic && focus?.closest(".assistant-composer"))) setAssistantOpen(false);
+    if (background) {
+      navigate({ type: "open", id, group: navigation.focused, background: true });
+      rememberTabs(hostId);
+    } else placeTab(id);
   }
   function openComparison(hostId: string, target: ComparisonTarget) {
     if (!tabsRestored || operationRef.current || busy || continuation) { setNotice({key:"Wait for the current operation to finish."}); return; }
@@ -1554,7 +1559,7 @@ function EditorApp() {
                 const owner = existing && sessions.current.get(existing.id);
                 if (!owner) return;
                 if (owner.editorRef.current?.hasUnsavedChanges() || owner.busyRef.current) throw new Error(i18n.t("Changes applied on disk. Save or close your local edits before reloading the document."));
-                const error = await owner.load(owner.openedPath);
+                const error = await (owner.kind === "native" ? owner.load(owner.openedPath, true) : owner.load(owner.openedPath));
                 if (error) throw new Error(error);
               }} isDirty={() => { const existing = openedTab(tabs, tab.assistantChange!.path, tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} /> : tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} isDirty={path => { const existing=openedTab(tabs,path,tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
 

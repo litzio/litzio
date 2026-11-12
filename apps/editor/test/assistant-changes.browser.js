@@ -66,6 +66,36 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   pending=true; applied=false;
   await expect(panel.getByRole('button',{name:'Review',exact:true})).toBeVisible();
   await panel.getByRole('button',{name:'Review',exact:true}).click();
+  // P1: automatic reload must retain edits typed while its GET is outstanding.
+  await page.setViewportSize({width:1920,height:1000});
+  await page.getByRole('tab',{name:/Pending changes/}).click({button:'right'});
+  await page.getByRole('menuitem',{name:'Open to the right',exact:true}).click();
+  const original=page.locator('[data-document-tab][data-visible="true"]').filter({has:page.locator('.tiptap')});
+  await expect(original.locator('.tiptap')).toBeVisible();
+  let releaseReload, reloadHeld=false;
+  await page.route('**/api/document?*', async route=>{
+    if(route.request().method()!=='GET' || !route.request().url().includes('path='+encodeURIComponent(file))) return route.fallback();
+    const response=await route.fetch({headers:{Connection:'close'}});
+    reloadHeld=true;
+    await new Promise(resolve=>{releaseReload=resolve;});
+    await route.fulfill({response});
+  });
+  await compare.getByRole('button',{name:'Apply',exact:true}).click();
+  await expect.poll(()=>reloadHeld).toBe(true);
+  await original.locator('.tiptap p').first().click();
+  await page.keyboard.press('End'); await page.keyboard.type(' during reload');
+  releaseReload();
+  await expect(compare.getByRole('alert')).toContainText('Changes applied on disk.');
+  await expect(original.locator('.tiptap')).toContainText('during reload');
+  await page.unroute('**/api/document?*');
+  await page.keyboard.press('Control+z');
+  await expect(original.locator('.tiptap')).not.toContainText('during reload');
+  await page.getByRole('tab',{name:/Pending changes/}).click({button:'right'});
+  await page.getByRole('menuitem',{name:'Move to other group',exact:true}).click();
+  await page.setViewportSize({width:1440,height:1000});
+  pending=true; applied=false;
+  await expect(panel.getByRole('button',{name:'Review',exact:true})).toBeVisible();
+  await panel.getByRole('button',{name:'Review',exact:true}).click();
   changed=true;
   await panel.getByRole('button',{name:'Review',exact:true}).click();
   await expect(compare.getByRole('button',{name:'Apply',exact:true})).toBeDisabled();
@@ -92,6 +122,21 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await expect(panel.getByRole('button',{name:'Stop response',exact:true})).toBeVisible();
   conversation.turns[1].status='completed';
   await expect(compare.getByRole('button',{name:'Apply',exact:true})).toBeVisible();
+  // P2: completing another document's edit must not hide a document being typed in.
+  conversation.turns.push({id:'turn-3',status:'inProgress',items:[]});
+  await expect(panel.getByRole('button',{name:'Stop response',exact:true})).toBeVisible();
+  await page.getByRole('treeitem',{name:'b.md',exact:true}).click();
+  const other=page.locator('[data-document-tab][data-visible="true"]').filter({has:page.locator('.document-editor')});
+  await expect(other).toContainText('Beta.');
+  await other.locator('.tiptap p').first().click();
+  await page.keyboard.press('End'); await page.keyboard.type(' Working on B');
+  copyRevision='copy-3'; conversation.turns[2].status='completed';
+  const finishingPoll=listPolls;
+  await expect.poll(()=>listPolls).toBeGreaterThan(finishingPoll+1);
+  await expect(activeDocument(page).locator('.tiptap')).toContainText('Working on B');
+  await expect(activeDocument(page).locator('.tiptap')).toBeFocused();
+  await panel.getByRole('button',{name:'Review',exact:true}).click();
+  await expect(compare).toBeVisible();
   // Narrow Korean dark review remains usable with the existing responsive comparison.
   if(screenshots) {
     await page.evaluate(prefix=>{localStorage.setItem(prefix+'.uiLanguage','ko');localStorage.setItem(prefix+'.theme','dark');},brand.storagePrefix);
