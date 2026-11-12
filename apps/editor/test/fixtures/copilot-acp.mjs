@@ -50,6 +50,8 @@ createInterface({ input: process.stdin }).on("line", line => {
     reply({ configOptions: optionsFor(params.sessionId) });
   }
   else if (method === "session/set_model") {
+    if (params.modelId === "EXIT PROCESS") process.exit(23);
+    if (params.modelId === "HANG REQUEST") return;
     selectedModels.set(params.sessionId, params.modelId);
     if (process.argv.includes("--fixture-config")) {
       const reasoning = configOptions.find(option => option.id === "reasoning");

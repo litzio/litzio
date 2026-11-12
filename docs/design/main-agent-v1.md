@@ -1135,6 +1135,20 @@ If absent, `auto` is prepended as **Auto**, **Let Copilot pick the best model**,
 Copilot/Paseo's returned catalog. One no-prompt
 catalog session is reused per connection. Connected means transport/session
 readiness only, not confirmed login, model entitlement or available quota.
+#1578: Each explicit diagnosis uses a fresh, short-lived ACP connection and catalog,
+closed after the check, so it cannot interrupt a live conversation. Concurrent
+diagnostic reads share the in-flight check; Host shutdown also closes that probe. Process exit,
+spawn failure and stream closure discard the transport, catalog probe, session
+options and load-session capability; the next request starts a new process.
+Pending setup requests receive the disconnection cause. The existing diagnostics
+surface preserves startup errors and request timeouts. As with Codex, a single
+setup request timeout rejects only that request, without killing other active
+turns or replaying the request. The 15-second bound covers initialize, catalog,
+session creation/load and configuration (and cancel delivery), not session/prompt:
+prompts already wait for turn completion without this bound. Fake ACP verifies
+exit/start-failure recovery, fresh diagnosis during a pending prompt and a new
+conversation after a setup timeout; this does not identify the reported intermittent
+incident's cause or establish real Copilot model behavior.
 Login stays in the user's Copilot CLI. Account/rate-limit/MCP diagnostics are
 Codex-only. Disable/unregister/Host shutdown closes both owned CLI connections.
 Saving a provider switch closes the old connections; active work is disconnected
