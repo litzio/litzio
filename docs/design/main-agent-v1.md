@@ -1142,8 +1142,11 @@ spawn failure and stream closure discard the transport, catalog probe, session
 options and load-session capability; the next request starts a new process.
 Pending setup requests receive the disconnection cause. The existing diagnostics
 surface preserves startup errors and request timeouts. As with Codex, a single
-setup request timeout rejects only that request, without killing other active
-turns or replaying the request. The 15-second bound covers initialize, catalog,
+configuration request timeout rejects only that request, without killing other active
+turns or replaying the request. Session creation/load timeouts instead retire the
+transport: a late success leaves session ownership uncertain (including duplicate
+load rejection). Other active turns on that transport fail on disconnect and are
+never replayed; the next explicit attempt starts a fresh connection. The 15-second bound covers initialize, catalog,
 session creation/load and configuration (and cancel delivery), not session/prompt:
 prompts already wait for turn completion without this bound. Fake ACP verifies
 exit/start-failure recovery, fresh diagnosis during a pending prompt and a new

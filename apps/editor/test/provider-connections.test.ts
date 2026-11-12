@@ -1406,3 +1406,35 @@ test("Copilot resolved spawn failure reconnects the same owner", async t => {
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   assert.ok((await connection.copilot.catalog()).sessionId);
 });
+
+test("Copilot late session load cannot trap explicit resume on an already loaded session", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-late-load-")), log = path.join(root, "rpc.jsonl"), cwd = path.join(root, "assistant");
+  const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-delay-load-once"], timeoutMs: 300 };
+  const first = new ProviderConnections(cwd, undefined, options);
+  const connection = new ProviderConnections(cwd, undefined, options);
+  t.after(async () => { await first.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
+  const input = { message: "COMPLETE THIS TURN", folders: [], model: "auto", reasoningEffort: "medium" };
+  const original = new AssistantConversations(first, new RootAccess([root]));
+  const saved = await original.send(input, settings);
+  await first.copilot.call(async () => (await first.copilot.connect()).unstable_setSessionModel({ sessionId: saved.id, modelId: "auto" }));
+  assert.equal(saved.turns.at(-1)!.status, "completed");
+  await first.close();
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const active = await conversations.send({ ...input, message: "Wait for cancellation" }, settings);
+  const late = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Missing delayed load response")), 5000);
+    connection.copilot.on("update", params => {
+      if (params.update.content?.text === "Delayed load completed") { clearTimeout(timer); resolve(); }
+    });
+  });
+  await assert.rejects(conversations.resume(saved.id, settings), /timed out/);
+  await late; // Provider accepted the load; only its success response was delayed.
+  assert.equal((await connection.diagnostics("copilot")).connected, true);
+  assert.equal((await conversations.resume(saved.id, settings)).id, saved.id);
+  assert.equal((await conversations.resume(saved.id, settings)).id, saved.id);
+  assert.equal(active.turns.at(-1)!.status, "failed", "uncertain session ownership retires the transport including its other active turn");
+  const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(requests.filter(row => row.method === "session/load").length, 2, "only the two explicit restore attempts dispatch; successful resume reuses the loaded session");
+  assert.equal(requests.filter(row => row.method === "session/prompt").length, 2, "no failed work is automatically replayed");
+});

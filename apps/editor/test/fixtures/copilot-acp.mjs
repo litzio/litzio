@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 const log = process.argv[2];
 if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, args: process.argv.slice(3) }) + "\n");
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
@@ -33,7 +33,16 @@ createInterface({ input: process.stdin }).on("line", line => {
   }
   else if (method === "session/load") {
     if (loaded.has(params.sessionId)) { send({ id, error: { code: -32603, message: `Session ${params.sessionId} is already loaded` } }); return; }
-    loaded.add(params.sessionId); reply(sessionState());
+    loaded.add(params.sessionId);
+    if (process.argv.includes("--fixture-delay-load-once") && !existsSync(log + ".loaded")) {
+      writeFileSync(log + ".loaded", "loaded");
+      setTimeout(() => {
+        reply(sessionState());
+        send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Delayed load completed" } } } });
+      }, 650);
+      return;
+    }
+    reply(sessionState());
   }
   else if (method === "session/set_mode") { modes.currentModeId = params.modeId; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "current_mode_update", currentModeId: params.modeId } } }); reply({}); }
   else if (method === "session/set_config_option") {

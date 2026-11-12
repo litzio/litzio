@@ -85,7 +85,7 @@ export class CopilotAcp extends EventEmitter {
   /** No prompt: reuse one catalog session until the process exits. */
   async catalog() {
     const client = await this.connect();
-    return this.probe ??= this.call(() => client.newSession({ cwd: this.cwd, mcpServers: [] })).then(session => this.remember(session)).catch(error => { this.probe = undefined; throw error; });
+    return this.probe ??= this.call(() => client.newSession({ cwd: this.cwd, mcpServers: [] }), true).then(session => this.remember(session)).catch(error => { this.probe = undefined; throw error; });
   }
   remember(session: NewSessionResponse) { this.sessions.set(session.sessionId, session); return session; }
   /** CLI fallback is fixed for a conversation. Caller must exclude active turns before restarting. */
@@ -97,14 +97,23 @@ export class CopilotAcp extends EventEmitter {
     if (client) await client.closed;
     this.ready = undefined; this.probe = undefined; this.reasoningEffort = effort; this.fullAccess = fullAccess;
   }
-  async call<T>(operation: () => Promise<T>): Promise<T> {
+  async call<T>(operation: () => Promise<T>, discardOnTimeout = false): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let onDisconnect: (message: string) => void = () => {};
     const disconnected = new Promise<never>((_, reject) => {
       onDisconnect = message => reject(new Error(message));
       this.once("disconnected", onDisconnect);
     });
-    try { return await Promise.race([disconnected, operation(), new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new Error("Copilot ACP request timed out.")); }, this.options.timeoutMs ?? 15000); })]); }
+    try {
+      return await Promise.race([disconnected, operation(), new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error("Copilot ACP request timed out."));
+          // Late creation/load leaves session ownership uncertain. Retire the
+          // transport, including other active turns, without replaying work.
+          if (discardOnTimeout) { this.stopping = stopAgentProcess(this.child); void this.stopping.catch(() => {}); }
+        }, this.options.timeoutMs ?? 15000);
+      })]);
+    }
     catch (error) {
       // ACP rejects RPC failures with plain {code, message, data} objects.
       // Host boundaries preserve Error.message; never stringify provider data.
