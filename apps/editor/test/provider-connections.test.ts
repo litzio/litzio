@@ -1077,7 +1077,14 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   assert.equal(inspectedResult.isError, false);
   const inspected = payload(inspectedResult), secondNode = inspected.nodes.find((node: any) => node.text === "Second paragraph.");
   assert.ok(secondNode);
-  const editInput = { change: staged.id, copyRevision: inspected.copyRevision, operations: [{ command: "update-node-text", path: secondNode.path.join(","), from: secondNode.text, to: "Edited through MCP." }] };
+  // Execute the model-facing example, rather than supplying unpublished option knowledge.
+  const editDescription = published.find(tool => tool.name === "edit_staged_document")!.description!;
+  const example = editDescription.match(/Text replacement example: (\{[^\n]+?\})/);
+  assert.ok(example, "the shell-free edit tool must explain text replacement options");
+  const operation = JSON.parse(example[1]!);
+  assert.equal(operation.command, "update-node-text");
+  assert.deepEqual(Object.keys(operation).sort(), ["command", "from", "path", "to"]);
+  const editInput = { change: staged.id, copyRevision: inspected.copyRevision, operations: [{ ...operation, path: secondNode.path.join(","), from: secondNode.text, to: "Edited through MCP." }] };
   const rejectedPath = await one.callTool({ name: "edit_staged_document", arguments: { ...editInput, path: original } });
   assert.equal(rejectedPath.isError, true);
   assert.equal(payload(rejectedPath).errorKind, "invalid_input", "MCP cannot supply a write path instead of the Host change ID");

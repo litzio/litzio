@@ -1187,6 +1187,26 @@ folder isolation, permission hints, cancellation and endpoint rotation. Two real
 Auto prompts: the first discovered tools but host_policy denied them; the second
 completed list_documents and read_document with shell denied. Those two probes used a direct createServer → MCP handler and did not test the daemon Host/Origin gate. Review found missing Origin headers; before fixing them, a new real startHttpHost regression reproduced 403 Request origin is not allowed. It now uses the exact ACP-supplied headers to discover and invoke read_document in an admitted active turn, while missing/foreign Origins remain refused. A follow-up real Copilot Auto prompt through startHttpHost completed list_documents and read_document and returned Daemon MCP probe, with shell denied and built-in MCPs no longer disabled. This used one additional prompt. Small localhost reads do not establish long sessions, remote Hosts or real plugin/image workflows.
 
+#1547 verification (2026-11-12): Copilot CLI 1.0.109 Auto over the real daemon
+received the `litzio_host` HTTP configuration and discovered the staged-document tools.
+The reported complete tool refusal was not reproduced on this head. The baseline
+created and inspected a pending copy, but guessed unsupported text replacement
+options four times before succeeding. The shared edit-tool description now supplies
+an executable `update-node-text` example with `path`, exact current `from` text and
+`to` replacement, available to both providers without a shell. The existing fake ACP
+and HTTP MCP regression executes that published example through the copy-only path.
+A second real Auto prompt completed stage/inspect/edit without failed tool calls;
+the saved original stayed byte-identical and the pending copy contained the requested
+paragraph. After Host restart, real session/load received the new HTTP endpoint and
+Origin header. Two prompts total; no reasoning-effort option was advertised by Auto.
+These small localhost checks do not establish long sessions, remote Hosts or managed
+organization policies. HTTP MCP and server-scoped tool permission are standard
+[Copilot CLI capabilities](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers);
+[ACP session setup](https://agentclientprotocol.com/protocol/session-setup) supplies
+MCP servers on both new and load. No additional trust/allowlist setting was needed
+in this run; managed allowlists still apply when configured by an organization.
+
+
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
 Read/search inside the opened folders and Host roots is automatic. Opened-folders
