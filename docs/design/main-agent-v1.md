@@ -1964,7 +1964,7 @@ separates account quota windows/reset times from an agent's token use and caches
 Host reads. Litzio reuses that distinction with a shorter 60-second cache and keeps
 its existing Settings wording. Codex's [account protocol source](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs)
 defines the rate-limit read and update payloads; the current Copilot ACP connection
-only supplies models/modes/effort and session events, not account quota diagnostics.
+supplies session usage events as described below, but no account quota diagnostics.
 
 Common implementation: the existing ring, shared Base UI Tooltip and current
 foreground/background, border and spacing tokens. No new surface, persistent chrome,
@@ -1991,6 +1991,38 @@ Manual native crops (1440/640px, English, 100% zoom, light/dark, synthetic accou
 Host labels and paths; all account values use `example.invalid` fixtures.
 [Capture metadata and image hashes](assets/assistant-usage-1446/capture-metadata.json)
 record the baseline and fixture conditions.
+
+## Copilot context and session usage (#1581)
+
+Copilot ACP `usage_update.used/size` supplies current context tokens and the window
+size to the existing ring. Optional `cost` is cumulative session cost, displayed
+under **This conversation** with the provider's amount and currency unchanged.
+The latest `session/prompt` usage is projected into the same conversation snapshot
+and shown as **Latest reported usage** (total/input/output tokens), without summing
+or treating it as context occupancy. ACP's prompt/session accumulation wording is
+ambiguous ([protocol issue #1860](https://github.com/agentclientprotocol/agent-client-protocol/issues/1860));
+Litzio neither computes turn deltas nor claims a cumulative total from one response.
+Missing fields retain the existing unknown-context ring and unavailable session
+usage. Account limits are explicitly unavailable; no extra API or interactive
+`/usage` or `/context` command is used. Usage is conversation-owned, retained during
+in-memory resume like Codex token usage, with no new durable store.
+
+Actual check: Copilot CLI 1.0.109, ACP initialization/catalog and one short Auto
+prompt completed. `usage_update` contained used/size, and prompt usage contained
+total/input/output/thought/cache token fields. Neither observed session config nor
+notifications supplied session Credits, cost or account quota; no claim is made
+about values in unobserved versions. SDK 0.17.1 defines optional cumulative cost.
+Fake ACP tests cover optional cost and prompt usage, repeated reports without
+addition, resume retention and absence. The existing assistant browser scenario
+checks the Copilot ring/hover and absence of account RPCs. UI reuses the existing
+ring, Base UI Tooltip, max-w-md, typography and surface tokens, without exceptions.
+
+Manual synthetic-data crops from a 1440px Korean viewport:
+[Light](assets/copilot-usage-1581/after-1440-light.png) /
+[Dark](assets/copilot-usage-1581/after-1440-dark.png). Both were visually inspected
+for alignment, clipping and wrapping; no real account values appear.
+[Capture procedure](assets/copilot-usage-1581/capture.browser.js) uses the existing
+persistent browser runner separately from the regression.
 
 ## Business account usage (#1453)
 

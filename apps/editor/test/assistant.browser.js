@@ -243,6 +243,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         if (!body.id) { selected = { provider: body.provider ?? settings.provider, permissionMode: body.permissionMode ?? settings.permissionMode, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
           updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
         else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
+        if (body.message === 'After provider switch') { selected.tokenUsage = { used: 15000, limit: 200000 }; selected.copilotUsage = { cost: { amount: 0.25, currency: 'USD' }, prompt: { totalTokens: 14000, inputTokens: 13995, outputTokens: 5 } }; }
         if (body.message === 'After provider switch') selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: [] };
         if (body.message === 'Recover supported model') {
           selected.model = body.model; selected.reasoningEffort = 'max';
@@ -260,7 +261,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
         else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: body.message ? 'Direction updated: focus on the unsaved paragraph.' : 'File reference received.' });
         if (body.message === 'Prompt lost before provider record' && promptReject) turn.unrecordedPrompt = true;
-        selected.tokenUsage = { used: 810, limit: 1000 };
+        selected.tokenUsage = selected.provider === "copilot" ? { used: 15000, limit: 200000 } : { used: 810, limit: 1000 };
       }
       if (body.action === 'answer') { submittedAnswers.push(body); await answerGate; delete selected.userInput; }
       if (body.action === 'interrupt') selected.turns.at(-1).status = 'interrupted';
@@ -1210,6 +1211,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).toBeVisible();
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).not.toContainText('Account');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('15,000 / 200,000');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Session cost: 0.25 USD');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Latest reported usage: 14,000');
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Copilot does not provide account limit information.');
   expect(summaryReads).toBe(readsBeforeCopilot);
   await page.mouse.move(0, 0);
   await expect(panel.getByRole('alert')).toHaveCount(0);

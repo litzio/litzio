@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ASSISTANT, type AiProvider, type AssistantAccountUsage } from "../../shared/assistant.ts";
+import { ASSISTANT, type AiProvider, type AssistantConversation, type AssistantAccountUsage } from "../../shared/assistant.ts";
 import { AssistantAccount, AssistantRateLimits } from "../AssistantAccountUsage.tsx";
 import { createAssistantRequest } from "../assistant-api.ts";
 import { useHostClient } from "../host-context.tsx";
 import { i18n } from "../i18n.ts";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 
-export function AssistantUsageTooltip({ provider, active, context, children }: { provider: AiProvider; active: boolean; context: string; children: ReactNode }) {
+export function AssistantUsageTooltip({ provider, active, context, copilotUsage, children }: { provider: AiProvider; active: boolean; context: string; copilotUsage?: AssistantConversation["copilotUsage"]; children: ReactNode }) {
   const client = useHostClient();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState<AssistantAccountUsage>();
@@ -33,6 +33,13 @@ export function AssistantUsageTooltip({ provider, active, context, children }: {
     <TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>{children}</TooltipTrigger>
     <TooltipContent className="max-w-md"><div className="min-w-0 break-words">
       <p>{context}</p>
+      {provider === "copilot" ? <div className="mt-2 border-t border-current/20 pt-2">
+        <strong>{i18n.t("This conversation")}</strong>
+        {copilotUsage?.cost ? <p>{i18n.t("Session cost")}: {String(copilotUsage.cost.amount)} {copilotUsage.cost.currency}</p> : null}
+        {copilotUsage?.prompt ? <p>{i18n.t("Latest reported usage")}: {copilotUsage.prompt.totalTokens.toLocaleString()} {i18n.t("tokens")} ({i18n.t("Input tokens")}: {copilotUsage.prompt.inputTokens.toLocaleString()}, {i18n.t("Output tokens")}: {copilotUsage.prompt.outputTokens.toLocaleString()})</p> : null}
+        {!copilotUsage?.cost && !copilotUsage?.prompt ? <p>{i18n.t("Unavailable")}</p> : null}
+        <p className="mt-2">{i18n.t("Copilot does not provide account limit information.")}</p>
+      </div> : null}
       {provider === "codex" ? <div className="mt-2 border-t border-current/20 pt-2">
         <strong>{i18n.t("Account")}</strong>
         <p className="break-all">{value ? <AssistantAccount value={value} /> : i18n.t(failed ? "Unavailable" : "Loading…")}</p>

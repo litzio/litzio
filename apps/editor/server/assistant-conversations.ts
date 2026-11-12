@@ -285,7 +285,7 @@ export class AssistantConversations {
     if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
     if (info.provider === "copilot" && this.loaded.has(id)) return this.current(id);
     const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
-      tokenUsage: this.conversations.get(id)?.tokenUsage };
+      tokenUsage: this.conversations.get(id)?.tokenUsage, copilotUsage: this.conversations.get(id)?.copilotUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
     if (info.provider === "copilot") {
@@ -598,6 +598,10 @@ export class AssistantConversations {
         // Turn completion failure does not revoke admission.
       };
       void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUse request_litzio_user_input through the Litzio Host MCP server for structured questions. Native ACP question extensions are not supported.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
+        if (result.usage) {
+          const { totalTokens, inputTokens, outputTokens, thoughtTokens, cachedReadTokens, cachedWriteTokens } = result.usage;
+          conversation!.copilotUsage = { ...conversation!.copilotUsage, prompt: { totalTokens, inputTokens, outputTokens, thoughtTokens, cachedReadTokens, cachedWriteTokens } };
+        }
         if (turn.status === "inProgress") {
           turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
           if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
@@ -662,6 +666,11 @@ export class AssistantConversations {
   }
   private copilotUpdate({ sessionId, update }: SessionNotification) {
     const conversation = this.conversations.get(sessionId); if (!conversation || conversation.provider !== "copilot") return;
+    if (update.sessionUpdate === "usage_update") {
+      conversation.tokenUsage = { used: update.used, limit: update.size };
+      if (update.cost) conversation.copilotUsage = { ...conversation.copilotUsage, cost: { amount: update.cost.amount, currency: update.cost.currency } };
+      return;
+    }
     if (update.sessionUpdate === "config_option_update" || update.sessionUpdate === "current_mode_update") {
       const session = this.connection.copilot.sessions.get(sessionId);
       if (session) { conversation.copilot = copilotOptions(session); conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort; }
