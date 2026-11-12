@@ -33,6 +33,7 @@ export type AssistantQuestionRecord = AssistantUserInput & {
 export type AssistantConversationTurn = { id: string; status: string; items: AssistantConversationItem[]; error?: string };
 export type AssistantConversation = AssistantConversationInfo & { turns: AssistantConversationTurn[]; userInput?: AssistantUserInput; model: string; reasoningEffort: string;
   copilot?: AiCopilotOptions;
+  copilotUsage?: { cost?: { amount: number; currency: string }; prompt?: { totalTokens: number; inputTokens: number; outputTokens: number; thoughtTokens?: number | null; cachedReadTokens?: number | null; cachedWriteTokens?: number | null } };
   tokenUsage?: { used: number; limit: number | null } };
 export type AssistantConversationInput = Pick<AssistantExecutionSettings, "model" | "reasoningEffort"> & { submissionId?: string; id?: string; message: string; references?: string[]; skills?: { name: string; path: string }[];
   /** Display identities only; checked against existing opened roots, never an access grant. */

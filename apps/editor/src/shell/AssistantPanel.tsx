@@ -660,7 +660,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       </div>
       <div className="assistant-footer">
 
-        <AssistantUsageTooltip provider={provider} active={open} context={usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}>
+        <AssistantUsageTooltip copilotUsage={conversation?.copilotUsage} provider={provider} active={open} context={usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </AssistantUsageTooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         <Tooltip><TooltipTrigger render={<Button type={showStop ? "button" : "submit"} variant={showStop ? "outline" : "default"} size="icon-sm" aria-label={composerAction}

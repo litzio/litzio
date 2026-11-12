@@ -1341,3 +1341,30 @@ test("PowerShell inventory warns only for Store-only installations", () => {
   assert.equal(onlyStorePowerShell([...store, "C:/Program Files/PowerShell/7/pwsh.exe"]), false);
   assert.equal(onlyStorePowerShell([]), false);
 });
+
+
+test("Copilot ACP usage stays on its conversation and survives in-memory resume without summing prompt reports", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1581-"));
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url))] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  t.after(async () => { await conversations.close(); await connection.close(); });
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "high" };
+  const input = { message: "USAGE FIXTURE", folders: [root], model: "auto", reasoningEffort: "high" };
+  const used = await conversations.send(input, settings);
+  const finished = async (value: typeof used) => {
+    for (let i = 0; i < 100 && value.turns.at(-1)?.status === "inProgress"; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(value.turns.at(-1)?.status, "completed");
+  };
+  await finished(used);
+  assert.deepEqual(used.tokenUsage, { used: 15000, limit: 200000 });
+  assert.deepEqual(used.copilotUsage, { cost: { amount: 0.25, currency: "USD" }, prompt: { totalTokens: 14000, inputTokens: 13995, outputTokens: 5, thoughtTokens: undefined, cachedReadTokens: undefined, cachedWriteTokens: undefined } });
+  const resumed = await conversations.resume(used.id, settings);
+  assert.deepEqual(resumed.tokenUsage, used.tokenUsage);
+  assert.deepEqual(resumed.copilotUsage, used.copilotUsage);
+  await finished(await conversations.send({ ...input, id: used.id }, settings));
+  assert.equal(conversations.current(used.id).copilotUsage?.prompt?.totalTokens, 14000);
+  const absent = await conversations.send({ ...input, message: "COMPLETE THIS TURN" }, settings);
+  await finished(absent);
+  assert.equal(absent.tokenUsage, undefined);
+  assert.equal(absent.copilotUsage, undefined);
+});

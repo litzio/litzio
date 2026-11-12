@@ -66,6 +66,10 @@ createInterface({ input: process.stdin }).on("line", line => {
       send({method:"session/update", params:{sessionId:params.sessionId,update:{sessionUpdate:"tool_call_update",toolCallId:"edit-fixture",status:"completed"}}});
       reply({stopReason:"end_turn"}); return;
     }
+    if (params.prompt[0].text.includes("USAGE FIXTURE")) {
+      send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "usage_update", used: 15000, size: 200000, cost: { amount: 0.25, currency: "USD" } } } });
+      reply({ stopReason: "end_turn", usage: { totalTokens: 14000, inputTokens: 13995, outputTokens: 5 } }); return;
+    }
     if (params.prompt[0].text.includes("FAIL THIS TURN")) { send({ id, error: { code: -32000, message: "Copilot quota fixture failure" } }); return; }
     if (params.prompt[0].text.includes("COMPLETE THIS TURN")) { reply({ stopReason: "end_turn" }); return; }
     pending = { id, sessionId: params.sessionId }; prompts.set(params.sessionId, pending);
