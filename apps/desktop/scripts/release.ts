@@ -6,14 +6,13 @@ import { appendFileSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type ReleaseMode = "verify" | "unsigned-beta" | "signed";
+export type ReleaseMode = "verify" | "unsigned" | "signed";
 const repository = `${brand.updates.repository.owner}/${brand.updates.repository.repo}`;
 const canonicalTag = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-beta\.(0|[1-9]\d*))?$/;
 
 export function releaseMode(mode: string, tag: string): ReleaseMode {
-  if (!["verify", "unsigned-beta", "signed"].includes(mode)) throw new Error("Unknown release mode");
+  if (!["verify", "unsigned", "signed"].includes(mode)) throw new Error("Unknown release mode");
   if (canonicalTag.exec(tag)?.[0] !== tag) throw new Error("Invalid release tag: expected vX.Y.Z[-beta.N]");
-  if (mode === "unsigned-beta" && !tag.includes("-beta.")) throw new Error("Unsigned publication is restricted to Beta tags");
   return mode as ReleaseMode;
 }
 
@@ -72,7 +71,7 @@ export function publishVerifiedRelease(options: { tag: string; mode: string; fil
   refuseExistingRelease(options.tag, api);
   const draft = api(`repos/${repository}/releases`, "POST", {
     tag_name: options.tag, name: `${brand.name.en} ${version}`, draft: true, prerelease: beta, make_latest: "false", generate_release_notes: true,
-    ...(mode === "unsigned-beta" ? { body: "Unsigned Windows Beta. Windows may show publisher or SmartScreen warnings. SHA-512 checks file integrity; it does not authenticate the publisher." } : {}),
+    ...(mode === "unsigned" ? { body: `Unsigned Windows ${beta ? "Beta" : "Stable"}. Windows may show publisher or SmartScreen warnings. SHA-512 checks file integrity; it does not authenticate the publisher.` } : {}),
   }) as Release;
   if (!Number.isSafeInteger(draft.id) || draft.id < 1) throw new Error("Draft creation returned no release ID; inspect GitHub before retrying");
   const endpoint = `repos/${repository}/releases/${draft.id}`;

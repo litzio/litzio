@@ -1,6 +1,7 @@
 # ADR-0004: Desktop Host & Distribution
 
 - Status: Accepted
+- Release policy amendment: 2026-11-12 — owner authorized unsigned Stable publication; signing remains mandatory for signed mode. Actual Stable publication/update not run.
 - Last verified: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
 - Previous verification: 2026-10-28 (unsigned v0.0.2-beta.1 release CI, anonymous asset hashes and withdrawal of v0.1.0-beta.1/v0.1.0-beta.2 Releases/assets/remote tags verified; actual GitHub 0.0.1-beta.4→0.0.2-beta.1 installation/update unverified; Stable unpublished; [record](../releases/v0.0.2-beta.1.md)).
 - Authority: architectural decision under [AGENTS.md](../../AGENTS.md). Related: [ADR-0002](0002-document-persistence-semantic-ownership.md) · [Filesystem Host boundary](../design/filesystem-host-boundary-v1.md) · [Desktop distribution](../design/desktop-distribution-v1.md) · historical evidence [Desktop shell spike](../reviews/desktop-shell-spike-v1.md)
@@ -29,7 +30,7 @@ Litzio는 다음을 채택한다.
 - **배포**: electron-builder의 per-user NSIS installer(x64)를 기본 배포 형식으로 한다. Portable exe는 공식 배포하지 않는다. 제품 식별자는 [#859 브랜드 결정](../guides/branding.md)에 따라 설정에서 정한다. 공식 기본값은 앱 ID `io.github.litzio.litzio`, 표시 이름 `Litzio`, 사용자 데이터 `%APPDATA%\litzio`이며 과거 Beta 데이터 이전은 하지 않는다.
 - **업데이트**: electron-updater의 GitHub provider와 GitHub Releases를 쓴다. 채널은 Stable과 Beta 둘이며 같은 앱의 사용자 설정이다. 최초 실행 기본값은 설치 버전에 따라 Stable 또는 Beta이며, 저장된 유효한 사용자 선택을 우선한다. Stable은 GitHub의 정식 최신 Release만, Beta는 Beta와 Stable을 함께 받는다. 설치된 버전보다 낮은 버전으로는 채널을 바꿔도 내려가지 않는다.
 - **설치 승인**: 업데이트 확인은 자동이지만 다운로드와 설치는 사용자가 각각 승인한다. 일반 종료는 설치 승인이 아니다. 설치를 위한 재시작은 Editor가 미저장 작업이 없다고 답하고 창이 정상적으로 닫힌 뒤에만 시작한다.
-- **릴리즈**: GitHub Actions가 Windows에서 빌드·검증한다. Beta는 검증된 unsigned installer를 신뢰할 수 있는 master 이력의 기존 `vX.Y.Z-beta.N` tag에 GitHub Prerelease로 게시할 수 있다. 소유자가 승인한 릴리스는 master에서 workflow를 수동 실행하며, 검증 성공 후 별도 environment 승인 없이 게시한다(2026-10-28 소유자 결정; 종전 required reviewer 승인 단계를 대체). `master` 배포 제한은 유지한다. 서명되지 않았고 Windows 경고가 나타날 수 있음을 알린다. Stable 공개와 Signed 모드는 Authenticode 서명을 요구한다. 게시 권한과 실제 환경 보호 규칙은 [Desktop contract](../design/desktop-distribution-v1.md)를 따른다.
+- **릴리즈**: GitHub Actions가 Windows에서 빌드·검증한다. Beta는 검증된 unsigned installer를 신뢰할 수 있는 master 이력의 기존 `vX.Y.Z-beta.N` tag에 GitHub Prerelease로 게시할 수 있다. 소유자가 승인한 릴리스는 master에서 workflow를 수동 실행하며, 검증 성공 후 별도 environment 승인 없이 게시한다(2026-10-28 소유자 결정; 종전 required reviewer 승인 단계를 대체). `master` 배포 제한은 유지한다. 서명되지 않았고 Windows 경고가 나타날 수 있음을 알린다. 2026-11-12 소유자 결정으로 Stable도 기존 `vX.Y.Z` tag에 unsigned로 게시할 수 있다. Stable은 `prerelease=false`, `make_latest=true`, `latest.yml`을 유지하고 첫 줄 unsigned 경고를 표시한다. Signed 모드만 Authenticode 서명을 요구한다. 게시 권한과 실제 환경 보호 규칙은 [Desktop contract](../design/desktop-distribution-v1.md)를 따른다.
 
 ## Rationale
 
@@ -43,7 +44,7 @@ electron-updater의 GitHub provider는 Stable에서 GitHub의 `releases/latest`�
 
 - `apps/editor/server`는 더 이상 개발 전용 adapter가 아니다. 변경은 Vite dev server와 Desktop Host 모두에서 동작해야 하며, Vite 전용 기능에 의존할 수 없다.
 - Electron과 Chromium의 보안 업데이트를 따라 주기적으로 다시 빌드·배포해야 한다.
-- 서명된 릴리즈에는 코드 서명 인증서와 GitHub Actions secret이 필요하다. Beta는 이 준비 없이 unsigned installer로 공개할 수 있으며, 배포자 서명 검증을 제공한다고 주장하지 않는다. Windows 경고·실행 차단 정책과 파일의 서명 상태를 구분하여 알린다.
+- 서명된 릴리즈에는 코드 서명 인증서와 GitHub Actions secret이 필요하다. Stable과 Beta는 이 준비 없이 unsigned installer로 공개할 수 있으며, 배포자 서명 검증을 제공한다고 주장하지 않는다. Windows 경고·실행 차단 정책과 파일의 서명 상태를 구분하여 알린다.
 - Desktop 전용 UI(Settings → About, 업데이트 알림)는 Desktop bridge가 있을 때만 나타나며, 브라우저 Editor의 화면과 동작은 바뀌지 않는다.
 - 첫 문서는 명령줄의 `.md` 또는 `.txt` 인자가 있을 때만 (#817 텍스트 모드) 바로 연다. 인자가 없으면 문서 없이 시작하며, 폴더를 선택하고 Sidebar에서 파일을 고르거나 사용자 요청으로 sample 사본을 연다([시작 계약](../design/editor-ux-shell-v1.md#start-without-a-document-174), #174/#190). sample 자동 열기 설명은 #174 이전 동작이 남은 문서 drift이므로 현행 계약에 맞춘다. Workspace, recent document, 파일 연결(file association)은 이 결정에 포함하지 않는다.
 
