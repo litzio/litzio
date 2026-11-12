@@ -74,6 +74,9 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await page.keyboard.press('Escape'); await expect(comparison).toBeHidden();
   await editRows.first().getByRole('button', { name: 'Undo change', exact: true }).click();
   await expect.poll(() => editUndos).toBe(1);
+  // The Undo request precedes the tab Reload and its dialog's final focus.
+  // Wait for that handoff before starting the result-card keyboard interaction.
+  await expect(page.getByRole('button', { name: 'File actions', exact: true })).toBeFocused();
   const pathLabel = cards.first().locator('[data-slot="tooltip-trigger"]');
   await expect(pathLabel).toHaveText('a.md');
   await expect(pathLabel).toHaveAttribute('aria-label', paths[0]);

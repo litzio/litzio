@@ -752,6 +752,8 @@ On an external revision, clean native and text tabs automatically use the existi
 path (#1565 decision 2). Unsaved content, unapplied property drafts or pending operations
 (including Save) prevent automatic replacement. The live unsaved state is checked again
 before accepting the read, so input arriving after detection or during the read is retained.
+A missing path (null revision, including rename/delete detection) retains the open document
+and uses the existing Reload/Compare notification without an automatic document read.
 Reload failure uses the existing failure display and retains the open document.
 
 For tabs with local work, a notification offers Reload from disk and Compare with disk. Native comparison reuses

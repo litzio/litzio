@@ -523,7 +523,9 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
   const digest = createHash("sha256").update(readFileSync(oldSetup)).digest("hex");
   assert.equal(digest, "7271f9bd7c22ee3da5bcfe4cbfc263d6e1ddf77ef51819204f065786efee1e4c", "the exact public 0.0.2 Stable installer, not a rebuilt version");
   console.log(`verified public v${published}: SHA-256 ${digest}`);
-  const candidate = path.join(packageVersion(NEW), `${brand.executableName}-Setup-${NEW}.exe`);
+  const candidateBuild = packageVersion(NEW);
+  const candidate = path.join(candidateBuild, `${brand.executableName}-Setup-${NEW}.exe`);
+  const server = releases(candidateBuild, []);
   const install = path.join(work, "published-stable-install");
   const documentFile = path.join(work, "published-stable.md");
   const bytes = "---\nlitzio: 1\n---\n\n# Published update\n\nPreserve this document.\n";
@@ -533,6 +535,10 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
   let ownsInstallation = false;
   let oldApp: Awaited<ReturnType<typeof electron.launch>> | undefined;
   try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(47320, "127.0.0.1", resolve);
+    });
     requireCleanUser();
     const initial = spawnSync(oldSetup, ["/S", `/D=${install}`], { timeout: 60_000, encoding: "utf8" });
     assert.ifError(initial.error); assert.equal(initial.status, 0);
@@ -548,11 +554,17 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     await page.getByRole("button", { name: /^Settings/ }).click();
     await page.getByRole("button", { name: "About & updates", exact: true }).click();
     assert.equal(await page.getByTestId("app-version").innerText(), published);
+    assert.equal(await page.getByRole("radio", { name: /^Stable/ }).isChecked(), true, "public Stable starts on Stable");
+    // A Stable user opts into Beta before installing a Beta candidate.
+    await page.getByRole("radio", { name: /^Beta/ }).check();
+    assert.equal(await page.getByRole("radio", { name: /^Beta/ }).isChecked(), true);
+    await page.waitForFunction(() => window.litzioDesktop?.info().then(info => info.channel === "beta"));
     await oldApp.close(); oldApp = undefined;
     const canary = path.join(appData, "published-update-canary.txt");
     writeFileSync(canary, "Preserve existing 0.0.2 Stable user data.\n");
     const preferencesFile = path.join(appData, "preferences.json");
     const preferences = readPreferences(preferencesFile, published);
+    assert.equal(preferences.channel, "beta", "the user's Beta choice was persisted by the public app");
     // Same NSIS command-line transaction used by electron-updater; updater UI/dirty guards
     // remain in the existing two cases. No app-update config or old ASAR is modified.
     const updated = spawnSync(candidate, ["--updated", "/S", "--force-run"], { timeout: 60_000, encoding: "utf8" });
@@ -560,11 +572,11 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     assert.equal(updated.status, 0, "public 0.0.2 Stable -> candidate NSIS update must succeed");
     const log = path.join(appData, "logs/desktop.log");
     const deadline = Date.now() + 30_000;
-    while (!(readDaemonRecord(daemonDirectory("stable"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
+    while (!(readDaemonRecord(daemonDirectory("beta"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
       if (Date.now() >= deadline) throw new Error(`Updated 0.0.2 Stable app/daemon did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    desktopRecord("stable", NEW);
+    desktopRecord("beta", NEW);
     assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), NEW);
     assert.equal(readFileSync(documentFile, "utf8"), bytes);
     assert.equal(readFileSync(canary, "utf8"), "Preserve existing 0.0.2 Stable user data.\n");
@@ -572,17 +584,19 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     assert.deepEqual((await environment.read()).user, originalPath, "first update does not opt in to CLI/PATH");
     console.log(`public 0.0.2 Stable -> ${NEW}: installed, launched and preserved data`);
   } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
     await oldApp?.close();
     if (ownsInstallation) {
       const exe = path.join(install, `${brand.executableName}.exe`);
       const helper = path.join(install, "resources/prepare-installation.cjs");
       if (existsSync(helper)) {
-        const record = readDaemonRecord(daemonDirectory("stable"));
+        const record = readDaemonRecord(daemonDirectory("beta"));
         const report = path.join(work, "published-cleanup.txt");
         const result = spawnSync(exe, [helper, "--prepare-installation", report], { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8" });
         assert.equal(result.status, 0, existsSync(report) ? readFileSync(report, "utf16le") : result.stderr);
         if (record) assertExited(record);
         assertNoDiscovery("stable");
+        assertNoDiscovery("beta");
       }
       const removal = path.join(work, "published-stable-uninstall.exe");
       copyFileSync(path.join(install, `Uninstall ${brand.executableName}.exe`), removal);

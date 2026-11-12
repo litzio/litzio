@@ -162,8 +162,11 @@ withdrawn for CVE-2026-111497. For the 0.0.3-beta.1 candidate it advances to the
 0.0.2 Stable. Its pinned SHA-256 is
 `7271f9bd7c22ee3da5bcfe4cbfc263d6e1ddf77ef51819204f065786efee1e4c`, matching the
 [Stable release record](../releases/v0.0.2.md) and GitHub asset digest.
-Stable includes the lifecycle helper and Desktop-owned daemon; the test preserves its saved
-Stable channel, so the candidate daemon also runs on Stable. This case proves public-installer-to-candidate
+Stable includes the lifecycle helper and Desktop-owned daemon. The test checks its default
+Stable selection, selects Beta through Settings and verifies that choice is persisted before
+the candidate installation. A local candidate feed remains available for its automatic checks.
+The candidate uses the Beta daemon namespace determined by its build version, independently
+of the saved updater channel; both daemon namespaces must be absent after cleanup. This case proves public-installer-to-candidate
 updates and preservation, not the original helperless first update.
 The existing live uninstall case removes the installed helper and checks the embedded payload;
 it does not replace helperless update coverage. A separate controlled helperless update fixture
