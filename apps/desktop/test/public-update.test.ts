@@ -12,7 +12,7 @@ import { readUpdateInfo } from "../scripts/verify-release.ts";
 test("published update starting installer verifies GitHub digest, size and update SHA-512", async () => {
   const file = new URL("./packaged/update.e2e.ts", import.meta.url);
   const require = createRequire(file);
-  const version = "0.0.2-beta.6", installer = `${brand.executableName}-Setup-${version}.exe`;
+  const version = "0.0.2-beta.10", installer = `${brand.executableName}-Setup-${version}.exe`;
   const executable = Buffer.from("published installer fixture");
   const sha512 = createHash("sha512").update(executable).digest("base64");
   for (const fault of ["none", "digest", "size", "sha512"] as const) {
