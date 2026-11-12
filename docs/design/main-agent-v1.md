@@ -1068,7 +1068,7 @@ layout remains unchanged. Current ordinary-Send view behavior follows the
 
 Removable chips above the input show only file names; shared Tooltip exposes the
 full path on hover/focus. No file-type-specific presentation or read indicator is
-used. New conversation clears the draft. Sending snapshots the draft into a message row; confirmed rejection retains that row with explicit restoration (see #1417 below). A reference-only
+used. New conversation clears the draft. Sending snapshots the draft into a message row; confirmed rejection retains that row with explicit Retry (see #1417 below). A reference-only
 message is valid, including steering an active turn.
 
 Host checks both opened-folder RootAccess and its own access policy. Each relative
@@ -1563,124 +1563,50 @@ Host conversation operation, not a new document semantic operation or CLI comman
 User items expose `submissionId`: Codex carries it in the Host context envelope and
 restores it from both notifications and CLI-owned resumed history; Copilot assigns it
 to its Host user item and includes it in the prompt context for history restoration.
-User items also expose `userMessageSource`: `host` is a Copilot row created before
-prompt dispatch; `provider-live` is a provider event/RPC item; `provider-history`
-is a user message reconstructed by a successfully completed history read.
-Codex sets `provider-history` only from `thread/turns/list` during resume, not from
-live notifications or turn/start results. Copilot sets it only after successful
-ACP loadSession replay, not from the locally created user row or prompt completion.
-Missing source metadata is not preservation proof. A live row or successful prompt
-alone never transfers ownership of the App's only copy to provider history.
-Only the ID connects temporary and observed user rows; equal text never merges them.
-The application hides the temporary row when the observed item has the same ID,
-regardless of whether provider observation/query or POST response arrives first.
+User items expose `userMessageSource` for diagnostics; it is not a preservation gate.
+Only the submission ID correlates temporary and provider rows; equal text never merges them.
+A correlated user row retires the local row immediately, including a Host-created Copilot row.
+Accepted receipts show the submitted message immediately even before the provider row arrives (#1526).
+Provider history owns subsequent replay; turn completion failure is displayed on the turn and does
+not revoke submission admission or require keeping a second local transcript.
 
-Host receipts distinguish pending, accepted, rejected and unknown. Validation/setup
-errors before dispatch to turn/start, turn/steer or ACP prompt are definite rejection.
-An error after dispatch is unknown unless a provider user item or successful RPC
-proves admission. Admission is separate from preservation in provider history.
-A Copilot prompt error marks its receipt unknown with `turnFailed:true`, including
-when resume later omits the Host-created row. Known failed replayed turns keep that
-failure status. The App retains failure knowledge even if a subsequent query only
-reports admission. A turn failure is never presented as a pre-admission rejection.
-The application's send transport ends after 120 seconds; timeout, connection loss and
-unstructured HTTP errors leave **Needs confirmation**, never **Failed**. It never
-resends automatically. **Check conversation** queries the submission and snapshot.
-A Host receipt not found after restart also stays unknown; absence is not rejection.
+Host receipts distinguish pending, accepted, rejected and unknown. Pre-dispatch validation/setup
+failure is rejected and can be retried explicitly with the same ID after correcting settings.
+Already-dispatched IDs (pending, accepted or unknown) return their existing result; retry never
+calls the provider again. Concurrent duplicate requests share the original promise. No request
+is automatically replayed. The send transport waits up to 10 seconds for admission, independently
+of the provider turn's lifetime. Connection loss and timeout retain the message and a Retry button;
+Retry submits that same ID to reconcile the result. There is no Restore to input or Check
+conversation workflow. A separate composer draft and its references survive Retry and Discard.
+The existing snapshot poll observes active turns; only pending submissions need receipt polling.
 
-The Host retains the first submission record for each submission ID in the `AssistantConversations`
-instance for the daemon lifetime, registering synchronously before validation. Concurrent
-and later sends with that ID reuse its current receipt and never call the provider again; the
-first payload owns the ID, so clients must create a fresh ID for a changed message.
-This bounded scope is not durable idempotency or an exactly-once guarantee across Host
-restart, different Hosts, different IDs or direct provider calls. Receipts are memory
-only; Litzio still persists only its conversation index, with content owned by CLIs.
+Local rows belong to the target Host, provider and conversation. A first send without a conversation
+ID remains in that new-conversation scope only until a receipt identifies its owner (#1551).
+New conversation, provider changes and history selection invalidate earlier poll updates and hide
+other owners' rows. Closing/reopening the panel or switching Hosts retains App memory. Page reload,
+App unmount and Host restart do not provide durable submission recovery or cross-restart ID deduplication.
 
-Message-local **Failed** rows remain visible with **Restore to input**. Restoration
-is disabled when the current draft has any text or reference, protecting new work.
-Accepted receipts show the ordinary user message immediately, without recovery actions, even before its correlated provider row arrives. Admission does not retire the protected local copy or prove provider-history preservation. Known failed turns still expose recovery actions.
-Unknown/unconfirmed rows retain **Check conversation**, **Restore to input** and
-the available error; failed turns expose these actions beside their user message
-as well as after resume. Restoration only fills a draft and never sends it.
-The restored draft carries an explicit ID lineage. Once its new submission is
-admitted without a known turn failure, the original rejected/uncertain copies are
-removed; the replacement copy remains protected until provider-history proof.
-Rejected replacement attempts retain the lineage for a later successful restoration.
-Manually clearing the draft or changing scope detaches this restoration intent.
-Clearing is judged after automatic skill-chip removal: empty text with no remaining
-references detaches the lineage even when deleting the final skill token removed
-the last chip.
-**Discard message** explicitly removes one local copy without cancelling provider
-work or resending. It preserves any new draft and invalidates pending queries for
-that view so they cannot resurrect the discarded local row. There is no silent
-capacity eviction of unresolved input. These actions let users retire rejected or
-uncertain copies instead of accumulating them for the entire App lifetime.
-The shared Button (outline/sm for recovery, ghost/sm for discard), Tooltip and existing transcript/surface tokens implement
-these actions; longer action help is in keyboard-accessible tooltips. The existing
-assistant side panel is the selected surface from the UI decision table; no new panel,
-notification, dialog or common interaction is introduced.
+New conversation and history navigation are available while a response runs. They do not interrupt
+it. Codex supports steer on the active turn. ACP has no steer operation, so Copilot active-prompt
+submission remains disabled; after completion the same composer sends the next prompt. Provider
+selection remains tied to its conversation; model, effort, permission and mode changes stay locked
+while running because those changes cannot be applied to the admitted turn. Deleting an active
+conversation and applying/discarding copies retain their existing guards. Host selection never
+silently changes and document revision checks are unchanged.
 
-Visible-panel, visible-tab nonoverlapping polling (100ms target during running work or a pending send; 600ms idle) continues during a pending
-send and queries unresolved submissions as well as conversation snapshots. Closing
-or refreshing the panel invalidates outstanding response handlers without cancelling
-the Host turn; reopening reconciles retained submission rows and preserves the new
-draft. App memory owns the submitted text, references and receipt, keyed by Host,
-provider and the conversation selected at submission. A first submission without a
-conversation ID belongs to that Host/provider's new-conversation scope; its receipt
-can subsequently identify the conversation. Once a receipt identifies it, the local
-submission is owned by that conversation, including while provider-history proof is
-still missing. New conversation must not observe that row as a new first send or
-restore its conversation via receipt lookup (#1548). The existing scope invalidation
-continues to reject earlier in-flight poll responses. Provider changes, New conversation and
-explicit history selection invalidate late screen updates and hide rows outside the
-selected scope without deleting their content. Returning to the original provider's
-new-conversation scope or the original conversation restores unresolved/rejected rows
-and their Check conversation/Restore to input actions. Failed provider lookup does
-not discard them. Closing/reopening the panel, or selecting another Host, retains
-this App-owned memory. Automatic cleanup requires a correlated `provider-history`
-user item in a non-running, non-failed turn, with no known turn failure on the local
-receipt. Failed/uncertain copies are retained until proof resolves uncertainty or
-the user explicitly restores/discards them; merely observing the Host's Copilot row
-never retires a copy. Successful live turns remain protected until history replay
-confirms preservation. A new draft is never overwritten,
-and none of these navigation/recovery actions automatically resends a message.
-There is no new persistent store: page reload, app restart or App unmount loses this
-memory, so unresolved submissions cannot be recovered locally across those boundaries.
-Existing Codex steer, interruption, model/provider locks and daemon lifetime remain unchanged.
+Verification (#1542, first PR): existing Host/provider tests protect concurrent duplicate IDs,
+explicit retry after pre-dispatch rejection, uncertain retry without a second provider call, steer,
+and admission independent of turn failure/history replay. The existing browser scenario covers
+Retry with a separate draft, active-turn New conversation/history navigation and #1551 isolation.
+These are fixture checks; live provider results are recorded in the PR. Screen relay, display and
+attachment simplification remain the second PR scope of #1542.
 
-Verification extends existing assistant fake Host/browser scenarios and Host/stdio
-tests. The delayed-row browser assertion and missing Host receipt assertion failed
-before implementation. Cases cover first send, steer/reference-only input, one row
-after observation before the POST reply, confirmed rejection/restoration with a new
-draft, unknown first-send acknowledgement, query recovery without retransmission,
-provider choices and panel reopen. Review follow-up additionally covers a rejected
-row surviving history reselection with a new draft, and an uncertain first message
-with references surviving provider unavailability, a delayed old receipt, return
-to its provider and panel reopening, then recovery without retransmission. The
-Copilot prompt-failure case admits a Host row, fails before provider recording,
-resumes without that row and verifies retained text/references/recovery actions,
-new-draft protection, explicit restoration and retirement of the original on new
-admission. Discard preserves a new draft. Host tests separately verify Host versus
-live/history source metadata and an uncertain receipt after a missing replay. Host cases
-cover duplicate IDs, event-before-RPC,
-uncertain RPC failure and both providers. These are synthetic fixtures, not real
-provider latency, model entitlement or user-perceived performance measurements.
+Current manual self-review: [Retry at 1440px](assets/assistant-relay-1542/retry-1440.png),
+English Light, persistent Chrome fixture. Uses existing inline outline/ghost sm Buttons;
+no new surface, geometry or visual exception. This is not owner visual approval.
 
-
-Visual evidence uses the persistent Chrome runner with a held send response and
-synthetic message/provider failure, at 1440×1000 English Light and 640×1000 Korean
-Dark, 100% zoom. Images are native panel crops so unrelated OS-account labels are
-excluded. [1440 Before](assets/assistant-send-1417/before-1440.png) /
-[After](assets/assistant-send-1417/after-1440.png),
-[640 Before](assets/assistant-send-1417/before-640.png) /
-[After](assets/assistant-send-1417/after-640.png),
-[1440 rejection](assets/assistant-send-1417/after-1440-rejected.png) /
-[640 rejection](assets/assistant-send-1417/after-640-rejected.png).
-The same [manual capture procedure](assets/assistant-send-1417/capture.browser.js)
-uses the baseline panel for Before and the implementation for After; it is outside
-the stable suite and does not add screenshot-only CI traversal. Text, controls and
-message-local actions remain within the panel at both widths. These captures show
-fixture behavior and layout, not real model speed or a manual owner approval.
+Earlier #1417 captures are historical: [1440 Before](assets/assistant-send-1417/before-1440.png) /
+[After](assets/assistant-send-1417/after-1440.png). Their restoration controls have been replaced.
 
 
 ## Assistant button status (#1424)
@@ -1698,7 +1624,7 @@ existing panel actions. Provider approvals use the existing question-card histor
 Conversation snapshots and #1417 submission receipts remain the source of truth.
 Closing the panel neither invalidates an in-flight send nor creates another poller.
 The same nonoverlapping observer (100ms target for running work/pending sends, 600ms idle) continues for running work, questions and
-unresolved submissions while the browser tab is visible and initial setup has admitted the work. Idle
+pending submissions while the browser tab is visible and initial setup has admitted the work. Rejected/unknown submissions wait for explicit Retry. Idle
 closed conversations stop polling. Hidden tabs and failed/incomplete setup still
 pause it. Closing a setup refresh retains observation of already-admitted work.
 Closed-panel observation omits `displayClient` and never applies display

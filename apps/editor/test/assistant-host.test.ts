@@ -290,15 +290,20 @@ test("submission IDs survive event-before-response, duplicate sends and uncertai
   assert.equal((await host.invoke("assistantConversations", { submissionId: input.submissionId })).conversation.id, id);
   const rejected = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-rejected", reasoningEffort: "invalid" });
   assert.equal(rejected.submission.status, "rejected");
+  const retried = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-rejected" });
+  assert.equal(retried.submission.status, "accepted", "a pre-dispatch rejection can be retried explicitly");
   const original = agent.client.request.bind(agent.client);
+  let attempts = 0;
   t.mock.method(agent.client, "request", async (method: string, params: any) => {
-    if (method === "turn/steer") throw new Error("Response lost");
+    if (method === "turn/steer") { attempts++; throw new Error("Response lost"); }
     return original(method, params);
   });
   const uncertain = await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-uncertain" });
   assert.equal(uncertain.submission.status, "unknown");
   assert.equal((await host.invoke("assistantConversations", { submissionId: "submission-uncertain" })).submission.status, "unknown");
   assert.equal((await host.invoke("assistantConversations", { submissionId: "not-seen" })).submission.status, "unknown");
+  await host.invoke("assistantConversation", { ...input, id, submissionId: "submission-uncertain" });
+  assert.equal(attempts, 1, "explicit retry of uncertain admission never dispatches twice");
   // The reverse order is valid too: RPC accepts first, then the provider user item arrives.
   let providerInput: any;
   t.mock.method(agent.client, "request", async (method: string, params: any) => {

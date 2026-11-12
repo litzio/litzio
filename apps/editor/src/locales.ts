@@ -44,6 +44,7 @@ export const en = {
   "Discard message": "Discard message",
   "Discard this local copy without cancelling or resending the message.": "Discard this local copy without cancelling or resending the message.",
 
+  "Retry": "Retry",
   "Needs confirmation": "Needs confirmation",
   "Sending…": "Sending…",
   "Sent": "Sent",
@@ -1411,6 +1412,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Discard message": "메시지 버리기",
   "Discard this local copy without cancelling or resending the message.": "전송을 취소하거나 다시 보내지 않고 이 로컬 사본을 버립니다.",
 
+  "Retry": "다시 시도",
   "Needs confirmation": "확인 필요",
   "Sending…": "전송 중…",
   "Sent": "전송됨",
