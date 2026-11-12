@@ -1598,6 +1598,8 @@ Verification (#1542, first PR): existing Host/provider tests protect concurrent 
 explicit retry after pre-dispatch rejection, uncertain retry without a second provider call, steer,
 and admission independent of turn failure/history replay. The existing browser scenario covers
 Retry with a separate draft, active-turn New conversation/history navigation and #1551 isolation.
+The multi-host scenario also verifies that Retry retains the remote Host, submission ID and
+references without overwriting a new remote draft.
 These are fixture checks; live provider results are recorded in the PR. Screen relay, display and
 attachment simplification remain the second PR scope of #1542.
 
