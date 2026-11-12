@@ -50,6 +50,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [hostId] = useState(useContext(HostContext));
   const conversationKey = `${brand.storagePrefix}.assistantConversation:${hostId}`;
   const request = createAssistantRequest(client);
+  const changeFocus = useRef<HTMLElement | null>(null);
   const [changeComparison, setChangeComparison] = useState<{ path: string; load(signal: AbortSignal): Promise<Comparison> }>();
   // Match existing editor identities: getRandomValues also works on non-localhost HTTP.
   const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
@@ -458,6 +459,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
     onKeyDown={event => {
       if (event.defaultPrevented) return;
+      // Portalled comparison keys belong to its Dialog, not the panel beneath it.
+      if (changeComparison) { event.stopPropagation(); return; }
       if (event.key === "Escape" && !event.nativeEvent.isComposing) {
         event.preventDefault();
         // Focus can still be on a chip before the portalled popup autofocus runs.
@@ -502,7 +505,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         : <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span>}<span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
     </div>
     {changeComparison ? <Dialog open onOpenChange={value => { if (!value) setChangeComparison(undefined); }}>
-      <DialogContent className="recovery-prompt-comparing"><DialogHeader><DialogTitle>{i18n.t("View changes")}: {pathName(changeComparison.path)}</DialogTitle></DialogHeader>
+      <DialogContent className="recovery-prompt-comparing" finalFocus={changeFocus}><DialogHeader><DialogTitle>{i18n.t("View changes")}: {pathName(changeComparison.path)}</DialogTitle></DialogHeader>
         <SourceCompare load={changeComparison.load} assistant visual={{ client, path: changeComparison.path }} />
       </DialogContent>
     </Dialog> : null}
@@ -524,7 +527,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} actions={item.fileChanges?.map(path => <div className="flex flex-wrap items-center gap-2" data-testid="assistant-file-change" data-path={path} key={path}>
               <span className="min-w-0 break-all flex-1" title={path}>{pathName(path)}</span>
-              <Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || turn.status === "inProgress"} />} onClick={() => {
+              <Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || turn.status === "inProgress"} />} onClick={event => {
+                changeFocus.current = event.currentTarget;
                 const body = { action: "file-change-compare", id: conversation.id, turnId: turn.id, path, folders };
                 setChangeComparison({ path, load: signal => request<Comparison>(ASSISTANT.conversationsRoute, body, signal) });
               }}>{i18n.t("View changes")}</TooltipTrigger><TooltipContent>{i18n.t("Compare the content before this turn with the current disk file.")}</TooltipContent></Tooltip>

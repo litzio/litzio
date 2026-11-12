@@ -48,7 +48,8 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('Before assistant edit.');
   await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('After assistant edit.');
   await expect(comparison.getByRole('group', { name: 'Comparison view' })).toHaveCount(0);
-  await page.keyboard.press('Escape'); await expect(comparison).toBeHidden();
+  await page.keyboard.press('Escape'); await expect(comparison).toBeHidden(); await expect(panel).toBeVisible();
+  await expect(editRows.first().getByRole('button', { name: 'View changes', exact: true })).toBeFocused();
   await editRows.nth(1).getByRole('button', { name: 'View changes', exact: true }).click();
   await expect(comparison.getByRole('region', { name: 'Before assistant edit', exact: true })).toContainText('Before assistant edit.');
   await expect(comparison.getByRole('region', { name: 'Current disk file', exact: true })).toContainText('Beta.');
