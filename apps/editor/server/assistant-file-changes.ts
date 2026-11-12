@@ -77,4 +77,3 @@ export class AssistantFileChanges {
     return { path: file, revision: textRevision(record.before) };
   }
 }
-
