@@ -89,6 +89,11 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.action === "send") await plugins?.start();
       if (closed) throw new Error("The Assistant Host is closing.");
       const currentSettings = settings();
+      if (["screen-ack", "screen-action-ack", "display-ack"].includes(args.action)) {
+        const requests = args.action === "screen-ack" ? history().screen : args.action === "screen-action-ack" ? history().screenActions : history().display;
+        requests.acknowledge(args.id, args.displayClient, args.requestId);
+        return { acknowledged: true };
+      }
       if (args.action === "screen-action-result") { history().screenActions.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "screen-result") { history().screen.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }

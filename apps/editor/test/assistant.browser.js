@@ -205,7 +205,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
   let forgottenSubmissions = false, allowNewSend = false;
   let revealLost = false, receiptGate, releaseReceipt, receiptReads = 0;
-  let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
+  let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, snapshotGateEntered = 0, answerGate;
   await page.unroute('**/api/assistant/diagnostics*');
   await page.route('**/api/assistant/diagnostics*', route => route.request().url().includes('summary=account-usage') ? diagnosticReply(route) : route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
     error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
@@ -213,6 +213,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
+      if (body.action?.endsWith('-ack')) return route.fulfill({ json: { acknowledged: true } });
       if (body.action === 'screen-result') { screenReply = body.reply; await screenReplyGate; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
       if (body.action === 'display-result') {
         displayReply = body.reply; displayRequest = undefined;
@@ -286,7 +287,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       return route.fulfill({ json: result });
     }
     const id = decodeURIComponent((route.request().url().split('?id=')[1] ?? '').split('&')[0]);
-    if (id) { snapshots++; await snapshotGate; }
+    if (id) { snapshots++; if (snapshotGate) { snapshotGateEntered++; await snapshotGate; } }
     return route.fulfill({ json: id ? { ...conversations.get(id), displayRequest, screenRequest } : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
@@ -718,14 +719,15 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
   await expect(statusTrigger).toHaveAttribute('data-status', 'working');
-  // Background observation must not grant hidden-panel display-setting changes.
+  // Explicit display changes also run with the sending panel closed.
   displayRequest = { id: 'closed-panel-display', validForMs: 10000, changes: { theme: 'dark' } };
   selected.userInput = { requestId: 'question-983', turnId: selected.turns[0].id, questions: [
     { id: 'constructor', header: 'Scope', question: 'Which part should I explain?', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Explain the main points.' }, { label: 'Details', description: 'Explain each step.' }] },
     { id: '__proto__', header: 'Private input', question: 'Enter a private example.', isOther: false, isSecret: true, options: null }
   ] };
   await expect(statusTrigger).toHaveAccessibleName('Assistant — Needs your attention');
-  expect(await page.locator('html').getAttribute('data-theme')).toBe('light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(() => displayReply?.after?.theme).toBe('dark');
   displayRequest = undefined;
   await statusTrigger.focus();
   await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
@@ -806,15 +808,13 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     document.dispatchEvent(new Event('visibilitychange'));
   }, value);
   await visibility('hidden');
-  // Let any already admitted snapshot settle, then observe two polling intervals.
-  await page.waitForTimeout(700);
   const hiddenSnapshots = snapshots;
-  await page.waitForTimeout(1300);
-  expect(snapshots, 'Hidden tabs stop snapshot requests').toBe(hiddenSnapshots);
+  await expect.poll(() => snapshots, 'Open windows keep observing requests in background tabs').toBeGreaterThan(hiddenSnapshots);
   let releaseSnapshot;
+  const blockedBefore = snapshotGateEntered;
   snapshotGate = new Promise(resolve => { releaseSnapshot = resolve; });
   await visibility('visible');
-  await expect.poll(() => snapshots).toBeGreaterThan(hiddenSnapshots);
+  await expect.poll(() => snapshotGateEntered).toBeGreaterThan(blockedBefore);
   const resumedSnapshots = snapshots;
   await visibility('hidden'); await visibility('visible'); await visibility('visible');
   await page.waitForTimeout(1300);

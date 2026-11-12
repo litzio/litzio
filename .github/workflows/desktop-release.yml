@@ -8,13 +8,13 @@ on:
         required: true
         type: string
       mode:
-        description: Verify only, publish an unsigned Beta, or publish with Authenticode signing
+        description: Verify only, publish an unsigned Stable or Beta, or publish with Authenticode signing
         required: true
         default: verify
         type: choice
         options:
           - verify
-          - unsigned-beta
+          - unsigned
           - signed
 
 permissions:
@@ -142,7 +142,7 @@ jobs:
         env:
           LITZIO_TEST_UPDATE_CHANNEL: beta
         run: pnpm --filter @litzio/desktop test:update
-      - name: Build unsigned verification or Beta package
+      - name: Build unsigned verification or publication package
         if: inputs.mode != 'signed'
         run: pnpm --filter @litzio/desktop package
       - name: Build signed public package

@@ -178,7 +178,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   }, [message]);
   const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
-  const panelOpen = useRef(open); panelOpen.current = open;
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const enabled = !!settings;
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
@@ -267,15 +266,15 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     const schedule = () => {
       const running = current.current?.turns.some(turn => turn.status === "inProgress") || submitted.current.some(value => value.receipt.status === "pending");
       const delay = running ? Math.max(0, 100 - (performance.now() - startedAt)) : 600;
-      if (alive && document.visibilityState === "visible" && timer === undefined) timer = setTimeout(poll, delay);
+      if (alive && timer === undefined) timer = setTimeout(poll, delay);
     };
     const poll = async () => {
       timer = undefined;
-      if (!alive || document.visibilityState !== "visible") return;
+      if (!alive) return;
       if (snapshotPending.current) { startedAt = performance.now(); schedule(); return; }
       startedAt = performance.now();
       const scope = submissionScope.current;
-      const valid = () => alive && scope === submissionScope.current && document.visibilityState === "visible";
+      const valid = () => alive && scope === submissionScope.current;
       // Receipt lookup never blocks text or replaces a newer same-conversation snapshot.
       if (!receiptsPending.current) {
         receiptsPending.current = true;
@@ -294,30 +293,38 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
       if (!id || !valid()) { schedule(); return; }
       snapshotPending.current = true;
       const pollStartedAt = performance.now();
-      try { const next = await request<AssistantConversation & DisplaySnapshot & ScreenSnapshot & ScreenActionSnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}${panelOpen.current ? `&displayClient=${encodeURIComponent(displayClient)}` : ""}`);
+      try { const next = await request<AssistantConversation & DisplaySnapshot & ScreenSnapshot & ScreenActionSnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}&displayClient=${encodeURIComponent(displayClient)}`);
         if (valid()) {
           setConversation(next);
           if (!windowWorkPending.current) {
             windowWorkPending.current = true;
             void (async () => {
-              if (valid() && panelOpen.current && next.screenActionRequest && displayRequestCurrent(next.screenActionRequest, pollStartedAt)) {
+              if (valid() && next.screenActionRequest && displayRequestCurrent(next.screenActionRequest, pollStartedAt)) {
                 const command = next.screenActionRequest;
+                await request(ASSISTANT.conversationsRoute, { action: "screen-action-ack", id, displayClient, requestId: command.id });
+                if (!valid()) return;
                 let reply = actionReplies.current.get(command.id);
                 if (!reply) {
                   try { reply = await actionHandler.current(command.action); }
                   catch { reply = { outcome: "uncertain", completed: [], remaining: [{ target: "request", reason: "Window action failed; query screen state before retrying." }] }; }
                   actionReplies.current.set(command.id, reply);
                 }
+                if (!valid()) return;
                 await request(ASSISTANT.conversationsRoute, { action: "screen-action-result", id, displayClient, requestId: command.id, reply });
               }
-              if (valid() && panelOpen.current && next.screenRequest && displayRequestCurrent(next.screenRequest, pollStartedAt)) {
+              if (valid() && next.screenRequest && displayRequestCurrent(next.screenRequest, pollStartedAt)) {
+                await request(ASSISTANT.conversationsRoute, { action: "screen-ack", id, displayClient, requestId: next.screenRequest.id });
+                if (!valid()) return;
                 await request(ASSISTANT.conversationsRoute, { action: "screen-result", id, displayClient, requestId: next.screenRequest.id, reply: screenHandler.current() });
               }
-              if (valid() && panelOpen.current && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
+              if (valid() && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
                 const command = next.displayRequest;
+                await request(ASSISTANT.conversationsRoute, { action: "display-ack", id, displayClient, requestId: command.id });
+                if (!valid()) return;
                 // An ACK can be lost; retransmit the reply, never apply the request twice.
                 let reply = displayReplies.current.get(command.id);
-                if (!reply) { reply = await displayHandler.current(command, pollStartedAt); displayReplies.current.set(command.id, reply); }
+                if (!reply) { reply = await displayHandler.current(command, performance.now()); displayReplies.current.set(command.id, reply); }
+                if (!valid()) return;
                 await request(ASSISTANT.conversationsRoute, { action: "display-result", id, displayClient, requestId: command.id, reply });
               }
             })().catch(error => { if (valid()) setProblem(i18n.t(error.message, { defaultValue: error.message })); }).finally(() => { windowWorkPending.current = false; });
@@ -328,13 +335,8 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
       snapshotPending.current = false;
       schedule();
     };
-    const visibilityChanged = () => {
-      if (document.visibilityState !== "visible") { clearTimeout(timer); timer = undefined; }
-      else schedule();
-    };
-    document.addEventListener("visibilitychange", visibilityChanged);
     schedule();
-    return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
+    return () => { alive = false; clearTimeout(timer); };
   }, [observe, conversation?.id, observationReady, enabled, setup, settingsRevision, displayClient]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -371,7 +373,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const addReference = (file: AssistantFileReference) => {
     setReferences(previous => {
       if (previous.some(value => samePath(value.path, file.path))) return previous;
-      if (file.kind !== "skill" && previous.filter(value => value.kind !== "skill").length >= 10) { setProblem(i18n.t("At most 10 file references are allowed.")); return previous; }
       return [...previous, file];
     });
   };

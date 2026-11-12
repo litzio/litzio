@@ -21,6 +21,8 @@
 - Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing assistant browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
 - Previous execution verification: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
+- ACKed-window loss review correction (#1558): existing Host tests first failed on all three unanswered ACKed request kinds, then passed with the five-minute bound. Repeated ACKs do not extend it, reloaded windows cannot take over, late replies are rejected, and an open-folder response just below five minutes still completes. No browser or real AI re-run was performed for this Host timer-only correction; earlier browser/AI evidence below remains scoped to that earlier check.
+- Screen/display/attachment simplification (#1542, 2026-11-12): panel visibility no longer gates window requests; delivery acknowledgement ends the 10-second timer and starts a fixed five-minute work bound; 11 references are allowed within the existing byte/provider limits. Host tests and persistent Chrome cover isolation, cancellation, delayed completion and closed-panel reads/actions. Actual HTTP Host: Codex gpt-6-luna low and this PC Copilot Auto each completed one screen read with an 11-second delayed synthetic window reply and 11 references. Copilot used litzio_host-read_screen_context; Codex used its native dynamic tool. This is synthetic window transport verification, not packaged Desktop or real remote-window acceptance.
 - Display settings (#1120): 2026-11-04; fixed Host/screen allowlist, fake stdio/HTTP and browser checks; no real model call.
 - Template operations verification: 2026-11-04 (#1128: shared Host operations, fake dynamic-tool/receipt-history and child PATH execution; no real model call; packaged behavior is CI-only).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex/Copilot conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
@@ -420,15 +422,12 @@ fit inside the viewport. The before reproduction used a longer unsaved paragraph
 after captures use a minimal trailing-hard-break fixture and fake answer.
 
 
-A single nonoverlapping snapshot poll (100ms target start-to-start during running work or a pending send, 600ms after each idle read) while the tab is visible and the panel
-is open or has ongoing work/input/submission observation (#1424) delivers
+A single nonoverlapping snapshot poll (100ms target start-to-start during running work or a pending send, 600ms after each idle read) runs while the panel is open or ongoing work/input/submission needs observation (#1424). It delivers
 message deltas, tool names/statuses, plans and reasoning **summaries**. Raw
 reasoning content is never included in the UI snapshot. Polling reuses the
 existing JSON transport and adds no streaming infrastructure. It continues during
-a pending send (#1417), pauses while the tab is hidden or setup is incomplete
-or failed. Visibility restoration schedules one loop; repeated visibility events
-cannot overlap an in-flight snapshot. It ignores responses after switching the
-owning scope or while the tab is hidden. Closing the panel retains observation;
+a pending send (#1417), including a closed panel or background tab. Failed/incomplete setup pauses observation, except already-admitted work during a closed setup refresh.
+It ignores responses after switching the owning scope. Closing the panel retains observation;
 closed idle conversations stop polling. Running work continues
 when the panel closes. Model and effort are locked while running; a submitted
 message uses `turn/steer` with the expected turn ID. Stop uses `turn/interrupt`
@@ -509,7 +508,7 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 
 ### On-demand screen context (#1500 stage 2)
 
-Codex dynamic tools and Copilot HTTP MCP expose the same `read_screen_context` definition (empty input) to read metadata from the window that sent the admitted turn. It uses the existing conversation/window identity and visible-panel polling path, with a 10-second Host deadline charged for poll transit time. Another window cannot see or satisfy the request. Fake ACP plus an SDK MCP client verify definition parity, successful Copilot window-owned response, rejection of another window, isolation from an unrelated Codex disconnect and explicit failure without a window; no real Copilot call was made for this merge. Closed, hidden, disconnected or unresponsive windows fail explicitly; cancellation, turn end and daemon shutdown discard pending requests. Host keeps only in-flight requests, not shared screen state.
+Codex dynamic tools and Copilot HTTP MCP expose the same `read_screen_context` definition (empty input) to read metadata from the window that sent the admitted turn. It uses the existing conversation/window identity and polling path even with the panel closed or hidden, with a 10-second delivery deadline charged for poll transit time. Another window cannot see or satisfy the request. Fake ACP plus an SDK MCP client verify definition parity, successful Copilot window-owned response, rejection of another window, isolation from an unrelated Codex disconnect and explicit failure without a window; no real Copilot call was made for this merge. Requests not delivered to a closed, disconnected or unresponsive window fail at the delivery deadline. If the window disappears after acknowledgement, the fixed five-minute work bound settles the request; cancellation, turn end and daemon shutdown discard pending requests. Host keeps only in-flight requests, not shared screen state.
 
 The window supplies its focused group's active tab (or null), all opened tabs and opened folders with Host identities. Tab metadata includes kind, title, Host, path/target where applicable, and unsaved flag. Kinds cover native document, text, PDF, review, comparison, staged comparison, plugin screen, plugin jobs, settings and template gallery. App-wide settings have no document Host (null). No unsaved body, selection, plugin inputs or result contents are supplied. Paths on another Host remain metadata, never an access grant. The existing per-message saved document path context remains; a null document directs the assistant to query screen metadata rather than assume a document is active.
 
@@ -521,7 +520,7 @@ This read is autonomous and provides no UI manipulation. It is Editor-specific t
 
 The window rechecks live tab IDs, unsaved editor state and operation guards, using the existing tab-close confirmation flow. A dirty tab remains pending human confirmation; bulk close stops initiating closes after that confirmation opens. Folder actions use existing local/remote folder opening and closing functions and Host access rules; closing folders leaves document tabs intact. Screen reads include the connected remote explorers' opened roots as well as local roots.
 
-Results contain `outcome`, `completed` targets and `remaining` targets with reasons. Outcomes are `success`, `invalid_input`, `conflict`, `forbidden`, `unavailable`, or `uncertain`; missing/busy tabs and pending unsaved confirmation are conflicts. Opening failures retain the existing path's error reason as unavailable. No persistent receipt or document write is created. Host keeps only in-flight requests, verifies conversation/window ownership, and expires requests after 10 seconds. Timeout, cancellation and lost responses are uncertain: inspect screen state before deciding a next action. The window caches replies by request ID so a lost acknowledgement cannot execute the action twice. Existing generic tool activity is the only UI surface; no layout or visual exception is added. Codex dynamic tools and Copilot HTTP MCP use the same `tools` array and `executeTool` dispatch (#1509), including all three screen actions. Both capture the admitted turn's `displayClient`; the window executes the same App handler and rechecks live targets and unsaved state, regardless of provider. ACP end/disconnect cancels only its conversations' pending actions; an unrelated Codex disconnect does not cancel Copilot actions. Fake ACP plus the SDK MCP client verify definition parity, action forwarding, originating-window isolation, conflict result preservation, absent-window classification and end-of-turn cancellation without any real Copilot call.
+Results contain `outcome`, `completed` targets and `remaining` targets with reasons. Outcomes are `success`, `invalid_input`, `conflict`, `forbidden`, `unavailable`, or `uncertain`; missing/busy tabs and pending unsaved confirmation are conflicts. Opening failures retain the existing path's error reason as unavailable. No persistent receipt or document write is created. Host keeps only in-flight requests, verifies conversation/window ownership, and expires undelivered requests after 10 seconds. The window acknowledges delivery before starting work; after acknowledgement the Host waits for completion, including operations longer than 10 seconds, with a fixed five-minute upper bound. Repeated ACKs do not extend it. If no reply arrives (window close/reload, lost response or discarded scope), the request is removed and returns the existing uncertain result; late replies are rejected. This does not cancel a remote folder operation already started by the window; inspect screen state before deciding next steps. Cancellation/turn end/disconnection/shutdown still settle pending work. Timeout, cancellation and lost responses are uncertain: inspect screen state before deciding a next action. The window caches replies by request ID so a lost acknowledgement cannot execute the action twice. Existing generic tool activity is the only UI surface; no layout or visual exception is added. Codex dynamic tools and Copilot HTTP MCP use the same `tools` array and `executeTool` dispatch (#1509), including all three screen actions. Both capture the admitted turn's `displayClient`; the window executes the same App handler and rechecks live targets and unsaved state, regardless of provider. ACP end/disconnect cancels only its conversations' pending actions; an unrelated Codex disconnect does not cancel Copilot actions. Fake ACP plus the SDK MCP client verify definition parity, action forwarding, originating-window isolation, conflict result preservation, absent-window classification and end-of-turn cancellation without any real Copilot call.
 
 ## Document tools (#931 implementation 2, PR 1)
 
@@ -612,20 +611,17 @@ and change receipts. Codex's `item/tool/call` is only its current adapter. The
 Host never reads browser storage or writes a settings file. Each send supplies
 an in-memory window ID generated with `crypto.getRandomValues` (also available
 on non-localhost HTTP); a new turn pins that ID, and steering retains it. The
-existing nonoverlapping visible-panel snapshot poll supplies this ID and
+existing nonoverlapping window snapshot poll (also while the panel is closed or hidden) supplies this ID and
 receives only its pending `displayRequest`. A `display-result` action returns
 validated live before/after values and any application/storage failure. A
-missing originating ID refuses immediately. A closed/hidden panel, hidden tab,
-lost connection or lost acknowledgement expires after 10 seconds with an
-**unconfirmed** result; it never reports success. The Host uses its monotonic
+missing originating ID refuses immediately. An undelivered request expires after 10 seconds with an
+**unconfirmed** result; delivery acknowledgement replaces that timer with a fixed five-minute work bound, without renewal by repeated ACKs. Work waits for completion, cancellation or that bound. An unanswered screen read is cancelled/unavailable; display application is cancelled/unconfirmed, using existing results. Expiry never reports success. A closed panel does not prevent delivery. The Host uses its monotonic
 clock for the deadline and acknowledgement check. Each snapshot carries only
 the remaining duration, `validForMs`, rather than an absolute wall-clock time.
 The screen records `performance.now()` before starting the poll and checks the
-elapsed time against that duration both on receipt and immediately before
-applying. Charging the entire round trip conservatively includes network delay
+elapsed time against that duration before acknowledging delivery. Charging the entire round trip conservatively includes network delay
 and queued screen work; starting a new lifetime on receipt would revive delayed
-snapshots. Neither machine compares the other machine's clock origin. A slow
-round trip can refuse early, but cannot extend the Host deadline. Interruption,
+snapshots. Neither machine compares the other machine's clock origin. A slow delivery round trip can refuse early, but cannot extend the delivery deadline. Interruption,
 turn completion, disconnection and Host shutdown
 cancel pending work. Application and acknowledgement are not atomic: a timeout
 or cancellation can follow a live change, so the error advises inspecting the
@@ -1015,8 +1011,7 @@ new scenario is added. Captures run only with `--screenshots` for manual review.
 ## File references (#1047 PR A, #984, #952)
 
 Explorer's file context menu **Add to chat** opens the composer draft on the
-file's Host (#1253). Folders cannot be added. Paths are deduplicated and at most
-10 file references are allowed. A conversation fixed to another Host rejects the
+file's Host (#1253). Folders cannot be added. Paths are deduplicated. There is no file-count limit: the existing assistant request byte limit (1 MiB + 64 KiB) and provider/model context limits apply. Only paths and metadata are attached; file contents are read on demand. A conversation fixed to another Host rejects the
 handoff without replacing its draft; start a conversation on the file's Host first.
 `@` is ordinary message text and never starts folder enumeration or file search.
 The `/` Codex skill picker retains candidates, scroll position and highlighted
@@ -1637,12 +1632,9 @@ existing panel actions. Provider approvals use the existing question-card histor
 Conversation snapshots and #1417 submission receipts remain the source of truth.
 Closing the panel neither invalidates an in-flight send nor creates another poller.
 The same nonoverlapping observer (100ms target for running work/pending sends, 600ms idle) continues for running work, questions and
-pending submissions while the browser tab is visible and initial setup has admitted the work. Rejected/unknown submissions wait for explicit Retry. Idle
-closed conversations stop polling. Hidden tabs and failed/incomplete setup still
-pause it. Closing a setup refresh retains observation of already-admitted work.
-Closed-panel observation omits `displayClient` and never applies display
-requests, including a snapshot already in flight when closing; the existing
-visible-panel display-setting authority and expiry remain unchanged.
+pending submissions after initial setup has admitted the work, including background tabs. Rejected/unknown submissions wait for explicit Retry. Idle
+closed conversations stop polling. Failed/incomplete setup pauses it, except already-admitted work during a closed setup refresh.
+Closed-panel observation includes `displayClient` and can apply window-owned screen/display requests. #1542 removes panel visibility as a condition and limits the 10-second deadline to delivery; ACKed work has a fixed five-minute upper bound.
 
 A completed turn not yet viewed produces the unread marker. Opening the panel
 acknowledges it; closing again does not restore it. Indicators are hidden while

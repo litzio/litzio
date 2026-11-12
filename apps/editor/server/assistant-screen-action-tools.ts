@@ -1,3 +1,4 @@
+import { ASSISTANT_WINDOW_WORK_TIMEOUT_MS } from "../shared/assistant-limits.ts";
 import { randomUUID } from "node:crypto";
 import { screenAction, type ScreenActionRequest, type ScreenActionResult } from "../shared/assistant-screen.ts";
 const targets = { anyOf: [{ type: "string", enum: ["all"] }, { type: "array", minItems: 1, items: { type: "string" } }] };
@@ -14,7 +15,7 @@ export class AgentScreenActionRequests {
   constructor(private timeoutMs = 10_000) {}
   snapshot(conversation: string, client: string) {
     const value = [...this.pending.values()].find(item => item.conversation === conversation && item.client === client);
-    const validForMs = value ? value.deadline - performance.now() : 0;
+    const validForMs = value ? (value.deadline === Infinity ? this.timeoutMs : value.deadline - performance.now()) : 0;
     return value && validForMs > 0 ? { ...value.request, validForMs } : undefined;
   }
   execute(name: string, input: unknown, conversation: string, client?: string): Promise<ScreenActionResult> {
@@ -27,6 +28,18 @@ export class AgentScreenActionRequests {
       const timer = setTimeout(() => { this.pending.delete(id); resolve(failure("uncertain", "Window did not confirm the action. Query screen state before deciding next steps; do not blindly retry.")); }, this.timeoutMs);
       this.pending.set(id, { conversation, client, request: { id, action, validForMs: this.timeoutMs }, deadline: performance.now() + this.timeoutMs, resolve, timer });
     });
+  }
+  acknowledge(conversation: string, client: string, id: string) {
+    const pending = this.pending.get(id);
+    if (!pending || pending.conversation !== conversation || pending.client !== client || performance.now() >= pending.deadline) throw new Error("Request expired or belongs to another window.");
+    // Polls can repeat the ACK; the fixed work bound starts only on first delivery.
+    if (pending.deadline === Infinity) return;
+    clearTimeout(pending.timer);
+    pending.deadline = Infinity;
+    pending.timer = setTimeout(() => {
+      this.pending.delete(id);
+      pending.resolve(failure("uncertain", "Window did not complete the action within five minutes. Query screen state before retrying."));
+    }, ASSISTANT_WINDOW_WORK_TIMEOUT_MS);
   }
   reply(conversation: string, client: string, id: string, input: ScreenActionResult) {
     const value = this.pending.get(id);
