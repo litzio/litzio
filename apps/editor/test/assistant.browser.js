@@ -561,7 +561,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.locator('.assistant-submission .assistant-reference')).toHaveCount(1);
   releaseSend(); sendGate = undefined;
   await expect(panel.locator('.assistant-steps').first()).not.toHaveAttribute('open');
-  await panel.locator('.assistant-steps summary').first().click();
+  await panel.locator('.assistant-steps').filter({ hasText: 'File reference received.' }).locator('summary').click();
   await expect(panel.getByText('File reference received.', { exact: true })).toBeVisible();
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(2);
   expect(sent.at(-1).message).toBe('');
@@ -574,6 +574,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await message.press('End'); await page.keyboard.type('Focus on the unsaved paragraph.', { delay: 30 });
   await panel.getByRole('button', { name: 'Steer conversation' }).click();
   await expect(message).toHaveValue('');
+  await panel.locator('.assistant-steps').filter({ hasText: 'Direction updated: focus on the unsaved paragraph.' }).last().locator('summary').click();
   await expect(panel.getByText('Direction updated: focus on the unsaved paragraph.', { exact: true }).last()).toBeVisible();
   expect(sent.at(-1).skills).toEqual([{ name: skill.name, path: skill.path }]);
   expect(sent.at(-1).message).toBe('$litzio-guide Focus on the unsaved paragraph.');
@@ -635,13 +636,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   // Checking after layout used to lose bottom-follow and pull readers near the end.
   const progressTurn = selected.turns[0], progressItems = progressTurn.items;
   const steps = panel.locator('.assistant-steps').first();
-  await steps.locator('summary').click();
   const transcript = panel.locator('.assistant-transcript');
   const distanceFromEnd = () => transcript.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop);
   const progressReasoning = { id: 'progress-reasoning', kind: 'reasoning', text: 'Checking the document.' };
   // Preserve provider-observed user/submission identities while streaming work.
   progressTurn.items = [...progressItems.filter(item => item.kind === 'user'), progressReasoning];
-  await expect(steps.locator('summary')).toHaveText('Thinking…');
+  await expect(steps.locator('summary')).toContainText('Thinking… Checking the document.');
   await expect(steps).not.toHaveAttribute('open');
   await steps.locator('summary').click();
   progressReasoning.text += ' More context arrived.';
@@ -649,13 +649,29 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(steps).toHaveAttribute('open', '');
   const progressTool = { id: 'progress-tool', kind: 'tool', text: 'read_document · document.md', status: 'inProgress' };
   progressTurn.items.push(progressTool);
-  await expect(steps.locator('summary')).toHaveText('Running tool: read_document · document.md');
+  const toolStep = panel.locator('.assistant-steps[data-kind=tool]').last();
+  await expect(toolStep.locator('summary')).toContainText('read_document · document.md');
+  await expect(toolStep).not.toHaveAttribute('open');
+  await expect(steps.locator('summary strong')).toHaveText('Thinking');
   await expect(steps).toHaveAttribute('open', '');
   await steps.locator('summary').click();
   const existingJump = panel.getByRole('button', { name: /Jump to bottom$/ });
   if (await existingJump.isVisible()) await existingJump.click();
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   progressTool.status = 'completed';
+  const shellStep = { id: 'shell-step', kind: 'tool', text: "rg -n 'timeline' apps/editor", status: 'inProgress', work: { kind: 'execute', detail: 'apps/editor: timeline output' } };
+  progressTurn.items.push(shellStep);
+  const shellRow = panel.locator('.assistant-steps').last();
+  await expect(shellRow.locator('summary')).toContainText("Shell rg -n 'timeline'");
+  await expect(shellRow).toHaveAttribute('data-status', 'inProgress');
+  await shellRow.locator('summary').click();
+  await expect(shellRow.locator('pre')).toContainText("$ rg -n 'timeline' apps/editor\napps/editor: timeline output");
+  await expect(steps).not.toHaveAttribute('open');
+  shellStep.status = 'failed';
+  await expect(shellRow).toHaveAttribute('data-status', 'failed');
+  await shellRow.locator('summary').click();
+  await expect(shellRow).not.toHaveAttribute('open');
+
   const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation. 👨‍👩‍👧‍👦\n\n'.repeat(65) };
   // Output must advance while a window acknowledgement is still in flight.
   let releaseScreenReply;
@@ -673,8 +689,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(await page.evaluate(() => window.smoothText.every(text => !/[👨👩👧👦\u200d]/u.test(text.replaceAll('👨‍👩‍👧‍👦', ''))))).toBe(true);
   await page.evaluate(() => window.smoothObserver.disconnect());
   releaseScreenReply(); screenReplyGate = undefined;
-  await expect(steps.locator('summary')).toHaveText('Writing answer…');
-  await expect.poll(() => steps.evaluate(el => { const answers = el.parentElement.querySelectorAll('.assistant-answer'); return answers.length > 0 && [...answers].every(answer => !!(answer.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)); })).toBe(true);
+  await expect(panel.locator('.assistant-progress')).toHaveText('Writing answer…');
+  await expect.poll(() => steps.evaluate(el => !!(el.compareDocumentPosition(el.parentElement.querySelector('.assistant-answer')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await expect(steps).not.toHaveAttribute('open');
   await expect.poll(distanceFromEnd).toBeLessThanOrEqual(2);
   const transcriptBox = await transcript.boundingBox();
@@ -714,11 +730,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await statusTrigger.click();
   const questionCard = panel.getByTestId('assistant-question');
   await expect(questionCard).toBeVisible();
-  await expect.poll(() => questionCard.evaluate(el => !!(el.compareDocumentPosition(el.parentElement.querySelector('.assistant-steps')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  expect(await questionCard.evaluate(el => !!el.closest('details'))).toBe(false);
   await questionCard.scrollIntoViewIfNeeded();
   expect(await questionCard.evaluate(el => !!el.closest('details'))).toBe(false);
   await expect(steps).not.toHaveAttribute('open');
-  await expect(steps.locator('summary')).toHaveText('Needs your attention');
+  await expect(panel.locator('.assistant-progress')).toHaveText('Needs your attention');
   if (screenshots) await page.screenshot({ path: 'tmp/983-after-1440.png' });
   await questionCard.getByRole('radio', { name: /Summary/ }).check();
   await questionCard.getByLabel('Your answer').fill('private example');
@@ -769,7 +785,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: 'Stop response' }).click();
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeEnabled();
   // Assert direct completion state, without a reload or a polling assertion masking it.
-  expect(await panel.locator('details').evaluate(element => element.open)).toBe(false);
+  expect(await panel.locator('details').first().evaluate(element => element.open)).toBe(false);
   expect(await panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false }).isVisible()).toBe(true);
   const originalItems = selected.turns[0].items;
   const emptyItems = [{ id: 'empty-summary', kind: 'reasoning', text: ' \n ' },

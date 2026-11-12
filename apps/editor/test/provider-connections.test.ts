@@ -89,6 +89,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     conversations.answer(conversation.id, card.turnId, card.requestId, { decision: { answers: ["2. Allow for this session"] } });
     await received;
     assert.equal(turn.status, "inProgress");
+    assert.ok(turn.items.some(item => item.kind === "reasoning" && item.text === "Checking ACP context."));
+    assert.deepEqual(turn.items.find(item => item.id === "shell-step")?.work, { kind: "execute", detail: "fixture failure", truncated: false });
+    assert.equal(turn.items.find(item => item.id === "shell-step")?.status, "failed");
     await assert.rejects(conversations.send({ ...input, reasoningEffort: "low" }, settings), /Stop/);
     await assert.rejects(conversations.send({ ...input, id: conversation.id }, settings), /Stop/);
     const request = { sessionId: conversation.id, toolCall: { toolCallId: "write", kind: "edit" as const, locations: [{ path: path.join(root, "new.txt") }] }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
@@ -282,6 +285,18 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
   assert.deepEqual(conversation.tokenUsage, { used: 810, limit: 1000 });
   assert.equal(JSON.stringify(conversation).includes("PRIVATE RAW REASONING"), false);
+  const shell = conversation.turns[0]!.items.find(item => item.work?.kind === "execute")!;
+  assert.equal(shell.text, "Get-Content notes.md");
+  assert.deepEqual(shell.work, { kind: "execute", detail: "fixture", truncated: false });
+  connection.client.emit("notification", "item/commandExecution/outputDelta", { threadId: conversation.id, turnId: conversation.turns[0]!.id, itemId: shell.id, delta: "x".repeat(16_001) });
+  assert.equal(shell.work!.detail!.length, 16_000);
+  assert.equal(shell.work!.truncated, true);
+  connection.client.emit("notification", "item/completed", { threadId: conversation.id, turnId: conversation.turns[0]!.id, item: { id: "failed-command", type: "commandExecution", command: "exit 1", status: "completed", exitCode: 1, aggregatedOutput: "failed" } });
+  assert.equal(conversation.turns[0]!.items.find(item => item.id === "failed-command")?.status, "failed");
+
+  connection.client.emit("notification", "item/commandExecution/outputDelta", { threadId: conversation.id, turnId: conversation.turns[0]!.id, itemId: shell.id, delta: "ignored" });
+  assert.equal(shell.work!.detail!.length, 16_000);
+
   assert.equal(JSON.stringify(conversation).includes("UNSAVED DOCUMENT TEXT"), false, "unsaved content is not displayed as a user message");
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "high" }, settings), /locked/);
   await conversations.send({ ...input, id: conversation.id, message: "Only summarize.", permissionMode: "full-access" }, settings);
@@ -1069,7 +1084,14 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   assert.equal(inspectedResult.isError, false);
   const inspected = payload(inspectedResult), secondNode = inspected.nodes.find((node: any) => node.text === "Second paragraph.");
   assert.ok(secondNode);
-  const editInput = { change: staged.id, copyRevision: inspected.copyRevision, operations: [{ command: "update-node-text", path: secondNode.path.join(","), from: secondNode.text, to: "Edited through MCP." }] };
+  // Execute the model-facing example, rather than supplying unpublished option knowledge.
+  const editDescription = published.find(tool => tool.name === "edit_staged_document")!.description!;
+  const example = editDescription.match(/Text replacement example: (\{[^\n]+?\})/);
+  assert.ok(example, "the shell-free edit tool must explain text replacement options");
+  const operation = JSON.parse(example[1]!);
+  assert.equal(operation.command, "update-node-text");
+  assert.deepEqual(Object.keys(operation).sort(), ["command", "from", "path", "to"]);
+  const editInput = { change: staged.id, copyRevision: inspected.copyRevision, operations: [{ ...operation, path: secondNode.path.join(","), from: secondNode.text, to: "Edited through MCP." }] };
   const rejectedPath = await one.callTool({ name: "edit_staged_document", arguments: { ...editInput, path: original } });
   assert.equal(rejectedPath.isError, true);
   assert.equal(payload(rejectedPath).errorKind, "invalid_input", "MCP cannot supply a write path instead of the Host change ID");

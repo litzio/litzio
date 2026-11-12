@@ -431,15 +431,10 @@ owning scope or while the tab is hidden. Closing the panel retains observation;
 closed idle conversations stop polling. Running work continues
 when the panel closes. Model and effort are locked while running; a submitted
 message uses `turn/steer` with the expected turn ID. Stop uses `turn/interrupt`
-and retains partial results. Work details default to collapsed even while running;
-the current stage stays in the summary (#1436/#1440, see below). Finished work
-details collapse to one line.
-Reasoning items with an empty or whitespace-only summary are omitted from work
-details, both during streaming and when reopening history. A running turn still
-has its stage summary even without a reasoning summary. If no other work items
-remain in a finished turn, no disclosure is shown. Nonempty
-summaries and tool/plan details retain their existing presentation. Raw reasoning
-is never displayed.
+and retains partial results. #1541 shows reasoning/tool/plan rows individually
+inside the ordered answer flow. Each row starts collapsed and expands on demand.
+Empty reasoning summaries have no row. A separate live phase label remains while
+running even without summary events. Provider raw reasoning is not projected.
 
 #976 verification (2026-11-03): the fake stdio lifecycle checks summary deltas,
 completion replacement (including multiple summary sections), empty summaries and
@@ -1194,6 +1189,26 @@ folder isolation, permission hints, cancellation and endpoint rotation. Two real
 Auto prompts: the first discovered tools but host_policy denied them; the second
 completed list_documents and read_document with shell denied. Those two probes used a direct createServer → MCP handler and did not test the daemon Host/Origin gate. Review found missing Origin headers; before fixing them, a new real startHttpHost regression reproduced 403 Request origin is not allowed. It now uses the exact ACP-supplied headers to discover and invoke read_document in an admitted active turn, while missing/foreign Origins remain refused. A follow-up real Copilot Auto prompt through startHttpHost completed list_documents and read_document and returned Daemon MCP probe, with shell denied and built-in MCPs no longer disabled. This used one additional prompt. Small localhost reads do not establish long sessions, remote Hosts or real plugin/image workflows.
 
+#1547 verification (2026-11-12): Copilot CLI 1.0.109 Auto over the real daemon
+received the `litzio_host` HTTP configuration and discovered the staged-document tools.
+The reported complete tool refusal was not reproduced on this head. The baseline
+created and inspected a pending copy, but guessed unsupported text replacement
+options four times before succeeding. The shared edit-tool description now supplies
+an executable `update-node-text` example with `path`, exact current `from` text and
+`to` replacement, available to both providers without a shell. The existing fake ACP
+and HTTP MCP regression executes that published example through the copy-only path.
+A second real Auto prompt completed stage/inspect/edit without failed tool calls;
+the saved original stayed byte-identical and the pending copy contained the requested
+paragraph. After Host restart, real session/load received the new HTTP endpoint and
+Origin header. Two prompts total; no reasoning-effort option was advertised by Auto.
+These small localhost checks do not establish long sessions, remote Hosts or managed
+organization policies. HTTP MCP and server-scoped tool permission are standard
+[Copilot CLI capabilities](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers);
+[ACP session setup](https://agentclientprotocol.com/protocol/session-setup) supplies
+MCP servers on both new and load. No additional trust/allowlist setting was needed
+in this run; managed allowlists still apply when configured by an organization.
+
+
 
 ACP permission mediation captures each turn's `permissionMode` and opened folders.
 Read/search inside the opened folders and Host roots is automatic. Opened-folders
@@ -1747,34 +1762,46 @@ The existing #1424 observer and attention priority are unchanged.
   Changed conversation content adds “New content”; unchanged polls do not. Its
   separate row inside the reading area leaves the composer fixed and does not
   cover transcript content. It never steals keyboard focus.
-- The work disclosure follows all answers, question cards (including the pending
-  question fallback) and result receipts of its turn (#1492). It stays at that
-  turn's latest position while output grows; completed work keeps the same position.
-- Every active response has a collapsed native details summary, even without a
-  reasoning item: Thinking, Running tool with its existing tool/target description,
-  or Writing answer. A pending question uses the same Needs your attention label
-  as #1424. The summary is one line with overflow ellipsis and the full text in a hover/focus Tooltip.
-  It exposes status accessibly. Completion/interruption/failure removes the live
-  stage; retained work is labelled Work details. No timer or estimated progress.
-- User expansion/collapse survives incoming snapshots and phase changes for that
-  response. Completion closes it. Toggling details gives the viewport to the
-  reader; it does not scroll a newly expanded process to the bottom automatically.
-- Questions and options remain in AssistantQuestion directly in the transcript,
-  outside every details element. Result receipts, errors and submission actions
-  remain outside too. Supported approvals now use question cards (#1536). Unknown
-  extensions remain unsupported; actionable requests stay outside process disclosure.
+- #1541 supersedes the response-wide work disclosure from #1436/#1440/#1492.
+  Assistant answers, reasoning summaries, plans and tool steps appear in provider
+  item order. Each step is a separate single-line native details/summary, initially
+  collapsed, with its own transient expansion choice retained across snapshots.
+  Turn completion closes the rows; each can be reopened afterward. Thinking shows provider summary/thought text; Shell shows the
+  command and bounded output in a monospace block. File changes show paths, MCP
+  calls show server/tool and arguments, and ACP tools show title/kind/content.
+  Codex raw reasoning content is never projected; only its summary is available.
+- Reasoning labels use Thinking… (생각 중…) only while active, and Thinking
+  (생각) after the step. Interrupted pending/running tools display Stopped.
+- Running rows use a spinner, completed rows a kind icon and failed/declined rows
+  a warning icon. Summary text ellipsizes. Each expanded tool detail is limited to
+  16,000 characters with an explicit truncation notice; it does not alter tool results.
+  A separate live phase line remains while awaiting provider events or user input.
+- Disclosure releases bottom-follow; existing reading/jump behavior, answer copy,
+  question cards, permission cards and pending changes retain their own contracts.
+  No setting, persistent expansion store or Host/CLI operation is added.
+- The assistant surface reuses native details, Lucide icons and compact spacing
+  tokens from the UI decision table. Paseo's ThoughtSlot/ToolCallSlot and tool-call
+  detail rendering were studied from a shallow local checkout; implementation is
+  kept local to the existing transcript, without its virtualization infrastructure.
+  Source: [Paseo agent stream](https://github.com/getpaseo/paseo/blob/68818067f2a55c5655dc43f380a143fe4cb7ebb6/packages/app/src/agent-stream/view.tsx).
 
-#1492 (2026-11-11) reuses native details/summary and the shared Tooltip;
-no new surface, tokens or Host/CLI operation. Existing assistant browser checks
-assert that answers and pending questions precede work details. Synthetic Host
-captures (no real model call) were visually reviewed for alignment, clipping,
-Korean wrapping and Light/Dark consistency:
-[1440 Light, multiple answers/question](assets/assistant-progress-1492/after-1440-light-latest.png),
-[640 Korean Dark](assets/assistant-progress-1492/after-640-dark-latest.png),
-[1440 Dark tool](assets/assistant-progress-1492/after-1440-dark-tool.png),
-[640 expanded work](assets/assistant-progress-1492/after-640-dark-expanded.png).
-Expansion retains the reader's position; content below the viewport remains
-available by scrolling. [Manual capture script](assets/assistant-progress-1492/capture.browser.js).
+#1541 validation (2026-11-12): provider/Host tests, assistant browser regression,
+full typecheck, boundaries, Editor build and docs checks. A real Codex gpt-6-luna
+low turn ran one Shell command and retained its output; real Copilot Auto (the only
+model offered by this PC's ACP catalog) retained thought chunks, a completed shell
+step and output. Neither returned separate raw reasoning in the projected items.
+Short local turns do not prove long-session or remote performance.
+Manual 1440px Korean evidence (synthetic transcript; Host identity masked):
+[Light thinking](assets/assistant-timeline-1541/light-thinking.png),
+[Light running](assets/assistant-timeline-1541/light-running.png),
+[Light expanded](assets/assistant-timeline-1541/light-expanded.png),
+[Light completed](assets/assistant-timeline-1541/light-completed.png),
+[Dark thinking](assets/assistant-timeline-1541/dark-thinking.png),
+[Dark running](assets/assistant-timeline-1541/dark-running.png),
+[Dark expanded](assets/assistant-timeline-1541/dark-expanded.png),
+[Dark completed](assets/assistant-timeline-1541/dark-completed.png).
+Rows, icons, command wrapping, failure color and independent expansion were
+visually reviewed against the Paseo row behavior; owner visual approval is separate.
 
 ### Reference study and validation
 
@@ -1793,8 +1820,8 @@ Paseo screenshots are published.
 Adopted: compact summaries, explicit disclosure choice, separating following from
 reading, a jump control, and releasing the viewport on disclosure. Not adopted:
 Paseo virtual-list/native anchoring machinery, plugin renderers, separate per-tool
-expansion stores or latest-tool auto-opening. Litzio already has a native transcript
-and response-wide disclosure, and #1440 explicitly requires default collapse.
+expansion stores or latest-tool auto-opening. Litzio uses a native transcript; #1541 replaces response-wide disclosure with
+individually collapsed steps.
 
 The existing assistant browser case adds one targeted streaming sequence for
 large one-poll growth, reading within 180px of the end, new-content notification,

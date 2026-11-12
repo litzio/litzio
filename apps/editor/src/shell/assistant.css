@@ -10,7 +10,6 @@
 .assistant-reading { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .assistant-transcript { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); }
 .assistant-jump { flex-shrink: 0; align-self: center; margin: var(--space-2); max-width: calc(100% - 2 * var(--space-4)); }
-.assistant-steps summary { display: list-item; }
 .assistant-steps summary > span { display: inline-block; max-width: calc(100% - var(--space-5)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .assistant-welcome { padding-block: var(--space-6); color: var(--id-color-text-muted); }
 .assistant-welcome h3, .assistant-history h3 { color: var(--id-color-text); font-size: var(--font-size-sm); }
@@ -21,7 +20,6 @@
 .assistant-steps { margin-block: var(--space-3); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
 .assistant-steps summary { cursor: pointer; padding-block: var(--space-2); }
 .assistant-steps p, .assistant-steps pre { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: var(--space-1); }
-.assistant-steps [data-kind="tool"] p { font-family: var(--font-family-mono); }
 .assistant-notice { padding: var(--space-3); background: var(--id-color-surface-subtle); border-radius: var(--id-radius-md); }
 .assistant-history > button { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3); gap: var(--space-1); border-radius: 0; }
 .assistant-history > button + button { border-top: var(--border-width) solid var(--id-color-border-subtle); }
@@ -111,3 +109,10 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-submission-status [role="alert"] { color: var(--id-color-danger); }
 
 .assistant-approval-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.assistant-steps summary { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.assistant-steps summary > svg { width: var(--space-4); height: var(--space-4); flex: none; }
+.assistant-steps summary > span { flex: 1; min-width: 0; }
+.assistant-steps summary > small { flex: none; }
+.assistant-steps[data-status="failed"] summary { color: var(--id-color-danger); }
+.assistant-steps pre { font-family: var(--font-family-mono); background: var(--id-color-surface-muted); padding: var(--space-2); max-height: 24rem; overflow: auto; }
+.assistant-progress { color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
