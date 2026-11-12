@@ -138,6 +138,34 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [ProseMirror focus restore and caret keys](reviews/prosemirror-focus-caret-2026-10-09.md) | Historical | 포커스 직후 caret 키가 되돌려지던 원인, `prosemirror-view@1.42.4` 패치의 적용 버전·전후 검증·제거 조건. 현재 계약은 Continuous editing. |
 | [Persistent Figure Draft spike](reviews/persistent-figure-draft-spike-v1.md) | Historical | 콘텐츠 없는 Figure의 MyST 표현·공식 번호/참조·Core/Editor PoC 근거와 CONDITIONAL GO 권고. 현재 Figure 계약은 Document support와 Editing session. |
 
+## Spike log
+
+스파이크의 목적·결과·결론과 코드 위치(원격 브랜치와 태그)를 남기는 기록이다. 정책과 색인은 [스파이크 기록](spikes/README.md)을 따른다. 스파이크 코드는 master에 없고 현재 계약이 아니다.
+
+| Document | Status | Authority / description |
+| --- | --- | --- |
+| [스파이크 기록](spikes/README.md) | Historical | 정책, 이름 규칙, 전체 색인. |
+| [2026-10-28 Codex app-server 기반 AI 질의응답과 변경 제안](spikes/2026-10-28-codex-ai.md) | Historical | 스파이크 기록. 결론: 채택(일부). 코드는 태그·브랜치에만 있다. |
+| [2026-10-28 Draw.io 편집 연동 (.drawio.svg 그림)](spikes/2026-10-28-drawio-embed.md) | Historical | 스파이크 기록. 결론: 보류. 코드는 태그·브랜치에만 있다. |
+| [2026-10-30 CLI 기반 AI 보고서 작성과 채팅 탭](spikes/2026-10-30-ai-report.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-10-30 Docling 변환 대조 보기](spikes/2026-10-30-docling-compare.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-10-31 Docling 플러그인 런타임 (신뢰된 worker)](spikes/2026-10-31-docling-plugin-runtime.md) | Historical | 스파이크 기록. 결론: 보류. 코드는 태그·브랜치에만 있다. |
+| [2026-10-31 Docling 플러그인 UI 기여](spikes/2026-10-31-docling-plugin-ui.md) | Historical | 스파이크 기록. 결론: 보류. 코드는 태그·브랜치에만 있다. |
+| [2026-11-01 AI 에이전트 블록 제안 워크플로 (플러그인)](spikes/2026-11-01-ai-agent-proposal.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-03 편집 중인 블록 표시 세 시안 (#1022)](spikes/2026-11-03-1022-editing-block-indicator.md) | Historical | 스파이크 기록. 결론: 채택(gutter 계열). 코드는 태그·브랜치에만 있다. |
+| [2026-11-03 문서 보고서와 문서형 앱 표 비교 (#1041)](spikes/2026-11-03-1041-document-style.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-04 S1: Desktop을 인증된 공유 daemon에 연결 (#834)](spikes/2026-11-04-834-s1-desktop-daemon.md) | Historical | 스파이크 기록. 결론: 채택(방향). 코드는 태그·브랜치에만 있다. |
+| [2026-11-04 템플릿 갤러리 화면 대안 (#936)](spikes/2026-11-04-936-template-gallery.md) | Historical | 스파이크 기록. 결론: 채택. 코드는 태그·브랜치에만 있다. |
+| [2026-11-05 동적 UI: 생성 UI와 저장 뷰를 같은 렌더러로](spikes/2026-11-05-dynamic-ui.md) | Historical | 스파이크 기록. 결론: 폐기. 코드는 태그·브랜치에만 있다. |
+| [2026-11-06 동적 UI 인터뷰 → 흐름도 → 보고서](spikes/2026-11-06-dynamic-interview-flow.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-10 비서와 플러그인 만들기](spikes/2026-11-10-assistant-plugin-builder.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-11 #1462 검증 실험 ②: 교정 후 원본 대응과 텍스트 블록 ID](spikes/2026-11-11-1462-block-identity.md) | Historical | 스파이크 기록. 결론: 채택(방식 A). 코드는 태그·브랜치에만 있다. |
+| [2026-11-11 #1462 검증 실험 ①: 독립 PDF 텍스트 증거와 문서 대응](spikes/2026-11-11-1462-evidence-match.md) | Historical | 스파이크 기록. 결론: 채택(보조 후보 탐지만). 코드는 태그·브랜치에만 있다. |
+| [2026-11-11 문서 작성 안내 투어](spikes/2026-11-11-guided-tour.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-11 요구사항 추적과 ReqIF 내보내기](spikes/2026-11-11-requirements-traceability.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-12 검토 패널 배치 세 시안 (#1462)](spikes/2026-11-12-1462-review-panel.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-13 공정 분석기 (OBCM EOL 그래프·공정 능력)](spikes/2026-11-13-process-analyzer.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+
 ## Verification
 
 - [v0.0.3-beta.1 배포·검증 기록](releases/v0.0.3-beta.1.md) — Historical. Beta 공개·세 workflow와 게시 전 tag 재지정·자산 해시·한국어 본문. 실제 GitHub 설치·업데이트 미검증.
