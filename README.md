@@ -16,7 +16,7 @@ The name Litzio means connecting input/output (I/O) with Litz wire.
 Litzio(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.
 
 표·수식·참조가 있는 기술문서를 시각적으로 작성하고, 사람이 읽을 수 있는 plain-text 파일로 Git에서 관리합니다. Editor와 CLI·자동화는 같은 Core로 문서를 읽고 수정합니다.
-**구조화 편집은 `litzio: 1` 표식과 지원되는 본문을 갖춘 Litzio 네이티브 문서에 한하며, 미호환 `.md`와 `.txt`는 텍스트 모드로 엽니다. 일반 Markdown 편집기나 Import 도구는 아닙니다.** Windows x64 Beta 단계이고 Stable은 아직 없습니다. 공개 API와 문서 지원 범위는 바뀔 수 있습니다.
+**구조화 편집은 `litzio: 1` 표식과 지원되는 본문을 갖춘 Litzio 네이티브 문서에 한하며, 미호환 `.md`와 `.txt`는 텍스트 모드로 엽니다. 일반 Markdown 편집기나 Import 도구는 아닙니다.** Windows x64 Stable 배포를 제공합니다. 공개 API와 문서 지원 범위는 바뀔 수 있습니다.
 
 ![Litzio 데모: 편집 화면에서 직접 입력과 제목 번호·인라인 수식, /수식으로 레이블·번호 (2) 지정, /다이어그램으로 Mermaid 원문 편집·실시간 미리보기·그림 1 캡션, 식 (2)·그림 1 상호참조 삽입, 저장 후 소스 화면의 MyST 원문 확인](docs/design/assets/litzio-demo.gif)
 
@@ -27,7 +27,7 @@ Litzio(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.
 ## 설치하고 시작하기
 
 1. [Releases 목록](https://github.com/litzio/litzio/releases)에서 사용할 Beta의 **Assets**를 열고 `Litzio-Setup-<버전>.exe`를 내려받아 실행합니다. 현재 사용자에게 설치하며 관리자 권한이나 별도 Node.js·pnpm이 필요하지 않습니다.
-2. **unsigned Beta**이므로 알 수 없는 게시자 또는 SmartScreen 경고가 나타날 수 있습니다. 공식 저장소의 다운로드인지 확인하고 PC의 보안 정책을 따르세요.
+2. **서명 없는 Stable**이므로 알 수 없는 게시자 또는 SmartScreen 경고가 나타날 수 있습니다. 공식 저장소의 다운로드인지 확인하고 PC의 보안 정책을 따르세요.
 3. 시작 화면에서 sample을 선택하거나 **Open folder**로 폴더를 연 뒤 Sidebar의 `.md` 또는 `.txt` 파일을 선택합니다. **New file**로 새 문서를 만들고, 편집 후 **Save**로 저장할 수 있습니다.
 
 Desktop 시작 화면이나 Command center의 **샘플 문서 열기**에서 현재 UI 언어에 맞는
@@ -36,7 +36,7 @@ Desktop 시작 화면이나 Command center의 **샘플 문서 열기**에서 현
 바뀔 때 앱이 소유를 확인한 경우에만 교체됩니다. 개발 Editor에서도 같은 샘플을 제공하며 HTTP Host는 제외합니다.
 [샘플 배포 계약](docs/design/desktop-distribution-v1.md#native-sample)을 따릅니다.
 
-Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 최신 공개 설치본은 [Releases](https://github.com/litzio/litzio/releases)에서 내려받으세요. 최신 공개 결과는 [최신 배포·검증 기록](docs/releases/v0.0.2-beta.10.md)을 확인하세요. 이전 배포 기록도 릴리스 기록에 보존합니다.
+Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 최신 공개 설치본은 [Releases](https://github.com/litzio/litzio/releases)에서 내려받으세요. 최신 공개 결과는 [최신 배포·검증 기록](docs/releases/v0.0.2.md)을 확인하세요. 이전 배포 기록도 릴리스 기록에 보존합니다.
 
 **제품 이름 변경(IeumDoc → Litzio)으로 앱 ID·설치·데이터 경로가 바뀌어, IeumDoc beta.4 설치본은 Litzio로 자동 업데이트되지 않습니다. 새로 설치해야 하며 IeumDoc 데이터·설정·복구 기록은 이전되지 않습니다.**
 
