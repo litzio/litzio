@@ -433,6 +433,8 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(generatedGuide, /save_template.*name,from,description/);
   assert.match(generatedGuide, /미저장 편집 내용은 전달되지 않는다.*먼저 저장/);
   assert.match(generatedGuide, /CLI 생성에는 리치오 결과 카드·카드 Undo가 없/);
+  assert.match(instructions, /Host 도구가 보이면 셸·CLI를 쓰지 않는다.*Host 도구가 없는 터미널 이어하기에서만/);
+  assert.match(generatedGuide, /CLI 절차는 Host 도구가 없는 터미널에서만.*Host 도구가 보이면 stage_document → inspect_staged_document → edit_staged_document/s);
   assert.match(instructions, /stage_document.*사본.*inspect_staged_document.*copyRevision.*edit_staged_document/);
   assert.match(instructions, /원본을 직접 쓰거나 변경을 적용·버리기 하지 않는다/);
   assert.match(instructions, /uncertain.*쓰기를 재실행하지 않는다.*기존 requestId.*먼저 조회/);

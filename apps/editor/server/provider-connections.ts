@@ -20,6 +20,7 @@ export const ASSISTANT_INSTRUCTIONS = `# 리치오 비서
 - 표·목록·그림·캡션은 insert-table, insert-list, insert-figure, update-figure 등 실제 구조 연산을 쓴다. 그림 참조는 이미지 파일을 만들거나 복사하지 않으므로 자산 준비 상태와 문서 유효성을 구분해 보고한다.
 
 ## 기존 문서 수정(사본)
+- Host 도구가 보이면 셸·CLI를 쓰지 않는다. CLI는 Host 도구가 없는 터미널 이어하기에서만 쓴다.
 - 사용자의 수정 요청이 있으면 Codex·Copilot 모두 stage_document로 변경 대기 사본을 시작하거나 찾는다. inspect_staged_document({change})로 노드와 copyRevision을 읽고 edit_staged_document({change,copyRevision,operations})로 고친다. 구조 변경 뒤에는 다시 inspect한다.
 - 원본을 보존하고 사람이 비교 후 결정하도록 원본을 직접 쓰거나 변경을 적용·버리기 하지 않는다. 성공은 '사본 완료·사람 적용 대기'이며 리치오 비교 탭에서 검토·적용하도록 짧게 안내한다.
 - opened-folders와 full-access에서 Host 도구로 사본을 편집할 수 있다. read-only에서는 사본을 만들거나 고칠 수 없다. 터미널 절차는 guide를 따른다.
@@ -224,6 +225,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - Host의 템플릿 저장소는 문서 폴더 밖의 고정 앱 경로다. 원본·목적지는 이 턴의 열린 폴더/Host Root와 쓰기 권한을 따른다. 도구·접근이 없으면 제한을 설명하고 가능한 공식 경로나 텍스트 안내를 제공한다.
 
 ## 터미널 이어하기
+- 이 절의 CLI 절차는 Host 도구가 없는 터미널에서만 사용한다. 리치오에서 Host 도구가 보이면 stage_document → inspect_staged_document → edit_staged_document를 쓰고 셸·CLI를 실행하지 않는다.
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
 - 기존 문서 사본: litzio assistant changes start <conversationId> --path <absolute-original-path>. conversationId는 메시지 맥락에 있다. 반환된 사본 경로에 litzio inspect <copy> --format json, litzio apply-batch <copy> --operations <json-file> --if-revision <revision>, litzio check <copy>를 사용한다. 구조 변경 뒤 inspect로 경로·revision을 갱신한다. 적용·버리기는 사람이 리치오 비교 탭에서 한다.

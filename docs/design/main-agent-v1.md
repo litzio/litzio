@@ -164,7 +164,7 @@ Litzio also regenerates `.agents/skills/litzio-guide/SKILL.md` here. It has name
 
 ### 제품 지시문 구성 (2026-11-12)
 
-`provider-connections.ts`의 두 상수는 한국어 여러 줄 Markdown이다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 공식 write path와 사본 편집, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다.
+`provider-connections.ts`의 두 상수는 한국어 여러 줄 Markdown이다. `ASSISTANT_INSTRUCTIONS`는 매 턴 필요한 맥락·언어, 공식 write path와 사본 편집, 화면 조작, 비동기 질문, 공급자 승인, 검수 즉시 교정, 플러그인과 실패 복구를 소유한다. `LITZIO_GUIDE`는 앱 사용법·템플릿·터미널 CLI 참고 절차를 소유하며 같은 규칙을 반복하지 않는다. 도구·명령·필드 식별자는 원문을 유지한다. 사본 편집 Host 도구가 보이면 셸·CLI를 사용하지 않으며, CLI 절차는 Host 도구가 없는 터미널 이어하기에만 적용한다.
 
 별도 Markdown 런타임 파일로 분리하지 않는다. CLI는 서버 코드를 esbuild로 번들하고 Desktop daemon은 그 CLI 배포본을 복사한다. 별도 자산 읽기는 개발 서버·분산 HTTP Host·패키지 자산 복사 경로를 추가로 바꿔야 하므로 이번 지시문 변경은 기존 문자열 번들 경로를 유지한다.
 
