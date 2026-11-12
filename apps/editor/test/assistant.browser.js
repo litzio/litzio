@@ -212,6 +212,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
+      if (body.action?.endsWith('-ack')) return route.fulfill({ json: { acknowledged: true } });
       if (body.action === 'screen-result') { screenReply = body.reply; await screenReplyGate; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
       if (body.action === 'display-result') {
         displayReply = body.reply; displayRequest = undefined;
@@ -714,14 +715,15 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
   await expect(statusTrigger).toHaveAttribute('data-status', 'working');
-  // Background observation must not grant hidden-panel display-setting changes.
+  // Explicit display changes also run with the sending panel closed.
   displayRequest = { id: 'closed-panel-display', validForMs: 10000, changes: { theme: 'dark' } };
   selected.userInput = { requestId: 'question-983', turnId: selected.turns[0].id, questions: [
     { id: 'constructor', header: 'Scope', question: 'Which part should I explain?', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Explain the main points.' }, { label: 'Details', description: 'Explain each step.' }] },
     { id: '__proto__', header: 'Private input', question: 'Enter a private example.', isOther: false, isSecret: true, options: null }
   ] };
   await expect(statusTrigger).toHaveAccessibleName('Assistant — Needs your attention');
-  expect(await page.locator('html').getAttribute('data-theme')).toBe('light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(() => displayReply?.after?.theme).toBe('dark');
   displayRequest = undefined;
   await statusTrigger.focus();
   await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
@@ -802,11 +804,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     document.dispatchEvent(new Event('visibilitychange'));
   }, value);
   await visibility('hidden');
-  // Let any already admitted snapshot settle, then observe two polling intervals.
-  await page.waitForTimeout(700);
   const hiddenSnapshots = snapshots;
-  await page.waitForTimeout(1300);
-  expect(snapshots, 'Hidden tabs stop snapshot requests').toBe(hiddenSnapshots);
+  await expect.poll(() => snapshots, 'Open windows keep observing requests in background tabs').toBeGreaterThan(hiddenSnapshots);
   let releaseSnapshot;
   snapshotGate = new Promise(resolve => { releaseSnapshot = resolve; });
   await visibility('visible');

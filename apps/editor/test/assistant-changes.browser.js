@@ -13,6 +13,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await page.route('**/api/assistant/models*', route => route.fulfill({json:{provider:'codex',models:[{id:settings.model,model:settings.model,displayName:'Luna',supportedReasoningEfforts:[{reasoningEffort:'low'}]}]}}));
   await page.route('**/api/assistant/conversations*', async route => {
     const request = route.request(), input = request.method()==='POST' ? request.postDataJSON() : {};
+    if(input.action?.endsWith('-ack')) return route.fulfill({json:{acknowledged:true}});
     if(input.action==='screen-action-result') { screenActionReply=input.reply; screenActionRequest=undefined; return route.fulfill({json:{acknowledged:true}}); }
     if(input.action==='screen-result') { screenReply=input.reply; screenRequest=undefined; return route.fulfill({json:{acknowledged:true}}); }
     if(input.action==='changes-list') { listPolls++; return route.fulfill({json:pending ? [{id:'change',path:file,copyRevision}] : []}); }
@@ -165,6 +166,11 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await expect(panel.getByRole('button',{name:/^(Review|검토)$/})).toHaveCount(0);
   await page.evaluate(prefix=>{localStorage.setItem(prefix+'.uiLanguage','en');localStorage.setItem(prefix+'.theme','light');},brand.storagePrefix);
   await page.getByRole('tab',{name:/a.md/}).first().click();
+  conversation.turns.at(-1).status='inProgress';
+  await panel.getByRole('button',{name:/^(Close assistant|비서 닫기)$/}).click();
+  screenReply=undefined;
+  screenRequest={id:'hidden-panel-read',validForMs:10000};
+  await expect.poll(()=>screenReply?.tabs?.length).toBeGreaterThan(0);
   screenActionRequest={id:'close-tabs',validForMs:10000,action:{kind:'close_tabs',tabIds:'all'}};
   await expect.poll(()=>screenActionReply?.outcome).toBe('conflict');
   expect(screenActionReply.remaining.some(item=>/Unsaved/.test(item.reason))).toBe(true);

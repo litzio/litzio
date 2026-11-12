@@ -14,7 +14,7 @@ export class AgentScreenActionRequests {
   constructor(private timeoutMs = 10_000) {}
   snapshot(conversation: string, client: string) {
     const value = [...this.pending.values()].find(item => item.conversation === conversation && item.client === client);
-    const validForMs = value ? value.deadline - performance.now() : 0;
+    const validForMs = value ? (value.deadline === Infinity ? this.timeoutMs : value.deadline - performance.now()) : 0;
     return value && validForMs > 0 ? { ...value.request, validForMs } : undefined;
   }
   execute(name: string, input: unknown, conversation: string, client?: string): Promise<ScreenActionResult> {
@@ -27,6 +27,12 @@ export class AgentScreenActionRequests {
       const timer = setTimeout(() => { this.pending.delete(id); resolve(failure("uncertain", "Window did not confirm the action. Query screen state before deciding next steps; do not blindly retry.")); }, this.timeoutMs);
       this.pending.set(id, { conversation, client, request: { id, action, validForMs: this.timeoutMs }, deadline: performance.now() + this.timeoutMs, resolve, timer });
     });
+  }
+  acknowledge(conversation: string, client: string, id: string) {
+    const pending = this.pending.get(id);
+    if (!pending || pending.conversation !== conversation || pending.client !== client || performance.now() >= pending.deadline) throw new Error("Request expired or belongs to another window.");
+    clearTimeout(pending.timer);
+    pending.deadline = Infinity;
   }
   reply(conversation: string, client: string, id: string, input: ScreenActionResult) {
     const value = this.pending.get(id);
