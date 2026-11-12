@@ -1,6 +1,7 @@
 # ADR-0015: Shared Host operations for UI, HTTP, CLI and assistant tools
 
 - Status: Accepted
+- Partially superseded by: [ADR-0021](0021-general-agent-assistant.md) — 1절의 필요 시 비서 도구 생성 결정을 CLI·스킬 기본과 창 연동 전용 도구로 대체하며, Host 공용 작업·CLI 필수는 유지한다.
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-04
 - Last verified: 2026-11-05 — #1150·ADR-0017 전환과 ADR-0020의 재개 시 비서 관리 개정을 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.

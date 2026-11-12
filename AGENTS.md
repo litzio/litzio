@@ -10,7 +10,7 @@
 - 정상 동작하는 주변 코드를 현재 작업과 무관하게 재설계하거나 리팩터링하지 않는다.
 - 기존 기술로 해결 가능한 parser, AST, document format, editor engine 등을 불필요하게 재구현하지 않는다.
 - 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-플러그인-기능-제거와-보관)의 PR3 테스트 제외는 PR4에서 복구해 종료했으며 예외를 연장하지 않는다. [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 AI 공식 기능 이전·구 플러그인/Docling 제거와 보관·번들 UI 전환은 완료했다. 보관 기록은 `archive/plugins-docling-2026-11`에 유지하며, 현재 플러그인 계약은 ADR-0019·0020과 아래 구현 계약을 따른다.
-- 비서(AI)에게 새 제약을 걸 때는 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명한다. 읽기와 사본 변경처럼 되돌릴 수 있는 작업은 막기보다 수행 방법을 먼저 찾고, 보호는 작업별 확정 경계에서 Host가 처리한다([#1500](https://github.com/litzio/litzio/issues/1500)).
+- 비서는 [ADR-0021](docs/adr/0021-general-agent-assistant.md)의 범용 에이전트 결정을 따른다. 새 제약은 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명하고, 되돌릴 수 있는 작업은 수행 방법을 먼저 찾는다.
 - 새 상태는 소유자(앱·Host·문서·대화·플러그인·요청)를 먼저 정한다. 병렬 PR은 상대 PR이 바꾼 timeout·취소·출력·수명 가정까지 합쳐 검토한다.
 - 개발 단계이므로 소유자가 Migration을 명시적으로 지시하지 않는 한, 이미 저장된 Litzio 문서·복구 기록·설정 등 과거 데이터의 하위 호환성을 설계 판단이나 구현 범위에 포함하지 않는다. 사람·AI·CLI가 앞으로 작성하는 입력의 처리는 이 규칙과 별개다.
 
@@ -21,7 +21,7 @@
 - 특정 플러그인만을 위한 Core·Host 기능은 만들지 않는다. 단, 여러 플러그인이 함께 쓸 수 있고 가치 있는 기능은 Core·Host에 넣을 수 있다. 판단은 PR 리뷰에서 사람과 오케스트레이터가 하며 자동 검사로 강제하지 않는다.
 - Editor, CLI, AI 등 서로 다른 인터페이스가 문서 의미를 각각 별도로 구현하지 않도록 한다.
 - 영속적인 문서 의미 변경은 Editor에만 구현하지 않으며, 먼저 또는 동시에 Core의 editor-neutral semantic operation으로 표현한다.
-- [ADR-0015](docs/adr/0015-shared-host-operations.md)에 따라 새 사용자 기능은 Host 공용 작업(입력·결과·범위·receipt)으로 정의하고 CLI 명령을 반드시 함께 제공하며, 비서에 필요하면 같은 정의로 비서 도구를 만든다.
+- [ADR-0015](docs/adr/0015-shared-host-operations.md)에 따라 새 사용자 기능은 Host 공용 작업(입력·결과·범위·receipt)으로 정의하고 CLI 명령을 반드시 함께 제공한다. 비서는 [ADR-0021](docs/adr/0021-general-agent-assistant.md)에 따라 CLI와 스킬을 기본으로 쓰고, 전용 도구는 실행 중인 창과 연동해야 할 때만 만든다.
 - CLI는 공용 작업과 Core operation을 호출하는 얇은 인터페이스로 유지하며, 문서 의미나 Markdown/AST를 별도로 구현하지 않는다.
 - cursor, focus, selection, toolbar, hover 등 Editor 전용 interaction은 CLI parity 대상이 아니다.
 - 공식 write path가 생성하는 문서는 valid하고 안정적으로 다시 처리할 수 있어야 한다.

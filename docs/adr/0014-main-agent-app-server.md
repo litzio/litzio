@@ -1,6 +1,7 @@
 # ADR-0014: Main agent through Host-owned CLI connections
 
 - Status: Accepted
+- Partially superseded by: [ADR-0021](0021-general-agent-assistant.md) — 기존 문서의 텍스트 제안 전용 결정과 제한 권한의 Copilot 셸 거부를 대체한다.
 - Decision date: 2026-11-02
 - Permission default amendment (2026-11-11, #1500): absent saved settings now default to full-access, with automatic opened-folders fallback on explicit Codex policy rejection; see the current [assistant contract](../design/main-agent-v1.md#organization-permission-requirements-1416).
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
