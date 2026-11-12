@@ -24,7 +24,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
-- 기존 문서는 파일 편집 도구나 셸로 원본을 바로 고친 뒤 `litzio check <file> --format json`으로 검사하고 오류를 고친다. 중간 산출물과 임시 스크립트는 현재 비서 작업 폴더에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
+- 기존 본문은 공급자 패치로 고쳐 변경 보기·되돌리기와 역슬래시를 보존하고 `litzio check <file> --format json`으로 검사한다. 셸은 읽기·검사·변환·일괄 처리 등에 쓴다. 임시 파일은 현재 폴더에 두며 열린 폴더의 지시 파일을 먼저 읽는다.
 - 이미지 자산: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져오고 반환된 상대 경로를 insert-figure에 사용한다.
 - 새 문서: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
 - 템플릿: litzio templates list --json --language <ko|en>, litzio templates read <id> --json --language <ko|en>, litzio create <new-file> --template <id> --language <ko|en>, litzio templates save <name> --from <file> --description <text>를 사용한다.

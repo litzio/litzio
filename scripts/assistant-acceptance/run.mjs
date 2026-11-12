@@ -1,5 +1,6 @@
 // Manual acceptance measurement. Never imported by the product or CI.
 import fs from 'node:fs';
+import { format } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,11 +8,16 @@ import { spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { tasks } from './tasks.mjs';
 const checkout = fileURLToPath(new URL('../../',import.meta.url));
+const args=process.argv.slice(2);
+const openedOnly=args.includes('--opened-only');
+const taskIndex=args.indexOf('--task');
+const taskId=taskIndex>=0?Number(args[taskIndex+1]):undefined;
+const remaining=args.filter((a,i)=>a!=='--opened-only'&&(taskIndex<0||(i!==taskIndex&&i!==taskIndex+1)));
 const smoke = process.argv.includes('--smoke');
 const continueRun=process.argv.includes('--continue');
 const compareIndex=Math.max(process.argv.indexOf('--compare'),process.argv.indexOf('--continue'));
 const previous=compareIndex>=0?JSON.parse(fs.readFileSync(process.argv[compareIndex+1],'utf8')):undefined;
-if ((previous && (process.argv.length!==4 || smoke || previous.model!=='gpt-6.1-terra')) || (!previous && process.argv.slice(2).some(a=>a!=='--smoke'))) throw new Error('Usage: pnpm exec tsx scripts/assistant-acceptance/run.mjs [--smoke | --continue results.json | --compare results.json]');
+if ((previous && (process.argv.length!==4 || smoke || previous.model!=='gpt-6.1-terra')) || (!previous && (remaining.some(a=>a!=='--smoke') || (taskId!==undefined&&!tasks.some(t=>t.id===taskId))))) throw new Error('Usage: pnpm exec tsx scripts/assistant-acceptance/run.mjs [--smoke | --continue results.json | --compare results.json | --task <id>] [--opened-only]');
 const root = previous?.root ?? fs.mkdtempSync(path.join(os.tmpdir(),'litzio-acceptance-'));
 const profile=path.join(root,'profile'), cwd=path.join(root,'assistant');
 fs.mkdirSync(profile,{recursive:true}); fs.mkdirSync(cwd,{recursive:true});
@@ -20,6 +26,10 @@ for (const key of Object.keys(process.env)) if (/^LITZIO_.*_SETTINGS_FILE$/.test
 process.env.LITZIO_DATA_DIR=profile; process.env.LITZIO_ASSISTANT_CWD=cwd;
 const model=smoke?'gpt-6-luna':'gpt-6.1-terra', reasoningEffort=smoke?'low':'high';
 fs.writeFileSync(path.join(profile,'assistant.json'),JSON.stringify({provider:'codex',permissionMode:'opened-folders',model,reasoningEffort,responseLanguage:'ko'}));
+const hostLog=[];
+const consoleOriginal={warn:console.warn,error:console.error};
+for(const key of ['warn','error']) console[key]=(...args)=>{hostLog.push(format(...args));if(hostLog.length>40)hostLog.shift();consoleOriginal[key](...args);};
+const errorDetail=e=>({name:e?.name,message:e?.message??String(e),code:e?.code,stack:e?.stack,cause:e?.cause?errorDetail(e.cause):undefined});
 const { startHttpHost }=await import('../../apps/editor/server/http-host.ts');
 const host=await startHttpHost({roots:[root],editorDir:path.join(checkout,'apps/editor'),port:0});
 const report=previous??{model,reasoningEffort,startedAt:new Date().toISOString(),pid:process.pid,root,url:host.url,aiCalls:0,results:[],limits:'One attempt per task/mode, 600 seconds, no approval answers; max 22 sends per full run; smoke max 1 send.'};
@@ -44,7 +54,7 @@ async function run(task,permissionMode){
  try {
   if(report.aiCalls>= (smoke?1:22))throw new Error('AI call budget exhausted');report.aiCalls++;save();
   // Submission receipt avoids an HTTP timeout hiding admission; never replay a send.
-  try { conversation=(await api('POST','',{action:'send',submissionId,provider:'codex',permissionMode,model,reasoningEffort,folders:[folder],message:task.message})).conversation; } catch(error) { r.transportError=scrub(error.message); const receipt=await api('GET','?submissionId='+submissionId); conversation=receipt.conversation; if(receipt.submission?.status==='unknown'&&!conversation)throw error; }
+  try { conversation=(await api('POST','',{action:'send',submissionId,provider:'codex',permissionMode,model,reasoningEffort,folders:[folder],message:task.message})).conversation; } catch(error) { r.transportError=scrub(JSON.stringify(errorDetail(error))); r.hostLogTail=hostLog.map(scrub); const receipt=await api('GET','?submissionId='+submissionId); conversation=receipt.conversation; if(receipt.submission?.status==='unknown'&&!conversation)throw error; }
   while(Date.now()-start<600_000){
    const submission=await api('GET','?submissionId='+submissionId);
    if(submission.submission?.status==='rejected')throw new Error(JSON.stringify(submission));
@@ -56,7 +66,7 @@ async function run(task,permissionMode){
    await delay(1000);
   }
   if(!r.stop)r.stop='시간 초과';
- }catch(e){r.stop=scrub(e.message);}
+ }catch(e){r.stop=scrub(e.message);r.errorDetail=scrub(JSON.stringify(errorDetail(e)));r.hostLogTail=hostLog.map(scrub);}
  finally {
   r.seconds=+( (Date.now()-start)/1000).toFixed(1);
   // Capture before interrupt expires approval metadata.
@@ -101,9 +111,9 @@ try {
     await run(task,'opened-folders');
   }
  } else {
-  for (const task of (smoke?tasks.slice(0,1):tasks)) await run(task,'opened-folders');
+  for (const task of (smoke?tasks.slice(0,1):taskId?tasks.filter(t=>t.id===taskId):tasks)) await run(task,'opened-folders');
  }
- if (!smoke) {
+ if (!smoke && !openedOnly) {
   for (const r of [...report.results]) {
    if (r.permissionMode==='opened-folders'&&r.result==='미완수'&&r.cause==='권한·샌드박스'
     &&!report.results.some(c=>c.id===r.id&&c.permissionMode==='full-access'))
@@ -114,5 +124,6 @@ try {
  report.error=scrub(e.message);process.exitCode=1;
 } finally {
  await host.close();
+ for(const key of ['warn','error'])console[key]=consoleOriginal[key];
  report.closedAt=new Date().toISOString();save();console.log('Host closed; output: '+root);
 }

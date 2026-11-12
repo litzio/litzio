@@ -225,6 +225,8 @@ configuration, MCP servers and login remain inherited. The existing-document
 rule is an agent instruction, not a new document-edit enforcement system.
 Steering retains the running turn's scope; new folder/settings choices apply to
 the next turn.
+The context JSON reports the effective `permissionMode`, including steering and Full access fallback; this is information, not an additional permission grant. Thread start/resume defaults and per-turn sandbox policies are unchanged.
+Existing document bodies prefer provider patch tools for change review/Undo and literal character preservation. Shell remains available for reading, checking, conversion and batch work. CLI check/inspect/compare do not acquire the app-reset writer guard; write commands still require it and explain acquisition failures.
 
 AI default language offers Korean, English and Japanese. Its initial value follows
 Host OS / browser language, with English fallback, independently of display language.

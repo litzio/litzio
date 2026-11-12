@@ -58,7 +58,7 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 
 [ResetGuard](../../apps/editor/server/reset-guard.ts)의 상태 소유자는 같은 OS 계정이다. 기본 위치는 Host base 밖의 `~/.litzio-reset-guard`; 검증은 `LITZIO_RESET_DIR`로 격리한다. 같은 계정의 여러 채널·설치본이 Host base/daemon override와 무관하게 참여해야 하므로 기존 한 채널의 daemon lock이나 한 profile의 작업 요약만으로 대체할 수 없다. gate는 문서 세션이나 범용 persistence가 아니라 초기화와 writer 수명 사이의 좁은 배타 제어다.
 
-Desktop·HTTP/Vite Host·실행 CLI가 PID/OS 생성 identity를 가진 actor lease를 등록한다. 일반 CLI의 순수 help/version은 참여하지 않는다. writer는 먼저 등록하고 exclusive 존재를 확인한다. 초기화는 exclusive를 먼저 만든 뒤 기존 actor를 검사하므로 새 writer와의 시작 경쟁도 둘 중 하나가 거부된다. 다른 프로세스를 죽이지 않는다. dead PID 세대의 고유 actor 파일만 회수한다. 중단된 exclusive, 알 수 없는 기록, Host 하위 프로세스 종료 실패 marker는 자동 회수하지 않고 검사할 위치를 보고한다. gate 자체를 포함하거나 home·현재 cwd·설치 실행 파일·사용자 문서/OS 데이터 root를 포함하는 삭제 대상은 거부한다.
+Desktop·HTTP/Vite Host·실행 CLI가 PID/OS 생성 identity를 가진 actor lease를 등록한다. 일반 CLI의 순수 help/version과 읽기 전용 check·inspect·compare는 참여하지 않는다. 읽기는 초기화와 겹쳐도 저장 데이터를 변경하지 않으며, 쓰기 명령의 guard 획득 실패는 우회하지 않고 직접 파일 편집 또는 실행 승인을 안내한다. writer는 먼저 등록하고 exclusive 존재를 확인한다. 초기화는 exclusive를 먼저 만든 뒤 기존 actor를 검사하므로 새 writer와의 시작 경쟁도 둘 중 하나가 거부된다. 다른 프로세스를 죽이지 않는다. dead PID 세대의 고유 actor 파일만 회수한다. 중단된 exclusive, 알 수 없는 기록, Host 하위 프로세스 종료 실패 marker는 자동 회수하지 않고 검사할 위치를 보고한다. gate 자체를 포함하거나 home·현재 cwd·설치 실행 파일·사용자 문서/OS 데이터 root를 포함하는 삭제 대상은 거부한다.
 
 Vite도 문서·asset middleware가 수락한 promise를 SSR module loading부터 추적한다. listener 종료 이벤트는 서비스 종료와 수락된 handler의 settle까지 기다린 뒤 lease를 해제한다. 종료 중 새 Host 서비스를 초기화하지 않으며 `server.close()`도 같은 정리를 기다린다. Vite 내부 restart가 listener를 닫는 경로에도 같은 lease 보호가 적용된다. 이미 수락된 파일 변경은 소켓 단절로 취소됐다고 간주하지 않는다.
 
