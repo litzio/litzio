@@ -218,7 +218,7 @@ function EditorApp() {
   const [newDialog, setNewDialog] = useState(false);
   const [newDirectory, setNewDirectory] = useState("");
   const [newFolderDialog, setNewFolderDialog] = useState(false);
-  const [undoConfirmation, setUndoConfirmation] = useState<{ name: string; resolve(value: boolean): void }>();
+  const [undoConfirmation, setUndoConfirmation] = useState<{ edit?: boolean; name: string; resolve(value: boolean): void }>();
   const undoFocus = useRef<HTMLElement | null>(null);
   const [fileOperationPending, setFileOperationPending] = useState(false);
   const [figureRenamePending, setFigureRenamePending] = useState(false);
@@ -1597,12 +1597,36 @@ function EditorApp() {
             outlineToggle.current?.focus();
           }}
         />
-      {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
-        action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
+      {undoConfirmation ? <DangerConfirmation title={i18n.t(undoConfirmation.edit ? "Undo change?" : "Undo document creation?")} description={i18n.t(undoConfirmation.edit ? "Restore “{{name}}” and discard unsaved changes and recovery records?" : "“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
+        action={i18n.t(undoConfirmation.edit ? "Restore and discard changes" : "Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
       {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onScreen={readScreen} onScreenAction={performScreenAction} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
+        onUndoChange={async (path, undo) => {
+          if (operationRef.current || busy || continuation || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
+          const affected = tabs.filter(tab => sameLocator(tab, { hostId: assistantHost, path }));
+          for (const [group, pending] of pendingOpens.current) if (pending.hostId === assistantHost && pending.path === path) cancelOpen(group);
+          operationRef.current = true; setFileOperationPending(true);
+          const owners = affected.flatMap(tab => { const owner = sessions.current.get(tab.id); return owner ? [owner] : []; });
+          owners.forEach(owner => owner.suspendRecovery());
+          try {
+            const snapshots = () => JSON.stringify(affected.map(tab => [sessions.current.get(tab.id)?.getSnapshot(), sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()]));
+            const recovery = async () => (await recoveryStorage.list()).filter(record => sameLocator(record, { hostId: assistantHost, path })).sort((a,b) => a.id.localeCompare(b.id));
+            const before = snapshots(), records = await recovery();
+            if (affected.some(tab => sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()) || records.length) {
+              undoFocus.current = globalThis.document.activeElement as HTMLElement;
+              const confirmed = await new Promise<boolean>(resolve => setUndoConfirmation({ edit: true, name: splitDocumentPath(path).name, resolve }));
+              setUndoConfirmation(undefined);
+              if (!confirmed) return false;
+            }
+            if (before !== snapshots() || JSON.stringify(records) !== JSON.stringify(await recovery())) throw new Error(i18n.t("The file changed during the operation. Review it and try again."));
+            await undo();
+            for (const record of records) await recoveryStorage.delete(record.id, assistantHost);
+            await Promise.all(affected.map(tab => sessions.current.get(tab.id)?.reloadFromDisk()));
+            return true;
+          } finally { owners.forEach(owner => owner.resumeRecovery()); operationRef.current = false; setFileOperationPending(false); }
+        }}
         onUndo={async result => {
           const root = assistantHost === LOCAL_HOST_ID ? folders.rootOf(result.path) : readOpenFolders(assistantHost).find(root => folderChain(root, result.path).length > 0);
           if (!root) throw new Error(i18n.t("The created file is outside the opened folders."));

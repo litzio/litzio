@@ -1,6 +1,22 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "The file changed after the assistant edit. Undo was refused.": "The file changed after the assistant edit. Undo was refused.",
+  "This change is unavailable in this Host session.": "This change is unavailable in this Host session.",
+  "Wait for the assistant response to finish.": "Wait for the assistant response to finish.",
+  "At least one --root directory is required.": "At least one --root directory is required.",
+
+  "Undo change?": "Undo change?",
+  "Restore “{{name}}” and discard unsaved changes and recovery records?": "Restore “{{name}}” and discard unsaved changes and recovery records?",
+  "Restore and discard changes": "Restore and discard changes",
+  "Before assistant edit": "Before assistant edit",
+
+  "View changes": "View changes",
+  "Undo change": "Undo change",
+  "Compare the content before this turn with the current disk file.": "Compare the content before this turn with the current disk file.",
+  "Restore the content before this turn only if the file has not changed since the assistant edit.": "Restore the content before this turn only if the file has not changed since the assistant edit.",
+  "Line numbers: before / current disk. − removed, + added. Long lines wrap.": "Line numbers: before / current disk. − removed, + added. Long lines wrap.",
+
   "Review": "Review",
   "Discard": "Discard",
   "Changes applied on disk. Save or close your local edits before reloading the document.": "Changes applied on disk. Save or close your local edits before reloading the document.",
@@ -1368,6 +1384,22 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "The file changed after the assistant edit. Undo was refused.": "비서 수정 이후 파일이 바뀌어 되돌리지 않았습니다.",
+  "This change is unavailable in this Host session.": "현재 Host 세션에서는 이 변경을 확인하거나 되돌릴 수 없습니다.",
+  "Wait for the assistant response to finish.": "비서 응답이 끝날 때까지 기다리세요.",
+  "At least one --root directory is required.": "열린 폴더가 없어 변경을 확인하거나 되돌릴 수 없습니다.",
+
+  "Undo change?": "변경을 되돌릴까요?",
+  "Restore “{{name}}” and discard unsaved changes and recovery records?": "“{{name}}”을 되돌리고 저장하지 않은 변경과 복구 기록을 버릴까요?",
+  "Restore and discard changes": "되돌리고 변경 버리기",
+  "Before assistant edit": "비서 변경 전",
+
+  "View changes": "변경 보기",
+  "Undo change": "되돌리기",
+  "Compare the content before this turn with the current disk file.": "이 턴의 변경 전 내용과 현재 디스크 파일을 비교합니다.",
+  "Restore the content before this turn only if the file has not changed since the assistant edit.": "비서 수정 이후 파일이 바뀌지 않았을 때만 이 턴의 변경 전 내용으로 되돌립니다.",
+  "Line numbers: before / current disk. − removed, + added. Long lines wrap.": "줄 번호: 변경 전 / 현재 파일. − 삭제, + 추가. 긴 줄은 줄바꿈합니다.",
+
   "Review": "검토",
   "Discard": "버리기",
   "Changes applied on disk. Save or close your local edits before reloading the document.": "디스크에 변경을 적용했습니다. 문서를 다시 불러오기 전에 로컬 편집을 저장하거나 닫으세요.",

@@ -18,8 +18,12 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   const conversation = { id: 'created-thread', title: 'Create a document', folders: [root], createdAt: Date.now(), updatedAt: Date.now(), ...settings,
     turns: [{ id: 'created-turn', status: 'completed', items: [{ id: 'answer', kind: 'assistant', text: 'Created documents. A suggestion mentioning /untrusted.md is only text.' },
       ...files.map((file, i) => ({ id: 'created-' + i, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: file.path, identity: i === 0 ? templateReceipt.identity : identities[i].identity, revision: i === 0 ? templateReceipt.revision : i === 2 ? '0'.repeat(64) : file.revision }) }] } }))] }] };
-  let resumes = 0;
+  let resumes = 0, editUndos = 0;
+  const editItem = { id: "edit-files", kind: "tool", text: "Update text files", status: "completed", work: { kind: "edit" }, fileChanges: paths.slice(0, 2) };
+  conversation.turns[0].items.unshift(editItem);
   await page.route('**/api/assistant/conversations*', route => {
+    if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'file-change-compare') return route.fulfill({ json: route.request().postDataJSON().path === paths[1] ? { before: files[1].source.replace('Beta.', 'Before assistant edit.'), after: files[1].source, sourceOnly: false, changed: false, missing: false } : { before: 'Before assistant edit.\n', after: 'After assistant edit.\n', sourceOnly: true, changed: false, missing: false } });
+    if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'file-change-undo') { editUndos++; return route.fulfill({ json: { path: route.request().postDataJSON().path } }); }
     if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'resume') resumes++;
     if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'send') {
       const submissionId = route.request().postDataJSON().submissionId;
@@ -37,6 +41,39 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await panel.getByRole('textbox').fill('Create a document'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   const cards = panel.getByTestId('assistant-result');
   await expect(cards).toHaveCount(3);
+  const editRows = panel.getByTestId('assistant-file-change');
+  await expect(editRows).toHaveCount(2);
+  const firstChange = editRows.first().getByRole('button', { name: 'View changes', exact: true, includeHidden: true });
+  const comparison = page.getByRole('dialog', { name: /View changes/ });
+  // CI recorded Escape 77ms after clicking, before the Dialog's queued initial focus.
+  // Hold only that focus transfer to exercise the same human-reachable window deterministically.
+  const resumeDialogFocus = await page.evaluateHandle(() => {
+    const focus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function (...args) {
+      if (this.closest('[role="dialog"]')) return;
+      focus.apply(this, args);
+    };
+    return () => { HTMLElement.prototype.focus = focus; };
+  });
+  try {
+    await firstChange.click();
+    await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('Before assistant edit.');
+    await expect(comparison.getByRole('region', { name: 'Source differences' })).toContainText('After assistant edit.');
+    await expect(comparison.getByRole('group', { name: 'Comparison view' })).toHaveCount(0);
+    await expect(firstChange).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(comparison).toBeHidden(); await expect(panel).toBeVisible();
+    await expect(firstChange).toBeFocused();
+  } finally {
+    await resumeDialogFocus.evaluate(resume => resume());
+    await resumeDialogFocus.dispose();
+  }
+  await editRows.nth(1).getByRole('button', { name: 'View changes', exact: true }).click();
+  await expect(comparison.getByRole('region', { name: 'Before assistant edit', exact: true })).toContainText('Before assistant edit.');
+  await expect(comparison.getByRole('region', { name: 'Current disk file', exact: true })).toContainText('Beta.');
+  await page.keyboard.press('Escape'); await expect(comparison).toBeHidden();
+  await editRows.first().getByRole('button', { name: 'Undo change', exact: true }).click();
+  await expect.poll(() => editUndos).toBe(1);
   const pathLabel = cards.first().locator('[data-slot="tooltip-trigger"]');
   await expect(pathLabel).toHaveText('a.md');
   await expect(pathLabel).toHaveAttribute('aria-label', paths[0]);
@@ -57,6 +94,12 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await card('b.md').getByRole('button', { name: 'Open', exact: true }).click();
   const editor = activeDocument(page); await expect(editor).toContainText('Beta.');
   await editor.locator('.tiptap p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' unsaved change');
+  await editRows.nth(1).getByRole('button', { name: 'Undo change', exact: true }).click();
+  const editConfirm = page.getByRole('dialog', { name: 'Undo change?', exact: true });
+  await expect(editConfirm).toBeVisible();
+  await editConfirm.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(editConfirm).toBeHidden(); expect(editUndos).toBe(1);
+  await expect(editor).toContainText('unsaved change');
   await card('b.md').getByRole('button', { name: 'Undo creation' }).click();
   const confirm = page.getByRole('dialog', { name: 'Undo document creation?' });
   await expect(confirm).toBeVisible(); await expect(confirm.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();

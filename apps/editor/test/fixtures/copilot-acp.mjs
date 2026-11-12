@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 const log = process.argv[2];
 if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, args: process.argv.slice(3) }) + "\n");
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
@@ -59,6 +59,13 @@ createInterface({ input: process.stdin }).on("line", line => {
     reply({});
   }
   else if (method === "session/prompt") {
+    if (params.prompt[0].text.includes("User message:\nEDIT FIXTURE ")) {
+      const file = JSON.parse(params.prompt[0].text.split("User message:\nEDIT FIXTURE ")[1].split("\n")[0]), oldText = readFileSync(file, "utf8"), newText = "ACP after\n";
+      send({method:"session/update", params:{sessionId:params.sessionId,update:{sessionUpdate:"tool_call",toolCallId:"edit-fixture",title:file,kind:"edit",status:"in_progress",content:[{type:"diff",path:file,oldText,newText}]}}});
+      writeFileSync(file,newText);
+      send({method:"session/update", params:{sessionId:params.sessionId,update:{sessionUpdate:"tool_call_update",toolCallId:"edit-fixture",status:"completed"}}});
+      reply({stopReason:"end_turn"}); return;
+    }
     if (params.prompt[0].text.includes("FAIL THIS TURN")) { send({ id, error: { code: -32000, message: "Copilot quota fixture failure" } }); return; }
     if (params.prompt[0].text.includes("COMPLETE THIS TURN")) { reply({ stopReason: "end_turn" }); return; }
     pending = { id, sessionId: params.sessionId }; prompts.set(params.sessionId, pending);

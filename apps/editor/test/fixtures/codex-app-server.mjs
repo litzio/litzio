@@ -121,6 +121,14 @@ createInterface({ input: process.stdin }).on("line", line => {
     }
     persist(); send({ id, result: method === "turn/start" ? { turn } : { turnId: turn.id } }); return;
   }
+  if (method === "fixture/edit") {
+    const thread = threads[params.threadId], turn = thread.turns.at(-1);
+    const item = { type: "fileChange", id: randomUUID(), status: "inProgress", changes: [{ path: params.path, kind: { type: "update", move_path: null }, diff: params.diff }] };
+    notify("item/started", { threadId: thread.id, turnId: turn.id, item });
+    // Like the real provider, disk may already be updated when started reaches the Host.
+    writeFileSync(params.path, params.after); item.status = "completed"; turn.items.push(item);
+    notify("item/completed", { threadId: thread.id, turnId: turn.id, item }); persist(); send({ id, result: {} }); return;
+  }
   if (method === "fixture/fail") {
     const turn = threads[params.threadId].turns.at(-1); turn.status = "failed"; persist();
     notify("error", { threadId: params.threadId, turnId: turn.id, willRetry: false, error: { message: "Fixture terminal failure" } });

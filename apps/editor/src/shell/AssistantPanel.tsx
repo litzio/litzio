@@ -1,3 +1,5 @@
+import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import type { ScreenAction, ScreenActionResult, ScreenActionSnapshot, ScreenInfo, ScreenSnapshot } from "../../shared/assistant-screen.ts";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { hostLabel } from "../host-client.ts";
@@ -35,18 +37,21 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   onScreen(): ScreenInfo;
   onScreenAction(action: ScreenAction): Promise<ScreenActionResult>;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
+  onUndoChange(path: string, undo: () => Promise<unknown>): Promise<boolean>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
   onReferenceConsumed(request: { hostId: string; path: string }): void;
   reviewWorkspacePath?:string; documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, reviewWorkspacePath, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay, onScreen, onScreenAction }: Props) {
+export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, reviewWorkspacePath, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay, onScreen, onScreenAction }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
   const conversationKey = `${brand.storagePrefix}.assistantConversation:${hostId}`;
   const request = createAssistantRequest(client);
+  const changeFocus = useRef<HTMLElement | null>(null);
+  const [changeComparison, setChangeComparison] = useState<{ path: string; load(signal: AbortSignal): Promise<Comparison> }>();
   // Match existing editor identities: getRandomValues also works on non-localhost HTTP.
   const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
   const actionHandler = useRef(onScreenAction); actionHandler.current = onScreenAction;
@@ -454,6 +459,8 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
     onKeyDown={event => {
       if (event.defaultPrevented) return;
+      // Dialog owns these keys, including document-level Escape before its queued initial focus.
+      if (changeComparison) return;
       if (event.key === "Escape" && !event.nativeEvent.isComposing) {
         event.preventDefault();
         // Focus can still be on a chip before the portalled popup autofocus runs.
@@ -497,6 +504,11 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
       </TooltipTrigger><TooltipContent><span><span className="break-all">{documentPath}</span><br />{i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}</span></TooltipContent></Tooltip>
         : <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span>}<span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
     </div>
+    {changeComparison ? <Dialog open onOpenChange={value => { if (!value) setChangeComparison(undefined); }}>
+      <DialogContent className="recovery-prompt-comparing" finalFocus={changeFocus}><DialogHeader><DialogTitle>{i18n.t("View changes")}: {pathName(changeComparison.path)}</DialogTitle></DialogHeader>
+        <SourceCompare load={changeComparison.load} assistant visual={{ client, path: changeComparison.path }} />
+      </DialogContent>
+    </Dialog> : null}
     <div className="assistant-reading">
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
       onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
@@ -513,7 +525,17 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
           </div>)}
           <div role="group" aria-label={i18n.t("Assistant response")}>
-            {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} /> : null)}
+            {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} actions={item.fileChanges?.map(path => <div className="flex flex-wrap items-center gap-2" data-testid="assistant-file-change" data-path={path} key={path}>
+              <span className="min-w-0 break-all flex-1" title={path}>{pathName(path)}</span>
+              <Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || turn.status === "inProgress"} />} onClick={event => {
+                changeFocus.current = event.currentTarget;
+                const body = { action: "file-change-compare", id: conversation.id, turnId: turn.id, path, folders };
+                setChangeComparison({ path, load: signal => request<Comparison>(ASSISTANT.conversationsRoute, body, signal) });
+              }}>{i18n.t("View changes")}</TooltipTrigger><TooltipContent>{i18n.t("Compare the content before this turn with the current disk file.")}</TooltipContent></Tooltip>
+              <Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || turn.status === "inProgress"} />} onClick={() => void run(async () => {
+                await onUndoChange(path, () => request(ASSISTANT.conversationsRoute, { action: "file-change-undo", id: conversation.id, turnId: turn.id, path, folders }));
+              })}>{i18n.t("Undo change")}</TooltipTrigger><TooltipContent>{i18n.t("Restore the content before this turn only if the file has not changed since the assistant edit.")}</TooltipContent></Tooltip>
+            </div>)} /> : null)}
           </div>
           {turn.items.filter(item => item.question).map(item => <AssistantQuestion key={item.id} question={item.question!} disabled={pending || !ready || !enabled || !!setup} submit={answers => submitAnswer(item.question!, answers)} />)}
           {turn.items.map(item => {
@@ -645,7 +667,7 @@ export function AssistantPanel({ submissions, setSubmissions, onStatus, onNewHos
     </form>
   </aside>;
 }
-function AssistantWorkStep({ item, active, running, onDisclosure }: { running: boolean; item: AssistantConversation["turns"][number]["items"][number]; active: boolean; onDisclosure(): void }) {
+function AssistantWorkStep({ item, active, running, onDisclosure, actions }: { actions?: import("react").ReactNode; running: boolean; item: AssistantConversation["turns"][number]["items"][number]; active: boolean; onDisclosure(): void }) {
   const [expanded, setExpanded] = useState(false);
   useLayoutEffect(() => { if (!running) setExpanded(false); }, [running]);
   const failed = ["failed", "declined"].includes(item.status ?? "");
@@ -653,11 +675,11 @@ function AssistantWorkStep({ item, active, running, onDisclosure }: { running: b
   const Icon = active ? LoaderCircle : failed ? TriangleAlert : item.kind === "reasoning" ? Brain : shell ? Terminal : item.work?.kind === "edit" ? FilePen : item.kind === "plan" ? ListChecks : Wrench;
   const status = active ? "inProgress" : !running && ["inProgress", "pending"].includes(item.status ?? "") ? "interrupted" : item.status ?? "completed";
   const label = item.kind === "reasoning" ? i18n.t(active ? "Thinking…" : "Thinking") : shell ? "Shell" : item.kind === "plan" ? i18n.t("Steps") : i18n.t("Tool");
-  return <details className="assistant-steps" data-kind={item.kind} data-status={status} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
+  return <><details className="assistant-steps" data-kind={item.kind} data-status={status} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
     <summary onClick={onDisclosure}><Icon aria-hidden="true" className={active ? "animate-spin" : undefined} /><span title={item.text}><strong>{label}</strong> {item.text.replace(/\s+/g, " ")}</span><small>{activityStatus(status)}</small></summary>
     {item.kind === "tool" ? <pre>{shell ? "$ " : ""}{item.text}{item.work?.detail ? `\n${item.work.detail}` : ""}</pre> : <p>{item.text}</p>}
     {item.work?.truncated ? <p>{i18n.t("Output truncated.")}</p> : null}
-  </details>;
+  </details>{actions ? <div className="grid gap-2 mb-3">{actions}</div> : null}</>;
 }
 function activityStatus(value: string) {
   return value === "interrupted" ? i18n.t("Stopped") : value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;

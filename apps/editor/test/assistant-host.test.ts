@@ -465,3 +465,117 @@ test("structured creation reuse Core batches and report image readiness separate
   assert.equal(invoke("create_document", { path: bad, title: "Bad", operations }, { permissionMode: "read-only" }).errorKind, "forbidden");
 
 });
+
+
+test("provider edits retain turn-before content and refuse later or out-of-scope writes", async t => {
+  const { AssistantConversations } = await import("../server/assistant-conversations.ts");
+  const { RootAccess, canonicalFilePath } = await import("../server/file-access.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1565-changes-"));
+  const folder = path.join(root, "opened");
+  const { mkdirSync } = await import("node:fs"); mkdirSync(folder);
+  const file = path.join(folder, "sample.txt"), outside = path.join(root,"outside.txt");
+  writeFileSync(file,"before\n"); writeFileSync(outside,"outside\n");
+  const canonical = canonicalFilePath(file);
+  const connection = new ProviderConnections(path.join(root,"assistant"), {bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/codex-app-server.mjs",import.meta.url))]}, {bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/copilot-acp.mjs",import.meta.url))]});
+  const history = new AssistantConversations(connection,new RootAccess([root]));
+  t.after(async()=>{await history.close();await connection.close();});
+  const settings = {provider:"codex" as const,permissionMode:"opened-folders" as const,model:"gpt-6.1-sol",reasoningEffort:"medium",responseLanguage:"en" as const};
+  const conversation = await history.send({message:"edit",folders:[folder],model:settings.model,reasoningEffort:settings.reasoningEffort},settings);
+  const edit = (target:string,after:string,diff:string) => connection.client.request("fixture/edit",{threadId:conversation.id,path:target,after,diff});
+  await edit(file,"after\n","@@ -1 +1 @@\n-before\n+after\n");
+  await edit(process.platform === "win32" ? file.toUpperCase().replaceAll("\\", "/") : file,"final\n","@@ -1 +1 @@\n-after\n+final\n");
+  const unsafe=path.join(folder,"unsafe.txt");writeFileSync(unsafe,"before\n");
+  await edit(unsafe,"after\n","@@ -1 +1 @@\n-wrong\n+different\n");
+  await edit(outside,"changed outside\n","@@ -1 +1 @@\n-outside\n+changed outside\n");
+  await connection.client.request("fixture/finish",{threadId:conversation.id});
+  const turn=conversation.turns[0]!;
+  assert.ok(turn.items.some(item=>item.fileChanges?.includes(canonical)));
+  assert.equal(turn.items.findLast(item=>item.fileChanges?.length)?.fileChanges?.[0],canonical,"Codex rows use the canonical tab path, including provider case/slash aliases");
+  assert.deepEqual(history.fileChange(conversation.id,turn.id,file),{before:"before\n",after:"final\n",sourceOnly:true,changed:false,missing:false});
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,outside),/outside the allowed folders/);
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,unsafe),/unavailable/);
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,file,false,[]),/root/);
+  writeFileSync(file,"human edit\n");
+  assert.throws(()=>history.fileChange(conversation.id,turn.id,file,true),/refused/);
+  assert.equal(readFileSync(file,"utf8"),"human edit\n");
+  writeFileSync(file,"final\n"); history.fileChange(conversation.id,turn.id,file,true);
+  assert.equal(readFileSync(file,"utf8"),"before\n");
+  const acpSettings={...settings,provider:"copilot" as const,model:"copilot-model",reasoningEffort:"low"};
+  const acp=await history.send({message:"EDIT FIXTURE "+JSON.stringify(process.platform === "win32" ? file.toUpperCase().replaceAll("\\", "/") : file),folders:[folder],provider:"copilot",model:"copilot-model",reasoningEffort:"low"},acpSettings);
+  await new Promise<void>((resolve,reject)=>{const deadline=setTimeout(()=>reject(Error("ACP edit did not finish")),5000);const check=()=>{if(acp.turns.at(-1)?.status!=="inProgress"){clearTimeout(deadline);resolve();}else setTimeout(check,10);};check();});
+  const acpTurn=acp.turns[0]!;
+  assert.equal(acpTurn.items.find(item=>item.fileChanges)?.fileChanges?.[0],canonical);
+  assert.equal((history.fileChange(acp.id,acpTurn.id,file) as any).before,"before\n");
+  history.fileChange(acp.id,acpTurn.id,file,true);assert.equal(readFileSync(file,"utf8"),"before\n");
+});
+
+
+test("Codex rejects a repeated-block diff when its declared block changed before completion", async () => {
+  const { AssistantFileChanges } = await import("../server/assistant-file-changes.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1565-hunk-position-"));
+  const file = path.join(root, "repeated.txt");
+  const original = "1\n2\n3\nA\n4\n5\n6\nseparator\n1\n2\n3\nB\n4\n5\n6\n";
+  const assistantResult = original.replace("A\n", "B\n");
+  const laterEdit = assistantResult.replace("B\n", "C\n");
+  writeFileSync(file, laterEdit);
+  const changes = new AssistantFileChanges(null);
+  const diff = "@@ -1,7 +1,7 @@\n 1\n 2\n 3\n-A\n+B\n 4\n 5\n 6\n";
+  assert.equal(changes.codex("turn", { path: file, kind: { type: "update", move_path: null }, diff }, [root]), false);
+  assert.throws(() => changes.compare("turn", file, [root]), /unavailable/);
+  assert.throws(() => changes.undo("turn", file, [root]), /unavailable/);
+  assert.equal(readFileSync(file, "utf8"), laterEdit, "neither the later first-block edit nor the untouched second block may change");
+});
+
+
+test("Codex refuses a deletion without new-side context after another deletion", async () => {
+  const { AssistantFileChanges } = await import("../server/assistant-file-changes.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1570-strict-diff-"));
+  const file = path.join(root, "deleted.txt");
+  writeFileSync(file, "A\n");
+  const changes = new AssistantFileChanges(null);
+  assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff: "@@ -3,1 +2,0 @@\n-C\n" }, [root]), false);
+  assert.throws(() => changes.compare("turn", file, [root]), /unavailable/);
+  assert.throws(() => changes.undo("turn", file, [root]), /unavailable/);
+  assert.equal(readFileSync(file, "utf8"), "A\n");
+});
+
+
+test("Codex declared-span restoration preserves exact text and rejects malformed hunks", async () => {
+  const { AssistantFileChanges } = await import("../server/assistant-file-changes.ts");
+  const { canonicalFilePath } = await import("../server/file-access.ts");
+  const { createTwoFilesPatch } = await import("diff");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-1570-strict-diff-"));
+  const file = path.join(root, "text.txt");
+  const cases = [
+    ["one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n", "ONE\nextra\ntwo\nthree\nfour\nfive\nsix\nseven\nEIGHT\n"],
+    ["head\r\nold\r\ntail\r\n", "head\r\nnew\r\ntail\r\n"],
+    ["old", "new"],
+    ["old\n", "new"],
+    ["old", "new\n"],
+    ["제목\n이전 내용\n끝\n", "제목\n변경한 내용\n끝\n"],
+  ];
+  for (const [before, after] of cases) {
+    writeFileSync(file, after!);
+    const changes = new AssistantFileChanges(null);
+    const diff = createTwoFilesPatch("before", "after", before!, after!, undefined, undefined, { context: 1 });
+    assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff }, [root]), canonicalFilePath(file), diff);
+    assert.equal(changes.compare("turn", file, [root]).before, before);
+    changes.undo("turn", file, [root]);
+    assert.deepEqual(readFileSync(file), Buffer.from(before!));
+  }
+  const hunk = "@@ -1 +1 @@\n-old\n+new\n";
+  for (const diff of [
+    "@@ -4 +4 @@\n-old\n+new\n", // range beyond EOF
+    "@@ -1,2 +1 @@\n-old\n+new\n", // header count mismatch
+    "@@ -1 +1 @@\n+new\n", // missing declared old line (parser normalization)
+    "@@ -2,1 +1,0 @@\n-old\n", // unanchored deletion even within file bounds
+    hunk + hunk, // overlapping spans
+    "@@ -2 +2 @@\n-old\n+new\n" + hunk, // reversed order
+  ]) {
+    writeFileSync(file, "new\nnew\n");
+    const changes = new AssistantFileChanges(null);
+    assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff }, [root]), false, diff);
+    assert.throws(() => changes.undo("turn", file, [root]), /unavailable/);
+    assert.equal(readFileSync(file, "utf8"), "new\nnew\n");
+  }
+});
