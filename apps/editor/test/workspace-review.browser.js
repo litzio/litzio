@@ -37,6 +37,49 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await expect.poll(()=>sent?.reviewWorkspace?.path.replaceAll('\\','/')).toBe((root+'/'+workspace).replaceAll('\\','/'));
   expect(sent.document).toBeUndefined();expect(Object.keys(sent.reviewWorkspace)).toEqual(['path']);
   await panel.getByRole('button',{name:'Close assistant',exact:true}).click();
+  // Human edit uses the existing editor and the archive write boundary; failed saves keep the draft.
+  const mappingBefore=(await docling.review('workspace-compare',{...base,pageNo:1})).snapshot.mapping.entries;
+  const pathsOnly=entries=>entries.map(e=>({...e,targets:e.targets.map(t=>t.path)}));
+  const directBefore=await docling.review('workspace-read',base);
+  const uuid=()=>page.evaluate(()=>crypto.randomUUID());
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  const editable=page.locator('.review-read .tiptap[contenteditable="true"]');
+  await expect(editable).toBeVisible();
+  await editable.locator('p').filter({hasText:'PDF body'}).first().click();
+  await page.keyboard.press('Home');await page.keyboard.type('Human correction ');
+  if(screenshots)for(const theme of ['light','dark']){
+    if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:/^Color mode:/}).click();
+    await page.screenshot({path:`docs/design/assets/review-direct-edit/editing-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+  }
+  // External progress changes the baseline while the local editing session remains open.
+  await docling.review('workspace-progress',{...base,baseline:directBefore.baseline,requestId:await uuid(),progress:{checkedPages:[],lastPage:1}});
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(page.getByText(/Workspace baseline conflict; read before writing/)).toBeVisible();
+  await expect(editable).toContainText('Human correction');
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Edit',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await editable.locator('p').filter({hasText:'PDF body'}).first().click();await page.keyboard.press('Home');await page.keyboard.type('Human correction ');
+  await editable.press('Control+s');
+  await expect(page.getByRole('button',{name:'Save',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Edit',exact:true})).toBeEnabled();
+  const directSaved=await docling.review('workspace-read',base);
+  expect(directSaved.snapshot.source).toContain('Human correction');
+  await page.reload();await open();
+  await expect(page.locator('.review-read')).toContainText('Human correction');
+  expect(pathsOnly((await docling.review('workspace-compare',{...base,pageNo:1})).snapshot.mapping.entries)).toEqual(pathsOnly(mappingBefore));
+  if(screenshots)for(const theme of ['light','dark']){
+    if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:/^Color mode:/}).click();
+    await page.screenshot({path:`docs/design/assets/review-direct-edit/saved-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+  }
+  // Saved Undo restores the prior canonical document and correspondence, using the same ledger.
+  const directGroup=directSaved.ledger.groups.find(g=>g.reasonCode==='human-direct-edit');
+  expect(directGroup.targets[0].history[0].human.actor).toBe('사람 직접 수정');
+  const undoneDirect=await docling.review('workspace-review-change',{...base,baseline:directSaved.baseline,requestId:await uuid(),change:{kind:'groups-undo',groupId:directGroup.id,targetIds:directGroup.targets.map(t=>t.id),human:{actor:'human',reason:'Restore for the remaining review scenario',confirmed:true}}});
+  expect(undoneDirect.receipt.outcome).toBe('success');expect(undoneDirect.snapshot.source).toBe(directBefore.snapshot.source);
+  await page.getByRole('button',{name:'Refresh data',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+  await expect(page.locator('.review-read')).not.toContainText('Human correction');
   const state=await docling.review('workspace-read',base);
   expect(state.snapshot.source).toBeTruthy();expect(state.documentPath).toBeUndefined();
   const sourceBeforeExport=state.baseline;
@@ -55,6 +98,10 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   expect(proposed.receipt.outcome).toBe('success');
   await page.getByRole('button',{name:'Refresh data',exact:true}).click();
   const list=page.getByRole('complementary',{name:'문제 묶음·후보'});
+  await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+  await expect(page.locator('.review-region').first()).toBeEnabled();
+  await expect(page.locator('.review-read h2').filter({hasText:'PDF body'})).toBeVisible();
+  await expect(page.locator('.review-image-loading')).toHaveCount(0);
   await list.getByRole('button',{name:'2쪽 · 적용됨',exact:true}).click();
   await expect(page.locator('.review-highlights > div')).toHaveCount(1);
   await expect(list.locator('[aria-current=page]')).toHaveCount(1);
@@ -101,6 +148,9 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await page.getByLabel('판단 사유',{exact:true}).fill('Compared source again');
   await page.getByRole('button',{name:'승인',exact:true}).click();
   await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===second.id).targets[0].proposal).toBe('approved');
+  await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+  await expect(page.locator('.review-region').first()).toBeEnabled();
+  await expect(page.locator('.review-image-loading')).toHaveCount(0);
   // Page exclusion uses the same ledger proposal/approval and restores source mappings on Undo.
   await page.getByRole('button',{name:'쪽 펼치기',exact:true}).click();
   const pages=page.getByRole('complementary',{name:'쪽 선택·제외'});
@@ -110,7 +160,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   expect(Math.max(...headers.map(h=>h.height))-Math.min(...headers.map(h=>h.height))).toBeLessThan(1);
   await expect(pages.getByRole('button',{name:'제외 묶음 만들기',exact:true})).toHaveCount(0);
   await pages.getByRole('checkbox').first().check();
-  await page.getByRole('button',{name:'제외 묶음 만들기',exact:true}).click();
+  await Promise.all([page.waitForResponse(response=>{const body=response.request().postDataJSON();return response.url().endsWith('/api/reviews') && body?.action==='workspace-review-change' && body.change?.kind==='groups-propose';}),page.getByRole('button',{name:'제외 묶음 만들기',exact:true}).click()]);
   const proposal=page.locator('.workspace-review-proposal');
   await expect(pages.getByRole('button',{name:'제외 묶음 만들기',exact:true})).toHaveCount(0);
   await expect(list.getByText('쪽 제외',{exact:true})).toBeVisible();
@@ -121,6 +171,9 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   await expect(proposal.getByRole('button',{name:'되돌리기',exact:true})).toBeEnabled();
   await proposal.getByRole('button',{name:'되돌리기',exact:true}).click();
   await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.reasonCode==='page-exclusion')?.targets.every(t=>t.proposal==='proposed')).toBe(true);
+  await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
+  await expect(page.locator('.review-region').first()).toBeEnabled();
+  await expect(page.locator('.review-image-loading')).toHaveCount(0);
   await page.getByRole('button',{name:'쪽 접기',exact:true}).click();
   const required=(await docling.review('workspace-read',base)).ledger.inventory.requiredChecks[0];
   await list.getByRole('button',{name:new RegExp(`^${required.kind==='table'?'표':'그림'} 1 · ${required.pages.length ? required.pages.join(',')+'쪽' : '쪽 미지정'} · 미확인$`)}).first().click();

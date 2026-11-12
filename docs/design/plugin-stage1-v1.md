@@ -1058,3 +1058,7 @@ Codex 비서는 `read_review_document`, `read_review_material`(렌즈·원문 �
 작업공간은 [6-2 최소 화면](docling-review-stage3.md#6단계-최소-검수-화면--6-2)의 문제 목록 중심 배치를 쓴다. 숫자·단위 우선 원문 후보·묶음 대상·그림/표 필수 확인은 왼쪽 목록, 접을 수 있는 제안/사람 판단은 가운데 위, 기존 연속 대조는 가운데 아래, 기본 접힌 쪽 선택/제외는 오른쪽이다. 기존 compact Button/Input/Notice와 토큰·native details를 사용하고 큰 반복 제목/설명이나 하단 안내를 추가하지 않는다. 일반 생성 문서 대조는 그대로다. 후속 표시 정리에서 목록은 탐색기의 행/단일 선택·Lucide chevron을 재사용하고 세 패널 머리글을 같은 compact 치수로 맞췄다. 쪽 선택 후에만 제외 묶음 만들기(사유 선택)를 표시하며, 쪽 제외의 승인/거절/Undo는 왼쪽 묶음을 고른 가운데 제안 영역으로 통일한다. 썸네일 선택에는 기존 토큰의 Base UI 공통 Checkbox를 사용한다.
 
 목록 선택은 기존 대조 선택/쪽 이동으로 연결한다. 원본 박스·모든 가시 대응의 SVG 선·선택 선/블록 강조·동기화 켜기/끄기·확대/resize/layout 재측정·viewport 밖 endpoint 숨김·이미지 큐는 유지한다. 쪽 썸네일도 같은 adapter 읽기 큐와 geometry 일치 검사를 사용한다. 공용 evidence·그룹 판단·필수 확인 작업을 재사용하며 비서 승인 권한은 추가하지 않는다. 쪽 제외는 기존 블록 제외 제안 묶음/전체 승인/Undo이고 별도 저장 형식은 없다. 다른 쪽과 공유하는 블록도 전체 제외되는 범위를 안내한다.
+
+### 검수 정본 직접 저장 (#1533)
+
+검수 작업공간 대조의 문서 쪽은 기존 DocumentEditor에서 Edit로 전환해 Save/Ctrl+S로 `.docling` 정본에 저장한다. 공용 `workspace-save`는 baseline/requestId와 source 또는 edits를 받아 기존 Core 검증·후보 검증·원자적 commit·receipt/status를 재사용한다. CLI는 `review workspace-save --input <json-file> --host <origin> --json`이다. 사람 직접 수정은 비서 교정과 같은 ledger의 human 출처·inverseOperations에 남으며, 저장 전 editor Undo/Redo와 저장 후 revision 확인 Undo를 제공한다. 구조가 유지되는 글자 수정은 기존 경로 대응을 유지하고 구조·표/목록 변경은 대응을 비워 기존 불확실 표시를 쓴다. 편집 중 비교 새로고침·교정·내보내기·닫기는 pending 보호로 막고 실패 시 초안을 유지한다. [상세 입력·대응·Undo·캡처](docling-review-stage3.md#검수-정본-직접-편집--1533).

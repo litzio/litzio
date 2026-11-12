@@ -25,11 +25,11 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
     const send=(body:Record<string,unknown>)=>{
       const work=tail.then(async()=>{
         if(["workspace-compare","workspace-image"].includes(String(body.action))&&body.baseline)body={...body,baseline:baseline.current};
-        if(["workspace-regenerate","workspace-review-change","workspace-evidence"].includes(String(body.action)) && body.requestId)pending=String(body.requestId);
+        if(["workspace-save","workspace-regenerate","workspace-review-change","workspace-evidence"].includes(String(body.action)) && body.requestId)pending=String(body.requestId);
         const response=await client.request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body.action==="workspace-status"?body:{...target,...body}),signal:controller.signal});
         const value=await response.json();controller.signal.throwIfAborted();
         if(!response.ok || body.action!=="workspace-status"&&(value.error || value.receipt&&value.receipt.outcome!=="success"))throw new Error(value.error??i18n.t("Data unavailable."));
-        if(["workspace-regenerate","workspace-review-change","workspace-evidence"].includes(String(body.action)) && body.requestId)pending=undefined;
+        if(["workspace-save","workspace-regenerate","workspace-review-change","workspace-evidence"].includes(String(body.action)) && body.requestId)pending=undefined;
         return value;
       });tail=work.then(()=>{},()=>{});return work;
     };
@@ -53,7 +53,13 @@ export function WorkspaceComparison({client,target,onPending,onOpen,isDirty}: {c
       comparison.current=snapshot;failed=false;setReady(true);return snapshot;
       } catch(error) {setProblem(error instanceof Error?error.message:String(error));throw error;}
     };
-    setAdapter({read,async loadPage(snapshot,pageNo){
+    setAdapter({editing:mark,async saveDocument(snapshot,edits){
+      if(pending)throw new Error(`Check request ${pending}; cancel editing and refresh before continuing.`);
+      if(snapshot.documentRevision!==comparison.current?.documentRevision)throw new Error("Workspace document changed");
+      const id=crypto.randomUUID();
+      try{const saved=await send({action:"workspace-save",baseline:baseline.current,requestId:id,edits});baseline.current=saved.baseline;}
+      catch(error){throw new Error(`${(error as Error).message} · Request: ${id}`);}
+    },read,async loadPage(snapshot,pageNo){
       const value=await send({action:"workspace-compare",baseline:baseline.current,pageNo});
       const geometry=(p:any)=>p&&{pageNo:p.pageNo,width:p.width,height:p.height,origin:p.origin,unit:p.unit,regions:p.regions};
       if(value.snapshot.documentHash!==snapshot.documentHash || JSON.stringify(geometry(value.snapshot.page))!==JSON.stringify(geometry(snapshot.pages?.find(page=>page.pageNo===pageNo))) || JSON.stringify(value.snapshot.mapping?.entries)!==JSON.stringify(snapshot.mapping?.entries))throw new Error("Workspace comparison changed");

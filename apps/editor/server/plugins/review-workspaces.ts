@@ -8,7 +8,8 @@ import { commitFileFromPath, textRevision } from "@litzio/file-commit";
 import { REVIEW_AUTHORING_CONTRACT, JOB_FILE_MAX_BYTES, workspaceRequestSchema, workspaceStateSchema, workspaceSnapshotSchema, evaluateReviewCompletion, type WorkspaceSnapshot } from "@litzio/plugin-sdk";
 import { validatedAuthoringRequest, exportReviewDocumentFile } from "../document-authoring.ts";
 import { validateImage } from "../image-validation.ts";
-import { readModel } from "../document-replay.ts";
+import type { SupportedEdits } from "../../shared/document-protocol.ts";
+import { saveEdits, readModel } from "../document-replay.ts";
 import { FileAccessError, RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
 
 type Provider = { workspace?:boolean; operation: string; version: number; comparison?: string; assertCurrent(): void };
@@ -170,16 +171,19 @@ export class ReviewWorkspaces {
       if (!writing || input.action === "workspace-open" && ["current", "created-version"].includes(original.cacheState)) {
         check(); const value = result(original, before, false); if (writing) this.requests.set(requestId, value); return value;
       }
-      if (["workspace-patch", "workspace-progress", "workspace-review-change"].includes(input.action) && original.cacheState !== "current") throw new Error("Explicit regeneration is required before changing this workspace");
+      if (["workspace-save", "workspace-patch", "workspace-progress", "workspace-review-change"].includes(input.action) && original.cacheState !== "current") throw new Error("Explicit regeneration is required before changing this workspace");
       staging = mkdtempSync(path.join(tmpdir(), "litzio-review-workspace-"));
       const candidate = path.join(staging, "candidate"); writeFileSync(candidate, "", { flag: "wx", mode: 0o600 });
       const resultFile = { path: candidate, maxBytes: JOB_FILE_MAX_BYTES };
-      const plan: any = await call("workspace-prepare", file, { resultFile, ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
+      const directSource = input.action === "workspace-save" ? input.source ?? saveEdits(original.snapshot!.source, input.edits as SupportedEdits).markdown : undefined;
+      if (directSource !== undefined && serialize(parse(directSource)) !== directSource) throw new Error("Direct edit source must be canonical");
+      const plan: any = await call("workspace-prepare", file, { resultFile, ...(directSource !== undefined ? {directSource, requestId, revision:randomUUID(), at:new Date().toISOString()} : {}), ...("patches" in input ? { patches: input.patches } : {}), ...("progress" in input ? { progress: input.progress } : {}),
         ...("change" in input || evidenceChange ? { change: evidenceChange ?? ("change" in input ? input.change : undefined), requestId, revision: randomUUID(), at: new Date().toISOString() } : {}) });
       if (typeof plan.rejection === "string") throw Object.assign(new Error(plan.rejection), {errorKind:"invalid_input", current:{baseline:before,documentRevision:original.snapshot?.documentRevision,contentRevision:original.snapshot?.contentRevision}});
       let expected: Omit<WorkspaceSnapshot, "cacheKey"> | undefined;
-      const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-evidence" || input.action === "workspace-image-usage" || input.action === "workspace-review-change" && plan.preserveSnapshot === true;
+      const preserveSnapshot = input.action === "workspace-progress" || input.action === "workspace-evidence" || input.action === "workspace-image-usage" || ["workspace-review-change", "workspace-save"].includes(input.action) && plan.preserveSnapshot === true;
       if (plan.snapshot) {
+        if (directSource !== undefined && plan.snapshot.source !== directSource) throw new Error("Provider changed direct edit content");
         // Providers may update a saved document through SDK Core operations. Never rebuild it from its source format.
         const snapshot = workspaceSnapshotSchema.parse(plan.snapshot);
         validateSnapshot(snapshot);

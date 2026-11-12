@@ -3392,3 +3392,7 @@ Explorer activation of a `.pdf` opens a read-only task tab identified by Host an
 The first viewer supports vertical scrolling, zoom buttons, Ctrl+wheel, fit width, current/total pages, page-number navigation (Enter or field exit), and text selection/copy. Only pages within 800px of the viewport render canvas/text; inactive tabs release their rendered surfaces. Each canvas dimension is bounded to 4096 pixels with DPR at most 2. Paper stays white in dark mode; the surrounding surface follows theme. Unavailable/damaged/over-25-MiB files and password PDFs show fixed localized notices.
 
 Upstream viewer CSS is scoped to the PDF viewer to avoid changing the app shell. The app bundles pdfjs-dist 5.6.205 and a same-origin worker, CMaps and standard fonts. Eval and WASM are disabled. Only canvas and TextLayer APIs are used: no scripting manager, annotation/form layer, link service, printing, search, thumbnails or editing. CSP and Electron webPreferences are unchanged. This Editor-only reading interaction adds no CLI command; byte delivery extends the existing Host preview API.
+
+### 검수 대조 문서 편집 (#1533)
+
+검수 작업공간의 문서 쪽은 기존 DocumentEditor와 compact Button을 재사용한 Edit/Save/Cancel을 제공한다. Save 단축키는 Ctrl+S이며 편집기 Undo/Redo를 사용한다. 미저장 편집 중 닫기와 비교 새로고침·검수 기록 변경은 기존 pending 보호로 막고, 저장 실패는 초안을 유지한 채 Notice로 표시한다. 별도 승인 단계는 없다. [저장·대응·기록 수준 Undo와 화면 캡처](docling-review-stage3.md#검수-정본-직접-편집--1533)를 따른다.

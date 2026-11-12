@@ -31,6 +31,7 @@ export const workspaceRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ ...common, action: z.literal("workspace-export"), mode: z.literal("current"), baseline: hash, requestId: z.uuid(), output: id.optional(), targetRevision: hash.nullable(), overwrite: z.boolean().default(false) }),
   ...(["workspace-open", "workspace-regenerate"] as const).map(action => z.strictObject({ ...common, action: z.literal(action), baseline: hash, requestId: z.uuid() })),
   z.strictObject({ ...common, action: z.literal("workspace-patch"), baseline: hash, requestId: z.uuid(), patches: z.array(z.record(z.string(), z.unknown())).min(1).max(2000) }),
+  z.strictObject({ ...common, action: z.literal("workspace-save"), baseline: hash, requestId: z.uuid(), source: z.string().max(4 * 1024 * 1024).optional(), edits: z.record(z.string(), z.unknown()).optional() }).refine(value => (value.source !== undefined) !== (value.edits !== undefined), "Exactly one source or edits required"),
   z.strictObject({ ...common, action: z.literal("workspace-progress"), baseline: hash, requestId: z.uuid(), progress: generatedProgressSchema }),
   z.strictObject({ action: z.literal("workspace-status"), requestId: z.uuid() }),
   z.discriminatedUnion("mode", [

@@ -298,6 +298,20 @@ function correctionSession(archive,snapshot,report) {
   }};
 }
 
+/** Reuse paths only when the block structure is unchanged. Structural edits deliberately
+ * drop correspondence rather than attach PDF evidence to a different block. */
+function replaceDocument(snapshot, report, source) {
+  const before=getEditableDocument(parse(snapshot.source)).blocks, after=getEditableDocument(parse(source)).blocks;
+  const stable=before.length===after.length && before.every((block,index)=>block.block===after[index].block && same(block.path,after[index].path) && (!["table","list"].includes(block.block) || same(block,after[index])));
+  const revision=hash(source), rebind=targets=>stable?targets.map(target=>({...target,documentRevision:revision,documentHash:revision})):[];
+  snapshot.source=source;snapshot.documentRevision=revision;
+  for(const input of snapshot.inputs)input.targets=rebind(input.targets);
+  if(!stable)snapshot.inputs=after.map((block,index)=>({key:`direct-${revision}-${index}`,targets:[{path:block.path,documentRevision:revision,documentHash:revision}]}));
+  for(const item of report.items){item.targets=rebind(item.targets);for(const cell of item.cells??[])cell.targets=rebind(cell.targets);}
+  for(const insertion of report.insertions??[])insertion.targets=rebind(insertion.targets);
+  report.documentRevision=revision;report.documentHash=revision;
+}
+
 /** Host owns admission, staging validation, receipts and the atomic one-file commit. */
 export async function workspaceOperation(input) {
   const raw=await readFile(input.file);
@@ -344,6 +358,24 @@ export async function workspaceOperation(input) {
   if(input.patches)return {rejection:"교정은 문제 묶음 제안과 사람 승인을 사용하세요."};
   if(!state.snapshot||state.cacheState!=="current")throw new Error("Saved document is damaged or uses another contract; never regenerate it from Docling");
   const snapshot=structuredClone(state.snapshot),report=metadataOf(archive).correspondence,session=correctionSession(archive,snapshot,report);
+  let restoredDirect=false;
+  if(input.directSource !== undefined) {
+    const before={snapshot:structuredClone(snapshot),report:structuredClone(report)};
+    const source=input.directSource;
+    if(serialize(parse(source))!==source)throw new Error("Direct source is not canonical");
+    replaceDocument(snapshot,report,source);
+    const id=`direct-${input.requestId}`, targetId=`${id}-document`;
+    const group={id,reasonCode:"human-direct-edit",reason:"사람 직접 수정",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:snapshot.contentRevision,contentRevision:state.snapshot.documentRevision,
+      createdAt:input.at,runId:input.requestId,representativeTargetId:targetId,representativeReason:"사람 직접 수정",splitFrom:null,
+      targets:[{id:targetId,locator:{document:true},pages:[],regions:[],before:state.snapshot.documentRevision,
+        evidence:[{observation:"사람 직접 수정",materialRef:"document",materialHash:state.snapshot.documentRevision,inspector:"human",scope:{pages:Object.keys(archive.document.pages).map(Number),targets:[]}}],
+        patch:{expectedBefore:state.snapshot.documentRevision,expectedContentRevision:state.snapshot.documentRevision,operations:[{type:"direct-document"}],after:snapshot.documentRevision,supported:true,deferredReason:null},
+        inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}]};
+    record.ledger=updateReviewLedger(record.ledger,{kind:"groups-apply",groups:[group],supersedes:record.ledger.groups.filter(g=>g.reasonCode==="human-direct-edit"&&g.targets.some(t=>t.proposal==="proposed")).map(g=>({groupId:g.id,targetIds:g.targets.filter(t=>t.proposal==="proposed").map(t=>t.id),replacementGroupId:id})),actor:{source:"human",actor:"사람 직접 수정",reason:"사람 직접 수정",confirmed:true}}, {
+      contentRevision:snapshot.contentRevision,snapshotHash:hash(JSON.stringify(state.snapshot)),current:true,requestId:input.requestId,revision:input.revision,at:input.at,
+      apply(){return [{directDocument:before,expectedRevision:snapshot.documentRevision}];},undo(){throw new Error("Unexpected Undo");}
+    });
+  }
   if(input.change){
     try {
       const change=structuredClone(input.change);
@@ -377,6 +409,10 @@ export async function workspaceOperation(input) {
           if(!same(operations.map(session.value),target.patch.after))throw new Error("Expected after conflict");return inverse;
         },
         undo(target,inverse){
+          if(inverse[0]?.directDocument){
+            if(snapshot.documentRevision!==inverse[0].expectedRevision)throw new Error("Undo direct edit revision conflict");
+            restoredDirect=true;Object.assign(snapshot,inverse[0].directDocument.snapshot);Object.assign(report,inverse[0].directDocument.report);return;
+          }
           if(target.patch.operations.some(op=>op.type==="exclude" && session.value(op).excluded!==true))throw new Error("Undo exclusion conflict");
           for(const entry of inverse)session.undo(entry);
         },
@@ -388,8 +424,7 @@ export async function workspaceOperation(input) {
     }
   }
   if(input.progress)setProgress(archive.document,record,input.progress);
-  session.updateAnchors(record.ledger);
-  session.finish();
+  if(input.directSource === undefined && !restoredDirect){session.updateAnchors(record.ledger);session.finish();}
   const changed=snapshot.documentRevision!==state.snapshot.documentRevision;
   if(changed){
     record.checkedPages=[];record.lastPage=null;record.ledger.approval=null;

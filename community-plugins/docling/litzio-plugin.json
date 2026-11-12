@@ -519,6 +519,7 @@
             "ref": {
               "type": "string"
             },
+            "directSource": { "type": "string", "maxLength": 4194304 },
             "change": {
               "type": "object"
             },

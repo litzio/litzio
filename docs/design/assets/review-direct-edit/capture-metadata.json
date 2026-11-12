@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-12",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "scenario": "pnpm browser:test workspace-review --screenshots",
+  "source": "existing synthetic Docling document fixture and 1px PDF page image",
+  "states": [
+    "editing",
+    "saved after reload"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "aiCalls": false,
+  "conversion": "No LSR or NIST reconversion; browser transport fixture only",
+  "identityMask": "sidebar-host-account",
+  "review": "Agent visual inspection; owner visual approval not performed"
+}
