@@ -12,7 +12,6 @@ export function AssistantQuestion({ question, disabled, submit }: { question: As
   const record = "status" in question ? question as AssistantQuestionRecord : undefined;
   const status = record?.status ?? "pending";
   const waiting = status === "pending";
-  disabled ||= !!record?.requiresDisplayAck && !record.displayed;
   return <form className="assistant-question" data-testid="assistant-question" data-question-status={status} data-question-request={JSON.stringify([question.turnId, typeof question.requestId, question.requestId])} onSubmit={event => {
     event.preventDefault();
     if (!waiting || lock.current || disabled || !question.questions.every(q => values.get(q.id)?.trim())) return;

@@ -55,7 +55,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const screenHandler = useRef(onScreen); screenHandler.current = onScreen;
   const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
   const displayReplies = useRef(new Map<string, DisplayReply>());
-  const questionAcks = useRef(new Set<string>());
   const [displayUndoBusy, setDisplayUndoBusy] = useState(false);
   const [displayUndone, setDisplayUndone] = useState<string[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
@@ -169,20 +168,6 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
   const buttonStatus: AssistantButtonStatus = open ? undefined : needsAttention ? "attention" : working ? "working" : completion && completion !== seenCompletion ? "completed" : undefined;
   useEffect(() => { onStatus(buttonStatus); }, [buttonStatus, onStatus]);
   useEffect(() => () => { onStatus(undefined); }, [onStatus]);
-  useEffect(() => {
-    if (!open || history || !conversation) return;
-    for (const item of conversation.turns.flatMap(turn => turn.items)) {
-      const q = item.question;
-      if (!q?.requiresDisplayAck || q.displayed || q.status !== "pending") continue;
-      const signature = JSON.stringify([q.turnId, typeof q.requestId, q.requestId]);
-      const key = `${conversation.id}:${signature}`;
-      const card = [...panel.current!.querySelectorAll<HTMLElement>("[data-question-request]")].find(el => el.getAttribute("data-question-request") === signature);
-      if (!card?.getClientRects().length || questionAcks.current.has(key)) continue;
-      questionAcks.current.add(key);
-      void request(ASSISTANT.conversationsRoute, { action: "question-visible", id: conversation.id, turnId: q.turnId, requestId: q.requestId, displayClient })
-        .catch(() => questionAcks.current.delete(key));
-    }
-  }, [conversation, open, history, displayClient]);
   // Keep the same nonoverlapping observer for hidden work, then stop at rest.
   const observe = open || active || !!conversation?.userInput || unresolved.some(value => ["pending", "unknown", "accepted"].includes(value.receipt.status) && !value.receipt.turnFailed);
   // Closing a setup refresh must not strand an already-admitted turn/send.
