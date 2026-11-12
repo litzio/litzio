@@ -469,12 +469,13 @@ test("structured creation reuse Core batches and report image readiness separate
 
 test("provider edits retain turn-before content and refuse later or out-of-scope writes", async t => {
   const { AssistantConversations } = await import("../server/assistant-conversations.ts");
-  const { RootAccess } = await import("../server/file-access.ts");
+  const { RootAccess, canonicalFilePath } = await import("../server/file-access.ts");
   const root = mkdtempSync(path.join(tmpdir(), "litzio-1565-changes-"));
   const folder = path.join(root, "opened");
   const { mkdirSync } = await import("node:fs"); mkdirSync(folder);
   const file = path.join(folder, "sample.txt"), outside = path.join(root,"outside.txt");
   writeFileSync(file,"before\n"); writeFileSync(outside,"outside\n");
+  const canonical = canonicalFilePath(file);
   const connection = new ProviderConnections(path.join(root,"assistant"), {bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/codex-app-server.mjs",import.meta.url))]}, {bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/copilot-acp.mjs",import.meta.url))]});
   const history = new AssistantConversations(connection,new RootAccess([root]));
   t.after(async()=>{await history.close();await connection.close();});
@@ -488,8 +489,8 @@ test("provider edits retain turn-before content and refuse later or out-of-scope
   await edit(outside,"changed outside\n","@@ -1 +1 @@\n-outside\n+changed outside\n");
   await connection.client.request("fixture/finish",{threadId:conversation.id});
   const turn=conversation.turns[0]!;
-  assert.ok(turn.items.some(item=>item.fileChanges?.includes(file)));
-  assert.equal(turn.items.findLast(item=>item.fileChanges?.length)?.fileChanges?.[0],file,"Codex rows use the canonical tab path, including provider case/slash aliases");
+  assert.ok(turn.items.some(item=>item.fileChanges?.includes(canonical)));
+  assert.equal(turn.items.findLast(item=>item.fileChanges?.length)?.fileChanges?.[0],canonical,"Codex rows use the canonical tab path, including provider case/slash aliases");
   assert.deepEqual(history.fileChange(conversation.id,turn.id,file),{before:"before\n",after:"final\n",sourceOnly:true,changed:false,missing:false});
   assert.throws(()=>history.fileChange(conversation.id,turn.id,outside),/outside the allowed folders/);
   assert.throws(()=>history.fileChange(conversation.id,turn.id,unsafe),/unavailable/);
@@ -503,7 +504,7 @@ test("provider edits retain turn-before content and refuse later or out-of-scope
   const acp=await history.send({message:"EDIT FIXTURE "+JSON.stringify(process.platform === "win32" ? file.toUpperCase().replaceAll("\\", "/") : file),folders:[folder],provider:"copilot",model:"copilot-model",reasoningEffort:"low"},acpSettings);
   await new Promise<void>((resolve,reject)=>{const deadline=setTimeout(()=>reject(Error("ACP edit did not finish")),5000);const check=()=>{if(acp.turns.at(-1)?.status!=="inProgress"){clearTimeout(deadline);resolve();}else setTimeout(check,10);};check();});
   const acpTurn=acp.turns[0]!;
-  assert.equal(acpTurn.items.find(item=>item.fileChanges)?.fileChanges?.[0],file);
+  assert.equal(acpTurn.items.find(item=>item.fileChanges)?.fileChanges?.[0],canonical);
   assert.equal((history.fileChange(acp.id,acpTurn.id,file) as any).before,"before\n");
   history.fileChange(acp.id,acpTurn.id,file,true);assert.equal(readFileSync(file,"utf8"),"before\n");
 });
@@ -541,6 +542,7 @@ test("Codex refuses a deletion without new-side context after another deletion",
 
 test("Codex declared-span restoration preserves exact text and rejects malformed hunks", async () => {
   const { AssistantFileChanges } = await import("../server/assistant-file-changes.ts");
+  const { canonicalFilePath } = await import("../server/file-access.ts");
   const { createTwoFilesPatch } = await import("diff");
   const root = mkdtempSync(path.join(tmpdir(), "litzio-1570-strict-diff-"));
   const file = path.join(root, "text.txt");
@@ -556,7 +558,7 @@ test("Codex declared-span restoration preserves exact text and rejects malformed
     writeFileSync(file, after!);
     const changes = new AssistantFileChanges(null);
     const diff = createTwoFilesPatch("before", "after", before!, after!, undefined, undefined, { context: 1 });
-    assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff }, [root]), file, diff);
+    assert.equal(changes.codex("turn", { path: file, kind: { type: "update" }, diff }, [root]), canonicalFilePath(file), diff);
     assert.equal(changes.compare("turn", file, [root]).before, before);
     changes.undo("turn", file, [root]);
     assert.deepEqual(readFileSync(file), Buffer.from(before!));

@@ -380,8 +380,12 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
   for (const width of [1440,640]) {
     await page.setViewportSize({width,height:1000});
     await waitForExplorerLayout(page);
-    const expand=page.getByRole('button',{name:'Expand Explorer',exact:true});
-    if(await expand.isVisible()) await expand.click();
+    // Wait for an accessible toggle rather than treating transient absence as an open Explorer.
+    const explorerToggle=page.getByTestId('sidebar').getByRole('button',{name:/^(Expand|Collapse) Explorer$/,exact:true});
+    await expect(explorerToggle).toBeVisible();
+    if(await explorerToggle.getAttribute('aria-expanded')==='false') await explorerToggle.click();
+    await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
+    await expect(page.locator('.sidebar-content')).toBeVisible();
     const files = await rows('.sidebar-tree-item', 'files');
     if(width===640) {
       await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();
