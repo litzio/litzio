@@ -11,13 +11,32 @@
 - Scope: [#1462](https://github.com/litzio/litzio/issues/1462) 소유자 결정·설계안·변환 검토·구현 분할 계획과 누적 입력 방식 측정. 초기 설계 PR은 구현·SDK 변경·기존 문서 migration을 하지 않았다. 아래 P1a/P1b 절은 이후 구현 범위이며 나머지 Draft를 완료로 바꾸지 않는다. 개발 및 하위 PR base는 `feature/docling-stage3`; master 반영에는 소유자 승인과 독립 리뷰·merge queue 검사가 필요하다.
 - Authority: [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0020](../adr/0020-plugin-architecture.md), [현재 플러그인 계약](plugin-stage1-v1.md). 아래 2026-11-11 아키텍처 확정은 충돌하는 이전 계획을 대체한다. 2026-11-10 소유자 결정은 #1462의 방향과 범위를 확정하며, 세부 필드·작업 이름·미구현 PR 계획은 Draft다. Implemented 선언이 아니다.
 
+
+## 검수 정본 직접 편집 — #1533
+
+검수 대조 화면의 리치오 문서에서 **Edit → Save** 또는 Ctrl+S로 저장한다. 기존 DocumentEditor의 단일 Tiptap state·속성 폼·Core semantic operation을 재사용하며 새 편집 엔진은 없다. 편집 중에는 비교 새로고침·교정 판단·내보내기·탭 닫기를 기존 pending 보호로 막아 초안 유실을 방지한다. Cancel은 이 편집 세션의 미저장 내용을 버리고 정본을 다시 읽는다. 충돌이나 오류가 나면 초안을 유지한다.
+
+공용 `workspace-save` 입력은 root/workspace/plugin/job, baseline, requestId와 source 또는 edits 중 하나다. UI의 edits는 일반 문서 저장과 같은 `collectSupportedEdits` → Host `saveEdits` → Core operation으로 처리한다. CLI는 `litzio review workspace-save --input <json-file> --host <origin> --json`으로 canonical 리치오 source를 넣을 수 있다. Host가 Core parse/serialize·기존 snapshot 검증을 수행하고 provider candidate를 재검증한 뒤 기존 revision gate·원자적 파일 교체로 `.docling` 안 정본을 저장한다. 비서 서버나 원본 Docling JSON·PDF는 바꾸지 않는다. 결과에는 새 baseline, snapshot, ledger와 기존 receipt가 포함된다. 결과 불확실 때 같은 requestId의 workspace-status를 조회하고 다시 읽으며 자동 재전송하지 않는다.
+
+대응 보존은 최종 블록 개수·종류·경로만으로 판정하지 않는다. Host가 기존 edits에서 문단/제목 본문 글자 수정만 있고 삭제·삽입·순서 변화·분할/병합·기타 변경이 없음을 확인한 경우에만 기존 경로 대응을 새 revision에 연결한다. 명시 order는 원래 경로/part 순서와 같아야 한다. 삭제와 삽입이 상쇄돼 같은 개수가 되거나 canonical source까지 같아져도 구조 변경 입력이면 전체 대응을 비운다. 표·목록 등 나머지 입력과 변경 이력이 없는 전체 source 교체도 보수적으로 전체 대응을 비운다(같은 모양·내용으로 블록 동일성을 추측하지 않는다). 전체 source를 넣는 CLI에도 같은 기준을 적용한다. 순수 문단/제목 글자 수정의 대응 보존이 필요하면 같은 공용 작업에 edits를 넣는다.
+
+비워진 원본/삽입 근거는 기존 대응 없음/unsupported 표시로 남긴다. 기존 inspection에 각 렌즈의 범위를 uncertain으로 추가하고, 이전 대조 실행별 최신 기록을 같은 범위의 not-compared로 추가하므로 검수 범위 보고의 미대조 쪽과 미완료 렌즈에 반영된다. 과거 기록은 보존하며 저장 후 Undo로 대응을 복원해도 재검사 전까지 이 보수적 범위 보고는 유지한다. 새 대응 엔진이나 상태 계층은 없다. 입력별 문서 경로는 현재 문서를 완전히 덮도록 유지한다. 확실한 일부 구간만 재연결하는 고도화는 범위 밖이며, 구조 변경의 영향 범위를 확정하지 못하므로 전체 대응을 비우는 쪽을 택한다.
+
+#1544 P1 재검증(2026-11-12): A/B/C에서 A 삭제·끝에 D 삽입을 기존 Host 저장 테스트에 추가해 수정 전 대응 보존 단언의 실패를 확인했다. 수정 후 같은 개수/같은 내용의 삭제·삽입, 재배열, 분할/병합, 전체 source 교체, 순수 글자 수정의 보존과 이전 성공 검사·대조 범위의 uncertain/미대조 전환을 같은 테스트에서 확인했다. 고정 LSR/NIST 및 저장 경계 3개·generated-documents 3개·전체 typecheck·boundaries·docs가 통과했다. 브라우저는 고정 LSR와 동시 실행 시 기존 전체 120초 제한을 넘겼고, 다른 검사를 끝낸 뒤 `pnpm browser:test workspace-review` 단독 실행은 2개 통과(2.3분)했다. timeout·자동 재시도·단언은 바꾸지 않았다. 새 대형 suite·subprocess·실제 AI 호출·재변환은 추가하지 않았다.
+
+저장은 기존 ledger의 적용된 교정 묶음 **사람 직접 수정**과 human 출처로 이어진다. 별도 상태 계층·저장 파일 형식은 추가하지 않는다. 저장 전에는 편집기 Undo/Redo, 저장 후에는 기존 기록의 되돌리기를 사용한다. inverseOperations에 저장 전 canonical snapshot·대응을 담고, 문서 revision이 저장 직후와 같을 때만 복원하므로 이후 비서/사람 수정을 덮어쓰지 않는다. 본문이 같고 대응만 비워진 저장도 직접 수정 Undo가 snapshot/report를 복원했다면 기존 save 경로로 영속화한다. 저장 여부를 본문 hash 차이만으로 판정하지 않는다. 전체 문서 저장의 Undo는 블록별 재대응보다 단순하고 보수적이다. Undo 뒤 재편집은 새 저장으로 남기며 열린 직접 수정 기록은 기존 supersedes로 연결한다. 이전 저장의 재승인은 제공하지 않는다.
+
+로컬 검증(2026-11-12): 전체 typecheck·boundaries·docs·diff 검사, SDK 22개, generated-documents 3개, CLI 6개, 고정 LSR/NIST schema·렌즈 및 직접 저장/교정 검사 2개(161초), 기존 저장 경계 1개(30초)를 통과했다. `pnpm browser:test workspace-review --screenshots`의 직접 입력·충돌 초안 유지·저장·재열기·대응·Undo와 기존 검수/cold Host/export 및 HTTP recovery도 통과했다. 기존 시나리오·subprocess를 보완했으며 새 대형 suite나 재시도·timeout 확대는 없다.
+
+1440px 합성 fixture 캡처: [편집 중 라이트](assets/review-direct-edit/editing-1440-light.png), [편집 중 다크](assets/review-direct-edit/editing-1440-dark.png), [저장 후 라이트](assets/review-direct-edit/saved-1440-light.png), [저장 후 다크](assets/review-direct-edit/saved-1440-dark.png). 기존 compact Button·Notice·DocumentEditor를 선택했으며 새 공통 UI 예외는 없다. 원본 그림은 1px 합성 fixture이므로 실제 PDF 품질이나 소유자의 시각 승인을 뜻하지 않는다. 실제 AI 호출·LSR/NIST 재변환·패키지 Desktop 검사는 하지 않는다.
+
 ## 2026-11-12 즉시 교정 결정 — #1531
 
 소유자 결정으로 11-11 계획의 “비서에게 승인 도구 없음”과 비서 제안의 사람 승인 대기를 대체한다. `apply_review_groups`는 기존 groups-propose 입력을 받아 공용 `workspace-review-change:groups-apply`로 제안과 적용을 한 candidate·한 원자적 commit에서 실행한다. 대상 실재·locator·before/fingerprint·Core 연산·대응 갱신·원본 무결성과 baseline 충돌 보호는 유지한다. 일부 대상이 실패하면 전체 candidate를 버리고 제안도 저장하지 않는다. 요청 결과 불확실 때 기존 status를 조회하며 재실행하지 않는다.
 
 새 대기 상태는 없다. 기존 approved/applied와 inverseOperations를 쓰고, 이력의 human은 null, assistant에는 actor·reason을 남긴다. 사람 적용은 기존 human 근거를 쓴다. Undo 뒤 다시 교정할 때 열린 제안을 supersedes로 대체하며 과거 적용·Undo 이력은 보존한다. 사람 제안 검토/승인은 쪽 제외 묶음에 필요해 유지한다. 완료·필수 확인 계약은 바꾸지 않는다.
 
-검수 화면은 적용됨 행과 “적용된 교정” 상세, 기존 되돌리기를 표시한다. 기존 compact Button/Input/Disclosure와 before/after·이력을 재사용한다. 비서 적용 뒤 기존 데이터 새로고침으로 결과를 읽고, 대화로 추가 수정을 지시할 수 있다. 직접 편집은 현재 readOnly이며 export→일반 편집기는 별도 .md만 바꾼다. 소유자 범위 결정에 따라 검수 정본 직접 편집과 편집 진입 UI는 후속 이슈로 분리한다.
+검수 화면은 적용됨 행과 “적용된 교정” 상세, 기존 되돌리기를 표시한다. 기존 compact Button/Input/Disclosure와 before/after·이력을 재사용한다. 비서 적용 뒤 기존 데이터 새로고침으로 결과를 읽고, 대화로 추가 수정을 지시할 수 있다. 검수 정본 직접 편집은 위 #1533 구현으로 이어진다. export→일반 편집기는 별도 .md만 바꾼다.
 
 로컬 검증: 고정 LSR/기존 저장 경계 3개, 공용 generated-documents/실제 CLI apply 3개, SDK 22개, 비서 자료/쪽 제외/UI 토큰 8개, 전체 typecheck·boundaries·docs·Editor/CLI build가 통과했다. 기존 LSR 테스트에 즉시 적용→Undo→supersedes 재교정, 오래된 before 거부·무쓰기, 묶음 뒤 대상 실패 시 앞선 Core 교정과 제안까지 버리는 검사를 보완했다. CLI는 기존 subprocess를 apply로 바꿔 새 subprocess를 추가하지 않았다.
 

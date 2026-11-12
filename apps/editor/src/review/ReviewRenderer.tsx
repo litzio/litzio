@@ -2,8 +2,11 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { Check, X, Undo2, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, ArrowDownUp } from "lucide-react";
 import type { EditableDocument } from "@litzio/core";
 import type { ReviewView, ReviewBundle, ReviewPage, ReviewMapping, ReviewProposal, ReviewBaseline } from "@litzio/core/views-v2";
+import { messageText } from "../ui-message.ts";
 import { i18n } from "../i18n.ts";
-import { DocumentEditor } from "../DocumentEditor.tsx";
+import { collectSupportedEdits } from "../tiptap-document.ts";
+import type { SupportedEdits } from "../../shared/document-protocol.ts";
+import { DocumentEditor, type DocumentEditorHandle } from "../DocumentEditor.tsx";
 import { ReviewImageSourcesContext } from "../node-views/figure-view.tsx";
 import type { ReadingPosition } from "../document-reading.ts";
 import { Button } from "../components/ui/button.tsx";
@@ -38,6 +41,8 @@ export type ReviewAdapter = {
   act(action: ReviewAction, proposal: ReviewProposal, baseline: ReviewBaseline): Promise<void>;
   verify?(snapshot: ReviewSnapshot): Promise<void>;
   saveProgress?(snapshot: ReviewSnapshot, pageNo: number, checked?: boolean): Promise<ReviewSnapshot>;
+  saveDocument?(snapshot: ReviewSnapshot, edits: SupportedEdits): Promise<void>;
+  editing?(active: boolean): void;
   openDocument?(): void;
 };
 function documentCoherent(s: ReviewSnapshot) {
@@ -90,7 +95,9 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
   </section>;
 }
 export type ReviewNavigation = { path?: number[]; sourceId?: string; pageNo?: number };
-export function SourceDocumentCompare({ navigation, snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable, title, toolbarActions, compact = false }: { navigation?: ReviewNavigation; snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void; title?: string; toolbarActions?: ReactNode; compact?: boolean }) {
+export function SourceDocumentCompare({ navigation, snapshot: s, disabled, selectionDisabled, onPage, onVerify, loadPage, onCheck, onUnavailable, title, toolbarActions, editing, onEditing, saveDocument, compact = false }: { editing?: boolean; onEditing?(active:boolean):void; saveDocument?: ReviewAdapter["saveDocument"]; navigation?: ReviewNavigation; snapshot: ReviewSnapshot; disabled: boolean; selectionDisabled?: boolean; onPage(n: number): void; onVerify?(): Promise<boolean>; loadPage?: ReviewAdapter["loadPage"]; onCheck?(page:number,checked:boolean):void; onUnavailable?():void; title?: string; toolbarActions?: ReactNode; compact?: boolean }) {
+  const editor=useRef<DocumentEditorHandle>(null), [dirty,setDirty]=useState(false), [saveBusy,setSaveBusy]=useState(false), [editError,setEditError]=useState("");
+  const save=async()=>{if(!editor.current || saveBusy || !saveDocument)return;setSaveBusy(true);setEditError("");try{await saveDocument(s,collectSupportedEdits(s.document,editor.current.beginSave()));editor.current?.finishSave(true);onEditing?.(false);}catch(error){editor.current?.finishSave();setEditError(String((error as Error).message));}finally{setSaveBusy(false);}};
   const [sources, setSources] = useState<string[]>([]), [targets, setTargets] = useState<string[]>([]);
   const [positions, setPositions] = useState<ReadingPosition>({ blocks: [], height: 0 });
   const scroll = useRef<HTMLDivElement>(null), content = useRef<HTMLDivElement>(null), source = useRef<HTMLDivElement>(null);
@@ -198,9 +205,11 @@ export function SourceDocumentCompare({ navigation, snapshot: s, disabled, selec
     {compact && <Tooltip><TooltipTrigger render={<span className="review-wide-hint" tabIndex={0} />}>{i18n.t("Wide window advised")}</TooltipTrigger><TooltipContent>{i18n.t("Use a wider window for side-by-side comparison.")}</TooltipContent></Tooltip>}
   </div>}<div className="review-compare" ref={compare}>
     <div ref={source}>{continuous ? <ContinuousSource snapshot={s} loadPage={loadPage!} selected={sources} disabled={disabled || !valid} saving={!!selectionDisabled} compact={compact} zoom={zoom} jump={jump} onSelect={selectSource} onVisible={onPage} onCheck={onCheck!} onUnavailable={onUnavailable!} /> : <PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid || selectionDisabled} />}</div>
-    <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0}>
+    <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0} onKeyDownCapture={event=>{if(editing&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"){event.preventDefault();event.stopPropagation();void save();}}}>
+      {saveDocument&&<div className="review-toolbar">{editing?<><Button size="sm" disabled={saveBusy||!dirty} onClick={()=>void save()}>{i18n.t("Save")}</Button><Button size="sm" variant="outline" disabled={saveBusy} onClick={()=>{setDirty(false);setEditError("");onEditing?.(false);}}>{i18n.t("Cancel")}</Button></>:<Button size="sm" variant="outline" disabled={disabled} onClick={()=>onEditing?.(true)}>{i18n.t("Edit")}</Button>}</div>}
+      {editError&&<Notice tone="warning">{editError}</Notice>}
       <div className="review-reading-content" ref={content}>
-        <ReviewImageSourcesContext.Provider value={s.imageSources}><DocumentEditor key={s.documentHash} readOnly preview showHeadingLevels document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} /></ReviewImageSourcesContext.Provider>
+        <ReviewImageSourcesContext.Provider value={s.imageSources}><DocumentEditor ref={editor} key={`${s.documentHash}-${!!editing}`} readOnly={!editing || saveBusy} preview={!editing} onDirtyChange={setDirty} showHeadingLevels document={s.document} documentPath={s.documentPath} onStructuralReject={reason=>setEditError(reason ? messageText(reason) : i18n.t("Data unavailable."))} onNotice={message=>setEditError(messageText(message))} onReadingLayout={setPositions} onReadingSelection={selectDocument} /></ReviewImageSourcesContext.Provider>
         <div className="review-highlights" aria-hidden="true">{positions.blocks.filter(b => targets.includes(b.key)).map(b => <div key={b.key} data-kind={blockKind(s.document.blocks.find(block=>JSON.stringify(block.path)===b.key))} style={{ top: b.top, height: b.height }} />)}</div>
       </div>
     </section><svg className="review-wires" aria-hidden="true"><defs>{wires.map((wire,index)=><linearGradient key={wire.key} id={`${wireId}-${index}`} gradientUnits="userSpaceOnUse" x1={wire.paperEdge} x2={wire.paperEdge+1} y1={0} y2={0}><stop offset="0" style={{stopColor:`var(--id-color-review-source-${wire.kind})`}} /><stop offset="1" style={{stopColor:`var(--id-color-review-${wire.kind})`}} /></linearGradient>)}</defs>{wires.map((wire,index)=><path key={wire.key} d={wire.d} data-kind={wire.kind} data-selected={wire.selected} style={{stroke:`url(#${wireId}-${index})`}} />)}</svg></div>{unmapped && <Notice>{i18n.t("No matching content.")}</Notice>}{!disabled && !valid && <Notice tone="warning">{!s.mapping ? "Correspondence unavailable. Source-to-document navigation is disabled."
@@ -277,6 +286,7 @@ export function ReviewRenderer({ blocked = false, navigation, view, adapter, act
   // starting it twice would contend for the generated document's admission lock.
   const opening = useRef<{ adapter: ReviewAdapter; bundleRef: string; result: Promise<ReviewSnapshot> } | undefined>(undefined);
   latest.current = snapshot;
+  const [editing,setEditing]=useState(false);
   const [savingProgress, setSavingProgress] = useState(false), [progressError, setProgressError] = useState(false);
   const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), [compact,setCompact] = useState(false), epoch = useRef(0), busy = useRef(false);
   useEffect(() => { const observer = new ResizeObserver(entries => {setWide(entries[0].contentRect.width >= 1024);setCompact(entries[0].contentRect.width <= 640);}); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
@@ -322,7 +332,7 @@ export function ReviewRenderer({ blocked = false, navigation, view, adapter, act
   const controls = unverifiable
       ? <Tooltip><TooltipTrigger render={<Button variant="outline" disabled={!adapter.openDocument} onClick={adapter.openDocument} />}>Open result document</TooltipTrigger><TooltipContent>{REVIEW_UNAVAILABLE_GUIDANCE}</TooltipContent></Tooltip>
       : <>{adapter.openDocument && <Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={i18n.t("Open document")} onClick={adapter.openDocument} />}>{combined ? <ExternalLink />:i18n.t("Open document")}</TooltipTrigger><TooltipContent>{i18n.t("Open document")}</TooltipContent></Tooltip>}
-        <Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={unresolved ? "Check request status":i18n.t("Refresh data")} disabled={savingProgress || state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)} />}>{combined ? <RefreshCw />:unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipTrigger><TooltipContent>{unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger render={<Button variant="outline" size={combined ? "icon":"default"} aria-label={unresolved ? "Check request status":i18n.t("Refresh data")} disabled={editing || savingProgress || state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)} />}>{combined ? <RefreshCw />:unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipTrigger><TooltipContent>{unresolved ? "Check request status":i18n.t("Refresh data")}</TooltipContent></Tooltip>
         {actions}{savingProgress && <span role="status">{i18n.t("Saving review progress…")}</span>}</>;
   return <div ref={host} className="review-renderer" data-generated={!!adapter.saveProgress}>{!combined && <header className="review-toolbar"><h2>{view.title}</h2>{controls}</header>}
     {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? i18n.t("Refreshing data…") : state === "loading" ? i18n.t("Loading data…") : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : unavailableMessage ?? i18n.t("Data unavailable.")}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
@@ -332,7 +342,7 @@ export function ReviewRenderer({ blocked = false, navigation, view, adapter, act
     {snapshot && (wide || adapter.saveProgress) && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
       <h3 className={combined && child.component === "SourceDocumentCompare" ? "sr-only":undefined}>{child.title}</h3>
       {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n,true)} />}
-      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare navigation={navigation} snapshot={snapshot} compact={compact} title={view.title} toolbarActions={combined ? controls:undefined} disabled={disabled} selectionDisabled={savingProgress} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
+      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare editing={editing} onEditing={active=>{setEditing(active);adapter.editing?.(active);if(!active)void read(snapshot.page?.pageNo??1);}} saveDocument={adapter.saveDocument} navigation={navigation} snapshot={snapshot} compact={compact} title={view.title} toolbarActions={combined ? controls:undefined} disabled={disabled} selectionDisabled={savingProgress || editing} loadPage={adapter.loadPage} onUnavailable={()=>setState("unavailable")} onCheck={(pageNo,checked)=>{
         if (disabled || busy.current) return;
         const pages = new Set(snapshot.progress?.checkedPages);
         if (checked) pages.add(pageNo); else pages.delete(pageNo);

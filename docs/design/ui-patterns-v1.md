@@ -61,6 +61,8 @@ Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수
 - **사용처:** U01–U12 그림·원문·표·미주·inline·절 label·직접 본문 입력, U17 선택 toolbar.
 - **결정·불일치:** [소유자 결정 P03][decision]. 표는 #793에서 상단 Edit/metadata 행으로 맞췄으며 D08은 원래 목표의 추적 연결로 보존한다. 수식의 상단 Edit는 작은 metadata, 본문 수식 더블클릭·선택 후 Enter는 직접 원문 진입이다(#788/D04). 미주 예외는 불일치가 아니다.
 
+#1533 검수 대조는 U01 본문 편집의 DocumentEditor와 U23–U24의 기존 pending 닫기 보호를 재사용한다. Edit로 진입하고 Save/Ctrl+S로 정본을 저장하며 Cancel은 미저장 편집을 버린다. 본문·속성 폼의 편집/Undo는 같은 구현이다. 새 공통 interaction 예외는 없다. [저장·실패 초안 유지·1440px 라이트/다크 근거](docling-review-stage3.md#검수-정본-직접-편집--1533).
+
 ## P04 적용·취소·완료
 
 - **목적·사용/비사용:** 편집을 언제 문서에 반영하는지 드러낸다. 파일 생성·삭제·복구에 metadata의 바깥 클릭 적용 규칙을 쓰지 않는다(P12).

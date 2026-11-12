@@ -227,6 +227,11 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   const root = mkdtempSync(path.join(tmpdir(), "litzio-review-cli-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const input = path.join(root, "input.json"), request = {root:"/host/documents",workspace:"fixed.docling",plugin:"fixture",job:"import",pageNo:1};
+  const saveRequest={root:"/host/documents",workspace:"fixed.docling",plugin:"fixture",job:"import",baseline:"a".repeat(64),requestId:"62fbf782-043e-4c03-8b20-60aaaf34b6da",source:"---\nlitzio: 1\n---\n\nCorrected by a person.\n"};
+  writeFileSync(input,JSON.stringify(saveRequest));
+  assert.equal(await runCliAsync(["review","workspace-save","--input",input,"--host","http://127.0.0.1:5180","--json"]),1);
+  assert.deepEqual(bodies.at(-1),{...saveRequest,action:"workspace-save"});
+
   writeFileSync(input, JSON.stringify(request));
   for (const action of ["workspace-material", "workspace-image-read", "workspace-image-usage"]) {
     assert.equal(await runCliAsync(["review",action,"--input",input,"--host","http://127.0.0.1:5180","--json"]),1);
