@@ -27,6 +27,15 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
   fileB.revision = 'b-initial';
   setParagraph(fileB.document, 'Document B');
   const files = new Map([[pathA, fileA], [pathB, fileB]]);
+  // Revision observation must describe the same virtual files as GET/Save. Real
+  // fixture bytes have different hashes and would falsely trigger automatic Reload.
+  await page.route(`${origin}/api/folder-version?*`, async route => {
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
+    const body = await response.json();
+    body.revisions = body.revisions?.map(item => files.has(item.path)
+      ? { ...item, revision: files.get(item.path).revision } : item);
+    await route.fulfill({ response, json: body });
+  });
   const requests = [];
   const longDialogFailures = [];
   const longDialogLayouts = [];
