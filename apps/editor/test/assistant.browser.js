@@ -577,6 +577,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await skillOptions.getByRole('option').click();
   await expect(draftChips).toHaveCount(1);
   await message.press('End'); await page.keyboard.type('Focus on the unsaved paragraph.', { delay: 30 });
+  await expect(panel.locator('.assistant-footer button')).toHaveCount(1);
+  await expect(panel.getByRole('button', { name: 'Stop response', exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Steer conversation' }).click();
   await expect(message).toHaveValue('');
   await panel.locator('.assistant-steps').filter({ hasText: 'Direction updated: focus on the unsaved paragraph.' }).last().locator('summary').click();
@@ -788,7 +790,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   selected.turns[0].status = 'inProgress';
   await expect(panel.getByRole('button', { name: 'Stop response' })).toBeEnabled();
 
-  await panel.getByRole('button', { name: 'Stop response' }).click();
+  const actionButton = panel.locator('.assistant-footer button');
+  const buttonNode = await actionButton.elementHandle();
+  await message.fill('Draft direction');
+  await expect(actionButton).toHaveAccessibleName('Steer conversation');
+  expect(await actionButton.evaluate((element, original) => element === original, buttonNode)).toBe(true);
+  await actionButton.focus();
+  selected.turns[0].status = 'completed';
+  await expect(actionButton).toHaveAccessibleName('Send message');
+  await expect(actionButton).toBeFocused();
+  selected.turns[0].status = 'inProgress';
+  await expect(actionButton).toHaveAccessibleName('Steer conversation');
+  await expect(actionButton).toBeFocused();
+  await message.fill('');
+  await expect(actionButton).toHaveAccessibleName('Stop response');
+  await expect(actionButton).toHaveCount(1);
+  await actionButton.click();
+  expect(selected.turns.at(-1).status).toBe('interrupted');
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeEnabled();
   // Assert direct completion state, without a reload or a polling assertion masking it.
   expect(await panel.locator('details').first().evaluate(element => element.open)).toBe(false);
@@ -938,6 +956,14 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         await panel.locator('.assistant-transcript').evaluate(element => { element.scrollTop = 0; });
         expect(await panel.locator('.assistant-transcript').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
         await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}.png` });
+        selected.turns[0].status = 'inProgress';
+        await expect(panel.getByRole('button', { name: '응답 중단', exact: true })).toBeEnabled();
+        await page.screenshot({ path: `tmp/1485-running-${width}-${theme}-ko.png` });
+        await panel.locator('textarea').fill('진행 중인 작업에 추가');
+        await page.screenshot({ path: `tmp/1485-steer-${width}-${theme}-ko.png` });
+        await panel.locator('textarea').fill('');
+        selected.turns[0].status = 'completed';
+        await expect(panel.getByRole('button', { name: '메시지 보내기', exact: true })).toBeDisabled();
         await panel.getByRole('button', { name: '답변 복사', exact: true }).scrollIntoViewIfNeeded();
         await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}-bottom.png` });
       }
@@ -1206,6 +1232,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent.at(-1).reasoningEffort).toBe('high');
   expect(sent.at(-1).id).toBeUndefined();
   expect(sent.at(-1).skills).toEqual([]);
+  await message.fill('Wait until completion');
+  await expect(panel.locator('.assistant-footer button')).toHaveAccessibleName('Stop response');
+  const copilotSendCount = sent.length;
+  await message.press('Enter');
+  expect(sent.length).toBe(copilotSendCount);
+  await message.fill('');
   const readsBeforeCopilot = summaryReads;
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).toBeVisible();
