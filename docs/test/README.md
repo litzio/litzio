@@ -510,3 +510,35 @@ existing timeouts. The explicit Undo Reload is independent of automatic revision
 case. Provider/Host tests own protocol, index persistence and explicit-Host CLI
 `assistant conversation` / `assistant answer`. Manual 1440/640px Light/Dark captures
 are separate from CI in `docs/design/assets/assistant-question-1443/`.
+
+## 비서 수락 시험 (수동 측정)
+
+실제 AI 호출을 쓰므로 CI에서 실행하지 않는다. 자동 판정이 아닌 수동 점검이며,
+파일·값·`litzio check` predicate는 완수 여부를 검토하는 근거다. 문장 품질·화면 렌더링은 판정하지 않는다.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm exec tsx scripts/assistant-acceptance/run.mjs --smoke # gpt-6-luna low, 1회
+pnpm exec tsx scripts/assistant-acceptance/run.mjs         # gpt-6.1-terra high, 11과제 각 1회
+```
+
+[과제 데이터](../../scripts/assistant-acceptance/tasks.mjs)와 [실행기](../../scripts/assistant-acceptance/run.mjs)를 분리했다.
+실행마다 OS 임시 폴더에 합성 자료·독립 Host 프로필·비서 작업 폴더를 만들고, 기존 HTTP 대화 route로만 전송·조회·중단한다.
+기존 Codex 로그인과 CODEX_HOME을 유지한다. 브라우저·설치본·기존 daemon은 사용하지 않는다.
+중단 후 `--continue <results.json>`은 아직 시도하지 않은 과제만 이어서 실행한다.
+`--compare <results.json>`은 저장된 파일을 다시 판정하고 아직 비교하지 않은 권한 실패만 전체 접근으로 실행한다.
+전송 오류는 재전송하지 않으며 턴을 확인하지 못한 과제는 판정 불가다.
+출력 위치는 콘솔에 표시되며 `results.json`과 `results.md`는 커밋하지 않는다. 임시 폴더도 자동 삭제하지 않는다.
+Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출력 PID의 자식 프로세스만 확인해 정리한다.
+
+각 과제는 최대 10분 관찰하며 승인 요청에는 답하지 않고 승인 대기로 기록·중단한다.
+열린 폴더에서 미완수이고 권한·샌드박스 원인으로 분류된 과제만 새 자료·대화의 전체 접근으로 1회 비교한다.
+전체 실행은 최대 22회(열린 폴더 11회와 비교 최대 11회), smoke는 1회다. 반복 실행도 실제 호출 예산에 포함하므로 한 작업에서 총 30턴을 넘기지 않는다.
+사용량·모델 용량 오류에서는 측정을 중단한다. 다른 공급자로 바꾸지 않는다.
+
+호출 수는 대화 스냅샷의 고유 tool 항목을 Host·공급자 편집·셸로 센다. 변경 항목 수는 `fileChanges`가 있는 항목 수이며
+실제 UI 클릭 성공을 뜻하지 않는다. 셸 명령 목록은 읽기·검사도 포함하므로 문서 쓰기 방식은 명령과 파일 변경을 사람이 대조한다.
+실패 원인의 키워드 분류도 잠정값이다. 최종 보고 전에 오류·마지막 답변·부산물과 대조한다.
+수식 과제는 원문의 단일 역슬래시와 check를 별도로 확인하며 렌더링 정확성은 보장하지 않는다.
+작은 합성 fixture는 XLSX(openpyxl), PPTX(python-pptx), PDF(reportlab)로 만들었다. Docling 자료는 사용하지 않는다.
+이 도구는 CI allowlist에 추가하지 않으며 기존 unknown-path CI 검사를 유지한다.
