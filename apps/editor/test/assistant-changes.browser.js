@@ -1,8 +1,8 @@
-async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, activeDocument, applyAssistantChange }) => {
+async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, activeDocument, applyAssistantChange, prepareAssistantImage }) => {
   const origin = page.url().split('/').slice(0,3).join('/'), root = fileActionsRoot;
   const file = root + (root.includes('\\') ? '\\' : '/') + 'a.md';
   const saved = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(file), { headers: { Connection: 'close' } })).json();
-  const after = saved.source.replace('Alpha.', 'Proposed change.');
+  const after = prepareAssistantImage();
   expect(after).not.toBe(saved.source);
   const settings = { provider:'codex', permissionMode:'opened-folders', model:'gpt-6-luna', reasoningEffort:'low', responseLanguage:'en' };
   const conversation = { id:'staged-thread', title:'Edit document', folders:[root], ...settings, createdAt:Date.now(), updatedAt:Date.now(), turns:[{id:'turn',status:'inProgress',items:[]}] };
@@ -44,6 +44,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   const compare=page.getByTestId('assistant-change-comparison');
   await expect(compare.locator('.visual-comparison-grid')).toContainText('Proposed change.');
   await expect(compare.getByRole('button',{name:'Apply',exact:true})).toBeEnabled();
+  await expect.poll(()=>compare.getByRole('img',{name:'Imported desk'}).evaluateAll(images=>images.every(img=>img.complete && img.naturalWidth>0) && images.length>0)).toBe(true);
   await expect(panel.getByRole('textbox')).toBeFocused();
   await expect(page.getByRole('tab',{name:/Pending changes/})).toHaveCount(1);
   await page.getByRole('tab',{name:/a.md/}).first().click();
@@ -63,6 +64,7 @@ async (page, { expect, openFolderPicker, fileActionsRoot, screenshots, brand, ac
   await expect(compare.getByRole('status')).toContainText('Changes applied');
   await page.getByRole('tab',{name:/a.md/}).first().click();
   await expect(activeDocument(page).locator('.tiptap')).toContainText('Proposed change.');
+  await expect(activeDocument(page).getByRole('img',{name:'Imported desk'})).toBeVisible();
   pending=true; applied=false;
   await expect(panel.getByRole('button',{name:'Review',exact:true})).toBeVisible();
   await panel.getByRole('button',{name:'Review',exact:true}).click();

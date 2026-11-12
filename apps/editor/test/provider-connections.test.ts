@@ -679,7 +679,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const hostDenied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "read_document", arguments: { path: path.join(root, "..", "outside-host.md") } });
     assert.equal(hostDenied.result.success, false, "Full access preserves Host roots");
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "close_tabs", "open_folder", "close_folders", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["import_document_image", "inspect_staged_document", "edit_staged_document", "stage_document", "create_document", "read_document", "list_documents", "read_screen_context", "close_tabs", "open_folder", "close_folders", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template", "request_litzio_user_input"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
 
   } finally { await next.close(); }
@@ -1054,13 +1054,19 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
   const { documentTools } = await import("../server/assistant-document-tools.ts");
   const published = (await one.listTools()).tools;
-  for (const name of ["inspect_staged_document", "edit_staged_document"]) {
+  for (const name of ["import_document_image", "inspect_staged_document", "edit_staged_document"]) {
     const definition = documentTools.find(tool => tool.name === name)!;
     assert.deepEqual(published.find(tool => tool.name === name), { name, description: definition.description, inputSchema: definition.inputSchema });
   }
   const original = path.join(root, "a.md"), source = "---\nlitzio: 1\n---\n\nFirst paragraph.\n\nSecond paragraph.\n";
   writeFileSync(original, source);
   const payload = (result: any) => JSON.parse(result.content[0].text);
+  const image = path.join(root, "desk.png");
+  writeFileSync(image, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=", "base64"));
+  const imported = await one.callTool({ name: "import_document_image", arguments: { path: original, source: image } });
+  assert.equal(imported.isError, false);
+  assert.equal(payload(imported).path, "./assets/desk.png");
+  assert.deepEqual(readFileSync(path.join(root, payload(imported).path)), readFileSync(image));
   const structuredPath=path.join(root,"structured-mcp.md");
   const operations=[{command:"insert-table",at:"end",cells:[["Task","State"],["A","Done"]]},{command:"insert-figure",at:"end",image:"missing.png",caption:"Chart"}];
   const rejectedStructure=await one.callTool({name:"create_document",arguments:{path:structuredPath,title:"Report",operations:[...operations,{command:"remove-block",at:99999}]}});
