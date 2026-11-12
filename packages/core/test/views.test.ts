@@ -272,6 +272,21 @@ test("v2 query form preserves optional advanced presentation on round-trip", () 
  assert.throws(() => validateCatalogView(invalid, [inputOperation]));
 });
 
+test("a Select may list plugin-provided options instead of a static enum, only when the operation declares them", () => {
+  const optionsOperation: ViewOperation = { ...inputOperation, inputSchema: { type: "object", properties: { file: { type: "string", title: "File", maxLength: 40 }, day: { type: "string", maxLength: 10 } }, additionalProperties: false },
+    validateArgs: () => true, inputOptions: { file: { operation: "fixture.files", version: 1, depends: [] }, day: { operation: "fixture.days", version: 1, depends: ["file"] } } };
+  const view = () => { const v = formView(); v.sources.stats.args = {}; v.form.fields = [{ component: "Select", field: "file" }, { component: "Select", field: "day", emptyLabel: "Whole period" }]; return v; };
+  assert.deepEqual(validateViewInputs(queryViewSchema.parse(view()), optionsOperation), { state: "ready", missing: [] });
+  const parsed = parseCatalogView(serializeCatalogView(view(), [optionsOperation]), [optionsOperation]);
+  assert.equal((parsed as any).form.fields[1].emptyLabel, "Whole period");
+  // Without a declared option source the old rule still demands an enum.
+  assert.throws(() => validateCatalogView(view(), [{ ...optionsOperation, inputOptions: undefined }]));
+  assert.throws(() => validateCatalogView(view(), [{ ...optionsOperation, inputOptions: { day: optionsOperation.inputOptions!.day! } }]));
+  const invalid = view(); (invalid.form.fields[1] as any).emptyLabel = "";
+  assert.throws(() => validateCatalogView(invalid, [optionsOperation]));
+  assert.deepEqual(createCatalogV2([{ ...optionsOperation, rowSchema: optionsOperation.rowSchema }] as any).operations[0]?.inputOptions, optionsOperation.inputOptions);
+});
+
 const chartOperation: ViewOperation = { operation: "fixture.eol", version: 1, inputSchema: { type: "object", additionalProperties: false }, validateArgs: value => JSON.stringify(value) === "{}",
   rowSchema: rowSchema.parse({ kind: { type: "string", label: "Kind" }, hour: { type: "number", label: "Hour" }, eff: { type: "number", label: "Eff" }, thd: { type: "number", label: "THD" }, cond: { type: "string", label: "Condition" }, bad: { type: "boolean", label: "Bad" }, note: { type: "string", label: "Note" } }) };
 const chartView = (chart: object = {}) => ({ ...(base() as any), sources: { stats: { kind: "operation", operation: "fixture.eol", version: 1, args: {} } },

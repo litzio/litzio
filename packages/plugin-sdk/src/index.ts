@@ -24,11 +24,13 @@ const supportedSdkVersions = ["0.1.0", "0.2.0", "0.3.0", "0.4.0", SDK_VERSION];
 export const healthCheckResultSchema = z.strictObject({ ok: z.boolean(), message: z.string().min(1).max(300) });
 export const inputHintResultSchema = z.strictObject({ text: z.string().min(1).max(512) });
 export const inputSuggestionResultsSchema = z.array(z.strictObject({ value: z.string().min(1).max(512).regex(/^[^\r\n]+$/), label: z.string().min(1).max(512) })).max(32).refine(items => new Set(items.map(item => item.value)).size === items.length, "Duplicate suggestion value");
+/** Dynamic choices for a Select bound to a plugin read: unique, one-line values, at most 100. */
+export const inputOptionResultsSchema = z.array(z.strictObject({ value: z.string().min(1).max(512).regex(/^[^\r\n]+$/), label: z.string().min(1).max(512) })).max(100).refine(items => new Set(items.map(item => item.value)).size === items.length, "Duplicate option value");
 export type HealthCheckResult = z.infer<typeof healthCheckResultSchema>;
 export const HEALTH_CHECK_OUTPUT_SCHEMA = { type: "object", properties: { ok: { type: "boolean" }, message: { type: "string", minLength: 1, maxLength: 300 } }, required: ["ok", "message"], additionalProperties: false } as const;
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
-const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional(), inputSuggestions: z.record(z.string(), id).optional(), inputHints: z.record(z.string(), id).optional() });
+const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional(), inputSuggestions: z.record(z.string(), id).optional(), inputHints: z.record(z.string(), id).optional(), inputOptions: z.record(z.string(), z.strictObject({ operation: id, depends: z.array(z.string().min(1).max(80)).max(4).default([]) })).optional() });
 const extension = z.string().regex(/^\.[a-z0-9]+$/);
 const skillContribution = z.strictObject({
   id: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/),
@@ -116,6 +118,16 @@ export function validateManifest(input: unknown): PluginManifest {
     if (source.effect !== "read" || !source.rowSchema || !property || property.type !== "string" || property.secret || property.writeOnly || property.format || property.enum || property.const !== undefined) throw new Error("Suggestions require a public free-text query field");
     if (!candidate || candidate.effect !== "read" || candidate.scope !== "host" || !compileSchema(candidate.inputSchema)({ query: "example" }) || m.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(target)) || m.contributes.reviews.some(review => Object.values(review).some(binding => typeof binding === "object" && binding.operation === `${m.id}.${target}`))) throw new Error("Suggestions require a standalone host read operation accepting query");
   }
+  for (const source of m.contributes.operations) for (const [field, binding] of Object.entries(source.inputOptions ?? {})) {
+    if (!supportedSdkVersions.some(version => semver.gte(version, "0.5.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Input options require SDK 0.5.0 or later in requiresSdk");
+    const properties = source.inputSchema.properties as Record<string, any> | undefined;
+    const property = properties?.[field];
+    const candidate = m.contributes.operations.find(op => op.id === binding.operation);
+    if (source.effect !== "read" || !source.rowSchema || !property || property.type !== "string" || property.secret || property.writeOnly || property.format || property.enum || property.const !== undefined) throw new Error("Input options require a public free-text query field");
+    if (binding.depends.some(name => name === field || !properties?.[name] || properties[name].secret || properties[name].writeOnly)) throw new Error("Input option dependencies must be other public query fields");
+    const candidateProperties = Object.keys((candidate?.inputSchema.properties as Record<string, unknown> | undefined) ?? {});
+    if (!candidate || candidate.effect !== "read" || candidate.scope !== "host" || candidate.rowSchema || candidate.inputSchema.additionalProperties !== false || candidateProperties.some(name => !binding.depends.includes(name)) || m.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(binding.operation)) || m.contributes.reviews.some(review => Object.values(review).some(b => typeof b === "object" && b.operation === `${m.id}.${binding.operation}`))) throw new Error("Input option operations must be independent host reads that take only their declared dependencies");
+  }
   for (const source of m.contributes.operations) for (const [field, target] of Object.entries(source.inputHints ?? {})) {
     if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Input hints require SDK 0.3.0");
     const property = (source.inputSchema.properties as Record<string, any> | undefined)?.[field];
@@ -125,6 +137,7 @@ export function validateManifest(input: unknown): PluginManifest {
   }
   const viewOperations: ViewOperation[] = m.contributes.operations.filter(op => op.effect === "read" && op.rowSchema).map(op => ({
     operation: `${m.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: compileViewInputSchema(op.inputSchema),
+    ...(op.inputOptions ? { inputOptions: Object.fromEntries(Object.entries(op.inputOptions).map(([field, binding]) => [field, { operation: `${m.id}.${binding.operation}`, version: m.contributes.operations.find(candidate => candidate.id === binding.operation)!.version, depends: binding.depends }])) } : {}),
   }));
   for (const view of m.contributes.views) {
     if (view.definition.owner !== m.id) throw new Error("Default view owner must match plugin");

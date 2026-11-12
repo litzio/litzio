@@ -9,32 +9,24 @@
   "name": "공정 분석기",
   "description": "OBCM EOL 시험 CSV를 시간 축 그래프로 보고, 공정 능력(Cp/Cpk/Pp/Ppk)·FPY·DPMO·시그마 수준과 관리도로 하루~며칠의 생산 결과를 분석합니다. 스파이크.",
   "version": "0.0.1",
-  "requiresSdk": ">=0.4.0 <1.0.0",
+  "requiresSdk": ">=0.5.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [
       {
-        "id": "csv-files",
+        "id": "files",
         "version": 1,
         "effect": "read",
         "scope": "host",
+        "assistant": false,
         "inputSchema": {
           "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "minLength": 2,
-              "maxLength": 512
-            }
-          },
-          "required": [
-            "query"
-          ],
+          "properties": {},
           "additionalProperties": false
         },
         "outputSchema": {
           "type": "array",
-          "maxItems": 32,
+          "maxItems": 100,
           "items": {
             "type": "object",
             "properties": {
@@ -55,8 +47,109 @@
             ],
             "additionalProperties": false
           }
+        }
+      },
+      {
+        "id": "from-dates",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "assistant": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "title": "CSV 파일",
+              "description": "설정의 데이터 폴더 안 EOL CSV 파일. 목록에서 골라요(최신 파일이 위에).",
+              "minLength": 5,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\\.csv$"
+            },
+            "dateTo": {
+              "type": "string",
+              "title": "종료일",
+              "description": "목록에서 고르는 날짜(YYYY-MM-DD). 시작일·종료일을 모두 비우면 전체 기간이에요.",
+              "maxLength": 10
+            }
+          },
+          "additionalProperties": false
         },
-        "assistant": false
+        "outputSchema": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      {
+        "id": "to-dates",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "assistant": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "title": "CSV 파일",
+              "description": "설정의 데이터 폴더 안 EOL CSV 파일. 목록에서 골라요(최신 파일이 위에).",
+              "minLength": 5,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\\.csv$"
+            },
+            "dateFrom": {
+              "type": "string",
+              "title": "시작일",
+              "description": "목록에서 고르는 날짜(YYYY-MM-DD). 시작일·종료일을 모두 비우면 전체 기간이에요.",
+              "maxLength": 10
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        }
       },
       {
         "id": "measurements",
@@ -70,7 +163,7 @@
             "file": {
               "type": "string",
               "title": "CSV 파일",
-              "description": "설정의 데이터 폴더 안 EOL CSV 파일 이름. 2글자 이상 입력하면 후보가 나와요.",
+              "description": "설정의 데이터 폴더 안 EOL CSV 파일. 목록에서 골라요(최신 파일이 위에).",
               "minLength": 5,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\\.csv$"
@@ -78,13 +171,13 @@
             "dateFrom": {
               "type": "string",
               "title": "시작일",
-              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "description": "목록에서 고르는 날짜(YYYY-MM-DD). 시작일·종료일을 모두 비우면 전체 기간이에요.",
               "maxLength": 10
             },
             "dateTo": {
               "type": "string",
               "title": "종료일",
-              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "description": "목록에서 고르는 날짜(YYYY-MM-DD). 시작일·종료일을 모두 비우면 전체 기간이에요.",
               "maxLength": 10
             }
           },
@@ -318,8 +411,24 @@
             "label": "불합격 항목"
           }
         },
-        "inputSuggestions": {
-          "file": "csv-files"
+        "inputOptions": {
+          "file": {
+            "operation": "files"
+          },
+          "dateFrom": {
+            "operation": "from-dates",
+            "depends": [
+              "file",
+              "dateTo"
+            ]
+          },
+          "dateTo": {
+            "operation": "to-dates",
+            "depends": [
+              "file",
+              "dateFrom"
+            ]
+          }
         }
       },
       {
@@ -334,7 +443,7 @@
             "file": {
               "type": "string",
               "title": "CSV 파일",
-              "description": "설정의 데이터 폴더 안 EOL CSV 파일 이름. 2글자 이상 입력하면 후보가 나와요.",
+              "description": "설정의 데이터 폴더 안 EOL CSV 파일. 목록에서 골라요(최신 파일이 위에).",
               "minLength": 5,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\\.csv$"
@@ -342,13 +451,13 @@
             "dateFrom": {
               "type": "string",
               "title": "시작일",
-              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "description": "목록에서 고르는 날짜(YYYY-MM-DD). 시작일·종료일을 모두 비우면 전체 기간이에요.",
               "maxLength": 10
             },
             "dateTo": {
               "type": "string",
               "title": "종료일",
-              "description": "선택: YYYY-MM-DD. 비우면 전체 기간.",
+              "description": "목록에서 고르는 날짜(YYYY-MM-DD). 시작일·종료일을 모두 비우면 전체 기간이에요.",
               "maxLength": 10
             },
             "condition": {
@@ -943,8 +1052,24 @@
             "nullable": true
           }
         },
-        "inputSuggestions": {
-          "file": "csv-files"
+        "inputOptions": {
+          "file": {
+            "operation": "files"
+          },
+          "dateFrom": {
+            "operation": "from-dates",
+            "depends": [
+              "file",
+              "dateTo"
+            ]
+          },
+          "dateTo": {
+            "operation": "to-dates",
+            "depends": [
+              "file",
+              "dateFrom"
+            ]
+          }
         }
       }
     ],
@@ -1070,16 +1195,18 @@
             "source": "stats",
             "fields": [
               {
-                "component": "TextInput",
+                "component": "Select",
                 "field": "file"
               },
               {
-                "component": "TextInput",
-                "field": "dateFrom"
+                "component": "Select",
+                "field": "dateFrom",
+                "emptyLabel": "첫날부터"
               },
               {
-                "component": "TextInput",
-                "field": "dateTo"
+                "component": "Select",
+                "field": "dateTo",
+                "emptyLabel": "마지막 날까지"
               }
             ],
             "submit": {
@@ -1312,7 +1439,7 @@
             "source": "stats",
             "fields": [
               {
-                "component": "TextInput",
+                "component": "Select",
                 "field": "file"
               },
               {
@@ -1324,12 +1451,14 @@
                 "field": "parameter"
               },
               {
-                "component": "TextInput",
-                "field": "dateFrom"
+                "component": "Select",
+                "field": "dateFrom",
+                "emptyLabel": "첫날부터"
               },
               {
-                "component": "TextInput",
-                "field": "dateTo"
+                "component": "Select",
+                "field": "dateTo",
+                "emptyLabel": "마지막 날까지"
               }
             ],
             "submit": {

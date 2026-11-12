@@ -325,6 +325,23 @@ test("input suggestions bind public text fields to same-plugin reads on SDK 0.3"
  assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:{type:"string",secret:true}}}},people]}}),/public free-text/);
 });
 
+test("input options bind public text fields to same-plugin option reads on SDK 0.5", () => {
+ const source = {id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{file:{type:"string"},day:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputOptions:{file:{operation:"files"},day:{operation:"days",depends:["file"]}}};
+ const files = {id:"files",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{},additionalProperties:false},outputSchema:{type:"array"}};
+ const days = {id:"days",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{file:{type:"string"}},additionalProperties:false},outputSchema:{type:"array"}};
+ const input = { ...manifest(), requiresSdk:"^0.5.0", contributes:{operations:[source,files,days]} };
+ assert.deepEqual(validateManifest(input).contributes.operations[0]?.inputOptions,{file:{operation:"files",depends:[]},day:{operation:"days",depends:["file"]}});
+ assert.throws(()=>validateManifest({...input,requiresSdk:"^0.4.0"}),/SDK 0.5/);
+ const bad = (operations:unknown[],pattern:RegExp) => assert.throws(()=>validateManifest({...input,contributes:{operations}}),pattern);
+ bad([{...source,inputOptions:{missing:{operation:"files"}}},files,days],/public free-text/);
+ bad([{...source,inputOptions:{file:{operation:"files"}},inputSchema:{type:"object",properties:{file:{type:"string",enum:["a"]}}}},files,days],/public free-text/);
+ bad([source,{...files,effect:"write"},days],/independent host reads/);
+ bad([source,files,{...days,inputSchema:{type:"object",properties:{file:{type:"string"},other:{type:"string"}},additionalProperties:false}}],/independent host reads/);
+ bad([source,files,{...days,inputSchema:{type:"object",properties:{file:{type:"string"}}}}],/independent host reads/);
+ bad([{...source,inputOptions:{day:{operation:"days",depends:["day"]}}},files,days],/dependencies/);
+ bad([{...source,inputOptions:{day:{operation:"days",depends:["nothing"]}}},files,days],/dependencies/);
+});
+
 test("input hints require public text and standalone empty-input reads", () => {
  const source = {id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputHints:{person:"hint"}};
  const hint = {id:"hint",version:1,effect:"read",scope:"host",inputSchema:{type:"object",additionalProperties:false},outputSchema:{type:"object"}};

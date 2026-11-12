@@ -8,12 +8,13 @@ import { Button } from "../components/ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { FieldError } from "../ui/primitives.tsx";
 import { Info, X, CircleOff, ChevronDown, ChevronRight } from "lucide-react";
+import type { InputOption } from "./useInputOptions.ts";
 import { readableLabel } from "./view-label.ts";
 
 type Property = { format?: string; const?: unknown; title?: string; description?: string; type?: string | string[]; enum?: (string | number | boolean | null)[]; minLength?: number; pattern?: string; maxLength?: number; minimum?: number; maximum?: number };
 export type InputSchema = { properties?: Record<string, Property>; required?: string[] };
 /** Bind scalar controls only. Core/Host own schema validation and all data processing. */
-export function QueryInputs({ view, schema, errors, change, suggestions, hints, client, actions }: { actions?: ReactNode; client?: HostClient; hints?: Record<string, { operation: string; version: number }>; suggestions?: Record<string, { operation: string; version: number }>; view: QueryView; schema: InputSchema; errors: Record<string, string>; change(field: string, value: unknown, remove?: boolean): void }) {
+export function QueryInputs({ view, schema, errors, change, suggestions, hints, client, actions, options, optionBindings, refreshOptions }: { options?: Record<string, InputOption[]>; optionBindings?: Record<string, unknown>; refreshOptions?(): void; actions?: ReactNode; client?: HostClient; hints?: Record<string, { operation: string; version: number }>; suggestions?: Record<string, { operation: string; version: number }>; view: QueryView; schema: InputSchema; errors: Record<string, string>; change(field: string, value: unknown, remove?: boolean): void }) {
   const prefix = useId();
   const container = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -37,6 +38,7 @@ export function QueryInputs({ view, schema, errors, change, suggestions, hints, 
     const required = schema.required?.includes(field.field), nullable = Array.isArray(p.type) && p.type.includes("null");
     const emptyIsValue = field.component === "TextInput" && (p.const === "" || p.enum?.includes(""));
     const hasValue = value !== undefined && (value !== "" || emptyIsValue);
+    const dynamic = field.component === "Select" && !!optionBindings && Object.hasOwn(optionBindings, field.field), choices = dynamic ? options?.[field.field] ?? [] : [];
     const boolean = field.component === "Checkbox";
     const select = field.component === "Select" || boolean;
     const common = { id, "data-view-field": field.field, required: required && value === undefined, "aria-invalid": !!errors[field.field], "aria-describedby": errors[field.field] ? `${id}-error` : undefined };
@@ -46,7 +48,12 @@ export function QueryInputs({ view, schema, errors, change, suggestions, hints, 
       {description ? <Tooltip><TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("About {{field}}", { field: label })} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{description}</TooltipContent></Tooltip> : null}
     </div>
       <div className="view-input-control">
-      {select ? <select {...common} className="form-select settings-select" value={boolean ? value === undefined ? "any" : String(value) : value === undefined ? "" : String(p.enum?.findIndex(v => v === value))} onChange={e => {
+      {dynamic ? <select {...common} className="form-select settings-select" value={typeof value === "string" ? value : ""} onFocus={refreshOptions} onChange={e => change(field.field, e.target.value, e.target.value === "")}>
+        <option value="" disabled={required}>{required ? i18n.t("Choose a value") : field.emptyLabel ?? i18n.t("Any")}</option>
+        {typeof value === "string" && value && !choices.some(choice => choice.value === value) ? <option value={value}>{value}</option> : null}
+        {choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+      </select>
+      : select ? <select {...common} className="form-select settings-select" value={boolean ? value === undefined ? "any" : String(value) : value === undefined ? "" : String(p.enum?.findIndex(v => v === value))} onChange={e => {
         if (boolean) change(field.field, e.target.value === "null" ? null : e.target.value === "true", e.target.value === "any");
         else change(field.field, p.enum![Number(e.target.value)]);
       }}>
@@ -54,7 +61,7 @@ export function QueryInputs({ view, schema, errors, change, suggestions, hints, 
       </select>
       : field.component === "TextInput" && client && (suggestions?.[field.field] || hints?.[field.field]) ? <HintedInput {...common} client={client} suggestion={suggestions?.[field.field]} hint={hints?.[field.field]} value={typeof value === "string" ? value : ""} maxLength={Math.min(512, p.maxLength ?? 512)} className={!required && hasValue ? "pr-9" : undefined} onValueChange={text => change(field.field, text, text === "" && !required && !emptyIsValue)} />
       : <Input {...common} lang={i18n.language} className={!required && hasValue ? "pr-9" : undefined} type={field.component === "NumberInput" ? "number" : "text"} inputMode={field.component === "DateInput" ? "numeric" : undefined} pattern={field.component === "DateInput" ? "[0-9]{4}-[0-9]{2}-[0-9]{2}" : undefined} placeholder={value === null ? i18n.t("No value") : field.component === "DateInput" ? "YYYY-MM-DD" : undefined} value={value === undefined || value === null ? "" : String(value)} maxLength={Math.min(512, p.maxLength ?? 512)} min={p.minimum} max={p.maximum} step={(Array.isArray(p.type) ? p.type.includes("integer") : p.type === "integer") ? 1 : "any"} onChange={e => change(field.field, field.component === "NumberInput" ? e.target.value === "" ? undefined : e.target.valueAsNumber : e.target.value, e.target.value === "" && (!required && !emptyIsValue || field.component === "NumberInput"))} />}
-      {!required && !boolean && hasValue ? <Tooltip><TooltipTrigger className={select ? "view-select-clear" : "view-input-clear"} render={<Button type="button" variant="ghost" size="icon-sm" aria-label={clear} onClick={() => { change(field.field, undefined, true); document.getElementById(id)?.focus(); }} />}><X aria-hidden="true" /></TooltipTrigger><TooltipContent>{clear}</TooltipContent></Tooltip> : null}
+      {!required && !boolean && !dynamic && hasValue ? <Tooltip><TooltipTrigger className={select ? "view-select-clear" : "view-input-clear"} render={<Button type="button" variant="ghost" size="icon-sm" aria-label={clear} onClick={() => { change(field.field, undefined, true); document.getElementById(id)?.focus(); }} />}><X aria-hidden="true" /></TooltipTrigger><TooltipContent>{clear}</TooltipContent></Tooltip> : null}
       </div>
       <FieldError id={`${id}-error`}>{errors[field.field]}</FieldError>
       {nullable && !select && value !== null ? <Tooltip><TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("No value for {{field}}", { field: label })} onClick={() => change(field.field, null)} />}><CircleOff aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("No value")}</TooltipContent></Tooltip> : null}

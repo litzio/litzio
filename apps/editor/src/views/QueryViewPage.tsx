@@ -1,3 +1,4 @@
+import { useInputOptions } from "./useInputOptions.ts";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { compilePortableViewInputSchema, validateViewInputs, ViewInputError, type ViewOperation, type OperationQueryView as View, type SourceState } from "@litzio/core/views-v2";
 import { i18n } from "../i18n.ts";
@@ -22,6 +23,7 @@ export function QueryViewPage({ tab, client, unavailable:explicitUnavailable }: 
   const [catalogOperation, setOperation] = useState<ViewOperation & { plugin: string }>();
   const operation = catalogOperation;
   const schema = operation?.inputSchema as InputSchema | undefined;
+  const { options: inputOptions, refresh: refreshOptions } = useInputOptions({ client, bindings: operation?.inputOptions, required: schema?.required ?? [], args, setArgs, enabled: !unavailable && !!operation });
   const [inputErrors, setInputErrors] = useState<{ fields: Record<string, string>; common?: string }>(emptyInputErrors);
   const [state, setState] = useState<SourceState>("idle");
   const [result, setResult] = useState<ViewResult>(), [problem, setProblem] = useState("");
@@ -82,7 +84,7 @@ export function QueryViewPage({ tab, client, unavailable:explicitUnavailable }: 
     {!tab.screen ? <header><h1>{tab.label ?? view.title}</h1><p>{hostLabel(tab.hostId)}</p></header> : null}
     {!view.form ? <div className="view-controls"><Button variant="secondary" size="sm" disabled={unavailable || busy || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button></div> : null}
     {view.form ? <form className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
-      {schema ? <QueryInputs actions={<Button type="submit" disabled={unavailable || busy || !schema}>{view.form.submit.label}</Button>} client={unavailable ? undefined : client} suggestions={operation?.inputSuggestions} hints={operation?.inputHints} view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
+      {schema ? <QueryInputs actions={<Button type="submit" disabled={unavailable || busy || !schema}>{view.form.submit.label}</Button>} client={unavailable ? undefined : client} suggestions={operation?.inputSuggestions} hints={operation?.inputHints} optionBindings={operation?.inputOptions} options={inputOptions} refreshOptions={refreshOptions} view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
     </form> : null}
     <section className="view-query-results" aria-label={i18n.t("Results")}>
     <FieldError id={`view-input-error-${tab.id}`}>{inputErrors.common}</FieldError>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, symlinkSync, copyFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, symlinkSync, copyFileSync, utimesSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +24,14 @@ test("공정 분석기 manifest is declarative, binds Chart fields and matches t
     assert.equal(p.lsl ?? "", lsl === "" ? "" : Number(lsl)); assert.equal(p.usl ?? "", usl === "" ? "" : Number(usl));
     assert.deepEqual(graph.limits[key!], { ...(lsl ? { lsl: Number(lsl) } : {}), ...(usl ? { usl: Number(usl) } : {}) });
   }
+  // File and dates are chosen from lists the plugin fills in; nobody types them.
+  for (const view of manifest.contributes.views) {
+    const fields = (JSON.parse(JSON.stringify(view.definition)).form.fields as { component: string; field: string; emptyLabel?: string }[]);
+    for (const name of ["file", "dateFrom", "dateTo"]) assert.equal(fields.find(f => f.field === name)?.component, "Select", `${view.id}.${name}`);
+    assert.equal(fields.some(f => f.component === "TextInput" || f.component === "DateInput"), false);
+    assert.ok(fields.find(f => f.field === "dateFrom")!.emptyLabel && fields.find(f => f.field === "dateTo")!.emptyLabel);
+  }
+  for (const name of ["measurements", "analysis"]) assert.deepEqual(manifest.contributes.operations.find(o => o.id === name)!.inputOptions, { file: { operation: "files", depends: [] }, dateFrom: { operation: "from-dates", depends: ["file", "dateTo"] }, dateTo: { operation: "to-dates", depends: ["file", "dateFrom"] } });
   // The plugin ships no script, markup or style: only the entry module and data.
   assert.equal(/<script|<style|javascript:|https?:/i.test(JSON.stringify(manifest)), false);
 });
@@ -60,8 +68,28 @@ test("공정 분석기 runs through the real plugin Host: CSV graph rows, analys
     await host.invoke("settings", { id: ID, settings: { dataFolder: data } });
     await host.invoke("enable", { id: ID });
     const op = async (name: string, input: unknown) => { const r: any = await host.invokeOperation(`${ID}.${name}`, input); assert.equal(r.receipt.outcome, "success", JSON.stringify(r)); return r.result; };
-    const files = await op("csv-files", { query: "eol" });
-    assert.deepEqual(files, [{ value: "eol_synthetic_3days.csv", label: "eol_synthetic_3days.csv" }]);
+    // Dropdown choices come from the folder: newest file first, only readable EOL CSVs (the symlink escape and junk are skipped).
+    const lines = readFileSync(path.join(sample, "eol_synthetic_3days.csv"), "utf8").split("\n");
+    writeFileSync(path.join(data, "eol_day1.csv"), [lines[0], ...lines.slice(1).filter(l => l.includes("2026-11-11"))].join("\n"));
+    writeFileSync(path.join(data, "notes.csv"), "a,b\n1,2\n");
+    utimesSync(path.join(data, "eol_day1.csv"), new Date(), new Date(Date.now() + 60_000));
+    const choices = async (operation: string, input: unknown): Promise<{ value: string; label: string }[]> => (await host.invoke("options", { operation: `${ID}.${operation}`, version: 1, input }) as any).result;
+    const files = await choices("files", {});
+    assert.deepEqual(files.map(f => f.value), ["eol_day1.csv", "eol_synthetic_3days.csv"]);
+    assert.match(files[1]!.label, /3일/);
+    const days = await choices("from-dates", { file: "eol_synthetic_3days.csv" });
+    assert.deepEqual(days.map(d => d.value), ["2026-11-11", "2026-11-12", "2026-11-13"]);
+    assert.match(days[0]!.label, /^2026-11-11 \(\d+대\)$/);
+    assert.deepEqual((await choices("from-dates", { file: "eol_synthetic_3days.csv", dateTo: "2026-11-12" })).map(d => d.value), ["2026-11-11", "2026-11-12"]);
+    assert.deepEqual((await choices("to-dates", { file: "eol_synthetic_3days.csv", dateFrom: "2026-11-12" })).map(d => d.value), ["2026-11-12", "2026-11-13"]);
+    assert.deepEqual((await choices("to-dates", { file: "eol_day1.csv" })).map(d => d.value), ["2026-11-11"]);
+    assert.deepEqual(await choices("to-dates", {}), []);
+    // Only declared option reads are reachable through the options action; unknown versions and ordinary reads are refused.
+    await assert.rejects(host.invoke("options", { operation: `${ID}.measurements`, version: 1, input: { file: "eol_day1.csv" } }), /unavailable/);
+    await assert.rejects(host.invoke("options", { operation: `${ID}.files`, version: 2, input: {} }), /unavailable/);
+    await assert.rejects(host.invoke("options", { operation: `${ID}.files`, version: 1, input: { extra: 1 } }), /Invalid operation input/);
+    // A reversed range is corrected rather than returning nothing.
+    assert.equal((await op("measurements", { file: "eol_synthetic_3days.csv", dateFrom: "2026-11-13", dateTo: "2026-11-12" })).rows.every((r: any) => r.day >= "2026-11-12"), true);
     const all = await op("measurements", { file: "eol_synthetic_3days.csv" });
     assert.equal(all.total, 282); assert.equal(all.truncated, false);
     assert.ok(all.rows.some((r: any) => r.fail === true) && all.rows.every((r: any) => r.vinLabel.endsWith("Vac")));

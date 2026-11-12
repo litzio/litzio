@@ -1,7 +1,7 @@
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { designatedPluginDirectories } from "./designated-plugins.ts";
-import { PLUGIN_REGISTRATION_CHANGED, inputHintResultSchema, inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
+import { PLUGIN_REGISTRATION_CHANGED, inputHintResultSchema, inputSuggestionResultsSchema, inputOptionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
 import { OFFICIAL_PLUGINS, type OfficialPlugin } from "./official-plugins.ts";
@@ -349,7 +349,7 @@ export class PluginHost {
   viewOperations(): ViewOperation[] {
     return [...[...this.loaded.values()].flatMap(live => live.manifest.contributes.operations
       .filter(op => op.effect === "read" && op.rowSchema)
-      .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, ...(op.inputSuggestions ? { inputSuggestions: Object.fromEntries(Object.entries(op.inputSuggestions).map(([field, target]) => [field, { operation: `${live.manifest.id}.${target}`, version: live.manifest.contributes.operations.find(candidate => candidate.id === target)!.version }])) } : {}), ...(op.inputHints ? { inputHints: Object.fromEntries(Object.entries(op.inputHints).map(([field, target]) => [field, { operation: `${live.manifest.id}.${target}`, version: live.manifest.contributes.operations.find(candidate => candidate.id === target)!.version }])) } : {}), validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
+      .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, ...(op.inputSuggestions ? { inputSuggestions: Object.fromEntries(Object.entries(op.inputSuggestions).map(([field, target]) => [field, { operation: `${live.manifest.id}.${target}`, version: live.manifest.contributes.operations.find(candidate => candidate.id === target)!.version }])) } : {}), ...(op.inputOptions ? { inputOptions: Object.fromEntries(Object.entries(op.inputOptions).map(([field, binding]) => [field, { operation: `${live.manifest.id}.${binding.operation}`, version: live.manifest.contributes.operations.find(candidate => candidate.id === binding.operation)!.version, depends: binding.depends }])) } : {}), ...(op.inputHints ? { inputHints: Object.fromEntries(Object.entries(op.inputHints).map(([field, target]) => [field, { operation: `${live.manifest.id}.${target}`, version: live.manifest.contributes.operations.find(candidate => candidate.id === target)!.version }])) } : {}), validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
   }
   /** The loaded manifest owns identity; never infer plugin IDs by splitting operation names. */
   viewOperationOwner(operation: string): string | undefined {
@@ -400,6 +400,7 @@ export class PluginHost {
     try {
       const result = publicOperationResult(op, await run, this.secretValues(live.manifest.id));
       if (live.manifest.contributes.operations.some(source => Object.values(source.inputSuggestions ?? {}).includes(op.id))) inputSuggestionResultsSchema.parse(result);
+      if (live.manifest.contributes.operations.some(source => Object.values(source.inputOptions ?? {}).some(binding => binding.operation === op.id))) inputOptionResultsSchema.parse(result);
       if (live.manifest.contributes.operations.some(source => Object.values(source.inputHints ?? {}).includes(op.id))) inputHintResultSchema.parse(result);
       if (live.manifest.contributes.healthCheck === op.id) healthCheckResultSchema.parse(result);
       return { result, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "success" } };
@@ -421,6 +422,12 @@ export class PluginHost {
       const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === args.operation);
       if (!op || op.effect !== "read" || args.version !== op.version) return Promise.reject(new Error("Suggestion operation unavailable"));
       return this.invokeOperation(args.operation!, args.input, undefined, false, op.version);
+    }
+    if (action === "options") {
+      const live = [...this.loaded.values()].find(live => live.manifest.contributes.operations.some(source => Object.values(source.inputOptions ?? {}).some(binding => `${live.manifest.id}.${binding.operation}` === args.operation)));
+      const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === args.operation);
+      if (!op || op.effect !== "read" || args.version !== op.version) return Promise.reject(new Error("Input option operation unavailable"));
+      return this.invokeOperation(args.operation!, args.input ?? {}, undefined, false, op.version);
     }
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });

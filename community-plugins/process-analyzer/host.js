@@ -28,7 +28,7 @@ function dataFolder(settings) {
   if (!folder || !path.isAbsolute(folder)) throw new PluginOperationError("not_found");
   try { if (!statSync(folder).isDirectory()) throw new Error(); return realpathSync(folder); } catch { throw new PluginOperationError("not_found"); }
 }
-function readTable(settings, file) {
+function resolveFile(settings, file) {
   if (typeof file !== "string" || !FILE_PATTERN.test(file)) throw new PluginOperationError("failed");
   const folder = dataFolder(settings);
   let real;
@@ -36,7 +36,10 @@ function readTable(settings, file) {
   // A symlink may not lead out of the configured data folder.
   if (path.dirname(real) !== folder) throw new PluginOperationError("forbidden");
   if (statSync(real).size > MAX_BYTES) throw new PluginOperationError("failed");
-  const table = parseCsv(readFileSync(real, "utf8"));
+  return real;
+}
+function readTable(settings, file) {
+  const table = parseCsv(readFileSync(resolveFile(settings, file), "utf8"));
   const head = table.shift()?.map(h => h.trim()) ?? [];
   const col = Object.fromEntries(head.map((h, i) => [h, i]));
   if (REQUIRED.some(name => !Object.hasOwn(col, name))) throw new PluginOperationError("failed");
@@ -53,7 +56,14 @@ function readTable(settings, file) {
   });
   return rows;
 }
-const inRange = (rows, from, to) => rows.filter(r => (!from || r.day >= from) && (!to || r.day <= to));
+/** Units per test day, in date order. */
+function dayCounts(rows) {
+  const days = new Map();
+  for (const r of rows) { const set = days.get(r.day) ?? new Set(); set.add(r.serial); days.set(r.day, set); }
+  return [...days].sort(([a], [b]) => a < b ? -1 : 1).map(([day, set]) => ({ day, units: set.size }));
+}
+// A reversed range is corrected instead of silently returning nothing.
+const inRange = (rows, from, to) => { if (from && to && from > to) [from, to] = [to, from]; return rows.filter(r => (!from || r.day >= from) && (!to || r.day <= to)); };
 const dateOk = v => v === undefined || v === "" || (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)));
 
 const round = (v, d = 4) => v === null || v === undefined || !Number.isFinite(v) ? null : Number(v.toFixed(d));
@@ -97,15 +107,27 @@ function analyze(rowsAll, { condition, parameter }) {
   return out;
 }
 
+function dateChoices(settings, file, allowed) {
+  if (typeof file !== "string" || !file) return [];
+  return dayCounts(readTable(settings, file)).filter(d => allowed(d.day)).map(d => ({ value: d.day, label: `${d.day} (${d.units}대)` }));
+}
+
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
   const envelope = rows => ({ rows: rows.slice(0, ROW_LIMIT), truncated: rows.length > ROW_LIMIT, total: rows.length });
   return {
     operations: {
-      async "csv-files"({ query }) {
-        const folder = dataFolder(context.settings), match = query.toLocaleLowerCase();
-        return readdirSync(folder).filter(name => FILE_PATTERN.test(name) && name.toLocaleLowerCase().includes(match)).sort().slice(0, 32).map(name => ({ value: name, label: name }));
+      // Dropdown choices (inputOptions): newest file first, so the first entry is a sensible default.
+      async files() {
+        const folder = dataFolder(context.settings);
+        return readdirSync(folder).filter(name => FILE_PATTERN.test(name)).map(name => ({ name, time: statSync(path.join(folder, name)).mtimeMs }))
+          .sort((a, b) => b.time - a.time || (a.name < b.name ? -1 : 1)).slice(0, 100).flatMap(({ name }) => {
+            try { const days = dayCounts(readTable(context.settings, name)); return [{ value: name, label: `${name} · ${days.length}일 · ${days.reduce((s, d) => s + d.units, 0)}대` }]; } catch { return []; }
+          });
       },
+      // Start dates never go past the chosen end date, and end dates never before the start date.
+      async "from-dates"({ file, dateTo }) { return dateChoices(context.settings, file, day => !dateTo || day <= dateTo); },
+      async "to-dates"({ file, dateFrom }) { return dateChoices(context.settings, file, day => !dateFrom || day >= dateFrom); },
       async measurements(input) {
         if (!dateOk(input.dateFrom) || !dateOk(input.dateTo)) throw new PluginOperationError("failed");
         const rows = inRange(readTable(context.settings, input.file), input.dateFrom, input.dateTo);
