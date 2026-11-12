@@ -51,18 +51,19 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
       evidence:[{observation:'Compared original source',materialRef:'page-2',materialHash:state.contentRevision,inspector:'human',scope:{pages:[2],targets:['body']}}],
       patch:{expectedBefore:[{kind:'paragraph'}],expectedContentRevision:state.documentRevision,operations:[{type:'kind',self_ref:target.self_ref,kind:'heading',level:2}],after:[{kind:'heading',level:2}],supported:true,deferredReason:null},
       inspection:'uncertain',proposal:'proposed',result:null,resolved:false,history:[]}]};
-  const proposed=await docling.review('workspace-review-change',{...base,baseline:state.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-propose',groups:[group]}});
+  const proposed=await docling.review('workspace-review-change',{...base,baseline:state.baseline,requestId:await page.evaluate(()=>crypto.randomUUID()),change:{kind:'groups-apply',groups:[group],actor:{source:'assistant',actor:'assistant',reason:'Compared source paragraph'}}});
   expect(proposed.receipt.outcome).toBe('success');
   await page.getByRole('button',{name:'Refresh data',exact:true}).click();
   const list=page.getByRole('complementary',{name:'문제 묶음·후보'});
-  await list.getByRole('button',{name:'2쪽 · 검토 대기',exact:true}).click();
+  await list.getByRole('button',{name:'2쪽 · 적용됨',exact:true}).click();
   await expect(page.locator('.review-highlights > div')).toHaveCount(1);
   await expect(list.locator('[aria-current=page]')).toHaveCount(1);
   const treeRowHeight=await page.locator('.sidebar-tree-item[data-path]').first().evaluate(e=>e.getBoundingClientRect().height);
   expect(await list.locator('.workspace-review-row').evaluateAll((rows,height)=>Math.max(...rows.map(row=>Math.abs(row.getBoundingClientRect().height-height))),treeRowHeight)).toBeLessThan(1);
   await expect(page.locator('.review-region[aria-pressed="true"]').first()).toBeVisible();
   await page.getByLabel('판단 사유',{exact:true}).fill('Compared exact paragraph and proposal');
-  await page.getByRole('button',{name:'승인',exact:true}).click();
+  await expect(page.getByText('적용된 교정',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'승인',exact:true})).toHaveCount(0);
   await expect.poll(async()=>(await docling.review('workspace-read',base)).ledger.groups.find(g=>g.id===group.id).targets[0].proposal).toBe('approved');
   await expect(page.getByRole('button',{name:'되돌리기',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'되돌리기',exact:true}).click();
@@ -132,13 +133,13 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
   const exportButton=()=>page.getByRole('button',{name:'Export current state…',exact:true});
   const chooseTheme=async theme=>{if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:/^Color mode:/}).click();await expect(page.locator('html')).toHaveAttribute('data-theme',theme);};
   if(screenshots){
-    await list.getByRole('button',{name:'2쪽 · 승인함',exact:true}).click();
+    await list.getByRole('button',{name:'2쪽 · 적용됨',exact:true}).click();
     await expect(page.locator('.review-highlights > div')).toHaveCount(1);
     await expect(list.locator('[aria-current=page]')).toHaveCount(1);
     await page.getByRole('button',{name:'쪽 펼치기',exact:true}).click();
     for(const theme of ['light','dark']){
       await chooseTheme(theme);await expect.poll(pageRegions).toEqual(regions);
-      await page.screenshot({path:`docs/design/assets/review-panel-s6/after-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+      await page.screenshot({path:`docs/design/assets/review-direct-apply/after-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     }
   }
   {
@@ -164,7 +165,7 @@ async (page, {expect,pluginFixture,openFolderPicker,screenshots}) => {
     if(screenshots) for(const theme of ['light','dark']){
       if(await page.locator('html').getAttribute('data-theme')!==theme) await page.getByRole('button',{name:/^색상 모드:/}).click();
       await expect(page.getByRole('button',{name:'쪽 펼치기',exact:true})).toBeVisible();
-      await page.screenshot({path:`docs/design/assets/review-panel-s6/after-640-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
+      await page.screenshot({path:`tmp/review-direct-apply-640-${theme}.png`,mask:[page.locator('.sidebar-host-account')],maskColor:'#a1a1aa'});
     }
     await page.setViewportSize({width:1440,height:900});
     await page.getByRole('button',{name:'설정',exact:true}).click();

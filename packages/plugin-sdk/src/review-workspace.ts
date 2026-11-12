@@ -42,13 +42,14 @@ export const workspaceRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ ...common, action: z.literal("workspace-review-change"), baseline: hash, requestId: z.uuid(), change: reviewLedgerChangeSchema }),
 ]);
 /** The stage-5 Codex adapter uses this same dispatcher schema.
- * Human confirmation is required for approve/reject/undo/completion and cannot be synthesized by an assistant.
+ * groups-apply combines proposal and application with explicit human/assistant attribution.
+ * Undo/reject/completion retain their human decision path.
  * Propose accepts change.supersedes [{groupId,targetIds,replacementGroupId}] through that same schema and CLI;
  * it closes only open proposals with linked history, and grants no approval or relaxed target-content check.
  */
 export const REVIEW_LEDGER_OPERATIONS = { version: 1, scope: "workspace", inputSchema: z.toJSONSchema(workspaceRequestSchema),
-  assistant: { propose: "workspace-review-change:groups-propose", read: "workspace-groups-read", lenses: "workspace-lenses", inspection: "workspace-inspection", requiredChecks: "workspace-required-checks", completion: "workspace-completion" },
-  humanOnly: ["groups-approve", "groups-reject", "groups-undo", "completion"] } as const;
+  assistant: { apply: "workspace-review-change:groups-apply", propose: "workspace-review-change:groups-propose", read: "workspace-groups-read", lenses: "workspace-lenses", inspection: "workspace-inspection", requiredChecks: "workspace-required-checks", completion: "workspace-completion" },
+  humanOnly: [ "groups-reject", "groups-undo", "completion"] } as const;
 export type WorkspaceSnapshot = z.infer<typeof workspaceSnapshotSchema>;
 
 /** Registered by the stage-5 Codex adapter. Run saves inspection records, never proposals. */
