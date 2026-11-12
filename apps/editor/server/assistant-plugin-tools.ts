@@ -236,7 +236,8 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
       const priorComparison=state.ledger?.comparisons.findLast((run:any)=>run.runId===imageRunId && run.contentRevision===state.contentRevision && run.state==="compared");
       if(inspected.length)comparisons.push({runId:imageRunId,contentRevision:state.contentRevision,scope:{
         pages:[...new Set([...(priorComparison?.scope.pages??[]),...inspected.flatMap((record:any)=>record.scope.pages)])],
-        targets:[...new Set([...(priorComparison?.scope.targets??[]),...inspected.flatMap((record:any)=>record.scope.targets)])]},state:"compared",selected:false,withdrawn:null});
+        // An image run reads one page; whole-page coverage includes all target subsets.
+        targets:priorComparison?.scope.targets.length===0 || inspected.some((record:any)=>!record.scope.targets.length) ? [] : [...new Set([...(priorComparison?.scope.targets??[]),...inspected.flatMap((record:any)=>record.scope.targets)])]},state:"compared",selected:false,withdrawn:null});
     }
     return scopedReview(host,{...common,action:"workspace-review-change",change:{kind:"inspection",comparisons,records:records.map((record:any)=>({...record,runId:imageRunId??randomUUID()}))}},scope,true);
   } else action="workspace-image-read";

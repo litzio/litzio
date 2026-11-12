@@ -43,6 +43,13 @@ test("text inspection requires material actually delivered at the current revisi
     assert.equal(comparisons.at(-1).selected,false,"measurement never selects a human approval gate");
     await assert.rejects(imageRecord([3]),/Read the recorded image scope/);
     await assert.rejects(imageRecord([1],[{...imageHistory[0],workspace:{...location,workspace:"other.docling"}}]),/Read the recorded image scope/);
+    const wholePageScopes=[];
+    for(const [runId,sequence] of [["partial-whole",[["target-1"],[]]],["whole-partial",[[],["target-1"]]]] as const) {
+      const history=[{workspace:location,documentRevision,contentRevision:"c".repeat(64),runId,images:[{page:1}]}];
+      for(const targets of sequence)await executeReviewAssistantTool(host,"record_review_inspection",{path:"a.docling",imageRunId:runId,records:[{...record,scope:{pages:[1],targets:[...targets]}}]},scope,history);
+      wholePageScopes.push(comparisons.at(-1).scope);
+    }
+    assert.deepEqual(wholePageScopes,[{pages:[1],targets:[]},{pages:[1],targets:[]}],"whole-page coverage contains target subsets in either recording order");
     baseline="d".repeat(64);
     await assert.rejects(invoke("record_review_inspection",{records:[record]}),/baseline conflict/,"Host retains observed baseline across external writes");
     documentRevision="e".repeat(64);

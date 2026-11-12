@@ -39,7 +39,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | --- | --- | --- |
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
 | [Document templates](design/document-templates-v1.md) | Implemented | #936 1–3단계. Core template 메타데이터·생성, 공용 CLI/Host, ko/en 기본 2종, Editor 카드 갤러리·사용자 저장. #1128 공용 작업·Codex 템플릿 도구·생성 receipt/Undo와 child CLI PATH. |
-| [Assistant connection, settings and conversations](design/main-agent-v1.md) | Implemented | #931 연결·설정·대화: Codex app-server / Copilot ACP, 모델·진단·공통 환경, 파일·스킬 참조, 패널·thread 기록·스티어링·중단·컨텍스트 사용량. #1443 질문 메타데이터·렌더 확인·답변 전달·기록, Host/CLI와 공급자별 범위. #1462 5단계 Codex 검수 읽기·국소 제안·이미지 예상량/사람 응답 경계. |
+| [Assistant connection, settings and conversations](design/main-agent-v1.md) | Implemented | #931 연결·설정·대화: Codex app-server / Copilot ACP, 모델·진단·공통 환경, 파일·스킬 참조, 패널·thread 기록·스티어링·중단·컨텍스트 사용량. #1443 질문 메타데이터·렌더 확인·답변 전달·기록, Host/CLI와 공급자별 범위. #1462 5단계 Codex 검수 읽기·국소 제안·이미지 직접 읽기·검사 범위 누적. |
 | [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse/참조 진단 도달성, URL·inline HTML backport와 patch 제거 조건. |
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 Host별 위치 식별·로컬 복구(#1174 PR1). |

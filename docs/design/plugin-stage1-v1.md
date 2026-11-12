@@ -95,13 +95,13 @@ SDK 0.5.0의 선택적 `contributes.skills`는 `[{"id":"review","directory":"ski
 
 선택 목록은 Host가 읽은 manifest 이름과 SKILL.md 원래 name을 `플러그인 · 스킬`로 표시한다. 표시 정보는 설치 수명 안에서 메모리에 보관하며 내부 이름·SDK 선언은 바꾸지 않는다.
 
-현재 스킬 발견/선택은 Codex만 지원한다. 스킬 목록 조회도 플러그인 시작을 기다린 후 기존 `skills/list` forceReload를 사용하며, 대화 전송은 기존 플러그인 시작·스킬 선택 검사 경로를 따른다. Copilot에서는 이 스킬을 공급하지 않고 기존 도구만 사용한다. 따라서 쓰기 재시도 금지·불확실한 응답의 상태 조회·이미지 사람 승인 등의 필수 데이터 보호 규칙은 도구 설명에도 남겨야 한다.
+현재 스킬 발견/선택은 Codex만 지원한다. 스킬 목록 조회도 플러그인 시작을 기다린 후 기존 `skills/list` forceReload를 사용하며, 대화 전송은 기존 플러그인 시작·스킬 선택 검사 경로를 따른다. Copilot에서는 이 스킬을 공급하지 않고 기존 도구만 사용한다. 따라서 쓰기 재시도 금지·불확실한 응답의 상태 조회·자료 revision 무결성 등의 필수 데이터 보호 규칙은 도구 설명에도 남겨야 한다.
 
 스킬 복사 실패는 정상 활성화한 플러그인이나 도구를 종료하지 않는다. 설치 중 실패하면 해당 namespace의 부분 복사본 정리를 시도하고 기존 플러그인 error 표시로 설치 실패와 reload 안내를 알린다. 시작 시 이전 스킬 정리가 실패해도 Host와 플러그인 로드를 계속하며 기존 등록별 error 경로로 정리 실패를 알린다. 정리 자체의 파일 오류가 지속되면 이전/부분 복사본이 남을 수 있으며 제거 성공으로 간주하지 않는다. 정상 reload는 설치 오류를 해제한다. Windows의 예약 namespace 이름 비교는 대소문자를 구분하지 않는다.
 
 리뷰 회귀는 기존 reload subprocess fixture에서 fs.cpSync ENOSPC와 시작 정리 EACCES를 주입해 수정 전 실패를 확인했다. 수정 후 오류 표시·부분 복사본 제거·정상 플러그인 도구 호출·reload 복구를 확인한다. 실제 디스크를 가득 채운 검사가 아니며 새 subprocess fixture나 E2E를 추가하지 않는다. 기존 파일 검사에는 Windows 대문자 namespace 정리만 보완한다.
 
-Docling은 지정 커뮤니티 payload에 검수 스킬을 포함한다. 검수 대상 찾기 → 렌즈·필수 확인·숫자/단위 원문 증거 후보 → 쪽 자료 → 국소 교정 제안 → 실제 읽은 범위의 검사 기록 → 필요시 예상량 질문 카드로 이미지 승인 순서를 안내한다. 원본 PDF=증거·변환 결과=해석 가설·리치오 문서=검증된 결과, 근거 부족 시 uncertain을 따른다. 교정 대상·입력·권한·이미지 승인·사람의 승인/Undo/완료 계약은 바꾸지 않는다. 검수 절차와 판단 요령은 스킬에 두고 도구 설명은 입력·출력 계약과 필수 데이터 보호 규칙으로 제한한다.
+Docling은 지정 커뮤니티 payload에 검수 스킬을 포함한다. 검수 대상 찾기 → 렌즈·필수 확인·숫자/단위 원문 증거 후보 → 쪽 자료 → 국소 교정 제안 → 실제 읽은 범위의 검사 기록 → 필요시 이미지 직접 읽기와 검사 부분 누적 순서를 안내한다. 원본 PDF=증거·변환 결과=해석 가설·리치오 문서=검증된 결과, 근거 부족 시 uncertain을 따른다. 교정 대상·입력·권한·사람의 교정 승인/Undo/완료 계약은 유지하며 이미지 사전 승인은 요구하지 않는다. 검수 절차와 판단 요령은 스킬에 두고 도구 설명은 입력·출력 계약과 필수 데이터 보호 규칙으로 제한한다.
 
 SDK manifest 단위 검사는 선언·기능 버전·경로·중복 ID를 보호한다. 기존 Host reload/실패/프로세스 종료 검사에 파일 갱신·보조 자료 삭제·비활성/제거·종료 정리와 guide/사용자 스킬 보존을 보완한다. 별도 in-process 검사는 실행 전 누락/frontmatter 거부와 같은 skill ID를 쓰는 두 플러그인의 복사본 분리, lazy Host의 목록 조회 전 플러그인 시작 대기를 보호한다. 새 subprocess fixture·suite·무거운 E2E는 추가하지 않는다. Windows 실제 Codex app-server에서 Docling 활성화 후 스킬 발견(errors 0)과 비활성화 후 목록 제거를 확인했다(검수 응답 호출 없음). 파일 배포/목록 발견은 실제 AI가 스킬을 선택해 검수 품질을 높였다는 증명이 아니다.
 
@@ -1045,11 +1045,11 @@ Codex 비서는 `read_review_document`, `read_review_material`(렌즈·원문 �
 
 2026-11-12 소유자 결정(#1529): 이미지 예상량 작업과 사전 승인 질문 연결을 제거했다. `read_review_images {path,pageNo,target?}` / 공용 `workspace-image-read {baseline,pageNo,target?}`는 질문 없이 PDF.js로 페이지 전체 또는 지정 원본 항목의 해당 쪽 영역들을 반환한다. 현재 workspace·파일 baseline·문서 revision과 페이지/대상 유효성은 확인한다. 반환 runId는 이미지 읽기/검사/사용량의 측정 식별자이며 승인 조건이 아니다. CLI는 `review workspace-image-read --input <json-file> --host <origin> --json`이다.
 
-`record_review_inspection`은 대화에서 실제 반환한 현재 workspace·문서/content revision의 자료 이력을 기준으로 턴을 넘어 저장한다. inventory나 요약만 조회한 것은 읽기 증명이 아니다. imageRunId를 주면 실제 반환된 이미지의 검사 부분만 compared로 누적하고 나머지는 미대조로 남긴다. 전량 읽기·전량 기록을 요구하지 않고 selected 승인 조건을 만들지 않는다. 항목 영역만 대조한 쪽은 나머지 영역이 미대조이므로 `notComparedPages`에 남으며, 전체 쪽 대조 기록만 그 쪽을 목록에서 뺀다. 사용량은 측정용이며 실행 조건이 아니다. 교정 승인·거절·Undo·완료 및 그림/표 사람 필수 확인은 비서 도구로 주지 않는다. 제안 거부는 기존 검증의 필드 경로·형식과 알려진 현재 revision/baseline을 `invalid_input`과 함께 반환한다. 일반 질문의 수명·렌더 확인·10초 제한은 바꾸지 않는다.
+`record_review_inspection`은 대화에서 실제 반환한 현재 workspace·문서/content revision의 자료 이력을 기준으로 턴을 넘어 저장한다. inventory나 요약만 조회한 것은 읽기 증명이 아니다. imageRunId를 주면 실제 반환된 이미지의 검사 부분만 compared로 누적하고 나머지는 미대조로 남긴다. 전량 읽기·전량 기록을 요구하지 않고 selected 승인 조건을 만들지 않는다. 항목 영역만 대조한 쪽은 나머지 영역이 미대조이므로 `notComparedPages`에 남으며, 전체 쪽 대조 기록만 그 쪽을 목록에서 뺀다. 같은 페이지 run에서 전체 쪽 기록은 대상 부분 기록을 포함하므로 부분→전체 또는 전체→부분 어느 순서든 전체 쪽 대조로 유지한다. 사용량은 측정용이며 실행 조건이 아니다. 교정 승인·거절·Undo·완료 및 그림/표 사람 필수 확인은 비서 도구로 주지 않는다. 제안 거부는 기존 검증의 필드 경로·형식과 알려진 현재 revision/baseline을 `invalid_input`과 함께 반환한다. 일반 질문의 수명·렌더 확인·10초 제한은 바꾸지 않는다.
 
-실제 provider tokenUsage의 최신 turn 관측은 교정/검사 쓰기와 경합하지 않도록 turn 종료·중단·실패 또는 Host 종료 시 기존 inspection evidence에 `provider-turn-total-not-per-image`로 저장한다. 같은 run에서 실제 반환된 여러 이미지의 scope는 합집합으로 한 번 저장한다. 이는 이미지별 청구량이 아니라 이미지가 전달된 turn의 실제 입력·출력·캐시 토큰 관측이며, provider가 보고하지 않으면 값을 만들지 않는다. 공용 `workspace-image-usage {requestId,runId,turnId,scope,usage}`(CLI도 같은 이름)는 admission을 얻은 뒤 현재 상태 조회와 inspection 저장을 한 번에 처리한다. 이 작업이 필요한 이유는 화면 읽기와 분리된 사용량 읽기/저장이 겹쳐 관측 기록이 유실되는 실제 경합이다. 실행 전 기존 admission 종료를 기다릴 뿐 실패한 쓰기를 재시도하지 않으며 저장 실패는 대화 tool 실패로 남긴다. 질문 취소·거절·표시 실패에는 이미지 권한이 생기지 않는다. Copilot custom tools는 이번 범위가 아니다.
+실제 provider tokenUsage의 최신 turn 관측은 교정/검사 쓰기와 경합하지 않도록 turn 종료·중단·실패 또는 Host 종료 시 기존 inspection evidence에 `provider-turn-total-not-per-image`로 저장한다. 같은 run에서 실제 반환된 여러 이미지의 scope는 합집합으로 한 번 저장한다. 이는 이미지별 청구량이 아니라 이미지가 전달된 turn의 실제 입력·출력·캐시 토큰 관측이며, provider가 보고하지 않으면 값을 만들지 않는다. 공용 `workspace-image-usage {requestId,runId,turnId,scope,usage}`(CLI도 같은 이름)는 admission을 얻은 뒤 현재 상태 조회와 inspection 저장을 한 번에 처리한다. 이 작업이 필요한 이유는 화면 읽기와 분리된 사용량 읽기/저장이 겹쳐 관측 기록이 유실되는 실제 경합이다. 실행 전 기존 admission 종료를 기다릴 뿐 실패한 쓰기를 재시도하지 않으며 저장 실패는 대화 tool 실패로 남긴다. 이미지는 질문 없이 바로 읽으며 사용량 기록은 읽기 권한을 부여하거나 제한하지 않는다. Copilot custom tools는 이번 범위가 아니다.
 
-비서 지침은 숫자·단위 후보 우선, 의심 쪽 조각 읽기, 직접 읽은 범위만 검사 기록, 부족한 근거는 판단 불가, 이미지 예상량·사람 승인 순서를 따른다. 검수 화면·교정 안전장치·품질 실측·구조 나누기/합치기는 후속 단계다.
+비서 지침은 숫자·단위 후보 우선, 의심 쪽 조각 읽기, 직접 읽은 범위만 검사 기록, 부족한 근거는 판단 불가, 이미지 직접 읽기와 실제 검사 부분의 누적 기록 순서를 따른다. 검수 화면·교정 안전장치·품질 실측·구조 나누기/합치기는 후속 단계다.
 
 비서 화면으로 전송하는 대화 기록은 모델 반환과 별개다. 큰 toolResult(16 KiB 초과)는 원문 대신 생략 여부와 UTF-8 byte 수를 보내고 문서 생성 카드의 path/revision/identity receipt는 유지한다. provider 이력 원문은 수정하지 않는다. 새 이벤트와 이력 resume에 적용하고, 이미 메모리에 적재된 큰 대화도 전송 직전에 투영하므로 조회·resume·send/submission 응답이 같은 경계를 따른다. 전체 응답 8 MiB 한도는 올리지 않는다.
 
