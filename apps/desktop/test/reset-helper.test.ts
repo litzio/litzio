@@ -30,7 +30,8 @@ test("post-exit helper waits for its exact parent, resets only fixture data and 
   };
   t.after(async () => { await stop(helper); await stop(parent); fs.rmSync(root, { recursive: true, force: true }); });
   const relaunch = file("relaunch.cjs"), marker = file("relaunched.json");
-  fs.writeFileSync(relaunch, "require('node:fs').writeFileSync(process.argv[2], JSON.stringify(process.argv.slice(3)))");
+  // Split the fixture write to expose readers that observe existence before complete JSON.
+  fs.writeFileSync(relaunch, "const fs = require('node:fs'); const json = JSON.stringify(process.argv.slice(3)); fs.writeFileSync(process.argv[2], json.slice(0, 1)); setTimeout(() => fs.appendFileSync(process.argv[2], json.slice(1)), 150)");
   const waiting = once(helper, "message"), exited = once(helper, "exit");
   helper.send({ parentPid: parent.pid, parentStarted: processStart(parent.pid!), profile: locations.userData, updaterCache: locations.updaterCache,
     revision, removeFolders: true, receipt: file("result.json"), executable: process.execPath, args: [relaunch, marker] });
@@ -42,8 +43,18 @@ test("post-exit helper waits for its exact parent, resets only fixture data and 
   assert.equal(fs.existsSync(locations.userData), false);
   assert.equal(fs.readFileSync(file("external.md"), "utf8"), "external data");
   const deadline = Date.now() + 5000;
-  while (!fs.existsSync(marker) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
-  assert.deepEqual(JSON.parse(fs.readFileSync(marker, "utf8")), [`--app-reset-result=${file("result.json")}`]);
+  let relaunched: unknown;
+  for (;;) {
+    try {
+      relaunched = JSON.parse(fs.readFileSync(marker, "utf8"));
+      break;
+    } catch (error) {
+      if (!(error instanceof SyntaxError) && (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      if (Date.now() >= deadline) throw error;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }
+  assert.deepEqual(relaunched, [`--app-reset-result=${file("result.json")}`]);
 });
 
 test("persisted cancellation prevents deletion after parent exit even when its IPC message was lost", async t => {
