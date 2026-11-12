@@ -65,6 +65,9 @@ createInterface({ input: process.stdin }).on("line", line => {
     if (process.argv.includes("--fixture-question")) {
       send({ id: "question-unsupported", method: "session/request_user_input", params: { sessionId: params.sessionId, questions: [{ title: "Travel style?", options: ["Rest", "Food"] }] } }); return;
     }
+    send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Checking ACP context." } } } });
+    send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "tool_call", toolCallId: "shell-step", title: "echo fixture", kind: "execute", status: "in_progress" } } });
+    send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "tool_call_update", toolCallId: "shell-step", status: "failed", content: [{ type: "content", content: { type: "text", text: "fixture failure" } }] } } });
     send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "한글 ACP answer" } } } });
     send({ id: "permission", method: "session/request_permission", params: { sessionId: params.sessionId, toolCall: { toolCallId: "edit", kind: "edit", title: "Write file", locations: [{ path: params.prompt[0].text.match(/"folders":\["([^"]+)"/)?.[1]?.replaceAll("\\\\", "\\") + "/new.txt" }] }, options: [{ optionId: "once", kind: "allow_once", name: "Allow once" }, { optionId: "session", kind: "allow_always", name: "Allow for this session" }, { optionId: "no", kind: "reject_once", name: "Reject once" }] } });
   } else if (method === "session/cancel") {

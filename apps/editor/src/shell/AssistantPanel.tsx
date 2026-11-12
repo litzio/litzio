@@ -10,7 +10,7 @@ import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check } from "lucide-react";
+import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle, TriangleAlert } from "lucide-react";
 import { ASSISTANT, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
@@ -524,7 +524,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
             {turn.status === "failed" && visibleSubmissions.find(value => value.receipt.id === item.submissionId) ? submissionActions(visibleSubmissions.find(value => value.receipt.id === item.submissionId)!, turn.error) : null}
           </div>)}
           <div role="group" aria-label={i18n.t("Assistant response")}>
-            {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} />)}
+            {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} /> : null)}
           </div>
           {turn.items.filter(item => item.question).map(item => <AssistantQuestion key={item.id} question={item.question!} disabled={pending || !ready || !enabled || !!setup} submit={answers => submitAnswer(item.question!, answers)} />)}
           {turn.items.map(item => {
@@ -566,7 +566,7 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
           })}
           {conversation.userInput?.turnId === turn.id && !turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
             submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
-          <AssistantWorkDetails turn={turn} needsInput={conversation.userInput?.turnId === turn.id} onDisclosure={holdDisclosure} />
+          {turn.status === "inProgress" ? <p className="assistant-progress" role="status">{i18n.t(conversation.userInput?.turnId === turn.id ? "Needs your attention" : turn.items.at(-1)?.kind === "assistant" ? "Writing answer…" : "Thinking…")}</p> : null}
           {turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{i18n.t(turn.error, { defaultValue: turn.error })}</p> : null}
           {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
@@ -657,22 +657,22 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     </form>
   </aside>;
 }
-function AssistantWorkDetails({ turn, needsInput, onDisclosure }: { turn: AssistantConversation["turns"][number]; needsInput: boolean; onDisclosure(): void }) {
-  const active = turn.status === "inProgress";
+function AssistantWorkStep({ item, active, running, onDisclosure }: { running: boolean; item: AssistantConversation["turns"][number]["items"][number]; active: boolean; onDisclosure(): void }) {
   const [expanded, setExpanded] = useState(false);
-  useLayoutEffect(() => { if (!active) setExpanded(false); }, [active]);
-  const details = turn.items.filter(isWorkDetail);
-  if (!active && !details.length) return null;
-  const tool = turn.items.findLast(item => item.kind === "tool" && item.status === "inProgress");
-  const latest = turn.items.findLast(item => ["assistant", "reasoning", "tool"].includes(item.kind));
-  const stage = needsInput ? i18n.t("Needs your attention") : tool ? i18n.t("Running tool: {{target}}", { target: tool.text.replace(/\s+/g, " ") }) : latest?.kind === "assistant" ? i18n.t("Writing answer…") : i18n.t("Thinking…");
-  return <details className="assistant-steps" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <Tooltip><TooltipTrigger render={<summary onClick={onDisclosure} />}><span role={active ? "status" : undefined}>{active ? stage : i18n.t("Work details")}</span></TooltipTrigger><TooltipContent>{i18n.t("Work details")}{active ? ` · ${stage}` : ""}</TooltipContent></Tooltip>
-    {details.map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}
+  useLayoutEffect(() => { if (!running) setExpanded(false); }, [running]);
+  const failed = ["failed", "declined"].includes(item.status ?? "");
+  const shell = item.work?.kind === "execute";
+  const Icon = active ? LoaderCircle : failed ? TriangleAlert : item.kind === "reasoning" ? Brain : shell ? Terminal : item.work?.kind === "edit" ? FilePen : item.kind === "plan" ? ListChecks : Wrench;
+  const status = active ? "inProgress" : !running && ["inProgress", "pending"].includes(item.status ?? "") ? "interrupted" : item.status ?? "completed";
+  const label = item.kind === "reasoning" ? i18n.t(active ? "Thinking…" : "Thinking") : shell ? "Shell" : item.kind === "plan" ? i18n.t("Steps") : i18n.t("Tool");
+  return <details className="assistant-steps" data-kind={item.kind} data-status={status} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary onClick={onDisclosure}><Icon aria-hidden="true" className={active ? "animate-spin" : undefined} /><span title={item.text}><strong>{label}</strong> {item.text.replace(/\s+/g, " ")}</span><small>{activityStatus(status)}</small></summary>
+    {item.kind === "tool" ? <pre>{shell ? "$ " : ""}{item.text}{item.work?.detail ? `\n${item.work.detail}` : ""}</pre> : <p>{item.text}</p>}
+    {item.work?.truncated ? <p>{i18n.t("Output truncated.")}</p> : null}
   </details>;
 }
 function activityStatus(value: string) {
-  return value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
+  return value === "interrupted" ? i18n.t("Stopped") : value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
 }
 
 function createdDocument(item: import("../../shared/assistant.ts").AssistantConversationItem): { path: string; revision: string; identity?: FileIdentity } | null {
