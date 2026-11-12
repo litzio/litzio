@@ -90,6 +90,8 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
       const accepted = result.submission.status === "accepted" && !result.submission.turnFailed;
       const restored = accepted ? previous.find(value => value.hostId === hostId && value.receipt.id === result.submission.id)?.restores ?? [] : [];
       return previous.filter(value => value.hostId !== hostId || !restored.includes(value.receipt.id)).map(value => value.hostId === hostId && value.receipt.id === result.submission.id ? { ...value, restores: accepted ? [] : value.restores,
+        // Once identified, a first send belongs to that conversation, not the next blank draft.
+        conversationId: value.conversationId ?? result.submission.conversationId ?? result.conversation?.id,
         receipt: value.receipt.status === "accepted" && ["pending", "rejected"].includes(result.submission.status) || value.receipt.status === "unknown" && result.submission.status === "pending"
           ? value.receipt : { ...result.submission, ...(value.receipt.turnFailed ? { turnFailed: true } : {}), ...((result.submission.status === "unknown" || value.receipt.turnFailed) && !result.submission.error && value.receipt.error ? { error: value.receipt.error } : {}) } } : value);
     });
