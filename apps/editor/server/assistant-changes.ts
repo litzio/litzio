@@ -3,7 +3,7 @@ import { figureReadiness } from "./figure-readiness.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { parse, serialize, validateStructure, getEditableDocument, numberingReport } from "@litzio/core";
+import { parse, serialize, validateStructure, getEditableDocument, numberingReport, NativeDocumentError, DocumentDiagnosticError } from "@litzio/core";
 import { FileChangedError, commitFile, createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
 import { FileAccessError, accessPath, canonicalFilePath, type FileAccess, type RootAccess } from "./file-access.ts";
 import { loadDocumentFile } from "./document-reader.ts";
@@ -102,8 +102,14 @@ export class AssistantChanges {
     try { before = decodeUtf8(fs.readFileSync(accessPath(record.path, this.access))); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; missing = true; }
     const source = decodeUtf8(fs.readFileSync(accessPath(record.copy, this.access)));
-    const document = parse(source); validateStructure(document);
-    const after = serialize(document);
+    let after: string;
+    try {
+      const document = parse(source); validateStructure(document);
+      after = serialize(document);
+    } catch (error) {
+      if (!(error instanceof NativeDocumentError || error instanceof DocumentDiagnosticError)) throw error;
+      throw new Error(`Pending copy cannot be applied: ${error.message}. Discard this copy and ask the Assistant to recreate the changes using supported document tools (insert-figure for images). The original was not changed.`);
+    }
     return { ...record, before, after, changed: missing || textRevision(before) !== record.revision, missing,
       copyRevision: textRevision(source), diskRevision: textRevision(before) };
   }

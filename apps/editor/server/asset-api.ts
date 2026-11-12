@@ -110,6 +110,19 @@ export function createDocumentImageAsset(locator: string, mime: string, bytes: B
   return publishImageAsset(locator, mime, bytes, Buffer.alloc(0), access, name, "drop", true);
 }
 
+/** Add-only Host operation. Imports bytes into the existing Editor asset format. */
+export function importDocumentImageAsset(document: string, source: string, access: FileAccess = LOCAL_FILE_ACCESS): { path: string; receipt: { outcome: "success" } } {
+  if (typeof source !== "string" || !path.isAbsolute(source)) throw new AssetError("An absolute image source path is required.");
+  const file = accessPath(source, access);
+  const mime = MEDIA_TYPES[path.extname(file).toLowerCase()];
+  if (!isAssetMime(mime)) throw new AssetError(UNSUPPORTED);
+  const stat = fs.statSync(file);
+  if (!stat.isFile()) throw new AssetError("The image source must be a file.");
+  if (stat.size > MAX_ASSET_BYTES) throw new AssetError(`Image exceeds the ${MAX_ASSET_BYTES / 1024 / 1024} MiB limit.`, 413);
+  const result = publishImageAsset(document, mime, fs.readFileSync(file), Buffer.alloc(0), access, path.basename(file), "drop");
+  return { path: result.path, receipt: { outcome: "success" } };
+}
+
 function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false): ImageChoiceResponse {
   validateImage(mime, bytes); // Rejected input must not create even a directory/temp file.
   assertUnicode(originalName);
