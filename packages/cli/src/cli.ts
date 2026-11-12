@@ -58,6 +58,7 @@ const HELP_GROUPS = [
 
 type CommandSpec = {
   name: string;
+  readOnly?: boolean;
   group: (typeof HELP_GROUPS)[number]; // Display-only top-level help grouping.
   summary: string;
   usage: string;
@@ -126,7 +127,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} app-reset inspect|apply [--profile <directory>] [--updater-cache <directory>] [--remove-folders] [--confirm --revision <plan-sha>]`,
     details: ["inspect lists deleted and retained data. apply requires the reviewed revision and confirmation; live Desktop/Host/CLI writers refuse reset. External browser profiles and provider accounts remain untouched."] },
   { name: "folder-trash", group: "Create and inspect", summary: "Move a child folder to OS Trash", usage: `${brand.cliCommand} folder-trash <path> --root <folder> [--host <origin>] [--check | --revision <sha256>] --json`, details: ["Only descendants of root are eligible. No permanent deletion. --check inspects file count and external image references without moving. Receipts distinguish refusal before mutation from uncertain OS results. Window drafts are not visible to CLI."] },
-  { name: "compare", group: "Create and inspect", summary: "Compare native document block meaning (read-only)", usage: `${brand.cliCommand} compare <before> <after> --json`, details: ["Read-only native source snapshots; block paths are snapshot-local. Moves are removed + added. Returns source revision receipts; does not contact a live daemon."] },
+  { name: "compare", readOnly: true, group: "Create and inspect", summary: "Compare native document block meaning (read-only)", usage: `${brand.cliCommand} compare <before> <after> --json`, details: ["Read-only native source snapshots; block paths are snapshot-local. Moves are removed + added. Returns source revision receipts; does not contact a live daemon."] },
   { name: "templates", group: "Create and inspect", summary: "List, read or save document templates",
     usage: `${brand.cliCommand} templates list [--json] [--language <ko|en>]`,
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
@@ -258,7 +259,7 @@ const COMMANDS: CommandSpec[] = [
       "Both paragraphs must have supported inline content. No automatic space is inserted.", ...PARAGRAPH_PATH_NOTE],
   },
   {
-    name: "check",
+    name: "check", readOnly: true,
     group: "Check",
     summary: "Validate a document",
     usage: `${brand.cliCommand} check <file> [--format <text|json>]`,
@@ -284,7 +285,7 @@ const COMMANDS: CommandSpec[] = [
     ],
   },
   {
-    name: "inspect",
+    name: "inspect", readOnly: true,
     group: "Create and inspect",
     summary: "Inspect semantic blocks and editable targets",
     usage: `${brand.cliCommand} inspect <file> [--format <text|json>]`,
@@ -1380,8 +1381,9 @@ if (import.meta.main) {
   const args = process.argv.slice(2);
   let releaseResetGuard: (() => void) | undefined;
   try {
-    if (args.length && args[0] !== "app-reset" && args[0] !== "help" && !args.includes("--help") && !args.includes("--version")) {
-      releaseResetGuard = new (await import("../../../apps/editor/server/reset-guard.ts")).ResetGuard().actor("cli");
+    if (args.length && args[0] !== "app-reset" && args[0] !== "help" && !findCommand(args[0])?.readOnly && !isCommandHelpRequest(args) && !isCommandHelpRequest(args.slice(1)) && !args.includes("--version")) {
+      try { releaseResetGuard = new (await import("../../../apps/editor/server/reset-guard.ts")).ResetGuard().actor("cli"); }
+      catch (error) { throw new Error(`Cannot acquire the app-reset writer guard: ${(error as Error).message}. With restricted permissions, edit the document directly using the file editing tool or request execution approval.`); }
     }
     if (args[0] === "daemon" && ["run", "start", "stop", "status"].includes(args[1]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
       const { daemonCli } = await import("./daemon.ts");

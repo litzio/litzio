@@ -519,6 +519,7 @@ are separate from CI in `docs/design/assets/assistant-question-1443/`.
 ```bash
 pnpm install --frozen-lockfile
 pnpm exec tsx scripts/assistant-acceptance/run.mjs --smoke # gpt-6-luna low, 1회
+pnpm exec tsx scripts/assistant-acceptance/run.mjs --opened-only # 열린 폴더만, 11회
 pnpm exec tsx scripts/assistant-acceptance/run.mjs         # gpt-6.1-terra high, 11과제 각 1회
 ```
 
@@ -527,6 +528,7 @@ pnpm exec tsx scripts/assistant-acceptance/run.mjs         # gpt-6.1-terra high,
 기존 Codex 로그인과 CODEX_HOME을 유지한다. 브라우저·설치본·기존 daemon은 사용하지 않는다.
 중단 후 `--continue <results.json>`은 아직 시도하지 않은 과제만 이어서 실행한다.
 `--compare <results.json>`은 저장된 파일을 다시 판정하고 아직 비교하지 않은 권한 실패만 전체 접근으로 실행한다.
+`--task <id> --opened-only`는 지정 과제만 새 격리 환경에서 1회 실행한다. 전송 오류의 cause 체인과 당시 Host warn/error 로그 끝부분을 결과에 남긴다(로그가 없으면 빈 목록).
 전송 오류는 재전송하지 않으며 턴을 확인하지 못한 과제는 판정 불가다.
 출력 위치는 콘솔에 표시되며 `results.json`과 `results.md`는 커밋하지 않는다. 임시 폴더도 자동 삭제하지 않는다.
 Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출력 PID의 자식 프로세스만 확인해 정리한다.
