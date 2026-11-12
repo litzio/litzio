@@ -1572,12 +1572,18 @@ not revoke submission admission or require keeping a second local transcript.
 
 Host receipts distinguish pending, accepted, rejected and unknown. Pre-dispatch validation/setup
 failure is rejected and can be retried explicitly with the same ID after correcting settings.
-Already-dispatched IDs (pending, accepted or unknown) return their existing result; retry never
-calls the provider again. Concurrent duplicate requests share the original promise. No request
+Within a Host lifetime, already-dispatched IDs (pending, accepted or unknown) return their existing
+result. Unknown Retry first queries the existing submission operation; it sends only if that lookup
+confirms pre-dispatch rejection. Accepted/pending results are observed without sending. If the Host
+still reports unknown (including after restart), Retry never POSTs the forgotten ID. The existing
+receipt error shows "Unable to confirm acceptance" beside Retry, with a separate "Send as new"
+button. Only that explicit choice sends the original text/references with a new ID; its hover
+Tooltip explains that the previous request may already have run. No new state or store is added.
+Concurrent duplicate requests share the original promise. No request
 is automatically replayed. The send transport waits up to 10 seconds for admission, independently
 of the provider turn's lifetime. Connection loss and timeout retain the message and a Retry button;
-Retry submits that same ID to reconcile the result. There is no Restore to input or Check
-conversation workflow. A separate composer draft and its references survive Retry and Discard.
+Retry queries that same ID to reconcile the result; definite rejection permits resending it.
+There is no Restore to input or Check conversation workflow. A separate composer draft and its references survive Retry and Discard.
 The existing snapshot poll observes active turns; only pending submissions need receipt polling.
 
 Local rows belong to the target Host, provider and conversation. A first send without a conversation
@@ -1595,15 +1601,18 @@ conversation and applying/discarding copies retain their existing guards. Host s
 silently changes and document revision checks are unchanged.
 
 Verification (#1542, first PR): existing Host/provider tests protect concurrent duplicate IDs,
-explicit retry after pre-dispatch rejection, uncertain retry without a second provider call, steer,
+explicit retry after pre-dispatch rejection, uncertain retry without a second provider call, actual Host restart with a forgotten ID, steer,
 and admission independent of turn failure/history replay. The existing browser scenario covers
 Retry with a separate draft, active-turn New conversation/history navigation and #1551 isolation.
 The multi-host scenario also verifies that Retry retains the remote Host, submission ID and
 references without overwriting a new remote draft.
-These are fixture checks; live provider results are recorded in the PR. Screen relay, display and
+The browser reproduces response loss followed by forgetting the Host receipts, then verifies
+query-only Retry and explicit new-ID sending with the original text and an intact separate draft.
+The restart regression failed before the fix. These are fixture checks; live provider results are recorded in the PR. Screen relay, display and
 attachment simplification remain the second PR scope of #1542.
 
 Current manual self-review: [Retry at 1440px](assets/assistant-relay-1542/retry-1440.png),
+and [unknown after restart with the Send as new Tooltip](assets/assistant-relay-1542/restart-retry-1440.png),
 English Light, persistent Chrome fixture. Uses existing inline outline/ghost sm Buttons;
 no new surface, geometry or visual exception. This is not owner visual approval.
 

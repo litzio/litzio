@@ -45,6 +45,9 @@ export const en = {
   "Discard this local copy without cancelling or resending the message.": "Discard this local copy without cancelling or resending the message.",
 
   "Retry": "Retry",
+  "Unable to confirm acceptance": "Unable to confirm acceptance",
+  "Send as new": "Send as new",
+  "Send the original message as a new request. The previous request may already have run.": "Send the original message as a new request. The previous request may already have run.",
   "Needs confirmation": "Needs confirmation",
   "Sending…": "Sending…",
   "Sent": "Sent",
@@ -1413,6 +1416,9 @@ export const ko: Record<keyof typeof en, string> = {
   "Discard this local copy without cancelling or resending the message.": "전송을 취소하거나 다시 보내지 않고 이 로컬 사본을 버립니다.",
 
   "Retry": "다시 시도",
+  "Unable to confirm acceptance": "접수 여부를 확인할 수 없음",
+  "Send as new": "새로 보내기",
+  "Send the original message as a new request. The previous request may already have run.": "원래 문구를 새 요청으로 보냅니다. 이전 요청은 이미 실행됐을 수 있습니다.",
   "Needs confirmation": "확인 필요",
   "Sending…": "전송 중…",
   "Sent": "전송됨",

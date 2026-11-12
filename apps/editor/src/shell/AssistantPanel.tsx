@@ -445,21 +445,43 @@ export function AssistantPanel({ onReviewChange, submissions, setSubmissions, on
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers, displayClient });
     if (isCurrent()) setConversation(next);
   });
+  const retrySubmission = (value: AssistantLocalSubmission, sendAsNew = false) => run(async isCurrent => {
+    const before = current.current;
+    if (!sendAsNew && value.receipt.status === "unknown") {
+      const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`, undefined, AbortSignal.timeout(10_000));
+      if (!isCurrent()) return;
+      if (result.submission.status !== "rejected") {
+        if (result.submission.status === "unknown") result.submission.error = "Unable to confirm acceptance";
+        applySubmission(result, current.current === before);
+        return;
+      }
+    }
+    const submissionId = sendAsNew ? crypto.getRandomValues(new Uint32Array(4)).join("-") : value.receipt.id;
+    setSubmissions(previous => previous.map(item => item.hostId === hostId && item.receipt.id === value.receipt.id
+      ? { ...value, receipt: { id: submissionId, status: "pending", conversationId: value.conversationId } } : item));
+    try {
+      const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId,
+        displayClient, id: value.conversationId, message: value.text, provider: value.provider, permissionMode, model, reasoningEffort: effort,
+        ...(provider === "copilot" && mode ? { mode } : {}), references: value.references.filter(file => file.kind !== "skill").map(file => file.path),
+        skills: value.references.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders,
+        document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
+      if (isCurrent()) applySubmission(result, current.current === before);
+    } catch (error) {
+      if (isCurrent()) setSubmissions(previous => previous.map(item => item.hostId === hostId && item.receipt.id === submissionId && item.receipt.status !== "accepted"
+        ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
+    }
+  });
   const submissionActions = (value: AssistantLocalSubmission) => {
     const status = value.receipt.status;
     if (status === "accepted") return null;
     return <div className="assistant-submission-status">
       <span role={status === "rejected" ? "alert" : "status"}>{i18n.t(status === "pending" ? "Sending…" : status === "rejected" ? "Failed" : "Needs confirmation")}</span>
-      {value.receipt.error ? <span>{value.receipt.error}</span> : null}
-      {status !== "pending" ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void run(async isCurrent => {
-        const before = current.current;
-        const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId: value.receipt.id,
-          displayClient, id: value.conversationId, message: value.text, provider: value.provider, permissionMode, model, reasoningEffort: effort,
-          ...(provider === "copilot" && mode ? { mode } : {}), references: value.references.filter(file => file.kind !== "skill").map(file => file.path),
-          skills: value.references.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders,
-          document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
-        if (isCurrent()) applySubmission(result, current.current === before);
-      })}>{i18n.t("Retry")}</Button> : null}
+      {value.receipt.error ? <span>{i18n.t(value.receipt.error, { defaultValue: value.receipt.error })}</span> : null}
+      {status !== "pending" ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void retrySubmission(value)}>{i18n.t("Retry")}</Button> : null}
+      {status === "unknown" && value.receipt.error === "Unable to confirm acceptance" ? <Tooltip><TooltipTrigger
+        render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void retrySubmission(value, true)}>{i18n.t("Send as new")}</TooltipTrigger>
+        <TooltipContent>{i18n.t("Send the original message as a new request. The previous request may already have run.")}</TooltipContent>
+      </Tooltip> : null}
       {status !== "pending" ? <Button variant="ghost" size="sm" disabled={pending} onClick={() => {
         submissionScope.current++;
         setSubmissions(previous => previous.filter(item => item.hostId !== hostId || item.receipt.id !== value.receipt.id));
