@@ -346,7 +346,7 @@ CI의 Windows Desktop job이 선택되면 clean package·release 자산 검증·
 
 ## Real GitHub Beta update
 
-현재 소스는 Litzio `0.0.3-beta.1` Beta 후보이며 아직 게시 전이다([준비 기록](../releases/v0.0.3-beta.1.md)). 최신 공개는 `0.0.2` Stable, 직전 Beta는 `0.0.2-beta.10`이다. opt-in 대상은 `0.0.2 → 0.0.3-beta.1`이며 두 버전 공개 후에만 실행한다. 실제 GitHub 설치·업데이트는 설치 상태 보존 제약으로 **미실행·미검증**이다. IeumDoc beta.4는 Litzio로 자동 업데이트되지 않으며 새 설치가 필요하고 데이터·설정·복구 기록은 이전되지 않는다. CI local-feed의 같은 소스 fixture(Stable `0.0.1 → 0.0.2`, Beta `0.1.0-beta.1 → 0.1.0-beta.2`)는 유지한다. 릴리스 전 공개 설치본 회귀는 실제 `0.0.2` Stable 설치 파일에서 Settings로 Beta를 선택한 후 후보를 설치하며 저장된 Beta 채널을 보존한다. 이 검사는 NSIS 설치·시작·보존을 확인하며, 실제 GitHub 업데이트 전달 검증과 구분한다.
+현재 소스는 Litzio `0.0.3-beta.1` Beta 후보이며 아직 게시 전이다([준비 기록](../releases/v0.0.3-beta.1.md)). 최신 공개는 `0.0.2` Stable, 직전 Beta는 `0.0.2-beta.10`이다. opt-in 대상은 `0.0.2 → 0.0.3-beta.1`이며 두 버전 공개 후에만 실행한다. 실제 GitHub 설치·업데이트는 설치 상태 보존 제약으로 **미실행·미검증**이다. IeumDoc beta.4는 Litzio로 자동 업데이트되지 않으며 새 설치가 필요하고 데이터·설정·복구 기록은 이전되지 않는다. CI local-feed의 같은 소스 fixture(Stable `0.0.1 → 0.0.2`, Beta `0.1.0-beta.1 → 0.1.0-beta.2`)는 유지한다. 릴리스 전 공개 설치본 회귀는 실제 `0.0.2` Stable 설치 파일에서 Settings의 Beta를 한 번 클릭하고 선택 반영을 기다린 후 후보를 설치하며 저장된 Beta 채널을 보존한다. 이 검사는 NSIS 설치·시작·보존을 확인하며, 실제 GitHub 업데이트 전달 검증과 구분한다.
 
 이 opt-in 검증은 두 버전의 공개 후 명시적 승인 범위에서 실행한다. 모의 Feed 성공은 이 검증의 성공이 아니다. 이미 설치된 Litzio나 사용자 데이터·cache를 삭제해서 실행하지 않는다. 별도 Windows 테스트 계정/VM을 권장한다. 테스트는 기존 설치, `%APPDATA%\litzio`, `%LOCALAPPDATA%\litzio-updater`, 기본 설치 폴더가 하나라도 있으면 거부한다. 이 검사 후에만 테스트가 소유하는 per-user 설치와 profile/cache를 만들고 정리한다. Markdown은 `tmp/desktop-update/documents/`에만 만든다.
 
