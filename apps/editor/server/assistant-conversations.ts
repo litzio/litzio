@@ -882,7 +882,6 @@ function checkedReferences(value: string[], folders: string[], access: FileAcces
       folder = entry.path;
     }
     if (!references.some(file => path.relative(file.path, resolved) === "")) references.push({ path: resolved, name: entry!.name, kind: entry!.kind });
-    if (references.length > 10) throw new Error("At most 10 file references are allowed.");
   }
   return references;
 }
