@@ -16,7 +16,6 @@ import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
 import { listFolder } from "./document-api.ts";
-import { AssistantChanges } from "./assistant-changes.ts";
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
@@ -163,7 +162,7 @@ export class AssistantConversations {
           return {success:result.receipt?.outcome!=="failure" && result.receipt?.outcome!=="uncertain",contentItems:[{type:"inputText",text:JSON.stringify(result)}]};
         } catch(error) {return {success:false,contentItems:[{type:"inputText",text:JSON.stringify(assistantToolFailure(error,params))}]};}
       }
-      const templateScope = { ...scope, directory: this.connection.templatesDirectory, changes: new AssistantChanges(path.join(this.connection.cwd, "changes"), this.access), conversation: params.threadId };
+      const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, entry => {
           active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
@@ -200,9 +199,8 @@ export class AssistantConversations {
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }
-  remove(id: string, cleanup: () => void) {
+  remove(id: string) {
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Assistant response before deleting the conversation.");
-    cleanup();
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }

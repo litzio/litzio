@@ -20,12 +20,11 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - 기본 제공 템플릿은 읽기 전용이므로 새 이름의 사본으로 사용자 템플릿을 만든다. 같은 이름은 덮어쓰지 않으며 다른 이름을 정한다. 저장 후 read_template와 list_templates로 결과·목록을 확인한다. 목록을 외우지 말고 현재 카탈로그를 조회한다.
 - Host의 템플릿 저장소는 문서 폴더 밖의 고정 앱 경로다. 원본·목적지는 이 턴의 열린 폴더/Host Root와 쓰기 권한을 따른다. 도구·접근이 없으면 제한을 설명하고 가능한 공식 경로나 텍스트 안내를 제공한다.
 
-## 터미널 이어하기
-- 이 절의 CLI 절차는 Host 도구가 없는 터미널에서만 사용한다. 리치오에서 Host 도구가 보이면 stage_document → inspect_staged_document → edit_staged_document를 쓰고 셸·CLI를 실행하지 않는다.
+## CLI와 터미널 이어하기
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
-- 기존 문서 사본: litzio assistant changes start <conversationId> --path <absolute-original-path>. conversationId는 메시지 맥락에 있다. 반환된 사본 경로에 litzio inspect <copy> --format json, litzio apply-batch <copy> --operations <json-file> --if-revision <revision>, litzio check <copy>를 사용한다. 구조 변경 뒤 inspect로 경로·revision을 갱신한다. 적용·버리기는 사람이 리치오 비교 탭에서 한다.
-- 이미지 자산: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져오고 반환된 상대 경로를 insert-figure에 사용한다. 사본 편집 중에도 원본 문서 경로를 전달한다.
+- 기존 문서는 파일 편집 도구나 셸로 원본을 바로 고친 뒤 `litzio check <file> --format json`으로 검사하고 오류를 고친다. 중간 산출물과 임시 스크립트는 현재 비서 작업 폴더에 둔다. 열린 폴더의 AGENTS.md 같은 지시 파일을 작업 전에 읽는다.
+- 이미지 자산: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져오고 반환된 상대 경로를 insert-figure에 사용한다.
 - 새 문서: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
 - 템플릿: litzio templates list --json --language <ko|en>, litzio templates read <id> --json --language <ko|en>, litzio create <new-file> --template <id> --language <ko|en>, litzio templates save <name> --from <file> --description <text>를 사용한다.
-- CLI 생성에는 리치오 결과 카드·카드 Undo가 없으므로 경로·검사 결과를 텍스트로 보고한다. 셸 실행이 거부되면 Host 도구 등 허용된 경로를 사용한다.
+- CLI 생성에는 리치오 결과 카드·카드 Undo가 없으므로 경로·검사 결과를 텍스트로 보고한다.

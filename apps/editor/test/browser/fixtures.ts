@@ -71,7 +71,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "fields.md", create: () => nativeSource("# Property fields\n\n(section-one)=\n## Section one\n\nA [link](https://example.com) and $x+1$.\n\n```{math}\n:label: eq-one\n\nx=1\n```\n\n:::{figure} ./diagram.svg\n:name: fig-one\n:alt: Diagram\n\nImage caption\n:::\n\n:::{table} Table caption\n:name: tbl-one\n\n| Header |\n| --- |\n| Cell |\n:::\n\n:::{figure}\n:name: fig-flow\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n\nFlow caption\n:::\n") },
     document("diagram.svg"),
   ], scenarios: ["short-field-errors", "ui-prose-wrap", "draft-notice-layout", "read-view"] },
-  "assistant": { files: [{ name: "document.md", create: () => nativeSource("# Plugin boundary\n\nOrdinary editable content.\n") }], scenarios: ["assistant", "assistant-result", "assistant-changes"] },
+  "assistant": { files: [{ name: "document.md", create: () => nativeSource("# Plugin boundary\n\nOrdinary editable content.\n") }], scenarios: ["assistant", "assistant-result"] },
   "caption-selection": { files: [
     { name: "selection.md", create: () => nativeSource("# Caption selection\n\nBefore.\n\n" +
       ":::{figure} ./diagram.svg\n:name: fig-a\n\n**Upper** caption alpha\n:::\n\n" +
@@ -111,7 +111,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "ref.md", create: () => nativeSource("# Reference\n\n:::{figure} ./diagram.svg\n:alt: Figure\n\nCaption.\n:::\n") },
     { name: "second-ref.md", create: () => nativeSource("# Another reference\n\n:::{figure} diagram.svg\n:name: second\n:alt: Figure\n\nSecond caption.\n:::\n") },
     { name: "foreign.md", create: () => "# Ordinary Markdown\n\n![Unmanaged](diagram.svg)\n" },
-  ], scenarios: ["file-actions", "assistant-result", "assistant-changes"] },
+  ], scenarios: ["file-actions", "assistant-result"] },
   "table-caption": { files: [{ name: "caption.md", create: () => nativeSource(
     "# Table captions\n\nBefore.\n\n:::{figure}\n:name: fig-a\n:::\n\n" +
     ":::{table} **Results** with {numref}`fig-a`, {cite:p}`alpha` and $x^2$\n:name: tbl-a\n\n| Header |\n| --- |\n| Cell |\n:::\n\nAfter.\n") }], scenarios: ["table-caption"] },

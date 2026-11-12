@@ -7,7 +7,6 @@ import { ViewWorkspace } from "./views/ViewWorkspace.tsx";
 import type { ViewScreen } from "./views/view-api.ts";
 import { PluginJobs } from "./PluginJobs.tsx";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
-import { AssistantChangeCompare } from "./shell/AssistantChangeCompare.tsx";
 import { Views, type ViewTab } from "./views/Views.tsx";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
 import { createTabAdmission, type Tab } from "./tab-admission.ts";
@@ -426,14 +425,13 @@ function EditorApp() {
       const file = tabs.find(tab => tab.id === item.id);
       const view = viewTabs.find(tab => tab.id === item.id);
       const owner = sessions.current.get(item.id);
-      const staged = view?.assistantChange;
       const kind: ScreenTab["kind"] = file ? (owner?.kind ?? file.file.kind) === "text" ? "text" : "document"
         : item.id === "settings" ? "settings" : item.id === "templates" ? "templates"
-        : staged ? "staged-comparison" : view?.pdf ? "pdf" : view?.comparison ? "comparison" : view?.screen ? "plugin" : view?.jobs ? "plugin-jobs"
+        : view?.pdf ? "pdf" : view?.comparison ? "comparison" : view?.screen ? "plugin" : view?.jobs ? "plugin-jobs"
         : view?.view?.profile === "review" ? "review" : "plugin";
       return { id: item.id, kind, hostId: item.hostId ?? null,
         title: "title" in item && item.title ? item.title : splitDocumentPath(item.path).name,
-        ...(kind !== "settings" && kind !== "templates" ? { path: staged ? staged.path : view?.comparison ? `${view.comparison.root}/${comparisonPath(view.comparison)}` : item.path } : {}),
+        ...(kind !== "settings" && kind !== "templates" ? { path: view?.comparison ? `${view.comparison.root}/${comparisonPath(view.comparison)}` : item.path } : {}),
         unsaved: Boolean(owner && (owner.documentDirty || owner.draftActive || owner.editorRef.current?.hasUnsavedChanges())) };
     });
     return { activeTab: screenTabs.find(tab => tab.id === activeId) ?? null, tabs: screenTabs,
@@ -919,19 +917,6 @@ function EditorApp() {
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
-  }
-  function openAssistantChange(hostId: string, conversation: string, change: string, path: string, automatic = false) {
-    const existing = viewTabs.find(tab => tab.hostId === hostId && tab.assistantChange?.change === change && tab.assistantChange.conversation === conversation);
-    const id = existing?.id ?? `assistant-change-${++nextId.current}`;
-    const entry = { id, hostId, root: splitDocumentPath(path).directory, assistantChange: { conversation, change, path, review: Date.now() }, label: i18n.t("Pending changes") };
-    setViewTabs(previous => previous.some(tab => tab.id === id) ? previous.map(tab => tab.id === id ? entry : tab) : [...previous, entry]);
-    const focus = globalThis.document.activeElement;
-    const background = automatic && session && session.view !== "read" && !!focus?.closest("[data-document-tab]");
-    if (assistantOverlay && !(automatic && focus?.closest(".assistant-composer"))) setAssistantOpen(false);
-    if (background) {
-      navigate({ type: "open", id, group: navigation.focused, background: true });
-      rememberTabs(hostId);
-    } else placeTab(id);
   }
   function openComparison(hostId: string, target: ComparisonTarget) {
     if (!tabsRestored || operationRef.current || busy || continuation) { setNotice({key:"Wait for the current operation to finish."}); return; }
@@ -1554,24 +1539,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.assistantChange ? <AssistantChangeCompare key={tab.assistantChange.review} client={getHostClient(tab.hostId)} {...tab.assistantChange} onApplied={async () => {
-                const existing = openedTab(tabs, tab.assistantChange!.path, tab.hostId);
-                const owner = existing && sessions.current.get(existing.id);
-                if (owner) {
-                  if (owner.editorRef.current?.hasUnsavedChanges() || owner.busyRef.current) throw new Error(i18n.t("Changes applied on disk. Save or close your local edits before reloading the document."));
-                  const error = await (owner.kind === "native" ? owner.load(owner.openedPath, true) : owner.load(owner.openedPath));
-                  if (error) throw new Error(error);
-                }
-                if (existing) {
-                  closeTab(tab.id);
-                  activateTab(existing.id);
-                } else {
-                  const problem = await openFile(tab.assistantChange!.path, "", group?.id, tab.hostId);
-                  if (problem === null) return;
-                  if (problem) throw new Error(problem);
-                  closeTab(tab.id);
-                }
-              }} onDiscarded={() => { closeTab(tab.id); }} isDirty={() => { const existing = openedTab(tabs, tab.assistantChange!.path, tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} /> : tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} isDirty={path => { const existing=openedTab(tabs,path,tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
+              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} isDirty={path => { const existing=openedTab(tabs,path,tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
 
             </div>;
           })}
@@ -1632,7 +1600,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onReviewChange={openAssistantChange} onScreen={readScreen} onScreenAction={performScreenAction} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onScreen={readScreen} onScreenAction={performScreenAction} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {

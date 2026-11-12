@@ -8,16 +8,13 @@ import { accessPath, FileAccessError, RootAccess, type FileAccess } from "./file
 import { figureReadiness } from "./figure-readiness.ts";
 import { loadEditorFile, listFolder } from "./document-api.ts";
 
-export type DocumentToolScope = { folders: RootAccess | null; permissionMode: string; access: FileAccess; directory?: string; changes?: import("./assistant-changes.ts").AssistantChanges; conversation?: string };
+export type DocumentToolScope = { folders: RootAccess | null; permissionMode: string; access: FileAccess; directory?: string };
 const string = { type: "string" };
 const operations = { type: "array", minItems: 1, items: { type: "object", properties: { command: { type: "string", enum: Object.keys(COMMAND_OPTIONS).filter(isEditCommand) } }, required: ["command"], additionalProperties: true } };
 const structuredHelp = "Use existing apply-batch commands: insert-table {at:'end',cells:[['Name','Status'],['A','Done']],caption:'Summary'}, insert-list {at:'end',list:{ordered:false,items:[{content:[{kind:'text',text:'Item'}]}]}}, insert-figure {at:'end',image:'images/chart.png',caption:'Chart',alt:'Chart'}, update-figure {path:'2',caption:'Revised'}, update-table-caption {path:'1',text:'Summary'}, update-table-cell {path:'1,0,0',text:'Name'}. Also supports existing code, equation, quote, admonition and other CLI/Core commands. For images, first use import_document_image with the original document path and absolute source file path, then use the returned relative path in insert-figure. Report asset readiness separately.";
 export const documentTools = [
-  { type: "function", name: "import_document_image", description: "Copy an existing image file into the target document assets folder and return its relative path for insert-figure. Use the original document path, even when editing a pending copy. Adds a file immediately without changing document text; discarding the copy leaves the asset. Never overwrites. Requires opened-folders or full-access; outside-folder sources require opening the containing folder or Full access.", inputSchema: { type: "object", properties: { path: string, source: string }, required: ["path", "source"], additionalProperties: false } },
-  { type: "function", name: "inspect_staged_document", description: "Read current pending-copy nodes, paths and copyRevision by change ID. Inspect again after structural edits.", inputSchema: { type: "object", properties: { change: string }, required: ["change"], additionalProperties: false } },
-  { type: "function", name: "edit_staged_document", description: "Apply an atomic Litzio apply-batch to this conversation pending copy only. Requires the inspected copyRevision. Each operation uses command plus its apply-batch options. Text replacement example: {\"command\":\"update-node-text\",\"path\":\"1\",\"from\":\"Old text\",\"to\":\"New text\"}. Use the inspected node path and exact current text for from. Paths are comma-separated node indices. Inspect again after structural edits. A failed operation writes nothing. Success means copy complete, awaiting human Apply; never original applied. " + structuredHelp, inputSchema: { type: "object", properties: { change: string, copyRevision: string, operations }, required: ["change", "copyRevision", "operations"], additionalProperties: false } },
-  { type: "function", name: "stage_document", description: "Start or find this conversation's pending copy of an existing document, only after an explicit edit request. Use inspect_staged_document and edit_staged_document without a shell; never edit the original. Applying and discarding belong to the human review UI.", inputSchema: { type: "object", properties: { path: string }, required: ["path"], additionalProperties: false } },
-  { type: "function", name: "create_document", description: "Create a new Litzio .md document inside an opened folder, immediately without a pending copy. Never overwrites. Supply title and either operations (applied to an empty document before creation) or plain-text paragraph/heading blocks. Do not combine operations and blocks. Alternatively supply path, template and optional language for an authorized template (without title/blocks/operations). Use this tool instead of shell commands. " + structuredHelp, inputSchema: { type: "object", properties: { ...templateOperations.create.inputSchema.properties, title: string, operations, blocks: { type: "array", items: { oneOf: [
+  { type: "function", name: "import_document_image", description: "Copy an existing image file into the target document assets folder and return its relative path for insert-figure. Adds a file immediately without changing document text; the asset remains until explicitly removed. Never overwrites. Requires opened-folders or full-access; outside-folder sources require opening the containing folder or Full access.", inputSchema: { type: "object", properties: { path: string, source: string }, required: ["path", "source"], additionalProperties: false } },
+  { type: "function", name: "create_document", description: "Create a new Litzio .md document inside an opened folder, immediately. Never overwrites. Supply title and either operations (applied to an empty document before creation) or plain-text paragraph/heading blocks. Do not combine operations and blocks. Alternatively supply path, template and optional language for an authorized template (without title/blocks/operations). " + structuredHelp, inputSchema: { type: "object", properties: { ...templateOperations.create.inputSchema.properties, title: string, operations, blocks: { type: "array", items: { oneOf: [
     { type: "object", properties: { type: { const: "paragraph" }, text: string }, required: ["type", "text"], additionalProperties: false },
     { type: "object", properties: { type: { const: "heading" }, text: string, level: { type: "integer", minimum: 1, maximum: 6 } }, required: ["type", "text", "level"], additionalProperties: false },
   ] } } }, required: ["path"], additionalProperties: false } },
@@ -43,10 +40,6 @@ export function executeDocumentTool(name: string, input: unknown, scope: Documen
 
 function execute(name: string, input: unknown, scope: DocumentToolScope) {
   if (!documentTools.some(tool => tool.name === name)) throw new Error("Unknown document tool.");
-  if (name === "inspect_staged_document" || name === "edit_staged_document") {
-    if (!scope.changes || !scope.conversation) return { receipt: { outcome: "failure" }, errorKind: "unavailable", error: "Pending changes unavailable." };
-    return scope.changes.edit(scope.conversation, name === "inspect_staged_document" ? "inspect" : "edit", input, scope);
-  }
   if (name === "create_document" && input && typeof input === "object" && "template" in input) return executeTemplateOperation("create", input, scope);
   const value = input as { path: string; title: string; operations?: unknown; blocks: { type: string; text: string; level: number }[] };
   const invalid = (message: string): never => { throw new DocumentDiagnosticError("invalid-operation", message); };
@@ -64,10 +57,6 @@ function execute(name: string, input: unknown, scope: DocumentToolScope) {
   }
   const create = name === "create_document";
   if (create && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw Object.assign(new Error("Document creation is read-only for this turn."),{errorKind:"forbidden"});
-  if (name === "stage_document") {
-    if (!scope.changes || !scope.conversation) throw Object.assign(new Error("Pending changes unavailable."),{errorKind:"unavailable"});
-    return scope.changes.start(scope.conversation, value.path, scope);
-  }
   const file = scope.folders.resolve(accessPath(value.path, scope.access, create), create);
   if (name === "read_document") {
     const { path, source, revision } = loadEditorFile(file, scope.access);
