@@ -216,10 +216,10 @@ merge-group/전체 master push CI는 unsigned package 생성·release 자산 검
 | Mode | 동작 |
 | --- | --- |
 | `verify` (기본) | 태그·빌드·테스트·자산 검증/Artifact만 실행. 게시하지 않음 |
-| `unsigned-beta` | 정확한 `vX.Y.Z-beta.N`만 신규 Prerelease로 공개. 인증서 불필요; Stable은 차단 |
+| `unsigned` | 정확한 `vX.Y.Z` Stable 또는 `vX.Y.Z-beta.N` Beta 공개. 인증서 불필요(2026-11-12 소유자 결정); 첫 줄 unsigned 경고 유지 |
 | `signed` | 기존 Authenticode 인증서/publisher 검증을 통과한 Stable 또는 Beta만 공개 |
 
-컨트롤러는 dispatch의 master SHA에서 실행하며, tag 코드 실행 전에 기존 tag와 master ancestry·Desktop 버전을 검증한다. 검증한 commit SHA로 빌드하고 게시 직전 remote tag도 재확인한다. Installer/app의 전체 PE FileVersion, metadata 버전·파일명·SHA-512·크기, builder로 재계산한 blockmap을 검증한다. Beta는 `prerelease=true`, `latest=false`, `beta.yml`만 공개한다.
+컨트롤러는 dispatch의 master SHA에서 실행하며, tag 코드 실행 전에 기존 tag와 master ancestry·Desktop 버전을 검증한다. 검증한 commit SHA로 빌드하고 게시 직전 remote tag도 재확인한다. Installer/app의 전체 PE FileVersion, metadata 버전·파일명·SHA-512·크기, builder로 재계산한 blockmap을 검증한다. Beta는 `prerelease=true`, `latest=false`, `beta.yml`만 공개한다. Stable은 `prerelease=false`, `make_latest=true`, `latest.yml`만 공개한다.
 
 모든 release 모드는 기존 CI 결과를 재사용하지 않고 검증한 tag commit에서 Editor browser 회귀 전체를 Linux 8개 shard(`pnpm browser:test --shard=N/8`)로 다시 실행한다. CI와 같은 Playwright 컨테이너·고정 Chromium 설치·브라우저 캐시·한글 폰트 확인을 사용하며 shard별 제한은 35분이다. `fail-fast: false`로 나머지 shard도 끝까지 실행하고, 실패 시 Vite 로그와 browser diagnostics를 shard별 artifact에 보존한다. 게시 job의 `needs: [preflight, browser, build]`와 기본 성공 조건으로 모든 shard와 Windows build가 성공해야 게시할 수 있다. 하나라도 실패·취소되면 게시하지 않는다.
 
@@ -237,9 +237,9 @@ merge-group/전체 master push CI는 unsigned package 생성·release 자산 검
 
 실제 GitHub harness의 대상은 같은 Litzio 브랜드의 `0.0.2-beta.9 → 0.0.2-beta.10`이다. beta.10은 공개됐지만 opt-in harness는 실행하지 않았으며 업데이트 검증 결과가 아니다([배포 기록](docs/releases/v0.0.2-beta.10.md)). 이 PC의 설치 상태 보존 제약으로 실제 GitHub 설치·업데이트는 **미실행·미검증**이다.
 
-다음 Beta 발행 순서: 버전 변경과 로컬 후보 검증 → 명시적 원격 승인 → 변경 push/CI/master 반영 → 실제 환경 보호 확인 → 검증된 master commit에 해당 버전 tag 게시 → master에서 해당 tag와 `unsigned-beta` 또는 `signed`로 수동 실행 → 모든 빌드·테스트·자산 검증 성공 후 추가 environment 승인 없이 게시 → 공개 결과와 [실제 GitHub 업데이트 검증](docs/test/README.md#real-github-beta-update) 확인 → 한국어 Release 본문·릴리즈 기록 갱신. README에는 정확한 공개 버전이나 설치 파일 이름을 반복하지 않고 Releases 목록으로 안내한다. README는 제품 목적·지원 플랫폼·설치 절차·호환성 경계가 바뀔 때만 갱신한다. 게시 모드도 전체 검증을 실행하므로 동일 후보의 `verify`와 게시 빌드를 연속으로 반복할 필요는 없다. 게시 여부를 결정하기 전 산출물만 검토하려면 `verify`를 사용한다. 0.0.2-beta.1의 공개·철회 결과와 실제 GitHub 업데이트 미검증 범위는 [릴리즈 기록](docs/releases/v0.0.2-beta.1.md), 동작 계약은 [Desktop contract](docs/design/desktop-distribution-v1.md)를 참고한다. 이미 공개된 tag나 자산은 재작성하지 않는다.
+다음 Stable/Beta 발행 순서: 버전 변경과 로컬 후보 검증 → 명시적 원격 승인 → 변경 push/CI/master 반영 → 실제 환경 보호 확인 → 검증된 master commit에 해당 버전 tag 게시 → master에서 해당 tag와 `unsigned` 또는 `signed`로 수동 실행 → 모든 빌드·테스트·자산 검증 성공 후 추가 environment 승인 없이 게시 → 공개 결과와 [실제 GitHub 업데이트 검증](docs/test/README.md#real-github-beta-update) 확인 → 한국어 Release 본문·릴리즈 기록 갱신. README에는 정확한 공개 버전이나 설치 파일 이름을 반복하지 않고 Releases 목록으로 안내한다. README는 제품 목적·지원 플랫폼·설치 절차·호환성 경계가 바뀔 때만 갱신한다. 게시 모드도 전체 검증을 실행하므로 동일 후보의 `verify`와 게시 빌드를 연속으로 반복할 필요는 없다. 게시 여부를 결정하기 전 산출물만 검토하려면 `verify`를 사용한다. 0.0.2-beta.1의 공개·철회 결과와 실제 GitHub 업데이트 미검증 범위는 [릴리즈 기록](docs/releases/v0.0.2-beta.1.md), 동작 계약은 [Desktop contract](docs/design/desktop-distribution-v1.md)를 참고한다. 이미 공개된 tag나 자산은 재작성하지 않는다.
 
-Unsigned Beta의 SHA-512/SHA-256은 무결성 검증이다. 악의적인 게시자가 파일과 manifest를 함께 바꾸는 경우에 대한 게시자 인증이 아니다. Unsigned 경로는 Authenticode 인증을 제공하지 않으며, Signed 경로의 인증서 검증을 해제하지 않는다.
+Unsigned Stable/Beta의 SHA-512/SHA-256은 무결성 검증이다. 악의적인 게시자가 파일과 manifest를 함께 바꾸는 경우에 대한 게시자 인증이 아니다. Unsigned 경로는 Authenticode 인증을 제공하지 않으며, Signed 경로의 인증서 검증을 해제하지 않는다.
 
 ## Issue and PR guidance
 

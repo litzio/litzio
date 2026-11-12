@@ -105,11 +105,12 @@ test("the builder blockmap is bound to this installer, including chunk checksums
   await assert.rejects(verifyBlockmap(installer, blockmap), /does not match the installer/);
 });
 
-test("manual release modes reject unsigned Stable and unsafe tags", () => {
-  assert.equal(releaseMode("unsigned-beta", "v0.0.1-beta.2"), "unsigned-beta");
+test("manual release modes accept unsigned Stable and Beta but reject unsafe tags", () => {
+  assert.equal(releaseMode("unsigned", "v0.0.1-beta.2"), "unsigned");
+  assert.equal(releaseMode("unsigned", "v1.0.0"), "unsigned");
   assert.equal(releaseMode("signed", "v1.0.0"), "signed");
-  for (const tag of ["v1.0.0", "v1.0.0-rc.1", "v01.0.0-beta.2", "v1.0.0-beta.02", "--help", "v1.0.0-beta.2\n", "v1.0.0-beta.2\r", "v1.0.0-beta.2\nBAD=1"]) {
-    assert.throws(() => releaseMode("unsigned-beta", tag));
+  for (const tag of ["v01.0.0", "v1.0.0-rc.1", "v01.0.0-beta.2", "v1.0.0-beta.02", "--help", "v1.0.0-beta.2\n", "v1.0.0-beta.2\r", "v1.0.0-beta.2\nBAD=1"]) {
+    assert.throws(() => releaseMode("unsigned", tag));
   }
   assert.throws(() => releaseMode("publish", "v1.0.0"));
 });
@@ -125,48 +126,63 @@ test("preflight accepts only an existing, version-matched tag in the captured ma
   git("tag", "v0.0.1-beta.3");
   git("switch", "-c", "other"); writeFileSync(path.join(root, "other.txt"), "other"); git("add", "."); git("commit", "-m", "Other fixture"); git("tag", "v0.0.1-beta.4"); git("switch", "master");
   const origin = path.join(root, "origin.git"); git("clone", "--bare", root, origin); git("remote", "add", "origin", origin);
-  assert.equal(resolveRelease(root, "v0.0.1-beta.2", "unsigned-beta", master).commit, master);
-  assert.throws(() => resolveRelease(root, "v0.0.1-beta.9", "unsigned-beta", master));
-  assert.throws(() => resolveRelease(root, "v0.0.1-beta.3", "unsigned-beta", master), /package version differ/);
-  assert.throws(() => resolveRelease(root, "v0.0.1-beta.4", "unsigned-beta", master), /trusted master history/);
+  assert.equal(resolveRelease(root, "v0.0.1-beta.2", "unsigned", master).commit, master);
+  assert.throws(() => resolveRelease(root, "v0.0.1-beta.9", "unsigned", master));
+  assert.throws(() => resolveRelease(root, "v0.0.1-beta.3", "unsigned", master), /package version differ/);
+  assert.throws(() => resolveRelease(root, "v0.0.1-beta.4", "unsigned", master), /trusted master history/);
   git("--git-dir", origin, "update-ref", "-d", "refs/tags/v0.0.1-beta.2");
-  assert.throws(() => resolveRelease(root, "v0.0.1-beta.2", "unsigned-beta", master), /Remote release tag/);
+  assert.throws(() => resolveRelease(root, "v0.0.1-beta.2", "unsigned", master), /Remote release tag/);
+  writeFileSync(path.join(root, "apps/desktop/package.json"), '{"version":"0.0.1"}');
+  git("add", "."); git("commit", "-m", "Stable fixture"); git("tag", "v0.0.1"); git("tag", "v0.0.2");
+  git("push", "origin", "--tags");
+  const stable = git("rev-parse", "HEAD");
+  assert.equal(resolveRelease(root, "v0.0.1", "unsigned", stable).commit, stable);
+  assert.throws(() => resolveRelease(root, "v0.0.2", "unsigned", stable), /package version differ/);
 });
 
 test("publication uses a new Draft ID, checks all uploaded hashes and activates only at the end", () => {
-  const tag = "v0.0.1-beta.2";
-  const files = verifyRelease({ tag, version: tag.slice(1), signed: false, release: release(tag.slice(1)) });
-  for (const fault of ["none", "collision", "page2-draft", "upload", "asset-set", "digest", "state", "changed-tag", "activate"] as const) {
-    const calls: { endpoint: string; method: string; body?: object }[] = [];
-    const draft = { id: 123, tag_name: tag, draft: true, prerelease: true, assets: [] as object[] };
-    const api: ReleaseApi = (endpoint, method = "GET", body, file) => {
-      calls.push({ endpoint, method, body });
-      if (endpoint.includes("?per_page")) {
-        if (fault === "collision") return [{ tag_name: tag }];
-        if (fault === "page2-draft") return endpoint.endsWith("page=1") ? Array.from({ length: 100 }, () => ({ tag_name: "v0.0.0-beta.1" })) : [{ tag_name: tag, draft: true }];
-        return [];
+  for (const tag of ["v0.0.1-beta.2", "v0.0.1"]) {
+    const beta = tag.includes("-beta.");
+    const files = verifyRelease({ tag, version: tag.slice(1), signed: false, release: release(tag.slice(1)) });
+    for (const fault of ["none", "collision", "page2-draft", "upload", "asset-set", "digest", "state", "changed-tag", "activate"] as const) {
+      const calls: { endpoint: string; method: string; body?: object }[] = [];
+      const draft = { id: 123, tag_name: tag, draft: true, prerelease: beta, assets: [] as object[] };
+      const api: ReleaseApi = (endpoint, method = "GET", body, file) => {
+        calls.push({ endpoint, method, body });
+        if (endpoint.includes("?per_page")) {
+          if (fault === "collision") return [{ tag_name: tag }];
+          if (fault === "page2-draft") return endpoint.endsWith("page=1") ? Array.from({ length: 100 }, () => ({ tag_name: "v0.0.0-beta.1" })) : [{ tag_name: tag, draft: true }];
+          return [];
+        }
+        if (endpoint === "repos/litzio/litzio/releases") {
+          assert.equal(method, "POST");
+          assert.equal((body as { make_latest: string }).make_latest, "false");
+          assert.equal((body as { prerelease: boolean }).prerelease, beta);
+          assert.equal((body as { body: string }).body.split("\n")[0], `Unsigned Windows ${beta ? "Beta" : "Stable"}. Windows may show publisher or SmartScreen warnings. SHA-512 checks file integrity; it does not authenticate the publisher.`);
+          return draft;
+        }
+        if (file) {
+          if (fault === "upload") throw new Error("Partial upload");
+          draft.assets.push({ name: path.basename(file), size: statSync(file).size, state: fault === "state" ? "starter" : "uploaded",
+            digest: fault === "digest" ? "sha256:wrong" : `sha256:${createHash("sha256").update(readFileSync(file)).digest("hex")}` });
+          return {};
+        }
+        assert.equal(endpoint, "repos/litzio/litzio/releases/123", "never resolve a Draft by tag");
+        if (method === "PATCH") {
+          assert.equal((body as { make_latest: string }).make_latest, beta ? "false" : "true");
+          assert.equal((body as { prerelease: boolean }).prerelease, beta);
+          if (fault === "activate") throw new Error("Lost response");
+          return { ...draft, draft: false };
+        }
+        return fault === "asset-set" ? { ...draft, assets: draft.assets.slice(1) } : draft;
+      };
+      const run = () => publishVerifiedRelease({ tag, mode: "unsigned", files, beforeActivate: () => { if (fault === "changed-tag") throw new Error("Tag changed"); } }, api);
+      if (fault === "none") { assert.equal(run().draft, false); assert.equal(calls.at(-1)?.method, "PATCH"); }
+      else {
+        assert.throws(run, fault === "activate" ? /confirmation required/ : fault.includes("draft") || fault === "collision" ? /already exists/ : /remains Draft/);
+        assert.equal(calls.some((call) => call.method === "PATCH"), fault === "activate", fault);
       }
-      if (endpoint === "repos/litzio/litzio/releases") { assert.equal(method, "POST"); assert.equal((body as { make_latest: string }).make_latest, "false"); return draft; }
-      if (file) {
-        if (fault === "upload") throw new Error("Partial upload");
-        draft.assets.push({ name: path.basename(file), size: statSync(file).size, state: fault === "state" ? "starter" : "uploaded",
-          digest: fault === "digest" ? "sha256:wrong" : `sha256:${createHash("sha256").update(readFileSync(file)).digest("hex")}` });
-        return {};
-      }
-      assert.equal(endpoint, "repos/litzio/litzio/releases/123", "never resolve a Draft by tag");
-      if (method === "PATCH") {
-        assert.equal((body as { make_latest: string }).make_latest, "false");
-        if (fault === "activate") throw new Error("Lost response");
-        return { ...draft, draft: false };
-      }
-      return fault === "asset-set" ? { ...draft, assets: draft.assets.slice(1) } : draft;
-    };
-    const run = () => publishVerifiedRelease({ tag, mode: "unsigned-beta", files, beforeActivate: () => { if (fault === "changed-tag") throw new Error("Tag changed"); } }, api);
-    if (fault === "none") { assert.equal(run().draft, false); assert.equal(calls.at(-1)?.method, "PATCH"); }
-    else {
-      assert.throws(run, fault === "activate" ? /confirmation required/ : fault.includes("draft") || fault === "collision" ? /already exists/ : /remains Draft/);
-      assert.equal(calls.some((call) => call.method === "PATCH"), fault === "activate", fault);
     }
+    assert.throws(() => publishVerifiedRelease({ tag, mode: "verify", files, beforeActivate() {} }, () => { throw new Error("Must not call GitHub"); }), /cannot publish/);
   }
-  assert.throws(() => publishVerifiedRelease({ tag, mode: "verify", files, beforeActivate() {} }, () => { throw new Error("Must not call GitHub"); }), /cannot publish/);
 });
