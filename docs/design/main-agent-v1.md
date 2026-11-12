@@ -440,7 +440,7 @@ It ignores responses after switching the owning scope. Closing the panel retains
 closed idle conversations stop polling. Running work continues
 when the panel closes. Model and effort are locked while running; a submitted
 message uses `turn/steer` with the expected turn ID. Stop uses `turn/interrupt`
-and retains partial results. #1541 shows reasoning/tool/plan rows individually
+and retains partial results. The composer keeps one button: Send when idle (disabled without text or references), Stop while running with an empty draft, and Steer while running with text or references. Copilot keeps Stop while running because ACP cannot steer. The accessible name and tooltip follow the action; Enter keeps the existing send path and no stop shortcut is added (#1485). Korean captures: 1440px [Light before](assets/assistant-1485/before-running-1440-light-ko.png) / [after](assets/assistant-1485/after-running-1440-light-ko.png), [Dark before](assets/assistant-1485/before-running-1440-dark-ko.png) / [after](assets/assistant-1485/after-running-1440-dark-ko.png), and [640px Dark after](assets/assistant-1485/after-running-640-dark-ko.png). These use fake data; only the local PC identity region is masked. #1541 shows reasoning/tool/plan rows individually
 inside the ordered answer flow. Each row starts collapsed and expands on demand.
 Empty reasoning summaries have no row. A separate live phase label remains while
 running even without summary events. Provider raw reasoning is not projected.

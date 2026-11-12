@@ -77,6 +77,8 @@ Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수
 
 ## P05 입력칸·placeholder·위계
 
+비서 입력창은 같은 자리의 공통 `Button`(`icon-sm`) 하나를 유지한다(#1485). 대기 중에는 전송, 응답 중 빈 입력에는 중지, 글·첨부가 있으면 진행 중 작업에 추가한다. steer를 지원하지 않는 Copilot은 응답 중 항상 중지다. 전송은 기본 variant·ArrowUp, 중지는 outline·Square를 쓰며 접근 가능한 이름·Tooltip도 함께 바뀐다.
+
 과거 #947의 [플러그인 목록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947)은 U22의
 기존 Settings 콘텐츠 폭·stacked section·공용 Button과 확인 Dialog를 재사용한다.
 Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 줄바꿈하고 revision은

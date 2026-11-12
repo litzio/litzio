@@ -149,6 +149,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const enabled = !!settings;
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
+  const showStop = active && (provider === "copilot" || (!message.trim() && !references.length));
+  const composerAction = i18n.t(showStop ? "Stop response" : active ? "Steer conversation" : "Send message");
   // Read acknowledgement is local presentation state; conversation/submission owners stay unchanged.
   const lastTurn = conversation?.turns.at(-1);
   const completion = lastTurn?.status === "completed" ? `${conversation!.id}:${lastTurn.id}` : undefined;
@@ -661,8 +663,11 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         <AssistantUsageTooltip provider={provider} active={open} context={usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </AssistantUsageTooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
-        {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
-        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
+        <Tooltip><TooltipTrigger render={<Button type={showStop ? "button" : "submit"} variant={showStop ? "outline" : "default"} size="icon-sm" aria-label={composerAction}
+          disabled={pending || !showStop && (!ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup)} />}
+          onClick={showStop ? () => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); }) : undefined}>
+          {showStop ? <Square /> : <ArrowUp />}
+        </TooltipTrigger><TooltipContent>{composerAction}</TooltipContent></Tooltip>
       </div>
     </form>
   </aside>;
