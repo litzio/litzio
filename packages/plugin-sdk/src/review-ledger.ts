@@ -4,6 +4,7 @@ const id = z.string().min(1).max(512), text = z.string().min(1).max(10000);
 const hash = z.string().regex(/^[a-f0-9]{64}$/), page = z.number().int().positive();
 const opaque = z.record(z.string(), z.unknown());
 const unique = <T>(items: T[]) => new Set(items).size === items.length;
+const assistantReviewSchema = z.strictObject({ actor: id, reason: text });
 export const humanReviewSchema = z.strictObject({ actor: id, reason: text, confirmed: z.literal(true) });
 export const reviewInspectionStateSchema = z.enum(["not-inspected", "uncertain", "no-issue"]);
 export const reviewScopeSchema = z.strictObject({ pages: z.array(page).min(1).max(10000).refine(unique), targets: z.array(id).max(10000).refine(unique) });
@@ -18,10 +19,10 @@ export const reviewGroupTargetSchema = z.strictObject({
   proposal: z.enum(["proposed", "approved", "rejected", "superseded"]),
   result: z.enum(["applied", "regeneration-required", "uncertain"]).nullable(),
   resolved: z.boolean(),
-  history: z.array(z.strictObject({ id, action: z.enum(["approved", "rejected", "undone", "superseded"]), at: z.iso.datetime(), human: humanReviewSchema.nullable(), requestId: z.uuid(),
+  history: z.array(z.strictObject({ id, action: z.enum(["approved", "rejected", "undone", "superseded"]), at: z.iso.datetime(), human: humanReviewSchema.nullable(), assistant: assistantReviewSchema.optional(), requestId: z.uuid(),
     result: z.enum(["applied", "regeneration-required", "uncertain"]).nullable(), inverseOperations: z.array(opaque).max(2000), undoOf: id.nullable(),
     supersededBy: z.strictObject({ groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique) }).optional(),
-  }).refine(event => event.action === "superseded" ? event.human === null && !!event.supersededBy : event.human !== null && !event.supersededBy, "Supersede links and human decisions are separate evidence")).max(10000),
+  }).refine(event => event.action === "superseded" ? event.human === null && !event.assistant && !!event.supersededBy : (event.human !== null && !event.assistant || event.human === null && !!event.assistant && event.action === "approved") && !event.supersededBy, "Supersede links and attributed correction decisions are separate evidence")).max(10000),
 });
 export const reviewGroupSchema = z.strictObject({
   id, reasonCode: id, reason: text, provider: id, providerVersion: id, sourceRevision: hash, contentRevision: hash,
@@ -60,7 +61,10 @@ export const emptyReviewLedger = (): ReviewLedger => ({ version: 1, revision: "i
 export const reviewLedgerChangeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("groups-propose"), groups: z.array(reviewGroupSchema).min(1).max(1000),
     supersedes: z.array(z.strictObject({ groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique), replacementGroupId: id })).max(1000).default([]) }),
-  ...(["groups-approve", "groups-reject", "groups-undo"] as const).map(kind => z.strictObject({ kind: z.literal(kind), groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique), remainderGroupId: id.optional(), human: humanReviewSchema, resolvesIssue: z.boolean().default(false) })),
+  z.strictObject({ kind: z.literal("groups-apply"), groups: z.array(reviewGroupSchema).min(1).max(1000),
+    supersedes: z.array(z.strictObject({ groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique), replacementGroupId: id })).max(1000).default([]),
+    actor: z.union([humanReviewSchema.extend({source:z.literal("human")}), assistantReviewSchema.extend({source:z.literal("assistant")})]) }),
+  ...(["groups-approve", "groups-reject", "groups-undo"] as const).map(kind => z.strictObject({ kind: z.literal(kind), groupId: id, targetIds: z.array(id).min(1).max(10000).refine(unique), remainderGroupId: id.optional(), human: humanReviewSchema.nullable(), assistant: assistantReviewSchema.optional(), resolvesIssue: z.boolean().default(false) }).refine(c => c.human !== null ? !c.assistant : c.kind === "groups-approve" && !!c.assistant, "Exactly one decision actor required")),
   z.strictObject({ kind: z.literal("inspection"), records: z.array(inspection).max(1000), comparisons: z.array(bodyComparison).max(1000) }),
   z.strictObject({ kind: z.literal("required-checks"), inventory: reviewLedgerSchema.shape.inventory.optional(), records: z.array(checkRecord).max(1000) }),
   z.strictObject({ kind: z.literal("completion"), human: humanReviewSchema }),
@@ -130,6 +134,16 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
   undo(target: ReviewGroupTarget, inverse: z.infer<typeof reviewGroupTargetSchema>["patch"]["operations"]): void;
 }): ReviewLedger {
   const ledger = structuredClone(reviewLedgerSchema.parse(raw)), change = reviewLedgerChangeSchema.parse(rawChange);
+  if (change.kind === "groups-apply") {
+    let next = updateReviewLedger(ledger, {kind:"groups-propose",groups:change.groups,supersedes:change.supersedes}, context);
+    const {source,...actor}=change.actor;
+    for (const group of change.groups) next = updateReviewLedger(next, {
+      kind:"groups-approve",groupId:group.id,targetIds:group.targets.map(t=>t.id),resolvesIssue:true,
+      human:source === "human" ? humanReviewSchema.parse(actor) : null,
+      ...(source === "assistant" ? {assistant:assistantReviewSchema.parse(actor)} : {}),
+    }, context);
+    return next;
+  }
   if (change.kind === "completion") {
     if (!evaluateReviewCompletion(ledger, context.contentRevision, context.snapshotHash, context.current).ready) throw new Error("Review completion conditions are not satisfied");
     ledger.approval = { ledgerRevision: ledger.revision, contentRevision: context.contentRevision, snapshotHash: context.snapshotHash, human: change.human, at: context.at };
@@ -223,7 +237,7 @@ export function updateReviewLedger(raw: ReviewLedger, rawChange: ReviewLedgerCha
         target.proposal = action === "approve" ? "approved" : "rejected";
         target.resolved = change.resolvesIssue; target.inspection = change.resolvesIssue ? "no-issue" : target.inspection;
       }
-      target.history.push({ id: `${context.revision}/${target.id}`, action: action === "undo" ? "undone" : action === "approve" ? "approved" : "rejected", at: context.at, human: change.human, requestId: context.requestId, result: target.result, inverseOperations, undoOf });
+      target.history.push({ id: `${context.revision}/${target.id}`, action: action === "undo" ? "undone" : action === "approve" ? "approved" : "rejected", at: context.at, human: change.human, ...(change.assistant ? {assistant:change.assistant} : {}), requestId: context.requestId, result: target.result, inverseOperations, undoOf });
     }
   }
   return reviewLedgerSchema.parse(ledger);

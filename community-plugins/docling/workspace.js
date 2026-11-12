@@ -347,7 +347,7 @@ export async function workspaceOperation(input) {
   if(input.change){
     try {
       const change=structuredClone(input.change);
-      if(input.change.kind==="groups-propose"){
+      if(["groups-propose","groups-apply"].includes(input.change.kind)){
         if(input.change.groups.some(group=>group.sourceRevision!==archive.manifest.document.sha256))throw new Error(`Mixed group source revision; expected ${archive.manifest.document.sha256}`);
         for(const group of change.groups)for(const target of group.targets){
           const inserts=target.patch.operations.filter(op=>op.type==="insert");
@@ -383,7 +383,7 @@ export async function workspaceOperation(input) {
       });
     } catch (error) {
       // Validation only: publish through the existing schema-checked, secret-redacted result.
-      if(input.change.kind==="groups-propose")return {rejection:error.message};
+      if(["groups-propose","groups-apply"].includes(input.change.kind))return {rejection:error.message};
       throw error;
     }
   }

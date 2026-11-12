@@ -138,7 +138,7 @@ const reviewInputs = {
   find_review_workspaces:z.strictObject({path:z.string().min(1).optional()}),
   read_review_material:materialInput,
   run_review_source_evidence:reviewPath.extend({pages:z.array(z.number().int().positive()).min(1).max(10000).optional()}),
-  propose_review_groups:proposeInput,
+  apply_review_groups:proposeInput,
   record_review_inspection:inspectionInput,
   read_review_images:reviewPath.extend({pageNo:z.number().int().positive(),target:z.string().min(1).optional()}),
 };
@@ -146,7 +146,7 @@ const descriptions: Record<keyof typeof reviewInputs,string> = {
   find_review_workspaces:"Find workspace paths and providers inside opened folders. Optional path filters by file or folder; omitted searches all opened folders. No document contents.",
   read_review_material:"Read lenses, source-evidence candidates, required checks, groups, or page fragments with neighbors, provenance and current block correspondence. No images.",
   run_review_source_evidence:"Save source-evidence candidates for optional pages; no proposals or document changes. On uncertainty query the returned ID with read_review_request_status; never replay.",
-  propose_review_groups:"Save validated proposed groups to the ledger; no approval or document changes. Never bypass rejection. On uncertainty query request status; never replay.",
+  apply_review_groups:"Apply validated corrections immediately to the Litzio document with history and Undo; no human approval. Supply groups-propose as change; Host combines proposal and application atomically. After Undo use supersedes for the reopened proposal. On uncertainty query request status; never replay.",
   record_review_inspection:"Save inspections for actually read scopes; insufficient evidence is uncertain. No approval, required-check completion or document changes. Record inspected subsets cumulatively from actual returned material history. On uncertainty query request status; never replay.",
   read_review_images:"Read a valid workspace page or target region directly, without a question. Returns a measurement runId for subsequent inspection records.",
 };
@@ -192,10 +192,10 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
   const normalized=reviewInput(input);
   const parsed:any=schema.parse(normalized);
   if(name==="find_review_workspaces")return findReviewWorkspaces(host,scope,parsed.path);
-  if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name) && !["opened-folders","full-access"].includes(scope.permissionMode))throw Object.assign(new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.'),{errorKind:"forbidden"});
+  if(["run_review_source_evidence","apply_review_groups","record_review_inspection"].includes(name) && !["opened-folders","full-access"].includes(scope.permissionMode))throw Object.assign(new Error('Review writes are unavailable in read-only turns. Change permission to "Opened folders" (열린 폴더) to save review results.'),{errorKind:"forbidden"});
   const {path:requested,...fields}=parsed;
   const location=await resolveReview(host,requested!,scope), args={...location,...fields} as any;
-  if(["run_review_source_evidence","propose_review_groups","record_review_inspection"].includes(name)) {
+  if(["run_review_source_evidence","apply_review_groups","record_review_inspection"].includes(name)) {
     let requests=reviewRequests.get(scope);if(!requests){requests=new Map();reviewRequests.set(scope,requests);}
     const legacyId=normalized!==input && (input as any)?.requestId!==undefined ? z.uuid().parse((input as any).requestId) : undefined;
     args.requestId=legacyId??(callId ? requests.get(callId)??randomUUID() : randomUUID());
@@ -214,7 +214,7 @@ export async function executeReviewAssistantTool(host:ReviewHost,name:string,inp
     return {...result,workspace:location};
   }
   if(name==="run_review_source_evidence"){action="workspace-evidence";extra={mode:"run"};writing=true;}
-  else if(name==="propose_review_groups"){action="workspace-review-change";writing=true;}
+  else if(name==="apply_review_groups"){action="workspace-review-change";writing=true;extra={change:{...args.change,kind:"groups-apply",actor:{source:"assistant",actor:"assistant",reason:"Assistant correction"}}};}
   else if(name==="record_review_inspection") {
     const {records,imageRunId,...common}=args;
     const comparisons=[];

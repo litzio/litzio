@@ -14,7 +14,7 @@ export async function pluginCli(args: string[]): Promise<number> {
       if (!["read", "run"].includes(tokens[2]!) || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("review evidence read|run --input <json-file> --host <origin> --json");
       body = { ...JSON.parse(readFileSync(tokens[4]!, "utf8")), action: "workspace-evidence", mode: tokens[2] };
     } else if (command === "review" && action === "groups") {
-      if (!["propose", "read", "approve", "reject", "undo"].includes(tokens[2]!) || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("review groups propose|read|approve|reject|undo --input <json-file> --host <origin> --json");
+      if (!["propose", "apply", "read", "approve", "reject", "undo"].includes(tokens[2]!) || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("review groups propose|apply|read|approve|reject|undo --input <json-file> --host <origin> --json");
       const input = JSON.parse(readFileSync(tokens[4]!, "utf8"));
       body = tokens[2] === "read" ? { ...input, action: "workspace-groups-read" } : { ...input, action: "workspace-review-change", change: { ...input.change, kind: `groups-${tokens[2]}` } };
     } else if (command === "review" && ["lenses", "inspection", "required-checks", "completion"].includes(action!)) {
