@@ -41,9 +41,9 @@ const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL ==
 const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
-// Litzio beta.10 candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
+// Litzio Stable candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
 // Both Litzio releases must be public before this opt-in harness can run.
-const [OLD, NEW] = LIVE ? ["0.0.2-beta.9", "0.0.2-beta.10"]
+const [OLD, NEW] = LIVE ? ["0.0.2-beta.10", "0.0.2"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
@@ -83,9 +83,10 @@ async function publicBeta(versions = [OLD, NEW], startVersion = OLD): Promise<st
     const result = await fetchPublicRelease(`https://api.github.com/repos/${owner}/${name}/releases/tags/v${version}`, process.env.GH_TOKEN ? { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` } } : {});
     assert.equal(result.status, 200, `Public v${version} is required; real GitHub update validation remains Pending`);
     const release = await result.json() as { tag_name: string; draft: boolean; prerelease: boolean; assets: { id: number; name: string; size: number; digest: string; browser_download_url: string }[] };
-    assert.equal(release.tag_name, `v${version}`); assert.equal(release.draft, false); assert.equal(release.prerelease, true);
+    assert.equal(release.tag_name, `v${version}`); assert.equal(release.draft, false); assert.equal(release.prerelease, version.includes("-beta."));
+    const manifest = `${brand.updates.channels[version.includes("-beta.") ? "beta" : "stable"]}.yml`;
     const installer = `${brand.executableName}-Setup-${version}.exe`;
-    assert.deepEqual(release.assets.map((asset) => asset.name).sort(), [installer, `${installer}.blockmap`, `${brand.updates.channels.beta}.yml`].sort());
+    assert.deepEqual(release.assets.map((asset) => asset.name).sort(), [installer, `${installer}.blockmap`, manifest].sort());
     const download = async (assetName: string) => {
       const asset = release.assets.find((asset) => asset.name === assetName)!;
       assert.equal(asset.browser_download_url, `https://github.com/${owner}/${name}/releases/download/v${version}/${assetName}`);
@@ -98,7 +99,7 @@ async function publicBeta(versions = [OLD, NEW], startVersion = OLD): Promise<st
       assert.equal(`sha256:${createHash("sha256").update(bytes).digest("hex")}`, asset.digest);
       return bytes;
     };
-    const metadata = readUpdateInfo((await download(`${brand.updates.channels.beta}.yml`)).toString("utf8"));
+    const metadata = readUpdateInfo((await download(manifest)).toString("utf8"));
     assert.equal(metadata.version, version); assert.equal(metadata.path, installer);
     assert.ok(Array.isArray(metadata.files) && metadata.files.length === 1);
     const file = metadata.files[0]; assert.equal(file.url, installer); assert.equal(file.sha512, metadata.sha512);
