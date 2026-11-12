@@ -711,6 +711,7 @@ applied to an existing document; its original and source document remain intact.
 CLI instructions now serve terminal continuation. Before Codex launch the Host
 prepends a private `<assistant cwd>/bin/<CLI identity>` launcher for its own CLI to the child PATH,
 without changing Host/system/user PATH or optional Desktop CLI integration.
+Both providers also receive `LITZIO_ASSISTANT_CLI`, the absolute launcher path; instructions use it when a login shell resets PATH and `litzio` cannot be found. Shells that remove this variable too are outside this fallback.
 Source, distributed HTTP and packaged Desktop resolve their own runtime/CLI and
 retain source versus installed catalog classification. Desktop supplies its
 bundled CLI location explicitly and uses Electron RunAsNode only in the CLI
