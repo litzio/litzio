@@ -398,7 +398,11 @@ export class AssistantConversations {
           settings = { ...settings, permissionMode: "opened-folders" };
           conversation.permissionMode = "opened-folders";
           conversation.permissionFallback = true;
-          const scope = this.scopes.get(conversation.id); if (scope) scope.permissionMode = "opened-folders";
+          const scope = this.scopes.get(conversation.id);
+          if (scope) {
+            scope.permissionMode = "opened-folders";
+            scope.folders = documentFolders(folders, "opened-folders", this.access);
+          }
           if (this.plugins) { const directory = this.plugins.authoringPath(); if (directory) writableRoots.push(directory); }
           this.save(conversation);
           result = await start();

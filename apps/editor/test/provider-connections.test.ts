@@ -895,6 +895,7 @@ test("display requests report absent windows, expire honestly, cancel and reject
 
 test("Codex requirements disable full access; policy rejection retries once before execution and remembers reduced access", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-policy-"));
+  const opened = path.join(root, "opened"); mkdirSync(opened);
   const connection = new ProviderConnections(root, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const original = connection.client.request.bind(connection.client);
@@ -915,7 +916,7 @@ test("Codex requirements disable full access; policy rejection retries once befo
   assert.equal((await connection.models()).fullAccessAllowed, undefined);
   const conversations = new AssistantConversations(connection, null);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
-  const input = { message: "Keep this conversation", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort };
+  const input = { message: "Keep this conversation", folders: [opened], model: settings.model, reasoningEffort: settings.reasoningEffort };
   const conversation = await conversations.send(input, settings);
   await conversations.interrupt(conversation.id);
   const before = conversation.turns.length;
@@ -925,6 +926,15 @@ test("Codex requirements disable full access; policy rejection retries once befo
   assert.equal(retry.permissionMode, "opened-folders");
   assert.equal(retry.permissionFallback, true);
   assert.deepEqual(policies, ["workspaceWrite", "dangerFullAccess", "workspaceWrite"]);
+  const outside = path.join(root, "fallback-outside.md");
+  const create = (file: string) => connection.client.request("fixture/tool", { threadId: retry.id, tool: "create_document", arguments: { path: file, title: "Fallback scope", blocks: [{ type: "paragraph", text: "Policy fallback" }] } });
+  const denied = await create(outside);
+  assert.equal(denied.result.success, false, "fallback Host writes must obey opened-folder scope");
+  assert.equal(JSON.parse(denied.result.contentItems[0].text).errorKind, "forbidden");
+  assert.equal(existsSync(outside), false, "a rejected Full access turn must not create a file outside opened folders");
+  const inside = path.join(opened, "fallback-inside.md");
+  assert.equal((await create(inside)).result.success, true, "fallback keeps legitimate opened-folder Host writes available");
+  assert.equal(existsSync(inside), true);
   await conversations.interrupt(retry.id);
   const restored = await new AssistantConversations(connection, null).resume(retry.id, { ...settings, permissionMode: "full-access" });
   assert.equal(restored.permissionMode, "opened-folders");
