@@ -496,6 +496,14 @@ This prior measurement was documented on 2026-10-16 in [the Host recovery verifi
 
 ## Official AI (#1150 ③)
 
+`assistant-result` waits for the tab Reload dialog's final focus on File actions after Undo
+before starting the result-card tooltip keyboard check. In queue run 43228142841, the
+Undo request counter had advanced while Reload was still completing: input events 40–42
+show the path label focused, then File actions taking focus 11ms later. Shift+Tab/Tab
+therefore traversed the toolbar instead of the path label. Console errors were empty.
+This readiness wait preserves the path tooltip, Undo and document assertions and their
+existing timeouts. The explicit Undo Reload is independent of automatic revision detection.
+
 `pnpm --filter @litzio/editor exec tsx --test test/assistant-host.test.ts test/provider-connections.test.ts` verifies direct daemon composition, shared HTTP/CLI settings, unavailable-provider refusal, retained conversations and owned process shutdown with fake app-server/ACP only. No paid model call is needed. `pnpm browser:test assistant assistant-result` checks settings, conversation and assistant tools; `pnpm browser:test assistant --screenshots` separately produces manual 1440/640px evidence. Removed plugin/Docling tests are archived with their feature, not skipped.
 
 #1443 / #1530: `assistant-question` covers question DOM, post-turn answers and history
