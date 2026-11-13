@@ -1,3 +1,5 @@
+import { availableHostCli } from "../host-cli.ts";
+import type { PluginCli } from "@litzio/plugin-sdk";
 import { installScreenDependencies } from "./screen-dependencies.ts";
 import { compileScreen, bundleScreens } from "./screen-code.ts";
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
@@ -72,11 +74,13 @@ export class PluginHost {
     this.redactionSecrets.get(id)!.set(name, value);
   }
   private access: FileAccess;
+  private cli?: PluginCli;
   private assistantSkills: PluginAssistantSkills;
   skillDisplayName(file: string) { return this.assistantSkills.displayName(file); }
   readonly authoringDirectory: string;
   private authoringRoot?: RootAccess;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore;  } = {}) {
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; } = {}) {
+    this.cli = options.cli === null ? undefined : options.cli ?? availableHostCli();
     this.assistantSkills = new PluginAssistantSkills(options.assistantDirectory ?? path.join(path.dirname(file), "assistant"));
     this.authoringDirectory = options.authoringDirectory ?? hostPaths().plugins;
     this.access = options.access ?? LOCAL_FILE_ACCESS;
@@ -208,7 +212,7 @@ export class PluginHost {
     const instance = await startPluginProcess(a.entry, a.manifest, structuredClone(r.settings), secrets, () => {
       this.loaded.delete(id); this.errors.set(id,"Plugin process failed; reload to recover");
       try { this.assistantSkills.clear(id); } catch { this.errors.set(id, "Plugin process failed; skill cleanup failed"); }
-    }, r.directory);
+    }, r.directory, this.cli);
     this.processes.set(id, instance);
     this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set(), screens });
     this.disabling.delete(id);
@@ -382,7 +386,7 @@ export class PluginHost {
             if (!candidate || this.processes.get(id) !== candidate) return;
             this.loaded.delete(id); this.errors.set(id,"Plugin process failed; reload to recover");
       try { this.assistantSkills.clear(id); } catch { this.errors.set(id, "Plugin process failed; skill cleanup failed"); }
-          }, directory);
+          }, directory, this.cli);
           statusSchema.parse(await candidate.status());
           await this.disable(id);
           this.installed[id] = { registrationId: previous?.registrationId ?? randomUUID(), directory, digest: a.digest, trusted: true, enabled: true, settings, operationNames: names };

@@ -1,3 +1,5 @@
+import { PLUGIN_CLI_SOURCE, PLUGIN_CLI_OPERATION, verifyPluginCli } from "../../../test/helpers/external-plugin.ts";
+import { availableHostCli, hostCli } from "../server/host-cli.ts";
 import {writeCodePluginManifest} from "../../../test/helpers/code-plugin.ts";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
@@ -1424,4 +1426,30 @@ test("bundled npm cache publishes complete archives, reuses them and retries int
   assert.notEqual(updated.entry,ready[0].entry);
   assert.equal(updated.extracted,true);
   assert.equal(readFileSync(updated.entry,"utf8"),"version two");
+});
+
+test("scaffolded Node plugins use the Host CLI and fail clearly without a launcher", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-cli-"));
+  const host = new PluginHost(path.join(root, "state.json"), {authoringDirectory:path.join(root,"plugins")});
+  const absent = new PluginHost(path.join(root, "absent.json"), {cli:null});
+  try {
+    assert.deepEqual(availableHostCli(), hostCli());
+    assert.equal(availableHostCli({packaged:true}), undefined);
+    assert.equal(availableHostCli({checkoutRoot:path.join(root,"missing")}), undefined);
+    await host.invoke("scaffold", {id:"fixture.cli"});
+    const directory = path.join(root,"plugins/fixture.cli");
+    const file = path.join(directory,"litzio-plugin.json");
+    const manifest = JSON.parse(readFileSync(file,"utf8")); manifest.operations=[PLUGIN_CLI_OPERATION];
+    writeFileSync(file,JSON.stringify(manifest));writeFileSync(path.join(directory,"host.mjs"),PLUGIN_CLI_SOURCE);
+    await host.invoke("install",{directory});
+    await verifyPluginCli(async args => (await host.invokeOperation("fixture.cli.run",{args})).result, root);
+    await absent.invoke("install",{directory});
+    assert.deepEqual((await absent.list())[0]!.status, {available:false,message:"This Host has no official CLI launcher"});
+    assert.equal((await absent.invokeOperation("fixture.cli.run",{args:["--version"]})).errorKind, "unavailable");
+    // Registration/enable and reload also transport the same optional descriptor.
+    await host.invoke("disable",{id:"fixture.cli"}); await host.invoke("enable",{id:"fixture.cli"});
+    assert.equal(((await host.invokeOperation("fixture.cli.run",{args:["--version"]})).result as any).status,0);
+    await host.invoke("reload",{id:"fixture.cli"});
+    assert.equal((await host.list())[0]!.status!.available,true);
+  } finally { await Promise.all([host.close(),absent.close()]);rmSync(root,{recursive:true,force:true}); }
 });
