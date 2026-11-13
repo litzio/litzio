@@ -218,7 +218,7 @@ jobs:
         include:
           - os: ubuntu-latest
             group: all
-            scenarios: http-host http-plugins workspace-review plugin-jobs plugin-views plugin-screen-code
+            scenarios: http-host http-plugins plugin-screen-code
             container:
               image: mcr.microsoft.com/playwright:v1.64.0-noble
               options: --ipc=host --init
@@ -271,10 +271,10 @@ jobs:
         include:
           - os: windows-latest
             group: host
-            scenarios: http-host http-plugins workspace-review
+            scenarios: http-host http-plugins
           - os: windows-latest
             group: plugins
-            scenarios: plugin-jobs plugin-views plugin-screen-code
+            scenarios: plugin-screen-code
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

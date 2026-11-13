@@ -196,7 +196,7 @@ async (page, { expect, showNotifications, openDocument }) => {
   const settingsHistory = [];
   // Native history is document-wide even when the key starts in a modal input.
   // After undoing its own edit, another Undo must not reach the outside textarea.
-  // The removed Docling input is replaced by the official model search field.
+  // The official model search field keeps native input Undo separate from document Undo.
   // Fake reads keep this native-history regression independent of provider installation.
   await page.route('**/api/assistant/settings*', route => route.fulfill({json:{provider:'codex',model:'fixture',reasoningEffort:'low',permissionMode:'read-only'}}));
   await page.route('**/api/assistant/environment*', route => route.fulfill({json:{cwd:'/fixture',instructions:'/fixture/AGENTS.md',skills:[]}}));

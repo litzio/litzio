@@ -1,8 +1,9 @@
+import {writeCodePluginManifest} from "../../../test/helpers/code-plugin.ts";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { canonicalFilePath } from "../server/file-access.ts";
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
-import { rowSchema, completedReviewSchema, validateManifest } from "@litzio/plugin-sdk";
+import { validateManifest } from "@litzio/plugin-sdk";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
@@ -12,685 +13,36 @@ import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
 import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse, serialize, updateNodeTextAtPath, insertParagraph } from "@litzio/core";
-import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
 import { createHash, randomUUID } from "node:crypto";
-import { executeReadReviewDocument } from "../server/assistant-plugin-tools.ts";
 import { PluginAssistantSkills } from "../server/plugins/assistant-skills.ts";
 
-// Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
-// SDK runtime admission, official K1 storage and the browser result boundary.
-import {doclingConverter} from "./docling-fixture.ts";
+// Host lifecycle and public-operation tests stay in-process.
+// HTTP plugin scenarios cover browser registration/settings/secret integration.
 
-const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
 
-test("Docling official 1.10.0 schema and source lenses retain every fixed LSR/NIST picture and table", async () => {
-  const {validateDoclingDocument,convertDocument,extractReviewLenses,emptyReview,readReview} = await doclingConverter();
-  for (const name of ["lsr-1.1","nist-sp1108r4"]) {
-    const bytes=readFileSync(new URL(`../../../community-plugins/docling/sample/${name}/converted/document.json`,import.meta.url));
-    const doc=JSON.parse(bytes.toString()), before=JSON.stringify(doc), revision=createHash("sha256").update(bytes).digest("hex");
-    assert.equal(validateDoclingDocument(doc),doc);
-    assert.throws(()=>validateDoclingDocument({...doc,version:"1.9.0"}),/Unsupported DoclingDocument version/);
-    const invalid=structuredClone(doc);delete invalid.name;
-    assert.throws(()=>validateDoclingDocument(invalid),/Invalid DoclingDocument schema/);
-    const badCell=structuredClone(doc);badCell.tables[0].data.table_cells[0].start_row_offset_idx="0";
-    assert.throws(()=>validateDoclingDocument(badCell),/Invalid DoclingDocument schema/);
-    const {report}=await convertDocument(doc,revision), extracted=extractReviewLenses(doc,revision,report);
-    assert.deepEqual(Object.keys(extracted.lenses),["headings","headers-footers","captions","footnotes","lists","page-boundaries","formulas-tables"]);
-    assert.deepEqual(extracted.inventory.requiredChecks.map((item:any)=>item.id).sort(),[...doc.pictures,...doc.tables].map(item=>item.self_ref).sort());
-    assert.deepEqual(extracted.lenses.headings.official.map((item:any)=>item.self_ref).sort(),[...doc.texts,...doc.tables].filter(item=>["title","section_header","document_index"].includes(item.label)).map(item=>item.self_ref).sort());
-    assert.deepEqual(extracted.lenses["formulas-tables"].official.tables[0].table_cells.map(({index,...cell}:any)=>cell),doc.tables[0].data.table_cells);
-    assert.equal(extracted.lenses["page-boundaries"].official.length,Object.keys(doc.pages).length-1);
-    for(const kind of extracted.inventory.lenses.filter((kind:any)=>kind.required)) {
-      assert.equal(kind.extracted,true);
-      assert.deepEqual(kind.scope,extracted.lenses[kind.kind].scope);
-      assert.ok(kind.scope.targets.every((ref:string)=>extracted.inventory.targets.includes(ref)));
-    }
-    assert.deepEqual(extracted.inventory.lenses.find((kind:any)=>kind.kind==="source-evidence"),{kind:"source-evidence",required:false,scope:{pages:extracted.inventory.pages,targets:extracted.inventory.targets},extracted:false});
-    assert.equal(JSON.stringify(doc),before,"schema validation and lens extraction do not normalize source bytes");
-    const record={...emptyReview(),lenses:extracted.lenses};record.ledger.inventory=extracted.inventory;
-    delete record.lenses.headings;
-    assert.equal(readReview(Buffer.from(JSON.stringify(record))).ledger.inventory.lenses.find((kind:any)=>kind.kind==="headings").extracted,false,"lost stored material cannot report successful empty extraction");
-    const dangling=structuredClone(doc);dangling.tables[0].captions=[{$ref:"#/texts/999999"}];
-    assert.throws(()=>extractReviewLenses(dangling,revision,report),/Unresolved lens reference/);
-  }
-  const doc=doclingFixture(), {report}=await convertDocument(doc,"a".repeat(64));
-  // Even source-only furniture, unsupported and excluded items remain human obligations.
-  doc.pictures.push({self_ref:"#/pictures/1",label:"picture",content_layer:"furniture"},{self_ref:"#/pictures/2",label:"picture"});
-  report.items.find((item:any)=>item.self_ref==="#/tables/0").status="excluded";
-  const {inventory}=extractReviewLenses(doc,"a".repeat(64),report);
-  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/tables/0").disposition,"excluded");
-  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/pictures/1").disposition,"furniture");
-  assert.equal(inventory.requiredChecks.find((item:any)=>item.id==="#/pictures/2").disposition,"unsupported");
-});
 
-test("Docling comparison uses immutable provenance, final targets and portable progress only", async () => {
-  const {convertDocument,comparison,setProgress,emptyReview} = await doclingConverter();
-  const doc = doclingFixture(), original = JSON.stringify(doc), record = emptyReview();
-  doc.texts[1].prov = [{page_no:1,charspan:[0,1],bbox:{l:10,t:800,r:100,b:780,coord_origin:"BOTTOMLEFT"}}];
-  doc.texts[0].prov = [{page_no:1,charspan:[0,1],bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
-  const extraRegions = [doc.texts[2], doc.texts[4], doc.texts[5], doc.texts[6], doc.texts[7], doc.texts[8], doc.tables[0], doc.pictures[0]];
-  for (const item of extraRegions) item.prov = doc.texts[0].prov;
-  const authored = await convertDocument(doc,"source");
-  const material = completedReviewSchema.parse(comparison({document:doc},record,authored.report,{generation:"generation",sourceRevision:"revision",result:{revision:authored.report.documentRevision}}));
-  assert.deepEqual(material.pages[0].regions.find(r=>r.id === "region-texts-1-0")!.bbox,[10,42,100,62]);
-  assert.equal(material.pages[0].regions.find(r=>r.id === "region-texts-1-0")!.category, "section_header");
-  assert.equal(material.pages[0].regions.find(r=>r.id === "region-texts-1-0")!.kind, "heading");
-  for (const [id, kind] of [["texts-2", "list"], ["texts-4", "text"], ["texts-5", "code"], ["texts-6", "formula"], ["texts-7", "text"], ["tables-0", "table"], ["pictures-0", "picture"], ["texts-8", undefined]]) {
-    assert.equal(material.pages[0].regions.find(r=>r.id === `region-${id}-0`)!.kind, kind);
-  }
-  assert.ok(material.pages[0].regions.some(r=>r.status === "decoration"));
-  assert.ok(material.mapping!.entries.some(e=>e.targets.length === 0));
-  assert.ok(material.mapping!.entries.some(e=>e.targets.some(t=>t.documentRevision === authored.report.documentRevision)));
-  setProgress(doc,record,{checkedPages:[1],lastPage:1});
-  assert.deepEqual(record,{...emptyReview(),checkedPages:[1],lastPage:1});
-  assert.throws(()=>setProgress(doc,record,{checkedPages:[2],lastPage:2}),/Invalid/);
-  assert.throws(()=>setProgress(doc,record,{checkedPages:[1,1],lastPage:1}),/Invalid/);
-  delete doc.texts[1].prov; delete doc.texts[0].prov;
-  for (const item of extraRegions) delete item.prov;
-  assert.equal(JSON.stringify(doc),original);
-});
 
-test("Docling converter preserves source identity, native blocks, shared targets and item losses without mutating original", async () => {
-  const { convertDocument } = await doclingConverter();
-  const doc = doclingFixture(), before = JSON.stringify(doc);
-  const { source, report } = await convertDocument(doc, "a".repeat(64));
-  assert.equal(JSON.stringify(doc), before);
-  const blocks = getEditableDocument(parse(source)).blocks;
-  assert.ok(source.includes("{table}"));
-  assert.ok(source.includes("{figure}"));
-  assert.ok(source.includes("print(1)"));
-  assert.ok(source.includes("E = mc^2"));
-  assert.ok(!source.includes("RUNNING HEADER"));
-  const item = (ref: string) => report.items.find((item: any) => item.self_ref === ref);
-  assert.equal(report.sourceHash, "a".repeat(64));
-  assert.equal(item("#/texts/0").status, "furniture");
-  assert.equal(item("#/texts/0").targets.length, 0);
-  assert.deepEqual(item("#/pictures/0").targets, item("#/texts/7").targets);
-  assert.deepEqual(item("#/tables/0").cells[0].positions, [{ row: 0, column: 0 }, { row: 0, column: 1 }]);
-  assert.deepEqual(item("#/tables/0").cells[0].targets, [item("#/tables/0").targets[0]]);
-  assert.deepEqual(item("#/texts/9").targets, item("#/tables/0").targets);
-  for (const entry of report.items) for (const target of entry.targets) {
-    assert.equal(target.documentRevision, report.documentRevision);
-    assert.equal(target.documentHash, report.documentHash);
-    assert.ok(blocks.some(block => JSON.stringify(block.path) === JSON.stringify(target.path)));
-  }
-  for (const kind of ["merged-cell", "multi-row-header", "nested-list", "picture-image", "unsupported"]) assert.ok(report.losses.some((loss: any) => loss.kind === kind));
-  assert.match(report.summary, /병합 칸 반복 1/);
-  assert.match(report.summary, /다단 헤더 계층 소실 1/);
-  assert.doesNotMatch(report.summary, /(?:^| · )표 \d|(?:^| · )[^·]+ 0(?: · |$)/);
-  const plain = { name:"plain", version:"1.10.0", schema_name: "DoclingDocument", body: { self_ref:"#/body", children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", orig:"Plain paragraph", text: "Plain paragraph" }] };
-  assert.equal((await convertDocument(plain, "a".repeat(64))).report.summary, "");
-  const roles = doclingFixture();
-  roles.tables[0].data.table_cells[0].row_header = true;
-  roles.texts[2].marker = "a)";
-  const roleSummary = (await convertDocument(roles, "a".repeat(64))).report.summary;
-  assert.match(roleSummary, /표 셀 역할 소실 1/);
-  assert.match(roleSummary, /목록 표식 미보존 1/);
-  // Adjacent list items intentionally share the first item's native list target.
-  doc.groups[1].children = [{ $ref: "#/texts/2" }, { $ref: "#/texts/3" }]; doc.groups.splice(2);
-  doc.texts[3].marker = "4.";
-  const combined = await convertDocument(doc, "a".repeat(64));
-  assert.deepEqual(combined.report.items.find((i: any) => i.self_ref === "#/texts/2").targets, combined.report.items.find((i: any) => i.self_ref === "#/texts/3").targets);
-  assert.equal((await convertDocument(doc, "a".repeat(64))).source, combined.source);
-});
 
-test("Docling caption numbers are conservative, kind-specific and duplicate-safe", async () => {
-  const { readCaptionNumber, convertDocument } = await doclingConverter();
-  for (const [text, kind, number, caption] of [
-    ["Figure 6: Source caption", "figure", "6", "Source caption"], ["Fig. 2 Example", "figure", "2", "Example"],
-    ["그림 3", "figure", "3", ""], ["Table 2-1. Values", "table", "2-1", "Values"], ["표 4: 값", "table", "4", "값"],
-  ]) assert.deepEqual(readCaptionNumber(text, kind), { enumerator: number, caption });
-  for (const text of ["Figure IV: Roman", "Figure A: Letter", "Table 2: Wrong kind", "Figure 2.1a: Suffix", "Figure 2/3: Ambiguous", "Figure 2 - 1: Ambiguous", "Figure 2 . 1: Ambiguous", "No source number"] ) {
-    const value = readCaptionNumber(text, "figure");
-    assert.equal(value.caption, text); assert.equal(value.enumerator, undefined); assert.ok(value.reason);
-  }
-  const doc = doclingFixture();
-  const ref = `#/texts/${doc.texts.length}`;
-  doc.texts.push({ self_ref: ref, label: "caption", orig:"Figure 1: Duplicate", text: "Figure 1: Duplicate" });
-  doc.pictures.push({ self_ref: "#/pictures/1", label: "picture", captions: [{ $ref: ref }], children: [{ $ref: ref }] });
-  doc.body.children.push({ $ref: "#/pictures/1" });
-  const converted = await convertDocument(doc, "a".repeat(64));
-  const figures = getEditableDocument(parse(converted.source)).blocks.filter((b: any) => b.block === "figure");
-  assert.ok(figures.every((b: any) => b.enumerator === undefined && b.enumerated === false));
-  assert.equal(converted.report.losses.filter((l: any) => l.kind === "caption-number").length, 2);
-  assert.match(converted.source, /Figure 1: Original caption/);
-});
 
-test("Docling images use shared authoring and reports bind only to final Host targets", async () => {
-  const { convertDocument } = await doclingConverter();
-  const doc = doclingFixture(), png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=";
-  doc.pictures[0].image = { uri: "data:image/png;base64," + png, mimetype: "image/png", dpi: 72, size: { width: 1, height: 1 } };
-  const before = JSON.stringify(doc), value = await convertDocument(doc, "a".repeat(64));
-  assert.equal(JSON.stringify(doc), before);
-  assert.deepEqual(value.document.images, [{ key: "#/pictures/0", mime: "image/png", base64: png }]);
-  assert.ok(!value.report.losses.some((l: any) => l.kind === "picture-image"));
-  const { authorDocument } = await import("@litzio/core");
-  const final = await authorDocument(value.document.authoring, { "#/pictures/0": "./assets/final.png" });
-  const report = value.bindReport({ inputs: final.inputs, revision: final.documentRevision });
-  assert.equal(report.documentRevision, final.documentRevision);
-  assert.ok(report.items.flatMap((i: any) => i.targets).every((t: any) => t.documentRevision === final.documentRevision));
-  assert.throws(() => value.bindReport({ inputs: [], revision: final.documentRevision }), /Final Host/);
-  const wrong = structuredClone(final.inputs); wrong[0].key = "wrong";
-  assert.throws(() => value.bindReport({ inputs: wrong, revision: final.documentRevision }), /Final Host/);
-});
 
-test("Docling converter refuses whole input on limits and invalid graph/grid instead of truncating", async () => {
-  const { convertDocument } = await doclingConverter();
-  const rejects = async (change: (doc: any) => void, reason: RegExp) => {
-    const doc = doclingFixture(); change(doc);
-    await assert.rejects(convertDocument(doc, "a".repeat(64)), (error: any) => reason.test(error.conversionReason));
-  };
-  await rejects(d => { d.tables[0].data.num_rows = 101; }, /100 rows/);
-  await rejects(d => { d.tables[0].data.num_cols = 33; }, /32 columns/);
-  await rejects(d => { d.tables[0].data.table_cells.push(d.tables[0].data.table_cells[0]); }, /Overlapping/);
-  await rejects(d => { d.tables[0].data.table_cells[0].col_span = 1; }, /span/);
-  await rejects(d => { d.body.children.push(d.body.children[0]); }, /Duplicate or cyclic/);
-  await rejects(d => { d.body.children[0].$ref = "#/texts/999"; }, /Invalid source reference/);
-  await rejects(d => { d.texts[4].text = "x".repeat(16385); }, /16384/);
-  await rejects(d => {
-    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", orig:"Orphan", text: "Orphan" });
-  }, new RegExp(`input limit.*${limits.inputs}`));
-  await rejects(d => {
-    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", orig:"x".repeat(16000), text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
-  }, new RegExp(`byte limit.*${limits.bytes}`));
-});
-test("Docling envelope keeps original PDF/JSON hashes independent of the reserved opaque review entry", async () => {
-  const archive = await doclingConverter();
-  const { PDF_PROFILE } = await doclingConverter();
-  const sourceBytes = Buffer.from("%PDF-1.4 synthetic fixture");
-  const bytes = archive.createDoclingArchiveFromResult({ sourceName: "fixture.pdf", sourceBytes, serverVersions: { "docling-serve": "1.32.0" }, openapiBytes: Buffer.from("{}"), profile: PDF_PROFILE,
-    task: { id: "fixture", startedAt: "2026-11-09T00:00:00Z", completedAt: "2026-11-09T00:01:00Z" }, resultBody: Buffer.from(JSON.stringify({ status: "success", errors: [], document: { json_content: doclingFixture() } })) });
-  const original = archive.readDoclingArchive(bytes);
-  assert.ok(original.sourcePdf.equals(sourceBytes));
-  assert.ok(!bytes.includes(Buffer.from("pages/1.png")));
-  const reviewBytes = Buffer.from('{"opaque":"future review shape"}');
-  const withReservedEntry = archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes, reviewBytes });
-  const reread = archive.readDoclingArchive(withReservedEntry);
-  const manifestBytes = Buffer.from(JSON.stringify(original.manifest) + "\n");
-  const formatted = archive.readDoclingArchive(archive.createDoclingArchive({manifest:original.manifest,manifestBytes,documentJson:original.documentJson,sourceBytes,reviewBytes}));
-  const saved = archive.readDoclingArchive(archive.rewriteReview(formatted,Buffer.from(JSON.stringify({patches:[],checkedPages:[1],lastPage:1,approval:null}))));
-  assert.deepEqual(saved.manifestBytes,manifestBytes); assert.deepEqual(saved.sourcePdf,original.sourcePdf); assert.equal(saved.documentJson,original.documentJson);
-  assert.deepEqual(reread.manifest, original.manifest);
-  assert.equal(reread.documentJson, original.documentJson);
-  assert.ok(reread.reviewBytes.equals(reviewBytes));
-  assert.throws(() => archive.rewriteReview({...formatted,documentJson:formatted.documentJson+" "},reviewBytes), /Original changed/);
-  assert.throws(() => archive.rewriteReview({...formatted,sourcePdf:Buffer.from("%PDF-tampered")},reviewBytes), /Original changed/);
-  assert.throws(() => archive.rewriteReview({...formatted,manifestBytes:Buffer.from("{}")},reviewBytes), /Original changed/);
-  assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes: Buffer.from("%PDF-tampered"), reviewBytes }), /Original PDF mismatch/);
-  assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson + " ", sourceBytes, reviewBytes }), /Invalid DoclingDocument/);
-});
 
-test("Docling saved document corrections preserve independent proposals, mapping, Undo and atomic storage", async t => {
-  const {workspaceOperation,initializeWorkspace}=await doclingConverter();
-  const archive=await doclingConverter();
-  const {PDF_PROFILE}=await doclingConverter();
-  const digest=(value:string|Buffer)=>createHash("sha256").update(value).digest("hex");
-  const root=mkdtempSync(path.join(os.tmpdir(),"litzio-workspace-")),file=path.join(root,"source.docling");
-  const document=doclingFixture();
-  document.pictures[0].image={mimetype:"image/png",dpi:72,size:{width:1,height:1},uri:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII="};
-  document.pages[1].image=document.pictures[0].image;
-  document.texts[1].text=document.texts[4].text; // Earlier identical text must never receive the later paragraph correction.
-  document.texts[4].prov=[{page_no:1,charspan:[0,1],bbox:{l:10,t:10,r:100,b:20,coord_origin:"TOPLEFT"}}];
-  const original=await initializeWorkspace(archive.createDoclingArchiveFromResult({sourceName:"sample.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
-    task:{id:"workspace",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"partial_success",errors:[{error_message:"Page 1 failed to parse."}],document:{json_content:document}}))}));
-  writeFileSync(file,original);
-  const access=new RootAccess([root]);let fail="",hold:(()=>void)|undefined,entered:(()=>void)|undefined;
-  const {PluginReviews}=await import("../server/plugins/reviews.ts");let reviews!:InstanceType<typeof PluginReviews>;
-  const service=()=>{
-    reviews=new PluginReviews(access,()=>({id:"compare",title:"Compare",read:{operation:"fixture.provider",version:1}}),async()=>({}));
-    return new GeneratedDocuments(access,()=>({operation:"fixture.provider",comparison:"compare",workspace:true,version:1,assertCurrent(){}}),async(_op,raw:any)=>{
-      if(raw.mode===fail)throw new Error("Injected provider failure");
-      const result=await workspaceOperation(raw);
-      if(raw.mode==="workspace-prepare" && entered){entered();await new Promise<void>(resolve=>{hold=resolve;});}
-      if(fail==="race" && raw.mode==="workspace-prepare")writeFileSync(file,original);
-      if(fail==="mixed" && raw.mode==="workspace-read" && raw.file!==file && result.snapshot)result.snapshot.inputs.find((input:any)=>input.targets.length).targets[0].documentHash="0".repeat(64);
-      return {result};
-    },(...args)=>reviews.publish(...args),input=>reviews.execute(input),()=>[{plugin:"fixture",job:"import",accept:[".docling"]}]);
-  };
-  let host=service(),sequence=0;
-  const base={root,workspace:"source.docling",plugin:"fixture",job:"import"};
-  const read=()=>host.execute({...base,action:"workspace-read"});
-  const write=(action:string,extra={},baseline=digest(readFileSync(file)),requestId:string=randomUUID())=>host.execute({...base,action,baseline,requestId,...extra});
-  const human={actor:"person",reason:"Compared the exact original and current document",confirmed:true};
-  const change=(value:unknown,baseline?:string,requestId?:string)=>write("workspace-review-change",{change:value},baseline,requestId);
-  const propose=async(operations:any[],before:any[],after:any[],reason="manual",regions:any[]=[])=>{
-    const state=await read(),id=`g${++sequence}`;
-    const targets=operations.map((op,index)=>({id:`${id}-${index}`,locator:op.type==="insert"?{anchorPath:op.anchorPath}:{self_ref:op.self_ref,...(op.cell===undefined?{}:{cell:op.cell})},pages:[1],regions,before:[before[index]],
-      evidence:[{observation:"Compared source and current target",materialRef:"page-1",materialHash:digest(document.pages[1].image.uri),inspector:"human",scope:{pages:[1],targets:[`${id}-${index}`]}}],
-      patch:{expectedBefore:[before[index]],expectedContentRevision:state.documentRevision,operations:[op],after:[after[index]],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]}));
-    const group={id,reasonCode:reason,reason:"Observed difference",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:archive.readDoclingArchive(readFileSync(file)).manifest.document.sha256,contentRevision:state.documentRevision,
-      createdAt:new Date().toISOString(),runId:id,representativeTargetId:targets[0].id,representativeReason:"Exact target",splitFrom:null,targets};
-    return {group,result:await change({kind:"groups-propose",groups:[group]})};
-  };
-  const decide=(kind:string,group:any,baseline?:string,requestId?:string)=>change({kind,groupId:group.id,targetIds:group.targets.map((target:any)=>target.id),human,resolvesIssue:true},baseline,requestId);
-  const unchangedSources=()=>{const current=archive.readDoclingArchive(readFileSync(file)),initial=archive.readDoclingArchive(original);for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(current[key],initial[key]);};
-  try {
-    // Reviewer regression: deleting A and appending D must not rebind A/B/C evidence to B/C/D.
-    const abc=structuredClone(document), refs:string[]=[];
-    for(const text of ["A","B","C"]){const index=abc.texts.length,self_ref=`#/texts/${index}`;refs.push(self_ref);abc.texts.push({...structuredClone(abc.texts[4]),self_ref,parent:{$ref:"#/body"},children:[],label:"text",text,orig:text});}
-    abc.body.children=refs.map($ref=>({$ref}));
-    const abcBytes=await initializeWorkspace(archive.createDoclingArchiveFromResult({sourceName:"abc.pdf",sourceBytes:Buffer.from("%PDF-synthetic"),serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
-      task:{id:"abc",startedAt:"2026-11-10T00:00:00Z",completedAt:"2026-11-10T00:01:00Z"},resultBody:Buffer.from(JSON.stringify({status:"success",errors:[],document:{json_content:abc}}))}));
-    writeFileSync(file,abcBytes);
-    const abcOpened=await read();assert.deepEqual(abcOpened.document.blocks.map((b:any)=>b.text),["A","B","C"]);
-    const [aPath,bPath,cPath]=abcOpened.document.blocks.map((b:any)=>b.path);
-    const contextRevision=abcOpened.contentRevision;
-    const textOnly=await write("workspace-save",{edits:{paragraphs:[{path:aPath,content:[{kind:"text",text:"Edited A"}]}],order:[aPath,bPath,cPath].map(path=>({path,part:0}))}});
-    assert.equal(textOnly.receipt.outcome,"success",JSON.stringify(textOnly));assert.equal(textOnly.document.blocks[0].text,"Edited A");
-    const textReport=JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
-    for(const [index,ref] of refs.entries())assert.deepEqual(textReport.items.find((item:any)=>item.self_ref===ref).targets.map((target:any)=>target.path),[abcOpened.document.blocks[index].path]);
-    const scenarios=[
-      {name:"same-content delete/insert",input:{edits:{deletes:[aPath],inserts:[{block:"paragraph",content:[{kind:"text",text:"A"}]}],order:[{insert:0},{path:bPath,part:0},{path:cPath,part:0}]}},texts:["A","B","C"]},
-      {name:"identical source without lineage",input:{source:abcOpened.snapshot.source},texts:["A","B","C"]},
-      {name:"same-count delete/insert",input:{edits:{deletes:[aPath],inserts:[{block:"paragraph",content:[{kind:"text",text:"D"}]}],order:[{path:bPath,part:0},{path:cPath,part:0},{insert:0}]}},texts:["B","C","D"]},
-      {name:"reorder",input:{edits:{order:[{path:bPath,part:0},{path:cPath,part:0},{path:aPath,part:0}]}},texts:["B","C","A"]},
-      {name:"split/merge",input:{edits:{merges:[{paths:[aPath,bPath],parts:[[{kind:"text",text:"AB"}]]}],splits:[{path:cPath,parts:[[{kind:"text",text:"C1"}],[{kind:"text",text:"C2"}]]}],order:[{path:aPath,part:0},{path:cPath,part:0},{path:cPath,part:1}]}},texts:["AB","C1","C2"]},
-      {name:"source replacement",input:{source:serialize(updateNodeTextAtPath(parse(abcOpened.snapshot.source),aPath,"A","D"))},texts:["D","B","C"]},
-    ];
-    for(const scenario of scenarios){
-      writeFileSync(file,abcBytes);host=service();
-      // An older successful scope report must not survive lost correspondence as current success.
-      assert.equal((await change({kind:"inspection",records:abcOpened.ledger.inventory.lenses.map((lens:any)=>({runId:"before-direct",lens:lens.kind,contentRevision:contextRevision,scope:lens.scope,state:"no-issue",evidence:"Fixture source compared"})),comparisons:[{runId:"before-direct",contentRevision:contextRevision,scope:{pages:[1],targets:[]},state:"compared",selected:true,withdrawn:null}]})).receipt.outcome,"success");
-      const shifted=await write("workspace-save",scenario.input);
-      assert.equal(shifted.receipt.outcome,"success",JSON.stringify(shifted));assert.deepEqual(shifted.document.blocks.map((b:any)=>b.text),scenario.texts);
-      const shiftedArchive=archive.readDoclingArchive(readFileSync(file)),shiftedReport=JSON.parse(shiftedArchive.cacheEntries.get("current/snapshot.json").toString()).correspondence;
-      assert.ok(refs.every(ref=>!shiftedReport.items.find((item:any)=>item.self_ref===ref).targets.length),`${scenario.name} must clear original correspondence`);
-      const comparison=await host.execute({...base,action:"workspace-compare",pageNo:1});
-      assert.ok(comparison.snapshot.mapping.entries.every((entry:any)=>!entry.targets.length));
-      const originalRegions=comparison.snapshot.page.regions.filter((region:any)=>refs.some(ref=>region.id.includes(ref.slice(2).replaceAll("/","-"))));
-      assert.equal(originalRegions.length,refs.length);assert.ok(originalRegions.every((region:any)=>region.status==="unsupported"));
-      const scope=await host.execute({...base,action:"workspace-completion"});
-      assert.ok(scope.completion.notComparedPages.includes(1),"lost correspondence must be reported as not compared");
-      assert.ok(scope.completion.incomplete.includes("selected-comparison-incomplete"));
-      assert.ok(scope.ledger.inventory.lenses.filter((lens:any)=>lens.required && (lens.scope.pages.length || lens.scope.targets.length)).every((lens:any)=>scope.completion.incomplete.includes(`lens-incomplete:${lens.kind}`)));
-      const uncertain=scope.ledger.inspections.filter((record:any)=>record.runId===shifted.receipt.requestId);
-      assert.deepEqual(uncertain.map((record:any)=>record.lens),scope.ledger.inventory.lenses.map((lens:any)=>lens.kind));assert.ok(uncertain.every((record:any)=>record.state==="uncertain"));
-      assert.deepEqual(shiftedArchive.sourcePdf,archive.readDoclingArchive(abcBytes).sourcePdf);
-      const directGroup=shifted.ledger.groups.find((group:any)=>group.reasonCode==="human-direct-edit");
-      const undone=await decide("groups-undo",directGroup);
-      assert.equal(undone.receipt.outcome,"success",JSON.stringify(undone));
-      assert.equal(undone.ledger.groups.find((group:any)=>group.id===directGroup.id).targets[0].history.at(-1).action,"undone");
-      host=service();const reopened=await read();
-      assert.deepEqual(reopened.snapshot,abcOpened.snapshot,`${scenario.name}: Undo must persist the restored snapshot even at the same source revision`);
-      const restoredReport=JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
-      const originalReport=JSON.parse(archive.readDoclingArchive(abcBytes).cacheEntries.get("current/snapshot.json").toString()).correspondence;
-      assert.deepEqual(restoredReport,originalReport,`${scenario.name}: Undo must persist restored correspondence`);
-      assert.ok(reopened.completion.notComparedPages.includes(1),"Undo keeps the conservative scope report until reinspection");
 
-    }
-    writeFileSync(file,original);host=service();
-    assert.equal((await read()).cacheState,"current");assert.deepEqual(readFileSync(file),original);
-    const opened=await write("workspace-open");assert.equal(opened.cacheState,"current",JSON.stringify(opened));
-    // Actual CLI JSON reads use the common dispatcher and never prepare/write.
-    const {createServer}=await import("node:http"),{spawn}=await import("node:child_process"),{DAEMON_PROTOCOL}=await import("../shared/daemon-version.ts");
-    const server=createServer(async(req,res)=>{
-      res.setHeader("Content-Type","application/json");
-      if(req.url==="/daemon/health"){res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL}));return;}
-      try{let body="";for await(const chunk of req)body+=chunk;res.end(JSON.stringify(await host.execute(JSON.parse(body))));}
-      catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}
-    });
-    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
-    try{
-      const input=path.join(root,"cli-input.json"),baselineBytes=readFileSync(file);writeFileSync(input,JSON.stringify(base));
-      for(const action of ["lenses","required-checks"]){
-        const cli=spawn(process.execPath,["--import","tsx",path.resolve("../../packages/cli/src/cli.ts"),"review",action,"--input",input,"--host",`http://127.0.0.1:${(server.address() as {port:number}).port}`,"--json"],{windowsHide:true});
-        let stdout="",stderr="";cli.stdout.on("data",b=>stdout+=b);cli.stderr.on("data",b=>stderr+=b);
-        const exit=await new Promise<number|null>((resolve,reject)=>{cli.on("error",reject);cli.on("close",resolve);});
-        assert.equal(exit,0,stderr+stdout);const result=JSON.parse(stdout);
-        assert.equal(result.receipt.operation,`review.workspace-${action}`);
-        assert.deepEqual(result.lenses,opened.lenses);assert.deepEqual(result.ledger.inventory,opened.ledger.inventory);
-        assert.deepEqual(readFileSync(file),baselineBytes);
-      }
-    }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
-    assert.deepEqual(opened.record.failedPages,[1]);assert.match(opened.snapshot.source,/review-asset:/);assert.equal(opened.snapshot.images.length,1);
-    const firstCompare=await host.execute({...base,action:"workspace-compare"});assert.equal(firstCompare.state,"ready");
-    assert.equal(firstCompare.snapshot.documentHash,opened.documentRevision);
-    const cached=readFileSync(file);await write("workspace-open");assert.deepEqual(readFileSync(file),cached);
-    const progress=await write("workspace-progress",{progress:{checkedPages:[1],lastPage:1}});assert.deepEqual(progress.snapshot,opened.snapshot);
-    unchangedSources();
-    const missingTarget=await propose([{type:"kind",self_ref:"#/texts/999999",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"missing");
-    assert.equal(missingTarget.result.receipt.outcome,"failure");
-    // Owner-approved scope change: source-only furniture and embedded captions are rejected at propose, not approval.
-    for(const self_ref of ["#/texts/0","#/texts/7"]){
-      const before=readFileSync(file),{result}=await propose([{type:"kind",self_ref,kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}]);
-      assert.equal(result.receipt.outcome,"failure");assert.match(result.error,/독립 블록.*블록 삽입 교정을 사용/);assert.deepEqual(readFileSync(file),before);
-    }
-    const inspectionRevision=opened.contentRevision;
-    const required=opened.items.filter((item:any)=>["tables","pictures"].includes(item.kind)).map((item:any)=>({id:item.self_ref,kind:item.kind==="tables"?"table":"picture",locator:{self_ref:item.self_ref},pages:[1],regions:[],disposition:"supported",derivedFrom:[]}));
-    assert.equal((await change({kind:"required-checks",records:required.map((item:any)=>({targetIds:[item.id],contentRevision:inspectionRevision,result:"no-issue",method:"direct",human,runId:null,approvedRun:null,at:new Date().toISOString()}))})).receipt.outcome,"success");
-    const inspected=await change({kind:"inspection",records:[{runId:"original",lens:"headings",contentRevision:inspectionRevision,scope:opened.ledger.inventory.lenses.find((kind:any)=>kind.kind==="headings").scope,state:"no-issue",evidence:"Original immutable conversion inspected"},
-      {runId:"evidence",lens:"source-evidence",contentRevision:inspectionRevision,scope:{pages:[1],targets:["#/texts/4"]},state:"uncertain",evidence:"Auxiliary original-text candidate"}],comparisons:[]});
-    assert.equal(inspected.receipt.outcome,"success",JSON.stringify(inspected));
-    const textBefore=document.texts[4].text;
-    const a=await propose([{type:"text",self_ref:"#/texts/4",text:"Corrected canonical text"}],[textBefore],["Corrected canonical text"]);
-    const b=await propose([{type:"kind",self_ref:"#/texts/1",kind:"paragraph"}],[{kind:"heading",level:2}],[{kind:"paragraph"}]);
-    const stale=await propose([{type:"text",self_ref:"#/texts/4",text:"Stale replacement"}],[textBefore],["Stale replacement"],"other-reason");
-    const crossKind=await propose([{type:"kind",self_ref:"#/texts/4",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"cross-kind");
-    const crossText=await propose([{type:"text",self_ref:"#/texts/1",text:"Other title"}],[textBefore],["Other title"],"cross-text");
-    for(const proposal of [a,b,stale,crossKind,crossText])assert.equal(proposal.result.receipt.outcome,"success",JSON.stringify(proposal.result));
-    assert.equal((await decide("groups-approve",a.group)).receipt.outcome,"success");
-    host=service();const afterText=await read();assert.match(afterText.snapshot.source,/Corrected canonical text/);
-    assert.equal(afterText.document.blocks.find((block:any)=>block.block==="heading").text,textBefore);
-    const independent=await decide("groups-approve",b.group);assert.equal(independent.receipt.outcome,"success",JSON.stringify(independent));
-    assert.deepEqual(independent.ledger.inspections,inspected.ledger.inspections);assert.deepEqual(independent.ledger.checks,inspected.ledger.checks);
-    assert.deepEqual(independent.lenses,opened.lenses,"corrections preserve the original lens extraction");
-    assert.deepEqual(independent.ledger.inventory,opened.ledger.inventory);
-    const beforeStale=readFileSync(file);assert.equal((await decide("groups-approve",stale.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale);
-    for(const group of [crossKind.group,crossText.group]){assert.equal((await decide("groups-approve",group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale,"another field change at the same target makes a proposal stale");}
-    const followupKind=await propose([{type:"kind",self_ref:"#/texts/4",kind:"heading",level:3}],[{kind:"paragraph"}],[{kind:"heading",level:3}],"kind-followup");
-    const changedKind=await decide("groups-approve",followupKind.group);assert.equal(changedKind.receipt.outcome,"success",JSON.stringify(changedKind));
-    const beforeUndoConflict=readFileSync(file);assert.equal((await decide("groups-undo",a.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeUndoConflict,"Undo cannot cross another field change on its target");
-    assert.equal((await decide("groups-undo",followupKind.group)).receipt.outcome,"success");
-    for(const group of [b.group,a.group]){assert.equal((await decide("groups-undo",group)).receipt.outcome,"success");host=service();}
-    assert.equal((await read()).snapshot.source,opened.snapshot.source);
-    // Existing source text kinds keep their native meaning (list item, code, equation, figure/table caption).
-    for(const [self_ref,text] of [["#/texts/2","Reviewed list item"],["#/texts/5","print(3)"],["#/texts/6","x^2"],["#/texts/7","Reviewed figure caption"],["#/texts/9","Reviewed table caption"]]){
-      const before=(await read()).items.find((item:any)=>item.self_ref===self_ref).text;
-      const proposed=await propose([{type:"text",self_ref,text}],[before],[text],`native-${self_ref}`);
-      assert.equal(proposed.result.receipt.outcome,"success",JSON.stringify(proposed.result));
-      const approved=await decide("groups-approve",proposed.group);assert.equal(approved.receipt.outcome,"success",JSON.stringify(approved));
-      host=service();assert.equal((await read()).items.find((item:any)=>item.self_ref===self_ref).text,text);
-      assert.equal((await decide("groups-undo",proposed.group)).receipt.outcome,"success");assert.equal((await read()).snapshot.source,opened.snapshot.source);
-    }
-    // Cell correction updates every projected position of an original merged cell, not the first text match.
-    const cell=await propose([{type:"cell",self_ref:"#/tables/0",cell:0,text:"Approved merged cell"}],["Cell one"],["Approved merged cell"]);
-    assert.equal((await decide("groups-approve",cell.group)).receipt.outcome,"success");host=service();
-    const table=(await read()).document.blocks.find((block:any)=>block.block==="table");assert.deepEqual(table.rows[0].cells.map((cell:any)=>cell.text),["Approved merged cell","Approved merged cell"]);
-    assert.equal((await decide("groups-undo",cell.group)).receipt.outcome,"success");assert.equal((await read()).snapshot.source,opened.snapshot.source);
-    const state=await read(),excludeBefore=(ref:string)=>{
-      const current=archive.readDoclingArchive(readFileSync(file)),report=JSON.parse(current.cacheEntries.get("current/snapshot.json").toString()).correspondence;
-      const targets=report.items.find((item:any)=>item.self_ref===ref).targets;
-      return {excluded:false,blocks:JSON.parse(JSON.stringify(targets.map((target:any)=>state.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(target.path))),(key,value)=>key==="path"?undefined:value))};
-    };
-    const badExclusions=await propose(["#/texts/4","#/texts/5"].map(self_ref=>({type:"exclude",self_ref,excluded:true})),[excludeBefore("#/texts/4"),{excluded:false,blocks:[]}],[{excluded:true,blocks:[]},{excluded:true,blocks:[]}],"exclude-conflict");
-    const beforeBundle=readFileSync(file);assert.equal((await decide("groups-approve",badExclusions.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeBundle,"a later target conflict rolls back the entire exclusion bundle");
-    const exclusions=await propose(["#/texts/4","#/texts/5"].map(self_ref=>({type:"exclude",self_ref,excluded:true})),[excludeBefore("#/texts/4"),excludeBefore("#/texts/5")],[{excluded:true,blocks:[]},{excluded:true,blocks:[]}],"exclude");
-    assert.equal(exclusions.result.receipt.outcome,"success",JSON.stringify(exclusions.result));
-    const deleted=await decide("groups-approve",exclusions.group);assert.equal(deleted.receipt.outcome,"success",JSON.stringify(deleted));host=service();
-    const compared=await host.execute({...base,action:"workspace-compare"});
-    const deletedRegion="region-texts-4-0";assert.equal(compared.snapshot.page.regions.find((region:any)=>region.id===deletedRegion).status,"excluded");
-    assert.deepEqual(compared.snapshot.mapping.entries.find((entry:any)=>entry.sourceIds.includes(deletedRegion)).targets,[]);
-    const oldEquation=state.snapshot.inputs.flatMap((input:any)=>input.targets).find((target:any)=>target.path[0]===6);
-    assert.ok(oldEquation);assert.equal(deleted.document.blocks.find((block:any)=>block.block==="equation").path[0],4);
-    assert.equal((await decide("groups-undo",exclusions.group)).receipt.outcome,"success");host=service();assert.equal((await read()).snapshot.source,opened.snapshot.source);
-    unchangedSources();
-    {
-    // Inserts retain the anchor's content check while paths shift; evidence comes only from the proposal.
-    const anchor=opened.document.blocks.find((b:any)=>b.block==="paragraph"),anchorPath=anchor.path;
-    const evidenceRegion={page:1,bbox:[12,14,98,26],ref:"pdf-text-evidence"};
-    const heading={type:"insert",anchorPath,position:"before",kind:"heading",level:2,text:"Recovered header"};
-    const insertA=await propose([heading],[null],[{kind:"heading",level:2,text:heading.text}],"insert-heading",[evidenceRegion]);
-    const paragraph={type:"insert",anchorPath,position:"after",kind:"paragraph",text:"Recovered paragraph"};
-    const insertB=await propose([paragraph],[null],[{kind:"paragraph",text:paragraph.text}],"insert-paragraph");
-    const laterText=await propose([{type:"text",self_ref:"#/texts/4",text:"After insertion"}],[textBefore],["After insertion"],"after-insertion");
-    for(const kind of ["table","figure","list"]){
-      const before=readFileSync(file),bad=await propose([{...paragraph,kind}],[null],[{}],`unsupported-${kind}`);
-      assert.equal(bad.result.receipt.outcome,"failure");assert.deepEqual(readFileSync(file),before);
-    }
-    assert.equal(insertA.result.receipt.outcome,"success",JSON.stringify(insertA.result));
-    const insertionFailureBytes=readFileSync(file);fail="workspace-prepare";
-    assert.equal((await decide("groups-approve",insertA.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),insertionFailureBytes);fail="";
-    const insertedA=await decide("groups-approve",insertA.group);assert.equal(insertedA.receipt.outcome,"success",JSON.stringify(insertedA));host=service();
-    const correspondence=()=>JSON.parse(archive.readDoclingArchive(readFileSync(file)).cacheEntries.get("current/snapshot.json").toString()).correspondence;
-    assert.deepEqual(correspondence().insertions[0].regions,[evidenceRegion]);
-    const comparedInsert=await host.execute({...base,action:"workspace-compare"});assert.equal(comparedInsert.state,"ready",JSON.stringify(comparedInsert));
-    const insertedRegion=comparedInsert.snapshot.page.regions.find((r:any)=>r.id.startsWith("insert-"));
-    assert.deepEqual(insertedRegion.bbox,evidenceRegion.bbox);
-    const mappedInsert=comparedInsert.snapshot.mapping.entries.find((e:any)=>e.sourceIds.includes(insertedRegion.id));
-    assert.deepEqual(mappedInsert.targets[0].path,anchorPath);
-    assert.equal((await decide("groups-approve",insertB.group)).receipt.outcome,"success");host=service();
-    assert.equal(correspondence().insertions[1].status,"no-correspondence");assert.deepEqual(correspondence().insertions[1].regions,[]);
-    assert.equal((await decide("groups-approve",laterText.group)).receipt.outcome,"success");
-    assert.equal((await decide("groups-undo",laterText.group)).receipt.outcome,"success");
-    assert.equal((await decide("groups-undo",insertA.group)).receipt.outcome,"success");host=service();
-    assert.equal((await decide("groups-undo",insertB.group)).receipt.outcome,"success");assert.equal((await read()).snapshot.source,opened.snapshot.source);
-    // Editing the anchor changes before content; deletion never rebinds it to the next identical paragraph.
-    const staleInsert=await propose([paragraph],[null],[{kind:"paragraph",text:paragraph.text}],"stale-insert");
-    const sourceAnchor=correspondence().items.find((i:any)=>i.targets.length===1&&JSON.stringify(i.targets[0].path)===JSON.stringify(anchorPath));
-    const editAnchor=await propose([{type:"kind",self_ref:sourceAnchor.self_ref,kind:"heading",level:4}],[{kind:"paragraph"}],[{kind:"heading",level:4}],"anchor-kind");
-    assert.equal((await decide("groups-approve",editAnchor.group)).receipt.outcome,"success");
-    const beforeStale=readFileSync(file);assert.equal((await decide("groups-approve",staleInsert.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeStale);
-    assert.equal((await decide("groups-undo",editAnchor.group)).receipt.outcome,"success");
-    const anchorBlock=(await read()).document.blocks.find((b:any)=>JSON.stringify(b.path)===JSON.stringify(anchorPath));
-    const removeAnchor=await propose([{type:"exclude",self_ref:sourceAnchor.self_ref,excluded:true}],[{excluded:false,blocks:JSON.parse(JSON.stringify([anchorBlock],(key,value)=>key==="path"?undefined:value))}],[{excluded:true,blocks:[]}],"anchor-removal");
-    assert.equal((await decide("groups-approve",removeAnchor.group)).receipt.outcome,"success");
-    const beforeMissingAnchor=readFileSync(file);assert.equal((await decide("groups-approve",staleInsert.group)).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),beforeMissingAnchor);
-    assert.equal((await decide("groups-undo",removeAnchor.group)).receipt.outcome,"success");unchangedSources();
-    }
-    // A page-sized bundle may remove the whole body; Undo must still insert after native front matter.
-    const allSources=state.snapshot.inputs.filter((input:any)=>input.targets.length).map((input:any)=>input.key);
-    const allExcluded=await propose(allSources.map((self_ref:string)=>({type:"exclude",self_ref,excluded:true})),allSources.map(excludeBefore),allSources.map(()=>({excluded:true,blocks:[]})),"whole-body");
-    assert.equal(allExcluded.result.receipt.outcome,"success",JSON.stringify(allExcluded.result));
-    const empty=await decide("groups-approve",allExcluded.group);assert.equal(empty.receipt.outcome,"success",JSON.stringify(empty));assert.deepEqual(empty.document.blocks,[]);
-    const restored=await decide("groups-undo",allExcluded.group);assert.equal(restored.receipt.outcome,"success",JSON.stringify(restored));assert.equal(restored.snapshot.source,opened.snapshot.source);
-    // Provider/canonical validation/commit failures retain the complete document and judgment history.
-    const before=readFileSync(file),approval=()=>decide("groups-approve",a.group);
-    for(const mode of ["workspace-prepare","mixed"]){fail=mode;assert.equal((await approval()).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),before);}fail="";
-    // File commit resolves aliases (including Windows 8.3 temp roots) before rename.
-    const rename=fs.renameSync,commitTarget=canonicalFilePath(file),fault=t.mock.method(fs,"renameSync",(from:fs.PathLike,to:fs.PathLike)=>{if(to===commitTarget)throw Object.assign(new Error("Injected replacement failure"),{code:"EACCES"});return rename(from,to);});syncBuiltinESMExports();
-    try{const failed=await approval();assert.equal(failed.error,"Injected replacement failure");assert.equal(failed.receipt.outcome,"uncertain");assert.deepEqual(readFileSync(file),before);await assert.rejects(approval(),/Uncertain workspace/);await host.execute({action:"workspace-status",requestId:failed.receipt.requestId});await read();}finally{fault.mock.restore();syncBuiltinESMExports();}
-    assert.equal((await decide("groups-approve",a.group,opened.baseline)).receipt.outcome,"failure");
-    const requestId=randomUUID(),approved=await decide("groups-approve",a.group,digest(before),requestId);assert.equal(approved.saved,true,JSON.stringify(approved));
-    await assert.rejects(decide("groups-approve",a.group,approved.baseline,requestId),/Duplicate requestId/);
-    host=service();assert.equal((await host.execute({action:"workspace-status",requestId})).state,"unknown");assert.deepEqual((await read()).snapshot,approved.snapshot);
-    const assistant=await executeReadReviewDocument({generatedDocuments:host},{path:file},{folders:access,access,permissionMode:"read-only"});assert.equal(assistant.documentRevision,approved.documentRevision);assert.equal("snapshot" in assistant,false);
-    let signal!:()=>void;const waiting=new Promise<void>(resolve=>{signal=resolve;});entered=signal;
-    const pending=write("workspace-progress",{progress:{checkedPages:[],lastPage:1}});await waiting;
-    await assert.rejects(host.execute({...base,workspace:process.platform==="win32"?"SOURCE.DOCLING":"source.docling",action:"workspace-progress",baseline:digest(readFileSync(file)),requestId:randomUUID(),progress:{checkedPages:[],lastPage:1}}),/operation in progress/);
-    let readFinished=false;const queued=read().then(result=>{readFinished=true;return result;});await new Promise(resolve=>setImmediate(resolve));assert.equal(readFinished,false);entered=undefined;hold!();await pending;assert.equal((await queued).baseline,digest(readFileSync(file)));
-    const exportCheck=await host.execute({...base,action:"workspace-export-check",baseline:digest(readFileSync(file))});assert.equal(exportCheck.targetRevision,null);
-    const exported=await write("workspace-export",{mode:"current",targetRevision:null});assert.equal(exported.receipt.outcome,"success");assert.doesNotMatch(readFileSync(exported.path,"utf8"),/review-asset:/);
-    assert.equal((await write("workspace-export",{mode:"current",targetRevision:exported.revision})).receipt.outcome,"failure");
-    assert.equal((await write("workspace-export",{mode:"current",targetRevision:exported.revision,overwrite:true})).receipt.outcome,"success");unchangedSources();
-    const beforeRace=readFileSync(file);fail="race";assert.equal((await write("workspace-progress",{progress:{checkedPages:[],lastPage:1}})).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),original,"a competing writer is preserved");fail="";writeFileSync(file,beforeRace);
-    const currentBytes=readFileSync(file),previousContract=archive.readDoclingArchive(currentBytes),metadata=JSON.parse(previousContract.cacheEntries.get("current/snapshot.json").toString());
-    metadata.authoringContract="older-contract";metadata.cacheKey=digest(JSON.stringify([metadata.documentRevision,metadata.adapterVersion,metadata.authoringContract,metadata.images]));
-    const {integrity:_integrity,correspondence,...saved}=metadata;metadata.integrity=digest(JSON.stringify([previousContract.cacheEntries.get("current/document.md").toString(),saved,correspondence]));
-    previousContract.cacheEntries.set("current/snapshot.json",Buffer.from(JSON.stringify(metadata)));writeFileSync(file,archive.rewriteReview(previousContract,previousContract.reviewBytes));
-    const older=readFileSync(file);assert.equal((await write("workspace-open")).cacheState,"created-version");assert.equal((await write("workspace-regenerate")).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),older);writeFileSync(file,currentBytes);
-    // A stale/invalid authoritative document is readable where intact, but can never be rebuilt from source.
-    const intact=archive.readDoclingArchive(readFileSync(file));intact.cacheEntries.set("current/document.md",Buffer.from("corrupt"));writeFileSync(file,archive.rewriteReview(intact,intact.reviewBytes));
-    const corrupt=readFileSync(file);assert.equal((await read()).cacheState,"invalid");assert.equal((await write("workspace-regenerate")).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),corrupt);
-    const missing=archive.readDoclingArchive(corrupt);missing.cacheEntries.clear();writeFileSync(file,archive.rewriteReview(missing,missing.reviewBytes));
-    const missingBytes=readFileSync(file);assert.equal((await write("workspace-open")).receipt.outcome,"failure");assert.deepEqual(readFileSync(file),missingBytes,"missing authoritative document cannot be regenerated");
-  } finally {
-    for(const name of fs.readdirSync(root)){const target=path.join(root,name);if(fs.statSync(target).isDirectory()){for(const child of fs.readdirSync(target))fs.unlinkSync(path.join(target,child));fs.rmdirSync(target);}else fs.unlinkSync(target);}fs.rmdirSync(root);
-  }
-});
 
-test("fixed LSR document uses Core corrections through save, cold read, Undo and actual CLI JSON without conversion", async () => {
-  const {workspaceOperation,initializeWorkspace}=await doclingConverter();
-  const archive=await doclingConverter();
-  const {PDF_PROFILE}=await doclingConverter();
-  const root=mkdtempSync(path.join(os.tmpdir(),"litzio-fixed-lsr-")),file=path.join(root,"lsr.docling");
-  const sample=new URL("../../../community-plugins/docling/sample/lsr-1.1/",import.meta.url);
-  const json=readFileSync(new URL("converted/document.json",sample),"utf8"),pdf=readFileSync(new URL("LSR-1.1-standards.pdf",sample));
-  const digest=(value:string|Buffer)=>createHash("sha256").update(value).digest("hex");
-  // Only a synthetic transport envelope is supplied. The fixed record's API status is unrecorded; this is not a new conversion or success claim.
-  const envelope=archive.createDoclingArchiveFromResult({sourceName:"LSR-1.1-standards.pdf",sourceBytes:pdf,serverVersions:{"docling-serve":"1.32.0"},openapiBytes:Buffer.from("{}"),profile:PDF_PROFILE,
-    task:{id:"fixed-result-test-envelope",startedAt:"2026-11-11T00:00:00Z",completedAt:"2026-11-11T00:00:00Z"},resultBody:Buffer.from('{"status":"success","errors":[],"document":{"json_content":'+json+'}}')});
-  writeFileSync(file,await initializeWorkspace(envelope));
-  const original=archive.readDoclingArchive(readFileSync(file));
-  const binaryHash=/"binary_hash"\s*:\s*(\d+)/.exec(json)?.[1];assert.ok(binaryHash);assert.match(original.documentJson,new RegExp(`"binary_hash":${binaryHash}`));
-  const base={root,workspace:"lsr.docling",plugin:"fixture",job:"import"},human={actor:"person",reason:"Compared fixed source and exact target",confirmed:true};
-  const service=()=>new GeneratedDocuments(new RootAccess([root]),()=>({operation:"fixture",version:1,workspace:true,assertCurrent(){}}),async(_op,input)=>({result:await workspaceOperation(input)}),undefined,undefined,()=>[{plugin:"fixture",job:"import",accept:[".docling"]}]);
-  let host=service();
-  const read=()=>host.execute({...base,action:"workspace-read"});
-  const change=(change:unknown)=>host.execute({...base,action:"workspace-review-change",baseline:digest(readFileSync(file)),requestId:randomUUID(),change});
-  try {
-    const opened=await read(),report=JSON.parse(original.cacheEntries.get("current/snapshot.json").toString()).correspondence;
-    const item=report.items.find((item:any)=>item.self_ref.startsWith("#/texts/") && item.label==="text" && item.targets.length===1 && opened.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(item.targets[0].path))?.block==="paragraph");
-    assert.ok(item,"fixed sample has a standalone paragraph");
-    const block=opened.document.blocks.find((block:any)=>JSON.stringify(block.path)===JSON.stringify(item.targets[0].path));
-    const directSource=serialize(updateNodeTextAtPath(parse(opened.snapshot.source),block.path,block.text,"Human fixed paragraph"));
-    const direct=await host.execute({...base,action:"workspace-save",baseline:opened.baseline,requestId:randomUUID(),edits:{paragraphs:[{path:block.path,content:[{kind:"text",text:"Human fixed paragraph"}]}]}});
-    assert.equal(direct.receipt.outcome,"success",JSON.stringify(direct));assert.equal(direct.snapshot.source,directSource);
-    assert.deepEqual(direct.snapshot.inputs.map((i:any)=>i.targets.map((t:any)=>t.path)),opened.snapshot.inputs.map((i:any)=>i.targets.map((t:any)=>t.path)));
-    const directGroup=direct.ledger.groups.find((g:any)=>g.reasonCode==="human-direct-edit");
-    assert.equal(directGroup.targets[0].history[0].human.actor,"사람 직접 수정");
-    const staleDirect=await host.execute({...base,action:"workspace-save",baseline:opened.baseline,requestId:randomUUID(),source:opened.snapshot.source});
-    assert.equal(staleDirect.errorKind,"conflict");
-    assert.equal((await read()).snapshot.source,directSource);
-    const directUndo=await change({kind:"groups-undo",groupId:directGroup.id,targetIds:directGroup.targets.map((t:any)=>t.id),human});
-    assert.equal(directUndo.snapshot.source,opened.snapshot.source);
-    const structureSource=serialize(insertParagraph(parse(opened.snapshot.source),block.path[0],[{kind:"text",text:"Inserted human paragraph"}]));
-    const structural=await host.execute({...base,action:"workspace-save",baseline:directUndo.baseline,requestId:randomUUID(),source:structureSource});
-    assert.equal(structural.receipt.outcome,"success",JSON.stringify(structural));
-    const structuralArchive=archive.readDoclingArchive(readFileSync(file));
-    assert.ok(JSON.parse(structuralArchive.cacheEntries.get("current/snapshot.json").toString()).correspondence.items.every((i:any)=>!i.targets.length),"structural edits do not guess PDF correspondence");
-    const structuralGroup=structural.ledger.groups.at(-1);
-    assert.equal((await change({kind:"groups-undo",groupId:structuralGroup.id,targetIds:structuralGroup.targets.map((t:any)=>t.id),human})).snapshot.source,opened.snapshot.source);
-    const tableItem=report.items.find((item:any)=>item.self_ref.startsWith("#/tables/")&&item.cells?.length);
-    const table=opened.document.blocks.find((block:any)=>block.path[0]===tableItem.targets[0].path[0]),position=tableItem.cells[0].positions[0];
-    const excludeBefore={excluded:false,blocks:JSON.parse(JSON.stringify([block],(key,value)=>key==="path"?undefined:value))};
-    const cases=[
-      [{type:"text",self_ref:item.self_ref,text:"Corrected fixed LSR paragraph"},block.text,"Corrected fixed LSR paragraph"],
-      [{type:"kind",self_ref:item.self_ref,kind:"heading",level:3},{kind:"paragraph"},{kind:"heading",level:3}],
-      [{type:"cell",self_ref:tableItem.self_ref,cell:tableItem.cells[0].index,text:"Corrected fixed LSR cell"},table.rows[position.row].cells[position.column].text,"Corrected fixed LSR cell"],
-      [{type:"exclude",self_ref:item.self_ref,excluded:true},excludeBefore,{excluded:true,blocks:[]}],
-      [{type:"insert",anchorPath:block.path,position:"before",kind:"heading",level:2,text:"Recovered fixed heading"},null,{level:2,text:"Recovered fixed heading",kind:"heading"}],
-      [{type:"insert",anchorPath:block.path,position:"after",kind:"paragraph",text:"Recovered fixed paragraph"},null,{text:"Recovered fixed paragraph",kind:"paragraph"}],
-    ];
-    let n=0;
-    for(const [op,before,after] of cases){
-      const state=await read(),id=`fixed-${++n}`;
-      const target={id,locator:(op as any).type==="insert"?{anchorPath:(op as any).anchorPath}:{self_ref:(op as any).self_ref,...((op as any).cell===undefined?{}:{cell:(op as any).cell})},pages:[1],regions:(op as any).type==="insert"?[{page:1,bbox:[10,10,100,25],ref:"fixed-pdf-region"}]:[],before:[before],
-        evidence:[{observation:"Compared fixed source PDF and current document",materialRef:"fixed-pdf",materialHash:digest(pdf),inspector:"human",scope:{pages:[1],targets:[id]}}],
-        patch:{expectedBefore:[before],expectedContentRevision:state.documentRevision,operations:[op],after:[after],supported:true,deferredReason:null},inspection:"uncertain",proposal:"proposed",result:null,resolved:false,history:[]};
-      const proposed=await change({kind:"groups-propose",groups:[{id,reasonCode:id,reason:"Fixed sample correction",provider:"community.docling",providerVersion:"0.0.11",sourceRevision:original.manifest.document.sha256,contentRevision:state.documentRevision,
-        createdAt:new Date().toISOString(),runId:id,representativeTargetId:id,representativeReason:"Exact fixed target",splitFrom:null,targets:[target]}]});
-      assert.equal(proposed.receipt.outcome,"success",JSON.stringify(proposed));
-      const approved=await change({kind:"groups-approve",groupId:id,targetIds:[id],human,resolvesIssue:true});assert.equal(approved.receipt.outcome,"success",JSON.stringify(approved));
-      host=service();assert.equal((await read()).snapshot.source,approved.snapshot.source);
-      const undone=await change({kind:"groups-undo",groupId:id,targetIds:[id],human});assert.equal(undone.receipt.outcome,"success",JSON.stringify(undone));
-      host=service();assert.equal((await read()).snapshot.source,opened.snapshot.source);
-      const current=archive.readDoclingArchive(readFileSync(file));for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(current[key],original[key]);
-    }
-    const groupsBeforeEvidence=(await read()).ledger.groups;
-    const evidenceRun=await host.execute({...base,action:"workspace-evidence",mode:"run",baseline:digest(readFileSync(file)),requestId:randomUUID()});
-    assert.equal(evidenceRun.receipt.outcome,"success",JSON.stringify(evidenceRun));assert.equal(evidenceRun.evidence.status,"inspected");
-    assert.equal(evidenceRun.snapshot.source,opened.snapshot.source);assert.deepEqual(evidenceRun.ledger.groups,groupsBeforeEvidence);
-    assert.ok(evidenceRun.evidence.candidates.length>0);assert.ok(evidenceRun.evidence.coverage.outside.furniture>0);
-    let sawText=false;for(const candidate of evidenceRun.evidence.candidates){if(candidate.priority==="text")sawText=true;else assert.equal(sawText,false,"numeric/unit candidates come first");}
-    host=service();const evidenceRead=await host.execute({...base,action:"workspace-evidence",mode:"read"});assert.deepEqual(evidenceRead.evidence,evidenceRun.evidence);
-    console.log("LSR evidence",JSON.stringify({candidates:evidenceRun.evidence.candidates.length,coverage:{...evidenceRun.evidence.coverage,outsideRegions:evidenceRun.evidence.coverage.outsideRegions.length}}));
-    const {createServer}=await import("node:http"),{spawn}=await import("node:child_process"),{DAEMON_PROTOCOL}=await import("../shared/daemon-version.ts");
-    const server=createServer(async(req,res)=>{res.setHeader("Content-Type","application/json");if(req.url==="/daemon/health"){res.end(JSON.stringify({protocolVersion:DAEMON_PROTOCOL}));return;}try{let body="";for await(const chunk of req)body+=chunk;res.end(JSON.stringify(await host.execute(JSON.parse(body))));}catch(error){res.statusCode=400;res.end(JSON.stringify({error:String(error)}));}});
-    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
-    try {
-      const input=path.join(root,"read.json");writeFileSync(input,JSON.stringify({...base,baseline:digest(readFileSync(file)),requestId:randomUUID()}));
-      const cli=spawn(process.execPath,["--import","tsx",fileURLToPath(new URL("../../../packages/cli/src/cli.ts",import.meta.url)),"review","evidence","run","--input",input,"--host",`http://127.0.0.1:${(server.address() as any).port}`,"--json"],{windowsHide:true});
-      let stdout="",stderr="";cli.stdout.on("data",chunk=>stdout+=chunk);cli.stderr.on("data",chunk=>stderr+=chunk);
-      const code=await new Promise((resolve,reject)=>{cli.once("error",reject);cli.once("exit",resolve);});assert.equal(code,0,stderr+stdout);
-      const result=JSON.parse(stdout);assert.deepEqual(result.evidence,evidenceRun.evidence);assert.equal(result.snapshot.source,opened.snapshot.source);assert.deepEqual(result.ledger.groups,groupsBeforeEvidence);
-    }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
-    // Stage 5: use the real common dispatcher and fixed PDF behind a fake provider.
-    const log=path.join(root,"provider.jsonl");
-    const connection=new ProviderConnections(path.join(root,"assistant"),{bin:process.execPath,args:[fileURLToPath(new URL("./fixtures/codex-app-server.mjs",import.meta.url)),log]});
-    const conversations=new AssistantConversations(connection,new RootAccess([root]),{generatedDocuments:host,authoringPath:()=>null} as unknown as PluginHost);
-    try {
-      const settings={provider:"codex" as const,permissionMode:"opened-folders" as const,model:"gpt-6.1-sol",reasoningEffort:"medium"};
-      const c=await conversations.send({message:"Inspect local review evidence",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},settings,"review-window");
-      const tools=readFileSync(log,"utf8").split("\n").filter(Boolean).map(line=>JSON.parse(line)).find(row=>row.method==="thread/start").params.dynamicTools;
-      assert.ok(tools.some((tool:any)=>tool.name==="apply_review_groups"));
-      assert.ok(!tools.some((tool:any)=>/review.*(approve|reject|undo|completion|complete)/.test(tool.name)),"no human decision tools");
-      const invoke=async(tool:string,args:any)=>{const reply:any=await connection.client.request("fixture/tool",{threadId:c.id,tool,arguments:args});return {reply:reply.result,value:JSON.parse(reply.result.contentItems[0].text)};};
-      const {ASSISTANT_TRANSPORT_LIMITS}=await import("../shared/assistant-limits.ts");
-      const assistantBase={path:"lsr.docling"};
-      const firstRead=await invoke("read_review_document",assistantBase);
-      const readBytes=Buffer.byteLength(JSON.stringify(firstRead.value));
-      const repeat=18; // Before the fix, these fixed-result reads exceeded 8 MiB.
-      for(let i=1;i<repeat;i++)await invoke("read_review_document",assistantBase);
-      const historyBytes=Buffer.byteLength(JSON.stringify(conversations.current(c.id)));
-      console.log("Review repeated read bytes",JSON.stringify({readBytes,repeat,historyBytes,limit:ASSISTANT_TRANSPORT_LIMITS.responseBytes}));
-      assert.ok(historyBytes<ASSISTANT_TRANSPORT_LIMITS.responseBytes,"repeated workspace reads must not strand the conversation above the transport limit");
-      for(const kind of ["lenses","required-checks","groups","source-evidence"]){
-        const result=await invoke("read_review_material",{...assistantBase,kind});assert.equal(result.reply.success,true);
-        if(kind==="source-evidence")assert.deepEqual(result.value.evidence,evidenceRun.evidence);
-        if(kind==="required-checks")assert.ok(result.value.ledger.inventory.requiredChecks.length>0);
-      }
-      const material=(await invoke("read_review_material",{...assistantBase,kind:"page",pageNo:2})).value.material;
-      assert.deepEqual(material.pages,[1,2,3]);assert.ok(material.items.some((item:any)=>item.prov.length && item.correspondence));assert.ok(material.blocks.length);
-      assert.doesNotMatch(JSON.stringify(material),/data:image|base64|pdfBase64/);
-      const group=structuredClone((await read()).ledger.groups.find((g:any)=>g.id==="fixed-1"));group.id="assistant-saved";group.reasonCode="assistant-local";group.runId="assistant-local";
-      group.targets=group.targets.map((target:any)=>({...target,id:"assistant-target",history:[],proposal:"proposed",result:null,resolved:false}));group.representativeTargetId="assistant-target";
-      const beforeProposal=(await read()).snapshot;
-      const atomicBytes=readFileSync(file), lateFailure=structuredClone(group);
-      lateFailure.id="late-conflict";lateFailure.reasonCode="other-reason";lateFailure.representativeTargetId="late-target";lateFailure.targets[0].id="late-target";
-      const failedBatch=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[group,lateFailure]}});
-      assert.equal(failedBatch.reply.success,false);assert.deepEqual(readFileSync(file),atomicBytes,"a later target conflict discards earlier Core edits and all proposal records");
-      const proposed=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[group]}});
-      assert.equal(proposed.reply.success,true,JSON.stringify(proposed));
-      assert.equal((await invoke("read_review_request_status",{...assistantBase,requestId:proposed.value.receipt.requestId})).value.baseline,proposed.value.baseline);
-      assert.notEqual((await read()).documentRevision,beforeProposal.documentRevision,"assistant corrections apply immediately");
-      const applied=(await read()).ledger.groups.find((g:any)=>g.id===group.id).targets[0];
-      assert.equal(applied.result,"applied");assert.equal(applied.history[0].human,null);assert.equal(applied.history[0].assistant.actor,"assistant");
-      assert.equal((await change({kind:"groups-undo",groupId:group.id,targetIds:group.targets.map((t:any)=>t.id),human,resolvesIssue:false})).receipt.outcome,"success");
-      assert.equal((await read()).documentRevision,beforeProposal.documentRevision);
-      await invoke("read_review_document",assistantBase);
-      const reapplied=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"assistant-again"}],supersedes:[{groupId:group.id,targetIds:group.targets.map((t:any)=>t.id),replacementGroupId:"assistant-again"}]}});
-      assert.equal(reapplied.reply.success,true,JSON.stringify(reapplied));
-      const beforeInvalid=readFileSync(file);
-      const invalidGroup={...group,id:"invalid-target",targets:[{...group.targets[0],patch:{...group.targets[0].patch,expectedBefore:["wrong before"]}}]};
-      assert.equal((await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[invalidGroup]}})).reply.success,false);
-      assert.deepEqual(readFileSync(file),beforeInvalid,"stale before refuses both document and proposal writes");
-      const badRevision=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"wrong-source",sourceRevision:"0".repeat(64)}]}});
-      assert.equal(badRevision.value.errorKind,"invalid_input");assert.match(badRevision.value.error,/source revision/i);
-      assert.equal(badRevision.value.current.documentRevision,(await read()).documentRevision);
-      assert.equal(badRevision.value.current.baseline,(await read()).baseline);
-      const malformed=structuredClone(group);malformed.targets[0].regions=[{ref:"#/texts/0",page:1,bbox:"0,0,1,1"}];
-      const bboxFailure=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[malformed]}});
-      assert.equal(bboxFailure.value.errorKind,"invalid_input");assert.match(bboxFailure.value.error,/bbox/);assert.match(bboxFailure.value.error,/tuple/);
-      const cliOperation=structuredClone(group);cliOperation.targets[0].patch.operations=[{command:"update-text",path:"0",text:"bad"}];
-      const operationFailure=await invoke("apply_review_groups",{...assistantBase,change:{kind:"groups-propose",groups:[cliOperation]}});
-      assert.equal(operationFailure.value.errorKind,"invalid_input");assert.match(operationFailure.value.error,/operations/);assert.match(operationFailure.value.error,/type/);
-      assert.equal((await change({kind:"groups-undo",groupId:"assistant-again",targetIds:["assistant-target"],human,resolvesIssue:false})).receipt.outcome,"success");
-      await invoke("read_review_material",{...assistantBase,kind:"page",pageNo:2});
-      const selection={pages:[1],targets:["#/texts/0"]};
-      const imageArgs=()=>({...assistantBase,pageNo:1,target:selection.targets[0]});
-      assert.ok(!tools.some((tool:any)=>tool.name==="estimate_review_images"));
-      const images=await invoke("read_review_images",imageArgs());assert.equal(images.reply.success,true,JSON.stringify(images.value));
-      assert.equal(c.userInput,undefined,"image reads need no question");
-      const run={runId:images.value.runId};
-      const inspection={contentRevision:opened.contentRevision,lens:"source-evidence",scope:selection,state:"uncertain",evidence:"Local original comparison is uncertain; no quality claim"};
-      const record=()=>invoke("record_review_inspection",{...assistantBase,imageRunId:run.runId,records:[inspection]});
-      assert.equal((await invoke("read_review_images",{...imageArgs(),pageNo:999})).reply.success,false);
-      assert.equal((await invoke("read_review_images",{...imageArgs(),target:"#/texts/unknown"})).reply.success,false);
-      assert.ok(images.reply.contentItems.some((item:any)=>item.type==="inputImage" && item.imageUrl.startsWith("data:image/png;base64,")));
-      const recorded=await record();assert.equal(recorded.reply.success,true,JSON.stringify(recorded.value));assert.equal((await read()).ledger.comparisons.at(-1).state,"compared");
-      await connection.client.request("fixture/token-usage",{threadId:c.id,turnId:c.turns.at(-1)!.id,tokenUsage:{last:{totalTokens:123,inputTokens:100,outputTokens:23,cachedInputTokens:0},modelContextWindow:1000}});
-      await connection.client.request("fixture/finish",{threadId:c.id});
-      await conversations.send({id:c.id,message:"Continue recording read material",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},settings,"review-window");
-      const continued=await record();assert.equal(continued.reply.success,true,JSON.stringify(continued.value));
-      const textRecord=await invoke("record_review_inspection",{...assistantBase,records:[{...inspection,scope:{pages:[2],targets:[]}}]});
-      assert.equal(textRecord.reply.success,true,JSON.stringify(textRecord.value));
-      assert.deepEqual((await invoke("read_review_material",{...assistantBase,kind:"source-evidence"})).value.evidence,evidenceRun.evidence,"image records cannot replace source candidates");
-      const state=await read();assert.deepEqual(state.snapshot,beforeProposal);
-      assert.equal((await change({kind:"groups-approve",groupId:"assistant-again",targetIds:["assistant-target"],human,resolvesIssue:true})).receipt.outcome,"success");
-      assert.equal((await record()).reply.success,false,"changed document invalidates returned material history");
-      assert.equal((await change({kind:"groups-undo",groupId:"assistant-again",targetIds:["assistant-target"],human,resolvesIssue:false})).receipt.outcome,"success");
-      await connection.client.request("fixture/token-usage",{threadId:c.id,turnId:c.turns.at(-1)!.id,tokenUsage:{last:{totalTokens:123,inputTokens:100,outputTokens:23,cachedInputTokens:0},modelContextWindow:1000}});
-      await connection.client.request("fixture/finish",{threadId:c.id});
-      for(let attempt=0;attempt<100;attempt++) {
-        if((await read()).ledger.inspections.some((r:any)=>r.evidence.includes('"format":"review-image-usage-1"')))break;
-        await new Promise(resolve=>setTimeout(resolve,10));
-      }
-      assert.ok((await read()).ledger.inspections.some((record:any)=>{try{const data=JSON.parse(record.evidence);return data.format==="review-image-usage-1" && data.usage.inputTokens===100 && data.source==="provider-turn-total-not-per-image";}catch{return false;}}),JSON.stringify(c.turns.flatMap(t=>t.items).filter(item=>item.status==="failed")));
-      const restricted=await conversations.send({message:"Read only",folders:[root],model:settings.model,reasoningEffort:settings.reasoningEffort},{...settings,permissionMode:"read-only"},"review-window");
-      const denied:any=await connection.client.request("fixture/tool",{threadId:restricted.id,tool:"apply_review_groups",arguments:{...assistantBase,change:{kind:"groups-propose",groups:[{...group,id:"read-only"}]}}});assert.equal(denied.result.success,false);assert.match(denied.result.contentItems[0].text,/Opened folders/);
-      for(const key of ["sourcePdf","documentJson","manifestBytes"])assert.deepEqual(archive.readDoclingArchive(readFileSync(file))[key],original[key]);
-    } finally {await conversations.close();await connection.close();}
-    assert.equal(readFileSync(new URL("converted/document.json",sample),"utf8"),json);
-  }finally{rmSync(root,{recursive:true,force:true});}
-});
+
+
+
+
+
+
+
 
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
-  const manifest = { schemaVersion: 1, id: "fixture.lifecycle", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string", minLength: 1 }, nested: { type: "object", properties: { value: { type: "string" } }, required: ["value"] } }, additionalProperties: false } };
-  writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
+  const manifest = {id: "fixture.lifecycle",name: "Fixture",entry: "host.js",settingsSchema: { type: "object", properties: { label: { type: "string", minLength: 1 }, nested: { type: "object", properties: { value: { type: "string" } }, required: ["value"] } }, additionalProperties: false },operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }],screen:"screen.jsx"};
+  writeCodePluginManifest(directory,manifest);
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-  writeFileSync(path.join(directory, "host.js"), `export function activate(c){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return c.settings.label ?? "done"}},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  writeFileSync(path.join(directory, "host.js"), `export function activate(c){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return c.settings.label ?? "done"}},status:()=>({available:true,message:"Fixture"}),dispose(){}}}`);
   const host = new PluginHost(path.join(root, "state.json"), {  });
   try {
     await host.invoke("register", { directory });
@@ -709,10 +61,10 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     const collision = path.join(root, "collision"); mkdirSync(collision);
     writeFileSync(path.join(collision, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     writeFileSync(path.join(collision, "host.js"), "throw new Error('Must not import conflicting plugin')");
-    writeFileSync(path.join(collision, "litzio-plugin.json"), JSON.stringify({ ...manifest, id: "fixture", contributes: { operations: [{ ...manifest.contributes.operations[0], id: "lifecycle.read" }] } }));
+    writeCodePluginManifest(collision,{ ...manifest, id: "fixture", operations: [{ ...manifest.operations[0], id: "lifecycle.read" }] });
     await assert.rejects(host.invoke("register", { directory: collision }), /collision/);
     const registered = (await host.list())[0]!;
-    assert.equal(registered.running, false); assert.equal(registered.official, false);
+    assert.equal(registered.running, false);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /trust/);
     await host.invoke("trust", { id: manifest.id, registrationId: registered.registrationId });
     await host.invoke("enable", { id: manifest.id });
@@ -762,17 +114,17 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
       echo:()=>({[c.secrets.pat]:'echoed as key',value:c.secrets.pat}),
       nested:()=>[{safe:{['prefix-'+c.secrets.pat+'-suffix']:[{value:c.secrets.pat}]}}],
       connection:()=>({ok:true,message:'Connected'}), hidden:()=>{throw Error('must not run')}, write:()=>{throw Error('must not run')}
-    },status:()=>({available:true,message:'Ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+    },status:()=>({available:true,message:'Ready'}),dispose(){}}}`);
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
     const operation = { version: 1, scope: "host", effect: "read", inputSchema: { type: "object" }, outputSchema: {} };
-    manifest.requiresSdk = ">=0.4.0 <1.0.0";
+
     manifest.secrets = [{ id: "pat", title: "Access token", scope: "connection", required: true }];
-    manifest.contributes = { healthCheck: "connection", operations: [
+    Object.assign(manifest,{ healthCheck: "connection", operations: [
       { ...operation, id: "read", assistant: true, inputSchema: { type: "object", properties: { mode: { type: "string" }, query: { type: "string" } }, required: ["mode"], additionalProperties: false }, outputSchema: { type: "array", items: { type: "string" } } },
       { ...operation, id: "connection", outputSchema: { type: "object" } }, { ...operation, id: "hidden" }, { ...operation, id: "write", effect: "write", assistant: true },
       { ...operation, id: "echo", assistant: true, outputSchema: { type: "object", additionalProperties: { type: "string" } } },
       { ...operation, id: "nested", assistant: true, outputSchema: { type: "array", items: { type: "object" } } },
-    ] };
+    ] });
     writeFileSync(manifestFile, JSON.stringify(manifest));
     await host.invoke("register", { directory });
     await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId });
@@ -780,7 +132,6 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
     const start = readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).find(entry => entry.method === "thread/start");
     assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "invoke_plugin_operation"));
-    assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "read_review_document"));
     const invoke = async (operation: string, input: unknown, id = conversation.id) => {
       const response: any = await connection.client.request("fixture/tool", { threadId: id, tool: "invoke_plugin_operation", arguments: { operation, input } });
       return { success: response.result.success, ...JSON.parse(response.result.contentItems[0].text) };
@@ -867,10 +218,10 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-function lifecycleFixture(root: string, id: string, code = "export function activate(){return {operations:{},status:()=>({available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}),dispose(){}}}") {
+function lifecycleFixture(root: string, id: string, code = "export function activate(){return {operations:{},status:()=>({available:true,message:'Fixture'}),dispose(){}}}") {
   const directory = path.join(root, id); mkdirSync(directory);
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-  writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: id, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { screens: [{ id: "main", title: id, icon: "ChartColumn", entry: "screen.jsx", primary: true }] } }));
+  writeCodePluginManifest(directory,{id,name: id,entry: "host.js",screen:"screen.jsx"});
   writeFileSync(path.join(directory, "screen.jsx"), "export default function Screen(){return null}");
   writeFileSync(path.join(directory, "host.js"), code);
   return directory;
@@ -892,7 +243,7 @@ test("disable drains admitted status observations and their late results cannot 
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-status-drain-")), host = new PluginHost(path.join(root, "state.json"));
   try {
     const marker = path.join(root, "started"), release = path.join(root, "release"), disposed = path.join(root, "disposed");
-    const directory = lifecycleFixture(root, "fixture.slow", `import {existsSync,writeFileSync} from 'node:fs'; let calls=0; export function activate(){return {operations:{},async status(){if(calls++>0){writeFileSync(${JSON.stringify(marker)},'');while(!existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,10))}return {available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}},dispose(){writeFileSync(${JSON.stringify(disposed)},'')}}}`);
+    const directory = lifecycleFixture(root, "fixture.slow", `import {existsSync,writeFileSync} from 'node:fs'; let calls=0; export function activate(){return {operations:{},async status(){if(calls++>0){writeFileSync(${JSON.stringify(marker)},'');while(!existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,10))}return {available:true,message:'Fixture'}},dispose(){writeFileSync(${JSON.stringify(disposed)},'')}}}`);
     await host.invoke("register", { directory });
     await host.invoke("trust", { id: "fixture.slow", registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id: "fixture.slow" });
@@ -990,8 +341,8 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     for (const id of ["example.first", "example.second"]) {
       const directory = path.join(root, id); mkdirSync(directory);
       writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-      writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "example", name: "Example" }, name: id, version: "0.1.0", requiresSdk: ">=0.4.0 <1.0.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: {} }] }, secrets: [{ id: "pat", title: "Access token", scope: "connection", required: true }] }));
-      writeFileSync(path.join(directory, "host.js"), `export function activate(c){ if(Object.keys(c.secrets).join()!=='pat')throw Error('scope');return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {echo:c.secrets.pat}}},status:()=>({available:true,message:c.secrets.pat,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+      writeCodePluginManifest(directory,{id,name: id,entry: "host.js",secrets: [{ id: "pat", title: "Access token", scope: "connection", required: true }],operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: {} }],screen:"screen.jsx"});
+      writeFileSync(path.join(directory, "host.js"), `export function activate(c){ if(Object.keys(c.secrets).join()!=='pat')throw Error('scope');return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {echo:c.secrets.pat}}},status:()=>({available:true,message:c.secrets.pat}),dispose(){}}}`);
       await host.invoke("register", { directory });
       await assert.rejects(host.setSecret(id, "undeclared", value), /Undeclared/);
       await host.setSecret(id, "pat", id === "example.first" ? value : "second-private-PAT");
@@ -1055,10 +406,10 @@ test("operation invoke publishes declared public rows and refuses row-type misma
   const knownSecret = "row-boundary-known-private";
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-operation-rows-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
-  const manifest = { secrets: [{ id: "pat", title: "Access token", scope: "connection", required: true }], schemaVersion: 1, id: "fixture.rows", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Rows", version: "0.1.0", requiresSdk: ">=0.3.0 <1.0.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" }, caption: { type: "string", label: "Caption", linkField: "url" }, url: { type: "string", label: "URL" }, token: { type: "string", label: "Token", secret: true } } }] } };
-  writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
+  const manifest = {id: "fixture.rows",name: "Rows",entry: "host.js",secrets: [{ id: "pat", title: "Access token", scope: "connection", required: true }],operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object", properties: {points:{type:"number"},caption:{type:"string"},url:{type:"string"}},required:["points","caption","url"],additionalProperties:false } },  }],screen:"screen.jsx"};
+  writeCodePluginManifest(directory,manifest);
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-  writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:({mode})=>{if(mode?.startsWith("error:")) throw Object.assign(new Error("raw-response credential-private"), {kind:mode.slice(6),response:"credential-private"}); return [{points:mode==="wrong-number"?"3":-3,caption:"row-boundary-known-private",url:"https://example.test/issue/1",token:mode==="wrong-secret"?4:"private",extra:"undeclared"}]} },status:()=>({available:true,message:"Rows",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:({mode})=>{if(mode?.startsWith("error:")) throw Object.assign(new Error("raw-response credential-private"), {kind:mode.slice(6),response:"credential-private"}); return [{points:mode==="wrong-number"?"3":-3,caption:mode==="wrong-secret"?4:"row-boundary-known-private",url:"https://example.test/issue/1"}]} },status:()=>({available:true,message:"Rows"}),dispose(){}}}`);
   const host = new PluginHost(path.join(root, "plugins.json"), { secrets: { supported: true, async read() { return knownSecret; }, async set() {}, async status() { return true; }, async delete() {} } });
   try {
     await host.invoke("register", { directory }); const record = (await host.list())[0]!;
@@ -1077,46 +428,25 @@ test("operation invoke publishes declared public rows and refuses row-type misma
       assert.ok(!JSON.stringify(failure).includes("private"));
       assert.ok(!JSON.stringify(failure).includes("raw-response"));
     }
-    const { executeViewOperation } = await import("../server/views.ts");
-    const { viewRequest } = await import("../src/views/view-api.ts");
-    const view = { kind: "litzio-view", title: "Rows", refresh: "manual", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "fixture.rows", sources: { stats: { kind: "operation", operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
-    const failedView = await executeViewOperation({ action: "run", view }, { access: new RootAccess([root]), plugins: host });
-    assert.equal(failedView.errorKind, "auth", failedView.error); assert.equal(failedView.error, PLUGIN_ERROR_MESSAGES.auth);
-    const client = { request: async () => new Response(JSON.stringify(failedView)) } as unknown as import("../src/host-client.ts").HostClient;
-    await assert.rejects(viewRequest(client, {}), error => error instanceof Error && "kind" in error && error.kind === "auth" && !error.message.includes("private"));
     for (const mode of ["wrong-number", "wrong-secret"]) {
       const refused = await invoke(mode); assert.equal(refused.receipt.outcome, "failure"); assert.ok(!("result" in refused)); assert.ok(!JSON.stringify(refused).includes("private")); assert.equal(refused.errorKind, "failed"); assert.ok(!refused.error.includes("retrying a write"));
     }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-test("K1 assistant job tools use shared definitions without per-call consent and leave activity", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-tool-"));
-  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
-  const host = new PluginHost(path.join(root, "plugins.json"));
-  const conversations = new AssistantConversations(connection, new RootAccess([root]), host);
-  try {
-    const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
-    const conversation = await conversations.send({ message: "List plugin jobs", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
-    const response = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "plugin_jobs", arguments: { action: "job-list" } }) as any;
-    assert.equal(response.result.success, true);
-    assert.equal(conversations.current(conversation.id).userInput, undefined);
-    const activity = conversations.current(conversation.id).turns.flatMap(turn => turn.items).find(item => item.text === "plugin_jobs · job-list");
-    assert.equal(activity?.status, "completed"); assert.equal(activity?.toolResult?.success, true);
-  } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
-});
+
 
 test("subprocess isolation, fresh artifact reload, trust failure recovery and crash status", async t => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { designatedPlugins: [] });
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { });
   const connection = new ProviderConnections(path.join(root, "assistant"));
   const skills = path.join(root, "assistant", ".agents", "skills"), installedSkill = path.join(skills, "litzio-plugin-fixture--reload---review");
   const marker = path.join(root, "disposed");
-  const code = (label: string, crash = false) => `import {writeFileSync} from 'node:fs'; export function activate(){${crash ? "setTimeout(()=>process.exit(7),100);" : ""}return {operations:{read:()=> 'available'},status:()=>({available:true,message:${JSON.stringify(label)}+':'+process.pid,folders:[],decorations:[],accounts:[]}),dispose(){writeFileSync(${JSON.stringify(marker)},'disposed')}}}`;
+  const code = (label: string, crash = false) => `import {writeFileSync} from 'node:fs'; export function activate(){${crash ? "setTimeout(()=>process.exit(7),100);" : ""}return {operations:{read:()=> 'available'},status:()=>({available:true,message:${JSON.stringify(label)}+':'+process.pid}),dispose(){writeFileSync(${JSON.stringify(marker)},'disposed')}}}`;
   try {
     const directory = lifecycleFixture(root, "fixture.reload", code("first"));
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
-    manifest.requiresSdk = "^0.5.0"; manifest.contributes.skills = [{ id: "review", directory: "skills/review" }];
-    manifest.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }];
+     manifest.skills = [{ id: "review", directory: "skills/review" }];
+    manifest.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }];
     writeFileSync(manifestFile, JSON.stringify(manifest));
     const skillDirectory = path.join(directory, "skills", "review"); mkdirSync(path.join(skillDirectory, "references"), { recursive: true });
     const skillText = (body: string) => `---\nname: review\ndescription: Review a converted document\n---\n${body}\n`;
@@ -1201,7 +531,7 @@ test("skill validation is nonexecuting and plugin namespaces preserve other cont
     const directories = ["fixture.first", "fixture.second"].map(id => lifecycleFixture(root, id, "throw new Error('must not execute')"));
     for (const [index, directory] of directories.entries()) {
       const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
-      manifest.requiresSdk = "^0.5.0"; manifest.contributes.skills = [{ id: "review", directory: "skills/review" }];
+       manifest.skills = [{ id: "review", directory: "skills/review" }];
       writeFileSync(manifestFile, JSON.stringify(manifest));
       await assert.rejects(host.invoke("register", { directory }), /ENOENT/);
       const source = path.join(directory, "skills", "review"); mkdirSync(source, { recursive: true });
@@ -1231,13 +561,6 @@ test("skill validation is nonexecuting and plugin namespaces preserve other cont
         }
       }
     }
-    const doclingDirectory = fileURLToPath(new URL("../../../community-plugins/docling/", import.meta.url));
-    const doclingManifest = validateManifest(JSON.parse(readFileSync(path.join(doclingDirectory, "litzio-plugin.json"), "utf8")));
-    const manager = new PluginAssistantSkills(path.join(root, "assistant"));
-    manager.install(doclingDirectory, doclingManifest);
-    const doclingSkill = path.join(root, "assistant", ".agents", "skills", "litzio-plugin-community--docling---review", "SKILL.md");
-    assert.equal(manager.displayName(doclingSkill), "Docling · 검수");
-    assert.match(readFileSync(doclingSkill, "utf8"), /^name: litzio-plugin-community--docling---review$/m);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -1245,9 +568,9 @@ test("skill validation is nonexecuting and plugin namespaces preserve other cont
 test("a stalled write times out as uncertain; failed disposal can recover on the next reload", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-timeout-")), host = new PluginHost(path.join(root, "state.json"));
   try {
-    const directory = lifecycleFixture(root, "fixture.timeout", `export function activate(){return {operations:{write:()=>new Promise(()=>{})},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){throw new Error('private')}}}`);
+    const directory = lifecycleFixture(root, "fixture.timeout", `export function activate(){return {operations:{write:()=>new Promise(()=>{})},status:()=>({available:true,message:'ready'}),dispose(){throw new Error('private')}}}`);
     const file = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(file, 'utf8'));
-    manifest.contributes.operations = [{id:'write',version:1,effect:'write',scope:'host',inputSchema:{type:'object'},outputSchema:{type:'object'}}];
+    manifest.operations = [{id:'write',version:1,effect:'write',scope:'host',inputSchema:{type:'object'},outputSchema:{type:'object'}}];
     writeFileSync(file, JSON.stringify(manifest));
     await host.invoke("register", {directory});
     await host.invoke("trust", {id:'fixture.timeout',registrationId:(await host.list())[0]!.registrationId});
@@ -1270,7 +593,7 @@ test("Host shutdown closes every child even when one dispose fails", async () =>
   const marker = path.join(root, 'disposed');
   try {
     for (const [id, dispose] of [['fixture.bad', "throw new Error('private')"], ['fixture.good', `writeFileSync(${JSON.stringify(marker)},'done')`]]) {
-      const directory = lifecycleFixture(root, id!, `import {writeFileSync} from 'node:fs'; export function activate(){return {operations:{},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){${dispose}}}}`);
+      const directory = lifecycleFixture(root, id!, `import {writeFileSync} from 'node:fs'; export function activate(){return {operations:{},status:()=>({available:true,message:'ready'}),dispose(){${dispose}}}}`);
       await host.invoke('register', {directory});
       await host.invoke('trust', {id, registrationId:(await host.list()).find(p=>p.id===id)!.registrationId});
       await host.invoke('enable', {id});
@@ -1293,11 +616,11 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
       console.log(c.secrets.pat); process.stderr.write(c.secrets.pat);
       if (!Object.isFrozen(c.secrets) || Object.keys(c.secrets).join() !== 'pat') throw Error('scope');
       if(c.secrets.pat === 'throw-private-token') throw Error(c.secrets.pat);
-      return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {version:c.secrets.pat==='first-private-token'?1:c.secrets.pat==='second-private-token'?2:0}}},status:()=>({available:true,message:c.secrets.pat,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+      return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {version:c.secrets.pat==='first-private-token'?1:c.secrets.pat==='second-private-token'?2:0}}},status:()=>({available:true,message:c.secrets.pat}),dispose(){}}}`);
     const file = path.join(directory,'litzio-plugin.json'), manifest = JSON.parse(readFileSync(file,'utf8'));
-    manifest.requiresSdk = '>=0.4.0 <1.0.0';
+
     manifest.secrets = [{id:'pat',title:'Access token',scope:'connection',required:true}];
-    manifest.contributes.operations = [{id:'read',version:1,effect:'read',scope:'host',inputSchema:{},outputSchema:{}}];
+    manifest.operations = [{id:'read',version:1,effect:'read',scope:'host',inputSchema:{},outputSchema:{}}];
     writeFileSync(file,JSON.stringify(manifest));
     await host.invoke('register',{directory});
     await assert.rejects(host.invoke('enable',{id:'fixture.secret'}),/trust/);
@@ -1335,10 +658,9 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     assert.ok("result" in created);
     assert.equal((created.result as any).directory, canonicalFilePath(directory));
     await assert.rejects(host.invoke("scaffold", { id }), /EEXIST/);
-    const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
-    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.5.0 <1.0.0");
-    assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
-    assert.match(readFileSync(path.join(directory, "plugin-sdk.d.ts"), "utf8"), /PluginContext/);
+    const entry = path.join(directory, "host.mjs"), source = readFileSync(entry, "utf8");
+    assert.equal(JSON.parse(readFileSync(path.join(directory,"litzio-plugin.json"),"utf8")).screen,"screen.jsx");
+    assert.match(source, /import .* from ['"]@litzio\/plugin-sdk['"]/);
     // Even an artifact-local SDK must never replace the Host's public runtime.
     const localSdk = path.join(directory, "node_modules/@litzio/plugin-sdk");
     mkdirSync(localSdk, { recursive: true });
@@ -1355,18 +677,18 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     writeFileSync(entry, source.replace('greet:', 'undeclared:'));
     const invalid = await executePluginTool(host, { action: "validate", directory }, e => activity.push(e));
     assert.equal(invalid.activity.outcome, "failure");
-    assert.match(JSON.stringify(invalid), /Missing handler/); assert.match(JSON.stringify(invalid), /Undeclared operation handler/);
-    writeFileSync(entry, source.replace('({ greeting: "Hello, " + name + "!" })', '({ greeting: 42 })'));
+    assert.match(JSON.stringify(invalid), /Missing handler/);
+    writeFileSync(entry, source.replace('greeting:"Hello, "+name+"!"', 'greeting:42'));
     assert.match(JSON.stringify(await validate()), /Output schema mismatch/);
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = readFileSync(manifestFile, "utf8");
     writeFileSync(manifestFile, manifest.replace('"type": "string"', '"type": "invalid"'));
     assert.equal((await validate()).valid, false);
 
-    writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "999.0.0"'));
+    writeFileSync(manifestFile, JSON.stringify({...JSON.parse(manifest),requiresSdk:"999.0.0"}));
     assert.equal((await validate()).valid, false);
     await assert.rejects(host.invoke("register", { directory }));
     // An unchanged pre-0.2 scaffold's exact requirement remains executable.
-    writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "0.1.0"')); writeFileSync(entry, source);
+    writeFileSync(manifestFile, manifest); writeFileSync(entry, source);
     await executePluginTool(host, { action: "register", directory }, e => activity.push(e));
     assert.deepEqual(activity.at(-1), { action: "register", id, outcome: "success" });
     const trust = async () => host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
@@ -1413,7 +735,7 @@ test("runtime import boundary checks resolved real paths, including aliases into
   const host = new PluginHost(path.join(root, "state.json")), id = "fixture.imports";
   const source = `import { SDK_VERSION } from '@litzio/plugin-sdk';
 import {basename} from 'node:path'; import {message} from './local.js'; import {value} from 'fixture-dependency';
-export function activate(){return {operations:{},status:()=>({available:true,message:[SDK_VERSION,basename('okay'),message,value].join('/'),folders:[],decorations:[],accounts:[]}),dispose(){}}}`;
+export function activate(){return {operations:{},status:()=>({available:true,message:[SDK_VERSION,basename('okay'),message,value].join('/')}),dispose(){}}}`;
   // A legitimate artifact can itself live under the checkout boundary.
   const checkoutTmp = fileURLToPath(new URL("../../../tmp/", import.meta.url));
   mkdirSync(checkoutTmp, { recursive: true });
@@ -1490,7 +812,7 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
 
     const directory = path.join(opened, "valid");
     const result = await executePluginTool(host, { action: "scaffold", directory, id: "local.valid" }, e => activities.push(e), scope);
-    assert.equal(result.activity.outcome, "success"); assert.equal(existsSync(path.join(directory, "host.js")), true);
+    assert.equal(result.activity.outcome, "success"); assert.equal(existsSync(path.join(directory, "host.mjs")), true);
   } finally { await assistant.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -1505,7 +827,7 @@ test("default scaffold rejects an existing plugins junction before writing outsi
     for (const target of [data, outside]) {
       const artifact = path.join(target, id);
       if (existsSync(artifact)) {
-        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+        for (const file of ["litzio-plugin.json", "host.mjs", "screen.jsx"]) rmSync(path.join(artifact, file));
         rmdirSync(artifact);
       }
     }
@@ -1528,7 +850,7 @@ test("default scaffold rejects an existing plugins junction before writing outsi
   const host = new PluginHost(path.join(root, "state.json"), { access, authoringDirectory: directory });
   try {
     await assert.rejects(host.invoke("scaffold", { id }), /outside/);
-    assert.equal(existsSync(path.join(outside, "host.js")), false);
+    assert.equal(existsSync(path.join(outside, "host.mjs")), false);
   } finally { await host.close(); rmSync(leaf); rmdirSync(directory); }
 });
 
@@ -1572,8 +894,8 @@ test("authoring refuses deterministic junction replacements between checking and
       if (phase === "sandbox-stat") assert.equal(host.authoringPath(), undefined);
       else await assert.rejects(host.invoke("scaffold", { id }));
       assert.equal(swapped, true, "the real directory must be replaced at the intended boundary");
-      assert.equal(existsSync(path.join(outside, "host.js")), false);
-      assert.equal(existsSync(path.join(outside, id, "host.js")), false);
+      assert.equal(existsSync(path.join(outside, "host.mjs")), false);
+      assert.equal(existsSync(path.join(outside, id, "host.mjs")), false);
       if (phase === "after-write") assert.equal(existsSync(path.join(held, "litzio-plugin.json")), true, "failure must leave the created file for inspection");
     } finally {
       replacement.mock.restore(); syncBuiltinESMExports(); await host.close();
@@ -1582,7 +904,7 @@ test("authoring refuses deterministic junction replacements between checking and
       if (swapped) rmSync(link);
       for (const folder of [path.join(outside, id), outside, held, artifact]) {
         if (!existsSync(folder)) continue;
-        for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) {
+        for (const file of ["litzio-plugin.json", "host.mjs", "screen.jsx"]) {
           const target = path.join(folder, file); if (existsSync(target)) rmSync(target);
         }
         rmdirSync(folder);
@@ -1604,7 +926,7 @@ test("authoring accepts aliases above the data folder and validates canonical an
   t.after(async () => {
     await host.close(); rmSync(alias);
     if (existsSync(artifact)) {
-      for (const file of ["litzio-plugin.json", "package.json", "host.js", "plugin-sdk.d.ts", "jsconfig.json"]) rmSync(path.join(artifact, file));
+      for (const file of ["litzio-plugin.json", "host.mjs", "screen.jsx"]) rmSync(path.join(artifact, file));
       rmdirSync(artifact);
     }
     if (existsSync(expected)) rmdirSync(expected);
@@ -1655,7 +977,7 @@ test("validation diagnostics never expose source values through Host, assistant,
   try {
     await host.invoke("scaffold", { directory, id: "local.redaction" });
     const manifest = readFileSync(path.join(directory, "litzio-plugin.json"), "utf8");
-    const source = readFileSync(path.join(directory, "host.js"), "utf8");
+    const source = readFileSync(path.join(directory, "host.mjs"), "utf8");
     const activities: unknown[] = [];
     const check = async (file: string) => {
       const result: any = await host.invoke("validate", { directory });
@@ -1674,13 +996,11 @@ test("validation diagnostics never expose source values through Host, assistant,
     const manifestPath = path.join(directory, "litzio-plugin.json");
     const invalid = JSON.parse(manifest);
     delete invalid.name;
-    invalid.contributes.operations[0].rowSchema = { value: { type: "number", label: "Amount" } };
     writeFileSync(manifestPath, JSON.stringify(invalid));
     await check("litzio-plugin.json");
     const diagnostics: any = await host.invoke("validate", { directory });
     assert.deepEqual((await host.list())[0]!.errors, diagnostics.errors);
     assert.ok(diagnostics.errors.some((e: any) => e.path === "name" && e.code === "invalid_type" && /string/.test(e.message)));
-    assert.ok(diagnostics.errors.some((e: any) => e.path === "contributes.operations[0].rowSchema.value" && e.code === "custom" && /value.*reserved.*rename/.test(e.message)));
     writeFileSync(path.join(directory, "litzio-plugin.json"), `{ "token": "${secret}", broken }`);
     await check("litzio-plugin.json");
     const syntax: any = await host.invoke("validate", { directory });
@@ -1689,9 +1009,9 @@ test("validation diagnostics never expose source values through Host, assistant,
     assert.equal(syntax.errors[0].line, 1);
     assert.ok(syntax.errors[0].column > 1);
     writeFileSync(path.join(directory, "litzio-plugin.json"), manifest);
-    writeFileSync(path.join(directory, "host.js"), `const ${secret} = ;`);
+    writeFileSync(path.join(directory, "host.mjs"), `const ${secret} = ;`);
     await check("host entry");
-    writeFileSync(path.join(directory, "host.js"), source.replace("greet:", `"${secret}":`));
+    writeFileSync(path.join(directory, "host.mjs"), source.replace("greet:", `"${secret}":`));
     await check("host entry");
   } finally { stdout.mock.restore(); stderr.mock.restore(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -1710,12 +1030,12 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
   try {
     const dirs: string[] = [];
     for (const id of ["fixture.a", "fixture.b"]) {
-      const directory = lifecycleFixture(root, id, `export function activate(){return {operations:{read:input=>{if(input.fail)throw Error('raw-log-private');return {id:input.value,defaultCandidate:true}}},status:()=>({available:true,message:'id',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+      const directory = lifecycleFixture(root, id, `export function activate(){return {operations:{read:input=>{if(input.fail)throw Error('raw-log-private');return {id:input.value,defaultCandidate:true}}},status:()=>({available:true,message:'id'}),dispose(){}}}`);
       dirs.push(directory);
       const file = path.join(directory, "litzio-plugin.json"), m = JSON.parse(readFileSync(file, "utf8"));
-      m.requiresSdk = ">=0.4.0 <1.0.0";
+
       m.secrets = [{ id: "pat", title: "Access token", scope: "connection", required: false }, { id: "other", title: "Access token", scope: "connection", required: false }];
-      m.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "object", required: ["id", "defaultCandidate"], additionalProperties: false, properties: { id: { type: "string" }, defaultCandidate: { type: "boolean" } } } }];
+      m.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "object", required: ["id", "defaultCandidate"], additionalProperties: false, properties: { id: { type: "string" }, defaultCandidate: { type: "boolean" } } } }];
       writeFileSync(file, JSON.stringify(m));
       await host.invoke("register", { directory });
       await host.invoke("trust", { id, registrationId: (await host.list()).find(p => p.id === id)!.registrationId });
@@ -1747,7 +1067,7 @@ test("plugin service shutdown waits for startup and confirms the started child e
   const { createPluginService } = await import("../server/plugin-service.ts");
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-start-close-"));
   const file = path.join(root, "state.json");
-  const directory = lifecycleFixture(root, "fixture.start", `export function activate(){return {operations:{},status:()=>({available:true,message:String(process.pid),folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  const directory = lifecycleFixture(root, "fixture.start", `export function activate(){return {operations:{},status:()=>({available:true,message:String(process.pid)}),dispose(){}}}`);
   const seed = new PluginHost(file, {  });
   try {
     await seed.invoke("register", { directory });
@@ -1783,11 +1103,11 @@ test("health check publication enforces the SDK result even with a permissive pl
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-health-"));
   const host = new PluginHost(path.join(root, "state.json"), {  });
   try {
-    const directory = lifecycleFixture(root, "fixture.health", `export function activate(c){return {operations:{connection:()=>c.settings.invalid ? {ok:true,message:'fixed',raw:'private service response'} : {ok:false,message:'Service unavailable'}},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+    const directory = lifecycleFixture(root, "fixture.health", `export function activate(c){return {operations:{connection:()=>c.settings.invalid ? {ok:true,message:'fixed',raw:'private service response'} : {ok:false,message:'Service unavailable'}},status:()=>({available:true,message:'ready'}),dispose(){}}}`);
     const file = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(file, "utf8"));
-    manifest.requiresSdk = ">=0.3.0 <1.0.0";
+
     manifest.settingsSchema = { type: "object", properties: { invalid: { type: "boolean" } } };
-    manifest.contributes = { healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }] };
+    Object.assign(manifest,{ healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }] });
     writeFileSync(file, JSON.stringify(manifest));
     await host.invoke("register", { directory });
     await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId });
@@ -1808,7 +1128,7 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
   try {
     const directory = lifecycleFixture(root, "fixture.icon");
     const manifestFile = path.join(directory, "litzio-plugin.json"), icon = path.join(directory, "icon.svg");
-    const manifest = { ...JSON.parse(readFileSync(manifestFile, "utf8")), requiresSdk: ">=0.4.0 <1.0.0", icon: "icon.svg" };
+    const manifest = { ...JSON.parse(readFileSync(manifestFile, "utf8")), icon: "icon.svg" };
     writeFileSync(manifestFile, JSON.stringify(manifest));
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="blue"/></svg>';
     for (const invalid of [svg.replace('width="16"', 'width="257"'), svg.replace('height="16"', 'height="0"'), '<html/>', svg + ' '.repeat(65536), '<svg']) {
@@ -1839,38 +1159,13 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-test("suggestion admission and generic CLI invocation share validated results", async () => {
- const root=mkdtempSync(path.join(os.tmpdir(),"litzio-suggestions-"));
- const host=new PluginHost(path.join(root,"state.json"),{});
- const directory=path.join(root,"artifact");mkdirSync(directory);
- const operations=[{id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"},inputHints:{person:"hint"}},{id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}}];
- operations.push({id:"hint",version:1,effect:"read",scope:"host",inputSchema:{type:"object"},outputSchema:{type:"object"}} as any);
- writeFileSync(path.join(directory,"litzio-plugin.json"),JSON.stringify({schemaVersion:1,id:"fixture.people",tier:"community",publisher:{id:"fixture",name:"Fixture"},name:"Fixture",version:"0.1.0",requiresSdk:"^0.3.0",entry:"host.js",contributes:{operations}}));
- writeFileSync(path.join(directory,"package.json"),JSON.stringify({type:"module",version:"0.1.0"}));
- writeFileSync(path.join(directory,"host.js"),`export function activate(){return {operations:{hint:({bad})=>({text:bad?"x".repeat(513):"Current user"}),search:()=>[],people:({query})=>query==='bad'?[{value:'missing label'}]:[{value:'id',label:'Example person'}]},status:()=>({available:true,message:'',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
- try {
-  await host.invoke("register",{directory});
-  await host.invoke("trust",{id:"fixture.people",registrationId:(await host.list())[0]!.registrationId});
-  await host.invoke("enable",{id:"fixture.people"});
-  assert.deepEqual(host.viewOperations().find(op=>op.operation==='fixture.people.search')?.inputSuggestions,{person:{operation:'fixture.people.people',version:1}});
-  assert.deepEqual(host.viewOperations().find(op=>op.operation==='fixture.people.search')?.inputHints,{person:{operation:'fixture.people.hint',version:1}});
-  for (const action of ["invoke","input-hint"]) assert.deepEqual((await host.invoke(action,{operation:"fixture.people.hint",version:1,input:{}}) as any).result,{text:"Current user"});
-  assert.equal((await host.invoke("invoke",{operation:"fixture.people.hint",input:{bad:true}}) as any).receipt.outcome,"failure");
-  await assert.rejects(host.invoke("input-hint",{operation:"fixture.people.hint",version:2}),/unavailable/);
-  await assert.rejects(host.invoke("input-hint",{operation:"fixture.people.search",version:1}),/unavailable/);
-  const input={operation:"fixture.people.people",version:1,input:{query:"ex"}};
-  for(const action of ["invoke","suggest"]) assert.deepEqual((await host.invoke(action,input) as any).result,[{value:"id",label:"Example person"}]);
-  await assert.rejects(host.invoke("suggest",{...input,version:2}),/unavailable/);
-  assert.equal((await host.invoke("invoke",{...input,input:{query:"bad"}}) as any).receipt.outcome,"failure");
-  await assert.rejects(host.invoke("suggest",{operation:"fixture.people.search",input:{}}),/unavailable/);
- } finally { await host.close();rmSync(root,{recursive:true,force:true}); }
-});
+
 
 
 test("registration trust survives updates and restart, but not removal", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-registration-trust-"));
   const file = path.join(root, "state.json");
-  let host = new PluginHost(file, { designatedPlugins: [] });
+  let host = new PluginHost(file, { });
   try {
     const directory = lifecycleFixture(root, "fixture.trust"), id = "fixture.trust";
     await host.invoke("register", { directory });
@@ -1884,7 +1179,7 @@ test("registration trust survives updates and restart, but not removal", async (
     writeFileSync(path.join(directory, "update.txt"), "updated");
     assert.equal((await host.list())[0]!.trusted, true);
     await host.invoke("reload", { id });
-    await host.close(); host = new PluginHost(file, { designatedPlugins: [] });
+    await host.close(); host = new PluginHost(file, { });
     await host.start();
     assert.equal((await host.list())[0]!.running, true);
     assert.equal((await host.list())[0]!.registrationId, originalRegistration);
@@ -1920,173 +1215,20 @@ test("registration trust survives updates and restart, but not removal", async (
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-test("row result envelopes validate coverage and preserve only declared public fields", () => {
-  const op = { outputSchema: {}, rowSchema: rowSchema.parse({ name: { type: "string", label: "Name" }, extra: { type: "number", label: "Extra", hidden: true }, token: { type: "string", label: "Token", secret: true } }) };
-  const rows = [{ name: "Row", extra: 4, token: "private", undeclared: "no" }];
-  const clean = [{ name: "Row", extra: 4 }];
-  assert.deepEqual(publicOperationResult(op, rows, []), clean);
-  for (const meta of [{ truncated: true }, { truncated: true, total: 20 }, { truncated: false, total: 1 }]) {
-    assert.deepEqual(publicOperationResult(op, { rows, ...meta }, []), { rows: clean, ...meta });
-  }
-  for (const meta of [{}, { truncated: "yes" }, { truncated: true, total: 0 }, { truncated: true, total: 1 }, { truncated: false, total: 2 }, { truncated: true, total: -1 }, { truncated: true, total: 1.5 }]) assert.throws(() => publicOperationResult(op, { rows, ...meta }, []));
-});
+
 
 // Supply/trust policy is exercised here; HTTP browser coverage owns the confirmation UI.
-test("designated community supply requires trust, persists across updates and yields to folder registration", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-designated-"));
-  const directory = lifecycleFixture(root, "fixture.designated");
-  const manifestFile = path.join(directory, "litzio-plugin.json");
-  const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
-  manifest.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "string" } }];
-  manifest.settingsSchema = { type: "object", properties: { label: { type: "string" } }, additionalProperties: false };
-  writeFileSync(manifestFile, JSON.stringify(manifest));
-  const marker = path.join(root, "imported.txt");
-  const entry = path.join(directory, "host.js");
-  writeFileSync(entry, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'imported');\n` + readFileSync(entry, "utf8").replace("operations:{}", "operations:{read:()=>'designated'}"));
-  const designatedPlugins = [{ id: "fixture.designated", directory }];
-  const state = path.join(root, "state.json");
-  const options = { designatedPlugins };
-  let host = new PluginHost(state, options);
-  const item = async () => (await host.list()).find(p => p.id === "fixture.designated")!;
-  try {
-    await host.start();
-    assert.ok(await item(), "designated supply is present without registration");
-    assert.equal((await item()).bundled, true);
-    assert.equal((await item()).official, false);
-    assert.equal((await item()).trusted, false);
-    assert.equal((await item()).enabled, false);
-    await assert.rejects(host.invoke("enable", { id: "fixture.designated" }), /trust/);
-    await assert.rejects(host.invoke("unregister", { id: "fixture.designated" }), /disabled/);
-    assert.equal(existsSync(marker), false, "listing and rejected enable never import the community entry");
-    await host.invoke("settings", { id: "fixture.designated", settings: { label: "saved" } });
-    const registrationId = (await item()).registrationId;
-    await assert.rejects(host.invoke("enable", { id: "fixture.designated", trust: true, registrationId: "00000000-0000-0000-0000-000000000000" }), /registration/i);
-    await host.invoke("enable", { id: "fixture.designated", trust: true, registrationId });
-    assert.equal((await item()).running, true);
-    assert.equal(readFileSync(marker, "utf8"), "imported");
-    await host.close();
-    writeFileSync(path.join(directory, "updated.txt"), "app update changes digest");
-    const { cpSync } = await import("node:fs");
-    const updated = path.join(root, "updated-app"); cpSync(directory, updated, { recursive: true });
-    designatedPlugins[0]!.directory = updated;
-    host = new PluginHost(state, options); await host.start();
-    assert.deepEqual((await item()).settings, { label: "saved" });
-    assert.equal((await item()).registrationId, registrationId);
-    assert.equal((await item()).running, true);
-    await host.invoke("disable", { id: "fixture.designated" });
-    await host.invoke("register", { directory });
-    assert.equal((await item()).bundled, false);
-    assert.equal((await item()).trusted, false);
-    await host.close(); host = new PluginHost(state, options); await host.start();
-    assert.equal((await item()).bundled, false);
-    await host.invoke("unregister", { id: "fixture.designated" });
-    await host.close(); host = new PluginHost(state, options); await host.start();
-    assert.equal((await item()).bundled, true);
-    assert.equal((await item()).trusted, false);
-    assert.equal((await item()).enabled, false);
-    // Remove an override, then admit a different plugin whose dotted operation
-    // occupies the returning supply's full name before the next Host start.
-    await host.invoke("register", { directory });
-    await host.invoke("unregister", { id: "fixture.designated" });
-    const rivalDirectory = lifecycleFixture(root, "fixture", "export function activate(){return {operations:{'designated.read':()=> 'rival'},status:()=>({available:true,message:'rival',folders:[],decorations:[],accounts:[]}),dispose(){}}}");
-    const rivalFile = path.join(rivalDirectory, "litzio-plugin.json");
-    const rivalManifest = JSON.parse(readFileSync(rivalFile, "utf8"));
-    rivalManifest.contributes.operations = [{ ...manifest.contributes.operations[0], id: "designated.read" }];
-    writeFileSync(rivalFile, JSON.stringify(rivalManifest));
-    await host.invoke("register", { directory: rivalDirectory });
-    const rival = (await host.list()).find(p => p.id === "fixture")!;
-    await host.invoke("enable", { id: rival.id, registrationId: rival.registrationId, trust: true });
-    await host.close();
-    const { unlinkSync } = await import("node:fs"); unlinkSync(marker);
-    host = new PluginHost(state, options); await host.start();
-    assert.equal((await item()).error, "Plugin operation ID collision");
-    assert.equal((await item()).running, false);
-    assert.equal(existsSync(marker), false, "conflicting supply is not imported on startup");
-    assert.equal((await host.list()).find(p => p.id === rival.id)!.running, true);
-    await assert.rejects(host.invoke("enable", { id: "fixture.designated", registrationId: (await item()).registrationId, trust: true }), /Plugin operation ID collision/);
-    assert.equal((await item()).running, false);
-    assert.equal(existsSync(marker), false, "rejected enable cannot import the conflicting entry");
-    assert.equal((await host.invokeOperation("fixture.designated.read", {})).result, "rival");
-    await host.invoke("unregister", { id: rival.id });
-    await host.invoke("enable", { id: "fixture.designated" });
-    assert.equal((await host.invokeOperation("fixture.designated.read", {})).result, "designated");
-    await assert.rejects(host.invoke("register", { directory: rivalDirectory }), /Plugin operation ID collision/);
-  } finally { await host.close(); }
-});
-
-test("designated distribution payload check rejects a missing runtime file", async () => {
-  const { DESIGNATED_COMMUNITY_PLUGINS, assertDesignatedPluginPayload } = await import("../server/plugins/designated-plugins.ts");
-  const docling=DESIGNATED_COMMUNITY_PLUGINS.find(item=>item.id==="community.docling")!;
-  const visited=new Set<string>(),missing=new Set<string>();
-  const visit=(file:string)=>{
-    if(!docling.files.includes(file))missing.add(file);
-    if(visited.has(file)||!file.endsWith(".js"))return;visited.add(file);
-    const source=readFileSync(new URL(`../../../community-plugins/docling/${file}`,import.meta.url),"utf8");
-    const refs=[...source.matchAll(/^\s*import\b[^;]*?\bfrom\s+["'](\.[^"']+)["']/gm),...source.matchAll(/new URL\(["'](\.[^"']+)["'],\s*import\.meta\.url\)/g)];
-    for(const ref of refs)visit(path.posix.normalize(path.posix.join(path.posix.dirname(file),ref[1]!)));
-  };
-  visit("host.js");
-  assert.deepEqual([...missing],[],`Docling runtime dependencies missing from designated payload: ${[...missing].join(", ")}`);
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-supply-check-"));
-  assert.throws(() => assertDesignatedPluginPayload(root), /community.docling/);
-  for (const item of DESIGNATED_COMMUNITY_PLUGINS) {
-    const folder = path.join(root, "community-plugins", item.folder); mkdirSync(folder, { recursive: true });
-    assert.ok(!item.files.some(file => file.includes("fixtures")));
-    for (const file of item.files) {
-      mkdirSync(path.dirname(path.join(folder, file)), { recursive: true });
-      writeFileSync(path.join(folder, file), "payload");
-    }
-  }
-  assertDesignatedPluginPayload(root);
-  const { unlinkSync } = await import("node:fs");
-  unlinkSync(path.join(root, "community-plugins", "docling", "conversion.js"));
-  assert.throws(() => assertDesignatedPluginPayload(root), /conversion.js/);
-});
 
 
-test("authoring: query and file templates validate and run through the shared Host", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-templates-"));
-  const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
-  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
-  try {
-    assert.throws(() => host.invoke("scaffold", { directory: path.join(root, "bad"), id: "local.bad", template: "unknown" as any }));
-    assert.equal(existsSync(path.join(root, "bad")), false);
-    for (const template of ["query", "file"] as const) {
-      const id = `local.${template}`, directory = path.join(root, template);
-      const created = await executePluginTool(host, { action: "scaffold", directory, id, template }, () => {}, scope);
-      assert.equal(created.error, undefined);
-      assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
-      await host.invoke("register", { directory });
-      await host.invoke("trust", { id, registrationId: (await host.list()).find(p => p.id === id)!.registrationId });
-      await host.invoke("enable", { id });
-      if (template === "query") {
-        assert.equal(((await host.invokeOperation(`${id}.connection`, {})).result as any).ok, true);
-        assert.deepEqual((await host.invokeOperation(`${id}.search`, { status: "완료" })).result, { rows: [{ title: "회의 기록", status: "완료" }], total: 1, truncated: false });
-        await host.invoke("settings", { id, settings: { workspace: "데모" } });
-        await host.invoke("reload", { id });
-        assert.deepEqual((await host.invokeOperation(`${id}.connection`, {})).result, { ok: true, message: "데모 연결을 확인했습니다." });
-      } else {
-        writeFileSync(path.join(root, "sample.txt"), "Hello world");
-        const batch: any = await host.invoke("job-start-many", { plugin: id, job: "convert", root, files: ["sample.txt"] });
-        const requestId = batch.files[0].requestId;
-        let result: any;
-        for (let i = 0; i < 100; i++) {
-          result = await host.invoke("job-status", { requestId });
-          if (result.job.state !== "running") break;
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        assert.equal(result.job.state, "completed", JSON.stringify(result));
-        assert.equal(readFileSync(path.join(root, "sample.upper"), "utf8"), "HELLO WORLD");
-        assert.equal(readFileSync(path.join(root, "sample.txt"), "utf8"), "Hello world");
-      }
-    }
-  } finally { await host.close(); }
-});
+
+
+
+
 
 
 test("screen code is active-only, reloads local JSX, reports compiler failures and accepts arbitrary JSON", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-screen-code-"));
-  const host = new PluginHost(path.join(root, "state.json"), { designatedPlugins: [] });
+  const host = new PluginHost(path.join(root, "state.json"), { });
   try {
     const { scaffoldPlugin } = await import("../server/plugins/plugin-authoring.ts");
     const directory = path.join(root, "plugin"); scaffoldPlugin(directory, "fixture.screen", undefined, undefined, "screen");
@@ -2127,7 +1269,7 @@ test("screen dependency bundle stays offline and shares the app React instance",
   const { bundleScreens, compileScreen } = await import("../server/plugins/screen-code.ts");
   const React = await import("react"); const { renderToString } = await import("react-dom/server");
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-screen-bundle-"));
-  writeFileSync(path.join(root, "litzio-plugin.json"), JSON.stringify({contributes:{screens:[{entry:"screen.jsx"}]}}));
+  writeCodePluginManifest(root,{contributes:{screens:[{entry:"screen.jsx"}]}});
   const library = path.join(root, "node_modules", "fixture-chart"); mkdirSync(library, {recursive:true});
   writeFileSync(path.join(library, "package.json"), JSON.stringify({name:"fixture-chart",main:"index.js",type:"module"}));
   writeFileSync(path.join(library, "index.js"), 'import React from "react"; export function Chart(){const [x]=React.useState(24);return React.createElement("output",null,x)}');
@@ -2143,7 +1285,7 @@ test("screen dependency bundle stays offline and shares the app React instance",
 
 test("install uses authoring ID in opened folders, repeats edits and refuses private CLI calls", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-install-"));
-  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins"), designatedPlugins: [] });
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins") });
   const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
   const id = "local.install";
   try {
@@ -2151,17 +1293,33 @@ test("install uses authoring ID in opened folders, repeats edits and refuses pri
     assert.equal(created.error, undefined);
     const directory = created.result.directory;
     const entry = path.join(directory,"host.mjs");
+    const manifestFile = path.join(directory,"litzio-plugin.json");
+    const manifest = {...JSON.parse(readFileSync(manifestFile,"utf8")),icon:"icon.PNG"};
+    writeFileSync(manifestFile,JSON.stringify({...manifest,icon:"icon.webp"}));
+    writeFileSync(path.join(directory,"icon.webp"),Buffer.from("UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA","base64"));
+    for (const action of ["validate","install"]) {
+      assert.equal((await host.invoke(action,{directory}) as any).receipt.outcome,"failure");
+    }
+    writeFileSync(manifestFile,JSON.stringify(manifest));
+    writeFileSync(path.join(directory,manifest.icon),Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=","base64"));
+    assert.equal(validateManifest(manifest).icon,"icon.PNG");
+    assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
     writeFileSync(entry,readFileSync(entry,"utf8").replace('message: "Ready"','message: String(process.pid)'));
     const installed: any = await executePluginTool(host,{action:"install",id},()=>{},scope);
     assert.equal(installed.error, undefined, JSON.stringify(installed));
     assert.equal((await host.list())[0]!.running, true);
+    assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/png");
     const first = host.viewScreens()[0]!.codeRevision;
     await assert.rejects(host.invokeOperation(`${id}.measurements`,{}), /unavailable/);
     await assert.rejects(host.invokeAssistantOperation(`${id}.measurements`,{}));
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[10,18,12,24]);
     await assert.rejects(host.invoke("screen-invoke",{plugin:"other",operation:`${id}.measurements`,input:{}}));
     writeFileSync(entry,readFileSync(entry,"utf8").replace("10, 18, 12, 24","20, 30"));
+    writeFileSync(manifestFile,JSON.stringify({...manifest,icon:"icon.SVG"}));
+    writeFileSync(path.join(directory,"icon.SVG"),'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>');
+    assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
     assert.equal((await host.invoke("install",{id}) as any).receipt.outcome,"success");
+    assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/svg+xml");
     assert.notEqual(host.viewScreens()[0]!.codeRevision,first);
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[20,30]);
     await host.invoke("scaffold",{id:"local.other",template:"screen"});

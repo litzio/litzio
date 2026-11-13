@@ -1,14 +1,12 @@
 import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
 import type { ScreenAction, ScreenActionResult, ScreenInfo, ScreenTab } from "../shared/assistant-screen.ts";
-import { GeneratedComparison, comparisonPath, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
 import { ViewWorkspace } from "./views/ViewWorkspace.tsx";
 import type { ViewScreen } from "./views/view-api.ts";
-import { PluginJobs } from "./PluginJobs.tsx";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
-import { Views, type ViewTab } from "./views/Views.tsx";
+import type { ViewTab } from "./views/view-page.ts";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
 import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
@@ -270,14 +268,13 @@ function EditorApp() {
   const galleryFocused = activeId === "templates";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? (tab.comparison ? comparisonPath(tab.comparison) : undefined) ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.label ?? tab.screen?.title ?? "" })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
   const tabMemory = useTabNavigationMemory(tabs, navigation, activeId);
   const { tabsRestored, rememberTabs, startupOverrides, markStartupOverride } = tabMemory;
   const sessions = useRef(new Map<string, EditorSession>());
-  const comparisonWrites = useRef(new Set<string>());
   const [, refreshShell] = useReducer(value => value + 1, 0);
   const reportSession = useCallback((id: string, next: EditorSession | null) => {
     if (next) sessions.current.set(id, next);
@@ -428,11 +425,10 @@ function EditorApp() {
       const owner = sessions.current.get(item.id);
       const kind: ScreenTab["kind"] = file ? (owner?.kind ?? file.file.kind) === "text" ? "text" : "document"
         : item.id === "settings" ? "settings" : item.id === "templates" ? "templates"
-        : view?.pdf ? "pdf" : view?.comparison ? "comparison" : view?.screen ? "plugin" : view?.jobs ? "plugin-jobs"
-        : view?.view?.profile === "review" ? "review" : "plugin";
+        : view?.pdf ? "pdf" : "plugin";
       return { id: item.id, kind, hostId: item.hostId ?? null,
         title: "title" in item && item.title ? item.title : splitDocumentPath(item.path).name,
-        ...(kind !== "settings" && kind !== "templates" ? { path: view?.comparison ? `${view.comparison.root}/${comparisonPath(view.comparison)}` : item.path } : {}),
+        ...(kind !== "settings" && kind !== "templates" ? { path: item.path } : {}),
         unsaved: Boolean(owner && (owner.documentDirty || owner.draftActive || owner.editorRef.current?.hasUnsavedChanges())) };
     });
     return { activeTab: screenTabs.find(tab => tab.id === activeId) ?? null, tabs: screenTabs,
@@ -734,7 +730,6 @@ function EditorApp() {
   };
   function closeTab(id: string): boolean {
     if (viewTabs.some(tab => tab.id === id)) {
-      if (comparisonWrites.current.has(id)) { setNotice({key:"Wait for the current operation to finish."}); return false; }
       if (busy || continuation) return false;
       setViewTabs(previous => previous.filter(tab => tab.id !== id));
       navigate({ type: "close", id }); focusAfterClose.current = true; return true;
@@ -862,18 +857,7 @@ function EditorApp() {
       placeTab(id, group, hostId);
       return "";
     }
-    if (!/\.(md|txt)$/i.test(requestedPath)) {
-      if (operationRef.current || busy || fileOperationPending || continuation) return i18n.t("Wait for the current operation to finish.");
-      const root = (hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(hostId)).find(root => folderChain(root, requestedPath).length > 0);
-      if (root) {
-        try {
-          const response=await getHostClient(hostId).request("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"workspace-find",root,path:requestedPath})});
-          const value=await response.json();
-          if(response.ok && value.targets?.length===1){ const {root,workspace,plugin,job}=value.targets[0];openComparison(hostId,{root,workspace,plugin,job});return ""; }
-        } catch { return i18n.t("Data unavailable."); }
-      }
-      return i18n.t("Only .md and .txt files can be opened.");
-    }
+    if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
     if (operationRef.current || fileOperationPending || sessions.current.get(navigation.groups.find(item => item.id === group)?.active ?? "")?.busyRef.current || continuation) return i18n.t("Wait for the current operation to finish.");
     markStartupOverride({ hostId, path: requestedPath });
     const existing = openedTab(tabs, requestedPath, hostId);
@@ -919,25 +903,6 @@ function EditorApp() {
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
-  function openComparison(hostId: string, target: ComparisonTarget) {
-    if (!tabsRestored || operationRef.current || busy || continuation) { setNotice({key:"Wait for the current operation to finish."}); return; }
-    if (sidebarOverlay) closeSidebar();
-    const comparison:ComparisonTarget="workspace" in target ? {root:target.root,workspace:target.workspace,plugin:target.plugin,job:target.job} : {root:target.root,document:target.document};
-    const existing = viewTabs.find(tab => tab.hostId === hostId && tab.comparison?.root === comparison.root && comparisonPath(tab.comparison) === comparisonPath(comparison));
-    const id = existing?.id ?? `comparison-${++nextId.current}`;
-    setViewTabs(previous => previous.some(t => t.id === id) ? previous : [...previous,{id,hostId,root:comparison.root,comparison,label:i18n.t("Source comparison")}]);
-    placeTab(id);
-  }
-  // DocumentTab reports session changes to App; keep its event prop stable across those renders.
-  const comparisonEntry = useRef(openComparison); comparisonEntry.current = openComparison;
-  const openGeneratedComparison = useCallback((hostId: string, target: ComparisonTarget) => comparisonEntry.current(hostId, target), []);
-  function openPluginJobs(): void {
-    const hostId = viewTabs.find(tab => tab.id === activeId)?.hostId ?? session?.hostId ?? LOCAL_HOST_ID;
-    const id = `plugin-jobs-${hostId}`;
-    setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous, { id, jobs: true, hostId, root: "" }]);
-    placeTab(id);
-  }
-
   async function createFile(path: string, target?: { hostId: string; client: HostClient; root?: string }): Promise<string> {
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
     operationRef.current = true;
@@ -1145,7 +1110,7 @@ function EditorApp() {
   const restartCheck = useRef<() => RestartCheck>(() => ({ ok: false, reason: i18n.t("The editor is not ready.") }));
   restartCheck.current = () => {
     if (!tabsRestored) return { ok: false, reason: i18n.t("The editor is not ready.") };
-    const reason = comparisonWrites.current.size ? i18n.t("Wait for the current operation to finish.") : allTabsPendingWork(sessions.current.values(), operationRef.current);
+    const reason = allTabsPendingWork(sessions.current.values(), operationRef.current);
     return reason ? { ok: false, reason } : { ok: true };
   };
   const reportedPendingWork = useRef<boolean | null>(null);
@@ -1193,7 +1158,7 @@ function EditorApp() {
 
   useEffect(() => {
     const protect = (event: BeforeUnloadEvent) => {
-      if (!comparisonWrites.current.size && !allTabsPendingWork(sessions.current.values(), operationRef.current)) return;
+      if (!allTabsPendingWork(sessions.current.values(), operationRef.current)) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -1258,7 +1223,6 @@ function EditorApp() {
   };
   const commandItems: CommandCenterItem[] = [
     ...screens.filter((screen,index,all)=>all.findIndex(s=>s.plugin===screen.plugin&&s.id===screen.id)===index).map(screen=>({id:`screen:${screen.plugin}:${screen.id}`,kind:"command" as const,label:`${screen.plugin}: ${screen.title} ${i18n.t("Open view")}`,icon:viewScreenIcon(screen.icon),takesFocus:true,run:()=>openScreen(screen)})),
-    { id: "plugin-jobs", kind: "command", label: i18n.t("Plugin jobs"), icon: FileText, takesFocus: true, run: openPluginJobs },
     ...(assistantAvailable ? [{ id: "assistant", kind: "command" as const, label: i18n.t("Assistant"), icon: MessageSquare, takesFocus: true,
       shortcut: ASSISTANT_SHORTCUT.label, keywords: ["assistant", "비서"], run: () => { assistantReturn.current = commandReturnFocus.current; setAssistantOpen(true); } }] : []),
     ...(samplePath ? [{ id: "open-sample", kind: "command" as const, label: i18n.t("Open sample document"), icon: FileText, takesFocus: true, disabled: busy || Boolean(continuation),
@@ -1365,7 +1329,7 @@ function EditorApp() {
 
   return (<>
     <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
-      <Sidebar onCompare={openComparison} onCopyPath={path => void copyPath(path)}
+      <Sidebar onCopyPath={path => void copyPath(path)}
         documentHostId={activePdf?.hostId ?? session?.hostId ?? LOCAL_HOST_ID}
         onHostOpen={(hostId, path) => { if (sidebarOverlay) closeSidebar(); return openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); }); }}
         registerFolderOpener={registerFolderOpener}
@@ -1530,8 +1494,7 @@ function EditorApp() {
             return <DocumentTab client={tab.client} hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
               report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : remoteImageRename} onReveal={revealDocument}
-              comparisonRoot={(tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)).find(root => folderChain(root, tab.file.path).length > 0) ?? splitDocumentPath(tab.file.path).directory}
-              onOpenComparison={openGeneratedComparison} onCompare={compareExternal} />;
+              onCompare={compareExternal} />;
           })}
           {/* Keep a boundary outside removable work tabs; document sessions remain siblings. */}
           <ScreenBoundary closing={!viewTabs.some(tab => tab.id === activeId)} resetKey={activeId ?? undefined}>{viewTabs.map(tab => {
@@ -1541,7 +1504,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} isDirty={path => { const existing=openedTab(tabs,path,tab.hostId); return !!(existing && sessions.current.get(existing.id)?.editorRef.current?.hasUnsavedChanges()); }} onPending={pending => { if (pending) comparisonWrites.current.add(tab.id); else comparisonWrites.current.delete(tab.id); refreshShell(); }} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
+              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onOpenDocument={openViewDocument} /> : null}
 
             </div>;
           })}
@@ -1635,7 +1598,6 @@ function EditorApp() {
           if (!root) throw new Error(i18n.t("The created file is outside the opened folders."));
           return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result, assistantHost) !== "";
         }}
-        reviewWorkspacePath={activeViewTab?.hostId===assistantHost && activeViewTab.comparison && "workspace" in activeViewTab.comparison ? `${activeViewTab.comparison.root}/${activeViewTab.comparison.workspace}` : undefined}
         documentPath={session?.hostId === assistantHost ? session.openedPath : ""} folders={assistantHost === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(assistantHost)}
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /></HostContext.Provider> : null}

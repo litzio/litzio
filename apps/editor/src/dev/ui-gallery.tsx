@@ -1,6 +1,5 @@
 import { ScreenPartsExample } from "./screen-parts-example.tsx";
-import { QueryLifetimeExamples } from "./query-lifetime-examples.tsx";
-import { PluginViewExamples, TableInteractionExample } from "./plugin-view-examples.tsx";
+import {TableInteractionExample} from "./data-table-example.tsx";
 import { useRef, useState } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { FileText, FolderOpen, MoreHorizontal, Pencil, Plus, Settings, Trash2 } from "lucide-react";
@@ -127,7 +126,7 @@ export function UiGallery() {
     <div className="ui-gallery-body">
     <aside className="ui-gallery-navigation settings-navigation">
       <nav aria-label="Gallery elements">
-        {["Controls", "Surfaces", "Menus", "Notifications", "Plugin views", "Tables", "Query lifetime", "Screen parts"].map(value =>
+        {["Controls", "Surfaces", "Menus", "Notifications", "Tables", "Screen parts"].map(value =>
           <Button key={value} variant="ghost" size="sm" aria-current={category === value ? "page" : undefined}
             onClick={() => setCategory(value)}>{value}</Button>)}
       </nav>
@@ -148,9 +147,7 @@ export function UiGallery() {
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}
     {visible("Notifications") ? <NotificationExample state={state} /> : null}
-    {visible("Plugin views") ? <PluginViewExamples state={state} /> : null}
     {visible("Tables") ? <TableInteractionExample /> : null}
-    {visible("Query lifetime") ? <QueryLifetimeExamples /> : null}
     <footer>Examples show current implementation, not unimplemented UI pattern targets. Review large layout changes in their actual screen.</footer>
     </div></div>
   </main>;

@@ -22,4 +22,4 @@ Missing {cite}`missing` and incomplete {cite}`unsupported` keep their status.
 x=1
 ```
 
-[^detail]: **Formatted** *endnote* with `code`, $x^2$, {eq}`eq-example`, {cite}`article` and [local diagram](diagram.svg).
+[^detail]: **Formatted** *endnote* with `code`, $x^2$, {eq}`eq-example`, {cite}`article` and [local diagram](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/apps/editor/test/browser/fixtures/diagram.svg).

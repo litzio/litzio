@@ -18,7 +18,7 @@ const policyFiles = new Set([
 const policyOnly = path => policyFiles.has(path) ||
   path.startsWith('.agents/skills/') || path.startsWith('.claude/skills/');
 const inPackage = (path, name) => path.startsWith(`${name}/`);
-const pluginPackage = path => ['packages/plugin-sdk', 'community-plugins']
+const pluginPackage = path => ['packages/plugin-sdk']
   .some(name => inPackage(path, name));
 const pluginDocumentation = path => pluginPackage(path) && path.endsWith('.md');
 const editorUpdate = path => ['apps/editor/shared/desktop-bridge.ts',
@@ -56,7 +56,6 @@ const desktopBuildInput = path => desktopBuildInputs.has(path) || path.startsWit
 // Removal must cover them without changing Stable/Beta or layout selection.
 const removalBuildInputs = new Set([
   'packages/cli/scripts/plugin-sdk.ts',
-  'apps/editor/server/plugins/designated-plugins.ts',
   'apps/editor/server/plugins/artifact-digest.mjs',
 ]);
 const removalBuildInput = path => removalBuildInputs.has(path) || path.startsWith('apps/editor/samples/');
@@ -93,7 +92,7 @@ function selectPathJobs(eventName, paths) {
   // Editor scenarios consume UI assets and Host operations.
   // Select whole packages rather than maintaining a second dependency graph.
   // The shared scenario setup
-  // reads the Docling fixture; HTTP scenarios additionally load Docling.
+  // exercises code-screen fixtures for the remaining runtime.
   const pluginConsumers = paths.some(path => pluginPackage(path) && !pluginDocumentation(path));
   const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', ]
     .some(name => inPackage(path, name))) || pluginConsumers;

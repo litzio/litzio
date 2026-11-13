@@ -285,7 +285,7 @@ Editor Host Save와 CLI의 파일 수정 명령은 기존 Markdown 파일을 같
 
 ### Structured document creation with images (#1371)
 
-`createAuthoredDocumentFile` is the shared K1 and CLI `create --input` operation. Core constructs canonical document semantics; Host validates supplied image bytes and publishes them beside the new document in `assets/`. It reuses the editor asset publisher, MIME/container limits, exclusive collision handling and unpublished temporary-file cleanup, adding content reuse and support for a not-yet-created document. Names include the full document filename hash and image content hash. Completed authoring images may immediately be reused across processes, so failures retain them without rollback receipts; unreferenced images may remain in assets/. Editor paste/drop naming, admission and signed ownership rollback are unchanged. Existing documents are never replaced. The exact request, bounded payloads, naming, retry and capacity evidence are in [the plugin contract](plugin-stage1-v1.md#공용-문서-이미지긴-문서-확장-1371).
+`createAuthoredDocumentFile` is the shared K1 and CLI `create --input` operation. Core constructs canonical document semantics; Host validates supplied image bytes and publishes them beside the new document in `assets/`. It reuses the editor asset publisher, MIME/container limits, exclusive collision handling and unpublished temporary-file cleanup, adding content reuse and support for a not-yet-created document. Names include the full document filename hash and image content hash. Completed authoring images may immediately be reused across processes, so failures retain them without rollback receipts; unreferenced images may remain in assets/. Editor paste/drop naming, admission and signed ownership rollback are unchanged. Existing documents are never replaced. The exact request, bounded payloads, naming, retry and capacity evidence are in [the plugin contract](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#공용-문서-이미지긴-문서-확장-1371).
 
 ### CLI revision precondition (#214)
 
@@ -687,7 +687,7 @@ Existing `GET /api/folder` responses include an opaque `rootId` computed from th
 
 ## Plugin-managed generated documents (#1364)
 
-Host app data holds canonical-path connections for generated documents; the document folder and Markdown carry no management metadata. GET document/editor-file exposes managedGenerated for the shared Editor/CLI warning. Moving/renaming may disconnect that warning. Opaque source revision replacement, source-first corrections, explicit same-path document regeneration and receipts use the [plugin contract](plugin-stage1-v1.md#generated-document-correction-and-regeneration-1364).
+Host app data holds canonical-path connections for generated documents; the document folder and Markdown carry no management metadata. GET document/editor-file exposes managedGenerated for the shared Editor/CLI warning. Moving/renaming may disconnect that warning. Opaque source revision replacement, source-first corrections, explicit same-path document regeneration and receipts use the [plugin contract](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#generated-document-correction-and-regeneration-1364).
 
 ## Assistant image import (#1554)
 

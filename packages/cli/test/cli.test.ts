@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { generatedDocumentLinkPath } from "../../../apps/editor/server/generated-document.ts";
 import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -110,18 +109,7 @@ test("folder-trash CLI shares Host receipts, inspection and unavailable-trash re
   t.mock.restoreAll();
 });
 
-test("direct CLI edits warn for Host-managed generated documents and still save normally", () => {
-  const file = path.join(fixtures, "managed.md"); writeFileSync(file, nativeSource("# Imported\n"));
-  const link = generatedDocumentLinkPath(file); mkdirSync(path.dirname(link), { recursive: true });
-  writeFileSync(link, JSON.stringify({ plugin: "example.import", job: "import", source: "source.bin", generatedFrom: null, generatedRevision: null }));
-  const result = run(["insert-block", file, "--at", "2", "--text", "Direct edit"]);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stderr, /Direct edits will be overwritten/);
-  assert.match(readFileSync(file, "utf8"), /Direct edit/);
-  const preview = run(["insert-block", file, "--at", "2", "--text", "Preview", "--dry-run", "--format", "json"]);
-  assert.equal(preview.status, 0, preview.stderr);
-  assert.doesNotThrow(() => JSON.parse(preview.stdout));
-});
+
 const technicalFixture = path.join(fixtures, "technical-document.md");
 for (const [name, target] of [["document.md", fixture], ["technical-document.md", technicalFixture]]) {
   writeFileSync(target, nativeSource(readFileSync(fileURLToPath(new URL(`../../core/test/fixtures/${name}`, import.meta.url)), "utf8")));
@@ -730,7 +718,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["app-reset", "assistant", "daemon", "host", "jobs", "operation", "plugins", "view"],
+      "Serve": ["app-reset", "assistant", "daemon", "host", "operation", "plugins"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];
@@ -770,9 +758,6 @@ test("litzio help exits successfully", () => {
 });
 
 test("command help is available from help and --help", () => {
-  const jobs = run(["jobs", "--help"]);
-  assert.equal(jobs.status, 0, jobs.stderr);
-  assert.match(jobs.stdout, /jobs list \[pluginId\] --host <origin> --json/);
   const fromHelp = run(["help", "check"]);
   const fromFlag = run(["check", "--help"]);
   const fromShort = run(["check", "-h"]);

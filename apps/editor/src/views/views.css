@@ -1,41 +1,14 @@
-.views-page { padding: var(--space-6); overflow: auto; height: 100%; color: var(--id-color-text); display: flex; flex-direction: column; gap: var(--space-4); }
-.views-page h2 { font-size: var(--font-size-md); font-weight: 600; }
-.view-workspace > h1, .views-page > header h1 { margin: 0; font-size: var(--font-size-start-title); line-height: var(--line-height-start-title); font-weight: var(--font-weight-semibold); color: var(--id-color-text); }
-.views-page h3 { font-size: var(--font-size-sm); font-weight: 600; }
-.views-page p, .view-receipt { font-size: var(--font-size-sm); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
+.view-workspace > h1 { margin: 0; font-size: var(--font-size-start-title); line-height: var(--line-height-start-title); font-weight: var(--font-weight-semibold); color: var(--id-color-text); }
 .view-controls { display: flex; align-items: end; flex-wrap: wrap; gap: var(--space-3); }
 .view-controls label { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; max-width: 100%; font-size: var(--font-size-sm); }
-.view-panels { display: flex; flex-direction: column; gap: var(--space-4); }
-.view-panel { min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .view-table-scroll { overflow: auto; border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); }
-.view-panel table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
-.view-panel th, .view-panel td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: 1px solid var(--id-color-border-subtle); white-space: nowrap; }
-.view-panel th { background: var(--id-color-surface-subtle); font-weight: 500; }
 
-.plugin-job-summary { align-items: center; }
-.plugin-job-progress { display: flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-sm); color: var(--id-color-text-muted); }
-.plugin-job-progress > [role="progressbar"] { flex: 1; }
-.plugin-job-file-result { align-items: center; }
-.plugin-job-file-result > p { min-width: 0; overflow-wrap: anywhere; flex: 1; }
-.view-query-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-3); }
-.view-query-actions { grid-column: 1 / -1; }
-.views-page { container-type: inline-size; }
-@container (max-width: 640px) { .view-query-form { grid-template-columns: minmax(0, 1fr); } }
-.view-input { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; max-width: 100%; font-size: var(--font-size-sm); }
 
-.view-panels, .view-table-scroll { min-width: 0; max-width: 100%; }
+.view-table-scroll { min-width: 0; max-width: 100%; }
 
-.view-panel th, .view-panel td { min-width: calc(var(--space-4) * 8); max-width: calc(var(--space-4) * 24); white-space: normal; overflow-wrap: anywhere; }
 
-.view-input-control { position: relative; }
-.view-input-control > select { width: 100%; }
-.view-input-clear, .view-select-clear { position: absolute; top: 50%; transform: translateY(-50%); }
-.view-input-clear { right: var(--space-1); }
-.view-select-clear { right: var(--size-control); }
 .view-table-scroll { scrollbar-width: thin; scrollbar-color: var(--id-color-border-strong) transparent; }
 
-.view-input > div:first-child { min-height: var(--size-control-compact); }
-.view-input-control:has(.view-select-clear) > select { padding-right: calc(var(--size-control) * 2); }
 
 .data-table { min-width:0; max-width:100%; display:grid; gap:var(--space-2); }
 .data-table-heading { display:flex; align-items:center; justify-content:space-between; }
@@ -46,52 +19,16 @@
 .view-workspace { height:100%; min-width:0; max-width:100%; overflow:auto; display:flex; flex-direction:column; gap:var(--space-4); padding:var(--space-6); }
 
 .view-workspace > * { flex-shrink:0; min-width:0; max-width:100%; }
-.view-workspace .views-page { height:auto; overflow:visible; padding:0; }
 .view-workspace select { min-width:0; width:100%; max-width:100%; }
 
 
 .view-cell-link { color: var(--id-color-accent); text-decoration: underline; text-underline-offset: 0.15em; }
 .view-cell-link:focus-visible { outline: 2px solid var(--id-color-accent); outline-offset: 2px; border-radius: var(--id-radius-sm); }
 
-.plugin-job-panel { flex-shrink: 0; }
-.plugin-job-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--space-4) * 12)), 1fr)); gap: var(--space-2); }
-.plugin-job-files label { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
-.plugin-job-panel td .view-controls { align-items: center; }
-.plugin-job-panel .plugin-job-phase { min-width: calc(var(--space-4) * 10); }
 
-.plugin-job-files > button { grid-column: 1 / -1; justify-content: flex-start; }
-.plugin-job-panel .view-table-scroll { overflow-x: auto; }
-.plugin-job-state { display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 
-.plugin-job-panel tbody tr { height: calc(var(--space-4) * 4); }
 
-.view-query-inputs { display: contents; }
-.view-query-summary, .view-query-advanced { grid-column: 1 / -1; }
-.view-query-advanced { display: grid; grid-template-columns: subgrid; gap: var(--space-3); }
-.view-query-summary { margin: 0; font-size: var(--font-size-sm); overflow-wrap: anywhere; white-space: pre-wrap; }
-@container (min-width: 800px) { .view-query-form:has(.view-query-more) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.view-query-more { margin-inline-end: auto; }
 .view-panel-container { min-width: 0; width: 100%; }
 
 /* Query conditions and results share the workspace axis, with distinct existing surfaces. */
-.view-query-form { padding: var(--space-4); background: var(--id-color-surface-subtle); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); }
-.view-query-results { min-width: 0; padding: var(--space-4); background: var(--id-color-surface); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); display: flex; flex-direction: column; gap: var(--space-3); }
-.data-table-toolbar, .view-result-tools { align-items: center; }
-.view-result-tools { margin-inline-start: auto; }
 .data-table table { table-layout: fixed; }
-.view-panel .data-table th, .view-panel .data-table td { min-width: 0; max-width: none; }
-
-/* File job input and full-width results share the existing surface hierarchy. */
-.plugin-job-input { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); background: var(--id-color-surface-subtle); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); min-width: 0; }
-.plugin-job-input .settings-row { margin: 0; padding: 0; border: 0; }
-.plugin-job-choices { flex-wrap: wrap; width: fit-content; max-width: 100%; }
-.plugin-job-choices.view-toggle .view-toggle-option { height: auto; min-height: var(--size-control); white-space: normal; text-align: start; }
-.plugin-job-choices .view-toggle-label { white-space: normal; overflow-wrap: anywhere; }
-.plugin-job-start { align-items: center; font-size: var(--font-size-sm); color: var(--id-color-text-muted); }
-.plugin-job-start > button { max-width: 100%; height: auto; min-height: var(--size-control); white-space: normal; overflow-wrap: anywhere; }
-.plugin-job-hint { margin: 0; font-size: var(--font-size-sm); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
-.plugin-job-hint:empty { display: none; }
-.plugin-job-files label { min-height: var(--size-control-compact); }
-.plugin-job-phase-label { display: flex; align-items: center; gap: var(--space-2); }
-.plugin-job-phase-label svg { flex-shrink: 0; }
-.plugin-job-badge { padding: var(--space-1) var(--space-2); border: 1px solid currentColor; border-radius: var(--id-radius-md); background: var(--id-color-surface); }

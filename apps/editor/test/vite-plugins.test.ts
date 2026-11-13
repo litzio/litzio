@@ -1,3 +1,4 @@
+import {writeCodePluginManifest} from "../../../test/helpers/code-plugin.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -19,9 +20,9 @@ test("Vite development HTTP Host activates an external artifact with the Host SD
   try {
     const directory = path.join(root, "artifact"); mkdirSync(directory);
     writeFileSync(path.join(directory, "screen.jsx"), "export default function Screen(){return null}");
-    writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ id: "fixture.vite", name: "Vite fixture", entry: "host.mjs", screen: "screen.jsx" }));
+    writeCodePluginManifest(directory,{ id: "fixture.vite", name: "Vite fixture", entry: "host.mjs", screen: "screen.jsx" });
     writeFileSync(path.join(directory, "host.mjs"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
-export function activate(){return {operations:{},status:()=>({available:true,message:SDK_VERSION,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+export function activate(){return {operations:{},status:()=>({available:true,message:SDK_VERSION}),dispose(){}}}`);
     const editor = path.resolve(import.meta.dirname, "..");
     server = await createServer({ root: editor, configFile: path.join(editor, "vite.config.ts"), customLogger: logger, server: { port: 0, open: false } });
     await server.listen();

@@ -1,48 +1,6 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
-  if (screenshots && pluginFixture.reviewArchive) {
-    await page.getByRole('button',{name:'Settings',exact:true}).click();
-    await page.getByRole('button',{name:'Plugins',exact:true}).click();
-    const toggle=page.getByRole('switch',{name:'Enable Docling',exact:true});
-    if (!await toggle.isChecked()) {
-      await toggle.click();
-      const trust=page.getByRole('button',{name:'Trust and enable',exact:true});
-      if (await trust.isVisible()) await trust.click();
-    }
-    await page.keyboard.press('Escape');
-    await openFolderPicker(page);
-    await page.getByTestId('folder-path').fill(pluginFixture.folder);
-    await page.getByTestId('folder-open').click();
-    await page.locator('.sidebar').getByRole('button',{name:'Docling',exact:true}).click();
-    const panel=page.getByTestId('plugin-job-panel');
-    await panel.getByRole('group',{name:'Task',exact:true}).getByRole('button',{name:/문서 만들기/}).click();
-    await panel.getByRole('checkbox',{name:'real.docling',exact:true}).check();
-    await panel.locator('.plugin-job-start').getByRole('button').click();
-    const row=panel.getByRole('row').filter({has:page.getByRole('cell',{name:'real.docling',exact:true})}).first();
-    await expect(row.getByRole('status')).toHaveText('Completed');
-    const opening = page.waitForResponse(r=>r.url().endsWith('/api/reviews') && r.request().postDataJSON()?.action === 'generated-compare');
-    await row.getByRole('button',{name:'Compare source',exact:true}).click();
-    const response = await opening;
-    expect(response.ok(),(await response.json()).error).toBe(true);
-    await expect(page.locator('.review-page img').first()).toBeVisible();
-    await expect(page.getByText('Data unavailable.',{exact:true})).toBeHidden();
-    await page.getByRole('button',{name:'Page 1: Page checked',exact:true}).click();
-    await expect(page.locator('.review-renderer').getByRole('status')).toBeHidden();
-    await expect(page.getByRole('button',{name:'Refresh data',exact:true})).toBeEnabled();
-    await page.getByRole('button',{name:'table · Supported',exact:true}).first().click();
-    const audit=await page.locator('.review-read').evaluate(el=>{
-      const headings=[...el.querySelectorAll('.tiptap h1,.tiptap h2,.tiptap h3,.tiptap h4,.tiptap h5,.tiptap h6')];
-      const cues=[...el.querySelectorAll('.heading-level')];
-      return headings.map((heading,index)=>({text:heading.textContent,level:heading.tagName,cue:cues[index]?.textContent,top:heading.getBoundingClientRect().top+parseFloat(getComputedStyle(heading).lineHeight)/2,center:cues[index] ? cues[index].getBoundingClientRect().top+cues[index].getBoundingClientRect().height/2:null}));
-    });
-    expect(audit.every(value=>value.center !== null && Math.abs(value.top-value.center)<2),JSON.stringify(audit)).toBe(true);
-
-    return;
-  }
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
-  await page.getByRole("region", { name: "Docling", exact: true }).getByRole("button", { name: "Docling settings", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
-  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   const input = page.getByTestId("folder-path");
   const register = page.getByTestId("folder-open");
@@ -75,8 +33,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
-  const serviceUrl = dialog.getByRole("textbox", { name: "docling-serve URL", exact: true });
-  await serviceUrl.fill("https://docling.example.test/service");
+  const serviceUrl = dialog.getByRole("textbox", { name: "Service URL", exact: true });
+  await serviceUrl.fill("https://fixture.example.test/service");
   const check = dialog.getByRole("button", { name: "Check connection", exact: true });
   let invokes = 0;
   page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST" && request.postDataJSON()?.action === "invoke") invokes++; });
@@ -87,7 +45,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   });
   await serviceUrl.press("Tab");
   await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
-  await expect(serviceUrl).toHaveValue("https://docling.example.test/service");
+  await expect(serviceUrl).toHaveValue("https://fixture.example.test/service");
   await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("Could not save settings. Check the values and try again.");
   await check.click();
   expect(invokes).toBe(0);
@@ -121,16 +79,16 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(serviceUrl).toHaveValue("");
   await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("This value is too short. Enter a longer value.");
   if (screenshots) await page.screenshot({ path: "tmp/plugin-settings-1407/error-1440.png", mask: [page.locator(".sidebar-host-account")] });
-  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.fill("https://fixture.example.test/service");
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByText("Simulate failure", { exact: true }).hover();
   await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText("Simulates service availability");
-  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://docling.example.test/updated" } } });
+  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://fixture.example.test/updated" } } });
   expect(externalSave.ok()).toBe(true);
   await check.click();
-  await expect(serviceUrl).toHaveValue("https://docling.example.test/updated");
-  await serviceUrl.fill("https://docling.example.test/service");
+  await expect(serviceUrl).toHaveValue("https://fixture.example.test/updated");
+  await serviceUrl.fill("https://fixture.example.test/service");
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByRole("switch", { name: "Simulate failure", exact: true }).click();
@@ -161,11 +119,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.getByRole("button", { name: width === 640 ? "연결 확인" : "Check connection", exact: true }).click();
       await expect(page.getByRole("dialog").getByText("연결하지 못했습니다. 저장된 서버 주소와 자격 증명을 확인한 뒤 다시 시도하세요.", { exact: true })).toBeVisible();
       expect(await page.getByRole("dialog").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-      await expect(page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true })).toHaveValue("https://docling.example.test/service");
+      await expect(page.getByRole("dialog").getByRole("textbox", { name: "Service URL", exact: true })).toHaveValue("https://fixture.example.test/service");
       await expect(page.getByRole("dialog").locator('input[type="password"]')).toBeVisible();
       await page.screenshot({ path: `tmp/plugin-settings-1334/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
       if (width === 640) {
-        const url = page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true });
+        const url = page.getByRole("dialog").getByRole("textbox", { name: "Service URL", exact: true });
         await url.fill(""); await url.press("Tab");
         await expect(page.getByText("저장 실패: 입력한 값이 너무 짧습니다. 더 길게 입력하세요.", { exact: true })).toBeVisible();
         await page.screenshot({ path: "tmp/plugin-settings-1407/error-640-ko.png", mask: [page.locator(".sidebar-host-account")] });

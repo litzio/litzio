@@ -75,7 +75,6 @@ export function createDocumentRequests(client: HostClient) {
     return {
       ...(payload.samples ? { samples: payload.samples } : {}),
       ...(payload.sampleProblem ? { sampleProblem: payload.sampleProblem } : {}),
-      managedGenerated: payload.managedGenerated,
       bibliographyRoot,
       bibliography: { declarations, sources },
       kind: "native",

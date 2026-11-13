@@ -1,7 +1,6 @@
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 // Use the published ESM entry: its UMD factory leaves dynamic relative require calls in CLI bundles.
 import { parseTree } from "jsonc-parser/lib/esm/main.js";
-import { catalogViewByteLimit, type CatalogView } from "@litzio/core/views-v2";
 import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
 export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
@@ -244,18 +243,11 @@ export async function handleDocumentRequest(
     try { if (await services?.assistant?.http(req, res)) return; }
     catch (error) { failure(error); return; }
   }
-  if (url === "/api/views") {
+  if (url === "/api/plugin-screens") {
     if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
     try {
       const text = decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, VIEW_TRANSPORT_LIMITS.requestBytes)));
       const input = JSON.parse(text);
-      // JSON.parse owns strict admission. The library supplies source spans only,
-      // so whitespace/escape bytes cannot disappear before Core's semantic checks.
-      if (input && typeof input === "object" && Object.hasOwn(input, "view")) {
-        const properties = parseTree(text)?.children ?? [];
-        const raw = properties.reverse().find(property => property.children?.[0]?.value === "view")?.children?.[1];
-        if (!raw || Buffer.byteLength(text.slice(raw.offset, raw.offset + raw.length), "utf8") > catalogViewByteLimit(input.view as CatalogView)) throw new Error("View exceeds byte limit");
-      }
       const result = services?.views ? await services.views.execute(input) : await executeViewOperation(input, { access });
       sendJson(res, result.receipt.outcome === "success" ? 200 : 400, result);
     } catch (error) { failure(error); }

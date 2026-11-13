@@ -1,6 +1,7 @@
 # ADR-0020: 플러그인 구조와 기본 화면
 
-> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
+> 2026-11-13: ADR-0022의 화면 코드 결정으로 선언형 화면·기존 Docling·검수 대조 틀·공식/지정 공급을 삭제했다. 아래 당시 결정은 역사로 보존하며 현재 계약은 plugin-stage1-v1·plugin-screens-v1을 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
+
 
 - Status: Accepted
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
@@ -16,7 +17,7 @@
 
 ## 2026-11-10 지정 커뮤니티 기본 포함 개정 (#1391)
 
-[소유자 결정 #1391](https://github.com/litzio/litzio/issues/1391)은 아래 Docling 기본 포함 금지와 #1321·#1328의 번들 제외 중 **제품에 고정한 지정 커뮤니티 공급**에 한해 개정한다. 초기 지정은 community.docling·community.jira였다. 2026-11-13 삭제 후 현재 지정 공급은 community.docling만 남는다. 공식 계층·공식 공급 목록·기본 활성 제외와 공개 SDK·workspace 제외는 유지한다. 처음에는 꺼짐·미신뢰이며 등록 단위 신뢰 확인을 거친다. 지정 복사본은 제거하지 않고 끄며, 같은 ID의 외부 폴더 등록은 우선하고 제거 후 다음 시작에 지정 복사본을 다시 표시한다. 현재 동작은 [플러그인 1단계](../design/plugin-stage1-v1.md#지정-커뮤니티-공급-1391)를 따른다. 개정 전 결정은 경위를 위해 보존한다.
+[소유자 결정 #1391](https://github.com/litzio/litzio/issues/1391)은 아래 Docling 기본 포함 금지와 #1321·#1328의 번들 제외 중 **제품에 고정한 지정 커뮤니티 공급**에 한해 개정한다. 초기 지정은 community.docling·community.jira였다. 2026-11-13 삭제 후 현재 지정 공급은 community.docling만 남는다. 공식 계층·공식 공급 목록·기본 활성 제외와 공개 SDK·workspace 제외는 유지한다. 처음에는 꺼짐·미신뢰이며 등록 단위 신뢰 확인을 거친다. 지정 복사본은 제거하지 않고 끄며, 같은 ID의 외부 폴더 등록은 우선하고 제거 후 다음 시작에 지정 복사본을 다시 표시한다. 현재 동작은 [플러그인 1단계](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#지정-커뮤니티-공급-1391)를 따른다. 개정 전 결정은 경위를 위해 보존한다.
 
 ## 배경과 근거
 
@@ -34,11 +35,11 @@
 
 ### ① 하나의 SDK·패키지 규격과 공급 책임에 따른 저장소
 
-2026-11-06 소유자 결정 (#1271): 공개 SDK는 npm/tarball 배포 없이 Host가 실행 시점에 제공한다. 플러그인 단독 실행은 지원하지 않으며 SDK 버전은 Host에 묶인다. 구체 공급·import 우선순위는 [1단계 계약](../design/plugin-stage1-v1.md#host-제공-sdk-런타임-1271)을 따른다. 플러그인은 신뢰 코드이며 내부 import 차단은 실수로 내부 API에 의존하는 것을 막는 계약 강제이지 sandbox·보안 경계가 아니다. fs로 직접 읽어 eval하는 의도적 우회는 범위 밖이다.
+2026-11-06 소유자 결정 (#1271): 공개 SDK는 npm/tarball 배포 없이 Host가 실행 시점에 제공한다. 플러그인 단독 실행은 지원하지 않으며 SDK 버전은 Host에 묶인다. 구체 공급·import 우선순위는 [1단계 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#host-제공-sdk-런타임-1271)을 따른다. 플러그인은 신뢰 코드이며 내부 import 차단은 실수로 내부 API에 의존하는 것을 막는 계약 강제이지 sandbox·보안 경계가 아니다. fs로 직접 읽어 eval하는 의도적 우회는 범위 밖이다.
 
 공식 소스는 monorepo `plugins/<id>`, 커뮤니티 소스는 독립 저장소를 기본으로 한다. 두 계층은 같은 SDK·manifest·검증·권한을 쓴다. `tier`는 manifest 한 줄이며 ID·작업·설정·뷰 형식은 계층에 의존하지 않는다. 공식 승격은 유지 책임 인수와 **Host가 확인하는 공식 공급 목록** 갱신이 필요하다. 자칭 `official`은 확인되지 않으면 커뮤니티 신뢰 절차를 따른다. 번들 여부·신뢰·활성 상태는 각각 별도 기록이며 기본 활성값은 미정이다.
 
-2026-11-09 소유자 승인 예외 ([#1321](https://github.com/litzio/litzio/issues/1321)): 개념 검증 동안 Docling 개인 플러그인 소스는 `community-plugins/docling/`에 둔다. 커뮤니티 계층이며 공식 공급 목록·Desktop 번들·기본 활성화에 포함하지 않는다. pnpm workspace에서 제외하고 외부 scaffold 구조 및 Host 제공 공개 `@litzio/plugin-sdk`만 사용한다. 독립 배포·유지 책임이 필요해지면 해당 디렉터리를 독립 저장소로 분리하며 Litzio 내부 import나 workspace 의존을 분리 전제로 추가하지 않는다. 서버 주소 설정·수동 연결 조회에 이어 #1322의 정정 범위는 PDF → 원본 `.docling` 보관과 `.docling` → Litzio 문서 만들기의 두 작업이다. 두 작업은 공개 SDK의 K1 일반 파일/native-document 결과로 구현하며 형식 해석은 플러그인에 둔다. 형식·변환 규칙·검증 한계는 플러그인 안내를 따른다. 사용·검증 경계는 [플러그인 안내](../../community-plugins/docling/README.md)를 따른다.
+2026-11-09 소유자 승인 예외 ([#1321](https://github.com/litzio/litzio/issues/1321)): 개념 검증 동안 Docling 개인 플러그인 소스는 `community-plugins/docling/`에 둔다. 커뮤니티 계층이며 공식 공급 목록·Desktop 번들·기본 활성화에 포함하지 않는다. pnpm workspace에서 제외하고 외부 scaffold 구조 및 Host 제공 공개 `@litzio/plugin-sdk`만 사용한다. 독립 배포·유지 책임이 필요해지면 해당 디렉터리를 독립 저장소로 분리하며 Litzio 내부 import나 workspace 의존을 분리 전제로 추가하지 않는다. 서버 주소 설정·수동 연결 조회에 이어 #1322의 정정 범위는 PDF → 원본 `.docling` 보관과 `.docling` → Litzio 문서 만들기의 두 작업이다. 두 작업은 공개 SDK의 K1 일반 파일/native-document 결과로 구현하며 형식 해석은 플러그인에 둔다. 형식·변환 규칙·검증 한계는 플러그인 안내를 따른다. 사용·검증 경계는 [플러그인 안내](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/README.md)를 따른다.
 
 2026-11-09 같은 소유자 승인 예외 ([#1328](https://github.com/litzio/litzio/issues/1328))로 Jira도 `community-plugins/jira/`에 두며 위와 같은 workspace·공식 공급·번들 제외 및 공개 SDK 경계를 따른다. 설정·PAT·번호 기반 조회와 검증 범위는 [Jira 안내](https://github.com/litzio/litzio/tree/archive/2026-11-13-plugins-declarative/community-plugins/jira/README.md)를 따른다.
 
@@ -90,7 +91,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 
 **2026-11-05 개정:** 최초 in-process 결정은 daemon 하위 프로세스의 trusted Node 코드로 대체한다. 아래 비서 제작 로드맵의 reload 계약을 따른다. 설치 목록·상태·일반 설정은 그 Host가 소유하며 임의 폴더 자동 탐색은 하지 않는다. installed/trusted/enabled/available/running을 구분한다. 커뮤니티는 설치 직후 실행 차단하고 **명시적 신뢰와 활성화가 모두 있어야** entry를 import한다. 신뢰는 설치 산출물 digest에 연결하고 변경된 산출물은 다시 확인한다.
 
-활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 일반 operation은 drain하며, K1 파일 작업은 [1단계 계약](../design/plugin-stage1-v1.md#k1-파일-작업)에 따라 중단을 요청하고 미확정 상태는 uncertain으로 남긴다. 설정·secret·열린 문서는 보존하고 해당 source만 사용 불가로 표시한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon은 재시작하지 않는다. 실패하면 오류를 표시하고 실패 상태로 남긴다. 안전한 폭주 정지는 보장하지 않는다.
+활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 일반 operation은 drain하며, K1 파일 작업은 [1단계 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#k1-파일-작업)에 따라 중단을 요청하고 미확정 상태는 uncertain으로 남긴다. 설정·secret·열린 문서는 보존하고 해당 source만 사용 불가로 표시한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon은 재시작하지 않는다. 실패하면 오류를 표시하고 실패 상태로 남긴다. 안전한 폭주 정지는 보장하지 않는다.
 
 요청·결과·receipt는 [ADR-0018](0018-desktop-remote-hosts.md)의 대상 Host 고정을 따른다. 원격 폴더·계정은 원격 Host OS 계정의 것이다. 제품 버전 차이 경고·프로토콜 불일치 거부도 유지한다.
 
@@ -98,7 +99,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 
 ### ④ 자격 증명은 최초 Windows OS 저장소만 사용한다
 
-2026-11-05 로드맵 1c 구현: 현재 단일 연결의 `(Host 저장 경로, pluginId, secretId)`를 Windows DPAPI CurrentUser로 보호한다. 다중 connectionId는 구현하지 않는다. 선택 근거·입력/상태/삭제·실행 전달 계약은 [1단계 계약](../design/plugin-stage1-v1.md#secret-저장과-실행-전달-로드맵-1c)을 따른다. 아래 연결별 키 설명은 다중 연결 도입 시의 방향이다.
+2026-11-05 로드맵 1c 구현: 현재 단일 연결의 `(Host 저장 경로, pluginId, secretId)`를 Windows DPAPI CurrentUser로 보호한다. 다중 connectionId는 구현하지 않는다. 선택 근거·입력/상태/삭제·실행 전달 계약은 [1단계 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#secret-저장과-실행-전달-로드맵-1c)을 따른다. 아래 연결별 키 설명은 다중 연결 도입 시의 방향이다.
 
 대상 Host OS 계정의 저장소에 `(pluginId, connectionId, secretId)`로 보관한다. Windows Credential Manager 같은 기존 저장 API를 재사용하되 라이브러리·비대화형 계정 접근은 실제 검증한다. 지원 저장소가 없으면 secret 필요 기능을 사용 불가로 둔다. 일반 설정은 연결별 BaseURL·별칭을 담고 화면·결과에는 값 대신 설정 여부만 반환한다.
 
@@ -213,7 +214,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 
 secret 값은 사용자가 설정 UI에서만 입력하며 비서는 읽거나 기록하지 못한다. 공식 목록은 제품에 고정되어 비서가 바꾸지 못한다. digest 신뢰 기록은 유지하며 비서가 신뢰 단계를 실행할 수 있다. 산출물 변경은 새 digest로 신뢰를 다시 기록한다.
 
-**그래서 무엇이 안 되는가:** **비서가 사용자 확인 없이 신뢰 코드를 설치·실행할 수 있게 된다.** 잘못 생성하거나 선택한 코드가 Host OS 권한으로 실행될 위험을 수용하며 활동 기록은 예방 장벽이나 격리가 아니다. 이 결정은 플러그인 관리의 건별 승인만 제거하며 AI 권한·공급자·모델 변경 금지나 아래 K4의 문서 교정 승인을 제거하지 않는다. 2026-11-05 로드맵 1단계에서 건별 확인 제거·활동 기록을 구현했다. 현재 범위와 검증은 [플러그인 1단계](../design/plugin-stage1-v1.md#비서-제작-키트)를 따른다.
+**그래서 무엇이 안 되는가:** **비서가 사용자 확인 없이 신뢰 코드를 설치·실행할 수 있게 된다.** 잘못 생성하거나 선택한 코드가 Host OS 권한으로 실행될 위험을 수용하며 활동 기록은 예방 장벽이나 격리가 아니다. 이 결정은 플러그인 관리의 건별 승인만 제거하며 AI 권한·공급자·모델 변경 금지나 아래 K4의 문서 교정 승인을 제거하지 않는다. 2026-11-05 로드맵 1단계에서 건별 확인 제거·활동 기록을 구현했다. 현재 범위와 검증은 [플러그인 1단계](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#비서-제작-키트)를 따른다.
 
 ### K1과 카탈로그 v2·Docling 화면
 
@@ -227,7 +228,7 @@ K1은 **파일 입력·긴 작업 상태·결과 열기** 계약이다. 대상 H
 - **K3 원본↔문서 대응:** 원본 영역과 Read 문서 블록의 다대다 대응·양방향 선택/강조·필요한 reveal을 제공한다. revision/hash가 맞지 않는 map은 stale로 표시하고 대상 이동·교정 적용을 막는다. 없는 대응을 발명하지 않는다.
 - **K4 문서 변경 검토:** 문서·제안 baseline과 참조 자료의 revision, 근거·전후·pending/stale/inapplicable 및 승인/거절/Undo를 표현하는 공용 번들 화면과 Host 계약이다. 비서는 제안하고 사용자 승인 후 적용한다. 변경 적용·되돌리기는 Core operation과 공식 write path를 사용하며 적용 직전 baseline/stale 검사와 결과를 다시 읽는 동안의 갱신 중 표시를 유지한다. 특정 플러그인의 저장·재처리 방식이나 교정 종류를 가정하지 않는다.
 
-Docling 교정의 현재 저장·재처리와 PDF 대조는 [공용 구현 계약](../design/plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다. 대조 안 항목 수정·완료 승인은 후속 검수 단계다.
+Docling 교정의 현재 저장·재처리와 PDF 대조는 [공용 구현 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다. 대조 안 항목 수정·완료 승인은 후속 검수 단계다.
 
 Docling 화면은 **왼쪽 원본 PDF(또는 페이지 이미지), 오른쪽 Read 문서의 좌우 대조**이며 넓은 화면을 전제로 한다([#891](https://github.com/litzio/litzio/issues/891) 방향 유지). 앱의 기존 Read·문서 열기·비서·변경 비교를 재사용한다.
 
@@ -258,7 +259,7 @@ Docling 화면은 **왼쪽 원본 PDF(또는 페이지 이미지), 오른쪽 Rea
 
 - **ADR-0019 구체화:** `pluginTier` 후보 대신 manifest 초안은 `tier`를 사용한다. 같은 SDK·공급 책임·별도 신뢰/활성·Host 소유를 유지하며 실행 모델·Windows secret·공통 UI/저장·관리 활동 기록을 정한다.
 - **ADR-0012 개정:** 재개 시 별도 worker·same-origin ESM/CSS·live 코드 교체 대신 daemon 하위 프로세스 신뢰 코드·앱 카탈로그·reload를 따른다. 과거 구현 기록은 보존하고 Core 의미·공식 쓰기·원본·결과 불확실 보호는 유지한다.
-- **ADR-0017 개정:** ADR-0017의 비서 플러그인 변경 금지를 삭제하고, 재개 시 ⑤의 건별 승인 없이 활동 기록을 남기는 관리로 대체한다. AI 권한·공급자·모델 변경 허용으로 확대하지 않는다. 기능 제거·보관·공식 AI와 별도 재개 조건은 유지한다. 현재 관리 도구는 [비서 제작 키트 계약](../design/plugin-stage1-v1.md#비서-제작-키트)에 따라 건별 확인 없이 활동 기록을 남긴다. [비서 계약](../design/main-agent-v1.md)의 일반 display 도구 허용 범위나 K4 교정 승인까지 넓히지 않는다.
+- **ADR-0017 개정:** ADR-0017의 비서 플러그인 변경 금지를 삭제하고, 재개 시 ⑤의 건별 승인 없이 활동 기록을 남기는 관리로 대체한다. AI 권한·공급자·모델 변경 허용으로 확대하지 않는다. 기능 제거·보관·공식 AI와 별도 재개 조건은 유지한다. 현재 관리 도구는 [비서 제작 키트 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#비서-제작-키트)에 따라 건별 확인 없이 활동 기록을 남긴다. [비서 계약](../design/main-agent-v1.md)의 일반 display 도구 허용 범위나 K4 교정 승인까지 넓히지 않는다.
 - **ADR-0015 일부 개정·ADR-0018 유지:** ADR-0015의 비서 플러그인 변경 금지를 삭제하고, 재개 시 ⑤의 건별 승인 없이 활동 기록을 남기는 관리로 대체한다. AI 권한·공급자·모델 변경 금지와 새 기능·관리의 공용 정의·CLI 의무는 유지한다. ADR-0018의 대상 Host·receipt·버전 경계와 번들 script 정책을 따른다. 호환 계층·Host 간 자동 이동·공유 편집을 추가하지 않는다.
 
 이 문서 PR은 소유자 결정·비지원 경계·용어·색인을 대조하고 `pnpm docs:check`와 필수 CI로 확인한다. 제품 실행·설치·credential·원격 연결은 수행하지 않는다. 실제 구현 시 기존 테스트를 우선 보완하고 각 단계의 고유 위험을 확인하며, 브라우저 검증은 `pnpm browser:test`와 저장소의 세션 정리 규칙을 따른다.

@@ -84,7 +84,7 @@ The shared comparison at content widths up to 640px uses compact reading type: t
 14px body token with the 1.5 body line height, and existing 18/16/15/14px tokens for H1–H6.
 This is a comparison-only reading role; ordinary document typography stays unchanged. It
 reserves more width for prose, preserves ordinary word boundaries and uses emergency wrapping
-only for overlong single tokens ([comparison contract](plugin-stage1-v1.md#연속-원본-대조-1435)).
+only for overlong single tokens ([comparison contract](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#연속-원본-대조-1435)).
 
 Pretendard `1.3.9` is bundled through its official variable dynamic-subset CSS; Vite serves WOFF2 assets. All upstream ranges remain available, with upstream `font-display: swap` and weight range; fallback may appear during load or for unsupported glyphs. `--font-feature-sans: "cv08"` gives capital I its serifs in document/UI. KaTeX and code fonts are unaffected. Refresh the [OFL notice](../../apps/editor/public/licenses/Pretendard-OFL.txt) from the same version when updating.
 
@@ -305,4 +305,4 @@ roles reuse fixed paper versions of the existing light accents because source PN
 Dark. Existing accent values are unchanged; light accent roles now reference those paper palette values.
 A wire switches roles at the visible PNG edge, keeping its PNG segment readable on white and its UI
 segment readable in Dark. No conversion success/error status is encoded by these category colors.
-[Contract and captures](plugin-stage1-v1.md#연속-원본-대조-1435) include source/UI contrast measurements.
+[Contract and captures](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#연속-원본-대조-1435) include source/UI contrast measurements.

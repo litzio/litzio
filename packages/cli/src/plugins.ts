@@ -10,56 +10,16 @@ export async function pluginCli(args: string[]): Promise<number> {
     const tokens = args.filter((_, i) => i !== index && i !== index + 1 && args[i] !== "--json");
     const [command, action, id] = tokens;
     let body: Record<string, unknown>;
-    if (command === "review" && action === "evidence") {
-      if (!["read", "run"].includes(tokens[2]!) || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("review evidence read|run --input <json-file> --host <origin> --json");
-      body = { ...JSON.parse(readFileSync(tokens[4]!, "utf8")), action: "workspace-evidence", mode: tokens[2] };
-    } else if (command === "review" && action === "groups") {
-      if (!["propose", "apply", "read", "approve", "reject", "undo"].includes(tokens[2]!) || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("review groups propose|apply|read|approve|reject|undo --input <json-file> --host <origin> --json");
-      const input = JSON.parse(readFileSync(tokens[4]!, "utf8"));
-      body = tokens[2] === "read" ? { ...input, action: "workspace-groups-read" } : { ...input, action: "workspace-review-change", change: { ...input.change, kind: `groups-${tokens[2]}` } };
-    } else if (command === "review" && ["lenses", "inspection", "required-checks", "completion"].includes(action!)) {
-      if (tokens[2] !== "--input" || tokens.length !== 4) throw new Error("review lenses|inspection|required-checks|completion --input <json-file> --host <origin> --json");
-      const input = JSON.parse(readFileSync(tokens[3]!, "utf8"));
-      if (action === "lenses" && input.change) throw new Error("review lenses is read-only");
-      body = input.change ? { ...input, action: "workspace-review-change", change: { ...input.change, kind: action } } : { ...input, action: `workspace-${action}` };
-    } else if (command === "review" && tokens[2] === "--input") {
-      if (!["find", "open", "read", "compare", "progress", "patch", "regenerate", "status", "workspace-save", "workspace-open", "workspace-read", "workspace-patch", "workspace-progress", "workspace-regenerate", "workspace-status", "workspace-find", "workspace-compare", "workspace-image", "workspace-export-check", "workspace-export", "workspace-material", "workspace-image-read", "workspace-image-usage"].includes(action!) || tokens.length !== 4) throw new Error("review <action> --input <json-file> --host <origin> --json");
-      body = { ...JSON.parse(readFileSync(tokens[3]!, "utf8")), action: action!.startsWith("workspace-") ? action : `generated-${action}` };
-    } else if (command === "review") {
-      if (!["read", "propose", "approve", "reject", "undo", "status"].includes(action!) || tokens.length !== 8 || tokens[4] !== "--input" || tokens[6] !== "--root") throw new Error("review <action> <pluginId> <reviewId> --input <file> --root <root> --host <origin> --json");
-      body = { ...JSON.parse(readFileSync(tokens[5]!, "utf8")), action, plugin: id, review: tokens[3], root: tokens[7] };
-    } else if (command === "operation" && action === "invoke") {
+    if (false) {    } else if (command === "operation" && action === "invoke") {
       if (!id || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("operation invoke <id> --input <json-file>");
       body = { action: "invoke", operation: id, input: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
-    } else if (command === "jobs" && action === "list" && tokens.length <= 3) {
-      body = { action: "job-list", ...(id ? { plugin: id } : {}) };
-    } else if (command === "plugins" && ["start", "status", "stop", "result"].includes(action!) && id) {
-      if (action === "start") {
-        if (tokens[3] === "--job") {
-          const files: string[] = []; let root: string | undefined;
-          for (let i = 5; i < tokens.length; i += 2) {
-            if (!tokens[i + 1]) throw new Error("Missing option value");
-            if (tokens[i] === "--root" && !root) root = tokens[i + 1];
-            else if (tokens[i] === "--file") files.push(tokens[i + 1]!);
-            else throw new Error("Unexpected batch option");
-          }
-          if (!tokens[4] || !root || !files.length) throw new Error("plugins start <pluginId> --job <job> --root <root> --file <file> [--file <file>]");
-          body = { action: "job-start-many", plugin: id, job: tokens[4], root, files };
-        } else {
-          if (tokens.length !== 5 || tokens[3] !== "--input") throw new Error("plugins start <pluginId> --input <json-file>");
-          body = { ...JSON.parse(readFileSync(tokens[4]!, "utf8")), action: "job-start", plugin: id };
-        }
-      } else {
-        if (tokens.length !== 3) throw new Error("plugins status|stop|result <requestId>");
-        body = { action: `job-${action}`, requestId: id };
-      }
     } else if (command === "plugins" && action === "list" && tokens.length === 2) body = { action };
     else if (command === "plugins" && action === "install" && tokens.length === 3) body = id && !id.includes("/") && !id.includes("\\") && !id.includes(":") ? { action, id } : { action, directory: id };
     else if (command === "plugins" && ["register", "validate", "bundle", "dependencies"].includes(action!) && tokens.length === 3) body = { action, directory: id };
     else if (command === "plugins" && action === "scaffold") {
       const offset = tokens[2] === "--id" ? 2 : 3;
       if (tokens[offset] !== "--id" || !tokens[offset + 1] ||
-        !(tokens.length === offset + 2 || tokens.length === offset + 4 && tokens[offset + 2] === "--template" && ["greet", "query", "file", "screen", "chart"].includes(tokens[offset + 3]!))) throw new Error("plugins scaffold [directory] --id <id> [--template greet|query|file|screen|chart]");
+        !(tokens.length === offset + 2 || tokens.length === offset + 4 && tokens[offset + 2] === "--template" && ["greet", "screen", "chart"].includes(tokens[offset + 3]!))) throw new Error("plugins scaffold [directory] --id <id> [--template greet|screen|chart]");
       body = { action, ...(offset === 3 ? { directory: id } : {}), id: tokens[offset + 1], ...(tokens.length === offset + 4 ? { template: tokens[offset + 3] } : {}) };
     }
     else if (command === "plugins" && (action === "trust" || action === "enable" && tokens.length > 3)) {
@@ -80,11 +40,11 @@ export async function pluginCli(args: string[]): Promise<number> {
     else if (command === "plugins" && action === "secret-delete" && tokens.length === 4) body = { action, id, name: tokens[3] };
     else if (command === "plugins" && action === "settings" && tokens.length === 3) body = { action, id };
     else if (command === "plugins" && action === "settings" && tokens.length === 5 && tokens[3] === "--file") body = { action, id, settings: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
-    else throw new Error("plugins list|scaffold [directory] --id <id> [--template greet|query|file|screen|chart]|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|settings <id> --file <json-file> --host <origin> --json");
+    else throw new Error("plugins list|scaffold [directory] --id <id> [--template greet|screen|chart]|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|settings <id> --file <json-file> --host <origin> --json");
     const health = await fetch(new URL("/daemon/health", origin), { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
     if (!health.ok || (await health.json()).protocolVersion !== DAEMON_PROTOCOL) throw new Error("Host protocol check failed");
     dispatched = true;
-    const response = await fetch(new URL(command === "review" ? "/api/reviews" : "/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(30000) });
+    const response = await fetch(new URL("/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(30000) });
     const value = await response.json(); process.stdout.write(JSON.stringify({ target: origin.origin, ...value }) + "\n"); return response.ok && (!value.receipt || value.receipt.outcome === "success") ? 0 : 1;
   } catch (error) { process.stdout.write(JSON.stringify({ outcome: dispatched ? "uncertain" : "failure", reason: String(error) }) + "\n"); return 1; }
 }

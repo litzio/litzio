@@ -16,13 +16,13 @@ test("Codex skill discovery waits for plugin startup; Copilot retains tool-only 
   let started = false, discovered = false, release!: () => void;
   const ready = new Promise<void>(resolve => { release = () => { started = true; resolve(); }; });
   const agent = { async skills() { assert.equal(started, true); discovered = true; return { skills: [{ name: "internal", path: "/plugin/SKILL.md", description: "Review" }, { name: "user", path: "/user/SKILL.md", description: "User" }], errors: [] }; }, async close() {} } as unknown as ProviderConnections;
-  const plugins = { start: () => ready, host: { skillDisplayName: (file: string) => file === "/plugin/SKILL.md" ? "Docling · review" : undefined } } as import("../server/plugin-service.ts").PluginService;
+  const plugins = { start: () => ready, host: { skillDisplayName: (file: string) => file === "/plugin/SKILL.md" ? "Fixture · documents" : undefined } } as import("../server/plugin-service.ts").PluginService;
   const host = createAssistantHost(null, path.join(root, "settings.json"), { agent, plugins });
   try {
     const listing = host.invoke("assistantSkills", { provider: "codex" });
     await Promise.resolve(); assert.equal(discovered, false);
     await assert.rejects(host.invoke("assistantSkills", { provider: "copilot" }), /only with Codex/);
-    release(); assert.deepEqual((await listing).skills, [{ name: "internal", path: "/plugin/SKILL.md", description: "Review", displayName: "Docling · review" }, { name: "user", path: "/user/SKILL.md", description: "User" }]);
+    release(); assert.deepEqual((await listing).skills, [{ name: "internal", path: "/plugin/SKILL.md", description: "Review", displayName: "Fixture · documents" }, { name: "user", path: "/user/SKILL.md", description: "User" }]);
   } finally { release(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -119,7 +119,7 @@ test("question metadata and answers use the same HTTP and explicit-Host CLI conv
   // Restore an already oversized provider history, then GET and continue the same conversation.
   // Reuse this fixture process/HTTP path rather than launching another provider.
   const {ASSISTANT_TRANSPORT_LIMITS}=await import("../shared/assistant-limits.ts");
-  const legacy={type:"dynamicToolCall",id:"legacy-review",tool:"read_review_document",status:"completed",success:true,contentItems:[{type:"inputText",text:"x".repeat(ASSISTANT_TRANSPORT_LIMITS.responseBytes+1)}]};
+  const legacy={type:"dynamicToolCall",id:"legacy-tool",tool:"fixture_read",status:"completed",success:true,contentItems:[{type:"inputText",text:"x".repeat(ASSISTANT_TRANSPORT_LIMITS.responseBytes+1)}]};
   const request=agent.client.request.bind(agent.client);
   t.mock.method(agent.client,"request",async(method:string,args:any)=>method==="thread/turns/list" ? {data:[{id:record.turnId,status:"completed",items:[legacy]}],nextCursor:null} : request(method,args));
   const resumed=await post({action:"resume",id:c.id});
@@ -178,11 +178,11 @@ test("plugin and view services work without an assistant and survive assistant s
   t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await services.plugins.close(); rmSync(root, { recursive: true, force: true }); });
   assert.equal((await fetch(`${url}/api/plugins`)).status, 200);
   assert.equal((await fetch(`${url}/api/assistant/settings`)).status, 404);
-  const response = await fetch(`${url}/api/views`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "catalog" }) });
+  const response = await fetch(`${url}/api/plugin-screens`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "screens" }) });
   assert.equal(response.status, 200);
   await services.assistant.close();
   assert.deepEqual((await services.plugins.invoke("pluginsList")).plugins.map((p: any) => p.id), (await (await fetch(`${url}/api/plugins`)).json()).plugins.map((p: any) => p.id));
-  assert.equal((await services.views.execute({ action: "catalog" })).receipt.outcome, "success");
+  assert.equal((await services.views.execute({ action: "screens" })).receipt.outcome, "success");
   // A service failure still lets Host shutdown close the independent runtime.
   const assistantClose = t.mock.method(services.assistant, "close", async () => { throw new Error("fixture close failed"); });
   const closing = services.close();
@@ -348,61 +348,7 @@ test("submission IDs survive event-before-response, duplicate sends and uncertai
   await replacement.close();
 });
 
-test("provider-neutral tool failures expose executable recovery without replaying writes", async t => {
-  const { AssistantConversations } = await import("../server/assistant-conversations.ts");
-  const { RootAccess } = await import("../server/file-access.ts");
-  const root = mkdtempSync(path.join(tmpdir(),"tool-recovery-"));
-  const connection = new ProviderConnections(path.join(root,"assistant"));
-  const history:any = new AssistantConversations(connection,null);
-  t.after(async()=>{await history.close();await connection.close();rmSync(root,{recursive:true,force:true});});
-  const original=path.join(root,"a.md");writeFileSync(original,"---\nlitzio: 1\n---\n\nBefore.\n");
-  history.conversations.set("one",{id:"one",title:"fixture",folders:[root],createdAt:1,updatedAt:1,turns:[{id:"turn",status:"inProgress",items:[]}]});
-  const scope={folders:new RootAccess([root]),access:null,permissionMode:"opened-folders",turnId:"turn"};
-  history.scopes.set("one",scope);
-  const invoke=async(tool:string,args:any)=>{
-    const result:any=await connection.client.toolCall!({threadId:"one",turnId:"turn",callId:"call",tool,arguments:args});
-    return {success:result.success,...JSON.parse(result.contentItems[0].text)};
-  };
-  const badAction=await invoke("close_tabs",{});
-  assert.equal(badAction.success,false);assert.equal(badAction.errorKind,"invalid_input");
-  const noWindow=await invoke("close_tabs",{tabIds:"all"});
-  assert.equal(noWindow.errorKind,"unavailable");assert.equal(noWindow.recovery.tool,"read_screen_context");
-  const {AgentScreenActionRequests}=await import("../server/assistant-screen-action-tools.ts");
-  history.screenActions=new AgentScreenActionRequests(1);
-  (scope as any).displayClient="window";
-  const timedOut=await invoke("close_tabs",{tabIds:"all"});
-  assert.equal(timedOut.success,false);assert.equal(timedOut.errorKind,"uncertain");
-  assert.equal(timedOut.recovery.tool,"read_screen_context");assert.deepEqual(timedOut.completed,[]);
-  assert.equal(timedOut.remaining.length,1);delete (scope as any).displayClient;
-  const invalid=await invoke("read_document",{path:"relative"});
-  assert.equal(invalid.errorKind,"invalid_input");assert.equal(invalid.recovery.action,"correct_input");
-  for(const [tool,input] of [["create_document",{path:"report.md",template:"builtin:ai-report"}],["save_template",{from:"source.md",name:"Relative"}]] as const) {
-    const relative=await invoke(tool,input);
-    assert.equal(relative.success,false);assert.equal(relative.errorKind,"invalid_input");
-    assert.equal(relative.recovery.action,"correct_input");assert.match(relative.recovery.instruction,/absolute path.*opened folder/i);
-    const folders=scope.folders;(scope as any).folders=null;
-    const missingFolder=await invoke(tool,tool === "create_document" ? {...input,path:path.join(root,"report.md")} : {...input,from:original});
-    assert.equal(missingFolder.errorKind,"forbidden");scope.folders=folders;
-  }
-  const location={root,workspace:"a.md",plugin:"fixture",job:"workspace"};
-  let writes=0;
-  history.plugins={generatedDocuments:{execute:async(input:any)=>{
-    if(input.action==="workspace-find")return {targets:[location]};
-    if(input.action==="workspace-read")return {receipt:{outcome:"success"},baseline:"a".repeat(64)};
-    if(input.action==="workspace-status")return {state:"unknown"};
-    writes++;throw new Error("Lost response");
-  }}};
-  const uncertain=await invoke("run_review_source_evidence",{path:original});
-  assert.equal(uncertain.errorKind,"uncertain");assert.equal(uncertain.receipt.outcome,"uncertain");
-  assert.match(uncertain.receipt.requestId,/^[a-f0-9-]{36}$/);
-  assert.equal(uncertain.recovery.arguments.requestId,uncertain.receipt.requestId);
-  const status=await invoke(uncertain.recovery.tool,uncertain.recovery.arguments);
-  assert.equal(status.errorKind,"uncertain");assert.equal(writes,1,"status observation must never replay a write");
-  history.plugins.generatedDocuments.execute=async()=>({targets:[location,{...location,plugin:"other"}]});
-  const ambiguous=await invoke("read_review_document",{path:original});
-  assert.equal(ambiguous.errorKind,"invalid_input");assert.equal(ambiguous.candidates.length,2);
-  assert.equal(ambiguous.recovery.action,"narrow_candidates");
-});
+
 
 test("image import shares add-only Host and CLI behavior with document tools and folder permissions", async t => {
   const { executeDocumentTool, documentFolders } = await import("../server/assistant-document-tools.ts");

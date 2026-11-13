@@ -69,7 +69,7 @@
 | C5 | 인자 공백 | C1과 동일 | 동일 | 예외 |
 | C6 | `{figure} ./pfc.svg` (기준) | [image, caption] | 없음 | `:name:`로 왕복 동일 |
 | C7 | 인자 없음 + `{mermaid}` body + caption | [mermaid, caption] | **없음** | 예외 |
-| C8 | 인자 없음 + `![](./pfc.svg)` body | C6과 동일 AST | 없음 | 왕복 동일 |
+| C8 | 인자 없음 + `![](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/reviews/pfc.svg)` body | C6과 동일 AST | 없음 | 왕복 동일 |
 
 - **[확인]** `myst-transforms` `containers.js`의 `SUBFIGURE_TYPES`에 `mermaid`가 있다. Mermaid는 공식 Figure 콘텐츠다.
 - **[확인]** `placeholder`는 MyST에서 "interactive content의 정적 대체 이미지"를 뜻한다. 미완성 콘텐츠 표시가 아니므로 쓰지 않는다.

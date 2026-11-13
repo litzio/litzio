@@ -8,7 +8,6 @@ import { brand } from "../../../brand.ts";
 import { readBibliographySources } from "../../../apps/editor/server/bibliography.ts";
 import { versionText } from "./version.ts";
 import fs, { readFileSync, writeFileSync } from "node:fs";
-import { isManagedGeneratedDocument, GENERATED_DOCUMENT_WARNING } from "../../../apps/editor/server/generated-document.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -134,9 +133,7 @@ const COMMANDS: CommandSpec[] = [
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
   { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|install <id-or-directory>|scaffold [directory] --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["plugins install <id-or-directory> validates, bundles if needed, registers, trusts, enables and reloads. ID resolves under the Host authoring directory; repeat after edits. Validation failures return file/location diagnostics. Manual registration never executes code. Community plugins require explicit registration trust before enable; enable --trust --registration <registrationId> records trust and enables only that inspected registration. Read registrationId from plugins list; a replaced registration requires fresh confirmation. Updates retain trust until registration is removed or replaced. All plugins start disabled."] },
-  { name: "view", group: "Serve", summary: "Validate or run a plugin query on an explicit Host", usage: `${brand.cliCommand} view validate|run <file> --host <origin> [--input <args.json>] --json`, details: ["Definitions bind registered plugin reads. --input replaces all source args. Opening a plugin screen does not query; run is explicit."] },
 
-  { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
     usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant delete <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry."] },
@@ -940,7 +937,6 @@ type Preview = EditResult & { dryRun: true; revision: string; markdown: string;
 /** The only edit write boundary. Preview never enters file-commit's mutation path. */
 function finishEdit(file: string, markdown: string, revision: string, result: EditResult,
   dryRun: boolean, format: OutputFormat, references: ReturnType<typeof unresolvedReferences>, bibliographyRoot?: string): number {
-  if (isManagedGeneratedDocument(file)) process.stderr.write(`warning: ${GENERATED_DOCUMENT_WARNING}\n`);
   if (dryRun) {
     const resultRevision = textRevision(markdown);
     const document = parse(markdown);
@@ -1321,10 +1317,10 @@ export async function runCliAsync(args: string[]): Promise<number> {
       const { file, flags, format } = parseCommandArgs("create", args.slice(1));
       if (flags.includes("--template") || flags.includes("--language")) throw new Error("--input cannot be combined with --template or --language");
       const input = flag(flags, "--input");
-      const { JOB_DOCUMENT_MAX_BYTES } = await import("@litzio/plugin-sdk");
-      if (fs.statSync(input).size > JOB_DOCUMENT_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
+      const { DOCUMENT_REQUEST_MAX_BYTES } = await import("@litzio/plugin-sdk");
+      if (fs.statSync(input).size > DOCUMENT_REQUEST_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
       const source = readFileSync(input);
-      if (source.byteLength > JOB_DOCUMENT_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
+      if (source.byteLength > DOCUMENT_REQUEST_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
       const { createAuthoredDocumentFile } = await import("../../../apps/editor/server/document-authoring.ts");
       const receipt = await createAuthoredDocumentFile(file, JSON.parse(decodeUtf8(source)));
       process.stdout.write((format === "json" ? JSON.stringify(receipt) : receipt.path) + "\n");
@@ -1332,8 +1328,7 @@ export async function runCliAsync(args: string[]): Promise<number> {
     } catch (error) { return reportError(args, error); }
   }
   if (args[0] === "app-reset" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./app-reset.ts")).appResetCli(args.slice(1));
-  if (args[0] === "view" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./views.ts")).viewCli(args.slice(1));
-  if (["plugins", "operation", "jobs", "review"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);
+  if (["plugins", "operation"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);
   if (args[0] === "host" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
     try { return await (await import("./remote-host.ts")).remoteHostCli(args.slice(1)); }
     catch (error) { return reportError(args, error); }

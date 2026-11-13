@@ -7,7 +7,7 @@ import { AssistantMcp, type HostToolCall, type HostToolResult } from "./assistan
 import { AgentScreenRequests, screenTool } from "./assistant-screen-tools.ts";
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
-import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool, pluginOperationTools, executePluginOperationTool, reviewDocumentTools, executeReadReviewDocument, reviewAssistantTools, executeReviewAssistantTool, recordReviewImageUsage } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginOperationTools, executePluginOperationTool } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, lstatSync, unlinkSync } from "node:fs";
@@ -95,7 +95,7 @@ export class AssistantConversations {
   private cancellations = new Map<string, () => void>();
   private answerKey(id: string, turnId: string, requestId: string | number) { return JSON.stringify([id, turnId, typeof requestId, requestId]); }
   private closed = false;
-  private reviewUsageWrites = new Set<Promise<unknown>>();
+
   private loaded = new Set<string>();
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
     this.attachments = new AssistantAttachments(connection.cwd);
@@ -104,7 +104,7 @@ export class AssistantConversations {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
         this.screen.cancel(conversation.id); this.screenActions.cancel(conversation.id); this.display.cancel(conversation.id);
         this.loaded.delete(conversation.id); this.scopes.delete(conversation.id); this.mcp.revokeConversation(conversation.id);
-        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
         if (this.expireQuestion(conversation)) this.save(conversation);
       }
     });
@@ -133,7 +133,7 @@ export class AssistantConversations {
     connection.client.on("disconnected", (message: string) => {
       for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.screen.cancel(id); this.screenActions.cancel(id); this.display.cancel(id); this.loaded.delete(id); this.scopes.delete(id); }
       for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
-        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.saveReviewUsage(conversation,turn); }
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
         if (this.expireQuestion(conversation)) this.save(conversation);
       }
     });
@@ -154,40 +154,13 @@ export class AssistantConversations {
         this.save(this.current(params.threadId));
         return { success: !!success, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
       }
-      if (params.tool === "plugin_jobs" && this.plugins) {
-        const activity: AssistantConversationItem = { id: `plugin-job-${randomUUID()}`, kind: "tool", text: `plugin_jobs · ${String(params.arguments?.action ?? "")}`, status: "inProgress" };
-        active.items.push(activity);
-        try {
-          const result = await executePluginJobTool(this.plugins, params.arguments, scope);
-          activity.status = "completed";
-          activity.toolResult = { success: true, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
-          this.save(this.current(params.threadId));
-          return { ...activity.toolResult };
-        } catch (error) {
-          activity.status = "failed";
-          activity.toolResult = { success: false, contentItems: [{ type: "inputText", text: JSON.stringify(assistantToolFailure(error,params)) }] };
-          this.save(this.current(params.threadId));
-          return { ...activity.toolResult };
-        }
-      }
-      if (reviewAssistantTools.some(tool=>tool.name===params.tool) && this.plugins) {
-        try {
-          const result=await executeReviewAssistantTool(this.plugins,params.tool,params.arguments,scope,this.current(params.threadId).turns.flatMap(turn=>turn.items).flatMap(item=>{ if(!["read_review_material","read_review_images"].includes(item.text) || item.toolResult?.success!==true)return []; try {return [JSON.parse(item.toolResult.contentItems[0]!.text!)];}catch{return [];} }),params.callId);
-          const images=result.images?.filter((image:any)=>image.base64);
-          if(images?.length) {
-            active.items.push({id:`review-image-${params.callId}`,kind:"tool",text:"read_review_images",status:"completed",toolResult:{success:true,contentItems:[{type:"inputText",text:JSON.stringify({input:result.workspace,workspace:result.workspace,images:images.map(({base64,...image}:any)=>image),contentRevision:result.contentRevision,runId:result.runId,scope:{pages:[params.arguments.pageNo],targets:params.arguments.target?[params.arguments.target]:[]},documentRevision:result.documentRevision})}]}});
-            this.save(this.current(params.threadId));
-            return {success:true,contentItems:[{type:"inputText",text:JSON.stringify({...result,images:images.map(({base64,...image}:any)=>image)})},...images.map((image:any)=>({type:"inputImage",imageUrl:`data:${image.mime};base64,${image.base64}`}))]};
-          }
-          return {success:result.receipt?.outcome!=="failure" && result.receipt?.outcome!=="uncertain",contentItems:[{type:"inputText",text:JSON.stringify(result)}]};
-        } catch(error) {return {success:false,contentItems:[{type:"inputText",text:JSON.stringify(assistantToolFailure(error,params))}]};}
-      }
+
+
       const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, entry => {
           active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
         }, scope)
-        : params.tool === "read_review_document" && this.plugins ? await executeReadReviewDocument(this.plugins, params.arguments, scope)
         : screenActionTools.some(tool => tool.name === params.tool) ? await this.screenActions.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
         : params.tool === screenTool.name ? await this.screen.execute(params.arguments, params.threadId, scope.displayClient)
         : displayTools.some(tool => tool.name === params.tool)
@@ -200,7 +173,7 @@ export class AssistantConversations {
       return { contentItems: [{ type: "inputText", text }], success: !(result && typeof result === "object" && "error" in result && result.error) };
     };
 
-  get tools() { return [...documentTools, screenTool, ...screenActionTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginJobTools, ...pluginOperationTools, ...reviewDocumentTools, ...reviewAssistantTools] : [])]; }
+  get tools() { return [...documentTools, screenTool, ...screenActionTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginOperationTools] : [])]; }
   readonly mcp = new AssistantMcp(() => this.tools, params => this.executeTool(params));
   private get file() { return path.join(this.connection.cwd, "conversations.json"); }
   list(): ConversationIndexEntry[] {
@@ -351,10 +324,7 @@ export class AssistantConversations {
       if (typeof input.document.path !== "string") throw new Error("Invalid document context.");
       accessPath(input.document.path, this.access);
     }
-    if(input.reviewWorkspace) {
-      if(typeof input.reviewWorkspace.path!=="string" || !folders.length)throw new Error("Invalid review workspace context.");
-      new RootAccess(folders).resolve(accessPath(input.reviewWorkspace.path,this.access));
-    }
+
     let conversation = input.id ? this.current(input.id) : undefined;
     const key = settings.provider === "copilot" ? "copilot" : input.id ?? "new";
     if (this.pending.has(key)) throw new Error("A conversation request is already pending.");
@@ -391,7 +361,7 @@ export class AssistantConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access, active ? conversation!.permissionMode : settings.permissionMode, this.attachments, conversation.id);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { permissionMode: active ? conversation!.permissionMode : settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { permissionMode: active ? conversation!.permissionMode : settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null,  references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -461,14 +431,13 @@ export class AssistantConversations {
     }
   }
   async close() {
-    for(const conversation of this.conversations.values())for(const turn of conversation.turns)this.saveReviewUsage(conversation,turn);
     this.closed = true;
     this.fileChanges.clear();
     for (const conversation of this.conversations.values()) this.expireQuestion(conversation);
     this.attachments.discardDrafts();
     this.mcp.close();
     this.screen.cancel(); this.screenActions.cancel(); this.display.cancel();
-    await Promise.allSettled(this.reviewUsageWrites);
+
   }
   private expireQuestion(conversation: AssistantConversation, turnId?: string, requestId?: string | number) {
     let changed = false;
@@ -599,7 +568,7 @@ export class AssistantConversations {
         conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
       }
       references = checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode, this.attachments, conversation?.id);
-      const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references };
+      const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null,  references };
       const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
       this.dispatch(input, conversation);
       conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
@@ -722,34 +691,7 @@ export class AssistantConversations {
       if (update.status) item.status = update.status === "in_progress" ? "inProgress" : update.status;
     }
   }
-  private saveReviewUsage(conversation:AssistantConversation,turn:AssistantConversationTurn) {
-    if(this.closed || !this.plugins)return;
-    const scope=this.scopes.get(conversation.id) ?? {folders:documentFolders(conversation.folders,conversation.permissionMode??"read-only",this.access),permissionMode:conversation.permissionMode??"read-only",access:this.access};
-    const inputs=turn.items.filter(item=>item.id.startsWith("review-image-")).flatMap(item=>{
-      const part=item.toolResult!.contentItems[0]!,input=JSON.parse(part.text!);
-      if(!input.providerUsage)return [];
-      const usage=input.providerUsage;delete input.providerUsage;part.text=JSON.stringify(input);
-      return [{input,usage}];
-    });
-    if(!inputs.length)return;
-    const previous=[...this.reviewUsageWrites];
-    const task=(async()=>{
-      await Promise.allSettled(previous);
-      const runs=new Map<string,(typeof inputs)[number]>();
-      for(const entry of inputs){
-        const key=JSON.stringify([entry.input.input,entry.input.runId]);
-        const previous=runs.get(key);
-        if(!previous)runs.set(key,entry);
-        else for(const field of ["pages","targets"] as const)previous.input.scope[field]=[...new Set([...previous.input.scope[field],...entry.input.scope[field]])];
-      }
-      for(const {input,usage} of runs.values()){
-        try{await recordReviewImageUsage(this.plugins!,input,scope,usage,turn.id);}
-        catch(error){turn.items.push({id:randomUUID(),kind:"tool",text:String(error),status:"failed"});this.save(conversation);}
-      }
-    })();
-    this.reviewUsageWrites.add(task);
-    void task.then(()=>this.reviewUsageWrites.delete(task),()=>this.reviewUsageWrites.delete(task));
-  }
+
   private notification(method: string, params: any) {
     const conversation = this.conversations.get(params.threadId);
     if (!conversation) return;
@@ -761,12 +703,9 @@ export class AssistantConversations {
     if (method === "thread/tokenUsage/updated") {
       conversation.tokenUsage = { used: params.tokenUsage.last.totalTokens, limit: params.tokenUsage.modelContextWindow };
       const turn=params.turnId ? conversation.turns.find(turn=>turn.id===params.turnId) : [...conversation.turns].reverse().find(turn=>turn.status==="inProgress");
-      for(const item of turn?.items.filter(item=>item.id.startsWith("review-image-"))??[]){
-        const part=item.toolResult!.contentItems[0]!;
-        part.text=JSON.stringify({...JSON.parse(part.text!),providerUsage:params.tokenUsage.last});
-      }
+
       // Persist final actual usage after the turn's proposal/inspection writes, not between them.
-      if(turn && turn.status!=="inProgress")this.saveReviewUsage(conversation,turn);
+
       return;
     }
     const turnId = params.turnId ?? params.turn?.id;
@@ -776,7 +715,7 @@ export class AssistantConversations {
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
-      else { this.saveReviewUsage(conversation,turn); this.screen.cancel(params.threadId); this.screenActions.cancel(params.threadId); this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
+      else {  this.screen.cancel(params.threadId); this.screenActions.cancel(params.threadId); this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
       if (params.turn.error) turn.error = permissionError(params.turn.error.message);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
@@ -810,7 +749,7 @@ export class AssistantConversations {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
     } else if (method === "error" && !params.willRetry) { this.screen.cancel(params.threadId); this.screenActions.cancel(params.threadId); this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
-    if(method==="error" && !params.willRetry)this.saveReviewUsage(conversation,turn);
+
     if ((method === "turn/completed" || method === "error" && !params.willRetry) && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }
 }

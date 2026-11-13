@@ -12,16 +12,15 @@
     "./citation": "./src/citation.ts",
     "./bibliography": "./src/bibliography.ts",
     "./section": "./src/section.ts",
-    "./views": "./src/views.ts",
-    "./views-v2": "./src/views-v2.ts"
+    "./document-target": "./src/document-target.ts",
+    "./operation-input": "./src/operation-input.ts"
   },
   "scripts": {
-    "test": "tsx --test test/core.test.ts test/compare.test.ts test/technical-document.test.ts test/editable.test.ts test/inline.test.ts test/paragraph.test.ts test/myst-regression.test.ts test/figure.test.ts test/reference.test.ts test/serialize-guard.test.ts test/public-api.test.ts test/native.test.ts test/table.test.ts test/link.test.ts test/inline-math.test.ts test/label.test.ts test/cross-reference.test.ts test/parse-boundary.test.ts test/writeability.test.ts test/structural-authoring.test.ts test/list.test.ts test/code.test.ts test/section.test.ts test/numbering.test.ts test/footnote.test.ts test/endnote.test.ts test/bibliography.test.ts test/views.test.ts",
+    "test": "tsx --test test/core.test.ts test/compare.test.ts test/technical-document.test.ts test/editable.test.ts test/inline.test.ts test/paragraph.test.ts test/myst-regression.test.ts test/figure.test.ts test/reference.test.ts test/serialize-guard.test.ts test/public-api.test.ts test/native.test.ts test/table.test.ts test/link.test.ts test/inline-math.test.ts test/label.test.ts test/cross-reference.test.ts test/parse-boundary.test.ts test/writeability.test.ts test/structural-authoring.test.ts test/list.test.ts test/code.test.ts test/section.test.ts test/numbering.test.ts test/footnote.test.ts test/endnote.test.ts test/bibliography.test.ts",
     "test:smartquotes": "tsx --test test/smartquotes-patch.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@cfworker/json-schema": "4.1.6",
     "@citation-js/core": "0.9.0",
     "@citation-js/plugin-bibtex": "0.9.0",
     "@noble/hashes": "2.4.0",

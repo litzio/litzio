@@ -1,6 +1,6 @@
 # Docling 검수 3단계 — 문제 묶음과 비서 검사
 
-- Status: Draft
+- Status: Historical
 - Last verified: 2026-11-10 — `d25aef81`의 SDK·Docling·Host 소스 및 기존 계약 대조. 아래 재측정은 별도 Codex CLI 실험이며 제품 비서·저장·화면 실행 검증이 아니다.
 - Verification v3: 2026-11-10 — #1466 병합 기준 `08b8a98b`에서 페이지 조각 및 공식 Docling Core 기반 렌즈 입력을 추가 비교. 제품 코드는 변경하지 않는다.
 - Decision / verification: 2026-11-10 — #1467 병합 기준 `eb9eda51`의 변환·replay·Host·Core target을 대조하고 소유자의 기본 검사·완료·구조 수정 범위 결정을 반영했다. 기존 Docling 변환 검사 1개 통과. 새 AI 측정·제품 기능 구현은 하지 않았다.
@@ -52,7 +52,7 @@
 
 Windows, Node 24.22.2, pnpm 12.5.1, 실제 Vite 제품 Host와 `pnpm browser:test`의 checkout별 persistent Chrome, 1600×1000 화면을 사용했다. 설치형 Desktop·원격 Host 검사는 아니다. 두 최종 실행의 비서는 Codex `gpt-6.1-terra`, 추론 `high`, 기존 Full access 설정이며 공급자 이력의 실제 모델을 확인했다. 측정용 임시 시나리오만 사용하고 제품 코드·기존 테스트는 원복했다.
 
-[고정 LSR](../../community-plugins/docling/sample/lsr-1.1/README.md)의 `converted/document.json`으로 만든 초기 작업공간을 각각 복제하고 최종 비교는 서로 다른 새 Host·대화에서 실행했다. 보관 record의 원래 API 상태는 unrecorded다. 포장에 필요한 합성 success 봉투를 새 변환 성공으로 해석하지 않는다. Docling 서버 호출·재변환은 없었다. 입력 PDF·answer-key·변환 JSON·conversion-record·정답 JSON·SHA256SUMS의 전후 SHA-256이 같았고, 두 교정본 내부의 원본 PDF·변환 JSON·manifest bytes도 초기본과 같았다.
+[고정 LSR](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/sample/lsr-1.1/README.md)의 `converted/document.json`으로 만든 초기 작업공간을 각각 복제하고 최종 비교는 서로 다른 새 Host·대화에서 실행했다. 보관 record의 원래 API 상태는 unrecorded다. 포장에 필요한 합성 success 봉투를 새 변환 성공으로 해석하지 않는다. Docling 서버 호출·재변환은 없었다. 입력 PDF·answer-key·변환 JSON·conversion-record·정답 JSON·SHA256SUMS의 전후 SHA-256이 같았고, 두 교정본 내부의 원본 PDF·변환 JSON·manifest bytes도 초기본과 같았다.
 
 정답은 `ground_truth/standards.json`의 역할·본문·수식·관계와 answer-key PDF다. 채점은 아래 **13개 오류 묶음**을 같은 기준으로 대조했다. 같은 원인의 여러 글자·셀·관계는 한 묶음이다. 이는 208요소·21사례 전체의 오류 수나 전수 recall이 아니다. 탐지는 구체 차이를 지목한 경우이며 읽기·uncertain 기록만으로 성공을 주지 않았다. 미탐지는 13에서 탐지 수를 뺀 값, 미교정은 13에서 정확한 교정 수를 뺀 값이다. 사람의 표지 제외는 AI 교정 점수에서 뺐다.
 
@@ -185,7 +185,7 @@ Windows, Node 24.22.2, pnpm 12.5.1, 실제 Vite 제품 Host와 `pnpm browser:tes
 
 공용 Host `workspace-evidence`와 CLI `review evidence read|run --input <json-file> --host <origin> --json`은 저장된 리치오 문서와 원본 PDF·일반적인 블록/영역 대응을 사용한다. PDF.js legacy Node build로 독립 추출하고 [spike ① 후속 일반 규칙](../reviews/1462-spike-evidence-match.md#적용한-일반-규칙)을 적용한다. 본문은 제한된 전체 LCS, 표·캡션과 쪽별 각주는 토큰 multiset이며, 같은 변환 span에서 반복한 표 칸만 한 번 센다. 숫자·단위·비교 기호는 엄격 비교하고 수치·단위 차이를 우선 정렬한다. furniture·반복 가장자리·그림 내부·수식 영역은 범위 밖 토큰·영역으로 따로 보고한다. 영역 분류는 변환기의 가설이며 본문을 잘못 제외할 수 있다. 텍스트 레이어가 없으면 `unavailable-image-pdf`와 해당 쪽을 명시하고 후보를 만들지 않는다. 결과는 기존 inspection의 evidence 텍스트에 분할 저장하며 read는 마지막 관측의 문서 revision과 함께 반환한다. 자동 재검사는 없다.
 
-insert는 기준 블록 경로 앞/뒤에 문단 또는 수준 1~6 제목만 Core `insertParagraph`/`insertHeading`으로 삽입한다. before는 기준 블록 내용, expectedBefore는 `[null]`, after는 `[{kind,text,level?}]`다. JSON 객체 키 순서는 의미와 무관하다. 제안 target의 원문 regions만 새 블록에 대응시키며, 없으면 `no-correspondence`로 기록한다. 원본 self_ref 없는 새 블록을 재열기 후 정확히 Undo하기 위해 기존 snapshot.inputs에 삽입 binding 하나를 추가한다. 문서에 영속 블록 ID를 넣거나 공용 identity 계층을 만들지 않는다. 기존 삭제와 같은 경로 이동으로 다른 제안과 대응을 갱신하고, 기준 내용 변경·삭제는 오래됨으로 거부한다. Undo는 삽입 내용이 승인 당시와 같을 때 해당 블록을 제거한다. 빠진 머리말은 이 교정으로 복원하고 캡션→제목 분리는 계속 미지원이다. 상세 입력과 한계는 [Docling 공용 작업 안내](../../community-plugins/docling/README.md#원문-증거-후보와-블록-삽입-교정)를 따른다.
+insert는 기준 블록 경로 앞/뒤에 문단 또는 수준 1~6 제목만 Core `insertParagraph`/`insertHeading`으로 삽입한다. before는 기준 블록 내용, expectedBefore는 `[null]`, after는 `[{kind,text,level?}]`다. JSON 객체 키 순서는 의미와 무관하다. 제안 target의 원문 regions만 새 블록에 대응시키며, 없으면 `no-correspondence`로 기록한다. 원본 self_ref 없는 새 블록을 재열기 후 정확히 Undo하기 위해 기존 snapshot.inputs에 삽입 binding 하나를 추가한다. 문서에 영속 블록 ID를 넣거나 공용 identity 계층을 만들지 않는다. 기존 삭제와 같은 경로 이동으로 다른 제안과 대응을 갱신하고, 기준 내용 변경·삭제는 오래됨으로 거부한다. Undo는 삽입 내용이 승인 당시와 같을 때 해당 블록을 제거한다. 빠진 머리말은 이 교정으로 복원하고 캡션→제목 분리는 계속 미지원이다. 상세 입력과 한계는 [Docling 공용 작업 안내](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/README.md#원문-증거-후보와-블록-삽입-교정)를 따른다.
 
 고정 변환 결과를 재사용한 오프라인 정상 입력의 보수적 오경보 예산은 LSR 13쪽 4건(0.31건/쪽), NIST 물리 6·9·10쪽 6건(2.00건/쪽)이다. LSR은 raw PDF 2,298토큰 중 범위 안 1,842·범위 밖 456(furniture 416, 그림 31, 수식 9), 제외 영역 52·문서 단위 25다. NIST 3쪽은 1,029토큰 중 범위 안 1,001·범위 밖 28(furniture 3, 그림 25), 제외 영역 7·문서 단위 114다. 반복 가장자리만으로 추가 제외한 토큰은 두 입력 모두 0이다. 처음 spike의 간단한 가장자리 규칙 결과 60/13·15/3과 비교하면 작은 후보 수지만, 이후 승인된 영역 제외·표/캡션 multiset·문장부호 규칙이 함께 달라졌으므로 정확도 개선율이나 재현율로 환산하지 않는다. 같은 입력의 정상 변환 차이를 전부 경보 예산에 포함하며 실제 오류·오경보를 독립 정답으로 확정한 수치가 아니다. holdout 4쪽의 14건 결과를 재측정한 것도 아니다.
 
@@ -198,7 +198,7 @@ insert는 기준 블록 경로 앞/뒤에 문단 또는 수준 1~6 제목만 Cor
 2026-11-12 소유자 결정(#1529, #1528): 아래 11-11 승인 카드·같은 턴·전량 기록 설명과 측정은 이전 구현의 이력이다. 현재는 이미지 예상량 도구·사전 승인 카드·estimateHash·승인 runId 결합을 제거하고 `read_review_images`로 바로 읽는다. 반환 runId는 검사/사용량의 측정 식별자이며 허가가 아니다. 텍스트와 이미지 검사는 대화에서 실제 반환된 현재 workspace·문서/content revision의 자료 이력으로 턴을 넘어 누적하며, 이미지 전량 읽기·전량 기록을 요구하지 않는다. 읽지 않거나 검사하지 않은 나머지는 미대조로 남긴다. 페이지·대상·파일/문서 revision 무결성, 측정용 사용량, 사람의 교정 승인·거절·Undo·완료 경계는 유지한다. 제안 입력 오류는 기존 구체 검증 사유와 알려진 현재 revision·baseline을 반환한다. 일반 질문 수명은 #1530의 별도 범위다.
 
 
-`master`에 병합된 1~4단계 위에서 Codex 비서 읽기·제안 저장을 연결했다. 공용 페이지 조각은 해당/앞뒤 쪽의 항목·관계·원문·provenance·현재 블록/삽입 대응을 제공한다. 이미지 예상량을 Host 질문 카드에 표시하고 실제 사람 응답만 기존 selected comparison/inspection에 저장한다. 승인 영역만 PDF.js로 반환하며 문서 변경·범위 밖 요청·비서 자체 확인을 거부한다. 교정 승인·거절·Undo·완료 승인은 비서에 등록하지 않고 사람 CLI 경로에 남긴다. P2 묶음 모델·전이는 그대로다. 상세 계약과 도구 목록은 [현재 플러그인 계약](plugin-stage1-v1.md#비서-국소-제안-1462-5단계)을 따른다.
+`master`에 병합된 1~4단계 위에서 Codex 비서 읽기·제안 저장을 연결했다. 공용 페이지 조각은 해당/앞뒤 쪽의 항목·관계·원문·provenance·현재 블록/삽입 대응을 제공한다. 이미지 예상량을 Host 질문 카드에 표시하고 실제 사람 응답만 기존 selected comparison/inspection에 저장한다. 승인 영역만 PDF.js로 반환하며 문서 변경·범위 밖 요청·비서 자체 확인을 거부한다. 교정 승인·거절·Undo·완료 승인은 비서에 등록하지 않고 사람 CLI 경로에 남긴다. P2 묶음 모델·전이는 그대로다. 상세 계약과 도구 목록은 [현재 플러그인 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#비서-국소-제안-1462-5단계)을 따른다.
 
 6-0 사용성 보완: 비서는 `.docling` 경로로 대상을 지정하고 Host가 기존 workspace-find로 내부 식별자를 결정한다. 대조 탭 맥락은 참고이며 화면 없이도 읽기·제안 저장이 가능하다. Host가 baseline/requestId를 관리하고 읽기 전용 저장 거부의 권한 안내를 제공한다. 일반 검사 기록은 이번 턴 실제 페이지 자료 반환 범위만 허용하며 같은 이미지 run의 사용량 scope는 합친다. 작업공간 기본 읽기는 모델에도 요약만 반환하고, 화면 이력의 큰 도구 결과는 크기 요약으로 투영해 사용 중 대화의 반복 읽기·재개가 응답 한도를 소진하지 않게 한다. 이미지 예상량·질문 카드의 실제 사람 승인 범위는 유지한다.
 
@@ -236,7 +236,7 @@ Windows에서 기존 고정 LSR 검사에 가짜 provider를 연결해 읽기 �
   기존 확대 구현은 `archive/1462-p3-cell-targets`의 `d10392a1b3907719de47bb6dcba3181c06143836`에 보관하고
   P9에서 필요한 부분만 가져온다. 보관 브랜치로 PR을 만들지 않는다.
 - **P4:** 기존 schema 렌즈·inventory에 렌즈별 적용 범위를 추가하고 완료 계산은 각 검사의 자기 범위만 요구한다.
-  추출 누락을 빈 범위의 성공으로 취급하지 않는다. 현재 [evaluateReviewCompletion](../../packages/plugin-sdk/src/review-ledger.ts)은
+  추출 누락을 빈 범위의 성공으로 취급하지 않는다. 현재 [evaluateReviewCompletion](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/packages/plugin-sdk/src/review-ledger.ts)은
   `inventory.lenses` 각각에 전체 `inventory.pages/targets`를 요구하므로 범위 계약과 함께 고친다.
 - **P5:** 비서는 읽기→검사→제안 저장까지만 한다. 승인·완료 승인은 질문 카드·화면의 실제 사람 응답으로만
   실행하며 비서 도구에 넣지 않는다. 교정 적용은 P6 안전장치 전에는 열지 않는다.
@@ -277,7 +277,7 @@ Windows에서 기존 고정 LSR 검사에 가짜 provider를 연결해 읽기 �
 | 사람이 저장하는 페이지 확인과 원본 대조 | 렌즈 coverage·그림/표 필수 확인·선택한 이미지 대조 coverage를 분리해 완료를 판정한다. |
 | `.docling→문서` K1의 native-document 결과 생성 | 검수 열기는 외부 파일을 만들지 않는다. `.md` 생성은 중간/공식의 명시적 export 공용 작업으로 옮긴다. |
 
-실행 근거: [Docling review adapter](../../community-plugins/docling/review.js), [Docling Host](../../community-plugins/docling/host.js), [공용 review Host](../../apps/editor/server/plugins/reviews.ts), [생성 문서 Host](../../apps/editor/server/plugins/generated-documents.ts). 현재 동작의 권위는 계속 [플러그인 1단계](plugin-stage1-v1.md)다.
+실행 근거: [Docling review adapter](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/review.js), [Docling Host](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/host.js), [공용 review Host](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/apps/editor/server/plugins/reviews.ts), [생성 문서 Host](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/apps/editor/server/plugins/generated-documents.ts). 현재 동작의 권위는 계속 [플러그인 1단계](plugin-stage1-v1.md)다.
 
 ## 소유권과 문제 묶음 모델
 
@@ -495,7 +495,7 @@ DoclingDocument의 표준 필드와 검수 제어 metadata를 분리한다. 현�
 
 ### 입력과 판정 방법
 
-2026-11-10에 [LSR 1.1](../../community-plugins/docling/sample/lsr-1.1/README.md)의 동일한 13쪽 변환을 재사용했다. 텍스트 156+표 10+그림 2=168항목이며 원본 변환 JSON SHA-256은 `fc3a4b657e3bbd530c245226f191a8b9b9b53b3e1ab5f599389323aa7c47098d`다. 변환을 다시 실행하지 않아 변환기의 변동을 비교에 넣지 않았다. 원래 profile은 `litzio-pdf-en-v1`, docling-serve 1.32.0 / Docling 2.124.0 / core 2.93.0, embedded 144dpi PNG다. Docker를 조작하지 않았다.
+2026-11-10에 [LSR 1.1](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/sample/lsr-1.1/README.md)의 동일한 13쪽 변환을 재사용했다. 텍스트 156+표 10+그림 2=168항목이며 원본 변환 JSON SHA-256은 `fc3a4b657e3bbd530c245226f191a8b9b9b53b3e1ab5f599389323aa7c47098d`다. 변환을 다시 실행하지 않아 변환기의 변동을 비교에 넣지 않았다. 원래 profile은 `litzio-pdf-en-v1`, docling-serve 1.32.0 / Docling 2.124.0 / core 2.93.0, embedded 144dpi PNG다. Docker를 조작하지 않았다.
 
 규칙은 직전과 같은 과거 `candoc/diagnostics.py` 고정본(`399e930`)의 반복 가장자리·번호 깊이 후보, 참조/parent-child/순환/page/bbox·셀 중복 검사, 제목 jump다. 현재 규칙 계약으로 채택한 것이 아니다. 같은 원본 해시의 직전 규칙 결과를 고정 입력으로 재사용했으며 이번에 규칙을 재실행하지 않았다. 후보는 제목 jump 1묶음·2항목이고 구조 무결성 오류는 0건이다. 과거 IEEE-1547 JSON 조사도 셀 범위 중복·제목 번호와 계층·각주/머리말 혼합을 후보로 삼았지만 PDF 없이 확정하지 않았다는 경계를 유지한다. 번호만으로 수정하거나 0건으로 의미 품질을 통과시키지 않는다.
 
@@ -719,7 +719,7 @@ S09는 두 표·continued caption이 렌즈 문맥에 있었지만 모델이 놓
 
 ### 현행 변환·replay 검토
 
-기준은 `eb9eda51`이다. [변환](../../community-plugins/docling/document.js), [replay/대조](../../community-plugins/docling/review.js), [provider Host](../../community-plugins/docling/host.js), [Core 작성](../../packages/core/src/document-authoring.ts), [Core read model](../../packages/core/src/editable.ts), [공용 review 검증](../../apps/editor/server/plugins/reviews.ts), [대조 geometry](../../apps/editor/src/review/compare-geometry.ts)를 대조했다. 아래 변경 필요/후속 구분은 현행 코드가 이미 3단계를 지원한다는 뜻이 아니다.
+기준은 `eb9eda51`이다. [변환](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/document.js), [replay/대조](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/review.js), [provider Host](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/host.js), [Core 작성](../../packages/core/src/document-authoring.ts), [Core read model](../../packages/core/src/editable.ts), [공용 review 검증](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/apps/editor/server/plugins/reviews.ts), [대조 geometry](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/apps/editor/src/review/compare-geometry.ts)를 대조했다. 아래 변경 필요/후속 구분은 현행 코드가 이미 3단계를 지원한다는 뜻이 아니다.
 
 | 항목 | 판정·근거 | 반영 PR |
 | --- | --- | --- |
@@ -795,7 +795,7 @@ P1의 수락 검증은 다음을 포함한다. 기존 lower-layer/Host 검사와
 
 ## P1a 저장·읽기 기반 구현과 측정
 
-2026-11-10: P1을 저장/읽기 기반 P1a와 대조/material/중간 export 연결 P1b로 분리했다. source-first 외부 문서 저장과 새 단일 archive commit의 실패 경계를 독립 검증하기 위한 분할이다. P1a에는 실제 SDK schema·Host handler·CLI·비서 읽기가 있으며 placeholder 성공은 없다. P1 전체 수락·renderer 검증·중간 export 완료는 아직 아니다. 현재 구현 계약은 [plugin-stage1](plugin-stage1-v1.md#review-workspace-기반-1462-p1a)과 [플러그인 안내](../../community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다. 기존 K1의 외부 `.md` 생성은 P1b 전환 전까지 남긴다.
+2026-11-10: P1을 저장/읽기 기반 P1a와 대조/material/중간 export 연결 P1b로 분리했다. source-first 외부 문서 저장과 새 단일 archive commit의 실패 경계를 독립 검증하기 위한 분할이다. P1a에는 실제 SDK schema·Host handler·CLI·비서 읽기가 있으며 placeholder 성공은 없다. P1 전체 수락·renderer 검증·중간 export 완료는 아직 아니다. 현재 구현 계약은 [plugin-stage1](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#review-workspace-기반-1462-p1a)과 [플러그인 안내](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다. 기존 K1의 외부 `.md` 생성은 P1b 전환 전까지 남긴다.
 
 P1a는 format 2의 canonical source/final inputs·targets·key/hash/생성 계약/이미지 binding, 단일 archive 원자적 patch 저장과 캐시 보존 progress를 구현한다. read는 prepare하지 않으며 old contract는 생성 당시 결과로 읽고 새 변경 전에 명시 regenerate를 요구한다. 비서와 CLI는 같은 reader를 호출하고 completion은 not-evaluated다. 이미지 bytes/material·새 scoped bundle·ReviewRenderer와 명시 current export는 P1b에 남아 있다. effective region 종류는 현재 네 patch replay 결과로 기존 comparison을 계산하도록 수정했으며 구조 lineage operation은 P7~P10 범위다.
 
@@ -815,7 +815,7 @@ Host RSS 시작 290,668,544 bytes, 5ms sampling peak 935,182,336, process high-w
 
 ## P1b 내부 대조·이미지·명시 export
 
-2026-11-10: `8020e833`(P1a 병합)에서 P1b를 구현했다. `.docling`은 활성 provider의 공용 발견→기존 comparison 작업 탭으로 열고 내부 문서를 읽는다. 기존 ReviewRenderer/DocumentEditor readOnly preview·Button/Notice/Input/Dialog를 재사용하며 “문서 열기”는 실제 문서가 없는 workspace에서 숨긴다. “현재 상태로 내보내기” dialog는 Root 상대 기본 이름·완료가 아님을 표시하고 기존 파일 revision에 대해 명시 덮어쓰기 확인을 받는다. current export 뒤의 실제 파일만 일반 문서로 열 수 있다. 새 UI token·독자 editor·Docling 전용 Core/Host 해석은 없다. 공용 동작과 CLI는 [plugin-stage1](plugin-stage1-v1.md#review-workspace-대조중간-export-1462-p1b), 사용 안내는 [Docling README](../../community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다.
+2026-11-10: `8020e833`(P1a 병합)에서 P1b를 구현했다. `.docling`은 활성 provider의 공용 발견→기존 comparison 작업 탭으로 열고 내부 문서를 읽는다. 기존 ReviewRenderer/DocumentEditor readOnly preview·Button/Notice/Input/Dialog를 재사용하며 “문서 열기”는 실제 문서가 없는 workspace에서 숨긴다. “현재 상태로 내보내기” dialog는 Root 상대 기본 이름·완료가 아님을 표시하고 기존 파일 revision에 대해 명시 덮어쓰기 확인을 받는다. current export 뒤의 실제 파일만 일반 문서로 열 수 있다. 새 UI token·독자 editor·Docling 전용 Core/Host 해석은 없다. 공용 동작과 CLI는 [plugin-stage1](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#review-workspace-대조중간-export-1462-p1b), 사용 안내는 [Docling README](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다.
 
 공통 embedded review reader가 canonical source·실제 targets·workspace revision을 검증한다. provider가 보관한 final correspondence를 같은 source integrity에 묶어 읽으며 page geometry·종류·대응은 effective 결과를 사용한다. 그림/페이지 bytes는 archive 소유 자료에서 공용 material 읽기로만 제공한다. 검수 읽기는 외부 Markdown/assets를 만들거나 image bytes를 cache에 복제하지 않는다. 이전 생성 계약은 source만 읽고 현재 대응을 추측하지 않으며 명시 재생성을 요구한다. 새 archive 형식 migration은 만들지 않는다.
 
@@ -839,8 +839,8 @@ P1b 통합 중 master의 #1468(공용 생성 문서 대조 진입)·#1455(좁은
 > **대체됨: 2026-11-11 아키텍처 확정.** 아래는 P2 구현 당시 기록이다. [새 결정](#2026-11-11-아키텍처-확정소유자-승인)에 따라 문서 전체 revision 기반 제안 오래됨 판정·교정 후 렌즈 무효화·완료 export gate 전제를 전환한다. 대상별 근거·사람 판단 이력·필수 확인 기록과 저장 보호는 유지한다.
 
 2026-11-11: P1b feature base에서 공용 SDK 모델·provider용 ledger 전이/완료 계산과 workspace dispatcher를
-확장했다. 구현 필드·Host/provider 경계·CLI·비서 계약은 [plugin-stage1 P2](plugin-stage1-v1.md#review-문제-묶음검사-기록-1462-p2),
-Docling 입력과 버전은 [플러그인 P2 안내](../../community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다.
+확장했다. 구현 필드·Host/provider 경계·CLI·비서 계약은 [plugin-stage1 P2](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#review-문제-묶음검사-기록-1462-p2),
+Docling 입력과 버전은 [플러그인 P2 안내](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/README.md#단일-작업공간-교정-1462-3단계)를 따른다.
 이 절은 P2 구현 범위이며 나머지 Draft의 완료 선언이 아니다.
 
 공용 묶음은 개별 근거·expected-before/revision·불투명 patch·판단과 append-only 처리 이력을 가진다.
@@ -926,3 +926,5 @@ Litzio 칸에는 새 값, 나머지 칸과 원본 PDF/JSON/manifest에는 기존
 
 로컬 최종 검증: 기존 plugins/generated-documents 검사 50개가 54.6초에 통과했고 Editor typecheck,
 `pnpm docs:check`, `git diff --check`도 통과했다. 제품 코드·UI 변경이 없어 새 browser 실행은 추가하지 않았다.
+
+2026-11-13: 해당 선언형·Docling·검수 기능은 삭제했다. 현재 계획이 아니며 보관 브랜치 `archive/plugins-declarative-2026-11-13`, 태그 `archive/2026-11-13-plugins-declarative`에서 당시 소스를 확인한다.

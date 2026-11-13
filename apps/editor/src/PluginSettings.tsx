@@ -48,9 +48,6 @@ export function PluginSettings() {
           <div className="plugin-heading">
             <PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />
             <h3 className="settings-heading">{plugin.name ?? plugin.id}</h3>
-            <div className="plugin-badges">
-              <span className="plugin-badge">{i18n.t(plugin.official ? "Official plugin" : "Community plugin")}</span>
-            </div>
           </div>
           <p className="settings-description">{plugin.description}</p>
         </div>
@@ -68,13 +65,12 @@ export function PluginSettings() {
       <DialogContent className="plugin-settings-dialog" finalFocus={addButton}>
         <DialogHeader>
           <DialogTitle>{current?.name ?? current?.id}</DialogTitle>
-          <p className="settings-status">{current?.version}</p>
           <DialogDescription>{current?.description}</DialogDescription>
         </DialogHeader>
         {current && problem ? <Notice tone="error">{problem}</Notice> : null}
         {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
-        {current && !current.bundled ? <div className="settings-actions"><Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button></div> : null}
-        <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t("Publisher")}: {current?.publisher?.name ?? current?.id}</p><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
+        {current ? <div className="settings-actions"><Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button></div> : null}
+        <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
       </DialogContent>
     </Dialog>
     {removing && current ? <DangerConfirmation

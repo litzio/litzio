@@ -91,11 +91,6 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     assert.equal(readdirSync(tools).filter(name=>name.startsWith("npm-")).length,1,"Dependencies must prepare the bundled npm cache");
     const plugins = (await (await fetch(url + "/api/plugins")).json()).plugins;
     assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
-    for (const id of ["community.docling"]) {
-      const plugin = plugins.find((p: any) => p.id === id);
-      assert.ok(plugin); assert.equal(plugin.bundled, true); assert.equal(plugin.official, false);
-      assert.equal(plugin.trusted, false); assert.equal(plugin.enabled, false); assert.equal(plugin.error, undefined);
-    }
     const notices = await fetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
     assert.equal(notices.status, 200);
     assert.match(notices.headers.get("content-type") ?? "", /text\/plain/);
