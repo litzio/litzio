@@ -1,7 +1,8 @@
-async (page, {expect, screenshots, openFolderPicker, openPath}) => {
-  const images = [{key:'chart',mime:'image/png',base64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='}];
+async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) => {
+  const images = [{key:'chart',mime:'image/png',base64:'iVBORw0KGgoAAAANSUhEUgAAAMAAAABACAIAAADDDu+IAAAA8ElEQVR4nO3SoQ0CQQAAwe8KiaATFDXQAA5Dq4QgseQly+X/kkm2gBWzPF9v6eeWzQ80dQApBZBSACkFkFIAbdz9fBza6H+ANg4gpQBSCiClAFIKIKUAUgogpQBSCiClAFIKoJ12ul2HBhBAAAEEEEAAAbTHAAIIIIAAAmjSAAIIIIAAAmjSAAIIIIAAAmjSAAIIIIAAAmjV4fIYGkAAAQQQQAABBBBAAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQP8FJH0HkFIAKQWQUgApBZBSHwWDNS8DL1+0AAAAAElFTkSuQmCC'}];
   let crash = false, cleanup = false, enabled = true, revision = 1, calls = 0;
-  const code = () => `export default function(React){return function Screen({ui,invoke,saveDocument}) {const [value,setValue]=React.useState('Ready');React.useEffect(()=>()=>{if(${cleanup})throw Error('Fixture cleanup failure');},[]);if(${crash})throw Error('Fixture screen failure');return React.createElement('section',{'data-revision':${revision},style:{display:'grid',gap:'var(--space-4)'}},React.createElement(ui.Input,{'aria-label':'Threshold',defaultValue:15}),React.createElement(ui.Button,{onClick:()=>invoke('measurements',{}).then(v=>setValue(JSON.stringify(v)))},'Load measurements'),React.createElement(ui.Button,{onClick:()=>saveDocument({name:'screen-result.md',authoring:{title:'Saved measurements',inputs:[{key:'values',blocks:[{kind:'table',label:'values',caption:[{kind:'strong',children:[{kind:'text',text:'Measured values'}]}],rows:[['Value'],[[{kind:'math',value:'18'}]],['24']]},{kind:'figure',imageAsset:'chart',imageAlt:'Chart',caption:'Saved chart'}]}]},images:${JSON.stringify(images)},open:true}).then(v=>setValue('Saved')).catch(e=>setValue(e.message))},'Save document'),React.createElement(ui.Toolbar,null,React.createElement(ui.SummaryCard,{label:'Count',value:5,description:'Loaded measurements'}),React.createElement(ui.SummaryCard,{label:'Total',value:80})),React.createElement(ui.Chart,{title:'Measurements',data:[10,18,12,24,16].map((value,i)=>({time:'00:0'+i,value})),xKey:'time',yKey:'value'}),React.createElement(ui.DataTable,{title:'Measurements',columns:['time','value'],rows:[10,18,12,24,16].map((value,i)=>({time:'00:0'+i,value}))}),React.createElement('output',null,value));}}`;
+  let documentMode = false, documentPath = "", documentRevision = "", tableCell = [], lastPath = [];
+  const code = () => documentMode ? `export default function(React){return function Screen({ui}) { const [key,setKey]=React.useState(0),[target,setTarget]=React.useState(),[state,setState]=React.useState(),[shown,setShown]=React.useState(true),[requestedPath,setPath]=React.useState(${JSON.stringify(documentPath)});return React.createElement(ui.ScreenLayout,{description:"Synthetic document comparison"},React.createElement(ui.Toolbar,null,React.createElement(ui.Button,{onClick:()=>setTarget({revision:${JSON.stringify(documentRevision)},path:${JSON.stringify(tableCell)}})},"Go to table cell"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(lastPath)}})},"Go to last block"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:[9999]})},"Unknown target"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:"old",path:${JSON.stringify(tableCell)}})},"Use stale target"),React.createElement(ui.Button,{onClick:()=>setKey(k=>k+1)},"Read again"),React.createElement(ui.Button,{onClick:()=>setShown(s=>!s)},"Toggle preview"),React.createElement(ui.Button,{onClick:()=>setPath(${JSON.stringify(documentPath)}+".missing.md")},"Missing document"),React.createElement(ui.Button,{onClick:()=>setPath("/outside/not-open.md")},"Outside folder"),React.createElement(ui.Button,{onClick:()=>setPath(${JSON.stringify(documentPath)})},"Original document"),React.createElement("output",null,state?.state)),React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:"var(--space-4)"}},React.createElement("section",{style:{flex:"1 1 320px",minWidth:0}},React.createElement("h2",null,"Source material"),React.createElement("p",null,"Synthetic source for comparison. Source display is owned by the plugin.")),shown&&React.createElement("div",{style:{flex:"1 1 320px",minWidth:0}},React.createElement(ui.DocumentView,{path:requestedPath,reloadKey:key,target,onStateChange:setState,height:520}))));}}` : `export default function(React){return function Screen({ui,invoke,saveDocument}) {const [value,setValue]=React.useState('Ready');React.useEffect(()=>()=>{if(${cleanup})throw Error('Fixture cleanup failure');},[]);if(${crash})throw Error('Fixture screen failure');return React.createElement('section',{'data-revision':${revision},style:{display:'grid',gap:'var(--space-4)'}},React.createElement(ui.Input,{'aria-label':'Threshold',defaultValue:15}),React.createElement(ui.Button,{onClick:()=>invoke('measurements',{}).then(v=>setValue(JSON.stringify(v)))},'Load measurements'),React.createElement(ui.Button,{onClick:()=>saveDocument({name:'screen-result.md',authoring:{title:'Saved measurements',inputs:[{key:'values',blocks:[{kind:'table',label:'values',caption:[{kind:'strong',children:[{kind:'text',text:'Measured values'}]}],rows:[['Value'],[[{kind:'math',value:'18'}]],['24']]},{kind:'figure',imageAsset:'chart',imageAlt:'Chart',caption:'Saved chart'},{kind:'equation',latex:'E=mc^2',label:'energy'},{kind:'paragraph',content:[{kind:'text',text:'See '},{kind:'reference',role:'eq',label:'energy'}]},...Array.from({length:300},(_,i)=>({kind:'paragraph',text:'Fixed sample block '+i}))]}]},images:${JSON.stringify(images)},open:true}).then(v=>setValue('Saved')).catch(e=>setValue(e.message))},'Save document'),React.createElement(ui.Toolbar,null,React.createElement(ui.SummaryCard,{label:'Count',value:5,description:'Loaded measurements'}),React.createElement(ui.SummaryCard,{label:'Total',value:80})),React.createElement(ui.Chart,{title:'Measurements',data:[10,18,12,24,16].map((value,i)=>({time:'00:0'+i,value})),xKey:'time',yKey:'value'}),React.createElement(ui.DataTable,{title:'Measurements',columns:['time','value'],rows:[10,18,12,24,16].map((value,i)=>({time:'00:0'+i,value}))}),React.createElement('output',null,value));}}`;
   await page.route('**/api/plugin-screens', route => route.fulfill({json:{screens:enabled ? [{plugin:'fixture.code',id:'main',entry:'screen.jsx',title:'Measurements',icon:'ChartColumn',primary:true,code:code(),codeRevision:String(revision)}] : [],receipt:{outcome:'success'}}}));
   await page.route('**/api/plugins', route => {
     if(route.request().method()!=='POST')return route.continue();
@@ -16,7 +17,9 @@ async (page, {expect, screenshots, openFolderPicker, openPath}) => {
   const workspace=page.getByTestId('view-workspace').filter({visible:true});
   await workspace.getByRole('button',{name:'Load measurements'}).click();await expect(workspace.locator('output')).toHaveText('{"points":[10,18,24]}');expect(calls).toBe(1);
   await expect(workspace.locator('[data-slot="input"]')).toBeVisible();
+  const creation = page.waitForResponse(response=>response.url().endsWith('/api/document')&&response.request().method()==='PUT'&&response.status()===201);
   await workspace.getByRole('button',{name:'Save document',exact:true}).click();
+  documentPath=(await (await creation).json()).path;
   await expect(page.locator('.tiptap:visible')).toContainText('18');
   await expect(page.locator('.tiptap:visible')).toContainText('24');
   await expect(page.locator('.tiptap:visible strong')).toContainText('Measured values');
@@ -26,6 +29,83 @@ async (page, {expect, screenshots, openFolderPicker, openPath}) => {
   await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
   await workspace.getByRole('button',{name:'Save document',exact:true}).click();
   await expect(workspace.locator('output')).toContainText('file already exists');
+  const inspected = pluginFixture.cli(['inspect',documentPath]);
+  // These are the CLI's actual Core NodePaths, passed to the plugin unchanged.
+  tableCell = inspected.nodes.find(node=>node.type==='cell'&&node.text==='18').path;
+  const response = await page.request.get(page.url().split('/').slice(0,3).join('/')+'/api/document?path='+encodeURIComponent(documentPath),{headers:{Connection:'close'}});
+  const saved = await response.json(); documentRevision=saved.revision;
+  expect(inspected.revision).toBe(saved.revision);
+  lastPath = inspected.nodes.filter(node=>node.type==='paragraph').at(-1).path;
+  const viewStarted=Date.now();
+  documentMode=true;revision++;
+  const preview = workspace.getByRole('region',{name:'Document preview content',exact:true});
+  await expect(preview).toContainText('Fixed sample block 299');
+  const viewLoadMs=Date.now()-viewStarted;
+  await expect(preview.locator('table')).toContainText('18');
+  await expect(preview.getByTestId('equation-preview').locator('.katex')).toBeVisible();
+  await expect(preview.getByTestId('cross-reference')).toContainText('(1)');
+  await expect.poll(()=>preview.locator('figure img').evaluate(image=>image.complete&&image.naturalWidth>0)).toBe(true);
+  await expect(preview.locator('[contenteditable="true"]')).toHaveCount(0);
+  await preview.focus();await page.keyboard.press('Control+s');
+  await workspace.getByRole('button',{name:'Go to table cell',exact:true}).click();
+  await expect(workspace.getByTestId('document-view-highlight')).toBeVisible();
+  for(const width of [1440,640]) {
+    await page.setViewportSize({width,height:1000});
+    await expect.poll(()=>preview.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+    if(screenshots) await page.screenshot({path:`tmp/document-view-${width}-light.png`,mask:[page.locator('.sidebar')],maskColor:await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).backgroundColor)});
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  const lightPaper=await preview.evaluate(node=>getComputedStyle(node).backgroundColor);
+  await page.locator('.sidebar').getByRole('button',{name:'Color mode: Light',exact:true}).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect.poll(()=>preview.evaluate(node=>getComputedStyle(node).backgroundColor)).not.toBe(lightPaper);
+  if(screenshots) await page.screenshot({path:'tmp/document-view-1440-dark.png',mask:[page.locator('.sidebar')],maskColor:await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).backgroundColor)});
+  await page.locator('.sidebar').getByRole('button',{name:'Color mode: Dark',exact:true}).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await workspace.getByRole('button',{name:'Go to last block',exact:true}).click();
+  await expect.poll(()=>preview.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  const scrollBeforeStale=await preview.evaluate(node=>node.scrollTop);
+  await workspace.getByRole('button',{name:'Use stale target',exact:true}).click();
+  await expect(workspace.locator('output')).toHaveText('stale-target');
+  expect(await preview.evaluate(node=>node.scrollTop)).toBe(scrollBeforeStale);
+  await expect(workspace.getByTestId('document-view-highlight')).toHaveCount(0);
+  await workspace.getByRole('button',{name:'Unknown target',exact:true}).click();
+  await expect(workspace.locator('output')).toHaveText('target-not-found');
+  await expect(workspace.getByTestId('document-view-highlight')).toHaveCount(0);
+  const paragraph = saved.document.blocks.find(block=>block.block==='paragraph');
+  const changed = await page.request.post(page.url().split('/').slice(0,3).join('/')+'/api/document',{headers:{Connection:'close',Origin:page.url().split('/').slice(0,3).join('/')},data:{path:documentPath,revision:saved.revision,base:{source:saved.source},paragraphs:[{path:paragraph.path,content:[{kind:'text',text:'Externally changed sample'}]}]}});
+  expect(changed.ok(),await changed.text()).toBe(true);
+  await expect(preview).not.toContainText('Externally changed sample');
+  await workspace.getByRole('button',{name:'Read again',exact:true}).click();
+  await expect(preview).toContainText('Externally changed sample');
+  await workspace.getByRole('button',{name:'Go to last block',exact:true}).click();
+  await expect(workspace.locator('output')).toHaveText('ready');
+  await workspace.getByRole('button',{name:'Go to table cell',exact:true}).click();
+  await expect(workspace.locator('output')).toHaveText('stale-target');
+  await workspace.getByRole('button',{name:'Toggle preview',exact:true}).click();
+  await expect(preview).toHaveCount(0);
+  await page.evaluate(()=>{window.__documentReadAborted=false;window.__originalDocumentFetch=window.fetch;window.fetch=(input,init)=>{if(String(input).includes('/api/document?'))init?.signal?.addEventListener('abort',()=>window.__documentReadAborted=true);return window.__originalDocumentFetch(input,init);};});
+  let requested; const started = new Promise(resolve=>requested=resolve);
+  let release; const held = new Promise(resolve=>release=resolve);
+  const slow = async route=>{requested();await held;await route.abort().catch(()=>{});};
+  await page.route('**/api/document?path=*',slow);
+  await workspace.getByRole('button',{name:'Toggle preview',exact:true}).click();await started;
+  await workspace.getByRole('button',{name:'Toggle preview',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.__documentReadAborted)).toBe(true);
+  await page.evaluate(()=>{window.fetch=window.__originalDocumentFetch;});
+  release();await page.unroute('**/api/document?path=*',slow);
+  await expect(workspace.locator('output')).toHaveText('loading');
+  await workspace.getByRole('button',{name:'Toggle preview',exact:true}).click();
+  await expect(preview).toContainText('Externally changed sample');
+  await workspace.getByRole('button',{name:'Missing document',exact:true}).click();
+  await expect(workspace.locator('output')).toHaveText('error');
+  await expect(workspace.locator('.screen-document-view [role="alert"]')).toBeVisible();
+  await workspace.getByRole('button',{name:'Outside folder',exact:true}).click();
+  await expect(workspace.locator('.screen-document-view')).toContainText("inside this screen's opened folders");
+  await expect(preview).toHaveCount(0);
+  documentMode=false;revision++;
+  await expect(workspace.getByRole('button',{name:'Load measurements',exact:true})).toBeVisible();
+
 
   if(screenshots) await page.screenshot({path:'tmp/screen-code-light.png',mask:[page.locator('.sidebar-host-account'),page.locator('.sidebar-folder-header')]});
   await page.locator('.sidebar').getByRole('button',{name:'Color mode: Light',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
@@ -45,4 +125,5 @@ async (page, {expect, screenshots, openFolderPicker, openPath}) => {
   await page.getByRole('button',{name:'Close Measurements',exact:true}).click();
 
   await page.getByRole('tab',{name:'a.md, Unsaved changes',exact:true}).click();await expect(page.locator('.tiptap:visible')).toContainText('unsaved-screen-fixture');await page.locator('.tiptap:visible').click();await page.keyboard.insertText(' still editable');await expect(page.locator('.tiptap:visible')).toContainText('still editable');
+  return {sampleBlocks:saved.document.blocks.length,viewLoadMs,includesRevisionPolling:true};
 }

@@ -1,0 +1,9 @@
+{
+  "date": "2026-11-13",
+  "scenario": "pnpm browser:test plugin-screen-code --screenshots",
+  "fixture": "Synthetic authored document: table, PNG bar image, equation, reference, and 300 paragraphs (304 blocks total). Source pane is plugin-owned placeholder text, not a PDF viewer.",
+  "viewports": [{"width":1440,"height":1000,"theme":"light"},{"width":640,"height":1000,"theme":"light"},{"width":1440,"height":1000,"theme":"dark"}],
+  "mask": "Sidebar masked with its computed background color; no local paths or account identity published.",
+  "selfReview": "Half-width paper and inner scroll at 1440; stacked layout and no horizontal overflow at 640; shared accent highlight and readable table/equation in both themes.",
+  "notVerified": ["Owner visual approval", "Installed Desktop", "Real converted PDF", "Documents beyond the fixed 304-block sample"]
+}

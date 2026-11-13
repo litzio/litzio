@@ -1,0 +1,6 @@
+.screen-document-view { min-width: 0; max-width: 100%; display: grid; gap: var(--space-2); }
+.screen-document-view-scroll { overflow: auto; min-width: 0; max-width: 100%; border: var(--border-width) solid var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-paper); }
+.screen-document-view-scroll:focus-visible { outline: 2px solid var(--id-color-accent); outline-offset: 2px; }
+.screen-document-view-content { position: relative; min-width: 0; }
+.screen-document-view-content > .document { min-height: 0; padding: var(--space-5); border-radius: 0; box-shadow: none; overflow-wrap: anywhere; }
+.screen-document-view-highlight { position: absolute; left: var(--space-2); right: var(--space-2); pointer-events: none; border: 2px solid var(--id-color-accent); border-radius: var(--id-radius-sm); background: color-mix(in srgb, var(--id-color-accent) 10%, transparent); }

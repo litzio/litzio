@@ -4,6 +4,7 @@ import { screenUI as ui } from "./screen-ui.ts";
 import { Notice } from "../ui/primitives.tsx";
 import type { HostClient } from "../host-client.ts";
 import { saveScreenDocument, type ScreenDocumentInput } from "./screen-document.ts";
+import { DocumentViewScope } from "./screen-document-view.tsx";
 type ScreenProps = { React: typeof React; ui: typeof ui; invoke(operation: string, input?: unknown): Promise<unknown>; saveDocument(input: ScreenDocumentInput): ReturnType<typeof saveScreenDocument> };
 export class ScreenBoundary extends React.Component<{ children: React.ReactNode; resetKey?: string; closing?: boolean }, { error?: Error }> {
   state: { error?: Error } = {};
@@ -44,5 +45,5 @@ export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code:
     if (!signal?.aborted && input.open) { client.assertCurrent(); onOpen?.(receipt.path); }
     return receipt;
   }, [client, roots, onOpen]);
-  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} /> : null;
+  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} /></DocumentViewScope.Provider> : null;
 }
