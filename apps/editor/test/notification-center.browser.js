@@ -270,7 +270,7 @@ async (page, { openPath, expect, screenshots }) => {
   // Independently caused standing warnings must never share a dismissal identity.
   const warningWindow = await page.context().newPage();
   try {
-    await warningWindow.addInitScript(() => { localStorage.removeItem(JSON.stringify(["local", "litzio.openTabs"])); localStorage.setItem('litzio.uiLanguage','en'); });
+    await warningWindow.addInitScript(() => { localStorage.removeItem("litzio.openTabs.v2"); localStorage.setItem('litzio.uiLanguage','en'); });
     await warningWindow.route('**/api/document', route => route.fulfill({json:{start:true,sampleProblem:'unavailable'}}));
     await warningWindow.goto(origin);
     const warnings = warningWindow.locator('.notification-center');

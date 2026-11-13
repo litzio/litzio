@@ -1,7 +1,7 @@
 # 제품 용어집
 
 - Status: Implemented
-- Scope: #1168 화면·문서·CLI·API·코드·설정 용어와 #1174 원격 Host 승인 용어(PR0~4 완료), ADR-0019·0020 플러그인·공통 UI 개념 용어(미구현).
+- Scope: #1168 화면·문서·CLI·API·코드·설정 용어와 #1174 원격 Host의 보관 용어(#1595에서 삭제), ADR-0019·0020 플러그인·공통 UI 개념 용어(미구현).
 - Last verified: 2026-11-05 — #1168 PR B의 이름 및 #1174·ADR-0018 PR0~4 구현 용어를 master 303e9a1 코드·문서와 대조. ADR-0019·0020 개념 용어는 소유자 결정과 문서 대조. 제품 실행 검증 없음.
 
 | 개념 | 한국어 UI | 영어 UI | 코드·API | 문서 용어 |
@@ -35,7 +35,7 @@
 
 ## 원격 Host와 여러 Host 보기 (#1174, PR0~4 완료)
 
-2026-11-13 #1595에 따라 삭제한 역사 용어다. 당시 [ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Superseded이며 원문과 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 현재 Host는 같은 PC의 문서·비서 작업 대상, daemon은 그 프로세스를 뜻한다. hostId·(hostId,path)·기억/복구 키는 후속 정리까지 내부에 남으며 daemon instanceId와 다르다.
+2026-11-13 #1595에 따라 삭제한 역사 용어다. 당시 [ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Superseded이며 원문과 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 현재 Host는 같은 PC의 문서·비서 작업 대상, daemon은 그 프로세스를 뜻한다. hostId·(hostId,path)와 Host별 기억·복구 형식도 제거했다. 현재 문서는 path로 식별하고, daemon instanceId는 프로세스 재시작 확인용으로 유지한다.
 
 ## 플러그인 계층 개념 (ADR-0019, 미구현)
 
@@ -61,4 +61,4 @@
 
 ## 단일 연결 (#1595 PR 2)
 
-현재 UI는 Host 등록 식별자를 고르지 않고 연결 하나를 사용한다. 세션·receipt의 client는 실제 주소에 고정되며 주소가 바뀌면 후속 요청을 거절한다. 저장·복구의 local hostId와 키·레코드는 별도 PR 3까지 그대로다. 연결과 daemon의 프로세스 수명은 다른 개념이다.
+현재 UI는 Host 등록 식별자를 고르지 않고 연결 하나를 사용한다. 세션·receipt의 client는 실제 주소에 고정되며 주소가 바뀌면 후속 요청을 거절한다. 기억·복구는 새 namespace에서 path를 사용하며 옛 Host별 자료를 자동 변환하거나 지우지 않는다. 연결과 daemon의 프로세스 수명은 다른 개념이다.

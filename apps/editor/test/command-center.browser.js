@@ -810,7 +810,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   }
   // Reload into a real localized start offer; opening the sample uses the same retained mapping.
   await page.route('**/api/document', route => route.fulfill({json:{start:true,samples:loaded.samples}}));
-  await page.evaluate(() => localStorage.removeItem(JSON.stringify(["local", "litzio.openTabs"])));
+  await page.evaluate(() => localStorage.removeItem("litzio.openTabs.v2"));
   page.once('dialog', dialog => dialog.accept());
   await page.reload();
   await page.getByTestId('document-start').waitFor();

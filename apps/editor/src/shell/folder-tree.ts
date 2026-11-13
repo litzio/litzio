@@ -1,4 +1,3 @@
-import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { getHostClient } from "../host-client.ts";
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { FolderEntry, FolderResponse } from "../../shared/document-protocol.ts";
@@ -198,7 +197,7 @@ export function treeKey(items: TreeItem[], index: number, key: string, expanded:
 /** Opened folders with their Host requests. `request` lists one level of a folder inside an opened one. */
 export function useFolderTrees(request: (root: string, path?: string, background?: boolean) => Promise<FolderResponse>, onError: (message: string) => void,
   revisionChecks?: () => { path: string; accept(revision: string | null): void }[]) {
-  const hostId = LOCAL_HOST_ID;
+
   const [trees, reduce] = useReducer(folderTreesReducer, []);
   const latest = useRef(trees);
   latest.current = trees;
@@ -226,8 +225,8 @@ export function useFolderTrees(request: (root: string, path?: string, background
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const saved = readOpenFolders(hostId);
-      const collapsed = new Set(readCollapsedFolderSections(hostId));
+      const saved = readOpenFolders();
+      const collapsed = new Set(readCollapsedFolderSections());
       for (const root of saved) {
         if (cancelled) return;
         try {
@@ -249,7 +248,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
   // Tree-only changes do not write. During restoration, user changes wait for all remembered paths.
   useEffect(() => {
     if (!restored || rememberVersion === 0) return;
-    writeOpenFolders(JSON.parse(serializedRememberedRoots) as string[], hostId);
+    writeOpenFolders(JSON.parse(serializedRememberedRoots) as string[]);
   }, [serializedRememberedRoots, restored, rememberVersion]);
 
   // Like #370, every explicit action writes the current reduced state, even if this tab wrote
@@ -257,7 +256,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
   // writes until every restored root has settled; restoration/child listing alone never writes.
   useEffect(() => {
     if (!restored || sectionVersion === 0) return;
-    writeCollapsedFolderSections(JSON.parse(serializedCollapsed) as string[], hostId);
+    writeCollapsedFolderSections(JSON.parse(serializedCollapsed) as string[]);
   }, [serializedCollapsed, restored, sectionVersion]);
 
   const load = (root: string, path: string, preserveExpansion = false, quiet = false) => {

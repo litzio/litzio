@@ -182,7 +182,7 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
   await dialog.getByRole('button',{name:'Rename',exact:true}).click();
   await dialog.waitFor({state:'hidden'}); await row('renamed.md').waitFor();
   await expect(activeDocument(page).getByTestId('document-editor')).toHaveAttribute('data-table-wrap','false');
-  const rememberedWrap = await page.evaluate(()=>JSON.parse(localStorage.getItem(JSON.stringify(["local", "litzio.tableWrapDocuments"]))));
+  const rememberedWrap = await page.evaluate(()=>JSON.parse(localStorage.getItem("litzio.tableWrapDocuments.v2")));
   expect(rememberedWrap[JSON.stringify(['local', file('a.md')])]).toBeUndefined();
   expect(rememberedWrap[JSON.stringify(['local', file('renamed.md')])]).toBe(false);
   expect(reads).toBe(0); page.off('request',track);

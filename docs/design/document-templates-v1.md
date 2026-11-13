@@ -1,6 +1,6 @@
 # Document templates v1
 
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
+> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. Host 구분을 제거한 새 기억·복구 형식은 옛 기록을 읽거나 지우지 않는다([전환 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 연결 고정 client와 취소/세대 보호는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
 
 - Status: Implemented
 - Last verified: 2026-11-11 — #1185 Host 선택·원격 목록/미리보기·폴더 선택·생성 탭을 Windows persistent Chrome의 두 Host fixture로 확인. 실제 외부 원격 Host·packaged Desktop 연결은 미검증.
@@ -294,6 +294,8 @@ preserves typed keys/interpolation without changing compiler checks or dependenc
 `litzio create` prints the created file path on one line on success, for both empty and template documents. `--format json` retains the shared creation receipt.
 
 ## Remote gallery verification (#1185)
+
+아래는 삭제 전 검증과 캡처 기록이다. 현재 갤러리는 단일 연결의 client를 고정하며 Host 선택·제거·작업 집계를 제공하지 않는다.
 
 기존 `multi-host` 브라우저 시나리오를 보완하여 로컬 탭이 활성화된 상태에서 원격 catalog·preview 요청, 원격 폴더가 없는 생성 picker, template ID를 포함한 원격 PUT과 결과 탭, 템플릿 폴더 열기 및 로컬 재선택의 catalog 격리를 확인한다. 주된 검증 계층은 브라우저의 Host 연결과 생성 흐름이며 기존 `template-gallery`의 실제 로컬 쓰기·stale-client 거부 검사는 유지한다. 새 subprocess·전수 조합은 없고 두 시나리오의 최종 로컬 실행은 약 1.5분이다. localhost fixture의 성공이며 외부 Host 수락을 뜻하지 않는다.
 

@@ -1,4 +1,3 @@
-import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { getHostClient, type HostClient } from "../host-client.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";

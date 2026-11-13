@@ -1,14 +1,12 @@
-import { isHostLocator } from "./host-locator.ts";
 import { getSchema } from "@tiptap/core";
 import { createEditorExtensions } from "./editor-schema.tsx";
 import { prepareEditorSnapshot } from "./editor-snapshot.ts";
 import { toTiptapDocument } from "./tiptap-document.ts";
-import type { RecoveryRecord } from "./recovery-storage.ts";
+import { RECOVERY_VERSION, type RecoveryRecord } from "./recovery-storage.ts";
 import type { SessionSnapshot } from "./DocumentTab.tsx";
 
 export function prepareRecovery(record: RecoveryRecord): SessionSnapshot {
-  if (record.version !== 2 || typeof record.hostId !== "string" || !record.hostId) throw new Error("This recovery format is not supported by this editor version.");
-  if (!isHostLocator(record)) throw new Error("The recovery opening source or saved checkpoint is incomplete.");
+  if (record.version !== RECOVERY_VERSION || "hostId" in record) throw new Error("This recovery format is not supported by this editor version.");
   const snapshot = record.snapshot;
   if (snapshot?.kind === "text") {
     if (snapshot.file?.kind !== "text" || typeof record.id !== "string" || !record.id ||

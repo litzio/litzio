@@ -360,9 +360,9 @@ function registerIpc(): void {
     try { const connection = await hostConnection(); trayStatus(true); return connection; }
     catch (error) { trayStatus(false); throw error; }
   });
-  handle("desktop:provider-session-log", async (hostId, id, provider, action) => {
+  handle("desktop:provider-session-log", async (id, provider, action) => {
     await daemon.check();
-    return openProviderSessionLog({ hostId, id, provider, action },
+    return openProviderSessionLog({ id, provider, action },
       (id, provider) => daemonRpc(daemon.record, "/api/assistant/conversations", { action: "provider-log", id, provider }),
       shell.showItemInFolder);
   });
