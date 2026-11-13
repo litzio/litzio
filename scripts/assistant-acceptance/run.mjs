@@ -4,8 +4,11 @@ import { format } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import net from 'node:net';
+import { DAEMON_PROTOCOL } from '../../apps/editor/shared/daemon-version.ts';
+import { once } from 'node:events';
 import { tasks } from './tasks.mjs';
 const checkout = fileURLToPath(new URL('../../',import.meta.url));
 const args=process.argv.slice(2);
@@ -18,6 +21,18 @@ const continueRun=process.argv.includes('--continue');
 const compareIndex=Math.max(process.argv.indexOf('--compare'),process.argv.indexOf('--continue'));
 const previous=compareIndex>=0?JSON.parse(fs.readFileSync(process.argv[compareIndex+1],'utf8')):undefined;
 if ((previous && (process.argv.length!==4 || smoke || previous.model!=='gpt-6.1-terra')) || (!previous && (remaining.some(a=>a!=='--smoke') || (taskId!==undefined&&!tasks.some(t=>t.id===taskId))))) throw new Error('Usage: pnpm exec tsx scripts/assistant-acceptance/run.mjs [--smoke | --continue results.json | --compare results.json | --task <id>] [--opened-only]');
+const cliEntry=path.join(checkout,'packages/cli/dist/cli.mjs');
+const buildHelp='Run pnpm --filter @litzio/cli build before acceptance measurement.';
+if(!fs.existsSync(cliEntry)||!fs.existsSync(path.join(checkout,'packages/cli/dist/editor/index.html')))throw new Error('Built CLI/Host missing. '+buildHelp);
+const inputs=spawnSync('git',['ls-files','-z','--cached','--others','--exclude-standard','packages','apps','plugins','community-plugins','scripts','brand.ts','pnpm-lock.yaml','package.json'],{cwd:checkout,encoding:'utf8'});
+if(inputs.status!==0)throw new Error('Cannot verify build freshness. '+buildHelp);
+const builtAt=fs.statSync(cliEntry).mtimeMs;
+for(const input of inputs.stdout.split('\0').filter(Boolean)) {
+ if(input.startsWith('scripts/assistant-acceptance/'))continue;
+ const file=path.join(checkout,input);
+ if(fs.existsSync(file)&&fs.statSync(file).isFile()&&fs.statSync(file).mtimeMs>builtAt)
+  throw new Error('Built CLI/Host is stale: '+input+'. '+buildHelp);
+}
 const root = previous?.root ?? fs.mkdtempSync(path.join(os.tmpdir(),'litzio-acceptance-'));
 const profile=path.join(root,'profile'), cwd=path.join(root,'assistant');
 fs.mkdirSync(profile,{recursive:true}); fs.mkdirSync(cwd,{recursive:true});
@@ -30,15 +45,32 @@ const hostLog=[];
 const consoleOriginal={warn:console.warn,error:console.error};
 for(const key of ['warn','error']) console[key]=(...args)=>{hostLog.push(format(...args));if(hostLog.length>40)hostLog.shift();consoleOriginal[key](...args);};
 const errorDetail=e=>({name:e?.name,message:e?.message??String(e),code:e?.code,stack:e?.stack,cause:e?.cause?errorDetail(e.cause):undefined});
-const { startHttpHost }=await import('../../apps/editor/server/http-host.ts');
-const host=await startHttpHost({roots:[root],editorDir:path.join(checkout,'apps/editor'),port:0});
+// Use the existing packaged daemon entry and its build-marker CLI selection.
+const reservation=net.createServer();reservation.listen(0,'127.0.0.1');await once(reservation,'listening');
+const port=reservation.address().port;await new Promise(resolve=>reservation.close(resolve));
+const child=spawn(process.execPath,[cliEntry,'daemon','run','--root',root,'--port',String(port)],{cwd:checkout,env:process.env,stdio:['ignore','pipe','pipe'],windowsHide:true});
+const exited=once(child,'exit');
+let startup='';child.stdout.on('data',data=>{startup+=data;});child.stderr.on('data',data=>{hostLog.push(String(data));if(hostLog.length>40)hostLog.shift();});
+const host={url:`http://127.0.0.1:${port}`,async close(){
+ const health=await fetch(this.url+'/daemon/health',{headers:{'x-litzio-protocol':DAEMON_PROTOCOL},signal:AbortSignal.timeout(30_000)}).then(r=>r.json());
+ if(health.pid!==child.pid)throw new Error('Owned Host identity mismatch; refusing shutdown');
+ const response=await fetch(this.url+'/daemon/stop',{method:'POST',headers:{'Content-Type':'application/json',Origin:this.url,'x-litzio-protocol':DAEMON_PROTOCOL},body:JSON.stringify({...health,confirm:true}),signal:AbortSignal.timeout(30_000)});
+ if(!response.ok)throw new Error('Owned Host shutdown rejected');
+ await Promise.race([exited,delay(30_000,undefined,{ref:false}).then(()=>{throw new Error('Owned Host did not exit');})]);
+}};
+try {
+ for(let n=0;!startup.includes('HTTP:');n++){
+  if(child.exitCode!==null||child.signalCode!==null||n===60)throw new Error('Built Host startup failed: '+hostLog.join(''));
+  await delay(500);
+ }
+}catch(error){if(child.exitCode===null)child.kill();throw error;}
 const report=previous??{model,reasoningEffort,startedAt:new Date().toISOString(),pid:process.pid,root,url:host.url,aiCalls:0,results:[],limits:'One attempt per task/mode, 600 seconds, no approval answers; max 22 sends per full run; smoke max 1 send.'};
 if(previous){report.pid=process.pid;report.url=host.url;delete report.closedAt;delete report.error;}
 const scrub=s=>String(s).split(root).join('<run>').split(checkout).join('<checkout>').replaceAll(os.homedir(),'<home>');
 const api=async (method,suffix='',body)=>{const res=await fetch(host.url+'/api/assistant/conversations'+suffix,{method,headers:{Origin:host.url,Connection:'close','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30_000)});const value=await res.json(); if(!res.ok)throw new Error(JSON.stringify(value));return value;};
 const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.name==='.git'?[]:e.isDirectory()?walk(path.join(dir,e.name)):e.isFile()?[path.join(dir,e.name)]:[]);
 const inventory=dir=>Object.fromEntries(walk(dir).map(f=>[path.relative(dir,f).replaceAll('\\','/'),fs.readFileSync(f).toString('base64')]));
-const check=file=>{const p=spawnSync(process.execPath,['--import','tsx',path.join(checkout,'packages/cli/src/cli.ts'),'check',file,'--format','json'],{cwd:checkout,encoding:'utf8',timeout:30_000,windowsHide:true});return {file:path.basename(file),passed:p.status===0,detail:scrub(p.stdout+p.stderr)};};
+const check=file=>{const p=spawnSync(process.execPath,[cliEntry,'check',file,'--format','json'],{cwd:checkout,encoding:'utf8',timeout:30_000,windowsHide:true});return {file:path.basename(file),passed:p.status===0,detail:scrub(p.stdout+p.stderr)};};
 const classify=(s,approval)=>approval||/sandbox|forbidden|permission denied|access.*denied|CreateProcessAsUserW|EPERM|읽기 전용|권한.*변경/i.test(s)?'권한·샌드박스':/not recognized|not found|No module named|CommandNotFound/i.test(s)?'환경에 프로그램 없음':/도구.*없|tool.*unavailable/i.test(s)?'도구 없음':/지침.*때문|instruction.*prohibit/i.test(s)?'지침 때문에 하지 않음':'기타';
 function documentWrites(tools) {
  return [...new Set(tools.flatMap(i=>
@@ -49,7 +81,7 @@ function documentWrites(tools) {
 function save(){fs.writeFileSync(path.join(root,'results.json'),JSON.stringify(report,null,2));const clean=s=>scrub(s??'').replaceAll('|',' / ').replaceAll('\n',' ').slice(0,600);fs.writeFileSync(path.join(root,'results.md'),`# 비서 수락 시험\n\n${model} / ${reasoningEffort}; 실제 AI 호출 ${report.aiCalls}(전송 시도 상한; 턴 확인 ${report.results.filter(r=>r.admitted).length}). 합성 자료, 과제당 1회, 이 PC, Copilot 미확인. 객관적 predicate 통과이며 문장 품질 판정이 아니다.\n\n| 과제 | 권한 | 결과 | 초 | Host/편집/셸 | 문서 쓰기 관측 | 변경 항목 | 원인 | 중단·마지막 답변 | 부산물 |\n| --- | --- | --- | ---: | --- | --- | ---: | --- | --- | --- |\n`+report.results.map(r=>`| ${r.id}. ${r.name} | ${r.permissionMode} | ${r.result} | ${r.seconds} | ${r.counts.host}/${r.counts.edit}/${r.counts.shell} | ${clean((r.documentWriteMethods??[]).join(', ')||'쓰기 관측 없음')} | ${r.fileChangeItems} | ${r.cause} | ${clean(r.stop+' '+r.lastAnswer)} | ${clean(r.byproducts.join(', '))} |`).join('\n')+'\n');}
 async function run(task,permissionMode){
  const folder=path.join(root,`${task.id}-${permissionMode}`);fs.mkdirSync(folder);task.prepare(folder);const before=inventory(folder);
- const r={id:task.id,name:task.name,permissionMode,folder:path.basename(folder),message:task.message,result:'판정 불가',counts:{host:0,edit:0,shell:0},fileChangeItems:0,writeEvidence:[],approval:false,cause:'',stop:'',lastAnswer:'',byproducts:[],checks:[]};report.results.push(r);save();
+ const r={id:task.id,name:task.name,permissionMode,folder:path.basename(folder),message:task.message,result:'판정 불가',counts:{host:0,edit:0,shell:0},fileChangeItems:0,writeEvidence:[],approval:false,approvalRequests:0,cause:'',stop:'',lastAnswer:'',byproducts:[],checks:[]};report.results.push(r);save();
  let conversation;const start=Date.now(),submissionId=crypto.randomUUID();
  try {
   if(report.aiCalls>= (smoke?1:22))throw new Error('AI call budget exhausted');report.aiCalls++;save();
@@ -71,6 +103,7 @@ async function run(task,permissionMode){
   r.seconds=+( (Date.now()-start)/1000).toFixed(1);
   // Capture before interrupt expires approval metadata.
   const items=conversation?.turns.flatMap(t=>t.items)??[];
+  r.approvalRequests=items.filter(i=>i.question?.approval).length;
   r.conversation=scrub(JSON.stringify(conversation??null));r.admitted=!!conversation?.turns.length;
   r.lastAnswer=items.filter(i=>i.kind==='assistant').map(i=>i.text).join('\n').slice(-3000);
   r.tools=items.filter(i=>i.kind==='tool').map(i=>({id:i.id,text:scrub(i.text),status:i.status,work:i.work?{...i.work,detail:scrub(i.work.detail??'')}:undefined,result:i.toolResult}));
@@ -126,4 +159,6 @@ try {
  await host.close();
  for(const key of ['warn','error'])console[key]=consoleOriginal[key];
  report.closedAt=new Date().toISOString();save();console.log('Host closed; output: '+root);
+ console.log(['완수','미완수','판정 불가'].map(result=>`${result}: ${report.results.filter(r=>r.result===result).length}`).join(' / '));
+ console.table(report.results.map(r=>({과제:r.id,결과:r.result,초:r.seconds,쓰기:r.documentWriteMethods.join(', ')||'없음',승인요청:r.approvalRequests??Number(r.approval)})));
 }
