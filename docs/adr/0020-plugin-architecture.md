@@ -6,10 +6,17 @@
 - Status: Accepted
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Decision date: 2026-11-05
-- Last verified: 2026-11-06 — 소유자 정정으로 카탈로그 v2의 K2~K4를 공용 요소에 한정하고 4단계는 비서 제작 수락 시험임을 명시. 코드·2단계 수락 보고서·외부 공식 문서 대조는 2026-11-05 `d2b87e97` 기준. 제품 실행·설치·인증 재검증 없음.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-06 — 소유자 정정으로 카탈로그 v2의 K2~K4를 공용 요소에 한정하고 4단계는 비서 제작 수락 시험임을 명시. 코드·2단계 수락 보고서·외부 공식 문서 대조는 2026-11-05 `d2b87e97` 기준. 제품 실행·설치·인증 재검증 없음.
 - Authority: 2026-11-05 소유자 결정, under [AGENTS.md](../../AGENTS.md). 관련 보류 이슈: [#1075](https://github.com/litzio/litzio/issues/1075).
 - Scope: 재개 시 사용할 저장소·Host·기여·UI·저장 구조의 결정. Accepted는 구현 완료가 아니다. 별도 개시된 OneDrive 구현과 후속 비서 제작 로드맵을 구분한다.
 - Amends: [ADR-0019](0019-plugin-tiers.md)의 계층·공통 SDK·Host·번들 UI 경계를 구체화한다. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)·[ADR-0015](0015-shared-host-operations.md)·[ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 실행·UI·비서 관리 경계는 아래 관계 절을 따른다.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+현재는 공통 공개 SDK·Host Node 하위 프로세스·등록 단위 신뢰·reload·Windows secret·비서 제작/관리·공용 작업/CLI를 유지한다. 플러그인이 자기 화면 코드를 제공한다([실행·제작](../design/plugin-stage1-v1.md), [화면 코드](../design/plugin-screens-v1.md)). 선언형 화면·K1~K4 공용 작업/검수 틀·공식/지정 공급·옛 OneDrive/Jira/Docling 로드맵은 삭제 전 이력이다. “현재 Docling만 공급”·digest마다 재신뢰·ADR-0018 대상 선택도 그 당시 설명이며 현행 요구가 아니다. 현재 대상 고정은 [단일 연결 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2)을 따른다. Windows secret 지원은 유지하며 다중 connectionId 방향은 현재 구현 의무가 아니다.
+
+아래에서 명시적으로 삭제·대체됐다고 적은 부분만 이력이며, 그 밖의 결정은 원문 그대로 유효하다. 위 요약은 현재 상태의 안내이며 원래 결정의 효력을 제한하지 않는다. 당시 날짜·측정·검증 범위는 그대로 보존하며, 삭제된 기능의 재도입을 요구하지 않는다.
 
 ## 2026-11-09 신뢰 단위 개정 (#1379)
 

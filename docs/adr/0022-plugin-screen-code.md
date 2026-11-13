@@ -3,9 +3,14 @@
 > 2026-11-13 #1595: 다른 PC Host 접속은 삭제했다. 현재 화면 코드는 같은 PC/개발 Host의 플러그인만 제공한다. 아래 원격 코드 실행 결정은 당시 기록이며 접속 기능의 재도입 승인이 아니다. 보관: `archive/2026-11-13-plugins-declarative`.
 
 - Status: Accepted
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Decision date: 2026-11-13
 - Authority: 소유자 승인 [#1592](https://github.com/litzio/litzio/issues/1592), under [AGENTS.md](../../AGENTS.md).
 - Amends: ADR-0012·0019·0020의 플러그인 화면 선언과 앱 번들 script 한정 경계.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+현재 플러그인 화면은 React JS/JSX 코드 하나다. 2단계 보충의 선언형 병존은 3단계 제거로 종료됐다. 다른 PC Host 접속·원격 화면 실행은 삭제 전 이력이며 현재 제공 범위가 아니다. 같은 PC/개발 Host의 화면 코드·공통 부품·고정 client·공식 새 문서 저장은 [화면 계약](../design/plugin-screens-v1.md), 설치·신뢰·Node 실행은 [실행 계약](../design/plugin-stage1-v1.md)을 따른다. 아래 원래 결정·감수 사항과 단계 보충은 당시 경위를 보존한다.
 
 ## 결정
 

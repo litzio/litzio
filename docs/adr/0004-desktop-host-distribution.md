@@ -2,10 +2,17 @@
 
 - Status: Accepted
 - Release policy amendment: 2026-11-12 — owner authorized unsigned Stable publication; signing remains mandatory for signed mode. Actual Stable publication/update not run.
-- Last verified: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
 - Previous verification: 2026-10-28 (unsigned v0.0.2-beta.1 release CI, anonymous asset hashes and withdrawal of v0.1.0-beta.1/v0.1.0-beta.2 Releases/assets/remote tags verified; actual GitHub 0.0.1-beta.4→0.0.2-beta.1 installation/update unverified; Stable unpublished; [record](../releases/v0.0.2-beta.1.md)).
 - Authority: architectural decision under [AGENTS.md](../../AGENTS.md). Related: [ADR-0002](0002-document-persistence-semantic-ownership.md) · [Filesystem Host boundary](../design/filesystem-host-boundary-v1.md) · [Desktop distribution](../design/desktop-distribution-v1.md) · historical evidence [Desktop shell spike](../reviews/desktop-shell-spike-v1.md)
 - Decision date: 2026-10-12
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+Windows Electron/NSIS 설치·사용자가 승인하는 다운로드/설치·명령줄 통합·미저장 보호는 유지한다. 현재 Desktop은 앱 번들 UI에서 같은 PC daemon의 HTTP API를 쓴다([ADR-0016](0016-shared-local-daemon-host.md), [ADR-0017](0017-bundled-client-and-official-ai.md), [배포 계약](../design/desktop-distribution-v1.md)). 원래의 in-process 문서 Host·TCP 없음은 대체됐다. 원격 등록·여러 Host UI도 삭제됐으며 당시 transport·개정 단계 설명을 현재 제공 기능으로 읽지 않는다.
+
+아래에서 명시적으로 삭제·대체됐다고 적은 부분만 이력이며, 그 밖의 결정은 원문 그대로 유효하다. 위 요약은 현재 상태의 안내이며 원래 결정의 효력을 제한하지 않는다. 당시 날짜·측정·검증 범위는 그대로 보존하며, 삭제된 기능의 재도입을 요구하지 않는다.
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 

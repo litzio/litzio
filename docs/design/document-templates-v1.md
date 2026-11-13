@@ -3,13 +3,20 @@
 > 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. Host 구분을 제거한 새 기억·복구 형식은 옛 기록을 읽거나 지우지 않는다([전환 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 연결 고정 client와 취소/세대 보호는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
 
 - Status: Implemented
-- Last verified: 2026-11-11 — #1185 Host 선택·원격 목록/미리보기·폴더 선택·생성 탭을 Windows persistent Chrome의 두 Host fixture로 확인. 실제 외부 원격 Host·packaged Desktop 연결은 미검증.
+- Last verified: 2026-11-14 — 현재 코드·계약의 상태와 연결을 정적으로 대조했다. 제품·브라우저·초기화·공급자 실행 재검증 없음.
+- Previous verification: 2026-11-11 — #1185 Host 선택·원격 목록/미리보기·폴더 선택·생성 탭을 Windows persistent Chrome의 두 Host fixture로 확인. 실제 외부 원격 Host·packaged Desktop 연결은 미검증.
 - Previous execution verification: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
 - Shared-operation verification: 2026-11-04 (#1128: common Host operations, fake Codex tool calls/receipt history and child CLI execution; no real model call, packaged behavior is CI-only).
 - Scope: #1128 and #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
 - Authority: [#936 owner decisions](https://github.com/litzio/litzio/issues/936), including the 2026-11-04 approval of optional `template: { name, description }`; [native support](document-support-v1.md), [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) and [ADR-0006](../adr/0006-native-document-boundary.md).
 
+## 현재 비서·연결 범위 (2026-11-14 정적 확인)
+
+단일 연결의 고정 client·공용 템플릿 작업·CLI·갤러리는 유지한다. 원격 Host 선택은 삭제됐다. 비서는 ADR-0021에 따라 CLI·스킬을 기본으로 쓰되 템플릿·문서 생성 전용 도구도 현재 남아 있다. `assistant-conversations.ts`는 Codex 동적 도구와 Copilot MCP에 같은 도구 목록을 연결한다. 생성 receipt·변경 확인·되돌리기는 [비서 계약](main-agent-v1.md)을 따른다. 현재 제작 지침은 요청 범위 안의 템플릿 선택·적용에 추가 동의를 요구하지 않으며 필요한 이름·원본 등 빠진 정보만 확인한다. 문서의 미저장 내용은 별도로 보호한다.
+
 ## Host 요청 경계 (#1174 PR2)
+
+현재는 [단일 연결과 고정 대상](http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2)을 따른다. 아래 Host 선택·표시 설명은 삭제 전 #1174/#1185 이력이며 현재 선택 UI가 아니다. client 고정·연결 변경 거부·재전송 금지는 유지한다.
 
 템플릿 목록·미리보기 표면은 mount 시 Host client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 직접 받으며, 대화상자를 여는 시점의 현재 client로 대체하지 않는다. 원본 연결이 달라졌으면 제출을 전송 전에 거부한다. 갤러리에서 템플릿을 선택해 시작한 문서 생성은 갤러리의 고정 client를 생성 대화상자까지 전달하며, 연결 변경 뒤 새 문서 PUT도 전송 전에 거부한다. 비동기 완료 전에 활성 탭을 바꾸어도 요청이 다른 Host로 이동하지 않으며 쓰기를 자동 replay하지 않는다. 갤러리는 탐색기와 같은 SettingsSelect의 Host 선택 관례로 등록한 Host를 선택한다(#1185). 선택한 Host는 화면의 Host control과 갤러리 탭에 표시하며, 선택 변경 때 목록·미리보기를 별도로 mount하여 이전 응답·cache가 새 Host에 섞이지 않게 한다. 활성 문서 탭이나 탐색기 필터는 갤러리 대상을 바꾸지 않는다. 템플릿으로 시작한 생성 흐름은 선택 당시의 Host/client를 보존하며 그 Host의 열린 폴더만 제안하고, 폴더가 없으면 같은 Host의 폴더 picker를 연다. 생성 결과도 같은 Host의 탭으로 연다. Open template folder도 해당 Host의 기존 탐색기 열기를 사용한다. 템플릿 원본 위치·저장 규칙과 공용 작업·CLI는 그대로다.
 
@@ -109,7 +116,7 @@ valid templates available while reporting individual broken user files.
 The protocol types live in `apps/editor/shared/template-protocol.ts`. Listing,
 preview and saving do not apply a template to an existing document. The gallery
 and assistant use the same ID and source contract. The gallery uses these routes;
-HTTP, CLI and Codex tools use the same template operations described below.
+HTTP, CLI and the retained assistant tools use the same template operations described below.
 
 ## Editor gallery (phase 2)
 
@@ -171,8 +178,8 @@ it does not implement YAML/AST semantics. Default create remains silent; `--form
 
 `document-templates.ts` owns the template-specific `templateOperations` definitions
 and `executeTemplateOperation`: input validation, result shape and explicit
-`TemplateScope`. HTTP and CLI adapt their existing syntax; Codex reuses those
-specifications through the existing active-turn tool handler. No general registry,
+`TemplateScope`. HTTP and CLI adapt their existing syntax; Codex dynamic tools
+and Copilot MCP reuse those specifications through the active-turn tool handler. No general registry,
 new plugin API or live CLI-to-Host transport is introduced ([ADR-0015](../adr/0015-shared-host-operations.md)).
 
 | Operation | Codex input | Result |
@@ -201,6 +208,11 @@ New Codex conversations acquire the added tools. Existing threads are not
 retrofitted. Template creation uses the existing result card/Open/guarded Undo;
 changed disk content, unsaved edits and recovery keep their existing protection.
 There is no new undo service or shared editor history.
+
+The following consent and tool-preference paragraphs record the #1128 guidance
+before ADR-0021 and the current generated guide. They are not current consent
+requirements or a claim that Copilot lacks Host tools. Current guidance is
+summarized above; the historical wording is preserved here.
 
 Generated assistant AGENTS.md and `litzio-guide` query `list_templates` at request
 time, propose a suitable template and wait for consent before reading/applying it.

@@ -9,7 +9,8 @@
 
 - Status: Implemented
 - Run-as verification: 2026-11-05 — #1199 Windows Host health/capability·CLI lifecycle and two-Host persistent Chrome fixture; 1440px/640px footer captures. Actual Windows Desktop to Linux connection remains unverified.
-- Last verified: 2026-11-06 — #1247 ADR-0020·문서 색인·플러그인 subprocess/secret/제작 및 공통 뷰 코드를 정적 대조. 제품 실행 재검증 없음. 이전 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
+- Last verified: 2026-11-14 — 현재 코드·계약의 상태와 연결을 정적으로 대조했다. 제품·브라우저·초기화·공급자 실행 재검증 없음.
+- Previous verification: 2026-11-06 — #1247 ADR-0020·문서 색인·플러그인 subprocess/secret/제작 및 공통 뷰 코드를 정적 대조. 제품 실행 재검증 없음. 이전 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
 - Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
 - CI artifact policy verification: 2026-10-30 (#808; tarball upload removed, screen evidence retained on failure; workflow policy regressions and docs check, no local HTTP/browser execution).
@@ -74,7 +75,7 @@ Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮�
 
 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
-Desktop CSP의 connect/img는 확인된 로컬 daemon의 정확한 origin만 추가하며 script는 앱 번들에 한정한다. main HTTP proxy를 만들지 않는다. 로컬 번들 UI를 위한 한정 health GET/protocol OPTIONS와 API/media의 Origin·JSON·sandbox 경계는 유지한다.
+Desktop CSP의 connect/img는 확인된 로컬 daemon의 정확한 origin만 추가한다. 제품 앱 script는 앱 번들이며, 신뢰·활성 플러그인 화면은 [화면 코드 계약](plugin-screens-v1.md)에 따라 blob 모듈로 실행한다. main HTTP proxy를 만들지 않는다. 로컬 번들 UI를 위한 한정 health GET/protocol OPTIONS와 API/media의 Origin·JSON·sandbox 경계는 유지한다.
 
 ## Desktop bundled origin (#1150 ⑤)
 
@@ -92,8 +93,10 @@ Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 UI와 H
 허용 Origin의 CORS 응답만 CORP cross-origin이며 나머지는 same-origin이다. Origin 없는
 cross-site API/media, lookalike/foreign/null origin과 잘못된 TCP Host는 계속 거부한다.
 
-번들 CSP는 script/style/font를 앱에 한정하고 connect/img만 정확한 로컬 daemon origin에
-추가 허용한다. daemon이 내보낸 JavaScript/HTML을 앱 코드로 로드하지 않는다. 문서
+제품 UI의 script/style/font는 앱 번들에서 제공하고 connect/img에 정확한 로컬 daemon origin을
+추가 허용한다. CSP script-src의 blob 허용은 신뢰·활성 플러그인 화면 코드 실행에 사용한다.
+이는 daemon의 JavaScript/HTML을 제품 앱 UI로 로드하는 것과 구별한다. 현재 실행 경계는
+[화면 코드 계약](plugin-screens-v1.md)을 따른다. 문서
 SVG/HTML과 파일 미리보기의 sandbox·script-src none, frame 금지는 그대로다.
 브라우저 UI·같은 origin 요청·기존 Core write path는 유지한다. 인증은 #1145에 보류한다.
 
@@ -350,6 +353,10 @@ for bounds, pairing and receipt semantics. CLI `compare <before> <after> --json`
 the same executor in its own process, rather than contacting the running daemon.
 ## Plugin stage 1 (ADR-0020)
 
+현재 플러그인의 등록·등록 단위 신뢰·활성·Node 하위 프로세스·reload·Windows DPAPI secret·비서 제작은 [실행·제작 계약](plugin-stage1-v1.md), React 코드 화면·공통 부품·공식 저장은 [화면 코드 계약](plugin-screens-v1.md)을 따른다. generated-views·rowSchema·선언형 renderer는 삭제됐다.
+
+다음 문단은 삭제 전 ADR-0020 1단계 이력이다. 당시 “provides”·“unavailable”은 현재 제공 여부를 뜻하지 않는다.
+
 Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md): local artifact registration, trust/enable, target-daemon subprocess execution and reload, Windows DPAPI secret storage, and the assistant authoring kit. Management uses the shared operations/CLI and a separate Codex tool; per-call confirmation is replaced by visible activity records. Secret values are entered directly by the user in settings UI and are not exposed to the assistant. Display tools remain restricted to their existing fields. [Generated views](generated-views-v1.md) provide the common Core/Host runtime and bundled app renderer, including active plugin read operations with row schemas. Plugin-specific generatedUi/views contributions remain unsupported; this does not mean the common view runtime is unavailable.
 
 ## Node runtime security baseline (2026-11-11)
@@ -370,7 +377,7 @@ OS user permissions; plugin subprocesses are not an OS security sandbox.
 
 | Execution path and source evidence | Runtime / response control / affected process |
 | --- | --- |
-| Desktop daemon launch: `apps/desktop/src/main.ts:620`, `daemon-client.ts:26`, `apps/editor/server/daemon-state.ts:27` | Newly launched daemon uses the Desktop executable with RunAsNode. An existing shared daemon retains its original runtime. Remote health preflight (`remote-host-registry.ts:196`) consumes the configured Host's response in that daemon. |
+| Desktop daemon launch: `apps/desktop/src/main.ts:620`, `daemon-client.ts:26`, `apps/editor/server/daemon-state.ts:27` | Newly launched daemon uses the Desktop executable with RunAsNode. An existing shared daemon retains its original runtime. The former remote health preflight (`remote-host-registry.ts:196`) consumed the configured Host's response in that daemon; this path was removed on 2026-11-13 and remains historical evidence only. |
 | Desktop main daemon probes: `apps/desktop/src/daemon-client.ts:35`, `apps/editor/server/daemon-state.ts:149` | Electron's Node fetch in the main process; response control requires replacing/compromising the selected local loopback service (not an ordinary remote network peer). |
 | CLI daemon / commands: `packages/cli/src/daemon.ts:91`, `cli.ts:1963`, `plugins.ts:83`; Desktop shim: `apps/desktop/src/cli-integration.ts:19` | Standalone CLI/development use system Node; Desktop shim and assistant CLI use Electron RunAsNode when launched from Desktop. Selected local/development Host responses affect the CLI process; daemon responses are handled by its own runtime. |
 | Plugin process: `apps/editor/server/plugins/plugin-process.ts` | Child inherits the daemon runtime. Trusted external plugin code owns any service requests it makes; no conversion service is bundled. |
