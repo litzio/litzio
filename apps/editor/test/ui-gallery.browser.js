@@ -180,6 +180,9 @@ async (page, { expect, screenshots }) => {
   const documentView=page.getByRole('region',{name:'Document preview content',exact:true});
   await expect(documentView).toContainText('Document view example');
   await expect(documentView.getByRole('table')).toContainText('18');
+  await expect(page.getByTestId('document-view-highlight')).toHaveAttribute('data-target-kind','cell');
+  await page.getByRole('button',{name:'Select other cell',exact:true}).click();
+  await expect(page.getByTestId('document-view-highlight')).toHaveAttribute('data-target-kind','cell');
   const reads=await page.getByLabel('Document reads',{exact:true}).textContent();
   await page.getByRole('button',{name:'Toggle unrelated folder',exact:true}).click();
   await expect(page.getByRole('button',{name:'Toggle unrelated folder',exact:true})).toHaveAttribute('aria-pressed','true');
