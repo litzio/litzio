@@ -518,10 +518,13 @@ are separate from CI in `docs/design/assets/assistant-question-1443/`.
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm --filter @litzio/cli build # CLI와 production Editor/HTTP Host 함께 빌드
 pnpm exec tsx scripts/assistant-acceptance/run.mjs --smoke # gpt-6-luna low, 1회
 pnpm exec tsx scripts/assistant-acceptance/run.mjs --opened-only # 열린 폴더만, 11회
 pnpm exec tsx scripts/assistant-acceptance/run.mjs         # gpt-6.1-terra high, 11과제 각 1회
 ```
+
+실행기는 빌드된 `packages/cli/dist/cli.mjs daemon run`으로 Host를 시작한다. 기존 빌드 표식이 비서의 `litzio`도 같은 JS CLI로 선택하며 소스 변환 캐시는 사용하지 않는다. 빌드가 없거나 빌드 입력보다 오래되면 AI 호출 전에 중단한다. 소스를 바꾼 뒤 위 빌드를 다시 실행한다. 종료 시 완수·미완수·판정 불가 합계와 과제별 시간·쓰기 방식·승인 요청 수를 콘솔 표로 출력한다.
 
 [과제 데이터](../../scripts/assistant-acceptance/tasks.mjs)와 [실행기](../../scripts/assistant-acceptance/run.mjs)를 분리했다.
 실행마다 OS 임시 폴더에 합성 자료·독립 Host 프로필·비서 작업 폴더를 만들고, 기존 HTTP 대화 route로만 전송·조회·중단한다.
