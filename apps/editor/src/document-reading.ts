@@ -6,7 +6,7 @@ import { TABLE_CELL_SOURCE_ATTR } from "./tiptap-projection.ts";
 type ReadingRect = { top: number; left: number; width: number; height: number };
 export type ReadingPosition = {
   blocks: (ReadingRect & { key: string })[];
-  cells: (ReadingRect & { table: string; row: number; column: number })[];
+  cells: (ReadingRect & { table: string; row: number; column: number; clip: ReadingRect })[];
   height: number;
 };
 export type ReadingCallbacks = {
@@ -37,14 +37,18 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
         if (!(dom instanceof HTMLElement) || !node.attrs.sourcePath) return;
         const key = JSON.stringify(String(node.attrs.sourcePath).split(",").map(Number));
         blocks.push({ key, ...geometry(dom) });
-        if (node.type.name === "table") node.forEach((row, rowOffset) => {
+        const scroller = node.type.name === "table" ? dom.querySelector<HTMLElement>(".table-scroll") : null;
+        const scrollRect = scroller && geometry(scroller);
+        const clip = scroller && scrollRect ? { left: scrollRect.left + scroller.clientLeft, top: scrollRect.top + scroller.clientTop,
+          width: scroller.clientWidth, height: scroller.clientHeight } : undefined;
+        if (clip) node.forEach((row, rowOffset) => {
           if (row.type.name !== "tableRow") return;
           row.forEach((cell, cellOffset) => {
             const cellDom = editor.view.nodeDOM(offset + 2 + rowOffset + cellOffset);
             const source = String(cell.attrs[TABLE_CELL_SOURCE_ATTR] ?? "");
             if (!(cellDom instanceof HTMLElement) || !/^\d+,\d+$/.test(source)) return;
             const [rowIndex, column] = source.split(",").map(Number);
-            cells.push({ table: key, row: rowIndex, column, ...geometry(cellDom) });
+            cells.push({ table: key, row: rowIndex, column, clip, ...geometry(cellDom) });
           });
         });
         if (node.type.name === "bulletList" || node.type.name === "orderedList") {

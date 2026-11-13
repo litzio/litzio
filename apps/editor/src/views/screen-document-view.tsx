@@ -66,6 +66,9 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
   const state: ScreenDocumentViewState["state"] = problem ? "error" : !file ? "loading" : stale ? "stale-target" : unsupported ? "target-not-found" : "ready";
   useEffect(() => { notify.current?.({ state, ...(file ? { revision: file.revision } : {}), ...(message ? { message } : {}) }); }, [state, file, message]);
   const selected = !stale && location;
+  const clip = selected && "clip" in selected ? selected.clip : undefined;
+  const highlight = selected ? <div className="screen-document-view-highlight" data-testid="document-view-highlight" data-target-kind={cell ? "cell" : "block"} aria-hidden="true"
+    style={{ top: selected.top - (clip?.top ?? 0), height: selected.height, ...(cell ? {left:selected.left - (clip?.left ?? 0),width:selected.width} : {}) }} /> : null;
   const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, reloadKey]), selected);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
   return <section className="screen-document-view" aria-label={label} data-state={state}>
@@ -79,8 +82,7 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
         <div className="screen-document-view-content">
           <DocumentEditor key={JSON.stringify([path, file.revision, reloadKey])} readOnly preview document={file.document} bibliography={file.bibliography}
             documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} />
-          {selected ? <div className="screen-document-view-highlight" data-testid="document-view-highlight" data-target-kind={cell ? "cell" : "block"} aria-hidden="true"
-            style={{ top: selected.top, height: selected.height, ...(cell ? {left:selected.left,width:selected.width} : {}) }} /> : null}
+          {clip ? <div className="screen-document-view-highlight-clip" style={{top:clip.top,left:clip.left,width:clip.width,height:clip.height}}>{highlight}</div> : highlight}
         </div>
       </div>
     </HostClientContext.Provider> : null}

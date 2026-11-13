@@ -190,6 +190,11 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByTestId('document-view-highlight')).toHaveAttribute('data-target-kind','cell');
   await page.getByRole('button',{name:'Select other cell',exact:true}).click();
   await expect(page.getByTestId('document-view-highlight')).toHaveAttribute('data-target-kind','cell');
+  await page.setViewportSize({width:640,height:1000});
+  await page.getByRole('button',{name:'Select other cell',exact:true}).click();
+  await expect.poll(()=>documentView.locator('.table-scroll').evaluate(node=>node.scrollLeft)).toBeGreaterThan(0);
+  await expect.poll(()=>page.getByTestId('document-view-highlight').evaluate(node=>{const cell=node.getBoundingClientRect(),scroll=node.closest('.screen-document-view').querySelector('.table-scroll').getBoundingClientRect();return cell.left>=scroll.left&&cell.right<=scroll.right;})).toBe(true);
+  expect(await documentView.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
   const reads=await page.getByLabel('Document reads',{exact:true}).textContent();
   await page.getByRole('button',{name:'Toggle unrelated folder',exact:true}).click();
   await expect(page.getByRole('button',{name:'Toggle unrelated folder',exact:true})).toHaveAttribute('aria-pressed','true');
