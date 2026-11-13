@@ -164,7 +164,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-11 문서 작성 안내 투어](spikes/2026-11-11-guided-tour.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
 | [2026-11-11 요구사항 추적과 ReqIF 내보내기](spikes/2026-11-11-requirements-traceability.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
 | [2026-11-12 검토 패널 배치 세 시안 (#1462)](spikes/2026-11-12-1462-review-panel.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
-| [2026-11-13 공정 분석기 (OBCM EOL 그래프·공정 능력)](spikes/2026-11-13-process-analyzer.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-13 공정 분석기 (생산 라인 검사 데이터 그래프·공정 능력)](spikes/2026-11-13-process-analyzer.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
 
 ## Verification
 
