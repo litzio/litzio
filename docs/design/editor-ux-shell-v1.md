@@ -19,6 +19,8 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 
 창의 탭·복구·파일 action·계속하기·닫기 보호와 effect 순서는 App이 소유한다. 상태 없는 폴더 조회·선택기 탐색·폴더 생성·시작 위치의 HTTP 요청과 응답 검증은 [folder requests](../../apps/editor/src/shell/folder-requests.ts)에 둔다. 요청할 때의 기본 client 조회와 명시적으로 받은 client는 기존 방식대로 유지한다.
 
+[문서 작업 대화](../../apps/editor/src/shell/DocumentOperationDialogs.tsx)는 문서 열기 거절·Reload 확인의 기존 Dialog 표시만 소유한다. hook·effect·상태를 갖지 않으며 App의 현재 값·콜백·focus ref를 그대로 받는다. 미저장 보호·다시 읽기·탭 admission과 현재 문서의 수명은 App과 기존 세션에 남는다.
+
 
 ## Read / Edit / Source (#849)
 

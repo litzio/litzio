@@ -67,7 +67,7 @@
 - `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다.
 - `apps/editor/server/assistant-conversations.ts` — 대화·제출·질문·권한 scope와 이벤트 처리의 메모리 수명. `assistant-provider-items.ts`·`assistant-conversation-display.ts`·`assistant-references.ts`·`assistant-conversation-index.ts`는 각각 공급자 값 변환·표시용 축약·참조 검증·metadata 파일 I/O를 소유한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
-- `apps/editor/src/App.tsx` — 창의 탭·세션·복구·파일 action·닫기 보호와 화면 handoff를 소유한다. `shell/folder-requests.ts`는 상태 없는 폴더 HTTP 요청과 응답 검증을 소유한다.
+- `apps/editor/src/App.tsx` — 창의 탭·세션·복구·파일 action·닫기 보호와 화면 handoff를 소유한다. `shell/folder-requests.ts`는 상태 없는 폴더 HTTP 요청과 응답 검증, `shell/DocumentOperationDialogs.tsx`는 문서 열기 거절·Reload 확인의 표시를 소유한다.
 - `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에서 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트로 전환한다. 문서 의미를 구현하지 않는다.
 - [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.
 - `docs/design/ui-patterns-v1.md` — UI 작업 전에 읽는 반복 패턴 기준. 소유자가 확정한 목표, 현재 기준 구현·사용처와 미구현 불일치·후속 이슈를 구분하며, 같은 패턴의 다른 화면도 확인한다.
