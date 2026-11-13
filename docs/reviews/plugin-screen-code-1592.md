@@ -169,7 +169,7 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 
 | 턴 | 과제 | 초 | 결과 |
 | --- | --- | ---: | --- |
-| 새 대화 1 | CSV를 표로 보여 주고 기준 15 초과 행을 리치오 문서로 저장하는 버튼 제작 | 64.315 | 첫 턴 성공. 3파일 40줄(host.mjs 27, 신분증 1, screen.jsx 12), 설치·조회 성공. 직접 화면에서 버튼을 눌러 18·24·16만 저장하고 새 문서 탭에서 확인, `litzio check` valid/writable 통과. 비서 자신은 화면 미확인을 명시했다. |
+| 새 대화 1 | CSV를 표로 보여 주고 기준 15 초과 행을 리치오 문서로 저장하는 버튼 제작 | 64.315 | 첫 턴 성공. 3파일 42줄(host.mjs 27, 신분증 1, screen.jsx 12), 설치·조회 성공. 직접 화면에서 버튼을 눌러 18·24·16만 저장하고 새 문서 탭에서 확인, `litzio check` valid/writable 통과. 비서 자신은 화면 미확인을 명시했다. |
 | 같은 대화 2 | 저장 제목 변경, 전체/초과 행 수와 평균 요약 문단 추가, 기본 파일명 변경 | 39.344 | 성공. 3파일 41줄(host 27, 신분증 1, 화면 13). 직접 저장한 문서의 제목·전체 5행·초과 3행·평균 19.33과 표를 확인하고 `litzio check` valid/writable 통과. |
 
 총 2턴이다. 빈 줄을 포함하고 마지막 개행은 추가 행으로 세지 않았다. 1440px 라이트 [버튼이 있는 화면](../design/assets/plugin-screen-save-1592/screen-light.png)과 [저장한 문서](../design/assets/plugin-screen-save-1592/document-light.png)를 직접 검토했다. 계정 표시·폴더 위치·명령 검색의 경로 표시는 촬영 시 mask했다. 화면은 기존 Button/Input/DataTable/Notice를 사용하며 새 화면 부품이나 디자인 예외를 만들지 않았다. 시각 확인은 소유자의 승인과 별개다.
@@ -249,3 +249,89 @@ element capture clipped the long-label right edge, so viewport captures are used
 No actual assistant, installed application, user daemon/data, remote PC, packaged Desktop,
 power-loss or all possible string/value combinations were tested. Runner-owned processes
 are torn down by the existing persistent fixture; test artifacts are retained.
+
+## 3단계: 협의 절차와 제작 시험
+
+### 방법과 사전 대본
+
+2026-11-13, 격리된 production HTTP Host, 기존 Codex 로그인, `gpt-6.1-terra` high / full-access, 합성 자료만 사용했다. 설치된 앱·사용자 daemon·데이터를 사용하지 않았으며 시험 자료는 보존했다. 질문 답변은 공용 질문 API로 전달하고, 화면 검토는 별도 persistent Chrome `pnpm browser:test`로 수행했다. 비서에게 방법·부품 이름을 알려 주지 않았다. 첫 과제의 세 팀 Markdown은 이번 주·다음 주·위험의 같은 구조다. 변환 계약 네 파일과 13쪽 합성 PDF는 시험 폴더로 복사했다. 실제 서버는 지정된 기존 docling-serve 1.38.2 컨테이너만 시작했다. ready 첫 조회는 시작 직후 연결 종료로 실패했고 이후 200을 확인했다.
+
+과제 문장과 답변 대본은 실행 전에 고정했다.
+
+1. “매주 팀별 주간 보고를 모아서 한 장으로 정리하는 걸 만들어 줘.” 답: 같은 팀 파일을 매주 갱신, 버튼 실행, 현재 폴더의 세 팀 이번 주·다음 주·위험을 표로 모아 한 장 분량의 화면과 같은 폴더의 새 리치오 문서로 저장. 반복 사용하며 세 팀 내용이 빠짐없으면 완료. 규칙 취합 도구 하나로 시작한다.
+2. “PDF를 Docling 서버로 변환해서 결과를 저장하는 플러그인을 만들어 줘.” 답: 로컬 5001 서버·인증 없음, PDF 한 개, 현재 폴더에 JSON·원본 참조·변환 기록, 권장값 기본·옵션 조정·반복 사용. 상세 계약은 아직 없음. 기존 플러그인 수정을 물으면 별도 생성(과제 3 원본 보존).
+3. 계약 네 파일을 명시하고 로컬 5001 서버·인증 없음·설정으로 주소 변경·권장 프로필·고정/조정 옵션 구분·document.json/기록/원본 참조·실제 옵션 기록·반복 사용 화면 하나·sample.pdf의 실제 변환과 완전 성공 확인을 한 메시지에 요청했다. 서버 주소·입출력·옵션을 이미 줬으므로 추가 협의 답변은 없다.
+
+### 관측과 판정
+
+과제 1 첫 턴 44.357초: 세 보고를 먼저 읽은 뒤 파일 갱신 방식, 화면+문서 여부, 버튼/요일 자동 실행을 세 단일 선택 질문으로 물었다. 자료에서 알 수 있는 팀·항목·경로를 새로 묻지 않았다. 갱신 주기는 디스크에서 알 수 없는 조건이다. 리치오 계획 문서를 먼저 생성했다. 답변 턴 48.874초: 계획을 다시 읽고 규칙 기반 취합 도구를 설치했다. 이미 같은 구조의 문서여서 AI 요약 없이 세 항목을 그대로 모으며, 사용자가 규칙 취합을 선택한 것과 일치한다. 비서는 직접 조회로 세 행을 확인했고 화면·저장 버튼은 미확인이라고 밝혔다. 시험자가 1440px 화면의 세 팀/모든 열과 자료 값을 직접 확인했다. 이 시험의 저장 버튼 실제 저장·문서 재열기는 미확인이다. 현재 세 팀과 경로를 코드에 고정해 다른 팀/폴더로 재사용하는 도구는 아니다. 사용자 계획 수정 후 반영도 시험하지 않았다.
+
+![주간 취합 화면 1440px](../design/assets/plugin-screen-code-1592/stage3/weekly.png)
+
+과제 2 첫 시도는 172.149초 동안 사용자 메시지 외 응답 이벤트가 없어 시험자가 중단했다. 과제 3과 실행 시간이 겹쳤으나 원인은 확정하지 않았다. 새 대화 재시험을 숨기지 않으며 초기 실패를 성공 집계에서 제외하지 않는다. 재시험에서는 서버 주소·인증, 입력/저장 방식, 이미 설치된 변환 도구 수정/별도 생성을 질문 카드로 물었다. 서버 주소를 사전에 가정하지 않고 선택지에 예시로 제시했다. 기존 도구 질문은 같은 격리 Host에 남은 과제 3 산출물이 원인이므로 완전히 빈 설치 환경의 시험은 아니다. 옵션 질문은 별도로 하지 않았고 시험자가 자유 입력 답에 옵션 조건을 함께 제공했다.
+
+과제 3 첫 턴 69.518초: 조건을 되묻지 않았으나 골격만 만들고 중단했다. Python requests 없음은 환경 실패였고 Node 대체 구현을 완성하지 않은 채 끝났다. “묻지 않고 한 번에 제작”은 **실패**다. 후속 156.228초에는 설치·설정·조정 옵션 화면·저장 코드를 만들고 defaults 읽기 작업을 공개했지만 실제 변환은 수행하지 않았다. 비서는 화면 전용 쓰기 handler를 공식 읽기 도구로 부를 수 없다고 설명했으며, 이는 공개 쓰기 operation을 선언해 CLI로 호출하는 대안을 활용하지 못한 제작 문제다. 화면 연결 시도는 CUA inventory 조회 뒤 접근 불가로 종료했고 다른 앱을 조작한 기록은 없다. 시험자는 별도로 기존 앱·daemon 금지 범위를 한 번 상기시켰다(steer 메시지).
+
+시험자가 화면의 PDF 경로·결과 경로·쪽 수를 입력하고 변환을 클릭하자 `Operation timed out. Check the service connection. Check the target before retrying a write.` 뒤 `Unavailable`로 바뀌었다. 한 handler가 업로드·poll·결과 저장을 끝까지 기다린 설계였다. 서버 작업 접수 ID와 후보 기록은 남았고, 비서는 후속에서 해당 ID의 success를 조회했다. 시간 제한을 늘리거나 새 K1 엔진을 만들지 않았다. 비서에게 재전송하지 말고 기존 상태부터 확인하도록 오류를 전달해 수정 시험을 이어 갔다.
+
+### 상태 조회 조사 (#1360)
+
+현재 구현을 기준으로 한다. #1501·#1514의 역사와 현재 소스를 구분했다. 상태는 이미 상당 부분 JSON이며 픽셀을 봐야만 하는 것은 아니다.
+
+| 경로 | 얻는 상태 / 출력 | 비서·플러그인 접근 / 한 번에 얻는 범위 |
+| --- | --- | --- |
+| `daemon status --json` / daemon health | state/running, 버전·프로토콜·PID·URL·허용 roots, 수동 instance 목록 | CLI는 수명 상태를 한 번에 조회. roots는 열린 폴더가 아님. 탭·활성 문서 없음 |
+| 대화 입력 folders/document | 열린 폴더·활성 저장 문서 경로 | 비서는 발화 맥락으로 받음. 실시간 전체 상태나 미저장 본문이 아님 |
+| `read_screen_context` → `ScreenInfo` | activeTab, tabs(id/kind/hostId/title/path?/unsaved), folders | 한 번에 JSON. 발화 창이 응답하며 Host는 in-flight 요청만 소유. 창 없는 CLI/처리 코드에는 없음. 픽셀·본문·플러그인 입력/결과 없음 |
+| `plugins list` / manage_plugins list | installed/trusted/enabled/running/settings/status/error/digest | CLI와 비서가 한 번에 목록 확인. `status()`는 strict {available,message}로 작업 진행률·결과는 없음 |
+| 공개 operation invoke | 선언 schema의 JSON + receipt | CLI와 비서 읽기 호출. 화면 invoke도 같은 공개 계약 사용 가능. 각 플러그인이 progress/result 읽기 작업을 선언할 수 있음 |
+| 플러그인 처리 코드 PluginContext | settings/secrets/platform/env/isDirectory | 자기 불변 설정과 일반 Node 파일·네트워크. 열린 폴더·활성 문서를 주는 Host callback 없음 |
+| 화면 props React/ui/invoke/saveDocument | 자기 작업 호출, 새 문서 저장 | 현재 폴더 목록·활성 문서·자기 설정 props 없음. saveDocument는 내부 roots를 사용하나 화면에 목록을 돌려주지 않음. 설정은 처리 코드의 읽기 작업으로 반환 가능 |
+
+출력 envelope는 수명 상태, 창 메타데이터, 플러그인 목록, operation receipt로 다르며 이 전부를 묶는 조회는 없다. 서로 다른 소유권·수명을 가진 상태이므로 같은 뜻이라고 합치면 안 된다. Host roots와 열린 폴더를 혼동하면 잘못 저장한다.
+
+실제 필요: 주간 취합은 발화 folders와 파일 읽기로 입력 위치·구조를 알고 코드에 고정했다. 변환은 자기 설정을 defaults로 전달하지만 파일과 저장 위치는 절대 경로를 입력하게 했다. native 파일 선택을 제공하지 않았으며 브라우저에서 PDF를 고르는 것과 Host 파일 경로를 얻는 것을 혼동하지 않았다. 초판은 진행 공개 작업이 없고 status는 준비됨이라 비서가 진행을 알 수 없었다. 실패 후 서버 task ID·후보 기록을 파일에서 찾아 상태를 알아냈다. 이는 공통 진행 조회의 제품 성공이 아니다.
+
+가장 작은 제안:
+
+- 처리 진행은 기존 공개 읽기 operation으로 `{id,state,message,result?}`를 반환하는 관례를 제작 지침에 안내한다. 새 Host job store·타임아웃 변경 없이 접수 handler가 즉시 반환하고 화면/비서/CLI가 같은 operation을 조회한다. 중단은 plugin 소유이며 로컬 중단과 서버 중단을 구분한다. 현재 strict status()에 임의 작업 schema를 덧붙이지 않는다. 이번 PR은 이 안내와 낡은 K1 안내 제거만 구현한다.
+- 열린 폴더·활성 문서가 실제 부족하다. 기존 ScreenInfo를 재사용해 명시한 window/session에 대한 현재 folder·active document를 Host 공용 조회로 읽고 CLI·PluginContext·화면이 같은 정의를 소비하는 것이 최소 후보다. 그러나 현재 Host는 창 상태를 저장하지 않으므로 창 등록/갱신/종료·신선도·창 없는 상태·복수 창 선택을 먼저 정해야 한다. 임의 “첫 창”·stale 캐시를 이번 PR에 넣으면 소유권을 바꾸므로 **제안만** 남긴다. 전체 상태 schema나 새 파일 선택 UI를 만들지 않는다. 병행 Host UI 삭제의 선택기 코드도 변경하지 않았다.
+
+### 비교 결론과 검증 경계
+
+- 협의는 주간 취합에서 입력을 먼저 확인하고 세 선택지로 범위를 좁혔다. 1·2단계의 바로 만들기와 달리 계획/입출력을 합의하는 이점은 관측됐다. 비개발자 실제 사용자의 시행착오가 줄었다는 일반화는 합성 대본 한 건으로 증명하지 못한다.
+- 조건을 충분히 준 변환은 되묻지는 않았으나 한 번에 완성하지 못했다. 협의 지침만으로 실행 설계·계약 검증 문제가 해결되지 않는다.
+- 카드와 계획 문서의 충분성은 아직 미확정이다. API 답변으로 진행했으므로 실제 사용자의 카드 읽기/선택 부담, 계획을 찾아 고치는 흐름, 여러 라운드에서 결정을 유지하는 품질은 미검증이다. 전용 제작 화면 재도입의 근거로 성공을 과장하지 않는다.
+
+Editor·전체 패키지 typecheck, CLI/Editor production build, 기존 제작·설치·화면 관련 Host 검사 9개, docs 검사 통과. 지침 문구를 고정하는 새 테스트는 추가하지 않았다. 첫 촬영은 사용자 지정 scenario에 --screenshots가 허용되지 않아 runner가 거부했고, 수동 scratch harness에서 직접 캡처했다. 변환 오류 촬영 검사는 `timeout`과 실제 `timed out`을 혼동해 실패했으며 trace에는 실제 timeout→Unavailable이 남았다. 개인 경로가 남은 캡처는 공개하지 않는다. 화면을 고치거나 생성 코드를 손으로 고치지 않았다. 대형/실문서·다른 OS·원격 서비스·Copilot·사용자 계획 편집·설치형 Desktop은 미확인이다.
+
+### 후속 수정·설치 시험 결과
+
+| 턴 | 초 | 관측 |
+| --- | ---: | --- |
+| 주간 요청 / 카드 답 | 44.357 / 48.874 | 자료 먼저 확인·3질문·계획·3팀 조회·화면 확인 |
+| 변환 조건 부족 첫 시도 | 172.149 | 무응답 중단, 원인 미확정 |
+| 조건 부족 새 대화 / 답변 | 67.341 / 164.054 | 질문 뒤 계획 생성, 3파일 42줄 설치. PDF 없는 폴더여서 변환은 미확인 |
+| 계약 전체 첫 턴 / 계속 | 69.518 / 156.228 | 무질문이나 골격 중단, 후속 설치도 변환 미실행 |
+| 실제 timeout 전달 뒤 수정 | 148.923 | 기존 task success 확인, 재제출 없이 접수+job/recover 조회로 수정·재설치 |
+| 폴더 설치 첫 요청 / 등록 해제 후 | 44.844 / 23.516 | 이미 설치됨 확인 뒤 기존 Host 사본을 재설치. 독립 폴더 설치 증거는 아님 |
+
+과제 2 최종은 3파일 42줄(host 24, manifest 1, screen 17), 과제 1은 3파일 28줄(host 21, manifest 1, screen 6)이다. 과제 3은 5파일 579줄(host 61, manifest 56, screen 13, options 398, profile 51)이며 옵션/프로필 자료가 대부분이다. 줄 수는 빈 줄 포함·마지막 개행 제외. 두 계획 문서는 CLI check valid/writable을 통과했다. 과제 3은 조건이 충분한 화면 하나여서 계획 문서를 강요하지 않았다.
+
+시험자가 수정본 화면에서 **새 결과 위치로 명시적으로 별도 시험**을 실행해 접수→2초 간격 job 조회→finished를 확인했다(persistent browser 49.6초). 서버 처리와 파일 저장은 46.254초였다. 결과는 후보 폴더의 source.pdf/document.json/conversion-record.json이며 서버 task/result success·errors 0·13쪽·DoclingDocument 1.10.0·15개 data URI와 실제 옵션 기록을 확인했다. 그러나 이미지 실제 decode 검증은 구현하지 않고 `image_decode_verified:false`, `complete:false`, `state:incomplete`로 남겼다. 따라서 **완전 성공 아님**이다. 기본 프로필 request와 actual_request는 전체 일치했고 overrides는 {}였다. 원본을 중복 복사하지 않는 fixtures의 참조 예외도 구현하지 않아 source.pdf를 복사했다. 중단 UI와 공개 취소 handler도 없다. 이런 계약 미완성을 플랫폼 기능 부족으로 포장하지 않는다.
+
+![변환 옵션 화면 1440px, 경로 가림](../design/assets/plugin-screen-code-1592/stage3/converter.png)
+
+실제 장기 처리의 접수+상태 조회는 기존 플랫폼으로 됐다. 문제는 비서의 초기 설계와 미완성 검증이었다. job은 화면 전용이며 공개된 읽기는 defaults/recover뿐이다. 비서는 recover로 기존 서버 task 상태를 알 수 있지만 실행 중인 로컬 job을 공용 CLI로 조회하지는 못한다. status() 자체도 여전히 준비됨이다. 첫 호출 timeout 이후 자동 재제출하지 않고 기존 task 상태를 조회한 것은 확인했다. 패키지 설치·Node 파일 I/O·JSON 저장도 가능했다. 파일 고르기는 과제 2에서는 폴더의 PDF 목록 select, 과제 3에서는 절대 경로 입력으로 구현해 비개발자 사용성이 부족하다. 새 native picker가 필수라는 결론은 내리지 않는다.
+
+공통 상태 API는 구현하지 않았다. 창 소유 상태를 Host 공용 상태로 옮기는 것은 값 몇 개를 props에 붙이는 변경이 아니며, window/session 수명과 CLI의 대상 선택을 정하지 않고 구현하면 현재 계약과 충돌한다. 이번 시험에서 필요한 folder/active-document만 기존 ScreenInfo 정의로 제공하는 후속을 제안하고, 전역 큰 schema·원격 Host 선택기 변경은 하지 않는다.
+
+과제 2의 실제 화면 확인은 **실패**했다. inspect의 공개 inputSchema가 additionalProperties:false인 빈 객체인데 화면은 `{folder:""}`를 보내 HTTP 400 `Invalid operation input`을 받았다. 설치와 비서 읽기 도구의 success만으로 실제 화면을 성공 처리하면 놓치는 결함이다. 시험자는 생성 코드를 고치지 않았다. 후속 촬영에서도 같은 오류와 HTTP 400을 보존했다.
+
+폴더에서 독립 설치는 기존 등록과 제작 사본을 보존 위치로 옮긴 뒤 다시 요청해 확인했다(29.545초). 비서는 downloaded-plugin의 5파일을 Host 제작 폴더에 복사해 install ID로 설치하고 원본/설치 사본 hash 일치와 defaults 호출을 확인했다. 원본은 수정하지 않았다. 공개 관리 schema는 install directory도 지원하지만 비서는 복사+ID 경로를 골랐다. 따라서 이번 시험에서 “폴더에서 설치” 플랫폼 능력 부족은 재현되지 않았다. 처음 두 시도는 이미 있는 사본을 확인/재설치한 것이어서 독립 설치 증거와 구분했다.
+
+전체 전송은 12회(원인 미확정 무응답 시도, 카드 답변, 경계 상기 steer, 설치 확인/재시험 포함)로 20턴 안이다. 계정·공급자·모델은 유지했다. 시험자가 손으로 바꾼 플러그인 코드는 없다. 초판·수정 최종본·받아 둔 폴더·설치 사본과 실제 결과 후보를 각각 보존했다. 최종본은 완전 성공 검증·취소·fixtures 원본 참조·공개 live job 조회가 미완성이다. 해당 부족을 플랫폼 변경으로 대신하지 않았다. 화면 품질은 과제 1의 표는 읽히지만 기본 화면 좌측 배치이고, 과제 3의 영문 옵션명과 절대 경로 입력은 비개발자가 쓰기 어렵다. 시각 승인은 소유자 별도다.
+
+과제 2 [실제 오류 화면](../design/assets/plugin-screen-code-1592/stage3/missing.png), 과제 3 [후속 화면](../design/assets/plugin-screen-code-1592/stage3/converter-final.png)도 1440px로 검토했다. 경로/계정 영역을 촬영 시 가렸으며 원본의 배치·내용은 고치지 않았다. 초기 경로 mask selector가 type 없는 input을 놓친 촬영은 폐기하고 label 기반 mask로 다시 촬영했다. 질문 카드 API는 실제 응답 전달을 검증했으나 공개용 카드 캡처는 제출하지 않았다. 새 제작 지침의 장기 처리 문장은 첫 timeout 관측 후 추가했으며 실제 AI 후속 수정은 오류 전달에 대한 자율 수정이지 새 빌드 지침을 다시 읽힌 비교 시험이 아니다.
+
+직접 시작한 격리 Host는 소유 health/PID 확인 후 stop으로 종료했고, browser runner들은 persistent context teardown을 마쳤다. 지정된 컨테이너도 중지했다. 임시 자료는 재귀 삭제하지 않았으며 로컬 위치는 공개 기록 밖의 인계에만 남긴다.

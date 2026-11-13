@@ -14,6 +14,8 @@ Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다.
 
 ## 화면 부품
 
+비서 제작의 조건 협의와 계획 문서는 [비서 계약](main-agent-v1.md#플러그인)을 따른다. 질문 카드나 계획을 위한 새 화면 기능은 추가하지 않는다.
+
 기존 Button/Input/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 필요한 배치와 모양은 plugin이 정한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 새 원본 대조·검수·문서 표시 부품은 공개하지 않았다.
 
 ## 새 문서 저장

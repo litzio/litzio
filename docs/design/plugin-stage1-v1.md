@@ -47,3 +47,5 @@ npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 �
 ## 검증 경계
 
 SDK는 manifest·schema 경계를, Host 단위 검사는 process·drain·crash·timeout·설정·secret·스킬·신뢰·reload·출력 경계를 보호한다. HTTP/Vite는 같은 작업의 transport와 UI를, packaged 외부 SDK helper는 checkout 없는 SDK resolve·설치·npm·bundle·receipt를 검사한다. 화면의 공식 새 문서 저장은 [화면 계약](plugin-screens-v1.md)을 따른다. fixture/localhost 통과를 실제 원격 PC·사내 서비스·실제 계정 수락으로 표현하지 않는다.
+
+긴 처리는 plugin process에서 접수 후 진행하며 화면은 짧은 호출로 상태를 조회할 수 있다. 비서·CLI도 같은 상태를 알아야 하면 assistant:true 공개 읽기 operation으로 진행/결과를 선언한다. status()의 {available,message}와 작업 기록은 별개다. 10초 한계를 늘리는 변경이나 공용 K1 job store를 추가하지 않았다. 실제 제작의 초기 단일 호출 timeout과 후속 접수/조회 시험은 [3단계 기록](../reviews/plugin-screen-code-1592.md#3단계-협의-절차와-제작-시험)을 따른다.
