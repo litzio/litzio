@@ -8,7 +8,7 @@
 
 ## 화면 코드 1단계 (#1592)
 
-[ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 screens[].entry는 플러그인 폴더의 React JS/JSX 진입점을 지정한다. default export 컴포넌트는 React·ui(Button/Input/DataTable/Notice)·invoke(자기 작업 ID, JSON 입력)를 받는다. React는 앱 인스턴스이며 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다. 기본 scaffold는 screen, SVG 선 그래프 예제는 chart다. 새 차트 라이브러리는 제공하지 않는다.
+[ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 screens[].entry는 플러그인 폴더의 React JS/JSX 진입점을 지정한다. default export 컴포넌트는 React·ui·invoke(자기 작업 ID, JSON 입력)·saveDocument(아래 2-4)를 받는다. React는 앱 인스턴스이며 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다. 기본 scaffold screen과 chart는 공용 부품으로 도구 줄·합계·그래프·표를 조합한다.
 
 Host는 검증·reload 시 기존 esbuild로 같은 artifact 안의 로컬 파일을 번들로 변환한다. 실행 시 npm·원격 import 해석은 하지 않는다. 외부 라이브러리는 제작 시 묶은 파일로 포함한다. 빌드 플랫폼의 esbuild 실행 파일을 CLI 배포물에 포함하고 Desktop은 그 배포물을 복사한다. 별도 npm 설치·네트워크가 필요하지 않다. 활성 플러그인만 catalog에 코드와 digest revision을 전달한다. 클라이언트는 CSP script-src의 blob: 모듈로 실행하며 eval은 열지 않는다. Desktop의 기존 connect-src 대상 Host 목록을 유지하고 invoke는 해당 화면 HostClient에 고정된다.
 
@@ -167,3 +167,14 @@ opened-folders에서 CLI reset guard가 막으면 같은 Host 작업인 `manage_
 
 
 제작용 npm은 배포물의 단일 archive로 제공하며 외부 라이브러리 dependencies를 처음 사용할 때만 Host 데이터 아래에 준비한다. [포함 npm 지연 준비](plugin-stage1-v1.md#포함-npm의-지연-준비-1592)를 따른다. npm cache 준비는 라이브러리 bundle을 소비하는 화면에는 필요하지 않다. esbuild와 React 실행 경계는 그대로다.
+
+## 화면 부품과 디자인 안내 (2-3, #1592)
+
+공개 이름·props·짧은 예제는 `packages/plugin-sdk/src/screen-ui.ts`의 SCREEN_UI와 SCREEN_UI_GUIDANCE 한곳에서 정의한다. 클라이언트 바인딩은 그 이름 집합을 타입 검사하며 Host 제작 안내는 같은 정의를 삽입한다. React 컴포넌트 구현은 Editor 안에 둔다.
+
+- 기존 Button·Input·DataTable·Notice를 그대로 제공한다.
+- Chart: line/bar, data/xKey/yKey, title, baseline, showValues, emptyMessage. Recharts의 축·반응형 폭·hover/키보드 tooltip을 토큰으로 감싼다. 비수치·비유한 값은 제외한다. 여러 계열·특수 차트는 작성자가 자유롭게 구현할 수 있다.
+- Slider: label, value:number[], onValueChange, min/max, step, disabled. 설치된 Base UI의 단일 값·구간과 키보드 조작을 재사용한다.
+- Toolbar: label과 children, 줄바꿈 가능한 내용 폭 controls. SummaryCard: label/value/description. ScreenLayout: 선택 title/description과 본문 children. 페이지가 이미 제목을 제공하면 title을 생략한다.
+
+기존 Layout Rules·Visual Language의 space-2/3/4, 제목·본문 위계, subtle border와 상속 토큰을 사용한다. 버튼은 내용 폭, 표·그래프는 사용 가능한 전체 폭과 min-width:0, 표 내부 가로 스크롤을 유지한다. 배경·font는 상속한다. 자체 SVG stroke/fill에도 `var(--id-color-accent)`·`var(--id-color-text-muted)` 등을 쓸 수 있다. 검사·금지로 디자인을 강제하지 않는다. 화면 선택·hover·구간 상태는 해당 React 화면 소유이고 Host나 문서에 저장하지 않는다.

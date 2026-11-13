@@ -904,3 +904,7 @@ U24의 기존 SourceCompare/VisualCompare와 ChoiceGroup을 재사용한다. 800
 저장 비교의 기존 복구 기록 불변 단언은 최초 실패 후 전후 기록 진단을 추가했으며,
 동일 단언은 이후 통과했다. 최초 실패의 원인은 확정하지 않았다.
 복구의 문맥 양쪽 표시 전제는 새 요구에 맞게 한 번 표시 검사로 바꾸고 변경 블록 대응 검사는 유지했다.
+
+## 플러그인 코드 화면 부품 (#1592 2-3)
+
+현재 기준은 [화면 계약](plugin-screens-v1.md#화면-부품과-디자인-안내-2-3-1592)과 UI gallery의 Screen parts다. 기존 조회/작업 화면의 Button·Input·DataTable·Notice와 같은 구현을 코드 화면에도 제공한다. 그래프·구간 선택에 기존 공용 구현은 없어 Recharts·Base UI Slider wrapper를 추가했다. Toolbar·SummaryCard·ScreenLayout은 기존 space·typography·subtle border를 조합하며 페이지 여백·제목 소유권을 중복하지 않는다. 강제 규칙이나 선언 문법을 추가하지 않는다. [실제 비서 전후 검토](../reviews/plugin-screen-code-1592.md#2-3--화면-부품과-디자인-안내)에 남은 표 열 배치·카드 높이 차이와 소유자 시각 승인 경계를 기록했다.
