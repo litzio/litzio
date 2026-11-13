@@ -1,5 +1,4 @@
 import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
-import type { ScreenAction, ScreenActionResult, ScreenInfo, ScreenTab } from "../shared/assistant-screen.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
@@ -12,7 +11,6 @@ import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
 import { getHostClient, hostRegistry, hostLabel, monitorDesktopHosts, type HostClient } from "./host-client.ts";
-import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
@@ -411,22 +409,6 @@ function EditorApp() {
   const emptyImageRef = useRef<HTMLElement | null>(null);
   const session = activeId ? sessions.current.get(activeId) : undefined;
   // Hiding task tabs must not change the user's document navigation preference.
-  const readScreen = (): ScreenInfo => {
-    const screenTabs: ScreenTab[] = allTabs.map(item => {
-      const file = tabs.find(tab => tab.id === item.id);
-      const view = viewTabs.find(tab => tab.id === item.id);
-      const owner = sessions.current.get(item.id);
-      const kind: ScreenTab["kind"] = file ? (owner?.kind ?? file.file.kind) === "text" ? "text" : "document"
-        : item.id === "settings" ? "settings" : item.id === "templates" ? "templates"
-        : view?.pdf ? "pdf" : "plugin";
-      return { id: item.id, kind, hostId: item.hostId ?? null,
-        title: "title" in item && item.title ? item.title : splitDocumentPath(item.path).name,
-        ...(kind !== "settings" && kind !== "templates" ? { path: item.path } : {}),
-        unsaved: Boolean(owner && (owner.documentDirty || owner.draftActive || owner.editorRef.current?.hasUnsavedChanges())) };
-    });
-    return { activeTab: screenTabs.find(tab => tab.id === activeId) ?? null, tabs: screenTabs,
-      folders: [...folders.trees.map(tree => ({ hostId: tree.hostId, path: tree.root }))] };
-  };
   const documentPanelOpen = panelOpen && !settingsFocused && !galleryFocused && !activeViewTab && session?.kind !== "text";
   const nativeSession = session?.kind === "native" ? session : undefined;
   // A fresh editor action replaces an older shell notice such as Copy path.
@@ -739,38 +721,6 @@ function EditorApp() {
       setContinuation({ id, session: owner });
     } else { removeTab(id); return true; }
     return false;
-  }
-  async function performScreenAction(action: ScreenAction): Promise<ScreenActionResult> {
-    const completed: string[] = [], remaining: ScreenActionResult["remaining"] = [];
-    if (busy || continuation || operationRef.current) return { outcome: "conflict", completed, remaining: [{target: "window", reason: "An operation or confirmation is pending."}] };
-    if (action.kind === "close_tabs") {
-      const current = readScreen().tabs;
-      const ids = action.tabIds === "all" ? current.map(tab => tab.id) : [...new Set(action.tabIds)];
-      let confirmation = false;
-      for (const id of ids) {
-        const tab = current.find(tab => tab.id === id);
-        if (!tab) { remaining.push({target: id, reason: "Tab is no longer open."}); continue; }
-        if (confirmation) { remaining.push({target: id, reason: "Unsaved-edit confirmation pending."}); continue; }
-        // closeTab checks the live editor and preserves the existing confirmation flow.
-        if (closeTab(id)) completed.push(id);
-        else { remaining.push({target: id, reason: tab.unsaved ? "Unsaved edits; existing close confirmation required." : "Tab is busy or unavailable."}); confirmation = tab.unsaved; }
-      }
-    } else if (action.kind === "open_folder") {
-      if (!hostRegistry.list().some(host => host.hostId === action.hostId)) return { outcome: "unavailable", completed, remaining: [{target: action.path, reason: "Host is not connected in this window."}] };
-      const problem = await openGalleryFolder(action.hostId, action.path);
-      if (problem) return { outcome: "unavailable", completed, remaining: [{target: action.path, reason: problem}] };
-      completed.push(action.path);
-    } else {
-      const current = readScreen().folders;
-      const targets = action.folders === "all" ? current : action.folders;
-      for (const target of targets) {
-        const key = `${target.hostId}:${target.path}`;
-        if (!current.some(item => item.hostId === target.hostId && item.path === target.path)) { remaining.push({target: key, reason: "Folder is no longer open."}); continue; }
-        if (target.hostId === LOCAL_HOST_ID) folders.close(target.path);
-        completed.push(key);
-      }
-    }
-    return { outcome: remaining.length ? "conflict" : "success", completed, remaining };
   }
   const [desktopInfo, setDesktopInfo] = useState<DesktopInfo | null>(null);
   const settingsFocusRequested = useRef(false);
@@ -1519,7 +1469,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t(undoConfirmation.edit ? "Undo change?" : "Undo document creation?")} description={i18n.t(undoConfirmation.edit ? "Restore “{{name}}” and discard unsaved changes and recovery records?" : "“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t(undoConfirmation.edit ? "Restore and discard changes" : "Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel onScreen={readScreen} onScreenAction={performScreenAction} key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndoChange={async (path, undo) => {

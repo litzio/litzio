@@ -21,3 +21,11 @@ export const tasks = [
  { id:10, name:'그림·캡션 삽입', message:'그림.md에 sample.png를 그림으로 넣고 캡션을 합성 표본으로 달아 줘.', prepare:r=>{write(r,'그림.md',doc('그림','표본을 아래에 넣습니다.'));write(r,'sample.png',Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64'));}, ...output('그림.md',['합성 표본','{figure}'],(s,r)=>{ const ref=s.match(/\{figure\}\s+([^\s]+)/)?.[1]; return !!ref&&fs.existsSync(path.join(r,ref)); }) },
  { id:11, name:'수식 삽입·이스케이프', message:'수식.md에 속력은 이동 거리를 걸린 시간으로 나눈다는 분수가 들어간 블록 수식을 넣어 줘. 문장 안에는 아래첨자 0이 붙은 그리스 문자 알파가 초기 각도라는 수식도 넣어 줘.', prepare:r=>write(r,'수식.md',doc('수식','관계를 아래에 정리합니다.')), ...output('수식.md',['\\frac'],s=>!s.includes('\\\\frac')&&/\$[^$\n]*\\alpha[^$\n]*_/.test(s)) },
 ];
+// Focused manual acceptance for #1360. Run each once with --smoke --task <id> --opened-only.
+tasks.push(
+ {id:12,name:'활성 문서 경로로 수정',message:'이 문서의 환겅을 환경으로 고쳐 줘.',activeDocument:'focus.md',
+  prepare:r=>{write(r,'focus.md',doc('활성 문서','환겅 설정을 확인합니다.'));write(r,'other.md',doc('다른 문서','환겅 설정을 확인합니다.'));},
+  ...output('focus.md',['환경'],(s,r)=>!s.includes('환겅')&&text(r,'other.md').includes('환겅'))},
+ {id:13,name:'화면 대행 미지원 안내',message:'열린 탭을 다 닫아 줘.',prepare:()=>{},outputs:[],
+  judge:(_r,result)=>result.stop==='completed'&&/직접|할\s*수\s*없|지원하지|조작.*불가/.test(result.lastAnswer)&&!result.tools.some(t=>/read_screen_context|close_tabs|open_folder|close_folders|read_display_settings|change_display_settings/.test(t.text))}
+);

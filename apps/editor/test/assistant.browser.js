@@ -202,8 +202,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const pastedPaths = [], pastedData = [];
   const uploadGates = new Map();
   const sent = [], conversations = new Map(), receipts = new Map();
-  let screenRequest, screenReply, screenReplyGate;
-  let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
   let resumeFailure = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
   let forgottenSubmissions = false, allowNewSend = false;
@@ -217,18 +215,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
       if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); pastedData.push(body.data); await uploadGates.get(pasted); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } }); }
-      if (body.action?.endsWith('-ack')) return route.fulfill({ json: { acknowledged: true } });
-      if (body.action === 'screen-result') { screenReply = body.reply; await screenReplyGate; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
-      if (body.action === 'display-result') {
-        displayReply = body.reply; displayRequest = undefined;
-        if (displayResolve) { displayResolve(body.reply); displayResolve = undefined; }
-        return route.fulfill({ json: { acknowledged: true } });
-      }
-      if (body.action === 'display-undo') {
-        displayRequest = { id: 'undo-display-' + (++displaySequence), validForMs: 10000, changes: displayReceipt.before, expected: displayReceipt.after };
-        const reply = await new Promise(resolve => { displayResolve = resolve; });
-        return route.fulfill(reply.error ? { status: 400, json: { error: reply.error } } : { json: { undone: true } });
-      }
       if (body.action === 'resume') {
         if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
         selected = conversations.get(body.id);
@@ -293,7 +279,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     }
     const id = decodeURIComponent((route.request().url().split('?id=')[1] ?? '').split('&')[0]);
     if (id) { snapshots++; if (snapshotGate) { snapshotGateEntered++; await snapshotGate; } }
-    return route.fulfill({ json: id ? { ...conversations.get(id), displayRequest, screenRequest } : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
+    return route.fulfill({ json: id ? conversations.get(id) : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
   await editor.locator('p').first().click(); await page.keyboard.press('End');
@@ -807,11 +793,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(shellRow).not.toHaveAttribute('open');
 
   const progressAnswer = { id: 'progress-answer', kind: 'assistant', text: 'First answer.\n\n' + 'More explanation. 👨‍👩‍👧‍👦\n\n'.repeat(65) };
-  // Output must advance while a window acknowledgement is still in flight.
-  let releaseScreenReply;
-  screenReplyGate = new Promise(resolve => { releaseScreenReply = resolve; });
-  screenRequest = { id: 'slow-screen-ack', validForMs: 10000 };
-  await expect.poll(() => screenReply?.activeTab).toBeTruthy();
+  // Progress observation remains independent of document and settings UI.
   await steps.evaluate(el => { window.smoothSteps = el; window.smoothText = []; window.smoothObserver = new MutationObserver(() => {
     const text = el.parentElement?.querySelector('.assistant-markdown')?.textContent ?? '';
     if (text && window.smoothText.at(-1) !== text) window.smoothText.push(text);
@@ -822,7 +804,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect.poll(() => page.evaluate(() => window.smoothText.length)).toBeGreaterThan(1);
   expect(await page.evaluate(() => window.smoothText.every(text => !/[👨👩👧👦\u200d]/u.test(text.replaceAll('👨‍👩‍👧‍👦', ''))))).toBe(true);
   await page.evaluate(() => window.smoothObserver.disconnect());
-  releaseScreenReply(); screenReplyGate = undefined;
   await expect(panel.locator('.assistant-progress')).toHaveText('Writing answer…');
   await expect.poll(() => steps.evaluate(el => !!(el.compareDocumentPosition(el.parentElement.querySelector('.assistant-answer')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await expect(steps).not.toHaveAttribute('open');
@@ -848,16 +829,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
   await expect(statusTrigger).toHaveAttribute('data-status', 'working');
-  // Explicit display changes also run with the sending panel closed.
-  displayRequest = { id: 'closed-panel-display', validForMs: 10000, changes: { theme: 'dark' } };
   selected.userInput = { requestId: 'question-983', turnId: selected.turns[0].id, questions: [
     { id: 'constructor', header: 'Scope', question: 'Which part should I explain?', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Explain the main points.' }, { label: 'Details', description: 'Explain each step.' }] },
     { id: '__proto__', header: 'Private input', question: 'Enter a private example.', isOther: false, isSecret: true, options: null }
   ] };
   await expect(statusTrigger).toHaveAccessibleName('Assistant — Needs your attention');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect.poll(() => displayReply?.after?.theme).toBe('dark');
-  displayRequest = undefined;
   await statusTrigger.focus();
   await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
   await expect(statusTrigger).toBeFocused();
@@ -885,7 +861,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect.poll(() => submittedAnswers.length).toBe(1);
   releaseAnswer(); answerGate = undefined;
   await expect(questionCard).toHaveCount(0);
-  expect(submittedAnswers).toEqual([{ action: 'answer', id: selected.id, turnId: selected.turns[0].id, requestId: 'question-983', answers: { constructor: { answers: ['Summary'] }, ['__proto__']: { answers: ['private example'] } }, displayClient: sent.at(-1).displayClient }]);
+  expect(submittedAnswers).toEqual([{ action: 'answer', id: selected.id, turnId: selected.turns[0].id, requestId: 'question-983', answers: { constructor: { answers: ['Summary'] }, ['__proto__']: { answers: ['private example'] } } }]);
   selected.userInput = { requestId: 'other-983', turnId: selected.turns[0].id, questions: [{ id: 'constructor', header: 'Scope', question: 'Choose or describe.', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Main points' }] }] };
   await expect(questionCard).toBeVisible();
   await questionCard.getByRole('radio', { name: 'Write another answer' }).check();
@@ -1258,8 +1234,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.locator('.assistant-turn').count(), 'Explicit New conversation survives reload').toBe(0);
   await panel.getByRole('button', { name: '비서 닫기' }).click();
-  // #1120: the existing poll carries a Host request; actual Settings writers and live UI reply.
-  // Host allowlist/ownership/expiry are covered in the existing fake stdio test.
+  // #1360: send the saved path directly; keep manual settings and unsaved document content.
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
@@ -1269,65 +1244,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const documentBeforeDisplay = await editor.textContent();
   await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
-  await panel.getByRole('textbox').fill('다크 테마, 한국어, 넓은 문서와 평면 배경으로 바꿔 주세요.');
+  await panel.getByRole('textbox').fill('이 문서의 저장본을 읽어 주세요.');
   await panel.getByRole('textbox').press('Enter');
   await expect(panel.locator('.assistant-turn')).toHaveCount(1);
   selected.turns[0].status = 'completed';
-  displayRequest = { id: 'display-read', validForMs: 10000 };
-  await expect.poll(() => displayReply?.after?.theme).toBe('light');
-  const displayBefore = displayReply.after;
-  screenRequest = { id: 'screen-dirty-document', validForMs: 10000 };
-  await expect.poll(() => screenReply?.activeTab?.unsaved).toBe(true);
-  expect(screenReply.activeTab.kind).toBe('document');
-  expect(screenReply.activeTab.path).toBe(sent.at(-1).document.path);
-  expect(screenReply.tabs.find(tab => tab.id === screenReply.activeTab.id)).toEqual(screenReply.activeTab);
-  expect(JSON.stringify(screenReply)).not.toContain('display settings draft');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  screenReply = undefined; screenRequest = { id: 'screen-settings', validForMs: 10000 };
-  await expect.poll(() => screenReply?.activeTab?.kind).toBe('settings');
-  expect(screenReply.activeTab.hostId).toBeNull();
-  expect(screenReply.tabs.some(tab => tab.kind === 'document' && tab.unsaved)).toBe(true);
-  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
-  if (screenshots) for (const width of [1440, 640]) {
-    await page.setViewportSize({ width, height: 1000 });
-    await page.screenshot({ path: `tmp/1120-evidence/before-${width}.png` });
-  }
-  const aiWritesBeforeDisplay = settingsWrites.length;
-  displayReply = undefined;
-  const displayAfter = { theme: 'dark', uiLanguage: 'ko', documentWidth: 'wide', pageBackground: 'flat' };
-  displayRequest = { id: 'display-change', validForMs: 10000, changes: displayAfter };
-  await expect.poll(() => displayReply?.after).toEqual(displayAfter);
-  expect(displayReply.error).toBeUndefined();
-  displayReceipt = { requestId: 'display-change', before: displayBefore, after: displayAfter, changed: Object.keys(displayAfter).filter(key => displayBefore[key] !== displayAfter[key]) };
-  selected.turns[0].items.push({ id: 'display-card', kind: 'tool', text: 'change_display_settings', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify(displayReceipt) }] } });
-  const displayCard = panel.getByTestId('assistant-display-result');
-  await expect(displayCard).toContainText('표시 설정 변경됨');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
-  await expect(page.locator('html')).toHaveAttribute('data-page', 'flat');
-  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.documentWidth'), brand.storagePrefix)).toBe('wide');
-  expect(settingsWrites.length, 'Display tools must not save Assistant settings').toBe(aiWritesBeforeDisplay);
-  if (screenshots) for (const width of [1440, 640]) {
-    await page.setViewportSize({ width, height: 1000 });
-    await page.screenshot({ path: `tmp/1120-evidence/after-${width}.png` });
-  }
-  // A later manual change makes Undo refuse instead of overwriting it.
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole('button', { name: '설정', exact: true }).click();
-  await page.getByTestId('page-background').selectOption('paper');
-  await displayCard.getByRole('button', { name: '표시 설정 되돌리기' }).click();
-  await expect(panel.getByRole('alert')).toHaveText('이 작업 이후 표시 설정이 바뀌어 되돌리지 않았습니다.');
-  await expect(page.locator('html')).toHaveAttribute('data-page', 'paper');
+  expect(sent.at(-1).document.path).toBe(assistantFixture.document);
+  expect(sent.at(-1).displayClient).toBeUndefined();
+  await page.getByRole('button', {name:'Settings',exact:true}).click();
   await page.getByTestId('page-background').selectOption('flat');
-  await displayCard.getByRole('button', { name: '표시 설정 되돌리기' }).click();
-  await expect(displayCard).toContainText('Display settings restored');
-  await expect(page.getByTestId('theme')).toHaveValue('light');
+  await expect(page.locator('html')).toHaveAttribute('data-page','flat');
+  await page.getByTestId('page-background').selectOption('paper');
   await expect(page.getByTestId('page-background')).toHaveValue('paper');
-  await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+  if(screenshots){await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'docs/design/assets/assistant-screen-removal/after-1440-light.png',mask:[page.locator('.sidebar-host-account'),page.locator('.document-location'),page.locator('.sidebar-folder-header')]});}
+  await page.getByTestId('ui-language').selectOption('ko');await page.getByTestId('theme').selectOption('dark');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(editor).toHaveText(documentBeforeDisplay);
-  await panel.getByRole('button', { name: '새 대화' }).click();
-  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  await panel.getByRole('button', {name:'새 대화'}).click();
+  await panel.getByRole('button', {name:'비서 닫기'}).click();
   // Global provider autosave retires the prior conversation; composer overrides above do not save settings.
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
