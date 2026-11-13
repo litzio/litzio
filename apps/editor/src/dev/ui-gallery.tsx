@@ -1,3 +1,4 @@
+import { ScreenPartsExample } from "./screen-parts-example.tsx";
 import { QueryLifetimeExamples } from "./query-lifetime-examples.tsx";
 import { PluginViewExamples, TableInteractionExample } from "./plugin-view-examples.tsx";
 import { useRef, useState } from "react";
@@ -126,7 +127,7 @@ export function UiGallery() {
     <div className="ui-gallery-body">
     <aside className="ui-gallery-navigation settings-navigation">
       <nav aria-label="Gallery elements">
-        {["Controls", "Surfaces", "Menus", "Notifications", "Plugin views", "Tables", "Query lifetime"].map(value =>
+        {["Controls", "Surfaces", "Menus", "Notifications", "Plugin views", "Tables", "Query lifetime", "Screen parts"].map(value =>
           <Button key={value} variant="ghost" size="sm" aria-current={category === value ? "page" : undefined}
             onClick={() => setCategory(value)}>{value}</Button>)}
       </nav>
@@ -142,6 +143,7 @@ export function UiGallery() {
       <details><summary>Example guidance</summary><p>{state === "interaction" ? "Move the pointer over examples or press Tab to inspect real hover and keyboard focus. These states are not painted simulations."
         : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p></details>
     </div>
+    {visible("Screen parts") ? <ScreenPartsExample state={state} /> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}

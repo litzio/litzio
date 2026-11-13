@@ -272,3 +272,6 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
 export type ViewContribution = PluginManifest["contributes"]["views"][number];
 
 export type ScreenContribution = PluginManifest["contributes"]["screens"][number];
+
+export { SCREEN_UI, SCREEN_UI_GUIDANCE } from "./screen-ui.ts";
+export type { ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "./screen-ui.ts";
