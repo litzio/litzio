@@ -18,8 +18,7 @@ import "./template-gallery.css";
 const triggerFor = (item: TemplateSummary) => `template-${encodeURIComponent(item.id)}`;
 const templateText = i18n.getFixedT(null, "templates");
 
-export function TemplateGallery({ hostId, onHost, active, revision, disabled, onCreate, onOpenFolder }: {
-  hostId: string; onHost(hostId: string): void;
+export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFolder }: {
   active: boolean; revision: number; disabled: boolean;
   onCreate(item: TemplateSummary, returnFocus: HTMLElement, client: HostClient): void;
   onOpenFolder(path: string): Promise<string>;

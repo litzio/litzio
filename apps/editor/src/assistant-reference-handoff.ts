@@ -1,32 +1,22 @@
 import { useState, type MutableRefObject } from "react";
-import { LOCAL_HOST_ID } from "./host-locator.ts";
-import type { HostLocator } from "./host-locator.ts";
-import type { UiMessage } from "./ui-message.ts";
 
-/** Owns the pending request and conversation Host, independently of active tabs and filters. */
-export function useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen, setError }: {
+/** Owns explicit file handoff independently of active tab changes. */
+export function useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen }: {
   assistantReturn: MutableRefObject<HTMLElement | null>;
   setAssistantOpen: (open: boolean) => void;
-  setError: (message: UiMessage) => void;
 }) {
-  const [referenceRequest, setReferenceRequest] = useState<HostLocator>();
-  const [assistantHost, setAssistantHost] = useState<string | undefined>(LOCAL_HOST_ID);
+  const [referenceRequest, setReferenceRequest] = useState<{ path: string }>();
 
-  function addToChat(locator: HostLocator, returnFocus: HTMLElement | null): void {
-    if (assistantHost && assistantHost !== locator.hostId) {
-      setError({ key: "Start a conversation on the file’s Host to reference it." });
-      return;
-    }
-    setAssistantHost(locator.hostId);
+  function addToChat(path: string, returnFocus: HTMLElement | null): void {
     assistantReturn.current = returnFocus;
-    setReferenceRequest({ ...locator });
+    setReferenceRequest({ path });
     setAssistantOpen(true);
   }
 
-  function consumeReference(request: HostLocator): void {
+  function consumeReference(request: { path: string }): void {
     // A late acknowledgement must not clear a newer request, even for the same path.
     setReferenceRequest(previous => previous === request ? undefined : previous);
   }
 
-  return { assistantHost, referenceRequest, addToChat, consumeReference };
+  return { referenceRequest, addToChat, consumeReference };
 }

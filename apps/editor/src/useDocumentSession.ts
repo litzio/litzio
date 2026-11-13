@@ -1,6 +1,7 @@
+import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { flushSync } from "react-dom";
 import type { HostClient } from "./host-client.ts";
-import { useHostClient, useHostId } from "./host-context.tsx";
+import { useHostClient } from "./host-context.tsx";
 import type { UiMessage } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
@@ -37,7 +38,7 @@ export type DocumentSessionSnapshot = {
 /** One document's state and operations. The shell owns the shared work-loss confirmation. */
 export function useDocumentSession(initial: DocumentFileResponse, restored?: Pick<DocumentSessionSnapshot, "editor" | "savedEdits">, recoveryId?: string, onAssetChange?: (documentPath: string, assetPath: string) => void, renameImage?: ImageRenamer, replaceFile?: (file: EditorFileResponse) => void) {
   const client = useHostClient();
-  const hostId = useHostId();
+  const hostId = LOCAL_HOST_ID;
   const { requestBibliography, requestDocument, requestSave, requestSource, validateFigure, cancelReads } = useMemo(() => createDocumentRequests(client), [client]);
   const renameRef = useRef(renameImage);
   renameRef.current = renameImage;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { FolderTrashConfirmation, FolderTrashResult } from "../../shared/file-operations.ts";
-import { getHostClient } from "../host-client.ts";
+import { type HostClient } from "../host-client.ts";
 import { useTranslation } from "react-i18next";
 import type { FolderEntry } from "../../shared/document-protocol.ts";
 import { validFileStem } from "../../shared/file-operations.ts";
@@ -10,11 +10,11 @@ import { DangerConfirmation } from "@/components/ui/danger-confirmation.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
 export type FileAction = "rename" | "delete";
-export type FileActionHandler = (action: FileAction, root: string, entry: FolderEntry, name?: string, folderConfirmation?: FolderTrashConfirmation) => Promise<string>;
+export type FileActionHandler = (action: FileAction, root: string, entry: FolderEntry, name?: string, folderConfirmation?: FolderTrashConfirmation, client?: HostClient) => Promise<string>;
 
-export function FileActionDialog({ action, entry, trash, dirty, root, hostId, returnFocus, onExecute, onClose }: {
+export function FileActionDialog({ action, entry, trash, dirty, root, client, returnFocus, onExecute, onClose }: {
   action: FileAction; entry: FolderEntry; trash: boolean; dirty: boolean;
-  root: string; hostId: string;
+  root: string; client: HostClient;
   returnFocus: RefObject<HTMLElement | null>; onExecute(name?: string, confirmation?: FolderTrashConfirmation): Promise<void>; onClose(): void;
 }) {
   const { t } = useTranslation();
@@ -30,14 +30,14 @@ export function FileActionDialog({ action, entry, trash, dirty, root, hostId, re
   useEffect(() => {
     if (!folder) return;
     let active = true;
-    void getHostClient(hostId).request("/api/folder-trash", { method: "POST", headers: { "Content-Type": "application/json" },
+    void client.request("/api/folder-trash", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ root, path: entry.path, checkOnly: true }) }).then(async response => {
       const result: FolderTrashResult = await response.json();
       if (!response.ok) throw new Error(result.error);
       if (active) setInspection(result);
     }).catch(cause => { if (active) setError(cause instanceof Error ? t(cause.message, { defaultValue: cause.message }) : String(cause)); });
     return () => { active = false; };
-  }, [folder, root, entry.path, hostId, t]);
+  }, [folder, root, entry.path, client, t]);
   const execute = async () => {
     if (pendingRef.current) return;
     const stem = extension.toLowerCase() === ".md" && name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
