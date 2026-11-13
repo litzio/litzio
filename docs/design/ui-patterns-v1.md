@@ -39,6 +39,14 @@ U ID와 파일·화면·캡처의 대응은 [사용처 지도][usage]를 재사�
 Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수식·표가 같은 진입을
 공유한다. Edit의 기존 첫 focus와 원문 진입은 유지한다.
 
+#1626 소유자 결정: 짧은 metadata 다섯 종류(그림·Mermaid·표·수식·절 label)의 동작 행은
+대상에 가까운 모서리로 통일한다. 위로 열리면 마지막, 아래로 열리면 첫 행이며 미리보기는
+반대쪽이다. Replace/Edit source와 Done을 한 행에 둔다. DOM·Tab 순서는 시각 순서와 같고
+기존 진입 focus·단축키·취소/완료 뒤 복귀를 유지한다. 방향 전환은 같은 필드를 이동하고
+필요하면 native focus·선택 범위를 복구한다. 미리보기 최대 크기로 방향만 미리 정하며 실제
+썸네일은 고정 높이 없이 원래 비율을 유지한다. 렌더 완료는 방향을 바꾸지 않고 scroll·resize·
+그룹 경계 변경은 다시 계산한다. [공통 계약·근거](figure-authoring-v1.md#stable-metadata-actions-1626).
+
 #1625의 Mermaid 원문 폼은 기존 `PropertyForm`·`MermaidPreview` 안에서 preview 높이를
 예약하고 큰 결과를 내부 스크롤로 본다. 비동기 렌더 완료가 Apply/Cancel·label·번호·caption을
 밀지 않으며 키보드 스크롤과 표준 클릭/제출을 유지한다. 원문의 본문 폭과 기존 위치는 그대로다.

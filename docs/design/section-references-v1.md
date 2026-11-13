@@ -32,6 +32,12 @@ Core's section rule already counts targets before a heading as part of that sect
 
 ## Editor
 
+#1626 shares the metadata action-edge rule with image, Mermaid, table and block Equation:
+Done is first below the heading and last above it. DOM/Tab order matches the visual order;
+scroll/resize/group side changes preserve draft fields, native focus and selection.
+Entry focus and Enter/shortcut/Escape completion/caret return retain their contracts.
+See [shared metadata actions](figure-authoring-v1.md#stable-metadata-actions-1626).
+
 - Section labels use the shared short metadata popover anchored to the complete following
   heading (#791), bounded by the document content viewport. Done applies; Escape cancels;
   a valid outside pointer click applies without stealing the clicked focus. Keyboard focus

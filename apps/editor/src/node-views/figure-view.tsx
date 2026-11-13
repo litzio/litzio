@@ -359,12 +359,10 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
         choosing={choosing}
         onApply={outside => void apply(false, !outside)}
         onCancel={cancel}
+        media={src && !imageFailed ? <div className="figure-property-thumbnail"><img crossOrigin={src.startsWith(client.url("/document/")) ? client.crossOrigin : undefined} src={src} alt="" /></div> : undefined}
+        actions={<Button ref={replaceButton} type="button" size="sm" variant="outline" disabled={validating || choosing}
+          data-testid="figure-replace" onClick={() => setReplacing(value => !value)}>{i18n.t("Replace")}</Button>}
       >
-        <div className="figure-property-media">
-          {src && !imageFailed ? <div className="figure-property-thumbnail"><img crossOrigin={src.startsWith(client.url("/document/")) ? client.crossOrigin : undefined} src={src} alt="" /></div> : null}
-          <Button ref={replaceButton} type="button" size="sm" variant="outline" disabled={validating || choosing}
-            data-testid="figure-replace" onClick={() => setReplacing(value => !value)}>{i18n.t("Replace")}</Button>
-        </div>
         {replacing ? chooseImage && documentPath ? (
           <div className="figure-image-field">
             {field("imageUrl", i18n.t("Image"), "figure-image-url")}
@@ -578,12 +576,10 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
     {view.editable && !editing && !properties ? <Button className="figure-edit" size="sm" variant="outline" aria-label={i18n.t("Edit figure")}
       contentEditable={false} onClick={beginEdit}>{i18n.t("Edit")}</Button> : null}
     <FigureProperties anchor={anchor} kind={kind} testId="mermaid-property" open={properties} error={errorField ? undefined : error} busy={busy}
-      onApply={outside => void apply(false, !outside)} onCancel={cancel}>
-      <div className="figure-property-media">
-        <div className="figure-property-thumbnail"><MermaidPreview source={applied.mermaidSource ?? ""} /></div>
-        <Button ref={sourceButton} type="button" size="sm" variant="outline" data-testid="mermaid-edit-source"
-          disabled={busy} onClick={() => void apply(true)}>{i18n.t("Edit source")}</Button>
-      </div>
+      onApply={outside => void apply(false, !outside)} onCancel={cancel}
+      media={<div className="figure-property-thumbnail"><MermaidPreview source={applied.mermaidSource ?? ""} /></div>}
+      actions={<Button ref={sourceButton} type="button" size="sm" variant="outline" data-testid="mermaid-edit-source"
+        disabled={busy} onClick={() => void apply(true)}>{i18n.t("Edit source")}</Button>}>
       <div className="figure-property-columns">
         <div className="form-field"><label className="form-label" htmlFor={`${formId}-label`}>{i18n.t("Label")}</label>
           <Input ref={labelInput} id={`${formId}-label`} aria-invalid={!!error && errorField === "label" || undefined}

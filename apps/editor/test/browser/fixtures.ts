@@ -44,6 +44,25 @@ const technical = [document("technical-document.md"), document("diagram.svg")];
 
 /** Scratch directory under `tmp/` → the files a fresh copy holds, and the scenarios using it. */
 export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: string[] }> = {
+  "metadata-popover": {
+    files: [document("diagram.svg"),
+      { name: "first.md", create: () => nativeSource(":::{figure}\n\n```{mermaid}\ngraph LR\n A[First block] --> B[Preview]\n```\n\nFirst caption.\n:::\n") },
+      { name: "last.md", create: () => nativeSource(Array.from({ length: 30 }, (_, i) => `Context ${i + 1}.`).join("\n\n") + "\n\n:::{figure} ./portrait.svg\n\nLast caption.\n:::\n") },
+      { name: "portrait.svg", create: () => '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="240" viewBox="0 0 120 240"><rect x="4" y="4" width="112" height="232" fill="none" stroke="black"/><text x="10" y="120">Preview</text></svg>' },
+      { name: "cold.md", create: () => {
+        const context = Array.from({ length: 16 }, (_, i) => `Context ${i + 1}.`).join("\n\n");
+        return nativeSource(`# Cold media\n\n${context}\n\n:::{figure} ./portrait.svg\n\nPortrait caption.\n:::\n\n${context}\n\n` +
+          ":::{figure}\n\n```{mermaid}\ngraph TD\n A[Metadata input stage] --> B[Metadata output stage]\n```\n\nMermaid caption.\n:::\n\n" + context + "\n");
+      } }, { name: "properties.md", create: () => {
+      const context = Array.from({ length: 16 }, (_, i) => `Context paragraph ${i + 1}.`).join("\n\n");
+      return nativeSource(`# Property placement\n\n${context}\n\n` +
+        ":::{figure} ./diagram.svg\n:name: placement-image\n\nImage caption.\n:::\n\n" + context + "\n\n" +
+        ":::{figure}\n:name: placement-mermaid\n\n```{mermaid}\ngraph LR\n A[Input] --> B[Output]\n```\n\nDiagram caption.\n:::\n\n" + context + "\n\n" +
+        ":::{table} Values\n:name: placement-table\n\n| Name |\n| --- |\n| Value |\n:::\n\n" + context + "\n\n" +
+        "```{math}\n:label: placement-equation\n\nx=1\n```\n\n" + context + "\n\n" +
+        "(placement-section)=\n\n## Section\n\n" + context + "\n");
+    } }], scenarios: ["metadata-popover"],
+  },
   "app-reset": { files: [{ name: "document.md", create: () => nativeSource("# Reset fixture\n\nLocal pending work.\n") }], scenarios: ["app-reset"] },
   "read-view": { files: [
     { name: "heading-levels.md", create: () => "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n" + Array.from({ length: 6 }, (_, i) =>

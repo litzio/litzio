@@ -190,8 +190,8 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
       {/* End the metadata field's ref lifetime before the source field takes ownership. */}
       {!editing ? <MetadataProperties anchor={anchor} target={() => anchor.current?.closest('[data-block="equation"]') ?? null}
         initialFocus={labelInput} kind={kind} testId="equation-property" open={properties}
-        onApply={outside => apply(false, !outside)} onCancel={cancel}>
-        <Button type="button" size="sm" variant="outline" data-testid="equation-edit-source" onClick={() => apply(true)}>{i18n.t("Edit source")}</Button>
+        onApply={outside => apply(false, !outside)} onCancel={cancel}
+        actions={<Button type="button" size="sm" variant="outline" data-testid="equation-edit-source" onClick={() => apply(true)}>{i18n.t("Edit source")}</Button>}>
         <div className="figure-property-columns">
           <div className="form-field">
             <label className="form-label" htmlFor={`${formId}-property-label`}>{i18n.t("Label")}</label>

@@ -6,6 +6,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 짧은 속성 팝오버의 preview가 늦게 완성된다 (#1626) | 기존 대상 부착 metadata | MetadataProperties·Base UI·기존 compact Button/토큰 | 대상 가까운 동작 행에 매체 동작+Done, 반대쪽 intrinsic preview; 최대 크기로 방향 선택, 렌더만으로 flip하지 않음 | 그림·Mermaid·표·수식·절 label, [공통 계약](figure-authoring-v1.md#stable-metadata-actions-1626) | DOM/Tab은 시각 순서. 고정 preview 틀·pointerdown 제출 없음. 긴 원문은 기존 별도 폼 |
 | Mermaid 원문 preview가 비동기로 완성된다 (#1625) | 기존 본문 폭 원문 폼 | PropertyForm·MermaidPreview·기존 토큰, native overflow/keyboard scroll | preview 높이를 예약해 표준 Apply 클릭과 뒤 caption 위치 유지 | [Mermaid Editor](figure-authoring-v1.md#mermaid-editor) | 작은 metadata 썸네일은 기존 intrinsic-ratio/no-letterbox 유지. 새 표면·클릭 우회 없음 |
 | 플러그인 화면 안에서 저장본을 읽고 위치를 확인한다 (#1592) | 화면 소유의 내부 스크롤 영역 | ui.DocumentView + 기존 DocumentEditor readOnly/preview, paper·accent·Notice | 같은 Host/열린 폴더, 명시 다시 읽기, revision이 같은 블록·개별 표 셀 이동/강조. 배치·폭 변화를 따라가되 사용자 스크롤 뒤에는 멈춤 | UI gallery → Document view; [화면 계약](plugin-screens-v1.md#읽기-전용-문서-보기) | 새 editor/세션/검수 틀 없음. 폭·원문 배치는 플러그인 소유 |
 | 플러그인 화면에서 경로 선택·기존 문서 열기 (#1592) | 기존 FolderDialog·일반 문서 탭 | FolderDialog의 PDF/폴더/.md 선택·기존 openFile·Button/Input | 고정 client·열린 폴더 소속·취소·미저장 보호, 생성 receipt와 opening 결과 구분 | UI gallery → Screen parts → Screen path selection; [화면 계약](plugin-screens-v1.md#파일폴더-선택과-문서-열기) | 새 색/대화/창 상태 API 없음. 폴더 열기와 선택 분리 |

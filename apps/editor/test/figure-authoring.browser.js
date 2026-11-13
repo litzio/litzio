@@ -241,7 +241,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
               maxWidth:parseFloat(imageStyle.maxWidth),maxHeight:parseFloat(imageStyle.maxHeight),
               background:getComputedStyle(box).backgroundColor,
               fits:i.left>=b.left && i.right<=b.right && i.top>=b.top && i.bottom<=b.bottom,
-              offset:center(b)-center(el.querySelector('[data-testid="figure-replace"]').getBoundingClientRect())},
+              offset:center(el.querySelector('[data-testid="figure-apply"]').getBoundingClientRect())-center(el.querySelector('[data-testid="figure-replace"]').getBoundingClientRect())},
             disclosure:el.querySelector('summary svg')?.tagName,
             padding:[style.paddingTop,style.paddingRight,style.paddingBottom,style.paddingLeft],
           };
@@ -266,12 +266,13 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
         const closedGap=await popup.evaluate(el => {
           const summary=el.querySelector('summary'), r=summary.getBoundingClientRect();
           const labelBottom=r.top+(r.height+parseFloat(getComputedStyle(summary).lineHeight))/2;
-          return el.querySelector('.form-actions').getBoundingClientRect().top-labelBottom;
+          const next=el.querySelector(el.dataset.side==='top'?'.form-actions':'.metadata-property-media');
+          return next.getBoundingClientRect().top-labelBottom;
         });
         await popup.locator('summary').click();
-        const openGap=await popup.evaluate(el => el.querySelector('.form-actions').getBoundingClientRect().top-
+        const openGap=await popup.evaluate(el => el.querySelector(el.dataset.side==='top'?'.form-actions':'.metadata-property-media').getBoundingClientRect().top-
           el.querySelector('[data-testid="figure-file-name"]').getBoundingClientRect().bottom);
-        expect(Math.abs(openGap-closedGap), 'Expanded filename and collapsed disclosure have equal visible clearance before Done').toBeLessThanOrEqual(1);
+        expect(Math.abs(openGap-closedGap), 'Expanded filename and collapsed disclosure have equal visible clearance before the next row').toBeLessThanOrEqual(1);
         await popup.locator('summary').click();
         // Revealing the third Number row must not stretch the neighboring Label field.
         const labelHeight=await page.getByTestId('figure-label').evaluate(el => el.getBoundingClientRect().height);

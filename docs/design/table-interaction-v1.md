@@ -106,6 +106,12 @@ Cells and the directly editable caption keep ordinary text selection and navigat
 Save includes only applied content; keyboard Save retains metadata drafts.
 See [Continuous editing](document-editing-v1.md#continuous-editing).
 
+#1626 uses the shared metadata action edge: Done is first when the popup is below the table,
+last when above. DOM/Tab order matches that placement; existing entry focus, Enter/shortcut,
+Escape and caret return remain. Scroll/resize/group changes can choose a new side while
+retaining the same draft field, focus and native selection.
+See [shared actions](figure-authoring-v1.md#stable-metadata-actions-1626).
+
 ## Whole-table tools (#793)
 
 Edit and More occupy the upper metadata row, outside `.table-scroll`. Edit uses Figure's

@@ -7,6 +7,14 @@
 
 변경 유형별 로컬 최소 검증과 CI에 맡길 범위는 [CONTRIBUTING](../../CONTRIBUTING.md#verification-matrix)을 따른다. 관련 패키지 테스트·browser 시나리오 지정 실행을 우선하며, 영향 범위가 여러 계층에 걸치는 경우가 아니면 전체 `pnpm test`·전체 `pnpm browser:test`는 로컬 필수가 아니다. PR의 필수 CI 통과와 실제 Save → Reload·Visual Before/After 등 고유 위험 검증은 유지한다.
 
+`metadata-popover`는 #1626 공통 속성 팝오버의 고유한 배치 위험을 보호한다. 실제 Mermaid 결과와
+첫 cold 썸네일 응답·decode를 mouse down/up 사이에 완료시키며, 두 방향·1440/640에서
+Edit source/Replace/Done 한 번의 클릭과 위치를 확인한다. 다섯 종류의 DOM/Tab 순서,
+방향 전환 뒤 같은 필드·focus·선택 범위, resize/그룹 경계와 긴 오류/Advanced의 스크롤을 검증한다.
+문서 의미·저장 재실행을 복제하지 않으며 기존 figure/mermaid/property-drafts 등이 계속 보호한다.
+촬영은 별도 수동 [capture script](../design/assets/metadata-popover-1626/capture.browser.js)의
+`metadata-popover-capture --screenshots`로만 한다. 이 이름은 stable CI 목록에 들어가지 않는다.
+
 Last verified: 2026-10-29 (CI execution-policy/quality/scripts tests, browser fixture/shard unit checks, targeted Core parser/quote/patch tests and docs checks; no browser or Desktop execution).
 
 브랜드 기본값과 대체 브랜드 CI는 [패키저 안내](../guides/branding.md)를 따른다. #859 이전 공개 Beta는 옛 식별자이며 새 Litzio 빌드로의 업데이트·데이터 이전 대상이 아니다. 실제 GitHub 업데이트 검증에는 같은 새 브랜드의 공개 버전 두 개가 필요하다.
