@@ -1,4 +1,3 @@
-import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { getHostClient, type HostClient } from "./host-client.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import type { FigureContent } from "@litzio/core";
@@ -166,13 +165,13 @@ export function createDocumentRequests(client: HostClient) {
 export function requestDocument(method: "PUT", filePath: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }): Promise<DocumentFileResponse>;
 export function requestDocument(method: "GET", filePath?: string, bibliographyRoot?: string): Promise<DocumentResponse | DocumentStartResponse>;
 export function requestDocument(method: "GET" | "PUT", filePath?: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }) {
-  const requests = createDocumentRequests(getHostClient(LOCAL_HOST_ID));
+  const requests = createDocumentRequests(getHostClient());
   return method === "GET" ? requests.requestDocument(method, filePath, bibliographyRoot) : requests.requestDocument(method, filePath!, bibliographyRoot, template);
 }
-export const requestBibliography = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestBibliography"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).requestBibliography(...args);
-export const requestSave = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSave"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).requestSave(...args);
-export const requestSource = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSource"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).requestSource(...args);
-export const validateFigure = (...args: Parameters<ReturnType<typeof createDocumentRequests>["validateFigure"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).validateFigure(...args);
+export const requestBibliography = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestBibliography"]>) => createDocumentRequests(getHostClient()).requestBibliography(...args);
+export const requestSave = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSave"]>) => createDocumentRequests(getHostClient()).requestSave(...args);
+export const requestSource = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSource"]>) => createDocumentRequests(getHostClient()).requestSource(...args);
+export const validateFigure = (...args: Parameters<ReturnType<typeof createDocumentRequests>["validateFigure"]>) => createDocumentRequests(getHostClient()).validateFigure(...args);
 
 
 export function messageOf(cause: unknown): string {

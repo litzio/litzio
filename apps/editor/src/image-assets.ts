@@ -1,4 +1,3 @@
-import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { getHostClient, type HostClient } from "./host-client.ts";
 import { Extension } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
@@ -14,7 +13,7 @@ type AssetHost = {
   create(file: File, documentPath: string, source: "paste" | "drop"): Promise<AssetResponse>;
   rollback(created: AssetResponse, documentPath: string): Promise<void>;
 };
-type Options = { documentPath: string | (() => string); reject(reason: string): void; pending?(active: boolean): void; changed?(path: string): void; host?: AssetHost; hostId?: string; hasActiveDraft?(sourcePath: string): boolean };
+type Options = { documentPath: string | (() => string); reject(reason: string): void; pending?(active: boolean): void; changed?(path: string): void; host?: AssetHost; hasActiveDraft?(sourcePath: string): boolean };
 
 export function createAssetHost(client: HostClient): AssetHost { return {
   async create(file, documentPath, source) {
@@ -43,7 +42,7 @@ export function createAssetHost(client: HostClient): AssetHost { return {
 }; }
 
 /** Links an image chosen on the Host, or copies it into assets/ with a rollback receipt. */
-export async function chooseHostImage(documentPath: string, source: string, client = getHostClient(LOCAL_HOST_ID)): Promise<ImageChoiceResponse> {
+export async function chooseHostImage(documentPath: string, source: string, client = getHostClient()): Promise<ImageChoiceResponse> {
   const response = await client.request(`/api/asset`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath, source } satisfies ImageChoiceRequest),
   });
@@ -52,13 +51,13 @@ export async function chooseHostImage(documentPath: string, source: string, clie
   return { path: body.path, ...(typeof body.rollbackToken === "string" ? { rollbackToken: body.rollbackToken } : {}) };
 }
 
-export const rollbackAsset = (created: AssetResponse, documentPath: string, client = getHostClient(LOCAL_HOST_ID)) => createAssetHost(client).rollback(created, documentPath);
+export const rollbackAsset = (created: AssetResponse, documentPath: string, client = getHostClient()) => createAssetHost(client).rollback(created, documentPath);
 
 /** Upload state lives only in the engine plugin; mapped positions are never persistent IDs. */
 export function imageAssetsPlugin(options: Options): Plugin {
   type Pending = { anchor: number | null; selectionMoved: boolean; emptyFigure?: ProseMirrorNode } | null;
   const key = new PluginKey<Pending>("imageAsset");
-  const host = options.host ?? createAssetHost(getHostClient(options.hostId ?? LOCAL_HOST_ID));
+  const host = options.host ?? createAssetHost(getHostClient());
   let uploading = false, destroyed = false;
   const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 

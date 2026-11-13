@@ -13,3 +13,8 @@ export function isHostLocator(value: unknown): value is HostLocator {
   return !!locator && typeof locator.hostId === "string" && locator.hostId.length > 0 &&
     typeof locator.path === "string" && locator.path.length > 0;
 }
+
+/** Retained storage identities are never reinterpreted as the local connection. */
+export function assertLocalHost(hostId: string): void {
+  if (hostId !== LOCAL_HOST_ID) throw new Error(`Unavailable Host: ${hostId}`);
+}

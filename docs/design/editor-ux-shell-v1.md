@@ -2258,7 +2258,7 @@ along with workspace typecheck and documentation checks.
 
 ## Multiple Host shell (#1174 PR4)
 
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지하며, 저장·복구의 hostId·키·레코드는 PR 3까지 local 형식 그대로 둔다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
 탐색기는 로컬 폴더만 표시하며 Host 필터/선택기는 없다. 비서는 로컬 대화로 바로 들어가고 템플릿·플러그인 화면에도 Host 드롭다운이 없다. 단일 Host의 탭/경로·활성 대상과 caption·Local 라벨은 이번 PR에서 유지한다. 기존 Sidebar·Settings·AssistantPanel 배치와 공통 control을 재사용하며 새로운 표면이나 예외 스타일은 없다.
 
@@ -2278,11 +2278,11 @@ along with workspace typecheck and documentation checks.
 
 ## 활성 Host 실행 계정 (#1199)
 
-사이드바 맨 아래 한 줄은 현재 활성 문서 탭의 Host 라벨과 실행 계정을 함께 표시한다(예: `workstation · DOMAIN\user`). 문서 탭이 없으면 로컬 Host를 기준으로 한다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. Host 선택기는 제공하지 않는다.
+사이드바 맨 아래 한 줄은 단일 연결의 상태와 실행 계정을 표시한다. 여러 Host의 라벨·Local 탭 배지는 표시하지 않는다. 관측 대상은 같은 PC의 로컬 Host다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. Host 선택기는 제공하지 않는다.
 
 Desktop의 로컬 Host 상태도  관측 완료 5초 뒤 읽기 전용 health/capability 검사를 반복한다(#1487). 시작 시 한 번 실패한 관측이 계속 남지 않으며, 다음 성공에서 상태·실행 계정을 복원한다. 첫 실패의 닿지 않음/이유 표시는 유지한다. daemon 탐색·spawn·수동 다시 연결과 별개의 상태 관측이며 상세 계약은 [Desktop distribution](desktop-distribution-v1.md)을 따른다.
 
-공통 HostStatus 상태 점·Tooltip과 기존 control 높이·간격·문자색 토큰을 사용한다. 연결된 Host의 `identity.runAs`만 표시하며 연결되지 않거나 계정이 없는 Host는 상태만 표시한다. 축소된 사이드바에서는 상태 점과 툴팁을 사용한다. 전체 Host 라벨·실행 계정과 설명은 툴팁으로 제공한다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 접속자 신원은 제공하지 않는다.
+공통 HostStatus 상태 점·Tooltip과 기존 control 높이·간격·문자색 토큰을 사용한다. 연결된 Host의 `identity.runAs`만 표시하며 연결되지 않거나 계정이 없는 Host는 상태만 표시한다. 축소된 사이드바에서는 상태 점과 툴팁을 사용한다. 백그라운드 서비스·실행 계정과 설명은 툴팁으로 제공한다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 접속자 신원은 제공하지 않는다.
 
 640px 이상에서 한 줄 말줄임을 사용하며 전체 계정은 키보드 focus/hover 툴팁으로 확인한다. 공통 구현은 HostStatus/Tooltip이며 별도 아이콘·팔레트·상호작용 예외는 없다.
 
@@ -2318,3 +2318,11 @@ Upstream viewer CSS is scoped to the PDF viewer to avoid changing the app shell.
 ### 검수 대조 문서 편집 (#1533)
 
 검수 작업공간의 문서 쪽은 기존 DocumentEditor와 compact Button을 재사용한 Edit/Save/Cancel을 제공한다. Save 단축키는 Ctrl+S이며 편집기 Undo/Redo를 사용한다. 미저장 편집 중 닫기와 비교 새로고침·검수 기록 변경은 기존 pending 보호로 막고, 저장 실패는 초안을 유지한 채 Notice로 표시한다. 별도 승인 단계는 없다. [저장·대응·기록 수준 Undo와 화면 캡처](docling-review-stage3.md#검수-정본-직접-편집--1533)를 따른다.
+
+## 단일 연결 화면 확인 (#1595 PR 2)
+
+연결 ID 선택·갤러리 대상·원격 opener/control·Host 라벨 배지를 제거했다. 문서·PDF·화면 탭의 id/key는 유지해 열린 편집기의 초안과 history를 remount로 잃지 않는다. 비서·템플릿·폴더의 일반 동작은 같은 client 경계와 공용 부품을 사용한다. 새 UI 부품이나 상호작용 예외는 없다.
+
+1440px 라이트의 [변경 전](assets/assistant-screen-removal/after-1440-light.png)은 #1612에서 캡처한 동일 baseline 화면이며 [변경 후](assets/single-host-connection/after-1440-light.png)는 이번 시나리오 실행으로 확인한다.
+
+같은 `local-host --screenshots` 실행에서 [탐색기](assets/single-host-connection/after-explorer.png)·[설정](assets/single-host-connection/after-settings.png)·[비서](assets/single-host-connection/after-assistant.png)를 확인했다. 실행 계정은 합성 fixture 값이며 실제 계정 정보는 캡처하지 않았다.

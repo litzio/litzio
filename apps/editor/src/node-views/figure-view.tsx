@@ -1,5 +1,4 @@
 import { useHostClient } from "../host-context.tsx";
-import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { getHostClient } from "../host-client.ts";
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
@@ -602,7 +601,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
   </NodeViewWrapper>;
 }
 
-export function resolveFigureSource(imageUrl: string, documentPath?: string | (() => string), client = getHostClient(LOCAL_HOST_ID)): string {
+export function resolveFigureSource(imageUrl: string, documentPath?: string | (() => string), client = getHostClient()): string {
   // Host-owned review identities are not browser URLs; only the verified context resolves them.
   if (imageUrl.startsWith("review-asset:")) return "";
   const locator = typeof documentPath === "function" ? documentPath() : documentPath;
