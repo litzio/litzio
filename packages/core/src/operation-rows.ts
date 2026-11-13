@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const OPERATION_ROW_LIMIT = 2000;
 const label = z.string().min(1).max(160).refine(v => !/[<>\u0000-\u001f]|(?:https?:|javascript:|data:)/i.test(v), "Plain label required");
-export const rowSchema = z.record(z.string().max(80).regex(/^[a-zA-Z][a-zA-Z0-9_]*$/).refine(name => name !== "group" && name !== "value", "Reserved output field"), z.strictObject({
+export const rowSchema = z.record(z.string().max(80).regex(/^[a-zA-Z][a-zA-Z0-9_]*$/).refine(name => name !== "group" && name !== "value", "Reserved output field: group and value are reserved; rename the field to a descriptive name such as amount"), z.strictObject({
   type: z.enum(["string", "number", "boolean"]), label,
   hidden: z.boolean().optional(),
   linkField: z.string().min(1).max(80).optional(),
