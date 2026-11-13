@@ -1,22 +1,11 @@
 import { hostPaths } from "./host-paths.ts";
 import { mkdirSync, writeFileSync, lstatSync, readlinkSync, unlinkSync, symlinkSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { brand } from "../../../brand.ts";
-import type { HostRun } from "./host-paths.ts";
 
-export type AssistantCli = { bin: string; args: string[] };
-declare const __LITZIO_CLI_BUILD__: unknown;
-
-/** Known Host build locations, never a PATH lookup for a potentially different installation. */
-export function hostCli(run: HostRun = {}): AssistantCli {
-  if (run.cli) return run.cli;
-  if (typeof __LITZIO_CLI_BUILD__ !== "undefined") return { bin: process.execPath, args: [fileURLToPath(new URL("./cli.mjs", import.meta.url))] };
-  const root = run.checkoutRoot ?? fileURLToPath(new URL("../../../", import.meta.url));
-  return { bin: process.execPath, args: ["--import", pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href, path.join(root, "packages/cli/src/cli.ts")] };
-}
+export { hostCli, type HostCli as AssistantCli } from "./host-cli.ts";
+import type { HostCli as AssistantCli } from "./host-cli.ts";
 
 /** Private launch shim: no registry, user/system PATH or optional Desktop integration changes. */
 export function assistantCliEnvironment(cwd: string, cli: AssistantCli, inherited: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
