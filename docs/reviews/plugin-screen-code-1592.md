@@ -126,3 +126,39 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 최종 로컬 Windows 실제 packaged 검사에서는 설치 3.041초(root manifest 1.104초·unpack 1.003초 포함), Host 기동 1.189초, 첫 dependencies 4.515초(그 안의 npm cache 준비 3.370초), bundle 0.119초, 전체 14.890초로 통과했다. 로컬 값은 자료 폴더 보존으로 정리 시간을 제외한다. 외부 라이브러리를 처음 만드는 사람은 일회성 추출 비용을 뒤로 미루어 지불하지만, 모든 사용자의 CLI·Desktop 설치에서는 npm의 1,976파일을 개별 설치하지 않는다. archive 압축 byte 수 자체를 크게 줄였다는 주장은 아니다.
 
 첫 구현 시험에서는 pnpm의 hardlink 원본을 tar로 바로 묶을 때 일부 entry가 잘못 기록되어 실패했다. 원래 build가 하던 복사를 먼저 수행한 뒤 독립 파일의 복사본을 압축하도록 고치고, 실제 offline dependencies/bundle을 다시 통과했다. 완료 캐시는 임시 폴더의 완전 추출 후 rename으로만 게시한다. 단위 검사는 동시 요청·재사용·중단 흔적·불완전 archive와 새 archive를 확인한다. OS 프로세스 강제 중단이나 패키지된 Desktop 자체의 로컬 시험을 추가로 수행했다는 뜻은 아니다. 압축 배포 head의 Windows CI 결과는 PR 후속 검증에 남긴다.
+
+## 2-3 — 화면 부품과 디자인 안내
+
+2026-11-13, 격리된 빌드 HTTP Host와 합성 CSV(time/value, 10·18·12·24·16), Codex **gpt-6.1-terra high**, full-access로 실행했다. 기존 계정·공급자를 유지했다. 총 **3턴**, 방법·부품 이름을 알려 주지 않았고 앱/SDK 소스를 읽은 도구 기록은 없다. 비서는 매번 화면을 직접 보지 못했다고 명시했다. 아래 화면·조작 판정은 시험자가 별도로 수행했다. 설치된 앱·기존 daemon·사용자 데이터는 사용하지 않았다.
+
+| 턴 | 과제 문장 | 초 | 결과 / 스스로 선택한 부품 | 파일·줄 |
+| --- | --- | ---: | --- | --- |
+| 1 새 대화 | 이 폴더의 CSV 측정값을 시간에 따른 그래프로 보여 주는 플러그인을 만들어 줘. 기준선 15도 표시해 줘. | 55.118 | 설치·5행·기준선 성공. Chart, Toolbar, SummaryCard, ScreenLayout, Button, DataTable | 3파일 41줄: host 23, 신분증 7, 화면 11 |
+| 2 같은 대화 | 구간을 골라 확대하고 마우스를 올리면 값이 표시되게 해 줘. | 26.105 | Slider 추가, Chart 유지. 키보드 구간 조작 뒤 5→4행·값 tooltip 확인 | 3파일 45줄: host 23, 신분증 7, 화면 15 |
+| 3 새 대화 | 이 폴더의 CSV 측정값을 필터와 합계 카드가 있는 표로 보여 주는 플러그인을 만들어 줘. | 56.020 | Toolbar, SummaryCard, ScreenLayout, Input, Button, DataTable. 5건 합계80, 최솟값15 → 3건 합계58, 최댓값1 → 범위 오류 확인 | 3파일 48줄: host 26, 신분증 4, 화면 18 |
+
+줄 수는 빈 줄 포함·마지막 개행 제외다. 첫 턴 화면은 후속 편집 뒤 첫 턴 도구 기록의 원문 JSX를 그대로 복원·재설치해 촬영했다. 화면을 꾸미거나 수정하지 않았다. 후속 원문은 별도 보존했다. 직접 SVG나 기본 range를 만든 사례는 이번 3턴에는 없다.
+
+### 1440px 전후 비교와 자체 점검
+
+| 화면 | 2단계 기준 캡처 | 2-3 라이트 | 2-3 다크 |
+| --- | --- | --- | --- |
+| 생성·기준선15 | ![전](../design/assets/plugin-screen-code-1592/stage2-first15.png) | ![후](../design/assets/plugin-screen-code-1592/stage2-3-first-light.png) | ![다크](../design/assets/plugin-screen-code-1592/stage2-3-first-dark.png) |
+| 구간·hover | ![이전 상호작용](../design/assets/plugin-screen-code-1592/interactive-light.png) | ![후](../design/assets/plugin-screen-code-1592/stage2-3-interactive-light.png) | ![다크](../design/assets/plugin-screen-code-1592/stage2-3-interactive-dark.png) |
+| 필터·합계 표 | ![전](../design/assets/plugin-screen-code-1592/stage2-table.png) | ![후](../design/assets/plugin-screen-code-1592/stage2-3-table-light.png) | ![다크](../design/assets/plugin-screen-code-1592/stage2-3-table-dark.png) |
+
+6장 각각 시작선·간격·잘림/겹침·위계·대비·버튼 폭을 직접 확인했다. 제목·본문·도구 줄 시작선이 맞고 버튼은 내용 폭이다. 그래프 흰 배경 상자는 없어졌으며 축·값·기준선이 양 테마 토큰을 따른다. 슬라이더는 Base UI의 토큰 외형이다. 새 합계 카드는 subtle border다. 개인 경로·계정 영역은 촬영 시 mask했다.
+
+남은 한계도 보존한다. 표 컨테이너는 전체 폭이지만 기존 DataTable의 두 열은 여전히 왼쪽에 모인다. 표 화면의 설명 길이가 다른 두 요약 카드는 높이가 다르고 중앙 정렬된다. 긴 UTC 축 문자열은 간격에 따라 일부 tick이 생략된다. 라이트의 subtle 경계는 매우 약하다. 빈 그래프와 오류·disabled는 갤러리에서, 실제 표의 범위 오류는 조작으로 확인했다. 실제 CSV 읽기 실패와 모든 값 조합을 시험했다는 뜻은 아니다. 소유자의 시각 승인은 별도다.
+
+### 정한 것과 이유
+
+직접 SVG와 Recharts 3.10.1을 비교했다. 동일 esbuild minify/ESM·React external 조건으로 사용하는 Recharts exports는 **396,114 bytes / gzip 115,576 bytes**였다. 최소 정적 polyline 비교는 158/144 bytes로 훨씬 작지만 축·반응형·hover·키보드 값 탐색이 전혀 없는 하한이며 동등 기능 비교가 아니다. 직접 구현은 이 상호작용·접근성·음수/기준선 범위 처리를 계속 소유해야 하므로 라이브러리를 택했다. [Recharts 접근성](https://github.com/recharts/recharts/wiki/Recharts-and-accessibility)의 application/화살표 탐색을 사용하고 Base UI는 이미 설치된 [Slider](https://base-ui.com/react/components/slider)를 재사용한다. 수치/구간 상태는 React 화면 수명만 따르며 새 Host 상태·확장 지점·디자인 강제는 없다. 특수 차트·자체 SVG는 계속 허용한다.
+
+### 검증과 실패 기록
+
+- Editor·SDK 타입 검사, 토큰 검사, docs 검사 통과. 기존 Host 테스트의 authoring/screen/install 5개 통과. 공용 props는 SDK 타입, client 이름 집합은 SCREEN_UI 키로 검사한다.
+- persistent profile의 production plugin-screen-code + HTTP 복구(2개), UI gallery(단일/구간 키보드·line/bar·tooltip·empty) 통과. 갤러리는 Vite ResizeObserver 알림이 있었으나 runner 판정은 통과했다.
+- 첫 단위 테스트 호출은 저장소 루트에서 실행해 상대 cwd를 기대하는 기존 Docling/Jira 2개가 실패했다(55/57 통과). 올바른 Editor cwd에서 변경 영역 5개를 다시 통과했다. 무관한 전체 suite 성공으로 보고하지 않는다.
+- 브라우저 HTTP와 Vite를 한 호출로 지정한 첫 시도는 runner가 거부했다. 수동 촬영 harness 첫 두 시도는 VM에 URL 전역이 없음, catalog에 GET을 사용해 405 빈 응답을 JSON으로 읽은 문제로 실패했다. 실제 POST catalog 계약으로 고친 뒤 촬영·조작이 통과했다. 촬영 전용 순회는 CI에 추가하지 않았다.
+- 실제 외부 서비스·원격 PC·패키지된 Desktop·640px 실제 생성 화면·스크린리더 청취·많은 점/긴 문자열은 미확인이다. 문서 저장은 병행 2-4 범위이며 이 변경은 invoke 수명·취소·출력 계약을 바꾸지 않는다. 직접 시작한 격리 Host·browser runner는 종료했고 임시 시험 자료는 보존했다.

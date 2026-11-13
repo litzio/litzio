@@ -23,29 +23,18 @@ export function authoringTemplate(id: string, template: "query" | "file" | "scre
     dispose() {},
   };
 }\n`,
-    screen: template === "screen" ? `export default function Screen({React, ui, invoke}) {
-  const [result,setResult] = React.useState(null), [error,setError] = React.useState("");
-  const load = () => invoke("measurements").then(setResult).catch(e=>setError(e.message));
-  return (
-    <section style={{display:"grid",gap:"var(--space-4)"}}>
-      <ui.Button onClick={load}>불러오기</ui.Button>
-      {error && <ui.Notice tone="error">{error}</ui.Notice>}
-      <pre>{JSON.stringify(result)}</pre>
-    </section>
-  );
-}\n` : `export default function Screen({React, ui, invoke}) {
-  const [values,setValues] = React.useState([]), [limit,setLimit] = React.useState(15), [error,setError] = React.useState("");
-  const points = values.map((y,i)=>[20+i*100,180-y*5]);
-  return <section style={{display:"grid",gap:"var(--space-4)"}}>
-    <label>기준선<ui.Input type="number" value={limit} onChange={e=>setLimit(Number(e.target.value))}/></label>
-    <ui.Button onClick={()=>invoke("measurements").then(setValues).catch(e=>setError(e.message))}>불러오기</ui.Button>
+    screen: `export default function Screen({React, ui, invoke}) {
+  const [values,setValues] = React.useState([]), [error,setError] = React.useState("");
+  const rows = values.map((value,time)=>({time,value}));
+  return <ui.ScreenLayout description="시간에 따른 측정값">
+    <ui.Toolbar>
+      <ui.Button onClick={()=>invoke("measurements").then(setValues).catch(e=>setError(e.message))}>불러오기</ui.Button>
+      <ui.SummaryCard label="합계" value={values.reduce((a,b)=>a+b,0)}/>
+    </ui.Toolbar>
     {error && <ui.Notice tone="error">{error}</ui.Notice>}
-    <svg viewBox="0 0 360 200" role="img" aria-label="시간에 따른 측정값" style={{width:"100%",maxHeight:400}}>
-      <line x1="0" x2="360" y1={180-limit*5} y2={180-limit*5} stroke="var(--id-color-text-muted)" strokeDasharray="4 4"/>
-      <polyline points={points.map(p=>p.join(",")).join(" ")} fill="none" stroke="var(--id-color-accent)"/>
-      {points.map(([x,y],i)=><circle key={i} cx={x} cy={y} r="4" fill={values[i]>limit?"var(--id-color-danger)":"var(--id-color-accent)"}/>)}
-    </svg>
-  </section>;
+    <ui.Chart title="측정값" data={rows} xKey="time" yKey="value" baseline={15}/>
+    <ui.DataTable title="측정값" rows={rows} columns={["time","value"]} fields={{value:{type:"number"}}}/>
+  </ui.ScreenLayout>;
 }\n`,
   };
   if (template === "query") {

@@ -1,11 +1,8 @@
 import * as ReactDOM from "react-dom";
 import * as React from "react";
-import { Button } from "../components/ui/button.tsx";
-import { Input } from "../components/ui/input.tsx";
-import { DataTable } from "../components/DataTable.tsx";
+import { screenUI as ui } from "./screen-ui.ts";
 import { Notice } from "../ui/primitives.tsx";
 import type { HostClient } from "../host-client.ts";
-const ui = { Button, Input, DataTable, Notice };
 type ScreenProps = { React: typeof React; ui: typeof ui; invoke(operation: string, input?: unknown): Promise<unknown> };
 export class ScreenBoundary extends React.Component<{ children: React.ReactNode; resetKey?: string; closing?: boolean }, { error?: Error }> {
   state: { error?: Error } = {};
