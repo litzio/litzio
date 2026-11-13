@@ -18,11 +18,17 @@ const operation = z.strictObject({ id, version: z.number().int().positive().defa
 const skill = z.strictObject({id:z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/),directory:z.string().min(1).refine(v=>!/[\\:\x00?#]/.test(v)&&v.split("/").every(p=>!!p&&p!=="."&&p!==".."),"Skill directory must stay inside package")});
 const secret = z.strictObject({id,title:z.string().min(1),description:z.string().optional(),scope:z.literal("connection"),required:z.boolean().default(false)});
 export const SCREEN_ICONS = ["LayoutDashboard","Table","ChartColumn","FileText","Folder"] as const;
+const PLUGIN_ICON_MIME_TYPES = { ".svg": "image/svg+xml", ".png": "image/png" } as const;
+/** Shared file-format contract for manifest admission and Host icon loading. */
+export function pluginIconMime(icon: string) {
+ const extension = icon.slice(icon.lastIndexOf(".")).toLowerCase();
+ return Object.hasOwn(PLUGIN_ICON_MIME_TYPES, extension) ? PLUGIN_ICON_MIME_TYPES[extension as keyof typeof PLUGIN_ICON_MIME_TYPES] : undefined;
+}
 const cardSchema = z.strictObject({id,name:z.string().min(1),description:z.string().optional(),icon:z.string().min(1).default("LayoutDashboard"),entry:z.string().min(1),screen:z.string().min(1),operations:z.array(operation).default([]),settingsSchema:schema.default({type:"object",additionalProperties:false}),secrets:z.array(secret).default([]),skills:z.array(skill).default([]),healthCheck:id.optional()});
 export function validateManifest(input:unknown) {
  const card=cardSchema.parse(input);
  for(const file of [card.entry,card.screen]) if(/^(?:[a-z]+:|[/\\])/i.test(file)||file.split(/[/\\]/).includes(".."))throw new Error("Entry must stay inside package");
- if(!SCREEN_ICONS.includes(card.icon as any)&&(!/\.(svg|png|webp)$/i.test(card.icon)||/^(?:[a-z]+:|[/\\])/i.test(card.icon)||card.icon.split(/[/\\]/).includes("..")))throw new Error("Invalid icon path");
+ if(!SCREEN_ICONS.includes(card.icon as any)&&(!pluginIconMime(card.icon)||/^(?:[a-z]+:|[/\\])/i.test(card.icon)||card.icon.split(/[/\\]/).includes("..")))throw new Error("Invalid icon path");
  for(const values of [card.operations,card.secrets,card.skills])if(new Set(values.map(v=>v.id)).size!==values.length)throw new Error("Duplicate identity");
  if(Array.isArray(card.settingsSchema.required)&&card.settingsSchema.required.length)throw new Error("settingsSchema.required must be empty");
  compileSchema(card.settingsSchema);

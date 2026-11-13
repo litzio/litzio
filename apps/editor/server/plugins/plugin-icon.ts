@@ -2,15 +2,17 @@ import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { DOMParser } from "@xmldom/xmldom";
 import { validateImage } from "../image-validation.ts";
+import { pluginIconMime } from "@litzio/plugin-sdk";
 export const MAX_ICON_BYTES = 64 * 1024;
 export const MAX_ICON_SIZE = 256;
 /** artifactDigest rejects links and escapes before this function reads the icon. */
 export function readPluginIcon(directory: string, icon: string) {
+  const mime = pluginIconMime(icon);
+  if (!mime) throw new Error("Unsupported plugin icon format");
   const file = path.join(directory, icon), metadata = statSync(file);
   if (!metadata.isFile() || metadata.size > MAX_ICON_BYTES) throw new Error("Icon exceeds 64 KiB or is not a file");
   const bytes = readFileSync(file);
   let width: number, height: number;
-  const mime = icon.endsWith(".png") ? "image/png" : "image/svg+xml";
   if (mime === "image/png") {
     validateImage(mime, bytes);
     width = bytes.readUInt32BE(16); height = bytes.readUInt32BE(20);

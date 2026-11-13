@@ -1293,17 +1293,33 @@ test("install uses authoring ID in opened folders, repeats edits and refuses pri
     assert.equal(created.error, undefined);
     const directory = created.result.directory;
     const entry = path.join(directory,"host.mjs");
+    const manifestFile = path.join(directory,"litzio-plugin.json");
+    const manifest = {...JSON.parse(readFileSync(manifestFile,"utf8")),icon:"icon.PNG"};
+    writeFileSync(manifestFile,JSON.stringify({...manifest,icon:"icon.webp"}));
+    writeFileSync(path.join(directory,"icon.webp"),Buffer.from("UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA","base64"));
+    for (const action of ["validate","install"]) {
+      assert.equal((await host.invoke(action,{directory}) as any).receipt.outcome,"failure");
+    }
+    writeFileSync(manifestFile,JSON.stringify(manifest));
+    writeFileSync(path.join(directory,manifest.icon),Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=","base64"));
+    assert.equal(validateManifest(manifest).icon,"icon.PNG");
+    assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
     writeFileSync(entry,readFileSync(entry,"utf8").replace('message: "Ready"','message: String(process.pid)'));
     const installed: any = await executePluginTool(host,{action:"install",id},()=>{},scope);
     assert.equal(installed.error, undefined, JSON.stringify(installed));
     assert.equal((await host.list())[0]!.running, true);
+    assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/png");
     const first = host.viewScreens()[0]!.codeRevision;
     await assert.rejects(host.invokeOperation(`${id}.measurements`,{}), /unavailable/);
     await assert.rejects(host.invokeAssistantOperation(`${id}.measurements`,{}));
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[10,18,12,24]);
     await assert.rejects(host.invoke("screen-invoke",{plugin:"other",operation:`${id}.measurements`,input:{}}));
     writeFileSync(entry,readFileSync(entry,"utf8").replace("10, 18, 12, 24","20, 30"));
+    writeFileSync(manifestFile,JSON.stringify({...manifest,icon:"icon.SVG"}));
+    writeFileSync(path.join(directory,"icon.SVG"),'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>');
+    assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
     assert.equal((await host.invoke("install",{id}) as any).receipt.outcome,"success");
+    assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/svg+xml");
     assert.notEqual(host.viewScreens()[0]!.codeRevision,first);
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[20,30]);
     await host.invoke("scaffold",{id:"local.other",template:"screen"});

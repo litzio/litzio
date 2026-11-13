@@ -431,7 +431,6 @@ export class AssistantConversations {
     }
   }
   async close() {
-    for(const conversation of this.conversations.values())for(const turn of conversation.turns)
     this.closed = true;
     this.fileChanges.clear();
     for (const conversation of this.conversations.values()) this.expireQuestion(conversation);

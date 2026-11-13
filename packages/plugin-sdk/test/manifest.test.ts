@@ -7,6 +7,8 @@ test('code identity declares settings, connection secrets, skills and public ope
  assert.equal(m.settingsSchema.properties!==undefined,true);assert.equal(m.secrets[0]?.id,'token');assert.equal(m.contributes.skills[0]?.id,'guide');assert.equal(m.contributes.operations[0]?.assistant,true);assert.equal(m.contributes.screens[0]?.entry,'screen.jsx');
 });
 test('manifest rejects obsolete syntax, escapes, duplicate declarations and invalid schemas before execution',()=>{
+ for(const icon of ['icon.svg','icon.SVG','icons/icon.png','icons/icon.PNG'])assert.equal(validateManifest({...card,icon}).icon,icon);
+ for(const icon of ['icon.webp','icon.WEBP','icon.jpg','icon.gif','icon'])assert.throws(()=>validateManifest({...card,icon}),/Invalid icon path/);
  for(const bad of [{...card,tier:'official'},{...card,contributes:{}},{...card,entry:'../host.mjs'},{...card,screen:'/screen.jsx'},{...card,icon:'../icon.svg'},{...card,secrets:[{id:'token',title:'Token',scope:'connection'},{id:'token',title:'Again',scope:'connection'}]},{...card,skills:[{id:'guide',directory:'../guide'}]},{...card,settingsSchema:{type:'object',required:['url']}},{...card,operations:[{id:'read',inputSchema:{$ref:'https://example.com/schema'}}]}])assert.throws(()=>validateManifest(bad));
 });
 test('settings save incrementally and health checks must be host reads accepting empty input',()=>{
