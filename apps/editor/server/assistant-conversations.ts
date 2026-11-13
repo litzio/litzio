@@ -1,3 +1,7 @@
+import { AssistantConversationIndex, type ConversationIndexEntry } from "./assistant-conversation-index.ts";
+import { checkedReferences } from "./assistant-references.ts";
+import { CONTEXT, QUESTION_ANSWER_CONTEXT, boundedWork, itemFrom, pluginOperationItem, turnFrom } from "./assistant-provider-items.ts";
+export { conversationForDisplay } from "./assistant-conversation-display.ts";
 import { AssistantAttachments } from "./assistant-attachments.ts";
 import { AssistantFileChanges } from "./assistant-file-changes.ts";
 import { codexApproval } from "./assistant-approvals.ts";
@@ -8,14 +12,13 @@ import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginOperationTools, executePluginOperationTool } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
-import { readFileSync, writeFileSync, renameSync, existsSync, statSync, lstatSync, unlinkSync } from "node:fs";
+import { statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInfo, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
+import type { AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
-import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
+import { accessPath, type FileAccess } from "./file-access.ts";
 
-import { listFolder, MEDIA_TYPES } from "./document-api.ts";
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
@@ -23,11 +26,12 @@ import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copi
 
 import { questionTool } from "./assistant-question-tool.ts";
 
-type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import("./assistant-attachments.ts").AttachmentRecord[]; copilotCliReasoningEffort?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
+
 
 /** Providers own message content. Litzio's index also owns correlated question interactions. */
 export class AssistantConversations {
   readonly attachments: AssistantAttachments;
+  private index: AssistantConversationIndex;
   private readonly copilotRoot = copilotLogRoot();
   private fileChanges = new Map<string, AssistantFileChanges>();
   fileChange(id: string, turnId: string, file: string, undo = false, folders?: string[]) {
@@ -93,6 +97,7 @@ export class AssistantConversations {
   private loaded = new Set<string>();
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
     this.attachments = new AssistantAttachments(connection.cwd);
+    this.index = new AssistantConversationIndex(connection, this.attachments);
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
@@ -164,33 +169,12 @@ export class AssistantConversations {
 
   get tools() { return [...documentTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginOperationTools] : [])]; }
   readonly mcp = new AssistantMcp(() => this.tools, params => this.executeTool(params));
-  private get file() { return path.join(this.connection.cwd, "conversations.json"); }
-  list(): ConversationIndexEntry[] {
-    this.connection.environment();
-    return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
-  }
-  private save(conversation: AssistantConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback } = conversation;
-    const questions = conversation.turns.flatMap(turn => turn.items.filter(item => item.question).map(item => ({ itemId: item.id, text: item.text, question: item.question! })));
-    const previous = this.list();
-    const attachments = this.attachments.owned(id);
-    const entries = previous.filter(entry => entry.id !== id);
-    const temporary = `${this.file}.${randomUUID()}.tmp`;
-    try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}),
-        ...(attachments?.length ? { attachments } : {}),
-        ...(questions.length ? { questions } : {}),
-        ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
-      renameSync(temporary, this.file);
-    } finally { if (existsSync(temporary)) unlinkSync(temporary); }
-  }
+  list(): ConversationIndexEntry[] { return this.index.list(); }
+  private save(conversation: AssistantConversation) { this.index.save(conversation); }
   remove(id: string) {
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Assistant response before deleting the conversation.");
     this.attachments.remove(id);
-    const entries = this.list().filter(entry => entry.id !== id);
-    const temporary = `${this.file}.${randomUUID()}.tmp`;
-    try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }
-    finally { if (existsSync(temporary)) unlinkSync(temporary); }
+    this.index.remove(id);
     this.mcp.revokeConversation(id);
     this.fileChanges.delete(id); this.conversations.delete(id); this.loaded.delete(id); this.scopes.delete(id);
   }
@@ -738,8 +722,6 @@ export class AssistantConversations {
     if ((method === "turn/completed" || method === "error" && !params.willRetry) && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }
 }
-const CONTEXT = "Litzio read-only context (JSON):\n";
-const QUESTION_ANSWER_CONTEXT = "Litzio question answers (JSON):\n";
 function recordedAnswers(question: AssistantQuestionRecord, answers: AssistantUserInputAnswers): AssistantUserInputAnswers {
   return Object.fromEntries(question.questions.map(q => [q.id, { answers: q.isSecret ? ["••••"] : answers[q.id]!.answers }]));
 }
@@ -751,129 +733,6 @@ function validQuestionAnswers(question: AssistantQuestionRecord, answers: Assist
       (!q.options?.length || q.isOther || q.options.some(option => option.label === values[0]));
   });
 }
-// Bounded display payload per step.
-function boundedWork(text: string) {
-  return { detail: text.slice(0, 16_000), truncated: text.length > 16_000 };
-}
-function itemFrom(item: any, userMessageSource: AssistantConversationItem["userMessageSource"] = "provider-live", turnId = ""): AssistantConversationItem | null {
-  if (item.type === "userMessage") {
-    const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
-    const text: string[] = [];
-    let submissionId: string | undefined;
-    for (const part of item.content ?? []) {
-      if (part.type !== "text") continue;
-      // Codex's legacy history flattens all text inputs into one string.
-      const marker = part.text.lastIndexOf(CONTEXT);
-      if (marker >= 0) {
-        try {
-          const value = JSON.parse(part.text.slice(marker + CONTEXT.length));
-          if (value && typeof value.userMessage === "string") {
-            if (typeof value.submissionId === "string") submissionId = value.submissionId;
-            if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
-            if (typeof value.userMessage === "string") { text.length = 0; text.push(value.userMessage); }
-            else if (marker) text.push(part.text.slice(0, marker));
-            continue;
-          }
-        } catch { /* Ordinary CLI text need not contain valid Litzio context. */ }
-      }
-      text.push(part.text);
-    }
-    const message = text.join("\n");
-    let questionAnswer: AssistantConversationItem["questionAnswer"];
-    if (message.startsWith(QUESTION_ANSWER_CONTEXT)) {
-      try {
-        const reply = JSON.parse(message.slice(QUESTION_ANSWER_CONTEXT.length));
-        if (reply && ["string", "number"].includes(typeof reply.requestId) && typeof reply.turnId === "string" && reply.answers && typeof reply.answers === "object" && !Array.isArray(reply.answers) && Object.values(reply.answers).every((answer: any) => answer && Array.isArray(answer.answers) && answer.answers.length === 1 && typeof answer.answers[0] === "string")) questionAnswer = reply;
-      } catch { /* Ordinary text stays readable. */ }
-    }
-    return { id: item.id, kind: "user", userMessageSource, ...(submissionId ? { submissionId } : {}), ...(questionAnswer ? { questionAnswer } : {}), text: message, references };
-  }
-  if (item.type === "agentMessage" && item.delivery === "async" && item.questions != null) {
-    const sourceQuestions: AssistantQuestionRecord["sourceQuestions"] = item.questions;
-    const valid = Array.isArray(sourceQuestions) && sourceQuestions.length > 0 && sourceQuestions.every(q => q && typeof q.title === "string" && q.title.trim() && (q.options === null || Array.isArray(q.options) && q.options.length > 0 && q.options.every(o => typeof o === "string" && o.trim())));
-    const question: AssistantQuestionRecord = { requestId: item.id, turnId, delivery: "async", status: valid ? "pending" : "unknown",
-      ...(valid ? { sourceQuestions } : { error: "The provider question could not be displayed." }),
-      questions: valid ? sourceQuestions!.map((q, index) => ({ id: String(index), header: "", question: q.title, isOther: true, isSecret: false, options: q.options?.map(label => ({ label, description: "" })) ?? null })) : [] };
-    return { id: item.id, kind: "question", text: item.text ?? "", question };
-  }
-  if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
-  if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };
-  if (item.type === "plan") return { id: item.id, kind: "plan", text: item.text };
-  if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: typeof item.exitCode === "number" && item.exitCode !== 0 ? "failed" : item.status, work: { kind: "execute", ...boundedWork(item.aggregatedOutput ?? "") } };
-  if (item.type === "mcpToolCall") return { id: item.id, kind: "tool", text: `${item.server} · ${item.tool}`, status: item.status, work: { kind: "tool", ...boundedWork(JSON.stringify(item.arguments ?? {})) } };
-  if (item.type === "dynamicToolCall" && item.tool === "invoke_plugin_operation") {
-    for (const part of item.contentItems ?? []) {
-      try {
-        if (part.type === "inputText") return pluginOperationItem(item.id, item.success, JSON.parse(part.text).activity);
-      } catch { /* In-progress calls have no activity yet. */ }
-    }
-    return { id: item.id, kind: "tool", text: "invoke_plugin_operation", status: item.status };
-  }
-  if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: pluginActivityText(item) ?? [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.success === false ? "failed" : item.status,
-    work: { kind: "tool", ...boundedWork(JSON.stringify(item.arguments ?? {})) }, toolResult: displayToolResult({ success: item.success ?? null, contentItems: item.contentItems ?? [] }) };
-  if (item.type === "webSearch") return { id: item.id, kind: "tool", text: item.query };
-  if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status, work: { kind: "edit" } };
-  return null;
-}
-/** Keep only invocation metadata in app activity, including provider history restoration. */
-function pluginOperationItem(id: string, success: boolean | null, entry: any): AssistantConversationItem {
-  const activity = { operation: entry?.operation, outcome: entry?.outcome, at: entry?.at, receipt: entry?.receipt };
-  return { id, kind: "tool", text: `invoke_plugin_operation${activity.operation ? ` (${activity.operation})` : ""}: ${activity.outcome ?? "pending"}`,
-    status: success === false ? "failed" : "completed", toolResult: { success, contentItems: [{ type: "inputText", text: JSON.stringify({ activity }) }] } };
-}
-// Reconstruct the same visible activity from CLI-owned history after resume.
-function pluginActivityText(item: any): string | null {
-  if (item.tool !== "manage_plugins") return null;
-  for (const part of item.contentItems ?? []) {
-    if (part.type !== "inputText" || typeof part.text !== "string") continue;
-    try {
-      const entry = JSON.parse(part.text).activity;
-      if (typeof entry?.action === "string" && ["success", "failure"].includes(entry.outcome))
-        return `plugins.${entry.action}${typeof entry.id === "string" ? ` (${entry.id})` : ""}: ${entry.outcome}`;
-    } catch { /* In-progress calls have no receipt yet. */ }
-  }
-  return null;
-}
-function turnFrom(turn: any, userMessageSource: AssistantConversationItem["userMessageSource"] = "provider-live"): AssistantConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map((item: any) => itemFrom(item, userMessageSource, turn.id)).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }
-
-/** Restricted turns reuse Explorer visibility; full access still rejects links and respects Host Roots. */
-function checkedReferences(value: string[], folders: string[], access: FileAccess, permissionMode: string | undefined, attachments?: AssistantAttachments, owner?: string) {
-  if (!Array.isArray(value)) throw new Error("Invalid file references.");
-  const scope = folders.length ? new RootAccess(folders) : null;
-  const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
-  for (const requested of value) {
-    const attachment = attachments?.reference(requested, owner);
-    if (attachment) { if (!references.some(file => file.path === attachment.path)) references.push(attachment); continue; }
-    if (permissionMode === "full-access") {
-      if (typeof requested !== "string" || !path.isAbsolute(requested)) throw new Error("Invalid file reference path.");
-      const resolved = accessPath(requested, access);
-      for (let current = resolved; ; current = path.dirname(current)) {
-        if (lstatSync(current).isSymbolicLink()) throw new Error("File reference is unavailable.");
-        if (path.dirname(current) === current) break;
-      }
-      if (!statSync(resolved).isFile()) throw new Error("File reference is unavailable.");
-      const extension = path.extname(resolved).toLowerCase();
-      const kind = extension === ".md" || extension === ".txt" ? "document" : Object.hasOwn(MEDIA_TYPES, extension) ? "image" : "file";
-      if (!references.some(file => path.relative(file.path, resolved) === "")) references.push({ path: resolved, name: path.basename(resolved), kind });
-      continue;
-    }
-    if (typeof requested !== "string" || !path.isAbsolute(requested) || !scope) throw new Error("File reference is outside opened folders.");
-    const resolved = accessPath(accessPath(requested, scope), access);
-    const root = folders.find(folder => { const relative = path.relative(folder, resolved); return relative && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); });
-    if (!root) throw new Error("File reference is outside opened folders.");
-    let folder = root;
-    const segments = path.relative(root, resolved).split(path.sep);
-    let entry;
-    for (const [index, name] of segments.entries()) {
-      entry = listFolder(root, folder, access).entries.find(file => path.relative(file.path, path.join(folder, name)) === "");
-      if (!entry || (index < segments.length - 1 ? entry.kind !== "folder" : entry.kind === "folder")) throw new Error("File reference is unavailable.");
-      folder = entry.path;
-    }
-    if (!references.some(file => path.relative(file.path, resolved) === "")) references.push({ path: resolved, name: entry!.name, kind: entry!.kind });
-  }
-  return references;
-}
-
 function fullAccessRejected(message: string): boolean {
   return /invalid.*sandbox_mode.*DangerFullAccess.*not in the allowed set/s.test(message);
 }
@@ -881,33 +740,4 @@ function permissionError(message: string): string {
   return fullAccessRejected(message)
     ? "Your organization does not allow Full access. Choose Opened folders or Read-only and send again."
     : message;
-}
-
-/** UI history never needs large model-facing tool payloads. Apply again at the transport boundary
- * for already-loaded conversations; provider-owned history and model results remain intact. */
-function displayToolResult(result:NonNullable<AssistantConversationItem["toolResult"]>) {
-  const bytes=Buffer.byteLength(JSON.stringify(result.contentItems),"utf8");
-  if(bytes<=16*1024)return result;
-  // Creation cards use the small receipt, never the returned source, for Open/Undo.
-  const receipts=result.contentItems.flatMap<any>(part=>{
-    if(part.type!=="inputText" || !part.text)return [];
-    try {const value=JSON.parse(part.text);
-      if(value.workspace && value.documentRevision && (value.material || value.images))return [{workspace:value.workspace,documentRevision:value.documentRevision,contentRevision:value.contentRevision,
-        ...(value.material ? {material:{pages:value.material.pages,items:value.material.items.map((item:any)=>({self_ref:item.self_ref}))}} : {runId:value.runId,images:value.images})}];
-      return typeof value.path==="string" && /^[a-f0-9]{64}$/.test(value.revision) ? [{path:value.path,revision:value.revision,identity:value.identity}] : [];} catch {return [];}
-  });
-  return {...result,contentItems:[...receipts.map(value=>({type:"inputText",text:JSON.stringify(value)})),{type:"inputText",text:JSON.stringify({omitted:true,bytes,summary:"Tool result retained in provider history; omitted from display."})}]};
-}
-export function conversationForDisplay(conversation:AssistantConversation):AssistantConversation {
-  let changed=false;
-  const turns=conversation.turns.map(turn=>({...turn,items:turn.items.map(item=>{
-    if(item.references?.length) {
-      changed=true;
-      item={...item,references:item.references.map(file=>({...file,unavailable:!existsSync(file.path)}))};
-    }
-    if(!item.toolResult)return item;
-    const result=displayToolResult(item.toolResult);if(result===item.toolResult)return item;
-    changed=true;return {...item,toolResult:result};
-  })}));
-  return changed ? {...conversation,turns} : conversation;
 }

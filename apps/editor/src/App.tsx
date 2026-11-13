@@ -341,17 +341,27 @@ function EditorApp() {
     return id ? [{path:tree.root,id}] : [];
   });
   // Resolve only already-opened Roots and recheck physical identity before the existing open path.
-  const openViewDocument = (path: string, client: HostClient) => {
+  const openViewDocument = async (path: string, client: HostClient, signal: AbortSignal): Promise<import("@litzio/plugin-sdk").ScreenOpenDocumentResult> => {
     const root = openedRoots.find(root => folderChain(root.path,path).length > 0);
-    if (!root) { setError(i18n.t("Unavailable")); return; }
-    void (async () => {
-      const response = await client.request(`/api/folder?root=${encodeURIComponent(root.path)}`, {cache:"no-store"});
+    const check = () => {
+      signal.throwIfAborted(); client.assertCurrent();
+      if (!root || !foldersRef.current.trees.some(tree => tree.root === root.path && tree.nodes.get(tree.root)?.rootId === root.id)) throw new Error(i18n.t("Unavailable"));
+    };
+    try {
+      check();
+      const response = await client.request(`/api/folder?root=${encodeURIComponent(root!.path)}`, {cache:"no-store", signal});
       const listing = await response.json() as Partial<FolderResponse>;
-      if (!response.ok || listing.rootId !== root.id || !foldersRef.current.trees.some(tree => tree.root === root.path && tree.nodes.get(tree.root)?.rootId === root.id)) throw new Error(i18n.t("Unavailable"));
-      client.assertCurrent();
-      const problem = await openFile(path,"",navigation.focused,client);
+      check();
+      if (!response.ok || listing.rootId !== root!.id) throw new Error(i18n.t("Unavailable"));
+      const problem = await openFile(path,"",navigation.focused,client,{signal,check});
+      signal.throwIfAborted();
+      if (problem === null) throw new Error(i18n.t("Unavailable"));
       if (problem) throw new Error(problem);
-    })().catch(cause => setError(messageOf(cause)));
+      return {status:"opened",path};
+    } catch (cause) {
+      signal.throwIfAborted();
+      return {status:"refused",path,message:messageOf(cause)};
+    }
   };
   const foldersRef = useRef(folders);
   foldersRef.current = folders;
@@ -782,7 +792,8 @@ function EditorApp() {
     return () => query.removeEventListener("change", change);
   }, []);
 
-  async function openFile(path: string, openedNotice = "", group = navigation.focused, client = getHostClient()): Promise<string | null> {
+  async function openFile(path: string, openedNotice = "", group = navigation.focused, client = getHostClient(), guard?: {signal: AbortSignal; check(): void}): Promise<string | null> {
+    guard?.check();
     client.assertCurrent();
     const requestedPath = unquotePath(path);
     if (!requestedPath) return i18n.t("Enter a Markdown file path.");
@@ -808,11 +819,14 @@ function EditorApp() {
     const returnFocus = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : null;
     cancelOpen(group);
     const pending = { controller: new AbortController(), path: requestedPath, active: navigation.groups.find(item => item.id === group)?.active ?? null };
+    const abort = () => pending.controller.abort();
+    guard?.signal.addEventListener("abort", abort, {once:true});
     pendingOpens.current.set(group, pending); refreshOpens();
     setError("");
     try {
       const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, folders.rootOf(requestedPath), pending.controller.signal);
       if (pending.controller.signal.aborted || pendingOpens.current.get(group) !== pending) return null;
+      guard?.check();
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
       acceptFile(next, client, group);
       void offerRecovery(next);
@@ -826,7 +840,7 @@ function EditorApp() {
         return null;
       }
       return messageOf(cause);
-    } finally { if (pendingOpens.current.get(group) === pending) { pendingOpens.current.delete(group); refreshOpens(); } }
+    } finally { guard?.signal.removeEventListener("abort", abort); if (pendingOpens.current.get(group) === pending) { pendingOpens.current.delete(group); refreshOpens(); } }
   }
   function openTemplateGallery(): void {
     if (busy || continuation) return;
@@ -1408,7 +1422,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={tab.client} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace client={tab.client} roots={openedFolderPaths} key={`${tab.id}:local`} id={tab.id} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onOpenDocument={path => openViewDocument(path, tab.client)} /> : null}
+              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={tab.client} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace client={tab.client} roots={openedFolderPaths} key={`${tab.id}:local`} id={tab.id} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onOpenDocument={(path, signal) => openViewDocument(path, tab.client, signal)} /> : null}
 
             </div>;
           })}

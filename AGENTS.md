@@ -65,6 +65,7 @@
 - `apps/editor/src/views/` — 플러그인의 React 화면 코드·단일 연결의 화면 수명·공통 부품·새 문서 저장. [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다.
 - `packages/file-commit/` — CLI와 Editor Host가 공유하는 Node 전용 파일 교체(revision 확인, temporary sibling, rename). 문서 의미를 알지 않는다.
 - `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다.
+- `apps/editor/server/assistant-conversations.ts` — 대화·제출·질문·권한 scope와 이벤트 처리의 메모리 수명. `assistant-provider-items.ts`·`assistant-conversation-display.ts`·`assistant-references.ts`·`assistant-conversation-index.ts`는 각각 공급자 값 변환·표시용 축약·참조 검증·metadata 파일 I/O를 소유한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
 - `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에서 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트로 전환한다. 문서 의미를 구현하지 않는다.
 - [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.

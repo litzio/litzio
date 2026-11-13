@@ -37,6 +37,13 @@ async (page, { expect, screenshots }) => {
   await expect(fixed).toBeDisabled();
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
+  const selection=page.getByRole('region',{name:'Screen path selection'});
+  await selection.getByRole('button',{name:'Choose document example'}).click();
+  await page.getByRole('dialog').getByRole('option',{name:'report.md',exact:true}).click();
+  await page.getByRole('dialog').getByTestId('folder-open').click();
+  await expect(selection.locator('output')).toHaveText('{"path":"/example/report.md","kind":"document"}');
+  await selection.getByRole('button',{name:'Pick while folder closes'}).click();
+  await expect(selection.locator('output')).toHaveText('AbortError');await expect(page.getByRole('dialog')).toHaveCount(0);
   if (screenshots) for (const width of [1440,640]) for (const theme of ['light','dark']) {
     await page.setViewportSize({width,height:1000});
     await page.evaluate(theme=>document.documentElement.setAttribute('data-theme',theme),theme);

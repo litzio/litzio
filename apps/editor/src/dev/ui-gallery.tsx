@@ -1,4 +1,5 @@
 import { ScreenPartsExample } from "./screen-parts-example.tsx";
+import { ScreenPathExample } from "./screen-path-example.tsx";
 import { DocumentViewExample } from "./document-view-example.tsx";
 import {TableInteractionExample} from "./data-table-example.tsx";
 import { useRef, useState } from "react";
@@ -143,7 +144,7 @@ export function UiGallery() {
       <details><summary>Example guidance</summary><p>{state === "interaction" ? "Move the pointer over examples or press Tab to inspect real hover and keyboard focus. These states are not painted simulations."
         : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p></details>
     </div>
-    {visible("Screen parts") ? <ScreenPartsExample state={state} /> : null}
+    {visible("Screen parts") ? <><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
     {visible("Document view") ? <DocumentViewExample /> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}

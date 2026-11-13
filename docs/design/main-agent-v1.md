@@ -127,6 +127,8 @@ Codex 조직 정책이 전체 접근을 명시적으로 거부하면 실행 전 
 [대화 구현](../../apps/editor/server/assistant-conversations.ts), [중립 타입](../../apps/editor/shared/assistant.ts)이 근거다.
 여기서는 다른 화면·문서가 의존하는 동작만 남긴다.
 
+대화 구현의 메모리 상태(conversations·submissions·pending·scopes·loaded와 질문 응답·검증·취소·파일 변경 Map)는 AssistantConversations가 소유한다. 상태를 바꾸는 공급자 이벤트 처리·전송·재개·질문·중단도 같은 소유자에 둔다. [공급자 항목 변환](../../apps/editor/server/assistant-provider-items.ts)은 상태 없는 값 해석, [표시 투영](../../apps/editor/server/assistant-conversation-display.ts)은 화면에 보낼 결과의 축약, [참조 검증](../../apps/editor/server/assistant-references.ts)은 첨부 소유권·열린 폴더·Host Roots 검사, [metadata index](../../apps/editor/server/assistant-conversation-index.ts)는 기존 conversations.json의 동기 읽기·저장·삭제를 소유한다. index는 live Map을 보관하지 않으며 첨부 metadata만 기존 소유자에게 조회한다. 저장 형식·I/O 순서·이벤트 순서와 공개 진입점은 그대로다.
+
 ### 연결과 설정
 
 loopback(127.* 또는 ::1) HTTP Host는 listen을 완료한 자신의 정규화된 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 같은 PC daemon과 독립 실행 HTTP Host에 공통으로 적용하며 부모 환경의 주소는 상속하지 않는다. provider 재연결도 같은 Host 소유 연결의 origin을 사용하고 기존 대화는 그 연결을 재사용한다. 비서는 CLI의 `--host`에 이 값을 명시하며, 값이 없으면 주소가 없다고 보고하고 중단한다. 자동 탐색·기본값·다른 Host fallback은 없다. CLI shim의 PATH 전달과 대상 주소 전달은 별개다. 이 내부 환경 변수는 기존 LITZIO_* 계약처럼 배포 브랜드에 따라 이름을 바꾸지 않는다.
