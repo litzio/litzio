@@ -17,7 +17,7 @@ export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs
 
 test("Copilot ACP rejects unsupported interactive questions instead of acknowledging them", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-question-")), log = path.join(root, "rpc.jsonl");
-  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-question"] });
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-question"] }, {}, () => "http://127.0.0.1:12345");
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const conversations = new AssistantConversations(connection, new RootAccess([root]));
   const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "copilot-model", reasoningEffort: "low" };
@@ -27,6 +27,7 @@ test("Copilot ACP rejects unsupported interactive questions instead of acknowled
   assert.match(c.turns.at(-1)!.items.map(item => item.text).join(""), /Interactive question unsupported/);
   assert.equal(c.userInput, undefined);
   const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(requests[0].hostOrigin, "http://127.0.0.1:12345");
   assert.equal(requests.find(row => row.id === "question-unsupported").error.code, -32601);
   assert.match(requests.find(row => row.method === "session/prompt").params.prompt[0].text, /request_litzio_user_input through the Litzio Host MCP server/);
 });
@@ -469,6 +470,29 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.equal(cli.status, 0, cli.stderr);
   assert.equal(JSON.parse(cli.stdout).id, "builtin:technical-document");
   assert.match(JSON.parse(cli.stdout).source, /기술 문서/);
+  const missingOrigin = await connection.client.request("fixture/cli", { command: brand.cliCommand, args: ["plugins", "list", "--json"], hostFromEnvironment: true });
+  assert.equal(missingOrigin.hostOrigin, null);
+  assert.equal(missingOrigin.status, 1);
+  assert.match(missingOrigin.stdout, /explicit --host/);
+  const documentFile = path.join(root, "example.md"), operationsFile = path.join(root, "operations.json");
+  writeFileSync(documentFile, "---\nlitzio: 1\n---\n\nBefore\n");
+  writeFileSync(operationsFile, /```json\n([^`]+)```/.exec(LITZIO_GUIDE)![1]);
+  const runCli = (args: string[]) => connection.client.request("fixture/cli", { command: brand.cliCommand, args });
+  const inspected = await runCli(["inspect", documentFile, "--format", "json"]);
+  assert.equal(inspected.status, 0, inspected.stderr);
+  const revision = JSON.parse(inspected.stdout).revision;
+  const editArgs = ["apply-batch", documentFile, "--operations", operationsFile, "--if-revision", revision, "--format", "json"];
+  const edited = await runCli(editArgs);
+  assert.equal(edited.status, 0, edited.stderr);
+  const receipt = JSON.parse(edited.stdout);
+  assert.equal(receipt.ok, true); assert.equal(receipt.applied, 1);
+  const reinspection = await runCli(["inspect", documentFile, "--format", "json"]);
+  assert.equal(JSON.parse(reinspection.stdout).revision, receipt.revision);
+  assert.match(readFileSync(documentFile, "utf8"), /After/);
+  const after = readFileSync(documentFile, "utf8");
+  const stale = await runCli(editArgs);
+  assert.equal(stale.status, 1); assert.match(stale.stderr, /revision mismatch/);
+  assert.equal(readFileSync(documentFile, "utf8"), after);
   const ownBin = cli.path.split(path.delimiter)[0];
   assert.equal(path.dirname(ownBin), path.join(cwd, "bin"));
   const launcher = readFileSync(path.join(ownBin, "cli.cjs"), "utf8");
@@ -477,6 +501,11 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.equal(readFileSync(path.join(ownBin, "cli.cjs"), "utf8"), launcher, "Another Host sharing cwd must not replace this CLI");
   assert.equal(process.env.PATH, parentPath);
   const fallback = assistantCliEnvironment(cwd, hostCli());
+  const unowned = assistantCliEnvironment(cwd, hostCli(), { ...process.env, litzio_host_origin: "http://parent.invalid" });
+  assert.equal(unowned.LITZIO_HOST_ORIGIN, undefined, "a listener-less provider cannot inherit another Host target");
+  assert.equal(unowned.litzio_host_origin, undefined);
+  const inheritedTarget = spawnSync(process.execPath, ["-e", "process.stdout.write(process.env.LITZIO_HOST_ORIGIN ?? 'absent')"], { env: unowned, encoding: "utf8", windowsHide: true });
+  assert.equal(inheritedTarget.status, 0); assert.equal(inheritedTarget.stdout, "absent");
   const pathKey = Object.keys(fallback).find(key => key.toUpperCase() === "PATH")!;
   fallback[pathKey] = (fallback[pathKey] ?? "").split(path.delimiter).slice(1).join(path.delimiter);
   assert.ok(path.isAbsolute(fallback.LITZIO_ASSISTANT_CLI!));

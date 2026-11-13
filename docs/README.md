@@ -52,7 +52,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 Host별 위치 식별·로컬 복구(#1174 PR1). |
 | [Filesystem Host boundary](design/filesystem-host-boundary-v1.md) | Implemented | 파일·asset·folder 계약. Vite, Desktop, HTTP Host가 같은 handler를 재사용. |
 | [플러그인 실행·제작 계약](design/plugin-stage1-v1.md) | Implemented | 화면 코드 manifest, Node child·신뢰·설치·reload·설정·secret·스킬·npm/번들러. 선언형·Docling·K1·검수 대조는 삭제하고 보관했다. |
-| [플러그인 화면 코드](design/plugin-screens-v1.md) | Implemented | React 화면 코드·공통 부품·자기 Host의 invoke·공식 새 문서 저장·DocumentView(저장본 revision과 Core NodePath 탐색). 선언형 조회·검수 틀은 제거하고 보관했다. |
+| [플러그인 화면 코드](design/plugin-screens-v1.md) | Implemented | React 화면 코드·공통 부품·자기 Host의 invoke·공식 새 문서 저장·DocumentView(저장본 revision과 Core NodePath 탐색). 선언형 조회·검수·원본 대조 틀은 제거하고 보관했다. |
 | [HTTP Host](design/http-host-v1.md) | Implemented | 무인증 단계(#1145) daemon start/stop/status·실행 주체/상세 상태·stale 회수·Desktop pipe 수명·고정 origin·선택 Root·버전·OS 휴지통, CLI 배포와 HTTP·프록시 경계. |
 | [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | 현재 Windows Electron/NSIS·Stable/Beta·signing·게시 계약. 과거 실행과 공개 릴리스 근거는 별도 검증 이력 및 릴리스 기록을 따른다. |
 | [Desktop app icon](design/app-icon-v1.md) | Implemented | #905 승인된 E안 SVG 원본·Chromium 틈 검사·크기별 ICO, 브랜드 연결·출처·재생성과 Windows CI 검증 경계. |

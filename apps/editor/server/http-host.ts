@@ -60,7 +60,8 @@ export async function startHttpHost(options: HttpHostOptions) {
   const resetGuard = new ResetGuard();
   const releaseResetGuard = resetGuard.actor("host");
   let services: ReturnType<typeof createHostServices>;
-  try { services = createHostServices(access); }
+  let origin: string | undefined;
+  try { services = createHostServices(access, { origin: () => origin }); }
   catch (error) { releaseResetGuard(); throw error; }
   const key = randomBytes(32);
   const origins = new Set<string>();
@@ -161,7 +162,11 @@ export async function startHttpHost(options: HttpHostOptions) {
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("The HTTP listener has no address.");
   if (loopback(host)) {
-    origins.add(new URL(`http://${authority(host, address.port)}`).origin);
+    // Share the normalized, already admitted listener origin with the child.
+    // Non-loopback listeners do not get an assistant CLI target: granting their
+    // bind address would widen both Host authority and browser Origin admission.
+    origin = publicOrigin(`http://${authority(host, address.port)}`);
+    origins.add(origin);
     origins.add(new URL(`http://localhost:${address.port}`).origin);
   } else {
     // A same-machine proxy may rewrite Host to the loopback upstream address.

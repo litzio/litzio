@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 const log = process.argv[2];
-if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, args: process.argv.slice(3) }) + "\n");
+if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, args: process.argv.slice(3), hostOrigin: process.env.LITZIO_HOST_ORIGIN ?? null }) + "\n");
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
 const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", currentValue: "off", options: ["on", "off"].map(value => ({ value, name: value })) },
   ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model", "max-only"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
