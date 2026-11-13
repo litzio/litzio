@@ -253,7 +253,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
-  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 표·목록·그림·캡션·수식의 삽입·수정도 공급자 패치로 본문을 먼저 고친다"));
+  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 표·목록·그림·캡션·수식도 공급자 패치로 본문을 고치고"));
   await connection.close();
   for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
 });
@@ -442,7 +442,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   const instructions = readFileSync(env.instructions, "utf8"), generatedGuide = readFileSync(guide, "utf8");
   assert.doesNotMatch(generatedGuide, /docling|convert-pdf/i, "usage guide must not advertise removed conversion features");
   assert.doesNotMatch(instructions, /convert-pdf/i, "review guidance must not advertise removed conversion commands");
-  assert.match(instructions, /템플릿.*litzio-guide.*SKILL\.md/);
+  assert.match(instructions, /앱·그림 안내.*litzio-guide.*SKILL\.md.*UTF-8/);
   assert.match(generatedGuide, /list_templates.*현재 이름/);
   assert.match(generatedGuide, /templates list --json --language <ko\|en>/);
   assert.match(generatedGuide, /templates read <id> --json --language <ko\|en>/);
@@ -457,8 +457,16 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(instructions, /상태 미발견은 쓰기가 없었다는 증거가 아니다/);
   assert.match(instructions, /accepted:true.*저장.*렌더 확인·답변 수신을 뜻하지 않는다/);
   assert.match(instructions, /apply_review_groups로 즉시 적용/);
-  assert.match(instructions, /표·목록·그림·캡션·수식.*공급자 패치로 본문을 먼저.*litzio check/);
-  assert.match(instructions, /AGENTS.md.*작업하기 전에 읽는다/);
+  assert.match(instructions, /표·목록·그림·캡션·수식.*공급자 패치로 본문을 고치고.*litzio check/);
+  assert.match(instructions, /AGENTS.md.*먼저 읽는다/);
+  for (const text of [instructions, generatedGuide]) {
+    assert.match(text, /permissionMode.*opened-folders.*read-only.*check·inspect·compare·도움말만 실행된다/);
+    assert.match(text, /쓰기\(insert-\*·apply-batch 등\).*시도.*승인.*요청하지/);
+    assert.match(text, /읽기 전용의 편집 제한은 유지/);
+    assert.match(text, /공급자 패치.*없으면 UTF-8 파일 편집 셸/);
+    assert.match(text, /full-access.*쓰기 CLI도 쓸 수 있다/);
+    assert.doesNotMatch(text, /실행 승인이 필요할 수 있다/);
+  }
   const parentPath = process.env.PATH;
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
   assert.deepEqual(models.models.map(model => model.model), ["gpt-6.1-sol", "chosen-model", "next-model"]);
