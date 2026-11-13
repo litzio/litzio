@@ -1,4 +1,3 @@
-import { hostLabel, hostRegistry } from "../host-client.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -32,7 +31,7 @@ export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivat
   const names = labels.map(({ name, folder }, index) => {
     const label = folder ? `${name} — ${folder}` : name;
     const hostId = allTabs[index]!.hostId;
-    return hostRegistry.list().length > 1 && hostId ? `${label} · ${hostLabel(hostId)}` : label;
+    return label;
   });
   const revealTab = (id: string | null) => {
     const list = row.current;
@@ -69,7 +68,7 @@ export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivat
       <div ref={row} className="document-tabs" role="tablist" aria-label={i18n.t("Documents")}>
         {tabs.map((tab, index) => {
           const labelIndex = allTabs.findIndex(item => item.id === tab.id);
-          const tabRow = <div className="document-tab" key={tab.id} data-tab-id={tab.id} data-selected={tab.id === active} title={`${hostRegistry.list().length > 1 && tab.hostId ? hostLabel(tab.hostId) + " · " : ""}${tab.path}`} role="presentation">
+          const tabRow = <div className="document-tab" key={tab.id} data-tab-id={tab.id} data-selected={tab.id === active} title={`${tab.path}`} role="presentation">
             <button type="button" role="tab" id={`tab-${tab.id}`} aria-controls={`panel-${tab.id}`}
               title={tab.title}
               aria-selected={tab.id === active} aria-disabled={disabled} tabIndex={tab.id === active ? 0 : -1}
@@ -93,7 +92,7 @@ export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivat
               {/* The filename gives way first, so the folder that tells equal names apart stays visible. */}
               <span className="document-tab-name">
                 <span className="document-tab-file">{labels[labelIndex]!.name}</span>
-                {tab.hostId ? <span className="document-tab-host">{hostLabel(tab.hostId)}</span> : null}
+
                 {labels[labelIndex]!.folder ? <span className="document-tab-folder">{labels[labelIndex]!.folder}</span> : null}
               </span>
               <span className="document-tab-dirty" aria-hidden="true">{tab.dirty ? "•" : ""}</span>
@@ -116,7 +115,7 @@ export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivat
         <DropdownMenuContent align="end">
           {tabs.filter(tab => hidden.includes(tab.id)).map(tab => {
             const index = allTabs.findIndex(item => item.id === tab.id);
-            return <DropdownMenuItem key={tab.id} title={`${hostRegistry.list().length > 1 && tab.hostId ? hostLabel(tab.hostId) + " · " : ""}${tab.path}`} onClick={() => { onActivate(tab.id); revealTab(tab.id); }}>
+            return <DropdownMenuItem key={tab.id} title={`${tab.path}`} onClick={() => { onActivate(tab.id); revealTab(tab.id); }}>
               <span className="document-tabs-menu-name">{names[index]}{tab.dirty ? " •" : ""}</span>
             </DropdownMenuItem>;
           })}

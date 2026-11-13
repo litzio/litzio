@@ -8,9 +8,9 @@ import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import type { ViewTab } from "./views/view-page.ts";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
 import { createTabAdmission, type Tab } from "./tab-admission.ts";
-import { HostContext, HostClientContext } from "./host-context.tsx";
-import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
-import { getHostClient, hostRegistry, hostLabel, monitorDesktopHosts, type HostClient } from "./host-client.ts";
+import { HostClientContext } from "./host-context.tsx";
+import { LOCAL_HOST_ID, sameLocator, assertLocalHost } from "./host-locator.ts";
+import { getHostClient, hostConnection, monitorDesktopHost, type HostClient } from "./host-client.ts";
 import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
@@ -103,8 +103,7 @@ export function App() {
 }
 
 function EditorApp() {
-  useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
-  const connectedHostIds = hostRegistry.list().filter(host => hostRegistry.get(host.hostId).state === "connected").map(host => host.hostId).join(",");
+  useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
   useTranslation();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantStatus, setAssistantStatus] = useState<AssistantButtonStatus>();
@@ -208,9 +207,9 @@ function EditorApp() {
   const recentFoldersRef = useRef(recentFolders);
   const [allowedRoots, setAllowedRoots] = useState<string[] | undefined>(undefined);
   const visibleRecent = visibleRecentFolders(recentFolders, allowedRoots);
-  const [newTemplate, setNewTemplate] = useState<TemplateSummary & { client: HostClient; hostId: string }>();
+  const [newTemplate, setNewTemplate] = useState<TemplateSummary & { client: HostClient }>();
   const [templateRevision, setTemplateRevision] = useState(0);
-  const [saveTemplate, setSaveTemplate] = useState<{ client: HostClient; hostId: string; path: string; returnFocus: HTMLElement | null }>();
+  const [saveTemplate, setSaveTemplate] = useState<{ client: HostClient; path: string; returnFocus: HTMLElement | null }>();
   const [newDialog, setNewDialog] = useState(false);
   const [newDirectory, setNewDirectory] = useState("");
   const [newFolderDialog, setNewFolderDialog] = useState(false);
@@ -219,7 +218,6 @@ function EditorApp() {
   const [fileOperationPending, setFileOperationPending] = useState(false);
   const [figureRenamePending, setFigureRenamePending] = useState(false);
   const renameImageRef = useRef<ImageRenamer | undefined>(undefined);
-  const remoteImageRename = useCallback<ImageRenamer>(async () => { throw new Error("Image rename requires Host-specific shell integration."); }, []);
   const renameImage = useCallback<ImageRenamer>((...args) => renameImageRef.current!(...args), []);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const latestTabs = useRef(tabs); latestTabs.current = tabs;
@@ -237,14 +235,14 @@ function EditorApp() {
   const [viewTabs, setViewTabs] = useState<ViewTab[]>([]);
   const screens = useViewScreens();
   useEffect(() => {
-    const open = (event: Event) => { const screen = (event as CustomEvent<ViewScreen & {hostId:string}>).detail; openScreen(screen); };
+    const open = (event: Event) => { const screen = (event as CustomEvent<ViewScreen>).detail; openScreen(screen); };
     window.addEventListener("open-plugin-screen", open); return () => window.removeEventListener("open-plugin-screen", open);
   });
-  function openScreen(screen: ViewScreen & {hostId: string}) {
+  function openScreen(screen: ViewScreen) {
     if (sidebarOverlay) closeSidebar();
     const id = `screen-${screen.plugin}-${screen.id}`;
-    const next = {id,hostId:screen.hostId,root:(screen.hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(screen.hostId))[0]??"",screen,label:screen.title};
-    setViewTabs(previous => previous.some(tab => tab.id === id) ? previous.map(tab => tab.id === id && tab.hostId !== screen.hostId ? next : tab) : [...previous,next]);
+    const next = {id,client:getHostClient(),root:openedFolderPaths[0]??"",screen,label:screen.title};
+    setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous,next]);
     placeTab(id);
   }
 
@@ -253,13 +251,12 @@ function EditorApp() {
   const settingsGroup = navigation.groups.find(group => group.tabs.includes("settings"));
   const settingsOpen = settingsGroup?.active === "settings";
   const settingsFocused = activeId === "settings";
-  const [galleryHostId, setGalleryHostId] = useState(LOCAL_HOST_ID);
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.label ?? tab.screen?.title ?? "" })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: galleryHostId, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: LOCAL_HOST_ID, icon: tab.screen ? <PluginIcon client={tab.client} plugin={tab.screen.plugin} digest={screens.find(screen => screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.label ?? tab.screen?.title ?? "" })), ...(galleryGroup ? [{ id: "templates", path: "templates", hostId: LOCAL_HOST_ID, title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -288,10 +285,11 @@ function EditorApp() {
   }, []);
   function reviewRecovery(record: RecoveryRecord, preserveCurrent = false): void {
     let reason = "";
-    try { prepareRecovery(record); hostRegistry.get(record.hostId); } catch (cause) { reason = messageOf(cause); }
+    try { prepareRecovery(record); assertLocalHost(record.hostId); } catch (cause) { reason = messageOf(cause); }
     setRecoveryReview(previous => preserveCurrent && previous ? previous : { record, reason });
   }
-  async function offerRecovery(file: EditorFileResponse, hostId = LOCAL_HOST_ID): Promise<void> {
+  async function offerRecovery(file: EditorFileResponse): Promise<void> {
+    const hostId = LOCAL_HOST_ID;
     const records = await refreshRecovery();
     const matching = records?.find(record => sameLocator(record, { hostId, path: file.path }) && !tabs.some(tab => tab.recoveryId === record.id));
     if (matching) reviewRecovery(matching);
@@ -311,7 +309,7 @@ function EditorApp() {
   const [operation, setOperation] = useState<Operation | "">("loading");
   const operationRef = useRef(true);
   // Pending reads belong to their destination group and captured Host, not the window lock.
-  const pendingOpens = useRef(new Map<number, { controller: AbortController; hostId: string; path: string; active: string | null }>());
+  const pendingOpens = useRef(new Map<number, { controller: AbortController; path: string; active: string | null }>());
   const [, refreshOpens] = useReducer(value => value + 1, 0);
   function cancelOpen(group: number): void {
     pendingOpens.current.get(group)?.controller.abort();
@@ -327,8 +325,8 @@ function EditorApp() {
   }, [navigation]);
 
   const [error, setError, errorCause] = useMessageState("");
-  const { assistantHost, referenceRequest, addToChat, consumeReference } =
-    useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen, setError });
+  const { referenceRequest, addToChat, consumeReference } =
+    useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen });
   // Restore folder context before opening tabs, including their bibliography resources.
   const revisionChecks = () => [...sessions.current.values()].filter(owner => owner.hostId === LOCAL_HOST_ID && !owner.busyRef.current).map(owner => {
     const path = owner.openedPath, expected = owner.acknowledgedRevision;
@@ -340,19 +338,21 @@ function EditorApp() {
     if (desktop?.setOpenedFolders) void desktop.setOpenedFolders(openedFolderPaths).catch(cause => setError(messageOf(cause)));
   }, [JSON.stringify(openedFolderPaths)]);
 
-  const openedRoots: {hostId:string;path:string;id:string}[] = folders.trees.flatMap(tree => {
+  const openedRoots: {path:string;id:string}[] = folders.trees.flatMap(tree => {
     const id = tree.nodes.get(tree.root)?.rootId;
-    return id ? [{hostId:tree.hostId,path:tree.root,id}] : [];
+    return id ? [{path:tree.root,id}] : [];
   });
   // Resolve only already-opened Roots and recheck physical identity before the existing open path.
-  const openViewDocument = (path: string, hostId: string) => {
-    const root = openedRoots.find(root => root.hostId === hostId && folderChain(root.path,path).length > 0);
+  const openViewDocument = (path: string, client: HostClient) => {
+    const hostId = LOCAL_HOST_ID;
+    const root = openedRoots.find(root => folderChain(root.path,path).length > 0);
     if (!root) { setError(i18n.t("Unavailable")); return; }
     void (async () => {
-      const response = await getHostClient(hostId).request(`/api/folder?root=${encodeURIComponent(root.path)}`, {cache:"no-store"});
+      const response = await client.request(`/api/folder?root=${encodeURIComponent(root.path)}`, {cache:"no-store"});
       const listing = await response.json() as Partial<FolderResponse>;
-      if (!response.ok || listing.rootId !== root.id || !foldersRef.current.trees.some(tree => tree.hostId === hostId && tree.root === root.path && tree.nodes.get(tree.root)?.rootId === root.id)) throw new Error(i18n.t("Unavailable"));
-      const problem = await openFile(path,"",navigation.focused,hostId);
+      if (!response.ok || listing.rootId !== root.id || !foldersRef.current.trees.some(tree => tree.root === root.path && tree.nodes.get(tree.root)?.rootId === root.id)) throw new Error(i18n.t("Unavailable"));
+      client.assertCurrent();
+      const problem = await openFile(path,"",navigation.focused,client);
       if (problem) throw new Error(problem);
     })().catch(cause => setError(messageOf(cause)));
   };
@@ -372,7 +372,7 @@ function EditorApp() {
       try {
         const query = new URLSearchParams();
         query.set("paths", JSON.stringify(checks.map(check => check.path)));
-        const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder-version?${query}`, { signal: controller.signal });
+        const response = await getHostClient().request(`/api/folder-version?${query}`, { signal: controller.signal });
         if (!response.ok) return;
         const { revisions } = await response.json() as { revisions?: { path: string; revision: string | null }[] };
         if (!controller.signal.aborted) for (const check of checks) {
@@ -391,9 +391,7 @@ function EditorApp() {
     };
   }, []);
   // Tab reporting rerenders the shell; keep this memoized tab prop stable and read live trees.
-  const onAssetChange = useCallback((documentPath: string, assetPath: string, hostId = LOCAL_HOST_ID) => {
-    // Remote Explorer checks its own Host; never refresh local paths for remote assets.
-    if (hostId !== LOCAL_HOST_ID) return;
+  const onAssetChange = useCallback((documentPath: string, assetPath: string) => {
     const { directory } = splitDocumentPath(documentPath);
     const separator = documentPath.includes("\\") ? "\\" : "/";
     foldersRef.current.refreshParents(directory + assetPath.replace(/^\.\//, "").replaceAll("/", separator));
@@ -417,10 +415,9 @@ function EditorApp() {
     editorRef = emptyEditorRef, document, outlineStore, view = "visual",
     imageChoice = null, imageReturnFocus = emptyImageRef,
   } = nativeSession ?? {};
-  const imageHostId = imageChoice?.hostId ?? LOCAL_HOST_ID;
-  const imageClient = imageChoice?.client ?? getHostClient(imageHostId);
-  const browseImages = useCallback((path: string) => browseHostFolder(path, "image", imageHostId, imageClient), [imageHostId, imageClient]);
-  const imagePlaces = useCallback(() => folderPlaces(imageHostId, imageClient), [imageHostId, imageClient]);
+  const imageClient = imageChoice?.client ?? getHostClient();
+  const browseImages = useCallback((path: string) => browseHostFolder(path, "image", imageClient), [imageClient]);
+  const imagePlaces = useCallback(() => folderPlaces(imageClient), [imageClient]);
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
   const tableWrapPath = nativeSession ? openedPath : "";
   const tableWrap = useTableWrap(tableWrapPath, session?.hostId);
@@ -433,14 +430,14 @@ function EditorApp() {
     saveComparisonReturnFocus.current = returnFocus;
     if (owner.kind === "text") {
       const snapshot = owner.getSnapshot();
-      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
+      setSaveComparison({ client: owner.client, path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
       return;
     }
     const submitted = owner.editorRef.current?.getDocument();
-    try { setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, request: owner.savePreviewRequest() }); }
+    try { setSaveComparison({ client: owner.client, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, request: owner.savePreviewRequest() }); }
     catch (cause) {
       const failure = cause instanceof SaveContentError ? cause : new SaveContentError(messageOf(cause), undefined, { phase: "collect", cause });
-      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, failure: new SaveDisplayError([failure], submitted) });
+      setSaveComparison({ client: owner.client, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, failure: new SaveDisplayError([failure], submitted) });
     }
   }
   const save = () => session?.save();
@@ -483,7 +480,7 @@ function EditorApp() {
     // Actual focus always follows a visible document, even while Open/Save is pending.
     // Switching a group's hidden tab still waits for that group's current operation.
     if (group.active !== id && (!explicit || group.active && sessions.current.get(group.active)?.busyRef.current)) return;
-    if (explicit || id !== activeId) rememberTabs(tabs.find(tab => tab.id === id)?.hostId);
+    if (explicit || id !== activeId) rememberTabs();
     if (id === activeId) return;
     navigate({ type: "select", id });
     setError("");
@@ -504,10 +501,10 @@ function EditorApp() {
     }
   }, [activeId, tabs.length, navigation]);
 
-  function placeTab(id: string, group = navigation.focused, hostId = tabs.find(tab => tab.id === id)?.hostId): void {
+  function placeTab(id: string, group = navigation.focused): void {
     cancelOpen(group);
     navigate({ type: "open", id, group });
-    rememberTabs(hostId);
+    rememberTabs();
   }
   const rightGroup = navigation.groups[1]?.id ?? 1 - navigation.groups[0]!.id;
   function moveTab(id: string, right = false): void {
@@ -534,12 +531,12 @@ function EditorApp() {
     return () => observer.disconnect();
   }, [split]);
 
-  const { acceptFile, restoreRecovery, addInitial, acceptRestored } = createTabAdmission({
+  const { acceptFile, restoreRecovery, addInitial } = createTabAdmission({
     tabs, latestTabs, nextId, startupOverrides, splitAvailable, focused: navigation.focused,
     sessions, setTabs, navigate, placeTab, rememberTabs, setRecoveryReview, refreshRecovery,
   });
   useHostTabRestore({
-    memory: tabMemory, folders, desktop, connectedHostIds, addInitial, acceptRestored,
+    memory: tabMemory, folders, desktop, addInitial,
     refreshRecovery, reviewRecovery, setStart, setAllowedRoots, setTabs, navigate,
     setError, operationRef, setOperation,
   });
@@ -556,17 +553,17 @@ function EditorApp() {
     focusAfterClose.current = true;
     setTabs(previous => previous.filter(tab => tab.id !== id));
     navigate({ type: "close", id });
-    rememberTabs(tabs.find(tab => tab.id === id)?.hostId);
+    rememberTabs();
   }
-  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, hostId = LOCAL_HOST_ID, folderConfirmation?: FolderTrashConfirmation) => {
+  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, capturedClient?: HostClient, folderConfirmation?: FolderTrashConfirmation) => {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
-    if (hostId !== LOCAL_HOST_ID && action === "delete" && hostRegistry.get(hostId).capabilities?.fileDeletion !== "trash") throw new Error(i18n.t("The Host trash is unavailable."));
+    const hostId = LOCAL_HOST_ID;
     const isFolder = entry.kind === "folder";
-    if (isFolder && (action !== "delete" || hostRegistry.get(hostId).capabilities?.fileDeletion !== "trash")) throw new Error(i18n.t("The Host trash is unavailable."));
+    if (isFolder && (action !== "delete" || hostConnection.get().capabilities?.fileDeletion !== "trash")) throw new Error(i18n.t("The Host trash is unavailable."));
     // Invalidate before any await: the read may already contain the pre-mutation file.
     // Folder membership needs Host filesystem identity, so cancel all this Host's pending reads.
     for (const [group, pending] of pendingOpens.current) {
-      if (pending.hostId === hostId && (pending.path === entry.path ||
+      if ((pending.path === entry.path ||
           entry.kind === "folder")) cancelOpen(group);
     }
     operationRef.current = true; setFileOperationPending(true);
@@ -578,18 +575,21 @@ function EditorApp() {
     const formSession = figure && hostSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
     const tab = tabs.find(tab => sameLocator(tab, { hostId, path: entry.path }));
     const owner = tab && sessions.current.get(tab.id);
-    const client = formSession ? formSession.client : owner?.client ?? getHostClient(hostId);
+    const client = formSession ? formSession.client : owner?.client ?? capturedClient ?? getHostClient();
     owner?.suspendRecovery();
     if (isFolder) affectedSessions.forEach(session => session.suspendRecovery());
     let completed = false;
     try {
+      capturedClient?.assertCurrent();
+      client.assertCurrent();
+      affectedSessions.forEach(session => session.client.assertCurrent());
       if (figure && !formSession) throw new Error("Editor is not ready");
       const interrupted = (cause: unknown): never => {
         if (isFolder) throw new Error(i18n.t("The Trash operation did not complete reliably. Some items may have moved. Check the source folder and OS Trash before trying again."));
         if (figure) throw new Error(i18n.t("The image rename response was interrupted. Files may have changed. Keep your edits and check the files before Reloading."));
         throw cause;
       };
-      const root = figure ? chosenRoot : folders.trees.filter(tree => tree.hostId === hostId).map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
+      const root = figure ? chosenRoot : folders.trees.filter(tree => LOCAL_HOST_ID === hostId).map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
       let expectedRevision: string | undefined;
       let checkedRecovery: RecoveryRecord[] | undefined;
       if (creation !== undefined) {
@@ -660,7 +660,7 @@ function EditorApp() {
       }
       if (reloadErrors.length) setError({ key: "The files changed, but these tabs could not be reloaded: {{documents}}", values: { documents: reloadErrors.join(", ") } });
       if (result.skippedDocuments?.length) setNotice({ key: "Skipped unreadable or non-{{product}} documents: {{documents}}", values: { documents: result.skippedDocuments.join(", ") } });
-      if (!response.ok || typeof result.path !== "string") { if (hostId === LOCAL_HOST_ID) folders.refreshParents(entry.path); throw new Error(result.error ? i18n.t(result.error) : `File operation failed (${response.status})`); }
+      if (!response.ok || typeof result.path !== "string") { folders.refreshParents(entry.path); throw new Error(result.error ? i18n.t(result.error) : `File operation failed (${response.status})`); }
       completed = true;
       const confirmedPaths: string[] = isFolder && Array.isArray(result.containedPaths) ? result.containedPaths.filter((path: unknown): path is string => typeof path === "string") : [];
       if (isFolder) affected = affected.filter(tab => confirmedPaths.includes(tab.path));
@@ -682,8 +682,8 @@ function EditorApp() {
         for (const closed of affected) { sessions.current.delete(closed.id); navigate({ type: "close", id: closed.id }); }
         setTabs(previous => previous.filter(item => !affected.some(closed => closed.id === item.id)));
       }
-      rememberTabs(hostId);
-      if (hostId === LOCAL_HOST_ID) folders.refreshParents(entry.path);
+      rememberTabs();
+      folders.refreshParents(entry.path);
       await refreshRecovery();
       return result.path;
     } finally {
@@ -787,16 +787,18 @@ function EditorApp() {
     return () => query.removeEventListener("change", change);
   }, []);
 
-  async function openFile(path: string, openedNotice = "", group = navigation.focused, hostId = LOCAL_HOST_ID): Promise<string | null> {
+  async function openFile(path: string, openedNotice = "", group = navigation.focused, client = getHostClient()): Promise<string | null> {
+    client.assertCurrent();
+    const hostId = LOCAL_HOST_ID;
     const requestedPath = unquotePath(path);
     if (!requestedPath) return i18n.t("Enter a Markdown file path.");
     if (/\.pdf$/i.test(requestedPath)) {
       if (busy || continuation) return i18n.t("Wait for the current operation to finish.");
-      const root = (hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(hostId)).find(root => folderChain(root, requestedPath).length > 0);
+      const root = openedFolderPaths.find(root => folderChain(root, requestedPath).length > 0);
       if (!root) return i18n.t("The created file is outside the opened folders.");
-      const id = viewTabs.find(tab => tab.hostId === hostId && tab.pdf === requestedPath)?.id ?? `pdf-${++nextId.current}`;
-      setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous, { id, hostId, root, pdf: requestedPath, label: splitDocumentPath(requestedPath).name }]);
-      placeTab(id, group, hostId);
+      const id = viewTabs.find(tab => tab.pdf === requestedPath)?.id ?? `pdf-${++nextId.current}`;
+      setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous, { id, client, root, pdf: requestedPath, label: splitDocumentPath(requestedPath).name }]);
+      placeTab(id, group);
       return "";
     }
     if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
@@ -811,16 +813,15 @@ function EditorApp() {
     }
     const returnFocus = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : null;
     cancelOpen(group);
-    const pending = { controller: new AbortController(), hostId, path: requestedPath, active: navigation.groups.find(item => item.id === group)?.active ?? null };
+    const pending = { controller: new AbortController(), path: requestedPath, active: navigation.groups.find(item => item.id === group)?.active ?? null };
     pendingOpens.current.set(group, pending); refreshOpens();
     setError("");
     try {
-      const client = getHostClient(hostId);
-      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, hostId === LOCAL_HOST_ID ? folders.rootOf(requestedPath) : undefined, pending.controller.signal);
+      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, folders.rootOf(requestedPath), pending.controller.signal);
       if (pending.controller.signal.aborted || pendingOpens.current.get(group) !== pending) return null;
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
-      acceptFile(next, client, group, hostId);
-      void offerRecovery(next, hostId);
+      acceptFile(next, client, group);
+      void offerRecovery(next);
       setNotice(openedNotice);
       return "";
     } catch (cause) {
@@ -833,31 +834,25 @@ function EditorApp() {
       return messageOf(cause);
     } finally { if (pendingOpens.current.get(group) === pending) { pendingOpens.current.delete(group); refreshOpens(); } }
   }
-  function openGalleryFolder(hostId: string, path: string): Promise<string> {
-    if (hostId === LOCAL_HOST_ID) return openFolder(path);
-    return Promise.resolve(i18n.t("The Host is unavailable."));
-  }
   function openTemplateGallery(): void {
     if (busy || continuation) return;
-    if (!hostRegistry.list().some(host => host.hostId === galleryHostId)) setGalleryHostId(LOCAL_HOST_ID);
     if (sidebarOverlay) closeSidebar();
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
-  async function createFile(path: string, target?: { hostId: string; client: HostClient; root?: string }): Promise<string> {
+  async function createFile(path: string, target?: { client: HostClient; root?: string }): Promise<string> {
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
     operationRef.current = true;
     setOperation("creating");
     setError("");
     setNotice("");
     try {
-      const client = target?.client ?? newTemplate?.client ?? getHostClient(LOCAL_HOST_ID);
-      const hostId = target?.hostId ?? newTemplate?.hostId ?? LOCAL_HOST_ID;
-      const root = target ? target.root : hostId === LOCAL_HOST_ID ? folders.rootOf(path)
-        : readOpenFolders(hostId).find(root => folderChain(root, path).length > 0);
+      const client = target?.client ?? newTemplate?.client ?? getHostClient();
+      const hostId = LOCAL_HOST_ID;
+      const root = target ? target.root : folders.rootOf(path);
       const file = await createDocumentRequests(client).requestDocument("PUT", path, root, !target && newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined);
-      acceptFile(file, client, navigation.focused, hostId);
+      acceptFile(file, client, navigation.focused);
       return "";
     } catch (cause) { const message = messageOf(cause); setError(message); return message; }
     finally { operationRef.current = false; setOperation(""); }
@@ -866,27 +861,27 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string, exact = false, template?: TemplateSummary & { client: HostClient; hostId: string }): void {
+  function newFile(root: string, exact = false, template?: TemplateSummary & { client: HostClient }): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
     setNewTemplate(template);
     setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
-  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary & { client: HostClient; hostId: string }): void {
+  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary & { client: HostClient }): void {
     if (busy || continuation) return;
     setNewTemplate(template);
     newFileButton.current = returnFocus;
-    const roots = template && template.hostId !== LOCAL_HOST_ID ? readOpenFolders(template.hostId) : folders.roots;
-    const root = roots.find(root => session?.hostId === (template?.hostId ?? LOCAL_HOST_ID) && folderChain(root, openedPath).length > 0) ?? roots[0];
-    if (root) newFile(root, Boolean(template && template.hostId !== LOCAL_HOST_ID), template);
+    const roots = folders.roots;
+    const root = roots.find(root => folderChain(root, openedPath).length > 0) ?? roots[0];
+    if (root) newFile(root, false, template);
     else {
       dialogReturnFocus.current = returnFocus;
       setNewAfterFolder(true);
       setFolderDialog(true);
     }
   }
-  const templateBrowse = useCallback((path: string) => browseHostFolder(path, undefined, newTemplate?.hostId, newTemplate?.client), [newTemplate]);
-  const templatePlaces = useCallback(() => folderPlaces(newTemplate?.hostId, newTemplate?.client), [newTemplate]);
+  const templateBrowse = useCallback((path: string) => browseHostFolder(path, undefined, newTemplate?.client), [newTemplate]);
+  const templatePlaces = useCallback(() => folderPlaces(newTemplate?.client), [newTemplate]);
   async function continueSession(shouldSave: boolean): Promise<void> {
     if (!continuation || continuationRunning.current || busy) return;
     const owner = sessions.current.get(continuation.id);
@@ -1026,7 +1021,7 @@ function EditorApp() {
     let active = true;
     let stop: (() => void) | undefined;
     void desktop.info().then(({ version }) => {
-      if (active) stop = monitorDesktopHosts([], version);
+      if (active) stop = monitorDesktopHost(version);
     }).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
     return () => { active = false; stop?.(); };
   }, []);
@@ -1180,7 +1175,7 @@ function EditorApp() {
       run: () => {
         if (!session || session.kind !== "native") return;
         if (session.editorRef.current?.hasUnsavedChanges()) { setError({ key: "Save the document before saving it as a template." }); return; }
-        setSaveTemplate({ client: session.client, hostId: session.hostId, path: session.openedPath, returnFocus: commandReturnFocus.current });
+        setSaveTemplate({ client: session.client, path: session.openedPath, returnFocus: commandReturnFocus.current });
       } },
     { id: "new-document", kind: "command", label: i18n.t("New document…"), icon: FileText, takesFocus: true,
       disabled: busy || Boolean(continuation), keywords: ["new document", "new file", "새 문서", "새 파일"],
@@ -1253,11 +1248,10 @@ function EditorApp() {
   return (<>
     <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar onCopyPath={path => void copyPath(path)}
-        documentHostId={activePdf?.hostId ?? session?.hostId ?? LOCAL_HOST_ID}
         onAddToChat={assistantAvailable ? addToChat : undefined}
         theme={theme} onThemeChange={changeTheme}
-        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...screens.filter((screen,index,all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {const Icon=viewScreenIcon(screen.icon);return {id:`screen-${screen.plugin}`,label:screen.title,icon:<PluginIcon client={getHostClient(screen.hostId)} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />,run:()=>openScreen(screen)};})]}
-        onFileAction={(action, root, entry, name, identity) => fileAction(action, root, entry, name, undefined, undefined, LOCAL_HOST_ID, identity)} fileActionsDisabled={busy || Boolean(continuation)}
+        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...screens.filter((screen,index,all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {const Icon=viewScreenIcon(screen.icon);return {id:`screen-${screen.plugin}`,label:screen.title,icon:<PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />,run:()=>openScreen(screen)};})]}
+        onFileAction={(action, root, entry, name, identity, client) => fileAction(action, root, entry, name, undefined, undefined, client, identity)} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path })); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
         open={sidebarOpen}
@@ -1323,7 +1317,7 @@ function EditorApp() {
         <div className="top-bar-container">
           <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={activePdf?.pdf ?? openedPath}
             onAssistant={assistantAvailable ? toggleAssistant : undefined} assistantOpen={assistantOpen} assistantStatus={assistantStatus}
-            hostLabel={session && hostRegistry.list().length > 1 ? hostLabel(session.hostId) : undefined}
+
             location={documentLocation(activePdf?.pdf ?? openedPath, activePdf?.root ?? folders.rootOf(openedPath))} />
         </div>
       </div>
@@ -1410,7 +1404,7 @@ function EditorApp() {
             const group = navigation.groups[groupIndex];
             return <DocumentTab client={tab.client} hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
-              report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : remoteImageRename} onReveal={revealDocument}
+              report={reportSession} onAssetChange={onAssetChange} renameImage={renameImage} onReveal={revealDocument}
               onCompare={compareExternal} />;
           })}
           {/* Keep a boundary outside removable work tabs; document sessions remain siblings. */}
@@ -1421,7 +1415,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onOpenDocument={openViewDocument} /> : null}
+              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={tab.client} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace client={tab.client} roots={openedFolderPaths} key={`${tab.id}:${LOCAL_HOST_ID}`} id={tab.id} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onOpenDocument={path => openViewDocument(path, tab.client)} /> : null}
 
             </div>;
           })}
@@ -1430,8 +1424,8 @@ function EditorApp() {
             hidden={!galleryOpen} inert={!galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
-            <HostContext.Provider value={galleryHostId}><Suspense fallback={null}><TemplateGallery key={galleryHostId} hostId={galleryHostId} onHost={setGalleryHostId} active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
-              onCreate={(item, focus, client) => newDocument(focus, { ...item, client, hostId: galleryHostId })} onOpenFolder={path => openGalleryFolder(galleryHostId, path)} /></Suspense></HostContext.Provider>
+            <Suspense fallback={null}><TemplateGallery key={LOCAL_HOST_ID} active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
+              onCreate={(item, focus, client) => newDocument(focus, { ...item, client })} onOpenFolder={openFolder} /></Suspense>
           </div> : null}
           {settingsGroup ? <div className="shell-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
@@ -1469,19 +1463,19 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t(undoConfirmation.edit ? "Undo change?" : "Undo document creation?")} description={i18n.t(undoConfirmation.edit ? "Restore “{{name}}” and discard unsaved changes and recovery records?" : "“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t(undoConfirmation.edit ? "Restore and discard changes" : "Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel key={LOCAL_HOST_ID} onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
-        onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
+        onOpen={async (path, client) => { const message = await openFile(path, "", navigation.focused, client); if (message) throw new Error(message); }}
         onUndoChange={async (path, undo) => {
           if (operationRef.current || busy || continuation || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
-          const affected = tabs.filter(tab => sameLocator(tab, { hostId: assistantHost, path }));
-          for (const [group, pending] of pendingOpens.current) if (pending.hostId === assistantHost && pending.path === path) cancelOpen(group);
+          const affected = tabs.filter(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path }));
+          for (const [group, pending] of pendingOpens.current) if (pending.path === path) cancelOpen(group);
           operationRef.current = true; setFileOperationPending(true);
           const owners = affected.flatMap(tab => { const owner = sessions.current.get(tab.id); return owner ? [owner] : []; });
           owners.forEach(owner => owner.suspendRecovery());
           try {
             const snapshots = () => JSON.stringify(affected.map(tab => [sessions.current.get(tab.id)?.getSnapshot(), sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()]));
-            const recovery = async () => (await recoveryStorage.list()).filter(record => sameLocator(record, { hostId: assistantHost, path })).sort((a,b) => a.id.localeCompare(b.id));
+            const recovery = async () => (await recoveryStorage.list()).filter(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path })).sort((a,b) => a.id.localeCompare(b.id));
             const before = snapshots(), records = await recovery();
             if (affected.some(tab => sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()) || records.length) {
               undoFocus.current = globalThis.document.activeElement as HTMLElement;
@@ -1491,20 +1485,20 @@ function EditorApp() {
             }
             if (before !== snapshots() || JSON.stringify(records) !== JSON.stringify(await recovery())) throw new Error(i18n.t("The file changed during the operation. Review it and try again."));
             await undo();
-            for (const record of records) await recoveryStorage.delete(record.id, assistantHost);
+            for (const record of records) await recoveryStorage.delete(record.id, LOCAL_HOST_ID);
             await Promise.all(affected.map(tab => sessions.current.get(tab.id)?.reloadFromDisk()));
             return true;
           } finally { owners.forEach(owner => owner.resumeRecovery()); operationRef.current = false; setFileOperationPending(false); }
         }}
-        onUndo={async result => {
-          const root = assistantHost === LOCAL_HOST_ID ? folders.rootOf(result.path) : readOpenFolders(assistantHost).find(root => folderChain(root, result.path).length > 0);
+        onUndo={async (result, client) => {
+          const root = folders.rootOf(result.path);
           if (!root) throw new Error(i18n.t("The created file is outside the opened folders."));
-          return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result, assistantHost) !== "";
+          return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result, client) !== "";
         }}
-        documentPath={session?.hostId === assistantHost ? session.openedPath : ""} folders={assistantHost === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(assistantHost)}
+        documentPath={session?.openedPath ?? ""} folders={openedFolderPaths}
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
-        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /></HostContext.Provider> : null}
-      <NotificationSource items={[...pendingOpens.current].map(([group, pending]) => ({ id: `open-${group}`, severity: "info" as const, message: `${i18n.t("Opening…")} ${hostLabel(pending.hostId)}: ${pending.path}`, render: () => <><p>{i18n.t("Opening…")} {hostLabel(pending.hostId)}: {pending.path}</p><Button variant="ghost" size="sm" onClick={() => cancelOpen(group)}>{i18n.t("Cancel")}</Button></> }))} />
+        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /> : null}
+      <NotificationSource items={[...pendingOpens.current].map(([group, pending]) => ({ id: `open-${group}`, severity: "info" as const, message: `${i18n.t("Opening…")} ${pending.path}`, render: () => <><p>{i18n.t("Opening…")} {pending.path}</p><Button variant="ghost" size="sm" onClick={() => cancelOpen(group)}>{i18n.t("Cancel")}</Button></> }))} />
       <NotificationSource items={themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error", message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []} />
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />
@@ -1516,18 +1510,13 @@ function EditorApp() {
         onClose={() => setRecoveryReview(null)} />
       <FolderDialog
         open={folderDialog}
-        initialPath={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? readOpenFolders(newTemplate.hostId).at(-1) ?? "" : folders.rootOf(openedPath) ?? folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory}
-        recent={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? [] : visibleRecent}
-        restricted={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? false : allowedRoots !== undefined}
-        allowedRoots={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? undefined : allowedRoots}
+        initialPath={folders.rootOf(openedPath) ?? folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory}
+        recent={visibleRecent}
+        restricted={allowedRoots !== undefined}
+        allowedRoots={allowedRoots}
         browse={templateBrowse}
         places={templatePlaces}
-        onOpen={async path => {
-          if (!newTemplate || newTemplate.hostId === LOCAL_HOST_ID) return openFolder(path, newAfterFolder);
-          const problem = await openGalleryFolder(newTemplate.hostId, path);
-          if (!problem && newAfterFolder) { setNewDirectory(path); folderNewReady.current = true; }
-          return problem;
-        }}
+        onOpen={path => openFolder(path, newAfterFolder)}
         onClosed={() => {
           if (pendingFolderFocus.current) {
             setFolderFocus(pendingFolderFocus.current);
@@ -1535,15 +1524,12 @@ function EditorApp() {
           if (!folderNewReady.current) return;
           setNewDialog(true);
         }}
-        onCreateFolder={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? async (parent, name) => {
-          try { await requestCreateFolder(parent, name, newTemplate.client); return ""; }
-          catch (cause) { return messageOf(cause); }
-        } : createFolder}
+        onCreateFolder={createFolder}
         returnFocus={dialogReturnFocus}
         finalFocus={() => folderNewReady.current || pendingFolderFocus.current ? false : shellReturnFocus(dialogReturnFocus.current)}
         onClose={() => { setFolderDialog(false); setNewAfterFolder(false); if (!folderNewReady.current) setNewTemplate(undefined); }}
       />
-      <HostContext.Provider value={imageChoice?.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={imageClient}><FolderDialog
+      <HostClientContext.Provider value={imageClient}><FolderDialog
         open={imageChoice !== null}
         choose="image"
         initialPath={imageChoice ? splitDocumentPath(imageChoice.documentPath).directory : ""}
@@ -1555,12 +1541,12 @@ function EditorApp() {
         onOpen={selectImage}
         returnFocus={imageReturnFocus}
         onClose={closeImageChoice}
-      /></HostClientContext.Provider></HostContext.Provider>
-      {saveTemplate ? <HostContext.Provider value={saveTemplate.hostId}><SaveTemplateDialog {...saveTemplate} onClose={() => setSaveTemplate(undefined)}
-        onSaved={() => { setSaveTemplate(undefined); setTemplateRevision(value => value + 1); setNotice({ key: "Template saved." }); }} /></HostContext.Provider> : null}
+      /></HostClientContext.Provider>
+      {saveTemplate ? <SaveTemplateDialog {...saveTemplate} onClose={() => setSaveTemplate(undefined)}
+        onSaved={() => { setSaveTemplate(undefined); setTemplateRevision(value => value + 1); setNotice({ key: "Template saved." }); }} /> : null}
       <NewDialog
         open={newDialog}
-        destinations={newTemplate && newTemplate.hostId !== LOCAL_HOST_ID ? readOpenFolders(newTemplate.hostId).map(path => ({ path, label: splitDocumentPath(path).name || path })) : newDestinations(folders.trees)}
+        destinations={newDestinations(folders.trees)}
         directory={newDirectory}
         busy={busy}
         onCreate={(directory, name) => createFile(childPath(directory, name))}
@@ -1646,14 +1632,14 @@ function EditorApp() {
 /** Asks the Host for one level of a folder inside the folder the user chose. */
 async function requestFolder(root: string, path?: string, background = false): Promise<FolderResponse> {
   const query = new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) });
-  const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder?${query}`);
+  const response = await getHostClient().request(`/api/folder?${query}`);
   const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderResponse;
 }
 
 /** Asks the Host for one level of any folder while choosing which folder to open, or an image. */
-async function browseHostFolder(path: string, files?: "image" | "pdf", hostId = LOCAL_HOST_ID, client = getHostClient(hostId)): Promise<FolderBrowseResponse> {
+async function browseHostFolder(path: string, files?: "image" | "pdf", client = getHostClient()): Promise<FolderBrowseResponse> {
   const response = await client.request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
   const payload = (await response.json()) as Partial<FolderBrowseResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries) || !Array.isArray(payload.crumbs)) throw new Error(payload.error ?? `request failed (${response.status})`);
@@ -1663,7 +1649,7 @@ async function browseHostFolder(path: string, files?: "image" | "pdf", hostId = 
 const browseHostPdfs = (path: string) => browseHostFolder(path, "pdf");
 
 /** Asks the Host to create one folder inside an existing one. */
-async function requestCreateFolder(parent: string, name: string, client = getHostClient(LOCAL_HOST_ID)): Promise<FolderCreateResponse> {
+async function requestCreateFolder(parent: string, name: string, client = getHostClient()): Promise<FolderCreateResponse> {
   const response = await client.request(`/api/folder`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1675,7 +1661,7 @@ async function requestCreateFolder(parent: string, name: string, client = getHos
 }
 
 /** Asks the Host where choosing a folder can start. */
-async function folderPlaces(hostId = LOCAL_HOST_ID, client = getHostClient(hostId)): Promise<FolderPlace[]> {
+async function folderPlaces(client = getHostClient()): Promise<FolderPlace[]> {
   const response = await client.request(`/api/folder-places`);
   const payload = (await response.json()) as Partial<FolderPlacesResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.places)) throw new Error(payload.error ?? `request failed (${response.status})`);

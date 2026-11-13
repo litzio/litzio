@@ -2,7 +2,7 @@ import type { HostClient } from "./host-client.ts";
 import { Button } from "./components/ui/button.tsx";
 import { Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
-import { HostContext, HostClientContext } from "./host-context.tsx";
+import { HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
@@ -48,9 +48,9 @@ export const DocumentTab = memo(function DocumentTab(props: TabProps) {
   const replaceFile = (file: EditorFileResponse) => setReplacement(previous => ({ file, generation: (previous?.generation ?? 0) + 1 }));
   const file = replacement?.file ?? props.file;
   const restored = replacement ? undefined : props.restored;
-  if (file.kind === "text") return <HostContext.Provider value={props.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={client}><TextDocumentTab {...props} key={`text-${replacement?.generation ?? 0}`} file={file}
-    restored={restored?.kind === "text" ? restored : undefined} replaceFile={replaceFile} /></HostClientContext.Provider></HostContext.Provider>;
-  return <HostContext.Provider value={props.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={client}><NativeDocumentTab {...props} onAssetChange={onAssetChange} key={`native-${replacement?.generation ?? 0}`} file={file} restored={restored?.kind !== "text" ? restored : undefined} replaceFile={replaceFile} /></HostClientContext.Provider></HostContext.Provider>;
+  if (file.kind === "text") return <HostClientContext.Provider value={client}><TextDocumentTab {...props} key={`text-${replacement?.generation ?? 0}`} file={file}
+    restored={restored?.kind === "text" ? restored : undefined} replaceFile={replaceFile} /></HostClientContext.Provider>;
+  return <HostClientContext.Provider value={client}><NativeDocumentTab {...props} onAssetChange={onAssetChange} key={`native-${replacement?.generation ?? 0}`} file={file} restored={restored?.kind !== "text" ? restored : undefined} replaceFile={replaceFile} /></HostClientContext.Provider>;
 });
 
 const NativeDocumentTab = memo(function NativeDocumentTab({ client, hostId = LOCAL_HOST_ID, settingsDisabled, id, file, restored, recoveryId, active, focused, groupIndex, onFocus, report, onAssetChange, renameImage, onReveal, replaceFile, onCompare }:

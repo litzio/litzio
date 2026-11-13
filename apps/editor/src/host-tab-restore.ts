@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import type { DesktopBridge } from "../shared/desktop-bridge.ts";
 import type { DocumentStartResponse, EditorFileResponse } from "../shared/document-protocol.ts";
-import { getHostClient, hostRegistry } from "./host-client.ts";
+import { getHostClient } from "./host-client.ts";
 import { LOCAL_HOST_ID, locatorKey, sameLocator, type HostLocator } from "./host-locator.ts";
 import { openedTab, type EditorGroups, type GroupAction } from "./document-tabs.ts";
 import { createDocumentRequests } from "./document-session.ts";
@@ -15,14 +15,11 @@ import type { Operation } from "./operation.ts";
 export function useTabNavigationMemory(tabs: Tab[], navigation: EditorGroups, activeId: string | null) {
   const startupOverrides = useRef(new Set<string>());
   const [tabsRestored, setTabsRestored] = useState(false);
-  const restoredHosts = useRef(new Set([LOCAL_HOST_ID]));
   // A startup failure protects old memory until the user navigates this Host explicitly.
-  const navigatedHosts = useRef(new Set<string>());
   const explicitNavigation = useRef(false);
   const [rememberVersion, advanceTabMemory] = useReducer(version => version + 1, 0);
-  function rememberTabs(hostId?: string): void {
+  function rememberTabs(): void {
     explicitNavigation.current = true;
-    if (hostId) navigatedHosts.current.add(hostId);
     advanceTabMemory();
   }
   const serializedTabs = JSON.stringify({ paths: navigation.groups.flatMap(group => group.tabs).flatMap(id => {
@@ -32,28 +29,23 @@ export function useTabNavigationMemory(tabs: Tab[], navigation: EditorGroups, ac
   // Session reports, Save and restoration alone never write navigation preferences.
   useEffect(() => {
     if (tabsRestored && rememberVersion > 0) {
-      for (const host of hostRegistry.list()) {
-        if (!restoredHosts.current.has(host.hostId) && !navigatedHosts.current.has(host.hostId)) continue;
-        const paths = navigation.groups.flatMap(group => group.tabs).flatMap(id => tabs.filter(tab => tab.id === id && tab.hostId === host.hostId).map(tab => tab.path));
-        writeOpenTabs({ paths, activePath: tabs.find(tab => tab.id === activeId && tab.hostId === host.hostId)?.path ?? null }, host.hostId);
-      }
+      const paths = navigation.groups.flatMap(group => group.tabs).flatMap(id => tabs.filter(tab => tab.id === id && tab.hostId === LOCAL_HOST_ID).map(tab => tab.path));
+      writeOpenTabs({ paths, activePath: tabs.find(tab => tab.id === activeId && tab.hostId === LOCAL_HOST_ID)?.path ?? null }, LOCAL_HOST_ID);
     }
   }, [serializedTabs, tabsRestored, rememberVersion]);
   function markStartupOverride(locator: HostLocator): void {
     startupOverrides.current.add(locatorKey(locator));
   }
-  return { tabsRestored, setTabsRestored, restoredHosts, startupOverrides, rememberTabs, markStartupOverride, explicitNavigation, hasExplicitNavigation: rememberVersion > 0 };
+  return { tabsRestored, setTabsRestored, startupOverrides, rememberTabs, markStartupOverride, explicitNavigation, hasExplicitNavigation: rememberVersion > 0 };
 }
 
-/** Restore each Host independently; admission owns tab registration, not this request lifetime. */
-export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, addInitial, acceptRestored,
+/** Restore local navigation; admission owns registration and rejects late results. */
+export function useHostTabRestore({ memory, folders, desktop, addInitial,
   refreshRecovery, reviewRecovery, setStart, setAllowedRoots, setTabs, navigate, setError, operationRef, setOperation }: {
   memory: ReturnType<typeof useTabNavigationMemory>;
   folders: Pick<ReturnType<typeof useFolderTrees>, "restored" | "rootOf">;
   desktop: DesktopBridge | undefined;
-  connectedHostIds: string;
   addInitial: ReturnType<typeof createTabAdmission>["addInitial"];
-  acceptRestored: ReturnType<typeof createTabAdmission>["acceptRestored"];
   refreshRecovery: () => Promise<RecoveryRecord[] | null>;
   reviewRecovery: (record: RecoveryRecord, preserveCurrent?: boolean) => void;
   setStart: Dispatch<SetStateAction<DocumentStartResponse | null>>;
@@ -64,13 +56,13 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
   operationRef: MutableRefObject<boolean>;
   setOperation: Dispatch<SetStateAction<Operation | "">>;
 }) {
-  const { tabsRestored, setTabsRestored, restoredHosts } = memory;
+  const { tabsRestored, setTabsRestored } = memory;
   useEffect(() => {
     // Only remembered tabs need restored folder context. Without them, retain the existing
     // usable start/default document while folder restoration continues independently.
     if (tabsRestored || !folders.restored && readOpenTabs()?.paths.length) return;
     let current = true;
-    const client = getHostClient(LOCAL_HOST_ID);
+    const client = getHostClient();
     const { requestDocument, cancelReads } = createDocumentRequests(client);
     void (async () => {
       const path = new URLSearchParams(window.location.search).get("path")?.trim() || undefined;
@@ -121,9 +113,10 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
         recovery = records.find(record => record.hostId === LOCAL_HOST_ID && saved.paths.includes(record.path));
       }
       if (!current) return;
+      client.assertCurrent();
       setStart("start" in first ? first : { start: true, samples: first.samples, sampleProblem: first.sampleProblem });
       if ("start" in first) setAllowedRoots(first.allowedRoots);
-      client.assertCurrent();
+      if (memory.explicitNavigation.current) return;
       setTabs(initialTabs);
       navigate({ type: "reset", tabs: initialTabs.map(tab => tab.id), active: openedTab(initialTabs, activePath ?? "")?.id ?? initialTabs[0]?.id ?? null });
       // With no clean tabs, the existing start-screen list already offers every record.
@@ -134,41 +127,5 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
     });
     return () => { current = false; cancelReads(); };
   }, [folders.restored]);
-
-  useEffect(() => {
-    if (!tabsRestored) return;
-    let alive = true;
-    const requests: ReturnType<typeof createDocumentRequests>[] = [];
-    for (const host of hostRegistry.list().filter(host => host.hostId !== LOCAL_HOST_ID && hostRegistry.get(host.hostId).state === "connected" && !restoredHosts.current.has(host.hostId))) {
-      const client = getHostClient(host.hostId);
-      const reader = createDocumentRequests(client); requests.push(reader);
-      let failed = false;
-      const saved = readOpenTabs(host.hostId);
-      void Promise.all((saved?.paths ?? []).map(async path => {
-        try {
-          const records = await refreshRecovery();
-          if (!alive) return;
-          const recovery = records?.find(record => sameLocator(record, { hostId: host.hostId, path }));
-          if (recovery) { if (alive) reviewRecovery(recovery, true); return; }
-          const file = await reader.requestDocument("GET", path);
-          if (!alive || "start" in file) return;
-          return { file, path };
-        } catch { failed = true; /* Keep Host navigation and recovery records for a later connection. */ }
-      })).then(results => {
-        if (!alive) return;
-        let first: string | undefined, active: string | undefined;
-        // Promise.all retains the saved order without serializing network requests.
-        for (const result of results) {
-          if (!result) continue;
-          const id = acceptRestored(result.file, client, host.hostId, result.path);
-          first ??= id;
-          if (result.path === saved?.activePath) active = id;
-        }
-        if (saved?.activePath && !memory.explicitNavigation.current && (active ?? first)) navigate({ type: "select", id: (active ?? first)! });
-        if (!failed) restoredHosts.current.add(host.hostId);
-      }).catch(() => { /* A replaced client must not admit stale startup results. */ });
-    }
-    return () => { alive = false; for (const reader of requests) reader.cancelReads(); };
-  }, [tabsRestored, connectedHostIds]);
 
 }

@@ -12,7 +12,6 @@ import { readCollapsedFolderSections, readOpenFolders, writeCollapsedFolderSecti
 export const FOLDER_REFRESH = { pollMs: 2_000, fallbackMs: 60_000 } as const;
 
 export type FolderTreeState = {
-  hostId: string;
   /** The chosen folder; every listed folder is inside it. */
   root: string;
   /** Remembered independently of the subfolders' page-only expansion. */
@@ -33,16 +32,15 @@ export type FolderTreeAction = (
   | { type: "loadStart"; root: string; path: string; request: number }
   | { type: "loadSuccess"; root: string; path: string; request: number; listing: FolderResponse }
   | { type: "loadFailure"; root: string; path: string; request: number; preserveExpansion?: boolean }
-) & { hostId?: string };
+);
 
 export function folderTreeReducer(state: FolderTreeState | null, action: FolderTreeAction): FolderTreeState | null {
   if (action.type === "openRoot") {
     // Restore a manual section hidden by an automatic ancestor, without reviving old requests.
     if (action.initialState) return { ...action.initialState, pending: new Map() };
-    return { hostId: action.hostId ?? LOCAL_HOST_ID, root: action.listing.root, sectionExpanded: action.sectionExpanded ?? true, nodes: new Map([[action.listing.path, action.listing]]), expanded: new Set(), pending: new Map() };
+    return { root: action.listing.root, sectionExpanded: action.sectionExpanded ?? true, nodes: new Map([[action.listing.path, action.listing]]), expanded: new Set(), pending: new Map() };
   }
   if (!state) return null;
-  if (state.hostId !== (action.hostId ?? LOCAL_HOST_ID)) return state;
   if (action.type === "closeRoot") return null;
   switch (action.type) {
     case "setSectionExpanded":
@@ -78,17 +76,16 @@ export type FolderTreesAction = (
   | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean; initialState?: FolderTreeState }
   | { type: "closeRoot"; root: string }
   | (Exclude<FolderTreeAction, { type: "openRoot" | "closeRoot" }> & { root: string })
-) & { hostId?: string };
+);
 
 /** Non-overlapping roots. A wider root takes the first absorbed section's place. */
 export function folderTreesReducer(trees: readonly FolderTreeState[], action: FolderTreesAction): FolderTreeState[] {
-  const hostId = action.hostId ?? LOCAL_HOST_ID;
   if (action.type === "openRoot") {
     const { listing } = action;
-    const parent = trees.find(tree => tree.hostId === hostId && containsFolder(tree.root, listing.root));
+    const parent = trees.find(tree => containsFolder(tree.root, listing.root));
     if (parent) return trees.map(tree => tree === parent
       ? { ...tree, nodes: new Map(tree.nodes).set(listing.path, { ...listing, root: tree.root }) } : tree);
-    const absorbed = trees.filter(tree => tree.hostId === hostId && containsFolder(listing.root, tree.root));
+    const absorbed = trees.filter(tree => containsFolder(listing.root, tree.root));
     const next = folderTreeReducer(null, action)!;
     const nodes = new Map(next.nodes);
     const expanded = new Set(next.expanded);
@@ -102,8 +99,8 @@ export function folderTreesReducer(trees: readonly FolderTreeState[], action: Fo
     if (!absorbed.length) return [...trees, merged];
     return trees.flatMap(tree => tree === absorbed[0] ? [merged] : absorbed.includes(tree) ? [] : [tree]);
   }
-  if (action.type === "closeRoot") return trees.filter(tree => tree.hostId !== hostId || tree.root !== action.root);
-  return trees.map(tree => tree.hostId === hostId && tree.root === action.root ? folderTreeReducer(tree, action) ?? tree : tree);
+  if (action.type === "closeRoot") return trees.filter(tree => tree.root !== action.root);
+  return trees.map(tree => tree.root === action.root ? folderTreeReducer(tree, action) ?? tree : tree);
 }
 
 /** Host-resolved paths compare literally, including case (#372); require a separator boundary. */
@@ -200,7 +197,8 @@ export function treeKey(items: TreeItem[], index: number, key: string, expanded:
 
 /** Opened folders with their Host requests. `request` lists one level of a folder inside an opened one. */
 export function useFolderTrees(request: (root: string, path?: string, background?: boolean) => Promise<FolderResponse>, onError: (message: string) => void,
-  revisionChecks?: () => { path: string; accept(revision: string | null): void }[], hostId = LOCAL_HOST_ID) {
+  revisionChecks?: () => { path: string; accept(revision: string | null): void }[]) {
+  const hostId = LOCAL_HOST_ID;
   const [trees, reduce] = useReducer(folderTreesReducer, []);
   const latest = useRef(trees);
   latest.current = trees;
@@ -208,7 +206,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
   revisionChecksRef.current = revisionChecks;
   // Async Open completions can share a render. Resolve their containment against every prior action.
   const dispatch = (input: FolderTreesAction) => {
-    const action = { ...input, hostId };
+    const action = input;
     latest.current = folderTreesReducer(latest.current, action);
     reduce(action);
   };
@@ -319,7 +317,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
             const checks = (revisionChecksRef.current?.() ?? []).filter(check => containingRoot(roots, check.path) === root);
             const query = new URLSearchParams({ root });
             if (checks.length) query.set("paths", JSON.stringify(checks.map(check => check.path)));
-            const response = await getHostClient(hostId).request(`/api/folder-version?${query}`, { signal: controller.signal });
+            const response = await getHostClient().request(`/api/folder-version?${query}`, { signal: controller.signal });
             if (!response.ok) return;
             const { version, revisions } = await response.json() as { version?: string; revisions?: { path: string; revision: string | null }[] };
             if (!version) return;

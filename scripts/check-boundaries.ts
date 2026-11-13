@@ -7,7 +7,7 @@ for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared
   for (const file of fs.readdirSync(path.join(root, base), { recursive: true }).filter(name => /\.tsx?$/.test(name))) {
     const source = fs.readFileSync(path.join(root, base, file), "utf8");
     checkEditorEngineBoundary(`${base}/${file}`, source);
-    if (base === "apps/editor/src" && file !== "host-client.ts" && /\bfetch\s*\(/.test(source)) throw new Error(`Editor HTTP must use Host client: ${file}`);
+    if (base === "apps/editor/src" && file !== "host-transport.ts" && /\bfetch\s*\(/.test(source)) throw new Error(`Editor HTTP must use Host client: ${file}`);
     if (/@litzio\/(?:plugin-api|docling|ai-agent)/.test(source)) throw new Error(`Removed plugin dependency: ${base}/${file}`);
     for (const match of source.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)) {
       const specifier = match[1]!;

@@ -1,4 +1,5 @@
-import { getHostClient } from "../host-client.ts";
+import { assertLocalHost } from "../host-locator.ts";
+import { getHostClient, type HostClient } from "../host-client.ts";
 import { useCallback, useMemo } from "react";
 import { createDocumentRequests } from "../document-session.ts";
 import { i18n } from "../i18n.ts";
@@ -8,7 +9,7 @@ import { collectSupportedEdits, toTiptapDocument } from "../tiptap-document.ts";
 import type { DocumentFileResponse, RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
-async function compare(record: RecoveryRecord, signal: AbortSignal, client = getHostClient(record.hostId)): Promise<Comparison> {
+async function compare(record: RecoveryRecord, signal: AbortSignal, client: HostClient): Promise<Comparison> {
   let save: SaveRequest | undefined;
   let bibliography: DocumentFileResponse["bibliography"], bibliographyRoot: string | undefined;
   let fallback = "";
@@ -57,8 +58,8 @@ async function compare(record: RecoveryRecord, signal: AbortSignal, client = get
 }
 
 export default function RecoveryCompare({ record }: { record: RecoveryRecord }) {
-  const client = useMemo(() => { try { return getHostClient(record.hostId); } catch { return undefined; } }, [record.hostId]);
-  const load = useCallback((signal: AbortSignal) => compare(record, signal, client), [record, client]);
+  const client = useMemo(() => { try { assertLocalHost(record.hostId); return getHostClient(); } catch { return undefined; } }, [record.hostId]);
+  const load = useCallback((signal: AbortSignal) => { if (!client) return Promise.reject(new Error("Unavailable Host")); return compare(record, signal, client); }, [record, client]);
   return <SourceCompare load={load} recovery visual={client ? { client, path: record.path,
     unsupported: record.snapshot?.kind === "text" ? i18n.t("Text sessions use Source comparison.") : undefined } : undefined} />;
 }

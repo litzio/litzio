@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { HostStatus } from "../src/components/HostStatus.tsx";
 import { i18n } from "../src/i18n.ts";
 import { once } from "node:events";
-import { createHostRegistry, monitorDesktopHosts, hostRegistry, setHostRegistry } from "../src/host-client.ts";
+import { createHostClient, createHostConnection, monitorDesktopHost, hostConnection, setHostConnection } from "../src/host-client.ts";
 import { createDocumentRequests } from "../src/document-session.ts";
 import { createAssetHost, chooseHostImage } from "../src/image-assets.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
@@ -49,15 +49,12 @@ test("Host-bound operations retain origin, isolate outage, and never replay writ
     return { server, requests, origin: `http://127.0.0.1:${address.port}` };
   }
   const a = await fixture("a"), b = await fixture("b");
-  const registry = createHostRegistry([{ hostId: "a", origin: a.origin }, { hostId: "b", origin: b.origin }]);
-  assert.throws(() => registry.get("unknown"), /Unavailable Host/);
-  await Promise.all([registry.connect("a"), registry.connect("b")]);
-  assert.equal(registry.get("a").capabilities?.fileDeletion, "trash");
-  assert.equal(registry.get("b").capabilities?.fileDeletion, "permanent");
-  assert.deepEqual(registry.get("a").identity, { runAs: "a-user" });
-  assert.deepEqual(registry.get("b").identity, { runAs: "b-user" });
+  const connection = createHostConnection(createHostClient(a.origin));
+  await connection.connect();
+  assert.equal(connection.get().capabilities?.fileDeletion, "trash");
+  assert.deepEqual(connection.get().identity, { runAs: "a-user" });
   for (const [id, fixture] of [["a", a], ["b", b]] as const) {
-    const client = registry.get(id).client;
+    const client = createHostClient(fixture.origin);
     const docs = createDocumentRequests(client), assets = createAssetHost(client);
     const file = await docs.requestDocument("GET", "/same.md");
     assert.ok(!("start" in file)); assert.equal(file.source, id);
@@ -65,7 +62,6 @@ test("Host-bound operations retain origin, isolate outage, and never replay writ
     const created = await assets.create(new File(["image"], "image.png", { type: "image/png" }), "/same.md", "paste");
     await chooseHostImage("/same.md", "/image.png", client);
     // Another active target cannot redirect the receipt's rollback.
-    registry.get(id === "a" ? "b" : "a");
     await assets.rollback(created, "/same.md");
     assert.equal(JSON.parse(fixture.requests.find(req => req.method === "DELETE")!.body).rollbackToken, id);
     assert.equal(await (await fetch(resolveFigureSource("assets/image.png", "/same.md", client))).json().then(body => body.host), id);
@@ -75,34 +71,29 @@ test("Host-bound operations retain origin, isolate outage, and never replay writ
   }
   const desktop = await import(new URL("../src/host-client.ts?receipt-reconnect", import.meta.url).href);
   desktop.setDesktopHost(a.origin);
-  const originalAssets = createAssetHost(desktop.getHostClient("local"));
+  const originalAssets = createAssetHost(desktop.getHostClient());
   const receipt = await originalAssets.create(new File(["image"], "image.png", { type: "image/png" }), "/same.md", "paste");
   const deletesBefore = b.requests.filter(req => req.method === "DELETE").length;
   desktop.setDesktopHost(b.origin);
   await assert.rejects(originalAssets.rollback(receipt, "/same.md"), /connection changed/);
   assert.equal(b.requests.filter(req => req.method === "DELETE").length, deletesBefore);
   a.server.closeAllConnections(); await new Promise<void>(resolve => a.server.close(() => resolve()));
-  await assert.rejects(createDocumentRequests(registry.get("a").client).requestSave({ kind: "text", path: "/same.md", revision: "a", source: "unsure" }), /may already have been saved/);
-  await registry.connect("a");
-  assert.equal(registry.get("a").state, "disconnected");
-  assert.equal(registry.get("a").identity, undefined);
-  assert.equal(registry.get("b").state, "connected");
-  const before = b.requests.length;
-  assert.equal((await createDocumentRequests(registry.get("b").client).requestSave({ kind: "text", path: "/same.md", revision: "b", source: "ok" })).revision, "b-saved");
-  assert.equal(b.requests.length, before + 1);
+  await assert.rejects(createDocumentRequests(connection.get().client).requestSave({ kind: "text", path: "/same.md", revision: "a", source: "unsure" }), /may already have been saved/);
+  await connection.connect();
+  assert.equal(connection.get().state, "disconnected");
+  assert.equal(connection.get().identity, undefined);
+  assert.equal(a.requests.filter(req => req.method === "POST" && req.url === "/api/document").length, 1, "observation never replays a failed write");
 });
 
-test("late capability responses cannot replace newer observations or delay another Host", async t => {
+test("late capability responses cannot replace newer observations", async t => {
   const pending: ((response: Response) => void)[] = [];
   t.mock.method(globalThis, "fetch", () => new Promise<Response>(resolve => pending.push(resolve)));
-  const registry = createHostRegistry([{ hostId: "a", origin: "http://a" }, { hostId: "b", origin: "http://b" }]);
-  const old = registry.connect("a"); await Promise.resolve();
-  const latest = registry.connect("a"), other = registry.connect("b"); await Promise.resolve();
-  pending[2](Response.json({ fileDeletion: "trash" })); await other;
-  assert.equal(registry.get("b").state, "connected");
+  const connection = createHostConnection(createHostClient("http://local"));
+  const old = connection.connect(); await Promise.resolve();
+  const latest = connection.connect(); await Promise.resolve();
   pending[1](Response.json({ fileDeletion: "trash" })); await latest;
   pending[0](Response.json({ fileDeletion: "permanent" })); await old;
-  assert.equal(registry.get("a").capabilities?.fileDeletion, "trash");
+  assert.equal(connection.get().capabilities?.fileDeletion, "trash");
 });
 
 test("Desktop bootstrap and reconnect keep in-flight targets while new work uses the verified address", async t => {
@@ -117,8 +108,8 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
     return Promise.resolve(Response.json({ fileDeletion: "trash", path: "assets/a.png", rollbackToken: "first-receipt", revision: "saved" }));
   });
   const module = await import(new URL("../src/host-client.ts?desktop-reconnect", import.meta.url).href);
-  const client = module.getHostClient("local");
-  const observation = module.hostRegistry.connect("local");
+  const client = module.getHostClient();
+  const observation = module.hostConnection.connect();
   const bootstrap = client.request("/initial"); await Promise.resolve();
   assert.equal(requests.length, 0);
   module.setDesktopHost("http://first"); await Promise.all([bootstrap, observation]);
@@ -138,7 +129,7 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   await assets.rollback(receipt, "/same.md");
   module.setDesktopHost("http://second");
   await assert.rejects(client.request("/next"), /connection changed/);
-  await module.getHostClient("local").request("/next");
+  await module.getHostClient().request("/next");
   finish!(Response.json({ revision: "first" })); await saving;
   assert.ok(requests.includes("http://first/initial"));
   assert.equal(requests.filter(url => url.endsWith("/save")).join(), "http://first/save");
@@ -146,7 +137,7 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   assert.equal(client.url("/image"), "http://first/image");
 });
 
-test("registered connections recheck health, reject protocol, warn product and recover without writes", async t => {
+test("local connection rechecks health, rejects protocol, warns product and recovers without writes", async t => {
   let protocol = "4", product = "different", offline = false;
   const calls: string[] = [];
   t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
@@ -159,29 +150,28 @@ test("registered connections recheck health, reject protocol, warn product and r
     }
     return Response.json({ fileDeletion: "trash" });
   });
-  const registry = createHostRegistry([]);
-  registry.add("remote", "https://remote.example");
-  await assert.rejects(registry.get("remote").client.request("/api/document"), /not connected/);
-  await registry.connect("remote", "client");
-  assert.match(registry.get("remote").warning!, /different/);
-  offline = true; await registry.connect("remote", "client");
-  assert.equal(registry.get("remote").state, "disconnected");
-  assert.equal(registry.get("remote").failure, "unreachable");
+  const connection = createHostConnection(createHostClient("https://local.example"));
+  let observed = connection.snapshot();
+  const stop = connection.subscribe(() => { observed = connection.snapshot(); });
+  t.after(stop);
+  await connection.connect("client");
+  assert.match(connection.get().warning!, /different/);
+  offline = true; await connection.connect("client");
+  assert.equal(connection.get().state, "disconnected");
+  assert.equal(connection.get().failure, "unreachable");
   offline = false; protocol = "other";
-  await registry.connect("remote");
-  assert.match(registry.get("remote").reason!, /protocol mismatch/);
-  assert.equal(registry.get("remote").failure, "protocol-mismatch");
+  await connection.connect();
+  assert.match(connection.get().reason!, /protocol mismatch/);
+  assert.equal(connection.get().failure, "protocol-mismatch");
   protocol = "4"; product = "client";
-  await registry.connect("remote", "client");
-  assert.equal(registry.get("remote").state, "connected");
-  assert.equal(registry.get("remote").warning, undefined);
-  const client = registry.get("remote").client;
-  registry.remove("remote");
-  await assert.rejects(client.request("/api/document"), /not connected/);
+  await connection.connect("client");
+  assert.equal(connection.get().state, "connected");
+  assert.equal(connection.get().warning, undefined);
+  assert.ok(observed > 0, "observation changes publish to shell subscribers");
   assert.ok(calls.every(url => !url.includes("stop") && !url.includes("document")));
 });
 
-test("registered monitor automatically connects and reconnects using only reads, and stops its timers", async t => {
+test("local monitor automatically connects and reconnects using only reads, and stops its timer", async t => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   let offline = true, probes = 0;
   t.mock.method(globalThis, "fetch", async (url: string) => {
@@ -192,42 +182,28 @@ test("registered monitor automatically connects and reconnects using only reads,
     }
     return Response.json({ fileDeletion: "trash" });
   });
-  const stop = monitorDesktopHosts([{ hostId: "auto-test", origin: "https://auto.example" }], "client");
-  t.after(() => { stop(); hostRegistry.remove("auto-test"); });
+  const previous = hostConnection;
+  const connection = createHostConnection(createHostClient("https://local.example"));
+  setHostConnection(connection);
+  const stop = monitorDesktopHost("client");
+  t.after(() => { stop(); setHostConnection(previous); });
   await new Promise<void>(resolve => setImmediate(resolve));
-  assert.equal(hostRegistry.get("auto-test").state, "disconnected");
+  assert.equal(connection.get().state, "disconnected");
   offline = false; t.mock.timers.tick(5000);
   await new Promise<void>(resolve => setImmediate(resolve));
-  assert.equal(hostRegistry.get("auto-test").state, "connected");
+  assert.equal(connection.get().state, "connected");
   stop(); const before = probes;
   t.mock.timers.tick(10000);
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.equal(probes, before);
 });
 
-test("registered Host metadata and observation changes publish to shell subscribers", async t => {
-  const registry = createHostRegistry([{ hostId: "local", origin: "/", label: "Local" }]);
-  let observed = registry.snapshot();
-  const stop = registry.subscribe(() => { observed = registry.snapshot(); });
-  t.after(stop);
-  registry.add("remote", "https://remote.example", "Remote");
-  assert.ok(observed > 0);
-  assert.equal(registry.list().find(host => host.hostId === "remote")?.label, "Remote");
-  const beforeRename = observed;
-  registry.add("remote", "https://remote.example", "Renamed");
-  assert.ok(observed > beforeRename);
-  assert.equal(registry.list().find(host => host.hostId === "remote")?.label, "Renamed");
-  assert.throws(() => registry.add("remote", "https://other.example", "Changed"), /origin cannot change/);
-  registry.remove("remote");
-  assert.ok(!registry.list().some(host => host.hostId === "remote"));
-});
-
 test("Desktop observes the local Host without remote registrations and recovers a failed startup observation", async t => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  const previous = hostRegistry;
-  const registry = createHostRegistry([{ hostId: "local", origin: "http://local.example" }]);
-  setHostRegistry(registry);
-  const status = () => renderToStaticMarkup(createElement(HostStatus, { runtime: registry.get("local"), showDetails: false }));
+  const previous = hostConnection;
+  const connection = createHostConnection(createHostClient("http://local.example"));
+  setHostConnection(connection);
+  const status = () => renderToStaticMarkup(createElement(HostStatus, { runtime: connection.get(), showDetails: false }));
   let firstCapability = true, offline = false;
   const requests: string[] = [];
   t.mock.method(globalThis, "fetch", async (url: string) => {
@@ -240,26 +216,26 @@ test("Desktop observes the local Host without remote registrations and recovers 
     }
     return Response.json({ source: "Document work is available" });
   });
-  t.after(() => setHostRegistry(previous));
-  await registry.connect("local");
-  assert.equal(registry.get("local").state, "disconnected");
-  assert.equal(registry.get("local").reason, "startup socket error");
+  t.after(() => setHostConnection(previous));
+  await connection.connect();
+  assert.equal(connection.get().state, "disconnected");
+  assert.equal(connection.get().reason, "startup socket error");
   assert.ok(status().includes(i18n.t("Unreachable")));
-  assert.equal((await (await registry.get("local").client.request("/api/document")).json()).source, "Document work is available");
-  const stop = monitorDesktopHosts([], "client");
+  assert.equal((await (await connection.get().client.request("/api/document")).json()).source, "Document work is available");
+  const stop = monitorDesktopHost("client");
   t.after(stop);
   const settled = () => new Promise<void>(resolve => setImmediate(resolve));
   await settled();
-  assert.equal(registry.get("local").state, "connected");
-  assert.deepEqual(registry.get("local").identity, { runAs: "local-user" });
-  assert.equal(registry.get("local").reason, undefined);
+  assert.equal(connection.get().state, "connected");
+  assert.deepEqual(connection.get().identity, { runAs: "local-user" });
+  assert.equal(connection.get().reason, undefined);
   assert.ok(status().includes(i18n.t("Connected")));
   offline = true; t.mock.timers.tick(5000); await settled();
-  assert.equal(registry.get("local").state, "disconnected", "a real loss is reported on the next check without a grace period");
-  assert.equal(registry.get("local").reason, "fetch failed");
+  assert.equal(connection.get().state, "disconnected", "a real loss is reported on the next check without a grace period");
+  assert.equal(connection.get().reason, "fetch failed");
   assert.ok(status().includes(i18n.t("Unreachable")));
   offline = false; t.mock.timers.tick(5000); await settled();
-  assert.equal(registry.get("local").state, "connected");
+  assert.equal(connection.get().state, "connected");
   stop(); const before = requests.length;
   t.mock.timers.tick(10000); await settled();
   assert.equal(requests.length, before);

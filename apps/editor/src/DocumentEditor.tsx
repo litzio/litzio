@@ -1,4 +1,4 @@
-import { useHostId } from "./host-context.tsx";
+import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { comparisonLayout, comparisonLayoutKey, type ComparisonLayout } from "./comparison-layout.ts";
 import { ReadOnlyBoundary } from "./read-only-boundary.ts";
 import { useHostClient } from "./host-context.tsx";
@@ -157,7 +157,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   useTranslation();
   if (comparison && (!readOnly || !preview)) throw new Error("Comparison decorations require an isolated read-only preview.");
   const visible = useEditorVisible();
-  const hostId = useHostId();
+  const hostId = LOCAL_HOST_ID;
   const tableWrap = useTableWrap(documentPath ?? "", hostId);
   // Each tab keeps its editor; only Reload remounts it. Save keeps its opening projection.
   const [projection] = useState(() => {

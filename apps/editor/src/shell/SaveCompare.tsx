@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
-export type SaveComparison = { client: HostClient; hostId?: string; path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string; bibliography?: DocumentFileResponse["bibliography"] };
+export type SaveComparison = { client: HostClient; path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string; bibliography?: DocumentFileResponse["bibliography"] };
 
 export default function SaveCompare({ comparison, returnFocus, onClose }: {
   comparison: SaveComparison; returnFocus: RefObject<HTMLElement | null>; onClose(): void;

@@ -1,4 +1,3 @@
-import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { getHostClient } from "./host-client.ts";
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
@@ -9,7 +8,7 @@ import katex from "katex";
 import { figureMediaPath } from "../shared/figure-media-path.ts";
 
 /** Display only. No Core admission, rewriting or serialization. Raw HTML stays text. */
-export function renderPlainMarkdown(source: string, path: string, client = getHostClient(LOCAL_HOST_ID)): string {
+export function renderPlainMarkdown(source: string, path: string, client = getHostClient()): string {
   const md = markdownRenderer();
   const image = md.renderer.rules.image!;
   md.renderer.rules.image = (tokens, index, options, env, renderer) => {

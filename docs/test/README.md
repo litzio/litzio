@@ -503,3 +503,7 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 `provider-connections`와 `assistant-host`는 저장 경로·접수 식별·질문 수명·Copilot 턴별 권한·첨부·문서 변경 보호를 유지하며 삭제한 여섯 도구가 Codex/MCP 목록에 없음을 확인한다. `assistant` 브라우저 시나리오는 활성 경로 직접 전송, 미저장 본문 미전송, 닫힌 패널의 질문과 일반 설정을 검사한다. 화면 전용 ACK·timeout·표시 Undo 검사는 해당 기능과 함께 제거한다. 문서 변경·되돌리기와 외부 변경 검사는 유지한다.
 
 수락 과제 1~11은 유지하고 메시지에 사용자가 지정한 작업 폴더를 명시한다. 과제 12는 활성 문서 경로로 지정 문서만 고치고, 13은 열린 탭 닫기 요청에 미지원·직접 조작을 안내하는지 사람이 확인한다. 각 `--smoke --task 12 --opened-only`, `--smoke --task 13 --opened-only`는 Luna low로 한 번만 호출하며 재시도하지 않는다. 자동 predicate는 수동 답변·파일 대조를 대체하지 않는다.
+
+### 단일 Host 연결 (#1595 PR 2)
+
+`host-client` 검사는 주소에 고정된 문서·asset receipt·비서·템플릿, 변경된 주소의 기존 Save/rollback 거절, 관측 장애 뒤 쓰기 재전송 없음, 늦은 capability 응답 거부, protocol/product 확인과 read-only monitor 중단을 유지한다. 삭제한 검사 부분은 registry 등록/라벨/제거와 서로 다른 Host의 같은 경로 분리뿐이다. `folder-tree`의 늦은 listing·중첩 병합·접힘 보호는 유지한다. `local-host`, `document-tabs`, `folder-navigation`, `file-actions`, `recovery`, `save-session`, `assistant`, `template-gallery`, `plugin-screen-code`와 HTTP recovery는 단일 연결 통합을 검사한다. 저장·복구 형식·barrier·nonce·clean acknowledgement 검사는 그대로다. Windows packaged Desktop은 CI에서만 실행한다.
