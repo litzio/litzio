@@ -1455,9 +1455,17 @@ test("scaffolded Node plugins use the Host CLI and fail clearly without a launch
     const file = path.join(directory,"litzio-plugin.json");
     const manifest = JSON.parse(readFileSync(file,"utf8")); manifest.operations=[PLUGIN_CLI_OPERATION];
     writeFileSync(file,JSON.stringify(manifest));writeFileSync(path.join(directory,"host.mjs"),PLUGIN_CLI_SOURCE);
-    await host.invoke("install",{directory});
-    await verifyPluginCli(async args => (await host.invokeOperation("fixture.cli.run",{args})).result, root);
-    await absent.invoke("install",{directory});
+    const installed: any = await host.invoke("install",{directory});
+    assert.equal(installed.receipt.outcome, "success", JSON.stringify(installed));
+    assert.equal((await host.list())[0]!.running, true);
+    await verifyPluginCli(async args => {
+      const reply = await host.invokeOperation("fixture.cli.run",{args});
+      assert.equal(reply.receipt.outcome, "success", JSON.stringify(reply));
+      assert.ok("result" in reply);
+      return reply.result;
+    }, root);
+    const installedWithoutCli: any = await absent.invoke("install",{directory});
+    assert.equal(installedWithoutCli.receipt.outcome, "success", JSON.stringify(installedWithoutCli));
     assert.deepEqual((await absent.list())[0]!.status, {available:false,message:"This Host has no official CLI launcher"});
     const unavailable = await absent.invokeOperation("fixture.cli.run",{args:["--version"]});
     assert.ok("errorKind" in unavailable);
