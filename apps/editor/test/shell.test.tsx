@@ -590,7 +590,7 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
   const guides = listing(String.raw`C:\docs\guides`, [
     { name: "guide.md", kind: "document", path: String.raw`C:\docs\guides\guide.md` },
   ]);
-  const folder = { hostId: "local",
+  const folder = {
     root: String.raw`C:\docs`,
     sectionExpanded: true,
     nodes: new Map([[root.path, root], [guides.path, guides]]),

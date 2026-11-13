@@ -35,7 +35,7 @@ async (page, { expect, screenshots, brand }) => {
   await expect(open).toBeEnabled();
   expect(await page.evaluate(() => window.logCalls)).toEqual([]);
   await open.click();
-  await expect.poll(() => page.evaluate(() => window.logCalls)).toEqual([['local', id, 'codex', 'open']]);
+  await expect.poll(() => page.evaluate(() => window.logCalls)).toEqual([[id, 'codex', 'open']]);
   if (screenshots) {
     for (const width of [1440, 640]) {
       await page.setViewportSize({ width, height: 1000 });
@@ -45,7 +45,7 @@ async (page, { expect, screenshots, brand }) => {
     }
   }
   await panel.getByRole('button', { name: '공급자 로그 파일 위치 표시', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => window.logCalls.at(-1))).toEqual(['local', id, 'codex', 'reveal']);
+  await expect.poll(() => page.evaluate(() => window.logCalls.at(-1))).toEqual([id, 'codex', 'reveal']);
   await page.evaluate(() => { window.litzioDesktop.providerSessionLog = async () => ({ available: false, reason: 'missing' }); });
   await open.click();
   await expect(panel.getByRole('alert')).toContainText('공급자 로그가 없거나 이미 삭제되었습니다.');
