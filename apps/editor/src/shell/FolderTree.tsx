@@ -1,4 +1,5 @@
-import { getHostClient } from "../host-client.ts";
+import { LOCAL_HOST_ID } from "../host-locator.ts";
+import { getHostClient, type HostClient } from "../host-client.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { FileActionDialog, type FileAction, type FileActionHandler } from "./FileActionDialog.tsx";
@@ -68,7 +69,7 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsD
   const section = useRef<HTMLElement>(null);
   const moreActions = useRef<HTMLButtonElement>(null);
   const actions = folderActions({ onCopyPath, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }, tree.root, () => moreActions.current);
-  const [fileAction, setFileAction] = useState<{ action: FileAction; item: TreeItem }>();
+  const [fileAction, setFileAction] = useState<{ action: FileAction; item: TreeItem; client: HostClient }>();
   const actionReturn = useRef<HTMLElement | null>(null);
   const pendingFocus = useRef<string | null>(null);
   // Host paths are resolved, so only a filesystem root ends in a separator; it shows as itself.
@@ -151,9 +152,9 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsD
           const folder = entry.kind === "folder";
           const choose = (action: FileAction) => {
             actionReturn.current = rows.current.get(entry.path) ?? null;
-            setFileAction({ action, item });
+            setFileAction({ action, item, client: getHostClient() });
           };
-          const trashUnavailable = fileDeletion(tree.hostId) !== "trash";
+          const trashUnavailable = fileDeletion() !== "trash";
           const deleteFolder: ContextMenuAction = { id: "delete-folder", label: i18n.t("Delete folder…"), icon: <Trash2 aria-hidden="true" />, danger: true,
             disabled: fileActionsDisabled || trashUnavailable, disabledReason: trashUnavailable ? i18n.t("Folder deletion requires OS Trash. This Host does not provide it.") : undefined, run: () => choose("delete") };
           const folderMenu = folderActions({
@@ -221,11 +222,11 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsD
         })}
       </ul>
       {fileAction ? <FileActionDialog action={fileAction.action} entry={fileAction.item.entry}
-        root={tree.root} hostId={tree.hostId}
-        trash={tree.hostId !== "local" || fileDeletion(tree.hostId) === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
+        root={tree.root} client={fileAction.client}
+        trash={fileDeletion() === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
         returnFocus={actionReturn} onClose={() => setFileAction(undefined)} onExecute={async (name, identity) => {
           const index = items.findIndex(item => item.entry.path === fileAction.item.entry.path);
-          const next = await onFileAction(fileAction.action, tree.root, fileAction.item.entry, name, identity);
+          const next = await onFileAction(fileAction.action, tree.root, fileAction.item.entry, name, identity, fileAction.client);
           const surviving = items.filter(item => item.entry.path !== fileAction.item.entry.path && !item.entry.path.startsWith(fileAction.item.entry.path + (fileAction.item.entry.path.includes("\\") ? "\\" : "/")));
           const focus = fileAction.action === "rename" ? next : (surviving.find(item => items.indexOf(item) > index) ?? surviving.at(-1))?.entry.path;
           actionReturn.current = focus ? rows.current.get(focus) ?? null : section.current?.querySelector<HTMLButtonElement>(".sidebar-folder-toggle") ?? null;

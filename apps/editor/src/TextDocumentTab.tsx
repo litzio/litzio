@@ -1,4 +1,5 @@
-import { useHostClient, useHostId } from "./host-context.tsx";
+import { LOCAL_HOST_ID } from "./host-locator.ts";
+import { useHostClient } from "./host-context.tsx";
 import { memo, useMemo, useLayoutEffect, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorFileResponse, TextFileResponse } from "../shared/document-protocol.ts";
@@ -22,7 +23,7 @@ import { DocumentScroll } from "./DocumentScroll.tsx";
 export type TextSessionSnapshot = { kind: "text"; file: TextFileResponse; text: string; savedSource: string };
 
 function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot | undefined, recoveryId: string, replaceFile: (file: EditorFileResponse) => void) {
-  const hostId = useHostId();
+  const hostId = LOCAL_HOST_ID;
   const client = useHostClient();
   const { requestDocument, requestSave, cancelReads } = useMemo(() => createDocumentRequests(client), [client]);
   const [openedPath, setOpenedPath] = useState(initial.path);

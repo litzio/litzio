@@ -5,7 +5,7 @@
 - Status: Implemented
 - Last verified: 2026-11-13 — #1360 화면 도구·요청 통로 제거와 활성 경로·문서 보호를 코드·대상 검사와 대조. 실제 AI 수락 시험의 범위·결과는 해당 PR 기록을 따른다.
 - Authority: [ADR-0021](../adr/0021-general-agent-assistant.md), [ADR-0014](../adr/0014-main-agent-app-server.md), [ADR-0017](../adr/0017-bundled-client-and-official-ai.md).
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
+> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지하며, 저장·복구의 hostId·키·레코드는 PR 3까지 local 형식 그대로 둔다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
 - Scope: 대상 Host의 Codex·Copilot 연결, 설정과 대화. 플러그인의 세부는 화면 코드·실행 계약을 따른다.
 
@@ -58,7 +58,7 @@
     평소 Codex 사용과의 연속성을 유지한다([ADR-0014](../adr/0014-main-agent-app-server.md)).
 15. Host가 공급자 프로세스를 소유하고 비서는 daemon 수명을 따른다. 창을 닫아도 작업을 중단하거나 요청을 자동 재실행하지 않는다.
     화면 수명과 실행 수명을 혼동하지 않게 한다.
-16. 대화·첨부는 대상 Host에 고정하며 다른 대상으로 자동 전환하지 않는다.
+16. 대화·첨부는 시작한 연결의 client에 고정하며 다른 연결로 자동 전환하지 않는다.
     다른 연결에서 작업되는 것을 막는다.
 17. 오래된 턴의 도구 호출은 거절하고 턴 완료·취소·연결 종료 때 실행 권한을 회수한다.
     이전 요청의 권한이 다음 작업에 남지 않게 한다.

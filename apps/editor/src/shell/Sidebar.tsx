@@ -1,9 +1,10 @@
+import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { ContextMenu } from "@/components/ui/context-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
-import { hostRegistry, hostLabel } from "../host-client.ts";
+import { hostConnection } from "../host-client.ts";
 import { locatorKey, type HostLocator } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
@@ -20,9 +21,8 @@ import type { FolderTreeState } from "./folder-tree.ts";
 
 type SidebarProps = {
   onCopyPath?(path: string): void;
-  documentHostId?: string;
   contributions?: { icon?: ReactNode; id: string; label: string; run(returnFocus: HTMLElement): void }[];
-  onAddToChat?(locator: HostLocator, returnFocus: HTMLElement): void;
+  onAddToChat?(path: string, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
@@ -65,12 +65,12 @@ type SidebarProps = {
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onCopyPath, documentHostId = "local", onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  onCopyPath, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "light", onThemeChange, contributions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
-  useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
+  useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
@@ -120,13 +120,13 @@ export function Sidebar({
         <section className="sidebar-host" data-host-id="local" aria-label="Local">
         {folders.length > 0 ? folders.map(tree => {
           return <FolderTree onCopyPath={onCopyPath}
-            key={locatorKey({ hostId: tree.hostId, path: tree.root })}
-            onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: tree.hostId, path }, focus) : undefined}
+            key={locatorKey({ hostId: LOCAL_HOST_ID, path: tree.root })}
+            onAddToChat={onAddToChat ? (path, focus) => onAddToChat(path, focus) : undefined}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
             tree={tree}
             focusFolder={focusFolder}
             onFolderFocused={onFolderFocused}
-            documentPath={documentHostId === "local" ? documentPath : ""}
+            documentPath={documentPath}
             onToggleFolder={path => onToggleFolder?.(tree.root, path)}
             onToggleSection={() => onToggleSection?.(tree.root)}
             onOpenDocument={path => onOpenDocument?.(path)}
@@ -182,7 +182,7 @@ export function Sidebar({
             </Button> : null}
             {typeof window !== "undefined" && window.litzioDesktop ? <DesktopMenu desktop={window.litzioDesktop} /> : null}
           </div>
-          <HostAccount hostId={documentHostId} collapsed={!open} />
+          <HostAccount collapsed={!open} />
         </div>
       ) : null}
     </nav>
@@ -202,11 +202,11 @@ function SettingsEntry({ iconOnly, onOpen, updateVersion, disabled }: { disabled
   </Button>;
 }
 
-function HostAccount({ hostId, collapsed }: { hostId: string; collapsed: boolean }) {
-  const runtime = hostRegistry.get(hostId);
+function HostAccount({ collapsed }: { collapsed: boolean }) {
+  const runtime = hostConnection.get();
   const account = runtime.state === "connected" ? runtime.identity?.runAs : undefined;
-  const label = hostLabel(hostId);
-  const text = `${label}${account ? ` · ${account}` : ""}`;
+  const label = i18n.t("Background service");
+  const text = account ?? label;
   return <Tooltip><TooltipTrigger render={<div tabIndex={0} className="sidebar-host-account" aria-label={`${label} · ${i18n.t("Run as")}${account ? `: ${account}` : ""}`} />}>
     <HostStatus runtime={runtime} compact showDetails={false} iconOnly={!!account || collapsed} />
     {!collapsed && account ? <span className="sidebar-tree-name">{text}</span> : null}

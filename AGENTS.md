@@ -37,7 +37,7 @@
 
 [ADR-0022](docs/adr/0022-plugin-screen-code.md)에 따라 플러그인은 자기 화면 코드를 제공한다. [플러그인 실행 계약](docs/design/plugin-stage1-v1.md)과 [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다. 삭제된 선언형·Docling은 `archive/plugins-declarative-2026-11-13` 브랜치와 `archive/2026-11-13-plugins-declarative` 태그에 보관한다.
 
-2026-11-13 #1595에 따라 다른 PC의 Host 등록·접속 UI를 삭제했다(보관: `archive/2026-11-13-plugins-declarative`). 같은 PC daemon·수동 다시 연결·CLI `--host`·개발/검사용 독립 HTTP Host는 유지한다.
+2026-11-13 #1595에 따라 다른 PC의 Host 등록·접속 UI를 삭제했다(보관: `archive/2026-11-13-plugins-declarative`). 같은 PC daemon·수동 다시 연결·CLI `--host`·개발/검사용 독립 HTTP Host는 유지한다. 화면은 단일 연결을 쓰되 세션·작업에 고정된 client를 유지한다. 저장·복구의 local hostId/키/레코드는 PR 3 전까지 바꾸지 않는다.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 
@@ -62,7 +62,7 @@
 - `packages/core/test/` — Core의 document semantics와 canonical round-trip 계약을 검증한다.
 - `packages/cli/` — `@litzio/core`의 얇은 명령줄 인터페이스. 문서 의미나 AST 처리 로직을 구현하지 않는다.
 - `packages/plugin-sdk/` — 플러그인의 공통 manifest·schema·Host SDK와 제작 계약.
-- `apps/editor/src/views/` — 플러그인의 React 화면 코드·Host별 화면 수명·공통 부품·새 문서 저장. [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다.
+- `apps/editor/src/views/` — 플러그인의 React 화면 코드·단일 연결의 화면 수명·공통 부품·새 문서 저장. [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다.
 - `packages/file-commit/` — CLI와 Editor Host가 공유하는 Node 전용 파일 교체(revision 확인, temporary sibling, rename). 문서 의미를 알지 않는다.
 - `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.

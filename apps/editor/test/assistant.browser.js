@@ -1255,7 +1255,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.locator('html')).toHaveAttribute('data-page','flat');
   await page.getByTestId('page-background').selectOption('paper');
   await expect(page.getByTestId('page-background')).toHaveValue('paper');
-  if(screenshots){await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'docs/design/assets/assistant-screen-removal/after-1440-light.png',mask:[page.locator('.sidebar-host-account'),page.locator('.document-location'),page.locator('.sidebar-folder-header')]});}
+  if(screenshots){await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'docs/design/assets/single-host-connection/after-1440-light.png',mask:[page.locator('.sidebar-host-account'),page.locator('.document-location'),page.locator('.sidebar-folder-header')]});}
   await page.getByTestId('ui-language').selectOption('ko');await page.getByTestId('theme').selectOption('dark');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(editor).toHaveText(documentBeforeDisplay);

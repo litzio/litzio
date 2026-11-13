@@ -1,6 +1,6 @@
 # 반복 UI 패턴 v1
 
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
+> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 세션·작업의 고정 client와 취소/세대 보호는 유지하고 저장·복구의 local hostId/키/레코드는 PR 3까지 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
 
 > 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
 
@@ -417,7 +417,7 @@ K1의 플러그인 파일 작업도 같은 DocumentTabs·통계 페이지 배치
 
 #1199의 사이드바 맨 아래 실행 계정 줄은 기존 Host 설정·탐색기의 HostStatus와
 공용 Tooltip을 재사용한다. 설정·테마·메뉴 행은 바로 위에 유지한다.
-계정은 활성 탭의 Host에 고정하며 전체 Host 라벨·실행 계정·권한 설명은
+계정은 단일 연결의 관측을 따르며 실행 계정·권한 설명은
 hover/keyboard focus 툴팁으로 확인한다. `multi-host`의 탭 전환·640px 말줄임·툴팁
 검증과 1440px/640px 캡처를 사용한다. [Shell 계약](editor-ux-shell-v1.md#활성-host-실행-계정-1199)을 따른다.
 

@@ -1,9 +1,9 @@
+import type { HostClient } from "../host-client.ts";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
-import { hostLabel } from "../host-client.ts";
 import { createAssistantRequest } from "../assistant-api.ts";
-import { useHostClient, HostContext } from "../host-context.tsx";
+import { useHostClient } from "../host-context.tsx";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
@@ -28,21 +28,21 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 
-export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
+export type AssistantLocalSubmission = { provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onUndoChange(path: string, undo: () => Promise<unknown>): Promise<boolean>;
-  onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
-  referenceRequest?: { hostId: string; path: string };
-  onReferenceConsumed(request: { hostId: string; path: string }): void;
+  onOpen(path: string, client: HostClient): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }, client: HostClient): Promise<boolean>;
+  referenceRequest?: { path: string };
+  onReferenceConsumed(request: { path: string }): void;
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
 export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed }: Props) {
   useTranslation();
   const client = useHostClient();
-  const [hostId] = useState(useContext(HostContext));
+  const hostId = LOCAL_HOST_ID;
   const conversationKey = `${brand.storagePrefix}.assistantConversation:${hostId}`;
   const request = createAssistantRequest(client);
   const changeFocus = useRef<HTMLElement | null>(null);
@@ -76,12 +76,12 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const submissionScope = useRef(0);
   const leaveSubmissionScope = () => { submissionScope.current++; };
   // Navigation hides other owners' rows without discarding their only local copy.
-  const visibleSubmissions = submissions.filter(value => value.hostId === hostId && value.provider === provider &&
+  const visibleSubmissions = submissions.filter(value => value.provider === provider &&
     (conversation ? (value.conversationId ?? value.receipt.conversationId) === conversation.id : value.conversationId === undefined));
   const submitted = useRef(visibleSubmissions); submitted.current = visibleSubmissions;
   const applySubmission = (result: AssistantSubmissionResult, updateConversation = true) => {
     setSubmissions(previous => {
-      return previous.map(value => value.hostId === hostId && value.receipt.id === result.submission.id ? { ...value,
+      return previous.map(value => value.receipt.id === result.submission.id ? { ...value,
         conversationId: value.conversationId ?? result.submission.conversationId ?? result.conversation?.id,
         receipt: value.receipt.status === "accepted" ? value.receipt : result.submission } : value);
     });
@@ -203,7 +203,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   useEffect(() => () => {
     providerVersion.current++; busy.current = false; setPending(false);
     imageUploads.current = Promise.resolve(); pendingImageUploads.current = 0; setUploadingImages(false);
-    setSubmissions(previous => previous.map(value => value.hostId === hostId && value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
+    setSubmissions(previous => previous.map(value => value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
   }, [settingsRevision]);
   useLayoutEffect(() => {
     if (open && ready && enabled && !setup && initialFocus.current) {
@@ -216,7 +216,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     // Admission is enough; provider history remains provider-owned.
     const observed = new Set(conversation.turns.flatMap(turn => turn.items.filter(item => item.kind === "user").map(item => item.submissionId)));
     setSubmissions(previous => {
-      const retained = previous.filter(value => value.hostId !== hostId || !observed.has(value.receipt.id));
+      const retained = previous.filter(value => !observed.has(value.receipt.id));
       return retained.length === previous.length ? previous : retained;
     });
   }, [conversation, hostId, setSubmissions]);
@@ -283,7 +283,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     const value = message.trim(); if (!value && !references.length) return;
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
-    setSubmissions(previous => [...previous, { hostId, provider, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
+    setSubmissions(previous => [...previous, { provider, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     jumpToBottom();
     try {
@@ -302,12 +302,12 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   };
   useEffect(() => {
     if (!referenceRequest) return;
-    if (referenceRequest.hostId === hostId) {
+    {
       addReference({ path: referenceRequest.path, name: pathName(referenceRequest.path), kind: "file" });
       setHistory(null);
     }
     onReferenceConsumed(referenceRequest);
-  }, [referenceRequest, hostId, onReferenceConsumed]);
+  }, [referenceRequest, onReferenceConsumed]);
   const mentionOpen = mention !== null;
   useEffect(() => {
     if (!mentionOpen || !open) return;
@@ -382,7 +382,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       }
     }
     const submissionId = sendAsNew ? crypto.getRandomValues(new Uint32Array(4)).join("-") : value.receipt.id;
-    setSubmissions(previous => previous.map(item => item.hostId === hostId && item.receipt.id === value.receipt.id
+    setSubmissions(previous => previous.map(item => item.receipt.id === value.receipt.id
       ? { ...value, receipt: { id: submissionId, status: "pending", conversationId: value.conversationId } } : item));
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId,
@@ -392,7 +392,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
       if (isCurrent()) applySubmission(result, current.current === before);
     } catch (error) {
-      if (isCurrent()) setSubmissions(previous => previous.map(item => item.hostId === hostId && item.receipt.id === submissionId && item.receipt.status !== "accepted"
+      if (isCurrent()) setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted"
         ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
     }
   });
@@ -409,7 +409,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       </Tooltip> : null}
       {status !== "pending" ? <Button variant="ghost" size="sm" disabled={pending} onClick={() => {
         submissionScope.current++;
-        setSubmissions(previous => previous.filter(item => item.hostId !== hostId || item.receipt.id !== value.receipt.id));
+        setSubmissions(previous => previous.filter(item => item.receipt.id !== value.receipt.id));
       }}>{i18n.t("Discard message")}</Button> : null}
     </div>;
   };
@@ -445,18 +445,18 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       }); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AssistantConversationInfo[]>(`${ASSISTANT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
       {(["open", "reveal"] as const).map(action => <Tooltip key={action}><TooltipTrigger render={<span tabIndex={0} />}>
-        <Button variant="ghost" size="icon-sm" aria-label={i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location")} disabled={!conversation || pending || hostId !== LOCAL_HOST_ID || !window.litzioDesktop?.providerSessionLog} onClick={() => void run(async () => {
+        <Button variant="ghost" size="icon-sm" aria-label={i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location")} disabled={!conversation || pending || !window.litzioDesktop?.providerSessionLog} onClick={() => void run(async () => {
           try {
             const result = await window.litzioDesktop!.providerSessionLog(hostId, conversation!.id, conversation!.provider ?? "codex", action);
             if (result) setProblem(i18n.t(result.reason === "missing" ? "Provider log is absent or has been removed." : result.reason === "denied" ? "Provider log access was denied." : result.reason === "launch" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified."));
           }
           catch { setProblem(i18n.t(action === "open" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified.")); }
         })}>{action === "open" ? <ExternalLink /> : <FolderOpen />}</Button>
-      </TooltipTrigger><TooltipContent>{i18n.t(hostId !== LOCAL_HOST_ID ? "Remote provider logs cannot be opened on this PC." : !window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>)}
+      </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>)}
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
-      <span title={i18n.t("Files and AI run under this Host’s OS account.")}>{hostLabel(hostId)}</span>
+
       {documentPath && documentDirty ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>
         {i18n.t("Using saved version")}
       </TooltipTrigger><TooltipContent><span><span className="break-all">{documentPath}</span><br />{i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}</span></TooltipContent></Tooltip>
@@ -505,13 +505,13 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
               <Tooltip><TooltipTrigger render={<span tabIndex={0} aria-label={result.path} />}>
                 {resultLabel(result.path)}
               </TooltipTrigger><TooltipContent className="break-all">{result.path}</TooltipContent></Tooltip>
-              <div><Button size="sm" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path))}>{i18n.t("Open")}</Button>
+              <div><Button size="sm" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path, client))}>{i18n.t("Open")}</Button>
               <Button size="sm" variant="destructive" disabled={pending || deleted} onClick={event => {
                 const trigger = event.currentTarget;
                 const card = trigger.closest<HTMLElement>(".assistant-result");
                 resultFocus.current = trigger;
                 void run(async isCurrent => {
-                  if (await onUndo(result) && isCurrent()) { setRemoved(previous => [...previous, item.id]); resultFocus.current = card; }
+                  if (await onUndo(result, client) && isCurrent()) { setRemoved(previous => [...previous, item.id]); resultFocus.current = card; }
                 });
               }}>{i18n.t("Undo creation")}</Button></div>
               {!deleted ? <small>{i18n.t("Undo deletes the created file.")}</small> : null}

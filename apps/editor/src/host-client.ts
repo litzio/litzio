@@ -1,11 +1,8 @@
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
-import { LOCAL_HOST_ID } from "./host-locator.ts";
-
 import { createHostClient, HostConnectionChangedError, type HostClient } from "./host-transport.ts";
 export { createHostClient, HostConnectionChangedError, type HostClient } from "./host-transport.ts";
 
 class HostProtocolMismatch extends Error {}
-
 export type HostRuntime = {
   client: HostClient;
   state: "connecting" | "connected" | "disconnected";
@@ -15,48 +12,22 @@ export type HostRuntime = {
   identity?: { runAs: string };
   capabilities?: { fileDeletion: "trash" | "permanent" };
 };
-/** A registry can be injected in fixtures; unknown identities fail closed. */
-export function createHostRegistry(hosts: readonly { hostId: string; origin: string; label?: string }[]) {
+/** One observed connection; requests and sessions keep their captured immutable client. */
+export function createHostConnection(client = createHostClient("/")) {
   const listeners = new Set<() => void>();
   let revision = 0;
   const notify = () => { revision++; for (const listener of listeners) listener(); };
-  const entries = new Map(hosts.map(host => [host.hostId, { ...host, label: host.label ?? host.hostId }]));
-  const productVersions = new Map<string, string>();
-  const attempts = new Map<string, object>();
-  const runtimes = new Map<string, HostRuntime>();
-  for (const host of hosts) {
-    if (runtimes.has(host.hostId)) throw new Error(`Duplicate Host: ${host.hostId}`);
-    runtimes.set(host.hostId, { client: createHostClient(host.origin), state: "connecting" });
-  }
+  const runtime: HostRuntime = { client, state: "connecting" };
+  let productVersion: string | undefined;
+  let attempt: object;
   return {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     snapshot: () => revision,
-    list: () => [...entries.values()].map(host => ({ ...host })),
-    add(hostId: string, origin: string, label = hostId) {
-      const previous = entries.get(hostId);
-      if (previous && previous.origin !== origin) throw new Error("A registered Host origin cannot change.");
-      entries.set(hostId, { hostId, origin, label });
-      if (!runtimes.has(hostId)) {
-        const client = createHostClient(origin);
-        runtimes.set(hostId, { client: { ...client, assertCurrent() {
-          if (runtimes.get(hostId)?.state !== "connected") throw new Error("Host is not connected.");
-        }, async request(path, init) { this.assertCurrent(); return client.request(path, init); } }, state: "connecting" });
-      }
-      if (!previous || previous.label !== label) notify();
-    },
-    remove(hostId: string) { attempts.delete(hostId); runtimes.delete(hostId); entries.delete(hostId); productVersions.delete(hostId); notify(); },
-    get(hostId: string): HostRuntime {
-      const runtime = runtimes.get(hostId);
-      if (!runtime) throw new Error(`Unavailable Host: ${hostId}`);
-      return runtime;
-    },
-    async connect(hostId: string, productVersion?: string, background = false): Promise<void> {
-      const runtime = this.get(hostId);
-      if (productVersion !== undefined) productVersions.set(hostId, productVersion);
-      productVersion ??= productVersions.get(hostId);
-      // An attempt token prevents a late reply overwriting a newer observation.
-      const attempt = {};
-      attempts.set(hostId, attempt);
+    get: () => runtime,
+    async connect(version?: string, background = false): Promise<void> {
+      productVersion = version ?? productVersion;
+      const expectedProduct = productVersion;
+      const current = attempt = {};
       if (!background || runtime.state !== "connected") runtime.state = "connecting";
       const client = runtime.client;
       runtime.warning = undefined;
@@ -64,51 +35,46 @@ export function createHostRegistry(hosts: readonly { hostId: string; origin: str
       runtime.failure = undefined;
       notify();
       try {
-        const request = (path: string, headers?: HeadersInit) => {
-          const init = { headers, redirect: "error" as const, signal: AbortSignal.timeout(5000) };
-          return hostId === LOCAL_HOST_ID ? client.request(path, init) : fetch(client.url(path), init);
-        };
-        if (productVersion !== undefined) {
+        const request = (path: string, headers?: HeadersInit) => client.request(path, {
+          headers, redirect: "error", signal: AbortSignal.timeout(5000),
+        });
+        if (expectedProduct !== undefined) {
           const health = await request("/daemon/health", { "X-Litzio-Protocol": DAEMON_PROTOCOL });
           if (health.status === 409) throw new HostProtocolMismatch("Host protocol mismatch.");
           if (!health.ok) throw new Error(`HTTP ${health.status}`);
           const body = await health.json();
           if (body.protocolVersion !== DAEMON_PROTOCOL) throw new HostProtocolMismatch("Host protocol mismatch.");
           if (typeof body.productVersion !== "string") throw new Error("Invalid health response.");
-          if (attempts.get(hostId) !== attempt) return;
-          if (body.productVersion !== productVersion) runtime.warning = `Host product ${body.productVersion}, client ${productVersion}`;
+          if (attempt !== current) return;
+          if (body.productVersion !== expectedProduct) runtime.warning = `Host product ${body.productVersion}, client ${expectedProduct}`;
         }
         const response = await request("/api/host-capabilities");
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const body = await response.json();
-        if (attempts.get(hostId) !== attempt) return;
+        if (attempt !== current) return;
         runtime.capabilities = { fileDeletion: body.fileDeletion === "trash" ? "trash" : "permanent" };
         runtime.identity = typeof body.identity?.runAs === "string" && body.identity.runAs.trim() ? { runAs: body.identity.runAs } : undefined;
         runtime.state = "connected";
-      } catch (error) { if (attempts.get(hostId) === attempt) {
+      } catch (error) { if (attempt === current) {
         runtime.state = "disconnected";
         runtime.capabilities = undefined;
         runtime.identity = undefined;
         runtime.failure = error instanceof HostProtocolMismatch ? "protocol-mismatch" : "unreachable";
         runtime.reason = error instanceof Error ? error.message : String(error);
       } }
-      if (attempts.get(hostId) === attempt) notify();
+      if (attempt === current) notify();
     },
   };
 }
-export let hostRegistry = createHostRegistry([{ hostId: LOCAL_HOST_ID, origin: "/", label: "Local" }]);
-/** Inject the same registry contract used by Desktop and browser fixtures before mounting App. */
-export function setHostRegistry(registry: ReturnType<typeof createHostRegistry>): void { hostRegistry = registry; }
-export function hostLabel(hostId: string): string {
-  const hosts = hostRegistry.list();
-  const label = hosts.find(host => host.hostId === hostId)?.label ?? hostId;
-  return hosts.filter(host => host.label === label).length > 1 ? `${label} (${hostId})` : label;
-}
+export let hostConnection = createHostConnection();
+/** Inject the same single-connection contract before mounting browser fixtures. */
+export function setHostConnection(connection: ReturnType<typeof createHostConnection>): void { hostConnection = connection; }
+
 let release: ((client: HostClient) => void) | undefined;
 const desktopReady = typeof window !== "undefined" && window.litzioDesktop
   ? new Promise<HostClient>(resolve => { release = resolve; }) : Promise.resolve(createHostClient("/"));
-// Local startup waits for Desktop's verified address. Other Hosts have no shared gate.
-const local = hostRegistry.get(LOCAL_HOST_ID);
+// Local startup waits for Desktop's verified address.
+
 let connectedLocal: HostClient | undefined;
 /** A session/receipt keeps its connection. A changed origin invalidates follow-ups. */
 function bindLocalConnection(): HostClient {
@@ -129,31 +95,25 @@ function bindLocalConnection(): HostClient {
     },
   };
 }
-local.client = bindLocalConnection();
+hostConnection.get().client = bindLocalConnection();
 export function setDesktopHost(origin: string): void {
   connectedLocal = createHostClient(origin);
   release?.(connectedLocal);
-  hostRegistry.get(LOCAL_HOST_ID).client = bindLocalConnection();
-  void hostRegistry.connect(LOCAL_HOST_ID);
+  hostConnection.get().client = bindLocalConnection();
+  void hostConnection.connect();
 }
-export const getHostClient = (hostId: string): HostClient => hostRegistry.get(hostId).client;
+export const getHostClient = (): HostClient => hostConnection.get().client;
 
-/** Observe the local Host and registered remotes; never replay writes or control daemons. */
-export function monitorDesktopHosts(hosts: readonly { hostId: string; origin: string; label?: string }[], productVersion: string, interval = 5000) {
+
+/** Observe the local connection using reads only; never replay writes or control daemons. */
+export function monitorDesktopHost(productVersion: string, interval = 5000) {
   let stopped = false;
-  const timers = new Set<ReturnType<typeof setTimeout>>();
-  const local = hostRegistry.list().find(host => host.hostId === LOCAL_HOST_ID)!;
-  for (const host of [local, ...hosts.filter(host => host.hostId !== LOCAL_HOST_ID)]) {
-    hostRegistry.add(host.hostId, host.origin, host.label);
-    const check = async () => {
-      try { hostRegistry.get(host.hostId); } catch { return; }
-      await hostRegistry.connect(host.hostId, productVersion, true);
-      if (!stopped) {
-        const timer = setTimeout(() => { timers.delete(timer); void check(); }, interval);
-        timers.add(timer);
-      }
-    };
-    void check();
-  }
-  return () => { stopped = true; for (const timer of timers) clearTimeout(timer); };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const connection = hostConnection;
+  const check = async () => {
+    await connection.connect(productVersion, true);
+    if (!stopped) timer = setTimeout(check, interval);
+  };
+  void check();
+  return () => { stopped = true; clearTimeout(timer); };
 }
