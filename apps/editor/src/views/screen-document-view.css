@@ -4,3 +4,5 @@
 .screen-document-view-content { position: relative; min-width: 0; }
 .screen-document-view-content > .document { min-height: 0; padding: var(--space-5); border-radius: 0; box-shadow: none; overflow-wrap: anywhere; }
 .screen-document-view-highlight { position: absolute; left: var(--space-2); right: var(--space-2); pointer-events: none; border: 2px solid var(--id-color-accent); border-radius: var(--id-radius-sm); background: color-mix(in srgb, var(--id-color-accent) 10%, transparent); }
+.screen-document-view-highlight[data-target-kind="cell"] { right: auto; }
+.screen-document-view-highlight-clip { position: absolute; overflow: hidden; pointer-events: none; }

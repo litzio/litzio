@@ -4,7 +4,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-13 — #1592 1-2 코드·대상 검사 대조.
+- Last verified: 2026-11-14 — #1592 DocumentView 셀·지연 배치·폭 변경·미주 탐색을 격리 HTTP Host의 브라우저 시나리오로 확인.
 
 ## 연결 수명
 
@@ -28,14 +28,20 @@ Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다.
 
 `ui.DocumentView({path,target?,reloadKey?,height?,label?,onStateChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
 
-- `target?: {revision:string,path:NodePath}`: CLI `inspect --format json` 또는 Host 읽기 출력의 Core NodePath 배열을 그대로 받는다. 저장본 revision과 같을 때만 해당 블록으로 내부 스크롤을 이동하고 강조한다. 존재하는 표 셀 경로는 해당 표 전체로 이동·강조한다. 셀 자체·글자 범위·중첩 목록 항목 단위 탐색은 아직 제공하지 않는다. 지원하지 않거나 없는 경로는 target-not-found로 알리고 강조하지 않는다.
+- `target?: {revision:string,path:NodePath}`: CLI `inspect --format json` 또는 Host 읽기 출력의 Core NodePath 배열을 그대로 받는다. 저장본 revision과 같을 때만 해당 블록 또는 표 셀로 내부 스크롤을 이동하고 강조한다. 셀 경로는 그 셀의 실제 렌더링 영역을 강조한다. 미주 정의 경로는 뒤로 배치된 정의를, 호출이 들어 있는 문단 경로는 그 문단을 가리킨다. 인라인 호출 자체의 별도 경로·글자 범위·중첩 목록 항목 단위 탐색은 제공하지 않는다. 지원하지 않거나 없는 경로는 target-not-found로 알리고 강조하지 않는다.
 - `reloadKey?: string|number`: 값을 바꾸면 저장본을 다시 읽는다. target 변경이나 현재 문서를 여전히 포함하는 무관한 폴더 목록 변경은 다시 읽지 않는다. 현재 문서가 열린 폴더 범위에서 빠지면 요청을 취소하고 표시를 지운다. polling·자동 변경 추적·오래된 경로 자동 재대응은 없다. 새 저장본의 revision이 target과 다르면 stale-target으로 알리고 이동·강조하지 않는다.
 - `height?: number`: 내부 스크롤 영역 높이(px), 기본 480. 외부 폭·배치는 플러그인이 정한다. `label?:string`은 접근성 이름(기본 Document preview)이다.
 - `onStateChange?({state,revision?,message?})`: loading/ready/error/stale-target/target-not-found를 전달한다. 저장본을 읽으면 revision을 제공한다. 기존 문서 탭의 미저장 내용이 아닌 저장본 revision이다.
 
+대상 이동은 처음 측정한 좌표에 고정하지 않는다. 렌더러가 수식·그림·글꼴·셀 배치 및 폭 변화를 관측해 좌표를 다시 보고하면, 대상이 내부 뷰포트에서 벗어났을 때 다시 보이게 한다. 넓은 표의 셀은 기존 표 자체의 가로 스크롤 상자 안에서 이동하고 강조도 그 상자에 맞춰 잘린다. 문서 보기나 플러그인 화면 전체를 가로로 이동시키지 않는다. 이미 보이는 대상은 매 측정마다 맨 위로 옮기지 않는다. 사용자가 보기 또는 표 안에서 wheel·가로/세로 스크롤 키·스크롤바로 직접 스크롤하면 같은 대상에 대한 자동 위치 맞춤은 중단하고 강조 좌표만 갱신한다. 경로·revision·reloadKey가 바뀌거나 대상을 해제한 뒤 다시 지정하면 자동 위치 맞춤을 재개한다. 뷰포트보다 큰 대상은 시작 부분을 보여 준다. 임의의 시간 대기나 문서 의미 변경은 없다.
+
 SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편집 세션·검수 상태·대응 저장소·동기 스크롤·연결선·PDF·탭 조작은 넣지 않는다. 화면 상호작용이므로 별도 CLI 명령은 만들지 않으며 읽기는 기존 inspect를 사용한다. UI gallery의 Document view는 합성 snapshot을 사용하는 같은 부품의 예제다. 새 색/대화/일반 상호작용 없이 기존 paper·간격·accent·warning Notice를 사용한다.
 
-각 DocumentView는 저장본을 따로 읽고 읽기 전용 DocumentEditor/Tiptap 인스턴스를 만든다. 한 화면에 여러 개를 동시에 mount하면 읽기·렌더링·레이아웃과 메모리 비용도 각각 든다. 현재 필요한 보기만 mount하도록 구성하는 것을 권장한다. 큰 문서나 여러 보기 동시 표시의 초기 표시 시간·메모리·응답성은 측정하지 않았고, packaged Desktop에서 여러 보기를 동시에 표시하는 동작도 검증하지 않았다.
+셀 강조의 시각 확인 표본: [1440 밝음](assets/plugin-document-view-targets-1592/1440-light.png), [1440 어두움](assets/plugin-document-view-targets-1592/1440-dark.png), [640 밝음](assets/plugin-document-view-targets-1592/640-light.png), [640 어두움](assets/plugin-document-view-targets-1592/640-dark.png). 1440에서는 플러그인 화면의 절반을 문서 보기에 사용한다.
+
+12열 표 마지막 셀의 가로 이동·강조 표본: [1440 밝음](assets/plugin-document-view-targets-1592/wide-1440-light.png), [1440 어두움](assets/plugin-document-view-targets-1592/wide-1440-dark.png), [640 밝음](assets/plugin-document-view-targets-1592/wide-640-light.png), [640 어두움](assets/plugin-document-view-targets-1592/wide-640-dark.png). 표 안에서만 가로로 이동하고 바깥 문서 보기는 가로로 넘치지 않는다.
+
+각 DocumentView는 저장본을 따로 읽고 읽기 전용 DocumentEditor/Tiptap 인스턴스를 만든다. 한 화면에 여러 개를 동시에 mount하면 읽기·렌더링·레이아웃과 메모리 비용도 각각 든다. 현재 필요한 보기만 mount하도록 구성하는 것을 권장한다. 407블록의 고정 합성 표본과 단일 보기에서 최초 강조 약 1.45초(화면 코드 변경 감지 포함), 캐시가 있는 일반 재읽기 후 이동 169ms를 관측했다. 이는 성능 보장이나 여러 문서의 비교 측정이 아니다. 메모리·여러 보기 동시 표시의 응답성과 packaged Desktop에서의 동시 표시 동작은 검증하지 않았다.
 
 ## 파일·폴더 선택과 문서 열기
 

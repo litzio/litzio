@@ -1,8 +1,14 @@
 import type { Editor } from "@tiptap/core";
 import { useLayoutEffect, useRef, type RefObject } from "react";
+import { TABLE_CELL_SOURCE_ATTR } from "./tiptap-projection.ts";
 
 /** Snapshot locators and geometry only; engine types stay inside the Editor. */
-export type ReadingPosition = { blocks: { key: string; top: number; left: number; height: number }[]; height: number };
+type ReadingRect = { top: number; left: number; width: number; height: number };
+export type ReadingPosition = {
+  blocks: (ReadingRect & { key: string })[];
+  cells: (ReadingRect & { table: string; row: number; column: number; clip: ReadingRect })[];
+  height: number;
+};
 export type ReadingCallbacks = {
   onReadingLayout?(position: ReadingPosition): void;
   onReadingSelection?(key: string | undefined): void;
@@ -14,28 +20,54 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
   useLayoutEffect(() => {
     if (!editor || !host.current || (!observeLayout && !observeSelection)) return;
     const element = host.current;
-    let frame = 0, previous: string | undefined;
+    let frame = 0, previous: string | undefined, lastLayout = "", active = true;
+    let observed = new Set<Element>();
     const measure = () => {
       const origin = element.getBoundingClientRect();
       const blocks: ReadingPosition["blocks"] = [];
+      const cells: ReadingPosition["cells"] = [];
+      const nextObserved = new Set<Element>([element]);
+      const geometry = (dom: HTMLElement): ReadingRect => {
+        nextObserved.add(dom);
+        const rect = dom.getBoundingClientRect();
+        return { top: rect.top - origin.top, left: rect.left - origin.left, width: rect.width, height: rect.height };
+      };
       editor.state.doc.forEach((node, offset) => {
         const dom = editor.view.nodeDOM(offset);
         if (!(dom instanceof HTMLElement) || !node.attrs.sourcePath) return;
-        const rect = dom.getBoundingClientRect();
         const key = JSON.stringify(String(node.attrs.sourcePath).split(",").map(Number));
-        blocks.push({ key, top: rect.top - origin.top, left: rect.left - origin.left, height: rect.height });
+        blocks.push({ key, ...geometry(dom) });
+        const scroller = node.type.name === "table" ? dom.querySelector<HTMLElement>(".table-scroll") : null;
+        const scrollRect = scroller && geometry(scroller);
+        const clip = scroller && scrollRect ? { left: scrollRect.left + scroller.clientLeft, top: scrollRect.top + scroller.clientTop,
+          width: scroller.clientWidth, height: scroller.clientHeight } : undefined;
+        if (clip) node.forEach((row, rowOffset) => {
+          if (row.type.name !== "tableRow") return;
+          row.forEach((cell, cellOffset) => {
+            const cellDom = editor.view.nodeDOM(offset + 2 + rowOffset + cellOffset);
+            const source = String(cell.attrs[TABLE_CELL_SOURCE_ATTR] ?? "");
+            if (!(cellDom instanceof HTMLElement) || !/^\d+,\d+$/.test(source)) return;
+            const [rowIndex, column] = source.split(",").map(Number);
+            cells.push({ table: key, row: rowIndex, column, clip, ...geometry(cellDom) });
+          });
+        });
         if (node.type.name === "bulletList" || node.type.name === "orderedList") {
           const walk = (list: HTMLElement, indexes: number[]) => {
             [...list.children].filter(child => child.tagName === "LI").forEach((child, index) => {
-              const item = [...indexes, index], itemRect = child.getBoundingClientRect();
-              blocks.push({ key: `${key}:${item.join(".")}`, top: itemRect.top - origin.top, left: itemRect.left - origin.left, height: itemRect.height });
+              const item = [...indexes, index];
+              blocks.push({ key: `${key}:${item.join(".")}`, ...geometry(child as HTMLElement) });
               for (const nested of child.children) if (nested.matches("ul,ol")) walk(nested as HTMLElement, item);
             });
           };
           walk(dom, []);
         }
       });
-      report.current.onReadingLayout?.({ blocks, height: element.scrollHeight });
+      for (const dom of observed) if (!nextObserved.has(dom)) observer.unobserve(dom);
+      for (const dom of nextObserved) if (!observed.has(dom)) observer.observe(dom);
+      observed = nextObserved;
+      const layout = { blocks, cells, height: element.scrollHeight };
+      const signature = JSON.stringify(layout);
+      if (signature !== lastLayout) { lastLayout = signature; report.current.onReadingLayout?.(layout); }
     };
     const selection = (force = false) => {
       const { $from, empty } = editor.state.selection;
@@ -52,13 +84,16 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
     // Source inspection may change without moving the engine selection. Clicking that
     // same document block again must restore its correspondence as well.
     const clicked = () => selection(true);
-    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
+    const schedule = () => { if (!active) return; cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
     const observer = new ResizeObserver(schedule);
     const mutations = new MutationObserver(schedule);
     if (observeLayout) {
       observer.observe(element);
-      mutations.observe(element, { childList: true, subtree: true });
+      mutations.observe(element, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "hidden"] });
       element.addEventListener("load", schedule, true);
+      element.addEventListener("scroll", schedule, true);
+      document.fonts.addEventListener("loadingdone", schedule);
+      document.fonts.addEventListener("loadingerror", schedule);
       schedule();
     }
     if (observeSelection) {
@@ -66,7 +101,10 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
       editor.view.dom.addEventListener("click", clicked);
     }
     return () => {
+      active = false;
       observer.disconnect(); mutations.disconnect(); element.removeEventListener("load", schedule, true);
+      element.removeEventListener("scroll", schedule, true); document.fonts.removeEventListener("loadingdone", schedule);
+      document.fonts.removeEventListener("loadingerror", schedule);
       editor.off("selectionUpdate", changed); editor.view.dom.removeEventListener("click", clicked); cancelAnimationFrame(frame);
     };
   }, [editor, host, observeLayout, observeSelection]);
