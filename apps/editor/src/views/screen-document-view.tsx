@@ -42,7 +42,7 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
       scope.client.assertCurrent();
       const result = await createDocumentRequests(scope.client).requestDocument("GET", path, undefined, controller.signal);
       controller.signal.throwIfAborted(); scope.client.assertCurrent();
-      if (!("kind" in result) || result.kind !== "native") throw new Error(i18n.t("This file is not a supported Litzio document."));
+      if (!("kind" in result) || result.kind !== "native") throw new Error(i18n.t("This input file is not supported."));
       assertDocumentViewPath(result.path, scope.roots);
       setSnapshot({ request, file: result });
     })().catch(error => { if (!controller.signal.aborted) setProblem(String(error.message ?? error)); });
