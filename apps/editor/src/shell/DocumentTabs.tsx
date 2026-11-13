@@ -9,8 +9,8 @@ import { ContextMenu } from "@/components/ui/context-menu.tsx";
 
 export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivate, onClose, actions, onOpenRight, onMove, openRightDisabled, moveDisabled }: {
   actions?: ReactNode;
-  tabs: { id: string; path: string; hostId?: string; dirty: boolean; icon?: ReactNode; title?: string }[];
-  allTabs?: { id: string; path: string; hostId?: string; title?: string }[];
+  tabs: { id: string; path: string; dirty: boolean; icon?: ReactNode; title?: string }[];
+  allTabs?: { id: string; path: string; title?: string }[];
   active: string | null;
   disabled: boolean;
   onActivate(id: string): void;
@@ -25,14 +25,10 @@ export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivat
   const [hidden, setHidden] = useState<string[]>([]);
   const labels = allTabs.map(tab => {
     if (tab.title) return { name: tab.title };
-    const peers = allTabs.filter(peer => peer.hostId === tab.hostId);
+    const peers = allTabs;
     return tabLabels(peers)[peers.indexOf(tab)]!;
   });
-  const names = labels.map(({ name, folder }, index) => {
-    const label = folder ? `${name} — ${folder}` : name;
-    const hostId = allTabs[index]!.hostId;
-    return label;
-  });
+  const names = labels.map(({ name, folder }) => folder ? `${name} — ${folder}` : name);
   const revealTab = (id: string | null) => {
     const list = row.current;
     const item = list && [...list.querySelectorAll<HTMLElement>('.document-tab')].find(item => item.dataset.tabId === id);

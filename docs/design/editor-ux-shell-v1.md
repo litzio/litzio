@@ -1,17 +1,11 @@
 # Editor UX Shell v1
 
-#1174 PR1: tab lookup and folder state use `(hostId, Host-returned path)` identity;
-remembered navigation and per-document table preferences are stored per hostId.
-The runtime still exposes only `local`, with the existing surfaces and interactions.
-Host registration, routing and Host sections/labels follow ADR-0018 PR2–4.
-Old path-only preferences are ignored without migration. See the
-[session identity contract](editing-session-save-v1.md#host-scoped-identity-1174-pr1).
-
+#1595: 탭·폴더와 기억은 Host가 반환한 path로 식별한다. 새 기억·복구 namespace는 옛 Host별 기록과 writer를 읽거나 지우지 않고 분리한다. 세션의 고정 client·늦은 결과 거절·현재 탭 id/key는 유지한다. [저장 형식 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다.
 
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
-- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
+- Last verified: 2026-11-13 — #1595 PR3 형식 계약·현재 라벨 문구 대조와 persistent document-tabs/folder-memory 검사. 시각 변경 없음; 전체 검증 범위는 PR에 기록.
 - Run-as verification: 2026-11-05 — #1199 Windows Host health/capability·CLI lifecycle and two-Host persistent Chrome fixture; 1440px/640px footer captures. Actual Windows Desktop to Linux connection remains unverified.
 - Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
 
@@ -2258,9 +2252,9 @@ along with workspace typecheck and documentation checks.
 
 ## Multiple Host shell (#1174 PR4)
 
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지하며, 저장·복구의 hostId·키·레코드는 PR 3까지 local 형식 그대로 둔다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
-탐색기는 로컬 폴더만 표시하며 Host 필터/선택기는 없다. 비서는 로컬 대화로 바로 들어가고 템플릿·플러그인 화면에도 Host 드롭다운이 없다. 단일 Host의 탭/경로·활성 대상과 caption·Local 라벨은 이번 PR에서 유지한다. 기존 Sidebar·Settings·AssistantPanel 배치와 공통 control을 재사용하며 새로운 표면이나 예외 스타일은 없다.
+탐색기는 로컬 폴더만 표시하며 Host 필터/선택기는 없다. 비서는 로컬 대화로 바로 들어가고 템플릿·플러그인 화면에도 Host 드롭다운이 없다. 탭은 파일명과 필요한 부모 폴더를 표시하며 Local/Host 배지는 없다. 현재 탭 id/key·활성 대상과 편집기 수명은 유지한다. 기존 Sidebar·Settings·AssistantPanel 배치와 공통 control을 재사용하며 새로운 표면이나 예외 스타일은 없다.
 
 1440px 라이트 전후(브라우저 fixture, 실제 원격/AI 수락 아님):
 

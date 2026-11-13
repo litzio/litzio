@@ -142,19 +142,19 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
       // Keep the persistent browser profile, but isolate recovery records and opened folders between
       // scenarios. Reloads inside a scenario deliberately retain both for persistence checks.
       await page.evaluate(() => {
-        localStorage.removeItem(JSON.stringify(["local", "litzio.openFolders"]));
-        localStorage.removeItem(JSON.stringify(["local", "litzio.collapsedFolderSections"]));
-        localStorage.removeItem(JSON.stringify(["local", "litzio.openTabs"]));
+        localStorage.removeItem("litzio.openFolders.v2");
+        localStorage.removeItem("litzio.collapsedFolderSections.v2");
+        localStorage.removeItem("litzio.openTabs.v2");
         localStorage.removeItem("litzio.uiLanguage");
         localStorage.removeItem("litzio.accentColor");
         localStorage.removeItem("litzio.theme");
         localStorage.removeItem("litzio.pageBackground");
         for (const key of Object.keys(localStorage)) if (key.startsWith("litzio.pluginTableColumns:")) localStorage.removeItem(key);
         localStorage.removeItem("litzio.tableWrapDefault");
-        localStorage.removeItem(JSON.stringify(["local", "litzio.tableWrapDocuments"]));
+        localStorage.removeItem("litzio.tableWrapDocuments.v2");
       });
       await page.evaluate(() => new Promise<void>((resolve, reject) => {
-        const request = indexedDB.deleteDatabase("litzio-recovery");
+        const request = indexedDB.deleteDatabase("litzio-recovery-v3");
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
       }));

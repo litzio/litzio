@@ -3,7 +3,7 @@
 #1285의 [완전 초기화](app-reset-v1.md)는 기존 pending-work/restart 검사를 재사용하며 현재 미저장 편집·초안·진행 작업을 먼저 정리해야 한다. 사용자가 삭제 범위를 확인한 뒤 로컬 복구 기록도 제거하므로 기존 일반 닫기에서의 복구 보존과 구분한다. 늦은 `beforeunload` 거부는 종료 후 helper 취소로 연결하며, CLI가 살아 있는 편집 owner를 확인 flag로 우회하지 못한다.
 
 - Status: Implemented
-- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
+- Last verified: 2026-11-13 — #1595 PR3 형식·구형 writer 격리 코드, Editor 대상 단위·persistent recovery/storage/structure 검사. 전체 검증 범위와 한계는 PR에 기록.
 - Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
 
 
@@ -14,37 +14,31 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 검증 이력은 [별도 기록](../reviews/editing-session-save-history-2026-11.md)에 보존한다.
 
 
-## Host별 세션 요청 (#1174 PR2)
+## 연결에 고정된 세션 요청
 
 로컬 재연결로 origin이 바뀌면 기존 세션·receipt의 후속 요청(저장·rollback·비서·템플릿)은 전송 전에 명시적으로 거부한다. 새 작업만 새 client를 얻으며 같은 origin으로 다시 연결한 경우에는 기존 세션을 유지한다. 이미 전송한 요청은 재전송하지 않는다.
 
-탭 admission과 복구 복원은 `apps/editor/src/tab-admission.ts`가 담당한다. Host별 시작 복원 effect와 탐색 기억 수명은 `apps/editor/src/host-tab-restore.ts`의 훅이 담당하며, 작업 UI는 App에 남긴다.
+탭 admission과 복구 복원은 `apps/editor/src/tab-admission.ts`가 담당한다. 시작 복원 effect와 탐색 기억 수명은 `apps/editor/src/host-tab-restore.ts`의 훅이 담당하며, 작업 UI는 App에 남긴다.
 
-모든 탭 레코드는 hostId와 작업 시작 시점의 client를 함께 가진다. 열기·새 문서/갤러리 생성·복구 복원·시작 시 기억 탭 복원은 같은 client를 탭까지 전달하고, 탭 생성 직전에 assertCurrent로 연결을 확인한다. 늦은 응답의 연결이 달라졌으면 host-connection-changed로 거부하며 열린 작업·기억·복구 데이터는 버리지 않는다. DocumentTab은 현재 client를 다시 조회하지 않는다. 세션 mount 시 고정한 client가 Reload·Save·Source·자산 생성과 미사용 자산 rollback을 담당하고, 저장 비교·템플릿 저장·이미지 선택기의 목록·시작 위치·미리보기는 소유 세션의 고정 client를 전달받고, 복구 비교는 복구 record의 hostId로 요청한다. 다른 탭 활성화로 대상을 바꾸지 않는다. 로컬 Save/Restore/409 계약과 Core 저장 의미는 유지한다.
+모든 탭 레코드는 작업 시작 시점의 client를 가진다. 열기·새 문서/갤러리 생성·복구 복원·시작 시 기억 탭 복원은 같은 client를 탭까지 전달하고, 탭 생성 직전에 assertCurrent로 연결을 확인한다. 늦은 응답의 연결이 달라졌으면 host-connection-changed로 거부하며 열린 작업·기억·복구 데이터는 버리지 않는다. DocumentTab은 현재 client를 다시 조회하지 않는다. 세션 mount 시 고정한 client가 Reload·Save·Source·자산 생성과 미사용 자산 rollback을 담당하고, 저장 비교·템플릿 저장·이미지 선택기의 목록·시작 위치·미리보기는 소유 세션의 고정 client를 전달받고, 복구 비교는 열릴 때 캡처한 client로 요청한다. 다른 탭 활성화로 대상을 바꾸지 않는다. 로컬 Save/Restore/409 계약과 Core 저장 의미는 유지한다.
 
 
-## Host-scoped identity (#1174 PR1)
+## 단일 연결의 기억·복구 형식 (#1595 PR 3)
 
-Tabs and recovery locators use `(hostId, path)`. The current runtime supports local and registered remote Hosts.
-Registration, request isolation and multi-Host UI are implemented under ADR-0018 PR2–4.
-The identity is a client registration, never a daemon instance or a Core document ID.
-Host-returned paths compare literally, without client OS normalization or case folding.
+문서는 Host가 반환한 path로 식별한다. 브라우저는 경로의 대소문자나 파일시스템 문법을 추측해 정규화하지 않는다. 탭 id와 recovery id는 각 세션의 불투명 식별자로 유지하며 현재 탭의 id/key를 바꾸거나 remount하지 않는다. 경로 식별과 요청 대상 고정은 별개다. 세션·receipt가 캡처한 client, 연결 변경 거절, AbortController와 늦은 결과의 admission 검사는 유지한다. 명시적인 열기·닫기·선택이 지연된 시작 복원을 이긴다.
 
-Navigation preferences (open tabs/active path, recent/open folders, collapsed sections and
-per-document table wrapping) use JSON tuple storage keys `[hostId, preferenceName]`.
-Folder trees carry hostId; containment, late responses and section actions only match
-within that Host. Tab session IDs remain opaque per-mount IDs; document lookup compares
-both locator fields. Recovery record v2 adds hostId; IndexedDB protocol v4 stores Host-scoped
-barriers, including the delete-all generation. Rename/delete and checked recovery lists
-match both fields, preserving other Hosts' records and pending first-write permission.
-Recovery comparison and restore cannot route an unavailable/unknown Host to local files.
+| 자료 | 현재 형식 | 옛 형식과의 분리 |
+| --- | --- | --- |
+| 탭·열린/최근 폴더·접힌 구역 | `${prefix}.openTabs.v2`, `.openFolders.v2`, `.recentFolders.v2`, `.collapsedFolderSections.v2`; 기존 path 목록/activePath 값 | Host tuple 키와 이전 path-only 키를 읽거나 지우지 않음 |
+| 문서별 표 줄바꿈 | `${prefix}.tableWrapDocuments.v2`; path → boolean | 옛 tuple 키/값을 읽거나 지우지 않음; 전역 기본값 키는 유지 |
+| 비서 마지막 대화 포인터 | `${prefix}.assistantConversation.v2`; conversationId | 옛 `:local`/원격 포인터는 읽거나 합치지 않음; Host의 대화 본문은 변경 없음 |
+| 복구 | IndexedDB `${prefix}-recovery-v3`, DB protocol 1, record version 3, hostId 없음 | 기존 `${prefix}-recovery` DB와 그 v1/v2 기록·writer를 열거나 갱신하지 않음 |
+| 복구 barrier/ticket | 단일 `all` 세대와 `["session", id]` → `{generation, expiresAt, path}`; ticket `[allGeneration, sessionNonce, issuedAt]` | 새 DB 안에서만 획득·검사하며 옛 writer는 새 기록에 접근하지 못함 |
+| clean acknowledgement | `${prefix}.recoveryClean.v2.${id}` → recordingGeneration | 옛 v1 ACK를 읽거나 지우지 않음; 새 dirty 세대와 비교하는 기존 절차 유지 |
 
-No migration is performed. Old unscoped navigation preferences are ignored. Existing
-recovery records are not assigned a Host or converted. Records without a nonempty string
-hostId are ignored by listing before expiry/clean cleanup and remain unchanged in storage;
-they never enter recovery UI or Host work summaries (#1196). Host-scoped unsupported records
-retain the plaintext salvage/refusal flow and explicit discard, without a filesystem
-comparison against an inferred Host. Core semantics, disk paths, revisions and receipts are unchanged.
+`${prefix}`는 `brand.storagePrefix`다. 정상 저장·종료 후 새 앱을 시작하면 탐색 기억·문서별 표 설정·마지막 대화 자동 재개가 한 번 초기화된다. 옛 복구 기록은 이 앱에서 미지원이며 자동으로 로컬 문서에 적용하지 않는다. Migration은 하지 않고 옛 DB/키 및 원본 문서를 그대로 둔다. 미래 버전 기록은 plaintext 구제·복원 거절 UI에 남기되 현재 버전의 expiry/clean 규칙으로 자동 삭제하지 않는다. 새 DB에 잘못 들어온 구형·hostId 포함 기록도 조회/복원에서 거절하며 expiry/clean 정리의 근거로 쓰지 않는다.
+
+단일 범위로 바꾸어도 복구의 전역 세대, 세션 nonce, recorder epoch·recordingGeneration, 트랜잭션과 clean acknowledgement는 유지한다. 삭제/이름 변경/폴더 휴지통은 다른 창의 지연 첫 기록도 무효화한다. 폴더 정리는 Host가 확인한 정확한 path와 캡처 당시 기록·writer 세대가 일치할 때만 지운다. 오래된 clean ACK는 새 dirty 기록을 지우지 않으며, 새로운 적용 편집만 새 ticket을 얻는다. 문서·Core 의미·revision·공식 write path와 닫기 보호는 바꾸지 않는다.
 
 ## Text editing sessions (#817)
 
@@ -92,8 +86,8 @@ recovery cleanup captures record/writer generations and asks the Host to verify 
 filesystem membership before moving. It deletes only captured unchanged records and writers
 whose exact locators are in the successful Host receipt. Native realpath plus directory dev/ino
 handles junction aliases without merging NTFS `k` and `K`. Missing/unidentifiable paths,
-other Hosts, unrelated directories and newer record/writer generations remain untouched.
-All this window's Host recorders are suspended during the request, with surviving sessions
+unrelated directories and newer record/writer generations remain untouched.
+All this window's recorders are suspended during the request, with surviving sessions
 resumed afterwards; no lexical prefix or case-folding authorizes folder cleanup. On refusal
 or an uncertain result, tabs/records remain available. Recovery
 storage failure after disk success remains visible. The CLI cannot inspect another window's
@@ -116,7 +110,7 @@ subsequent dirty recording uses the new locator and a fresh nonce. Other paths a
 keep their permissions. No new store or path tombstone is added. No file reread or semantic rewrite
 occurs. Storage failure after disk success is visible and does not pretend the disk operation failed.
 
-Deletion/rename recovery barriers match hostId and path strings. Until [#372](https://github.com/litzio/litzio/issues/372)
+Deletion/rename recovery barriers match exact path strings. Until [#372](https://github.com/litzio/litzio/issues/372)
 decides Windows locator identity, case-only aliases (for example, a different spelling in URL
 `?path=`) are treated as separate paths. Another window's delayed first recovery write may then
 leave an old-path record. There is no data loss; the extra record can be discarded.
@@ -368,10 +362,9 @@ after the latest ticket timestamp; a backwards clock cannot shorten their existi
 expired registrations without advancing the Clear-all generation or invalidating another session's
 unexpired pending edit. Never-edited sessions create no metadata on close. Retention is time bounded,
 not a fixed byte/count quota; wall-clock adjustments can change when cleanup becomes due.
-IndexedDB protocol version 3 preserves record payloads and removes obsolete v1/v2 barrier metadata.
-Existing older connections close on version change; their version-pinned reopen is refused, so unsafe
-readonly-protocol writers cannot coexist after upgrade. They need a reload to record again.
-This is a storage-protocol upgrade, not document snapshot migration.
+The current database name and protocol isolate older writers without modifying their records.
+Session nonces, the global clear generation and clean acknowledgement checks operate only in the
+new namespace described above. Document snapshots are not migrated.
 The prior readwrite-count reduction claim (60 to 10) is withdrawn: every applied edit again uses a
 write transaction, limited to barriers. Current-document serialization sharing remains unchanged.
 
@@ -974,7 +967,7 @@ plaintext fallback, disables Visual and selects Source. Missing disk, text sessi
 transport/parse/preview/mapping errors retain the existing reasons and Source
 fallback. The independent plaintext copy and Restore/Delete/Not now remain available.
 
-A comparison captures the client for `record.hostId`; dry-run, semantic comparison
+A comparison captures the current connection client at mount; dry-run, semantic comparison
 and image URLs use that same client and recorded document path. Unknown or
 unavailable Hosts fail rather than using local files. Native records carry the
 original `bibliographyRoot` and declarations but no `.bib` bytes. Comparison uses the

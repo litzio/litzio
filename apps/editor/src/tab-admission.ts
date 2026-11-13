@@ -2,13 +2,12 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { EditorFileResponse } from "../shared/document-protocol.ts";
 import type { EditorSession, SessionSnapshot } from "./DocumentTab.tsx";
 import { type HostClient, getHostClient } from "./host-client.ts";
-import { LOCAL_HOST_ID, locatorKey, assertLocalHost } from "./host-locator.ts";
 import { openedTab, type GroupAction } from "./document-tabs.ts";
 import { newRecoveryId, recoveryStorage, type RecoveryRecord } from "./recovery-storage.ts";
 import { prepareRecovery } from "./recovery-restore.ts";
 import { UiError } from "./ui-message.ts";
 
-export type Tab = { client: HostClient; hostId: string; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
+export type Tab = { client: HostClient; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
 
 /** Shell admission; callers retain operation UI and Host restoration lifetimes. */
 export function createTabAdmission({ tabs, latestTabs, nextId, startupOverrides, splitAvailable, focused,
@@ -28,31 +27,29 @@ export function createTabAdmission({ tabs, latestTabs, nextId, startupOverrides,
   refreshRecovery: () => Promise<RecoveryRecord[] | null>;
 }) {
   function acceptFile(file: EditorFileResponse, client: HostClient, group = focused): void {
-    const hostId = LOCAL_HOST_ID;
     client.assertCurrent();
-    startupOverrides.current.add(locatorKey({ hostId, path: file.path }));
-    const existing = openedTab(latestTabs.current, file.path, hostId);
+    startupOverrides.current.add(file.path);
+    const existing = openedTab(latestTabs.current, file.path);
     const target = splitAvailable.current ? group : focused;
     if (existing) placeTab(existing.id, target);
     else {
       const id = `document-${++nextId.current}`;
       const recoveryId = newRecoveryId();
-      setTabs(previous => [...previous, { client, id, hostId, path: file.path, file, recoveryId }]);
+      setTabs(previous => [...previous, { client, id, path: file.path, file, recoveryId }]);
       placeTab(id, target);
     }
   }
   async function restoreRecovery(record: RecoveryRecord): Promise<void> {
-    assertLocalHost(record.hostId);
     const client = getHostClient();
     client.assertCurrent();
     const restored = prepareRecovery(record);
-    const existing = openedTab(tabs, record.path, record.hostId);
+    const existing = openedTab(tabs, record.path);
     const owner = existing && sessions.current.get(existing.id);
     if (owner && (owner.busyRef.current || owner.editorRef.current?.hasUnsavedChanges())) {
       throw new UiError({ key: "This document already has open work. Close its tab before restoring a recovery record." });
     }
     const recoveryId = newRecoveryId();
-    startupOverrides.current.add(locatorKey(record));
+    startupOverrides.current.add(record.path);
     await recoveryStorage.restore(record, recoveryId);
     try { client.assertCurrent(); }
     catch (cause) {
@@ -62,7 +59,7 @@ export function createTabAdmission({ tabs, latestTabs, nextId, startupOverrides,
       throw cause;
     }
     const id = `document-${++nextId.current}`;
-    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { client, id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
+    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { client, id, path: record.path, file: restored.file, recoveryId, restored }]);
     if (existing) navigate({ type: "close", id: existing.id });
     navigate({ type: "open", id });
     rememberTabs();
@@ -71,8 +68,8 @@ export function createTabAdmission({ tabs, latestTabs, nextId, startupOverrides,
   }
   function addInitial(initialTabs: Tab[], file: EditorFileResponse, client: HostClient): void {
     client.assertCurrent();
-    if (startupOverrides.current.has(locatorKey({ hostId: LOCAL_HOST_ID, path: file.path }))) return;
-    if (!openedTab(initialTabs, file.path)) initialTabs.push({ client, hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
+    if (startupOverrides.current.has(file.path)) return;
+    if (!openedTab(initialTabs, file.path)) initialTabs.push({ client, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
   }
   return { acceptFile, restoreRecovery, addInitial };
 }

@@ -13,18 +13,18 @@ export function recoveryRecords(page: Page): Promise<{ id: string; path: string;
       tx.oncomplete = () => { db.close(); resolve(records.result); };
       tx.onabort = tx.onerror = () => { db.close(); reject(tx.error); };
     };
-  }), `${brand.storagePrefix}-recovery`);
+  }), `${brand.storagePrefix}-recovery-v3`);
 }
 
 /** Reset initial recovery/tab state between tests, never between a test's crash/restarts. */
 export async function resetRecovery(page: Page): Promise<void> {
-  await page.evaluate(prefix => localStorage.removeItem(JSON.stringify(["local", `${prefix}.openTabs`])), brand.storagePrefix);
+  await page.evaluate(prefix => localStorage.removeItem(`${prefix}.openTabs.v2`), brand.storagePrefix);
   await page.evaluate(database => new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase(database);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error("Test recovery reset was blocked"));
-  }), `${brand.storagePrefix}-recovery`);
+  }), `${brand.storagePrefix}-recovery-v3`);
   await page.reload();
   await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
 }

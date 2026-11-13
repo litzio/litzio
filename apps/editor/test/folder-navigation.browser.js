@@ -8,7 +8,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await page.clock.install();
   await page.unrouteAll();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  await page.evaluate(() => localStorage.removeItem(JSON.stringify(["local", "litzio.recentFolders"])));
+  await page.evaluate(() => localStorage.removeItem("litzio.recentFolders.v2"));
   await page.reload();
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
@@ -605,7 +605,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   // #494: manual refresh updates cached children without scanning unknown folders or touching tabs.
   const tabsBeforeRefresh = await page.getByRole('tab').allTextContents();
   const editorBeforeRefresh = await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(n => ({doc:n.editor.getJSON(), selection:n.editor.state.selection.toJSON()}));
-  const preferencesBeforeRefresh = await page.evaluate(() => [localStorage.getItem(JSON.stringify(["local", "litzio.openFolders"])), localStorage.getItem(JSON.stringify(["local", "litzio.collapsedFolderSections"]))]);
+  const preferencesBeforeRefresh = await page.evaluate(() => [localStorage.getItem("litzio.openFolders.v2"), localStorage.getItem("litzio.collapsedFolderSections.v2")]);
   const refreshRoute = async route => {
     const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const listing = await response.json();
@@ -638,7 +638,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   assert(JSON.stringify([...folderRequests].sort()) === JSON.stringify([folder, guidesPath].sort()), 'Center refresh reuses the loaded-list handler');
   await toggle.click();
   assert(JSON.stringify(await items()) === JSON.stringify(expandedTree), 'Refresh restores actual Host listing');
-  assert(JSON.stringify(await page.evaluate(() => [localStorage.getItem(JSON.stringify(["local", "litzio.openFolders"])), localStorage.getItem(JSON.stringify(["local", "litzio.collapsedFolderSections"]))])) === JSON.stringify(preferencesBeforeRefresh), 'Refresh itself must not write preferences');
+  assert(JSON.stringify(await page.evaluate(() => [localStorage.getItem("litzio.openFolders.v2"), localStorage.getItem("litzio.collapsedFolderSections.v2")])) === JSON.stringify(preferencesBeforeRefresh), 'Refresh itself must not write preferences');
   result.refreshLoadedFolders = true;
 
   // #927: a real external write must appear without a manual refresh or focus event.

@@ -1,4 +1,3 @@
-import { assertLocalHost } from "../host-locator.ts";
 import { getHostClient, type HostClient } from "../host-client.ts";
 import { useCallback, useMemo } from "react";
 import { createDocumentRequests } from "../document-session.ts";
@@ -58,8 +57,8 @@ async function compare(record: RecoveryRecord, signal: AbortSignal, client: Host
 }
 
 export default function RecoveryCompare({ record }: { record: RecoveryRecord }) {
-  const client = useMemo(() => { try { assertLocalHost(record.hostId); return getHostClient(); } catch { return undefined; } }, [record.hostId]);
-  const load = useCallback((signal: AbortSignal) => { if (!client) return Promise.reject(new Error("Unavailable Host")); return compare(record, signal, client); }, [record, client]);
-  return <SourceCompare load={load} recovery visual={client ? { client, path: record.path,
-    unsupported: record.snapshot?.kind === "text" ? i18n.t("Text sessions use Source comparison.") : undefined } : undefined} />;
+  const client = useMemo(() => getHostClient(), []);
+  const load = useCallback((signal: AbortSignal) => { return compare(record, signal, client); }, [record, client]);
+  return <SourceCompare load={load} recovery visual={{ client, path: record.path,
+    unsupported: record.snapshot?.kind === "text" ? i18n.t("Text sessions use Source comparison.") : undefined }} />;
 }

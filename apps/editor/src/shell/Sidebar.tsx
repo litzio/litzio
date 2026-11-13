@@ -1,11 +1,9 @@
-import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { ContextMenu } from "@/components/ui/context-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { hostConnection } from "../host-client.ts";
-import { locatorKey, type HostLocator } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
 import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
@@ -120,7 +118,7 @@ export function Sidebar({
         <section className="sidebar-host" data-host-id="local" aria-label="Local">
         {folders.length > 0 ? folders.map(tree => {
           return <FolderTree onCopyPath={onCopyPath}
-            key={locatorKey({ hostId: LOCAL_HOST_ID, path: tree.root })}
+            key={tree.root}
             onAddToChat={onAddToChat ? (path, focus) => onAddToChat(path, focus) : undefined}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
             tree={tree}
