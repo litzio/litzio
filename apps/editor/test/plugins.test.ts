@@ -525,6 +525,53 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("scaffolded skills report actionable diagnostics and accept documented YAML", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-skill-validation-"));
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins") });
+  try {
+    await host.invoke("scaffold", { id: "local.example", template: "screen" });
+    const directory = path.join(root, "plugins", "local.example");
+    const file = path.join(directory, "litzio-plugin.json");
+    const manifest = JSON.parse(readFileSync(file, "utf8"));
+    manifest.skills = [{ id: "generation-status", directory: "skills/status" }];
+    writeFileSync(file, JSON.stringify(manifest));
+    const source = path.join(directory, "skills", "status"); mkdirSync(source, { recursive: true });
+    const skillFile = path.join(source, "SKILL.md");
+    const missing: any = await host.invoke("validate", { directory });
+    assert.equal(missing.errors[0].file, "skills/status/SKILL.md");
+    assert.match(missing.errors[0].message, /Expected a readable UTF-8 SKILL.md/);
+    for (const text of [
+      '---\nname: "example-generation-status"\ndescription: "Read generation status."\n---\nRead the existing generation status. Do not edit documents.\r\n',
+      '---\r\nname: unrelated\r\ndescription: Read status\r\n---\r\n',
+      '---\nname: status\ndescription: Read status\n---\n',
+    ]) {
+      writeFileSync(skillFile, text);
+      assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
+    }
+    for (const [text, field] of [
+      ["No frontmatter", "frontmatter"], ["---\n[]\n---\n", "frontmatter"],
+      ["---\nname: [\n---\n", "frontmatter"],
+      ["---\nname: 12\ndescription: Status\n---\n", "name"],
+      ["---\nname: status\ndescription: ''\n---\n", "description"],
+    ]) {
+      writeFileSync(skillFile, text);
+      const result: any = await host.invoke("validate", { directory });
+      assert.equal(result.valid, false);
+      assert.equal(result.errors[0].file, "skills/status/SKILL.md");
+      assert.equal(result.errors[0].path, field);
+      assert.match(result.errors[0].message, /Expected|Invalid YAML/);
+    }
+    writeFileSync(skillFile, "---\nname: status\ndescription: Status\n---\n");
+    // 14 prefix + 14 encoded plugin id + 3 separator + 33 skill id = 64.
+    for (const [length, valid] of [[33, true], [34, false]] as const) {
+      manifest.skills[0].id = "s".repeat(length); writeFileSync(file, JSON.stringify(manifest));
+      const result: any = await host.invoke("validate", { directory });
+      assert.equal(result.valid, valid);
+      if (!valid) assert.match(result.errors[0].message, /65 characters; maximum is 64.*Shorten/);
+    }
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("skill validation is nonexecuting and plugin namespaces preserve other contributions", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-skills-")), host = new PluginHost(path.join(root, "state.json"));
   try {
@@ -533,10 +580,10 @@ test("skill validation is nonexecuting and plugin namespaces preserve other cont
       const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
        manifest.skills = [{ id: "review", directory: "skills/review" }];
       writeFileSync(manifestFile, JSON.stringify(manifest));
-      await assert.rejects(host.invoke("register", { directory }), /ENOENT/);
+      await assert.rejects(host.invoke("register", { directory }), /Expected an existing artifact-local/);
       const source = path.join(directory, "skills", "review"); mkdirSync(source, { recursive: true });
       writeFileSync(path.join(source, "SKILL.md"), "---\nname: review\n---\nMissing description");
-      await assert.rejects(host.invoke("register", { directory }), /Invalid skill/);
+      await assert.rejects(host.invoke("register", { directory }), /description: Expected a non-empty YAML string/);
       writeFileSync(path.join(source, "SKILL.md"), "---\nname: review\ndescription: Review\n---\nProcedure");
       await host.invoke("register", { directory });
       const manager = new PluginAssistantSkills(path.join(root, "assistant"));

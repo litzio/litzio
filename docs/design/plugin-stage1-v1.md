@@ -28,7 +28,7 @@ OneDrive·Jira·Docling, 선언형 화면·조회·자동 form·검수·원본 �
 
 `secrets`는 `{id,title,description?,scope:"connection",required?}` 배열이다. Windows DPAPI 저장은 Host/account/plugin별 namespace로 분리한다. 일반 설정 파일·관리 결과·대화 활동·출력에 평문 값을 노출하지 않는다. 설정 화면의 저장/교체/손상/삭제는 같은 Host 경로를 사용한다. 다른 OS는 미지원 상태를 표시하며 평문 저장으로 우회하지 않는다. plugin context에 해당 plugin의 secret만 전달한다. 공개 출력의 secret 값은 가리고, 비서에 남은 literal secret은 거부한다.
 
-`skills`는 `{id,directory}` 배열이다. artifact 내부 YAML frontmatter의 name/description이 있는 SKILL.md를 읽고 plugin별 namespace로 비서 스킬 디렉터리에 설치한다. 다른 plugin의 스킬과 겹치지 않는다. disable/reload/제거/Host 종료 시 소유한 스킬을 정리한다. 화면 코드 manifest에서도 이 경로를 사용할 수 있다.
+`skills`는 `{id,directory}` 배열이다. artifact 내부 YAML frontmatter의 name/description이 있는 SKILL.md를 읽고 plugin별 namespace로 비서 스킬 디렉터리에 설치한다. 다른 plugin의 스킬과 겹치지 않는다. disable/reload/제거/Host 종료 시 소유한 스킬을 정리한다. 화면 코드 manifest에서도 이 경로를 사용할 수 있다. SKILL.md는 UTF-8(BOM 허용), LF·CRLF·혼합 줄바꿈을 받는다. 시작의 `---` 줄 사이에는 YAML mapping과 비어 있지 않은 문자열 `name`, `description`이 필요하다. 따옴표는 선택이고 본문 최소 길이는 없다. 원본 name은 표시용이며 manifest skills.id나 디렉터리 마지막 이름과 같을 필요가 없다. skills.id는 소문자 영문자로 시작하는 소문자 영숫자·단일 하이픈 연결 형식이다. 설치 name은 `litzio-plugin-<plugin id의 점을 --로 치환>---<skills.id>`이며 64자 이하여야 한다. 초과하면 plugin id 또는 skills.id를 줄인다. 검증 오류는 artifact 상대 SKILL.md 경로, 실패 필드와 기대 형식을 돌려준다.
 
 ## 수명과 공용 작업
 
