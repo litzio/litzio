@@ -46,6 +46,7 @@
 - `docs/adr/` — accepted architectural decisions and their rationale.
 - `docs/design/` — Implemented behavior contracts alongside Historical and Superseded documents; check each document's Status and current authority in the docs index.
 - `docs/reviews/` — historical reviews and spike evidence, not current requirements.
+- `docs/spikes/` — 스파이크 기록과 색인. 스파이크 코드는 `spike/*` 브랜치와 태그에만 두며 master에 병합하지 않고 PR로 올리지 않는다. 채택되면 이슈를 새로 등록해 master 기준으로 다시 구현한다. 스파이크를 진행하는 에이전트는 [스파이크 규칙](docs/spikes/README.md#스파이크를-진행하는-에이전트의-규칙)을 따르고, 새 작업을 계획할 때는 색인에서 관련 스파이크를 먼저 확인한다.
 - `docs/contributing/` — contributor guidance and documentation governance.
 - `.github/` — CI and contribution templates.
 - `patches/` — pinned local dependency patches with documented removal conditions. [Dependency patch register](docs/contributing/dependency-patches.md).
