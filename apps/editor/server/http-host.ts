@@ -161,12 +161,12 @@ export async function startHttpHost(options: HttpHostOptions) {
   }); } catch (error) { try { await services.close(); } finally { releaseResetGuard(); } throw error; }
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("The HTTP listener has no address.");
-  // The assistant runs beside this listener, not behind its advertised proxy.
-  const assistantAddress = host === "0.0.0.0" ? "127.0.0.1" : host === "::" ? "::1" : host;
-  origin = `http://${authority(assistantAddress, address.port)}`;
-  origins.add(origin);
   if (loopback(host)) {
-    origins.add(new URL(`http://${authority(host, address.port)}`).origin);
+    // Share the normalized, already admitted listener origin with the child.
+    // Non-loopback listeners do not get an assistant CLI target: granting their
+    // bind address would widen both Host authority and browser Origin admission.
+    origin = publicOrigin(`http://${authority(host, address.port)}`);
+    origins.add(origin);
     origins.add(new URL(`http://localhost:${address.port}`).origin);
   } else {
     // A same-machine proxy may rewrite Host to the loopback upstream address.

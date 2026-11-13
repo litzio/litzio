@@ -42,7 +42,9 @@ Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한�
 
 CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `validate`, `dependencies`, `bundle`, `install`, `list`, `register`, `trust`, `enable`, `disable`, `reload`, `unregister`, `settings`, secret 상태/삭제는 공용 Host 작업이다. 명시적 --host를 사용한다. query/file 제작 템플릿은 없다. 공개 작업 호출은 `operation invoke <id> --input <json-file> --host <origin> --json`이다. 승인되고 셸·네트워크 및 CLI guard가 허용하는 비서는 공개 쓰기 작업도 CLI로 실행할 수 있다. 전용 `invoke_plugin_operation` 도구는 assistant:true 읽기·healthCheck만 제공하며 쓰기를 허용하지 않는다. scope:folder 작업은 아직 지원하지 않는다.
 
-HTTP Host는 listen 완료 후 해당 listener의 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 비서는 이를 `--host`에 명시한다. CLI의 필수 주소 검증·실패 시 재실행 금지는 유지한다. origin이 없는 환경에서는 부모의 값을 상속하지 않으며 주소가 없다고 보고하고 중단한다. 연결 수명은 [비서 계약](main-agent-v1.md)을 따른다.
+loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정규화된 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 비서는 이를 `--host`에 명시한다. CLI의 필수 주소 검증·실패 시 재실행 금지는 유지한다. origin이 없는 환경에서는 부모의 값을 상속하지 않으며 주소가 없다고 보고하고 중단한다. 연결 수명은 [비서 계약](main-agent-v1.md)을 따른다.
+
+비서 CLI의 자동 주소 전달은 기존 HTTP 허용 목록을 바꾸지 않는다. non-loopback·wildcard·IPv4-mapped IPv6 bind에는 주소를 전달하지 않는다. 이 개발/검사용 구성에서는 자동 주소를 필요로 하는 비서의 Host 대상 CLI 호출만 주소 없음으로 분명히 실패하며, public-origin이나 다른 loopback 주소를 추측하지 않는다. 수동으로 명시한 CLI --host와 기존 HTTP 허용 판정은 유지한다.
 
 npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 제작 시 외부 라이브러리를 bundle하고 실행 시 네트워크 설치를 하지 않는다. 레지스트리·프록시는 기존 npm 설정을 사용한다.
 

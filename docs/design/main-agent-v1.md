@@ -129,7 +129,9 @@ Codex 조직 정책이 전체 접근을 명시적으로 거부하면 실행 전 
 
 ### 연결과 설정
 
-HTTP Host는 listen을 완료한 자신의 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 같은 PC daemon과 독립 실행 HTTP Host에 공통으로 적용하며 부모 환경의 주소는 상속하지 않는다. provider 재연결도 같은 Host 소유 연결의 origin을 사용하고 기존 대화는 그 연결을 재사용한다. 비서는 CLI의 `--host`에 이 값을 명시하며, 값이 없으면 주소가 없다고 보고하고 중단한다. 자동 탐색·기본값·다른 Host fallback은 없다. CLI shim의 PATH 전달과 대상 주소 전달은 별개다. 이 내부 환경 변수는 기존 LITZIO_* 계약처럼 배포 브랜드에 따라 이름을 바꾸지 않는다.
+loopback(127.* 또는 ::1) HTTP Host는 listen을 완료한 자신의 정규화된 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 같은 PC daemon과 독립 실행 HTTP Host에 공통으로 적용하며 부모 환경의 주소는 상속하지 않는다. provider 재연결도 같은 Host 소유 연결의 origin을 사용하고 기존 대화는 그 연결을 재사용한다. 비서는 CLI의 `--host`에 이 값을 명시하며, 값이 없으면 주소가 없다고 보고하고 중단한다. 자동 탐색·기본값·다른 Host fallback은 없다. CLI shim의 PATH 전달과 대상 주소 전달은 별개다. 이 내부 환경 변수는 기존 LITZIO_* 계약처럼 배포 브랜드에 따라 이름을 바꾸지 않는다.
+
+비서 CLI의 자동 주소 전달은 기존 HTTP 허용 목록을 바꾸지 않는다. non-loopback·wildcard·IPv4-mapped IPv6 bind에는 주소를 전달하지 않는다. 이 개발/검사용 구성에서는 자동 주소를 필요로 하는 비서의 Host 대상 CLI 호출만 주소 없음으로 분명히 실패하며, public-origin이나 다른 loopback 주소를 추측하지 않는다. 수동으로 명시한 CLI --host와 기존 HTTP 허용 판정은 유지한다.
 
 Codex는 `codex app-server`, Copilot은 `copilot --acp`를 Host가 필요할 때 시작한다.
 설정은 대상 Host의 공급자·현재 카탈로그 모델·추론 강도·기본 언어·권한을 저장한다.
