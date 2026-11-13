@@ -3,7 +3,8 @@ import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { canonicalFilePath } from "../server/file-access.ts";
 import { publicOperationResult } from "../server/plugins/operation-result.ts";
-import { validateManifest } from "@litzio/plugin-sdk";
+import { compileSchema, validateManifest } from "@litzio/plugin-sdk";
+import { PLUGIN_AUTHORING_SKILL } from "../server/plugins/authoring-skill.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
@@ -18,6 +19,19 @@ import { PluginAssistantSkills } from "../server/plugins/assistant-skills.ts";
 
 // Host lifecycle and public-operation tests stay in-process.
 // HTTP plugin scenarios cover browser registration/settings/secret integration.
+
+test("bundled job lookup example is a valid public operation and distinguishes absent records", () => {
+  const operations = JSON.parse(/```json\n([^`]+)```/.exec(PLUGIN_AUTHORING_SKILL)![1]);
+  const manifest = validateManifest({ id: "fixture.jobs", name: "Jobs", entry: "host.mjs", screen: "screen.jsx", operations });
+  const op = manifest.contributes.operations[0];
+  const input = compileSchema(op.inputSchema), output = compileSchema(op.outputSchema);
+  assert.equal(input({ id: "job-1" }), true); assert.equal(input({}), false);
+  for (const state of ["queued", "running", "succeeded", "failed", "cancelled", "not_found"]) {
+    assert.equal(output({ id: "job-1", state, message: state }), true);
+  }
+  assert.equal(output({ id: "job-1", state: "succeeded", message: "Done", result: { path: "result.json" } }), true);
+  assert.equal(output({ id: "job-1", state: "unknown", message: "Unknown" }), false);
+});
 
 
 

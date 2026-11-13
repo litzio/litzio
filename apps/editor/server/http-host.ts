@@ -60,7 +60,8 @@ export async function startHttpHost(options: HttpHostOptions) {
   const resetGuard = new ResetGuard();
   const releaseResetGuard = resetGuard.actor("host");
   let services: ReturnType<typeof createHostServices>;
-  try { services = createHostServices(access); }
+  let origin: string | undefined;
+  try { services = createHostServices(access, { origin: () => origin }); }
   catch (error) { releaseResetGuard(); throw error; }
   const key = randomBytes(32);
   const origins = new Set<string>();
@@ -160,6 +161,9 @@ export async function startHttpHost(options: HttpHostOptions) {
   }); } catch (error) { try { await services.close(); } finally { releaseResetGuard(); } throw error; }
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("The HTTP listener has no address.");
+  // The assistant runs beside this listener, not behind its advertised proxy.
+  const assistantAddress = host === "0.0.0.0" ? "127.0.0.1" : host === "::" ? "::1" : host;
+  origin = `http://${authority(assistantAddress, address.port)}`;
   if (loopback(host)) {
     origins.add(new URL(`http://${authority(host, address.port)}`).origin);
     origins.add(new URL(`http://localhost:${address.port}`).origin);

@@ -9,14 +9,15 @@ import { ProviderConnections } from "./provider-connections.ts";
 import { AssistantConversations, conversationForDisplay } from "./assistant-conversations.ts";
 
 /** Official daemon feature. Connections and turns live until daemon shutdown. */
-export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun; plugins?: PluginService; paths?: ReturnType<typeof hostPaths> }) {
+export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun; plugins?: PluginService; paths?: ReturnType<typeof hostPaths>; origin?(): string | undefined }) {
   const paths = options?.paths ?? hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
   const plugins = options?.plugins;
   let closed = false, closing: Promise<void> | undefined;
   let agent = options?.agent;
+  const providerConnection = () => agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run, options?.origin);
   let conversations: AssistantConversations | undefined;
-  const history = () => conversations ??= new AssistantConversations(agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run), access, plugins?.host);
+  const history = () => conversations ??= new AssistantConversations(providerConnection(), access, plugins?.host);
   const provider = (args?: { provider?: AiProvider }): AiProvider => {
     const value = args?.provider ?? settings().provider;
     if (value !== "codex" && value !== "copilot") throw new Error("Invalid AI provider.");
@@ -26,22 +27,22 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     assistantSkills: async (args?: { provider?: AiProvider }) => {
       if (provider(args) !== "codex") throw new Error("Skill selection is available only with Codex.");
       await plugins?.start();
-      const catalog = await (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).skills();
+      const catalog = await providerConnection().skills();
       return { ...catalog, skills: catalog.skills.map(skill => {
         const displayName = plugins?.host.skillDisplayName(skill.path);
         return displayName ? { ...skill, displayName } : skill;
       }) };
     },
-    assistantModels: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).models(provider(args)),
+    assistantModels: (args?: { provider?: AiProvider }) => providerConnection().models(provider(args)),
     assistantDiagnostics: async (args?: { provider?: AiProvider; summary?: string }) => {
       const selected = provider(args);
-      const connection = agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run);
+      const connection = providerConnection();
       if (args?.summary !== "account-usage") return connection.diagnostics(selected);
       if (selected !== "codex") return { provider: selected, checkedAt: Date.now() };
       const value = await connection.accountUsage();
       return { ...value, accountError: value.accountError ? "Unavailable" : undefined, rateLimitsError: value.rateLimitsError ? "Unavailable" : undefined };
     },
-    assistantEnvironment: () => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).environment(),
+    assistantEnvironment: () => providerConnection().environment(),
     assistantConversations: (args: any) => {
       if (args.submissionId) return history().submission(args.submissionId);
       if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args)).map(({ attachments: _attachments, ...info }) => info);
@@ -82,7 +83,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         // Steering and cancellation retain their admitted turn and connection.
         if (!existing?.turns.some(turn => turn.status === "inProgress")) {
           const selected = provider({ provider: existing?.provider ?? args.provider ?? currentSettings.provider });
-          const status = await (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).diagnostics(selected);
+          const status = await providerConnection().diagnostics(selected);
           if (!status.connected || selected === "codex" && !status.account) throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
           if (closed) throw new Error("The Assistant Host is closing.");
         }

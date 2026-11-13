@@ -31,6 +31,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 삽입 방법과 무관하게 `litzio check <file> --format json`으로 문서와 그림 경로를 검사한다.
 
 ## CLI와 터미널 이어하기
+- Host 호출은 현재 비서를 소유한 listener가 전달한 `LITZIO_HOST_ORIGIN`을 명시한다. PowerShell: `litzio plugins list --host $env:LITZIO_HOST_ORIGIN --json`; POSIX: `litzio plugins list --host "$LITZIO_HOST_ORIGIN" --json`. 비어 있으면 대상 Host 주소가 없다고 보고하고 중단한다. 포트 탐색·기본값·다른 daemon 추측은 하지 않는다. 앱 밖 터미널에는 자동 전달되지 않으므로 의도한 주소를 직접 지정한다.
 - `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
@@ -42,5 +43,14 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - CLI 생성에는 리치오 결과 카드·카드 Undo가 없으므로 경로·검사 결과를 텍스트로 보고한다.
 
 - 구조가 필요한 읽기는 `litzio inspect <file> --format json`의 Core `content`를 사용한다. `text`는 요약이다. 표 캡션은 `caption`, 목록은 `items[].content`와 `items[].list`이며 그림 캡션·셀·미주 정의에도 `content`가 있다.
+
+## 안전한 부분 편집 (쓰기 CLI를 허용하는 전체 접근)
+`litzio inspect document.md --format json`에서 현재 revision과 NodePath를 얻는다. 해당 블록에 Before가 있을 때 아래 operations.json 예제를 쓸 수 있다. 실제 inspect 결과의 path/from으로 바꾼다.
+
+```json
+[{"command":"update-node-text","path":"1","from":"Before","to":"After"}]
+```
+
+`litzio apply-batch document.md --operations operations.json --if-revision <inspect의-revision> --format json`은 작업 하나도 `{ok,command,applied,revision}`으로 결과를 준다. `--dry-run`으로 먼저 확인할 수 있다. mismatch는 쓰지 않고 거부한다. 성공 뒤 다시 inspect하여 새 경로와 revision을 얻는다. 단일 edit 명령은 새 revision receipt를 출력하지 않는다. 부분 의미 편집도 canonical 문서 전체를 저장하며 미저장 편집본이나 창의 Undo와 공유하지 않는다. 제한 권한의 CLI guard를 우회하지 않는다.
 
 - `create --input`과 화면 `saveDocument`는 같은 Core 작성 schema다. text는 글자 그대로이며 content는 읽기 출력의 InlineContent 배열이다. 표 caption·label·셀 구조, 미주 정의/표시, Core ListContent의 중첩·style·delimiter·start, target과 reference를 보존한다. 완성 입력의 끊긴 연결은 위치·이유와 함께 거부한다.

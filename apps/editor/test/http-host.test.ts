@@ -19,12 +19,77 @@ import { RootAccess } from "../server/file-access.ts";
 import { trashFile } from "../server/os-trash.ts";
 import { ResetGuard } from "../server/reset-guard.ts";
 import { resetHostPaths } from "../server/app-reset.ts";
+import { CodexAppServer } from "../server/codex-app-server.ts";
+import { brand } from "../../../brand.ts";
 
 const isolatedData = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-unit-data-"));
 process.env.LITZIO_DATA_DIR = isolatedData;
 process.env.LITZIO_RESET_DIR = path.join(isolatedData, "reset-guard");
 process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(isolatedData, "plugins.json");
 after(() => fs.rmSync(isolatedData, { recursive: true, force: true }));
+
+test("owning HTTP listener pins assistant CLI operations across Hosts, turns and provider reconnects", async t => {
+  const clients = new Map<string, CodexAppServer>();
+  const connect = CodexAppServer.prototype.connect;
+  t.mock.method(CodexAppServer.prototype, "connect", function (this: CodexAppServer) {
+    const original = (this as any).options;
+    Object.assign(this, { options: { ...original, bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] } });
+    clients.set(this.cwd, this);
+    return connect.call(this);
+  });
+  const keys = ["LITZIO_DATA_DIR", "LITZIO_ASSISTANT_CWD", "LITZIO_PLUGINS_SETTINGS_FILE", "LITZIO_HOST_ORIGIN"] as const;
+  const previous = keys.map(key => process.env[key]);
+  t.after(() => keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; }));
+  const hosts = [];
+  for (const label of ["foreground", "local-daemon"]) {
+    const data = path.join(isolatedData, label), cwd = path.join(data, "assistant");
+    process.env.LITZIO_DATA_DIR = data;
+    process.env.LITZIO_ASSISTANT_CWD = cwd;
+    process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(data, "plugins.json");
+    process.env.LITZIO_HOST_ORIGIN = "http://wrong-parent.invalid";
+    const host = await fixture(t, label === "foreground" ? "https://proxy.invalid" : undefined, label === "local-daemon" ? "desktop" : true);
+    assert.equal((await host.send("/api/assistant/models")).status, 200);
+    const client = clients.get(cwd)!;
+    const directory = path.join(host.a, "plugin"), marker = path.join(host.a, "written.txt"), input = path.join(host.a, "input.json");
+    fs.mkdirSync(directory);
+    fs.writeFileSync(path.join(directory, "screen.jsx"), "export default function Screen(){return null}");
+    fs.writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ id: "fixture.target", name: "Target", entry: "host.mjs", screen: "screen.jsx", operations: [
+      { id: "read", assistant: true, outputSchema: { type: "string" } },
+      { id: "write", effect: "write", outputSchema: { type: "string" } },
+    ] }));
+    fs.writeFileSync(path.join(directory, "host.mjs"), `import {writeFileSync} from 'node:fs'; export function activate(){return {operations:{read:()=>${JSON.stringify(label)},write:()=>{writeFileSync(${JSON.stringify(marker)},'written');return ${JSON.stringify(label)}}},status:()=>({available:true,message:'Ready'}),dispose(){}}}`);
+    fs.writeFileSync(input, "{}");
+    const cli = async (args: string[]) => {
+      const result = await client.request("fixture/cli", { command: brand.cliCommand, args, hostFromEnvironment: true });
+      assert.equal(result.hostOrigin, host.url);
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      return JSON.parse(result.stdout);
+    };
+    assert.equal((await cli(["plugins", "install", directory, "--json"])).receipt.outcome, "success");
+    hosts.push({ ...host, client, cli, marker, input, label });
+  }
+  assert.notEqual(hosts[0].url, hosts[1].url);
+  for (const host of hosts) {
+    const args = ["operation", "invoke", "fixture.target.read", "--input", host.input, "--json"];
+    assert.equal((await host.cli(args)).result, host.label);
+    const sent = await host.send("/api/assistant/conversations", "POST", { action: "send", permissionMode: "full-access", message: "Fixture turn", folders: [host.a], model: "gpt-6.1-sol", reasoningEffort: "medium" });
+    assert.equal(sent.status, 200, await sent.clone().text());
+    const conversation = await sent.json();
+    await host.client.request("fixture/finish", { threadId: conversation.id });
+    const disconnected = once(host.client, "disconnected");
+    await assert.rejects(host.client.request("exit"), /exited/);
+    await disconnected;
+    assert.equal((await host.cli(args)).result, host.label, "reconnection must retain its listener origin");
+    const continued = await host.send("/api/assistant/conversations", "POST", { action: "send", id: conversation.id, message: "Continue fixture", folders: [host.a], model: "gpt-6.1-sol", reasoningEffort: "medium" });
+    assert.equal(continued.status, 200, await continued.clone().text());
+    assert.equal((await continued.json()).id, conversation.id);
+    assert.equal((await host.cli(args)).result, host.label, "existing conversation uses the same owning connection");
+    await host.send("/api/assistant/conversations", "POST", { action: "interrupt", id: conversation.id });
+  }
+  const written = await hosts[0].cli(["operation", "invoke", "fixture.target.write", "--input", hosts[0].input, "--json"]);
+  assert.equal(written.result, hosts[0].label); assert.equal(written.receipt.outcome, "success");
+  assert.ok(fs.existsSync(hosts[0].marker)); assert.equal(fs.existsSync(hosts[1].marker), false);
+});
 
 test("reset inspection pins Host paths and its lifetime gate refuses offline deletion while serving", async t => {
   const { send } = await fixture(t);
@@ -213,7 +278,7 @@ test("folder image preview is read-only, root bounded and isolated for GET, HEAD
   assert.equal((await send(route(a, path.join(a, "bad.png")), "HEAD")).status, 413);
 });
 
-async function fixture(t: TestContext, external?: string, controlled = false) {
+async function fixture(t: TestContext, external?: string, controlled: boolean | "desktop" = false) {
   const base = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-"));
   const a = path.join(base, "문서 A"), b = path.join(base, "documents-B");
   const outside = path.join(base, "문서 A-other"), editorDir = path.join(base, "editor");
@@ -225,7 +290,7 @@ async function fixture(t: TestContext, external?: string, controlled = false) {
   fs.writeFileSync(path.join(editorDir, "index.html"), "<!doctype html><title>Editor</title>");
   fs.writeFileSync(path.join(editorDir, "app.js"), "export {};");
   const trashed: string[] = [];
-  const health = { processStartedAt: "test", daemonHome: "test", executable: process.execPath, roots: [], nonLoopback: false, launcher: "cli-run" as const, pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
+  const health = { processStartedAt: "test", daemonHome: "test", executable: process.execPath, roots: [], nonLoopback: false, launcher: controlled === "desktop" ? "desktop" as const : "cli-run" as const, pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
   let stopped = false;
   const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, publicOrigin: external,
     ...(controlled ? { daemon: { health, stop: () => { stopped = true; } } } : {}),
