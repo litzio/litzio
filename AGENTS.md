@@ -2,6 +2,8 @@
 
 > Document first. Semantics in Core. Interfaces replaceable.
 
+제품이 향하는 곳과 지금 하지 않는 것은 [리치오의 목적](docs/purpose.md)에 있다. 설계 판단은 이 목적에 비춰 하고, 목적 문서의 "지금 하지 않는 것"은 미리 설계하거나 대비하지 않는다.
+
 ## Working principles
 
 - 지금은 컨셉 검증 단계이므로 당장 검증할 것만 구현하고, 보안·배포·운영의 세부는 실제로 필요해질 때로 미룬다([Discussion #767](https://github.com/litzio/litzio/discussions/767)). 공식 write path의 유효성, 데이터 보존, 테스트 기준 등 이미 적용되는 저장소 제약은 그대로 지킨다.

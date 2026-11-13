@@ -6,6 +6,12 @@
 
 과거 검증 자료의 로컬 계정·PC 이름·개인 경로는 placeholder로 치환하거나 캡처에서 단색으로 가렸다. 측정 수치와 당시 결론은 유지하며, 가려진 캡처는 재촬영한 결과가 아니다.
 
+## Product purpose
+
+| Document | Status | Authority / description |
+| --- | --- | --- |
+| [리치오의 목적](purpose.md) | Accepted | 2026-11-13 소유자 결정. 누구를 위해 무엇을 하려는지, 문서·비서·플러그인의 관계, 반드시 지키는 것, 리치오가 아닌 것, 지금 하지 않는 것과 다시 논의할 조건. 제품 방향의 기준이며 개별 ADR·계약을 대신하지 않는다. |
+
 ## Architecture decisions
 
 | Document | Status | Authority / description |

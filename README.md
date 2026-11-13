@@ -9,6 +9,8 @@
 
 > Document first. Semantics in Core. Interfaces replaceable.
 
+제품이 향하는 곳은 [리치오의 목적](docs/purpose.md)에 있습니다. 아래 설명은 현재 제공하는 범위입니다.
+
 Litzio is a visual editor for structured technical documents, backed by a shared headless Core and Git-friendly plain text.
 Currently available as a Windows Beta. The primary documentation is in Korean.
 
