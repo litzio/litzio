@@ -428,7 +428,15 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const referenceRow = page.getByTestId('sidebar').getByRole('treeitem').filter({ hasText: 'document.md' });
   await referenceRow.click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
-  const draftChips = panel.locator('.assistant-composer .assistant-reference');
+  const draftChips = panel.locator('.assistant-composer .assistant-reference, .assistant-composer .assistant-image-preview');
+  const draftImages = panel.locator('.assistant-composer .assistant-image-preview');
+  const assertDraftNames = async (korean = false) => {
+    await expect(panel.locator('.assistant-composer .assistant-reference')).toHaveText(['document.md']);
+    for (let n = 1; n <= 3; n++) {
+      await expect(draftImages.nth(n - 1).getByRole('img')).toHaveAttribute('alt', `${korean ? '이미지' : 'Image'} ${n}`);
+      await expect(draftImages.nth(n - 1).getByRole('button')).toHaveAccessibleName(korean ? `이미지 ${n} 빼기` : `Remove image ${n}`);
+    }
+  };
   await expect(draftChips).toHaveCount(1);
   let fileLookups = 0;
   const noFileSearch = route => { fileLookups++; return route.fulfill({ json: { entries: [] } }); };
@@ -492,7 +500,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }, { count, start });
   expect(await pasteImages()).toBe(true);
   await expect(draftChips).toHaveCount(2);
-  await draftChips.filter({ hasText: 'Image 1' }).getByRole('button').click();
+  await panel.getByRole('button', { name: 'Remove image 1', exact: true }).click();
   await expect(draftChips).toHaveCount(1);
   // Hold each response explicitly: typing spaces the pastes like ordinary human input,
   // while response gates (rather than a fixed sleep) guarantee overlapping uploads.
@@ -502,6 +510,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   uploadGates.set(beforeUploads + 2, new Promise(resolve => { releaseNextUpload = resolve; }));
   expect(await pasteImages()).toBe(true);
   await expect.poll(() => pasted).toBe(beforeUploads + 1);
+  await expect(panel.getByRole('status').filter({ hasText: 'Uploading images…' })).toBeVisible();
   await message.press('End'); await page.keyboard.type(' note', { delay: 160 });
   expect(await pasteImages(2, 1)).toBe(true);
   const sendDuringUpload = panel.getByRole('button', { name: 'Send message', exact: true });
@@ -511,6 +520,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   releaseFirstUpload();
   await expect.poll(() => pasted, 'the later paste must be uploaded after the held first response').toBe(beforeUploads + 2);
   await expect(draftChips).toHaveCount(2);
+  await expect(panel.getByRole('status').filter({ hasText: 'Uploading images…' })).toBeVisible();
+  if (screenshots) await panel.screenshot({ path: 'tmp/1589-uploading-with-image.png' });
   await expect(sendDuringUpload).toBeDisabled();
   await message.press('Enter');
   expect(sent).toHaveLength(0);
@@ -518,24 +529,46 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   releaseNextUpload();
   await expect(draftChips).toHaveCount(4);
   await expect(sendDuringUpload).toBeEnabled();
-  await expect(draftChips).toHaveText(['document.md', 'Image 1', 'Image 2', 'Image 3']);
+  await assertDraftNames();
+  await expect(panel.getByRole('status').filter({ hasText: 'Uploading images…' })).toHaveCount(0);
   await expect(draftChips.locator('img')).toHaveCount(3);
   expect(await draftChips.locator('img').evaluateAll(images => images.map(image => image.getAttribute('src')))).toEqual(pastedData.slice(1).map(data => `data:image/png;base64,${data}`));
   await expect.poll(() => draftChips.locator('img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
   const assertChipFlow = async () => {
-    const geometry = await panel.locator('.assistant-composer .assistant-references').evaluate(list => ({
+    const rows = await panel.locator('.assistant-composer .assistant-references, .assistant-composer .assistant-image-previews').evaluateAll(lists => lists.map(list => ({
       right: list.getBoundingClientRect().right, gap: parseFloat(getComputedStyle(list).gap),
       chips: [...list.children].map(chip => { const box = chip.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, width: box.width }; }),
-    }));
-    for (let n = 1; n < geometry.chips.length; n++) {
+    })));
+    for (const geometry of rows) for (let n = 1; n < geometry.chips.length; n++) {
       const previous = geometry.chips[n - 1], next = geometry.chips[n];
       expect(next.right).toBeLessThanOrEqual(geometry.right + 1);
       if (next.top > previous.top) expect(previous.right + geometry.gap + next.width).toBeGreaterThan(geometry.right);
       else expect(next.left).toBeGreaterThanOrEqual(previous.right);
     }
-    expect(geometry.chips.some((chip, n, chips) => n > 0 && chip.top === chips[n - 1].top)).toBe(true);
+    const imageRow = rows.at(-1);
+    expect(imageRow.chips.some((chip, n, chips) => n > 0 && chip.top === chips[n - 1].top)).toBe(true);
+    for (const box of await draftImages.evaluateAll(images => images.map(image => { const box = image.getBoundingClientRect(); return { width: box.width, height: box.height }; }))) {
+      expect(box.width).toBeGreaterThanOrEqual(56); expect(box.width).toBeLessThanOrEqual(72); expect(box.height).toBe(box.width);
+    }
   };
   await assertChipFlow();
+  const fileRow = await panel.locator('.assistant-composer .assistant-references').boundingBox();
+  const imageRow = await panel.locator('.assistant-composer .assistant-image-previews').boundingBox();
+  expect(fileRow.y + fileRow.height).toBeLessThanOrEqual(imageRow.y);
+  await draftImages.first().focus();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toHaveText('Image 1');
+  await message.focus(); await draftImages.nth(1).hover();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toHaveText('Image 2');
+  await message.hover(); await message.focus();
+  const submittedImagePaths = pastedPaths.slice(1);
+  // Enough thumbnails to exceed the supported panel width; remove only the extras afterward.
+  expect(await pasteImages(3, 3)).toBe(true);
+  await expect(draftImages).toHaveCount(6);
+  expect(new Set(await draftImages.evaluateAll(images => images.map(image => image.getBoundingClientRect().top))).size).toBeGreaterThan(1);
+  await assertChipFlow();
+  for (let n = 6; n >= 4; n--) await panel.getByRole('button', { name: `Remove image ${n}`, exact: true }).click();
+  await expect(draftChips).toHaveCount(4);
+  await assertDraftNames();
   await expect(message).toHaveValue('What changed in the current document?');
   expect(await message.evaluate(element => {
     const data = new DataTransfer(); data.setData('text/plain', 'plain text');
@@ -548,7 +581,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption(theme);
       await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await panel.locator('textarea').focus();
-      await expect(draftChips).toHaveText(['document.md', '이미지 1', '이미지 2', '이미지 3']);
+      await assertDraftNames(true);
       await assertChipFlow();
       await page.screenshot({ path: `tmp/1589-${theme}-1440-ko.png`, mask: [page.locator(".sidebar-host-account")] });
     }
@@ -607,7 +640,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await editor.focus(); await page.keyboard.press('ControlOrMeta+z');
   await message.focus();
   expect(sent[0].responseLanguage).toBeUndefined();
-  expect(sent[0].references).toEqual([assistantFixture.document, ...pastedPaths.slice(1)]);
+  expect(sent[0].references).toEqual([assistantFixture.document, ...submittedImagePaths]);
   await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(4);
   await expect(panel.locator('.assistant-user .assistant-reference')).toHaveText(['document.md', 'Image 1', 'Image 2', 'Image 3']);
   await expect(panel.locator('.assistant-user .assistant-reference img')).toHaveCount(3);

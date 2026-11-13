@@ -608,7 +608,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
-      <ReferenceChips previews={imagePreviews} previewScope={hostId} references={references} remove={removeReference} />
+      <ReferenceChips composer uploading={uploadingImages} previews={imagePreviews} previewScope={hostId} references={references} remove={removeReference} />
       {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t("Codex skills")}>
         {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.displayName ?? file.name}<small>{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
         {!skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
@@ -742,17 +742,31 @@ function samePath(a: string, b: string) {
   return normalize(a) === normalize(b);
 }
 
-function ReferenceChips({ references, remove, previews, previewScope }: { references: AssistantFileReference[]; remove?(path: string): void; previews: Record<string, string>; previewScope: string }) {
-  if (!references.length) return null;
+function ReferenceChips({ references, remove, previews, previewScope, composer = false, uploading = false }: { references: AssistantFileReference[]; remove?(path: string): void; previews: Record<string, string>; previewScope: string; composer?: boolean; uploading?: boolean }) {
   let imageNumber = 0;
-  return <span className="assistant-references">{references.map(file => {
-    const name = file.pastedImage ? i18n.t("Image {{number}}", { number: ++imageNumber }) : file.kind === "skill" ? `$${file.name}` : file.name;
-    const preview = file.pastedImage ? previews[`${previewScope}:${file.path}`] : undefined;
-    return <span className="assistant-reference" key={file.path}>
+  const files = references.map(file => {
+    const number = file.pastedImage ? ++imageNumber : 0;
+    return { file, number, name: number ? i18n.t("Image {{number}}", { number }) : file.kind === "skill" ? `$${file.name}` : file.name,
+      preview: file.pastedImage ? previews[`${previewScope}:${file.path}`] : undefined };
+  });
+  const thumbnails = composer ? files.filter(({ preview }) => preview) : [];
+  const chips = composer ? files.filter(({ preview }) => !preview) : files;
+  return <>
+    {chips.length ? <span className="assistant-references">{chips.map(({ file, name, preview }) => <span className="assistant-reference" key={file.path}>
       <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{preview ? <img className="assistant-reference-preview" src={preview} alt="" /> : null}{name}{file.unavailable ? ` · ${i18n.t("Unavailable")}` : ""}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
       {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.pastedImage ? name : file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
-    </span>;
-  })}</span>;
+    </span>)}</span> : null}
+    {thumbnails.length || uploading ? <div className="assistant-image-previews">
+      {thumbnails.map(({ file, name, number, preview }) => <Tooltip key={file.path}>
+        <TooltipTrigger render={<span className="assistant-image-preview" tabIndex={0} />}>
+          <img src={preview} alt={name} />
+          <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Remove image {{number}}", { number })} onClick={() => remove?.(file.path)}><X /></Button>
+        </TooltipTrigger>
+        <TooltipContent>{name}</TooltipContent>
+      </Tooltip>)}
+      {uploading ? <span className="assistant-image-upload" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><span aria-hidden="true">{i18n.t("In progress")}</span><span className="sr-only">{i18n.t("Uploading images…")}</span></span> : null}
+    </div> : null}
+  </>;
 }
 
 function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }

@@ -97,6 +97,14 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-reference { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; gap: var(--space-1); padding-inline: var(--space-2); border: var(--border-width) solid var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-surface); font-size: var(--font-size-xs); }
 .assistant-reference > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .assistant-reference-preview { display: inline-block; width: 20px; height: 20px; object-fit: cover; vertical-align: middle; margin-inline-end: var(--space-1); border-radius: var(--id-radius-sm); }
+.assistant-image-previews { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-block: var(--space-2); }
+.assistant-image-preview, .assistant-image-upload { position: relative; flex: 0 0 var(--size-assistant-image-thumbnail); width: var(--size-assistant-image-thumbnail); height: var(--size-assistant-image-thumbnail); border: var(--border-width) solid var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-surface); }
+.assistant-image-preview { display: inline-block; }
+.assistant-image-preview:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.assistant-image-preview > img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.assistant-image-preview > button { position: absolute; top: var(--space-1); inset-inline-end: var(--space-1); }
+.assistant-image-upload { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); text-align: center; font-size: var(--font-size-xs); line-height: 1.3; color: var(--id-color-text-muted); }
+.assistant-image-upload > svg { width: var(--size-icon-slot); height: var(--size-icon-slot); }
 .assistant-reference-options { max-height: 14rem; overflow: auto; background: var(--id-color-surface); border: var(--border-width) solid var(--id-color-border); border-radius: var(--id-radius-md); }
 .assistant-reference-options button { display: block; height: auto; white-space: normal; width: 100%; padding: var(--space-2); text-align: start; overflow-wrap: anywhere; }
 .assistant-reference-options button[aria-selected="true"], .assistant-reference-options button:hover { background: var(--id-color-surface-hover); }
