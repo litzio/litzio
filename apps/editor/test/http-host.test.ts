@@ -968,7 +968,9 @@ test("Copilot MCP discovery and calls cross the real daemon Origin gate", async 
   assert.equal(sent.status, 200, await sent.clone().text());
   const conversation = await sent.json();
   assert.equal(conversation.turns.at(-1).status, "inProgress");
-  const rows = fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  // session/new is logged before its response; session/prompt may still be appending.
+  // Parse complete JSONL records without treating an unfinished tail as a record.
+  const rows = fs.readFileSync(log, "utf8").split("\n").slice(0, -1).map(line => JSON.parse(line));
   const config = rows.filter(row => row.method === "session/new" && row.params.mcpServers.length).at(-1).params.mcpServers[0];
   assert.equal(new URL(config.url).origin, url);
   const client = new Client({ name: "daemon-regression", version: "1" });
