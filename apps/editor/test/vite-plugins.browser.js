@@ -40,6 +40,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   }
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
+  await page.getByRole("region", { name: "Docling", exact: true }).getByRole("button", { name: "Docling settings", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   const input = page.getByTestId("folder-path");
   const register = page.getByTestId("folder-open");

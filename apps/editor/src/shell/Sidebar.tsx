@@ -1,9 +1,7 @@
 import type { ComparisonTarget } from "../review/GeneratedComparison.tsx";
-import { getHostClient } from "../host-client.ts";
 import { ContextMenu } from "@/components/ui/context-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
-import { usePlugins } from "../PluginSettings.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
@@ -88,7 +86,6 @@ export function Sidebar({
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
-  const { plugins } = usePlugins();
   const only = folders.length === 1 ? folders[0] : undefined;
   const blankActions = only ? folderActions({
     onCopyPath,

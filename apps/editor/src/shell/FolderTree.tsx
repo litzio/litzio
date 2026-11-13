@@ -8,7 +8,7 @@ import { FileActionDialog, type FileAction, type FileActionHandler } from "./Fil
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
 import { fileDeletion } from "../host-capabilities.ts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
