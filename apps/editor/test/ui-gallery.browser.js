@@ -170,4 +170,12 @@ async (page, { expect, screenshots }) => {
   await expect(table.locator('tbody tr').first()).toContainText('100');
 
 
+  await navigation.getByRole('button',{name:'Document view',exact:true}).click();
+  const documentView=page.getByRole('region',{name:'Document preview content',exact:true});
+  await expect(documentView).toContainText('Document view example');
+  await expect(documentView.getByRole('table')).toContainText('18');
+  await page.getByRole('button',{name:'Toggle stale target',exact:true}).click();
+  await expect(page.locator('.screen-document-view')).toHaveAttribute('data-state','stale-target');
+  await expect(page.getByTestId('document-view-highlight')).toHaveCount(0);
+
 }
