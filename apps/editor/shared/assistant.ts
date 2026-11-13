@@ -1,5 +1,5 @@
 /** Serializable work messages. Domain validation and freshness belong to the caller. */
-export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
 export type AssistantExecutionSettings = { model: string; reasoningEffort: string; responseLanguage?: AssistantResponseLanguage };
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantExecutionSettings = { model: "gpt-6.1-sol", reasoningEffort: "medium" };
 /** Fallback for tasks started without a conversation; never a conversation override. */

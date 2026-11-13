@@ -1,7 +1,5 @@
 import { useId } from "react";
-import type { SettingsRowProps, SettingsSwitchProps, SettingsSelectProps, SettingsInputProps, SettingsActionProps } from "./settings-types.ts";
-import { Input } from "./input.tsx";
-import { Button } from "./button.tsx";
+import type { SettingsRowProps, SettingsSwitchProps, SettingsSelectProps } from "./settings-types.ts";
 
 export function SettingsRow({ label, description, children, testId }: SettingsRowProps) {
   return <div className="settings-section settings-row" data-testid={testId}>
@@ -29,16 +27,4 @@ export function SettingsSelect({ value, options, onChange, disabled, testId, ...
     aria-describedby={row.description ? `${id}-description` : undefined} onChange={event => onChange(event.target.value)}>
     {options.map(option => <option key={option.value} value={option.value} disabled={option.disabled} lang={option.lang}>{option.label}</option>)}
   </select></FieldRow>;
-}
-
-export function SettingsInput({ value, onChange, onBlur, onEnter, disabled, invalid, describedBy, testId, ...row }: SettingsInputProps) {
-  const id = useId();
-  return <FieldRow {...row} id={id}><Input id={id} data-testid={testId} value={value} disabled={disabled} aria-invalid={invalid}
-    aria-describedby={[row.description ? `${id}-description` : "", describedBy].filter(Boolean).join(" ") || undefined}
-    onChange={event => onChange(event.target.value)} onBlur={onBlur}
-    onKeyDown={event => { if (event.key === "Enter" && onEnter) { event.preventDefault(); onEnter(); } }} /></FieldRow>;
-}
-
-export function SettingsAction({ actionLabel, run, disabled, variant = "secondary", ...row }: SettingsActionProps) {
-  return <SettingsRow {...row}><Button size="sm" variant={variant} disabled={disabled} onClick={run}>{actionLabel}</Button></SettingsRow>;
 }

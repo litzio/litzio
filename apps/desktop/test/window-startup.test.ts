@@ -2,9 +2,9 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { spawnSync } from "node:child_process";
-import { readFileSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { readFileSync } from "node:fs";
+
+
 import { createRequire } from "node:module";
 import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";

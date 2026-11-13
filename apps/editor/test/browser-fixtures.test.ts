@@ -74,7 +74,6 @@ test("fault injection permits only its expected network failures", () => {
   assert.deepEqual(classifyConsoleErrors("assistant", [unexpectedThreadFailure]).unexpected, [unexpectedThreadFailure]);
   const unexpectedUndoConflict = missingThread.replace("404 (Not Found)", "400 (Bad Request)");
   assert.deepEqual(classifyConsoleErrors("assistant", [unexpectedUndoConflict]).unexpected, [unexpectedUndoConflict]);
-  const uncaught = "Uncaught page error: PLUGIN_UI_RENDER_FIXTURE";
 });
 
 const testDir = path.join(REPOSITORY_ROOT, "apps", "editor", "test");

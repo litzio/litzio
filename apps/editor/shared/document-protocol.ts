@@ -2,7 +2,6 @@ import type { BibliographySource } from "@litzio/core";
 import type {
   AdmonitionVariant,
   CodeBlockContent,
-  EditableBlock,
   EditableDocument,
   FigureContent,
   InlineContent,

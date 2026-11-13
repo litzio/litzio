@@ -27,7 +27,6 @@ import { deleteSelection, joinBackward, splitBlock } from "@tiptap/pm/commands";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { EditorState, NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import {
-  canonicalWriteError,
   getEditableDocument,
   inspectDocument,
   insertParagraph,
@@ -1699,20 +1698,7 @@ function saveParagraph(from: string, content: InlineContent[]) {
   return saveEdits(source, { paragraphs: [{ path: target.path, content }] });
 }
 
-function saveSample() {
-  const document = loadEditableDocument(source);
-  const heading = document.blocks.find((block) => block.block === "heading" && block.text === HEADING_FROM);
-  const paragraph = document.blocks.find((block) => block.block === "paragraph" && block.text === PARAGRAPH_FROM);
-  assert.equal(heading?.block, "heading");
-  assert.equal(paragraph?.block, "paragraph");
-  if (heading?.block !== "heading" || paragraph?.block !== "paragraph") {
-    throw new Error("missing sample edit targets");
-  }
-  return saveEdits(source, {
-    headings: [{ path: heading.path, content: [{ kind: "text", text: HEADING_TO }] }],
-    paragraphs: [{ path: paragraph.path, content: [{ kind: "text", text: PARAGRAPH_TO }] }],
-  });
-}
+
 
 function schemaDocument(): { doc: ProseMirrorNode; schema: ReturnType<typeof getSchema> } {
   const projection = toTiptapDocument(loadEditableDocument(source));

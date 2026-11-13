@@ -16,7 +16,7 @@ import { FieldError } from "./ui/primitives.tsx";
 import { useMessageState } from "./ui-message.ts";
 import { PROPERTY_APPLY_SHORTCUT } from "./shortcuts.ts";
 import type { DraftListener } from "./node-views/shared.ts";
-import { tableCaption } from "./tiptap-edits.ts";
+
 import { canEditEndnoteAt, endnoteEditorToken } from "./endnotes.ts";
 
 /** A labeled Equation, Figure, Table or section in the current editor document that a reference

@@ -7,8 +7,6 @@
 /** Stable receives only full releases; Beta receives Beta and full releases. */
 export type ReleaseChannel = "stable" | "beta";
 
-export const RELEASE_CHANNELS: readonly ReleaseChannel[] = ["stable", "beta"];
-
 /** An update the channel offers: newer than the installed version. */
 export type OfferedUpdate = {
   version: string;

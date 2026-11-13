@@ -1,4 +1,4 @@
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import { hostPaths } from "../server/host-paths.ts";
 import { brand } from "../../../brand.ts";
@@ -9,9 +9,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { assistantDirectory } from "../server/provider-connections.ts";
-import { createHostServices } from "../server/host-services.ts";
-import { randomUUID } from "node:crypto";
-import fs from "node:fs";
+
+
+
 
 test("source defaults belong to the checkout, independent of launch cwd", () => {
   const previous = { ...process.env }, cwd = process.cwd();
