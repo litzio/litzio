@@ -367,18 +367,21 @@ const saveBody = (file: string, text = "Edited.") => {
 test("HTTP authored creation preserves Core validity, receipt and exclusive publication", async t => {
   const { a, outside, send } = await fixture(t);
   const file = path.join(a, "authored.md");
-  const authoring = { title: "Measurements", inputs: [{ key: "filtered", blocks: [{ kind: "paragraph", text: "Above 15" }, { kind: "table", rows: [["Value"], ["18"], ["24"]] }] }] };
-  const response = await send("/api/document", "PUT", { path: file, authoring });
-  assert.equal(response.status, 201);
+  const authoring = { title: "Measurements", inputs: [{ key: "filtered", blocks: [{ kind: "paragraph", text: "Above 15" }, { kind: "table", rows: [["Value"], ["18"], ["24"]] }, { kind: "figure", imageAsset: "chart", imageAlt: "Chart", caption: "Saved chart" }] }] };
+  const images = [{ key: "chart", mime: "image/png", base64: png.toString("base64") }];
+  const response = await send("/api/document", "PUT", { path: file, authoring, images });
+  assert.equal(response.status, 201, await response.clone().text());
   const receipt = await response.json();
   assert.equal(receipt.path, file);
   assert.equal(receipt.revision, documentRevision(receipt.source));
   assert.ok(receipt.identity);
-  assert.equal(receipt.inputs[0].targets.length, 2);
+  assert.equal(receipt.inputs[0].targets.length, 3);
   const reopened = await (await send(documentQuery(file))).json();
   assert.equal(reopened.kind, "native");
   assert.equal(reopened.source, receipt.source);
-  const collision = await send("/api/document", "PUT", { path: file, authoring });
+  const relative = /\.\/assets\/[^\s]+\.png/.exec(receipt.source)![0];
+  assert.deepEqual(fs.readFileSync(path.resolve(a, relative)), png);
+  const collision = await send("/api/document", "PUT", { path: file, authoring, images });
   assert.equal(collision.status, 400);
   assert.match((await collision.json()).error, /already exists/);
   assert.equal(fs.readFileSync(file, "utf8"), receipt.source);
@@ -386,6 +389,19 @@ test("HTTP authored creation preserves Core validity, receipt and exclusive publ
     assert.equal((await send("/api/document", "PUT", payload)).status, 400);
   }
   assert.equal(fs.existsSync(path.join(a, "invalid.md")), false);
+  for (const invalid of [
+    [{ ...images[0], key: "wrong" }],
+    [{ ...images[0], base64: "%%%" }],
+  ]) {
+    const rejected = path.join(a, "bad-image.md");
+    const response = await send("/api/document", "PUT", { path: rejected, authoring, images: invalid });
+    assert.equal(response.status, 400);
+    assert.equal(typeof (await response.json()).error, "string");
+    assert.equal(fs.existsSync(rejected), false);
+    assert.equal(fs.readFileSync(file, "utf8"), receipt.source);
+    assert.deepEqual(fs.readFileSync(path.resolve(a, relative)), png);
+  }
+
   assert.equal((await send("/api/document", "PUT", { path: path.join(outside, "blocked.md"), authoring })).status, 403);
 });
 
