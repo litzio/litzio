@@ -1,3 +1,4 @@
+import { AssistantConversationIndex, type ConversationIndexEntry } from "./assistant-conversation-index.ts";
 import { checkedReferences } from "./assistant-references.ts";
 import { CONTEXT, QUESTION_ANSWER_CONTEXT, boundedWork, itemFrom, pluginOperationItem, turnFrom } from "./assistant-provider-items.ts";
 export { conversationForDisplay } from "./assistant-conversation-display.ts";
@@ -11,10 +12,10 @@ import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginOperationTools, executePluginOperationTool } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
-import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
+import { statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInfo, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
+import type { AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
 
@@ -25,11 +26,12 @@ import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copi
 
 import { questionTool } from "./assistant-question-tool.ts";
 
-type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import("./assistant-attachments.ts").AttachmentRecord[]; copilotCliReasoningEffort?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
+
 
 /** Providers own message content. Litzio's index also owns correlated question interactions. */
 export class AssistantConversations {
   readonly attachments: AssistantAttachments;
+  private index: AssistantConversationIndex;
   private readonly copilotRoot = copilotLogRoot();
   private fileChanges = new Map<string, AssistantFileChanges>();
   fileChange(id: string, turnId: string, file: string, undo = false, folders?: string[]) {
@@ -95,6 +97,7 @@ export class AssistantConversations {
   private loaded = new Set<string>();
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
     this.attachments = new AssistantAttachments(connection.cwd);
+    this.index = new AssistantConversationIndex(connection, this.attachments);
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
@@ -166,33 +169,12 @@ export class AssistantConversations {
 
   get tools() { return [...documentTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginOperationTools] : [])]; }
   readonly mcp = new AssistantMcp(() => this.tools, params => this.executeTool(params));
-  private get file() { return path.join(this.connection.cwd, "conversations.json"); }
-  list(): ConversationIndexEntry[] {
-    this.connection.environment();
-    return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
-  }
-  private save(conversation: AssistantConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback } = conversation;
-    const questions = conversation.turns.flatMap(turn => turn.items.filter(item => item.question).map(item => ({ itemId: item.id, text: item.text, question: item.question! })));
-    const previous = this.list();
-    const attachments = this.attachments.owned(id);
-    const entries = previous.filter(entry => entry.id !== id);
-    const temporary = `${this.file}.${randomUUID()}.tmp`;
-    try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}),
-        ...(attachments?.length ? { attachments } : {}),
-        ...(questions.length ? { questions } : {}),
-        ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
-      renameSync(temporary, this.file);
-    } finally { if (existsSync(temporary)) unlinkSync(temporary); }
-  }
+  list(): ConversationIndexEntry[] { return this.index.list(); }
+  private save(conversation: AssistantConversation) { this.index.save(conversation); }
   remove(id: string) {
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Assistant response before deleting the conversation.");
     this.attachments.remove(id);
-    const entries = this.list().filter(entry => entry.id !== id);
-    const temporary = `${this.file}.${randomUUID()}.tmp`;
-    try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }
-    finally { if (existsSync(temporary)) unlinkSync(temporary); }
+    this.index.remove(id);
     this.mcp.revokeConversation(id);
     this.fileChanges.delete(id); this.conversations.delete(id); this.loaded.delete(id); this.scopes.delete(id);
   }
