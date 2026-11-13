@@ -56,7 +56,6 @@ import {
   updateParagraphInlineContent,
   validateFigure,
   validateStructure,
-  type Document,
   type EditableBlock,
   type EditableDocument,
   type FigureContent,

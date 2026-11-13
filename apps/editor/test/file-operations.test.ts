@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { executeFolderTrash, deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "../server/file-operations.ts";
-import { accessPath, RootAccess } from "../server/file-access.ts";
+import { RootAccess } from "../server/file-access.ts";
 import { nativeSource } from "./helpers/document.ts";
 import { getEditableDocument, parse } from "@litzio/core";
 import { loadDocumentFile } from "../server/document-api.ts";

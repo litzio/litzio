@@ -1,6 +1,6 @@
 import { getHostClient, type HostClient } from "../host-client.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
+
 import { FileActionDialog, type FileAction, type FileActionHandler } from "./FileActionDialog.tsx";
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";

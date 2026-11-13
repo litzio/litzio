@@ -300,10 +300,11 @@ input stay recoverable. Storage failures retain the existing visible warning and
 turn successful disk Save into failure. Dirty explicit discard still requires successful
 IndexedDB deletion; failure keeps its recorded work visible. It reuses the editor's
 existing applied-content dirty comparison, including the submitted snapshot acknowledged by Save,
-rather than comparing recovery text with the current disk file. Each `litzio.recoveryClean.v1.<id>`
+rather than comparing recovery text with the current disk file. Each `litzio.recoveryClean.v2.<id>`
 entry contains only that session's nonnegative recording generation counter: no path, content, revision, cursor
-or history. New v1 records carry the optional `recordingGeneration` field; existing v1 records
-without it remain readable and are never deleted by a clean acknowledgement. Restore starts the
+or history. Current v3 records carry the optional `recordingGeneration` field; records without it
+never authorize clean-acknowledgement deletion. Old v1/v2 records stay in the separate old database
+and are not read by this editor. Restore starts the
 moved record at generation zero of the new session. Redo or new applied input removes the acknowledgement
 **before** obtaining a recording ticket and advances the generation after clean state. A dirty
 IndexedDB write also removes the acknowledgement and advances if needed before putting its live
@@ -750,7 +751,7 @@ Historical switching, dismissal and retained-error evidence: [Save, switching an
 
 Under [ADR-0007 decision 3](../adr/0007-editing-session-lifetime.md#3-여러-문서를-탭으로-열어-두고-탭마다-독립된-세션을-가진다)
 and the owner-approved [#380 decision](https://github.com/litzio/litzio/issues/380),
-`litzio.openTabs` in origin-local `localStorage` holds only `{ paths, activePath }`:
+`litzio.openTabs.v2` in origin-local `localStorage` holds only `{ paths, activePath }`:
 Host-normalized document paths in flattened left-to-right group/tab order and the focused active
 document path (or null). Editor groups themselves are page memory; Reload restores one group.
 It stores no content, selection, cursor, undo, session snapshot, Host state or file. This is UI

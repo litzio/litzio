@@ -1,4 +1,4 @@
-import { snapshotSection, changeFor, serializeChange, parseCommandArgs, isEditCommand, flag, optionalFlag, intFlag, jsonFlag, pathFlag, captionInput, textOrContent, variantFlag, insertionIndex, machineNodes, COMMAND_OPTIONS, applyDocumentBatch } from "../../../apps/editor/server/document-edit-commands.ts";
+import { snapshotSection, changeFor, serializeChange, parseCommandArgs, isEditCommand, flag, optionalFlag, machineNodes, applyDocumentBatch } from "../../../apps/editor/server/document-edit-commands.ts";
 import { executeCompareOperation } from "../../../apps/editor/server/document-compare.ts";
 import { executeFolderTrash } from "../../../apps/editor/server/file-operations.ts";
 import { osTrashAvailable, trashFile } from "../../../apps/editor/server/os-trash.ts";
@@ -7,7 +7,7 @@ import { executeTemplateOperation, templateLanguage } from "../../../apps/editor
 import { brand } from "../../../brand.ts";
 import { readBibliographySources } from "../../../apps/editor/server/bibliography.ts";
 import { versionText } from "./version.ts";
-import fs, { readFileSync, writeFileSync } from "node:fs";
+import fs, { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -33,11 +33,10 @@ import {
   type EditableBlock,
   type EditableDocument,
   type NodePath,
-  type InlineContent,
   type CitationReport,
   type ListContent,
 } from "@litzio/core";
-import { assertUnicode, commitFile, decodeUtf8, preflightFileCommit, textRevision } from "@litzio/file-commit";
+import { commitFile, decodeUtf8, preflightFileCommit, textRevision } from "@litzio/file-commit";
 import { resolveMediaPath } from "../../../apps/editor/server/document-path.ts";
 import { figureMediaPath } from "../../../apps/editor/shared/figure-media-path.ts";
 import { createAssistantHost } from "../../../apps/editor/server/assistant-host.ts";
@@ -65,12 +64,6 @@ type CommandSpec = {
 };
 
 type OutputFormat = "text" | "json";
-
-type ParsedArgs = {
-  file: string;
-  flags: string[];
-  format: OutputFormat;
-};
 
 const BODY_INDEX_NOTE = "Block 0 is the document metadata; body blocks start at 1 (also the first index in a path).";
 const PATH_NOTE = [

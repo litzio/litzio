@@ -149,7 +149,6 @@ export class AssistantConversations {
         return { success: !!success, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
       }
 
-
       const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, entry => {
@@ -427,7 +426,6 @@ export class AssistantConversations {
     this.attachments.discardDrafts();
     this.mcp.close();
 
-
   }
   private expireQuestion(conversation: AssistantConversation, turnId?: string, requestId?: string | number) {
     let changed = false;
@@ -692,9 +690,6 @@ export class AssistantConversations {
     }
     if (method === "thread/tokenUsage/updated") {
       conversation.tokenUsage = { used: params.tokenUsage.last.totalTokens, limit: params.tokenUsage.modelContextWindow };
-      const turn=params.turnId ? conversation.turns.find(turn=>turn.id===params.turnId) : [...conversation.turns].reverse().find(turn=>turn.status==="inProgress");
-
-      // Persist final actual usage after the turn's proposal/inspection writes, not between them.
 
       return;
     }

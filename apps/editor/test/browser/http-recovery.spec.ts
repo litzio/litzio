@@ -4,7 +4,7 @@ import { test, expect, chromium, type BrowserContext, type Page } from "@playwri
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
-import { DAEMON_PROTOCOL, type DaemonIdentity } from "../../server/daemon-protocol.ts";
+import { DAEMON_PROTOCOL } from "../../server/daemon-protocol.ts";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
