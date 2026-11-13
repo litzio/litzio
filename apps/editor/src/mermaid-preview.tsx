@@ -36,7 +36,8 @@ export function MermaidPreview({ source, draft = false, onReveal }: { source: st
   const failure = result?.source === source ? result.error : undefined;
   useNotifications(onReveal && failure ? [{ id: source, severity: "error", testId: "mermaid-error",
     message: i18n.t("Diagram preview failed: {{reason}}", { reason: failure }), reveal: onReveal }] : []);
-  return <div className="mermaid-preview" data-testid={draft ? "mermaid-edit-preview" : "mermaid-preview"}
+  return <div className={`mermaid-preview${draft ? " mermaid-preview--draft" : ""}`} data-testid={draft ? "mermaid-edit-preview" : "mermaid-preview"}
+    role={draft ? "region" : undefined} aria-label={draft ? i18n.t("Diagram") : undefined} tabIndex={draft ? 0 : undefined}
     data-theme={dark ? "dark" : "light"} aria-busy={!current}>
     {current?.error ? !draft ? <p>{i18n.t("Diagram preview unavailable")}</p> : <Notice tone="error" data-testid="mermaid-error">
       {i18n.t("Diagram preview failed: {{reason}}", { reason: current.error })}

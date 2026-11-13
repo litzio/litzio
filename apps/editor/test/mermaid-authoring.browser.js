@@ -12,6 +12,10 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
       const actualMermaidRender = renderMermaid;
       renderMermaid = async (...args) => {
         const result = await actualMermaidRender(...args);
+        if (window.__holdApplyPreview && args[0] === window.__applyPreviewSource) {
+          window.__applyPreviewHeld = true;
+          await new Promise(resolve => window.__applyPreviewReleases.push(resolve));
+        }
         if (window.__holdMermaid && args[0].includes('Delayed')) {
           window.__mermaidHeld = true;
           await new Promise(resolve => window.__releaseMermaid = resolve);
@@ -562,6 +566,52 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
       expect(await editor.evaluate(el=>el.editor.getJSON())).toEqual(beforeBody);
     }
   } finally { await input.detach(); }
+  // #1625: keep a real mouse click intact when a pending SVG finishes between
+  // pointerdown and pointerup. Small and tall diagrams cover both sides of overflow;
+  // the narrow/dark case also checks native keyboard access to the scroll region.
+  const clickCases = [{width:1440,theme:'light',large:false}, {width:1440,theme:'light',large:true}, {width:640,theme:'dark',large:true}];
+  for (const [index, {width,theme,large}] of clickCases.entries()) {
+    await page.setViewportSize({width,height:1200});
+    await page.evaluate(async theme => (await import('/src/theme.ts')).applyTheme(theme),theme);
+    await edit();
+    const source = large ? 'graph TD\n' + Array.from({length:14},(_,i)=>`  N${i}[Click loss ${index} stage ${i}] --> N${i+1}[Click loss ${index} stage ${i+1}]`).join('\n')
+      : `graph LR\n  A[Click loss ${index}] --> B[Ready]`;
+    await page.evaluate(source => {window.__holdApplyPreview=true;window.__applyPreviewHeld=false;window.__applyPreviewSource=source;window.__applyPreviewReleases=[];},source);
+    try {
+      await field().fill(source);
+      await page.waitForFunction(() => window.__applyPreviewHeld);
+      const apply = active.getByTestId('mermaid-apply');
+      await apply.scrollIntoViewIfNeeded();
+      const before = await apply.boundingBox();
+      const captionBefore = await figure.getByTestId('figure-caption-content').boundingBox();
+      await page.mouse.move(before.x+before.width/2,before.y+before.height/2);
+      await page.mouse.down();
+      await page.evaluate(() => {window.__holdApplyPreview=false;for(const release of window.__applyPreviewReleases.splice(0))release();});
+      await rendered(preview(),'Click loss');
+      await preview().locator('img').evaluate(img=>img.decode());
+      const after = await apply.boundingBox();
+      const captionAfter = await figure.getByTestId('figure-caption-content').boundingBox();
+      await page.mouse.up();
+      await expect(field()).toHaveCount(0);
+      expect(after, 'Async preview must not move the action row').toEqual(before);
+      expect(captionAfter, 'Async preview must not shift following document flow').toEqual(captionBefore);
+      await rendered(figure.getByTestId('mermaid-preview'),'Click loss');
+    } finally {
+      await page.mouse.up();
+      await page.evaluate(() => {window.__holdApplyPreview=false;for(const release of window.__applyPreviewReleases.splice(0))release();});
+    }
+    if (large) {
+      await edit();
+      const region = active.getByRole('region',{name:'Diagram',exact:true});
+      await expect(region).toHaveAttribute('aria-busy','false');
+      expect(await region.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
+      await region.focus(); await region.press('PageDown');
+      await expect.poll(()=>region.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);
+      await active.getByTestId('mermaid-cancel').click();
+    }
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await page.evaluate(async () => (await import('/src/theme.ts')).applyTheme('light'));
   const panel=page.getByRole('complementary',{name:'Outline'});
   if(!await panel.isVisible())await page.getByRole('button',{name:'Outline',exact:true}).click();
   await panel.getByRole('tab',{name:'Figures',exact:true}).click();

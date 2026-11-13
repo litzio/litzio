@@ -1946,6 +1946,12 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .mermaid-preview { min-width: 0; text-align: center; }
 .mermaid-preview img { max-width: 100%; height: auto; margin-inline: auto; }
 .mermaid-preview [role="status"] { color: var(--id-color-text-muted); font-size: var(--font-size-sm); }
+.mermaid-preview--draft {
+  block-size: var(--layout-mermaid-source-preview-height);
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.mermaid-preview--draft:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); border-radius: var(--id-radius-sm); }
 .equation-preview-error { text-align: left; }
 
 .inline-math-properties { width: var(--layout-inline-math-popover-width); }

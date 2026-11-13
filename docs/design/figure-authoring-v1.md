@@ -190,6 +190,32 @@ Core, retains rejected input/reason and preserves the live caption. A rejected A
 keyboard editing after the busy inputs re-enable, unless focus moved outside the form or to
 another tab while validation was pending. Apply/Cancel return the block caret; late validation
 never steals focus from another location. Read-only views cannot edit.
+
+The source draft preview reserves `--layout-mermaid-source-preview-height` (15rem) in the
+existing full-column form (#1625). Loading, errors and rendered diagrams use the same height;
+large diagrams scroll inside that region, which is focusable for native keyboard scrolling.
+The preview cannot move Label, Number, Apply/Cancel or the following caption when rendering
+finishes. Standard click, submission and shortcuts remain unchanged, including applying source
+when the renderer fails. Applied diagrams and the intrinsic-ratio metadata thumbnails retain
+their existing sizing. Equation and inline-math previews render synchronously and are unchanged.
+The metadata popover has a separately reproduced render-time Edit source click loss
+([#1626](https://github.com/litzio/litzio/issues/1626)); its intrinsic-ratio layout needs a
+separate change. Image Replace uses a similar async thumbnail but has not been reproduced.
+
+`mermaid-authoring` holds actual SVG completion between pointerdown and pointerup, then requires
+one successful Apply and unchanged action/caption rectangles for small/tall and narrow/dark
+cases. The same test fails with the original preview sizing. Manual before/after evidence at
+1440/640, light/dark, small/tall uses synthetic Host identity with no image edits:
+[capture script](assets/mermaid-apply-1625/capture.browser.js) and
+[metadata and hashes](assets/mermaid-apply-1625/capture-metadata.json).
+These captures are implementation self-review, not owner visual approval.
+
+| View | Small before / after | Tall before / after |
+| --- | --- | --- |
+| 1440 Light | [Before](assets/mermaid-apply-1625/before/1440-light-small.png) / [After](assets/mermaid-apply-1625/after/1440-light-small.png) | [Before](assets/mermaid-apply-1625/before/1440-light-large.png) / [After](assets/mermaid-apply-1625/after/1440-light-large.png) |
+| 1440 Dark | [Before](assets/mermaid-apply-1625/before/1440-dark-small.png) / [After](assets/mermaid-apply-1625/after/1440-dark-small.png) | [Before](assets/mermaid-apply-1625/before/1440-dark-large.png) / [After](assets/mermaid-apply-1625/after/1440-dark-large.png) |
+| 640 Light | [Before](assets/mermaid-apply-1625/before/640-light-small.png) / [After](assets/mermaid-apply-1625/after/640-light-small.png) | [Before](assets/mermaid-apply-1625/before/640-light-large.png) / [After](assets/mermaid-apply-1625/after/640-light-large.png) |
+| 640 Dark | [Before](assets/mermaid-apply-1625/before/640-dark-small.png) / [After](assets/mermaid-apply-1625/after/640-dark-small.png) | [Before](assets/mermaid-apply-1625/before/640-dark-large.png) / [After](assets/mermaid-apply-1625/after/640-dark-large.png) |
 Image paste/drop into a pending Figure checks the existing per-Figure unapplied-draft
 registry again when the Host upload completes. If that Figure has an unapplied edit,
 the fill is cancelled and the uploaded asset is rolled back through the existing

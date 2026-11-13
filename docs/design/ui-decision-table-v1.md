@@ -6,6 +6,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| Mermaid 원문 preview가 비동기로 완성된다 (#1625) | 기존 본문 폭 원문 폼 | PropertyForm·MermaidPreview·기존 토큰, native overflow/keyboard scroll | preview 높이를 예약해 표준 Apply 클릭과 뒤 caption 위치 유지 | [Mermaid Editor](figure-authoring-v1.md#mermaid-editor) | 작은 metadata 썸네일은 기존 intrinsic-ratio/no-letterbox 유지. 새 표면·클릭 우회 없음 |
 | 플러그인 화면에서 경로 선택·기존 문서 열기 (#1592) | 기존 FolderDialog·일반 문서 탭 | FolderDialog의 PDF/폴더/.md 선택·기존 openFile·Button/Input | 고정 client·열린 폴더 소속·취소·미저장 보호, 생성 receipt와 opening 결과 구분 | UI gallery → Screen parts → Screen path selection; [화면 계약](plugin-screens-v1.md#파일폴더-선택과-문서-열기) | 새 색/대화/창 상태 API 없음. 폴더 열기와 선택 분리 |
 | 플러그인 화면 안에서 저장본을 읽고 위치를 확인한다 (#1592) | 화면 소유의 내부 스크롤 영역 | ui.DocumentView + 기존 DocumentEditor readOnly/preview, paper·accent·Notice | 같은 Host/열린 폴더, 명시 다시 읽기, revision이 같은 블록·표 셀(표 전체) 이동/강조 | UI gallery → Document view; [화면 계약](plugin-screens-v1.md#읽기-전용-문서-보기) | 새 editor/세션/검수 틀 없음. 폭·원문 배치는 플러그인 소유 |
 | 플러그인 코드 화면의 그래프·구간·요약 (#1592 2-3) | 기존 플러그인 작업 탭 | Chart(Recharts), Slider(Base UI), Toolbar, SummaryCard, ScreenLayout, 기존 Button/Input/DataTable/Notice | 토큰 색·전체 폭 그래프·hover/키보드 값·단일/구간 선택 | UI gallery → Screen parts; [화면 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-screens-v1.md#화면-부품과-디자인-안내-2-3-1592) | 자체 화면 코드 허용, 디자인 강제 없음. 기존 부품이 없어 그래프·슬라이더 wrapper와 작은 배치 부품 추가 |

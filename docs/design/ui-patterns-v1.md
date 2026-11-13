@@ -39,6 +39,12 @@ U ID와 파일·화면·캡처의 대응은 [사용처 지도][usage]를 재사�
 Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수식·표가 같은 진입을
 공유한다. Edit의 기존 첫 focus와 원문 진입은 유지한다.
 
+#1625의 Mermaid 원문 폼은 기존 `PropertyForm`·`MermaidPreview` 안에서 preview 높이를
+예약하고 큰 결과를 내부 스크롤로 본다. 비동기 렌더 완료가 Apply/Cancel·label·번호·caption을
+밀지 않으며 키보드 스크롤과 표준 클릭/제출을 유지한다. 원문의 본문 폭과 기존 위치는 그대로다.
+수식은 동기 렌더이며, 작은 그림·Mermaid metadata 썸네일은 기존 intrinsic-ratio/no-letterbox
+결정을 유지한다. [계약·전후 캡처](figure-authoring-v1.md#mermaid-editor)를 따른다.
+
 ## P02 자동·고정 번호
 
 - **목적·사용/비사용:** 그림·표·블록 수식의 번호 지정에 쓴다. 제목 번호 설정이나 새 Core 문서 모드를 만들지 않는다.
