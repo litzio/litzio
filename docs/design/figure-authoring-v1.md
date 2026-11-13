@@ -198,9 +198,8 @@ The preview cannot move Label, Number, Apply/Cancel or the following caption whe
 finishes. Standard click, submission and shortcuts remain unchanged, including applying source
 when the renderer fails. Applied diagrams and the intrinsic-ratio metadata thumbnails retain
 their existing sizing. Equation and inline-math previews render synchronously and are unchanged.
-The metadata popover has a separately reproduced render-time Edit source click loss
-([#1626](https://github.com/litzio/litzio/issues/1626)); its intrinsic-ratio layout needs a
-separate change. Image Replace uses a similar async thumbnail but has not been reproduced.
+The metadata popover uses the shared corner/action layout below (#1626), retaining
+intrinsic-ratio thumbnails rather than the source form's fixed preview extent.
 
 `mermaid-authoring` holds actual SVG completion between pointerdown and pointerup, then requires
 one successful Apply and unchanged action/caption rectangles for small/tall and narrow/dark
@@ -350,7 +349,32 @@ its caption. It opens below and flips above when space is insufficient. It fits 
 editor group's content viewport, excluding single-group Sidebar/Outline insets and the native
 scrollbar, at both 1440px and the supported 640px minimum. Its scrollable height is capped to
 the available side, so it does not cover the Figure or caption; following prose may be covered.
-Resize, scroll and group changes update placement through the existing Base UI positioner.
+Direction selection uses the maximum thumbnail size before rendering, so finishing a preview
+does not flip the popover. Scroll, resize and group changes choose again through the shared
+metadata placement. Base UI retains horizontal bounds, focus and dismissal.
+
+### Stable metadata actions (#1626)
+
+Image, Mermaid, table, block Equation and section label share one rule: the action row faces
+the target. Above it, DOM/visual order is preview (when present), fields/errors, actions;
+below it, actions, fields/errors, preview. Replace or Edit source sits beside Done. A keyed
+body/fields/actions structure moves the same controls instead of remounting their drafts.
+Existing entry focus targets remain; Tab/Shift+Tab follow the visible DOM order, Enter and the
+shared submit shortcut complete metadata, and Escape cancels with the existing caret/focus return.
+When external geometry changes the side, native input focus and selection are restored if
+the DOM move dropped focus; a user's focus elsewhere is never taken back.
+
+The preview keeps its own aspect ratio and its existing maximum dimensions, with no fixed
+height box/letterbox. Only the scrollable body shrinks when space is limited, keeping the action
+row available. The metadata-only positioner fixes the facing corner in CSS during image layout;
+buttons do not wait for an asynchronous position correction after decoding. Other popovers and
+the full-column source form retain their own layout.
+
+`metadata-popover` holds actual Mermaid completion or a cold real thumbnail response between
+mouse down and up. Both media actions and Done are checked in both directions at 1440/640.
+It also checks the five shared forms' native Tab/Enter, side-change focus/selection and bounds.
+[Before/after captures, metadata and script](#metadata-layout-evidence-1626) are manual review,
+separate from CI assertions and owner visual approval.
 
 There is one **Done** action. Escape cancels, and pointer clicks outside apply via the same
 Core validation and asynchronous lifetime guards. Rejection retains draft values and errors;
@@ -380,9 +404,9 @@ rest borders, a subtle surface fill and empty-value placeholders, with hover/foc
 The Number track matches the neighboring input height, and visible segment labels share the
 hidden width-reserving labels' grid cell. Both media kinds use intrinsic-ratio previews within
 adjustable maximum width/height, without a fixed box or letterbox fill. The image itself has
-a subtle structural border and content radius; compact actions remain vertically centered. Advanced
+a subtle structural border and content radius; compact actions share the facing Done row. Advanced
 uses a native keyboard-accessible disclosure with the shared chevron and compact target.
-Its expanded filename row retains the collapsed label-line clearance above Done.
+Its expanded filename row retains the collapsed label-line clearance before the next row.
 Form rows use the shared 12px gap and equal 16px outer padding; warnings/errors use UI 14/20
 type without an extra bottom margin. Number warnings stay in the Number column. Above placement
 includes the absolute metadata line in the anchor. There is no repeated title, path summary, caption field
@@ -494,3 +518,61 @@ CLI only passes source to Core. `inspect` exposes `mermaidSource` in JSON and te
 CLI `check` also reports each image Figure whose document-relative source is not a regular file or could not be checked in `readiness.missingImageFigures` (`path`, `label` as in `pendingFigures` with an empty string when unlabeled, and `source` as written), or one stderr warning line per Figure in text mode. It shares the Editor source classification/encoding and Host media resolver: bare and `./` paths are equivalent, non-ASCII and literal percent characters retain their filename meaning, and encoded traversal is refused. Sources with a scheme, protocol-relative sources, root-absolute and Windows drive/UNC paths are skipped. Paths the Host refuses, including `../` that escapes the document directory and symlink escapes, are skipped rather than reported as missing; paths containing `..` that resolve inside the boundary are checked. After Host resolution, `stat` follows symlinks and requires a regular file: directories and links to directories warn. All stat failures, including `ENOENT` and `EACCES`, use the same short warning, `is not a file or could not be checked`; they do not claim that an inaccessible target is absent. The existing JSON field name is retained and covers these cases. This checks filesystem file type only, not image loading, readability or decoding. Core remains headless. These warnings leave exit code, `ok`, writeability and all writes unchanged. `--dry-run` uses the same diagnostics on its result document relative to the same target file.
 
 Core and CLI `check` diagnose missing targets for both `[](#label)` links and role references ([#151](https://github.com/litzio/litzio/issues/151), implemented in [PR #166](https://github.com/litzio/litzio/pull/166)). Unresolved references are warnings, stay as written and do not block a lossless canonical write; [Section references](section-references-v1.md#scope) defines the diagnosis contract. The existing numbered role-reference UI remains. The prior spike remains historical evidence in [PR #150](https://github.com/litzio/litzio/pull/150); its experimental code is not merged here.
+
+## Metadata layout evidence (#1626)
+
+Same-state Before/After: 1440/640 × 1000, Light/Dark, both sides, all five metadata kinds.
+The existing `PropertyForm` source UI is separate. Captures use synthetic Host identity,
+no pixel edits, and the same scratch document and font environment.
+[Script](assets/metadata-popover-1626/capture.browser.js) · [metadata and PNG hashes](assets/metadata-popover-1626/capture-metadata.json).
+These are implementation self-review, not owner visual approval.
+
+The first-row Done in a below-target popup is earlier than the familiar bottom completion row.
+It keeps the action close to the target and consistent across the five kinds, as the owner chose.
+A fixed bottom-only action would reintroduce movement when a below-target preview grows;
+a separately reserved preview frame would conflict with the intrinsic-ratio decision.
+
+### Image metadata
+
+| View | Below Before / After | Above Before / After |
+| --- | --- | --- |
+| 1440 Light | [Before](assets/metadata-popover-1626/before/1440-light-image-bottom.png) / [After](assets/metadata-popover-1626/after/1440-light-image-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-light-image-top.png) / [After](assets/metadata-popover-1626/after/1440-light-image-top.png) |
+| 1440 Dark | [Before](assets/metadata-popover-1626/before/1440-dark-image-bottom.png) / [After](assets/metadata-popover-1626/after/1440-dark-image-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-dark-image-top.png) / [After](assets/metadata-popover-1626/after/1440-dark-image-top.png) |
+| 640 Light | [Before](assets/metadata-popover-1626/before/640-light-image-bottom.png) / [After](assets/metadata-popover-1626/after/640-light-image-bottom.png) | [Before](assets/metadata-popover-1626/before/640-light-image-top.png) / [After](assets/metadata-popover-1626/after/640-light-image-top.png) |
+| 640 Dark | [Before](assets/metadata-popover-1626/before/640-dark-image-bottom.png) / [After](assets/metadata-popover-1626/after/640-dark-image-bottom.png) | [Before](assets/metadata-popover-1626/before/640-dark-image-top.png) / [After](assets/metadata-popover-1626/after/640-dark-image-top.png) |
+
+### Mermaid metadata
+
+| View | Below Before / After | Above Before / After |
+| --- | --- | --- |
+| 1440 Light | [Before](assets/metadata-popover-1626/before/1440-light-mermaid-bottom.png) / [After](assets/metadata-popover-1626/after/1440-light-mermaid-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-light-mermaid-top.png) / [After](assets/metadata-popover-1626/after/1440-light-mermaid-top.png) |
+| 1440 Dark | [Before](assets/metadata-popover-1626/before/1440-dark-mermaid-bottom.png) / [After](assets/metadata-popover-1626/after/1440-dark-mermaid-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-dark-mermaid-top.png) / [After](assets/metadata-popover-1626/after/1440-dark-mermaid-top.png) |
+| 640 Light | [Before](assets/metadata-popover-1626/before/640-light-mermaid-bottom.png) / [After](assets/metadata-popover-1626/after/640-light-mermaid-bottom.png) | [Before](assets/metadata-popover-1626/before/640-light-mermaid-top.png) / [After](assets/metadata-popover-1626/after/640-light-mermaid-top.png) |
+| 640 Dark | [Before](assets/metadata-popover-1626/before/640-dark-mermaid-bottom.png) / [After](assets/metadata-popover-1626/after/640-dark-mermaid-bottom.png) | [Before](assets/metadata-popover-1626/before/640-dark-mermaid-top.png) / [After](assets/metadata-popover-1626/after/640-dark-mermaid-top.png) |
+
+### Table metadata
+
+| View | Below Before / After | Above Before / After |
+| --- | --- | --- |
+| 1440 Light | [Before](assets/metadata-popover-1626/before/1440-light-table-bottom.png) / [After](assets/metadata-popover-1626/after/1440-light-table-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-light-table-top.png) / [After](assets/metadata-popover-1626/after/1440-light-table-top.png) |
+| 1440 Dark | [Before](assets/metadata-popover-1626/before/1440-dark-table-bottom.png) / [After](assets/metadata-popover-1626/after/1440-dark-table-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-dark-table-top.png) / [After](assets/metadata-popover-1626/after/1440-dark-table-top.png) |
+| 640 Light | [Before](assets/metadata-popover-1626/before/640-light-table-bottom.png) / [After](assets/metadata-popover-1626/after/640-light-table-bottom.png) | [Before](assets/metadata-popover-1626/before/640-light-table-top.png) / [After](assets/metadata-popover-1626/after/640-light-table-top.png) |
+| 640 Dark | [Before](assets/metadata-popover-1626/before/640-dark-table-bottom.png) / [After](assets/metadata-popover-1626/after/640-dark-table-bottom.png) | [Before](assets/metadata-popover-1626/before/640-dark-table-top.png) / [After](assets/metadata-popover-1626/after/640-dark-table-top.png) |
+
+### Equation metadata
+
+| View | Below Before / After | Above Before / After |
+| --- | --- | --- |
+| 1440 Light | [Before](assets/metadata-popover-1626/before/1440-light-equation-bottom.png) / [After](assets/metadata-popover-1626/after/1440-light-equation-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-light-equation-top.png) / [After](assets/metadata-popover-1626/after/1440-light-equation-top.png) |
+| 1440 Dark | [Before](assets/metadata-popover-1626/before/1440-dark-equation-bottom.png) / [After](assets/metadata-popover-1626/after/1440-dark-equation-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-dark-equation-top.png) / [After](assets/metadata-popover-1626/after/1440-dark-equation-top.png) |
+| 640 Light | [Before](assets/metadata-popover-1626/before/640-light-equation-bottom.png) / [After](assets/metadata-popover-1626/after/640-light-equation-bottom.png) | [Before](assets/metadata-popover-1626/before/640-light-equation-top.png) / [After](assets/metadata-popover-1626/after/640-light-equation-top.png) |
+| 640 Dark | [Before](assets/metadata-popover-1626/before/640-dark-equation-bottom.png) / [After](assets/metadata-popover-1626/after/640-dark-equation-bottom.png) | [Before](assets/metadata-popover-1626/before/640-dark-equation-top.png) / [After](assets/metadata-popover-1626/after/640-dark-equation-top.png) |
+
+### Section metadata
+
+| View | Below Before / After | Above Before / After |
+| --- | --- | --- |
+| 1440 Light | [Before](assets/metadata-popover-1626/before/1440-light-section-bottom.png) / [After](assets/metadata-popover-1626/after/1440-light-section-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-light-section-top.png) / [After](assets/metadata-popover-1626/after/1440-light-section-top.png) |
+| 1440 Dark | [Before](assets/metadata-popover-1626/before/1440-dark-section-bottom.png) / [After](assets/metadata-popover-1626/after/1440-dark-section-bottom.png) | [Before](assets/metadata-popover-1626/before/1440-dark-section-top.png) / [After](assets/metadata-popover-1626/after/1440-dark-section-top.png) |
+| 640 Light | [Before](assets/metadata-popover-1626/before/640-light-section-bottom.png) / [After](assets/metadata-popover-1626/after/640-light-section-bottom.png) | [Before](assets/metadata-popover-1626/before/640-light-section-top.png) / [After](assets/metadata-popover-1626/after/640-light-section-top.png) |
+| 640 Dark | [Before](assets/metadata-popover-1626/before/640-dark-section-bottom.png) / [After](assets/metadata-popover-1626/after/640-dark-section-bottom.png) | [Before](assets/metadata-popover-1626/before/640-dark-section-top.png) / [After](assets/metadata-popover-1626/after/640-dark-section-top.png) |

@@ -17,11 +17,13 @@ function PopoverContent({
   collisionBoundary,
   sticky,
   keepMounted,
+  positionerClassName,
+  collisionAvoidance,
   ...props
-}: PopoverPrimitive.Popup.Props & { keepMounted?: boolean } &
+}: PopoverPrimitive.Popup.Props & { keepMounted?: boolean; positionerClassName?: string } &
   Pick<
     PopoverPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset" | "anchor" | "collisionBoundary" | "sticky"
+    "align" | "alignOffset" | "side" | "sideOffset" | "anchor" | "collisionBoundary" | "sticky" | "collisionAvoidance"
   >) {
   return (
     <PopoverPrimitive.Portal className="ui-portal" keepMounted={keepMounted}>
@@ -33,7 +35,8 @@ function PopoverContent({
         anchor={anchor}
         collisionBoundary={collisionBoundary}
         sticky={sticky}
-        className="isolate z-50"
+        collisionAvoidance={collisionAvoidance}
+        className={cn("isolate z-50", positionerClassName)}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"

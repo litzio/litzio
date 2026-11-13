@@ -252,6 +252,10 @@ A changed document recomputes numbering; source semantics and canonical output a
   Clicks inside a separate dialog (confirmation Cancel/Keep editing or Settings)
   retain the metadata form and draft; they do not complete the edit.
   Existing preview typing guards and source/inline Apply/Cancel behavior remain.
+  #1626 places the common action row nearest the target: first below it, last above it.
+  Equation Edit source shares that row with Done. DOM/Tab order matches the visual order;
+  side changes retain draft controls and native input focus/selection. Direction selection uses
+  maximum media size, without a fixed preview box. [Shared action layout](figure-authoring-v1.md#stable-metadata-actions-1626).
 - Mermaid Figures reuse the block Equation's in-document source editing surface and shared
   PropertyForm, with draft preview, label and explicit Apply/Cancel. Caption editing stays in
   the document. The [Figure contract](figure-authoring-v1.md#mermaid-editor) defines rendering,

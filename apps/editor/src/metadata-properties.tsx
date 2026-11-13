@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -6,15 +6,19 @@ import { useDocumentBounds } from "./ui/use-document-bounds.ts";
 import { useEditorAuthoring } from "./editor-visibility.ts";
 import { PROPERTY_APPLY_SHORTCUT } from "./shortcuts.ts";
 import { Notice } from "./ui/primitives.tsx";
+import { metadataAnchorRect, useMetadataPlacement } from "./ui/use-metadata-placement.ts";
 
 /** Short metadata only. Source editing retains its explicit Apply/Cancel form. */
-export function MetadataProperties({ anchor, target, initialFocus, kind, testId, open, busy, choosing, error, onApply, onCancel, children }: {
+export function MetadataProperties({ anchor, target, initialFocus, kind, testId, open, busy, choosing, error, onApply, onCancel, children, media, actions }: {
   anchor: RefObject<HTMLElement | null>; target(): Element | null; initialFocus?: RefObject<HTMLElement | null>; kind: string; testId: string; open: boolean;
   busy?: boolean; choosing?: boolean; error?: string; onApply(outside?: boolean): void; onCancel(): void; children: ReactNode;
+  media?: ReactNode; actions?: ReactNode;
 }) {
   const { t } = useTranslation();
   const visible = useEditorAuthoring();
   const bounds = useDocumentBounds(anchor, open);
+  const [popup, setPopup] = useState<HTMLDivElement | null>(null);
+  const side = useMetadataPlacement(anchor, target, popup, bounds, open && visible);
   const wasOpen = useRef(false);
   const openingFocus = useRef<RefObject<HTMLElement | null> | false>(false);
   const outsideCompletion = useRef<number | undefined>(undefined);
@@ -55,13 +59,13 @@ export function MetadataProperties({ anchor, target, initialFocus, kind, testId,
       if (!block) return null;
       // Include metadata above the target when flipping, on the same document axis.
       return { contextElement: block, getBoundingClientRect: () => {
-        const rect = block.getBoundingClientRect();
-        const top = Math.min(rect.top, anchor.current?.getBoundingClientRect().top ?? rect.top);
-        return new DOMRect(rect.left, top, rect.width, rect.bottom - top);
+        return metadataAnchorRect(block, anchor.current);
       } };
     }}
       collisionBoundary={bounds}
-      side="bottom" align="start" sideOffset={() => anchor.current
+      ref={setPopup} positionerClassName="metadata-property-positioner"
+      collisionAvoidance={{ side: "none", align: "shift" }}
+      side={side} align="start" sideOffset={() => anchor.current
         ? parseFloat(getComputedStyle(anchor.current).getPropertyValue("--space-figure-popover-gap")) : 0}
       initialFocus={openingFocus.current} finalFocus={false}
       className="figure-properties" aria-label={t("{{kind}} properties", { kind })} data-testid={`${testId}-properties`}>
@@ -73,9 +77,13 @@ export function MetadataProperties({ anchor, target, initialFocus, kind, testId,
           }
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCancel(); }
         }}>
-        {children}
-        {error ? <Notice tone="error">{error}</Notice> : null}
-        <div className="form-actions"><Button type="submit" size="sm" disabled={busy} data-testid={`${testId}-apply`}>{t("Done")}</Button></div>
+        {(side === "bottom" ? ["actions", "body"] : ["body", "actions"]).map(slot => slot === "actions"
+          ? <div key="actions" className="form-actions">{actions}<Button type="submit" size="sm" disabled={busy} data-testid={`${testId}-apply`}>{t("Done")}</Button></div>
+          : <div key="body" className="metadata-property-body">
+            {(side === "bottom" ? ["fields", "media"] : ["media", "fields"]).map(part => part === "fields"
+              ? <div key="fields" className="metadata-property-fields">{children}{error ? <Notice tone="error">{error}</Notice> : null}</div>
+              : media ? <div key="media" className="metadata-property-media">{media}</div> : null)}
+          </div>)}
       </form>
     </PopoverContent>
   </Popover>;

@@ -228,18 +228,30 @@ after the Explorer brand/rail and before any native caption reservation. This ap
 in both docked and overlay layouts; the Assistant action reserves equal space on both
 sides of search so it does not move that center.
 
-Figure metadata (#757) is anchored to the full Figure and caption, below by default and above
-on collision, with its width/height capped to the owning group's available viewport. Single-group
+Figure metadata (#757, #1626) is anchored to the full Figure and caption, below when its
+largest preview fits and otherwise on the roomier side, with its width/height capped to the owning group's available viewport. Single-group
 Sidebar/Outline padding and native scrollbar are excluded. `--layout-figure-popover-width` and
 `--size-figure-property-thumbnail-max-width`, `--size-figure-property-thumbnail-max-height`
 and `--space-figure-popover-gap` are adjustable; spacing and control dimensions reuse the shared
 tokens. Label and Number share a two-column row at both wide and supported narrow widths.
 The Number track and Label input share a height and vertical center (#760); revealing the
 fixed input or its warning does not stretch the Label field. Media previews retain their own
-aspect ratio within the maximum width/height, without a fixed box or letterbox fill, and center
-their compact action. Expanded Advanced retains the collapsed label-line clearance above Done.
+aspect ratio within the maximum width/height, without a fixed box or letterbox fill.
+Image Replace and Mermaid/Equation Edit source share the Done action row. Across image,
+Mermaid, table, Equation and section-label metadata, this row is nearest the target: last
+when above it, first when below it. Media is on the opposite edge. DOM and Tab order follow
+the visual order; keyed fields retain drafts and restore native focus/selection when the side changes.
+Expanded Advanced retains the collapsed label-line clearance before the next row.
 Above placement also clears the absolute metadata line.
 See [Figure properties](figure-authoring-v1.md#anchored-figure-properties-757).
+
+Metadata reserves the **maximum preview only for direction selection**, not as an empty
+visible box. Rendering/decode does not choose a new side. Scroll, window resize and owning-group
+boundary changes choose again. Base UI still owns anchors, available size, horizontal collision,
+focus and dismissal. Its metadata-only zero-height positioner and the top popup's CSS translation
+keep the facing corner fixed in the same layout as a decoded image, without waiting for a later
+ResizeObserver position update. Other popovers keep their existing sizing/positioning.
+Only the body scrolls at the height limit, leaving the shared action row available.
 
 Mermaid source editing (#1625) keeps its existing full-column `PropertyForm` layout.
 Only the source draft preview reserves `--layout-mermaid-source-preview-height` (15rem)

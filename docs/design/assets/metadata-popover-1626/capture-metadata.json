@@ -1,0 +1,2008 @@
+{
+  "baselineCommit": "26c902d3c7d329603d31ea02e3af40e891785b9f",
+  "identity": "Synthetic Host identity; no pixel edits.",
+  "review": "Implementation self-review; owner visual approval is separate.",
+  "fixture": "metadata-popover/properties.md; same fixture, controls, viewport, theme and initial values in each pair.",
+  "captures": [
+    {
+      "file": "before/1440-light-image-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 372,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 649.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "5bfe2d85c36a2ce06c2bf6992e36587352e4e7d4e1741d0a2af4e13a850d3eec",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-image-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 364,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 641.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c060b795bf8a882ddf7afce124428558334dc5a0caee29da2dedb42e7f702a7e",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-mermaid-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 323,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 470.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "4848aed4133116072a0d440967c068a48cb605600b93aa30715835d5d174a12c",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-mermaid-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 534,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 681.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "00c717f06a52c0da6cfff61deeae052675c95ccf7d34e6ae1d6f282d9eb283b2",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-table-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 532,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c008a91adcd1e6e8a1d6eb57eb9c537be4c7319e8750592f01b521b7af224068",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-table-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "4cee57f17b7f6719dd02b909b7656f1fc637cbd91cf26b93cd8021e21f8c77f3",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-equation-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 223,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 361,
+        "y": 368,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "efffe139cc2cbc34868b51f8a1c2b37c62c5fef11aef5947ad359ee675d7d34a",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-equation-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 646,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 361,
+        "y": 791,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "3f15c9b9f1fa0fc56b5eb6e576a3efe061c90a7eb6c100c0d96acb4352a1180b",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-section-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 180,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 265,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "aadf425c9d960958e591a728b3db04d05a4df6b13f3fd8263f3595ba56e06d60",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-light-section-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 754,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 839,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "d0cf42e745d494c377baf9e3f8c3a93d2beae472e1b26faf53567a4d314e2856",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-image-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 372,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 649.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "205fd95f9fa353812979532e278652305cb6b56de2097756025022e9a597cc0d",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-image-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 364,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 641.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "24b441042897cefbaad8d0c185d40edb667e1d548d8c23ab0425b10e836da30b",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-mermaid-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 323,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 470.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "720df8bd72faa669e991af711f76ade3ba9bab43ec4640f99b054f0eba09d37f",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-mermaid-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 534,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 681.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "3e6798f4347a48abed07e8b750a2515c18ea082a1559847a36f582dd2b074e74",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-table-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 532,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "88083b2189311776f84ccd199a336beea1b5c43e1a837f4a4395bfd311fc4e98",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-table-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "d6dc59ec3f7c496c27ef0e7d773841f3b7a5624c7c77bc821a8ddbfbf9300259",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-equation-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 223,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 361,
+        "y": 368,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "bcca6740a48ad2f84820de4e25316da363300ddeb8d3654e4e85823cc76f800f",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-equation-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 646,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 361,
+        "y": 791,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "dee4b606a3aba925fd9008dbe2b332631ba10da0b05a6a31fd5f0c927cd3a140",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-section-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 180,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 265,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "bf96067995acf4a6155152a2db949d7388210e2479bbdc71c76e108aaa0dc2ea",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/1440-dark-section-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 754,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 839,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "3cd5d924cac0e4bdf8269d77e0e593eb28d1f59684483116b686f016ceede4cf",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-image-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 341,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 105,
+        "y": 618.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "984022bbf4c2797aa740e222da058710ebfead1b87026b4e9a5068c2933daa03",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-image-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 395,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 105,
+        "y": 672.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "04bad28a3ab1c2ff1d06ccdd771fb53006cf3d701cf97e2a0c34f48699855d50",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-mermaid-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 275,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 105,
+        "y": 422.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "8c372c2d2c214d415fd068d6fadf864cec2cb6e2eae388434d7440e6eaf4fbdb",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-mermaid-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 582,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 105,
+        "y": 729.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "337b25efcd777b024ab13d045b8969ca7236166d304bbe5902e725dc75203f8d",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-table-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 105,
+        "y": 532,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "a77321e7715017d0b76105807a9979e4bd77a468a43af89738e35b0f361ffef7",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-table-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 105,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c93988926519f665dfcc7c30c23ce3bc25783a75ac10ef64e5979b655b6ae402",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-equation-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 224,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 105,
+        "y": 369,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "9ca95b3035958a3e2837c54113d753cfb8d903ff087fb93204f3f5d3b1ebc046",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-equation-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 645,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 105,
+        "y": 790,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "a00438bd2684b58651776a75cf385e0550b8f4393477fd539a2c509a783dee6d",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-section-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 181,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 105,
+        "y": 266,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "273dae162f99928dcba15f5115fe78d2fa42270c36cdfd515726c8a21fc220eb",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-light-section-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 753,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 105,
+        "y": 838,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "94f591a14ca5061cd69ed96c6a40156f322d1c31a05980697ea40712adf39671",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-image-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 341,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 105,
+        "y": 618.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "f2c857e64aabca22ddf0b818fa4612e9b2ab86fbf107320a53c3e29cf3a4eb8e",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-image-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 395,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 105,
+        "y": 672.78125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "4781e0cc115df40791c93d468bba1ce1b4a7b84e573f72d046e2c936c2d0d683",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-mermaid-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 275,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 105,
+        "y": 422.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c3a6ae2b0aa798108b07656cf4724cf840c69e154fde0f5e0242ad0a4dc34185",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-mermaid-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 582,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 105,
+        "y": 729.078125,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "ceb348cf4f57ea658fac68112e7ef87d62f76ba4a77b7531b9abdd685fc1067c",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-table-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 105,
+        "y": 532,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "4a825eb174f36be337c5ecb58da8de7933a20361e2ce0dc846739ecb18248051",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-table-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 105,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "d089e2730ccef760cb5663fbda7eb3d3c04c6e67bd191dd315a30cb2aaf277e0",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-equation-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 224,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 105,
+        "y": 369,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "bc17b2f73410c4209059f80ead16cdcfd74f33e0cdb61db5eb4d7796b468ad17",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-equation-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 645,
+        "width": 520,
+        "height": 190
+      },
+      "actions": {
+        "x": 105,
+        "y": 790,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "7d88fc8fe0778e9b69c17b51c1472d586a5190ebf46cafff7c55b0b3bac5bb2c",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-section-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 88,
+        "y": 181,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 105,
+        "y": 266,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "6cc10f49fc8622240bb70c142da08fe0c61ccfb7cc189ecd49a4fc4d84c1d456",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "before/640-dark-section-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 88,
+        "y": 753,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 105,
+        "y": 838,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "b2594085131f1100537f794b513035033d25ce29bdbee6925ee3bc36880eddfa",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-image-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 372,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 389,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "424f9887d28ec9bbc73e0ec1fd132d635e38715c5d445fd8868577b53fa6876a",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-image-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 364.21875,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 642,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "6983380ad4f4f137f8d7bf6c59bf64e6c873f0e828c0f694dd0481a430226038",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-mermaid-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 323,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 340,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "4401df25fb1a45830fe4e760cf7e5630eec04b14abdb91d294ea48d2c4ca39c4",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-mermaid-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 533.921875,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 681,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "21217e86eda3179ccb040b27df0f2a4ae858c6333058c68ddf3efd07fa73a5bc",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-table-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 376,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c4b5e78d4ef9b75ddb978dcc89a7724acc3b849045c2102959c6ec54f4b8279d",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-table-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "4cee57f17b7f6719dd02b909b7656f1fc637cbd91cf26b93cd8021e21f8c77f3",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-equation-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 223,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 361,
+        "y": 240,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "5c4a0575baecfedc1f28785b22938c5f03ce2a97a0c36adf397208d4460b273d",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-equation-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 686,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 361,
+        "y": 791,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "2bd917a8003895b0b462e958695b71fe4b55baf0df1135b7056c94bda76fa3b2",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-section-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 180,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 197,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "b98df09b2809d4ffb71d7f64a1c4bf8984f702d35489d4e6ee10abd51498407d",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-light-section-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 754,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 839,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "d0cf42e745d494c377baf9e3f8c3a93d2beae472e1b26faf53567a4d314e2856",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-image-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 372,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 389,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c4ea58318ecfc87ad4aeeb28ea255d9c27f0017905e484acaace9b0ca9388bf5",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-image-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 364.21875,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 361,
+        "y": 642,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "2911aa9e5d92ae8ce341248b431269c3fcdffdf1b0f66acfee73bf775f4c4efe",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-mermaid-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 323,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 340,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c7029db7cfad34712a12afbc20114ea07ccacf7d7779e3d681cf0c41fb62ffd7",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-mermaid-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 533.921875,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 361,
+        "y": 681,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "4621d967f9b5051e16017ee117e20da09aecc4651ac9cedd9185de35f18cebd6",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-table-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 376,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "aba9076878f0488a6ba57a045f8745b142958595e9f9c01481c6b9df4ff27143",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-table-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 361,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "d6dc59ec3f7c496c27ef0e7d773841f3b7a5624c7c77bc821a8ddbfbf9300259",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-equation-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 223,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 361,
+        "y": 240,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "d09e9636f7dab181b94b4fded7d036b6a126a8ffbfe4c3f5b48860ad271786ff",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-equation-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 686,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 361,
+        "y": 791,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "13dc664e03bee07721987c86ec1e2d816f29e81975432321ba352a5171512306",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-section-bottom.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 344,
+        "y": 180,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 197,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "c0ed0f676ef1a6bfc15a347618b3eb26f629387b881e5348b20cc5f45f245f55",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/1440-dark-section-top.png",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 344,
+        "y": 754,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 361,
+        "y": 839,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "3cd5d924cac0e4bdf8269d77e0e593eb28d1f59684483116b686f016ceede4cf",
+      "dimensions": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-image-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 341,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 132,
+        "y": 358,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "5292220c5ff87310961ebaed1c1b0ac527be5a057b5a7fe77ff19f7b1bba27c3",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-image-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 395.21875,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 132,
+        "y": 673,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "804f01b312c2e4ecf0fea4fa370e82a7dc9465f90298df5baab59f1ab82e6f67",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-mermaid-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 275,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 132,
+        "y": 292,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "2f9aa9c2a5232bb07bc932aece08c0cb1cd46f889b164fd17ae3f031e7769192",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-mermaid-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 581.921875,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 132,
+        "y": 729,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "24f778dff29140e347eed743bb5fd4e9072d3665c5d7d9e91c5a59dfd2ad0b3a",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-table-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 132,
+        "y": 376,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "7397215be752e351268d2bfe69fc57d024fc3f1ea1bdd0722a2e14c08bfb87d9",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-table-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 132,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "456eff5c4b9e711ed022c49d31933e9f6cd97fb854e16d85ee658db0f26d0245",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-equation-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 224,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 132,
+        "y": 241,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "a6476fe8ae65d0dda04101d514cf97b97e6f2757fdb083da66d7150db352b09e",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-equation-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 685,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 132,
+        "y": 790,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "cd372bed69e8d1bc139adabcffd006954d38d42c69db24fb2cc10c2313d3dad7",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-section-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 181,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 132,
+        "y": 198,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "2eadea52f436dd609ebb092bffb23b2ab8034ae6026dd92b99ab47197ab87cc6",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-light-section-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "light",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 753,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 132,
+        "y": 838,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "ee5b2b5bc24ce5996b1666d5622bc7999aac539a39ddde3d860756d88f6234fe",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-image-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 341,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 132,
+        "y": 358,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "85c4b2805eda540f4035f58ce4e14ee69723c81a4237d25174e3a5a3fd326c4d",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-image-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "image",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 395.21875,
+        "width": 520,
+        "height": 322.78125
+      },
+      "actions": {
+        "x": 132,
+        "y": 673,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "9be1cfb7ea5959c77d6257ba1c6252f9befb18ca8aab43e072b7f4529603255c",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-mermaid-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 275,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 132,
+        "y": 292,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "21d5db91b68eb695f992002809bd9012f8f9ebec1a74c75c531c76d79f7274bc",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-mermaid-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "mermaid",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 581.921875,
+        "width": 520,
+        "height": 192.078125
+      },
+      "actions": {
+        "x": 132,
+        "y": 729,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "873e2f98adcb05360b22c3c8b6c1b3351a6edc1767029f2494f502f8c7d0dd47",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-table-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 359,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 132,
+        "y": 376,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "ab472a26b4917a512d58d735168e61333ad19304f9b382d3bcd9cb2842889fe2",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-table-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "table",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 503,
+        "width": 520,
+        "height": 218
+      },
+      "actions": {
+        "x": 132,
+        "y": 676,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "34732df3e71f7d828c2c4d9c1dfe21e996a0f6a3416917953b7ac3041ec70954",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-equation-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 224,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 132,
+        "y": 241,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "1035befca9d1f1baaf95d73acbedb05b76b7ea4177e2641615e0dff7e2c00ea5",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-equation-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "equation",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 685,
+        "width": 520,
+        "height": 150
+      },
+      "actions": {
+        "x": 132,
+        "y": 790,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "ac501360af91937b46ea538e8f3566989c34262893b1e2f17a9463161dafee3c",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-section-bottom.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "bottom",
+      "popup": {
+        "x": 115,
+        "y": 181,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 132,
+        "y": 198,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "00cfcb8272f1936db5030b9b3af0a618e95c028a35ae566ded075c740093538a",
+      "dimensions": [
+        640,
+        1000
+      ]
+    },
+    {
+      "file": "after/640-dark-section-top.png",
+      "width": 640,
+      "height": 1000,
+      "theme": "dark",
+      "kind": "section",
+      "side": "top",
+      "popup": {
+        "x": 115,
+        "y": 753,
+        "width": 520,
+        "height": 130
+      },
+      "actions": {
+        "x": 132,
+        "y": 838,
+        "width": 486,
+        "height": 28
+      },
+      "sha256": "100394dcabe069bb6413a9bf753fb7f3709e877716ffa23e2dd9b7539133a5eb",
+      "dimensions": [
+        640,
+        1000
+      ]
+    }
+  ]
+}

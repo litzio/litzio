@@ -224,7 +224,7 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
   const media = await thumbnail.evaluate(el => {
     const image=el.querySelector('img'), box=el.getBoundingClientRect(), r=image.getBoundingClientRect();
     const s=getComputedStyle(image);
-    const button=el.parentElement.querySelector('button').getBoundingClientRect();
+    const button=el.closest('[data-testid="mermaid-property-properties"]').querySelector('[data-testid="mermaid-edit-source"]').getBoundingClientRect();
     return {width:r.width,height:r.height,ratio:image.naturalWidth/image.naturalHeight,
       contentWidth:r.width-parseFloat(s.borderLeftWidth)-parseFloat(s.borderRightWidth),
       contentHeight:r.height-parseFloat(s.borderTopWidth)-parseFloat(s.borderBottomWidth),
@@ -232,7 +232,7 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
       borders:[s.borderLeftWidth,s.borderRightWidth,s.borderTopWidth,s.borderBottomWidth],
       background:getComputedStyle(el).backgroundColor,
       fits:r.left>=box.left && r.right<=box.right && r.top>=box.top && r.bottom<=box.bottom,
-      centerOffset:box.y+box.height/2-button.y-button.height/2,buttonWidth:button.width,boxWidth:box.width};
+      centerOffset:el.closest('[data-testid="mermaid-property-properties"]').querySelector('[data-testid="mermaid-property-apply"]').getBoundingClientRect().y-button.y,buttonWidth:button.width,boxWidth:box.width};
   });
   expect(media.width).toBeGreaterThan(0); expect(media.height).toBeGreaterThan(0);
   expect(media.contentWidth/media.contentHeight, JSON.stringify(media)).toBeCloseTo(media.ratio,1);
