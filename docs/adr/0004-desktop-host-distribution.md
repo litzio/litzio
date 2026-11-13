@@ -12,7 +12,7 @@
 
 Windows Electron/NSIS 설치·사용자가 승인하는 다운로드/설치·명령줄 통합·미저장 보호는 유지한다. 현재 Desktop은 앱 번들 UI에서 같은 PC daemon의 HTTP API를 쓴다([ADR-0016](0016-shared-local-daemon-host.md), [ADR-0017](0017-bundled-client-and-official-ai.md), [배포 계약](../design/desktop-distribution-v1.md)). 원래의 in-process 문서 Host·TCP 없음은 대체됐다. 원격 등록·여러 Host UI도 삭제됐으며 당시 transport·개정 단계 설명을 현재 제공 기능으로 읽지 않는다.
 
-이 아래 본문은 당시 결정·개정·구현·검증의 이력이다. 남는 결정은 위 요약을 따르며 삭제된 기능의 재도입 요구가 아니다. 당시 날짜·측정·검증 범위는 그대로 보존한다.
+아래에서 명시적으로 삭제·대체됐다고 적은 부분만 이력이며, 그 밖의 결정은 원문 그대로 유효하다. 위 요약은 현재 상태의 안내이며 원래 결정의 효력을 제한하지 않는다. 당시 날짜·측정·검증 범위는 그대로 보존하며, 삭제된 기능의 재도입을 요구하지 않는다.
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 
