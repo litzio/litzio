@@ -1,3 +1,4 @@
+import { exactHttpOrigin } from "../shared/http-origin.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,16 +12,8 @@ export class RemoteHostRefusal extends Error {}
 export type RemoteHost = { hostId: string; origin: string; label: string };
 export const remoteHostsFile = () => path.join(process.env.LITZIO_DATA_DIR ?? path.join(os.homedir(), brand.folders.shared), "desktop", "remote-hosts.json");
 
-/** Exact HTTP origin only, also safe to interpolate into CSP source lists. */
 export function remoteHostOrigin(value: string): string {
-  if (!/^https?:\/\/[^/?#]+\/?$/i.test(value) || value !== value.trim() || /[\s\\*;"'<>]/.test(value)) throw new RemoteHostRefusal("Expected an exact http(s) origin.");
-  let url: URL;
-  try { url = new URL(value); } catch { throw new RemoteHostRefusal("Expected an exact http(s) origin."); }
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash || value.includes("?") || value.includes("#")) throw new RemoteHostRefusal("Expected an http(s) origin without credentials, path, query or fragment.");
-  // URL parsing can decode host escapes and map Unicode (for example %2a or ＊) to
-  // CSP syntax. Validate the canonical source too, before it can reach disk/CSP.
-  if (!/^https?:\/\/[^/?#]+\/?$/i.test(url.origin) || /[\s\\*;"'<>]/.test(url.origin)) throw new RemoteHostRefusal("Expected an exact http(s) origin.");
-  return url.origin;
+  try { return exactHttpOrigin(value); } catch (error) { throw new RemoteHostRefusal((error as Error).message); }
 }
 function labelText(value: string): string {
   if (!value.trim() || /[\x00-\x1f\x7f]/.test(value)) throw new RemoteHostRefusal("Expected a nonempty label without control characters.");

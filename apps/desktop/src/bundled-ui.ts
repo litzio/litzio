@@ -1,4 +1,4 @@
-import { remoteHostOrigin } from "../../editor/server/remote-host-registry.ts";
+import { exactHttpOrigin } from "../../editor/shared/http-origin.ts";
 import { trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { CONTENT_SECURITY_POLICY, serveEditorFile } from "../../editor/server/editor-static.ts";
 
@@ -6,7 +6,7 @@ import { CONTENT_SECURITY_POLICY, serveEditorFile } from "../../editor/server/ed
 export function bundledUiResponse(directory: string, request: Request, hostUrl: string, remoteOrigins: readonly string[] = []): Response {
   if (!trustedDesktopUrl(request.url)) return new Response(null, { status: 403 });
   if (request.method !== "GET" && request.method !== "HEAD") return new Response(null, { status: 405 });
-  const sources = [hostUrl, ...remoteOrigins].map(remoteHostOrigin).join(" ");
+  const sources = [hostUrl, ...remoteOrigins].map(exactHttpOrigin).join(" ");
   const url = new URL(request.url);
   const response = serveEditorFile(directory, url.pathname);
   // App scripts and blob plugin modules run locally; fetches/images target registered Hosts.
