@@ -158,7 +158,8 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 ### 검증과 실패 기록
 
 - Editor·SDK 타입 검사, 토큰 검사, docs 검사 통과. 기존 Host 테스트의 authoring/screen/install 5개 통과. 공용 props는 SDK 타입, client 이름 집합은 SCREEN_UI 키로 검사한다.
-- persistent profile의 production plugin-screen-code + HTTP 복구(2개), UI gallery(단일/구간 키보드·line/bar·tooltip·empty) 통과. 갤러리는 Vite ResizeObserver 알림이 있었으나 runner 판정은 통과했다.
+- persistent profile의 production plugin-screen-code + HTTP 복구(2개), UI gallery(구간 키보드·line/bar·마우스/키보드 tooltip·empty) 통과. 갤러리는 Vite ResizeObserver 알림이 있었으나 runner 판정은 통과했다.
 - 첫 단위 테스트 호출은 저장소 루트에서 실행해 상대 cwd를 기대하는 기존 Docling/Jira 2개가 실패했다(55/57 통과). 올바른 Editor cwd에서 변경 영역 5개를 다시 통과했다. 무관한 전체 suite 성공으로 보고하지 않는다.
 - 브라우저 HTTP와 Vite를 한 호출로 지정한 첫 시도는 runner가 거부했다. 수동 촬영 harness 첫 두 시도는 VM에 URL 전역이 없음, catalog에 GET을 사용해 405 빈 응답을 JSON으로 읽은 문제로 실패했다. 실제 POST catalog 계약으로 고친 뒤 촬영·조작이 통과했다. 촬영 전용 순회는 CI에 추가하지 않았다.
 - 실제 외부 서비스·원격 PC·패키지된 Desktop·640px 실제 생성 화면·스크린리더 청취·많은 점/긴 문자열은 미확인이다. 문서 저장은 병행 2-4 범위이며 이 변경은 invoke 수명·취소·출력 계약을 바꾸지 않는다. 직접 시작한 격리 Host·browser runner는 종료했고 임시 시험 자료는 보존했다.
+
