@@ -13,7 +13,7 @@ const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
 const expected = (quality, browser, http, desktop, update, smartquotes = false, fullLayout = update) =>
-  ({ quality, browser, http, desktop, update, fullLifecycle: update, fullRemoval: update, fullLayout, smartquotes, prWindowsPackaged: false, reused: false });
+  ({ quality, browser, http, desktop, windowsUnit: desktop, update, fullLifecycle: update, fullRemoval: update, fullLayout, smartquotes, prWindowsPackaged: false, reused: false });
 const full = expected(true, true, true, true, true, true);
 
 test('plugin packages retain their consumers without full lifecycle or layout coverage', async () => {
@@ -28,7 +28,7 @@ test('plugin packages retain their consumers without full lifecycle or layout co
     const payload = eventName === 'merge_group' ? event : { pull_request: { base: { sha: base }, head: { sha } } };
     for (const root of ['packages/plugin-sdk']) {
       const docs = selectJobs(eventName, [`${root}/README.md`]);
-      assert.deepEqual(docs, { ...plugin, browser: false, http: false, desktop: false }, `${eventName}: plugin docs`);
+      assert.deepEqual(docs, { ...plugin, browser: false, http: false, desktop: false, windowsUnit: false }, `${eventName}: plugin docs`);
     }
     for (const file of files) {
       const jobs = { ...plugin, desktop: eventName !== 'pull_request' };
@@ -234,7 +234,7 @@ const response = runs => async (url, options) => {
 test('only a successful same-SHA merge_group run in this workflow permits master push reuse', async () => {
   assert.deepEqual(await successfulQueueRun({ ...apiInputs, fetchRuns: response([successful]) }), successful);
   const result = await executionPolicy('push', { ref: 'refs/heads/master' }, { ...apiInputs, fetchRuns: response([successful]) });
-  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, fullRemoval: false, fullLayout: false, smartquotes: false, prWindowsPackaged: false, reused: true });
+  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, windowsUnit: false, update: false, fullLifecycle: false, fullRemoval: false, fullLayout: false, smartquotes: false, prWindowsPackaged: false, reused: true });
   for (const candidate of [null, { ...successful, event: 'pull_request' }, { ...successful, head_sha: base },
     { ...successful, conclusion: 'failure' }, { ...successful, conclusion: 'cancelled' },
     { ...successful, status: 'in_progress' }, { ...successful, html_url: undefined }]) {
@@ -537,4 +537,24 @@ test('packaged regression changes select Windows HTTP on PRs without enabling De
   const ci=workflow();
   assert.match(ci.jobs['http-windows'].if,/needs.changes.outputs.prWindowsPackaged/);
   assert.match(ci.jobs['quality-and-browser'].steps[0].env.HTTP_WINDOWS_SELECTED,/prWindowsPackaged/);
+});
+
+// Windows units protect the same product consumers on PRs before queue admission.
+test('Windows units run before queue admission without enabling PR packaging', () => {
+  for (const paths of [undefined, [], ['packages/plugin-sdk/src/index.ts'],
+    ['packages/core/src/write.ts'], ['packages/file-commit/src/index.ts'],
+    ['packages/cli/src/cli.ts'], ['apps/editor/server/plugins/plugin-host.ts'],
+    ['apps/editor/shared/assistant.ts'], ['apps/desktop/src/main.ts'],
+    ['pnpm-lock.yaml'], ['unknown/new-input']]) {
+    const pr = selectJobs('pull_request', paths);
+    assert.equal(pr.windowsUnit, true);
+    assert.equal(pr.desktop, false);
+    assert.equal(selectJobs('merge_group', paths).windowsUnit, true);
+  }
+  for (const paths of [['docs/test/README.md'], ['scripts/issues.mjs'],
+    ['packages/plugin-sdk/README.md']]) {
+    assert.equal(selectJobs('pull_request', paths).windowsUnit, false);
+  }
+  const { jobs } = workflow();
+  assert.equal(jobs['desktop-unit'].if, "needs.changes.outputs.windowsUnit == 'true'");
 });

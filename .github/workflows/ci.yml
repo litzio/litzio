@@ -29,6 +29,7 @@ jobs:
       http: ${{ steps.policy.outputs.http }}
       prWindowsPackaged: ${{ steps.policy.outputs.prWindowsPackaged }}
       desktop: ${{ steps.policy.outputs.desktop }}
+      windowsUnit: ${{ steps.policy.outputs.windowsUnit }}
       update: ${{ steps.policy.outputs.update }}
       fullRemoval: ${{ steps.policy.outputs.fullRemoval }}
       fullLifecycle: ${{ steps.policy.outputs.fullLifecycle }}
@@ -301,7 +302,7 @@ jobs:
   desktop-unit:
     name: Windows Desktop unit (${{ matrix.group }})
     needs: changes
-    if: needs.changes.outputs.desktop == 'true'
+    if: needs.changes.outputs.windowsUnit == 'true'
     runs-on: windows-latest
     timeout-minutes: 35
     strategy:
@@ -609,7 +610,7 @@ jobs:
           BROWSER_RESULT: ${{ needs.browser.result }}
           DESKTOP_RESULT: ${{ needs.desktop.result }}
           DESKTOP_UNIT_RESULT: ${{ needs.desktop-unit.result }}
-          DESKTOP_UNIT_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.desktop == 'true' }}
+          DESKTOP_UNIT_SELECTED: ${{ needs.changes.outputs.windowsUnit == 'true' }}
           DESKTOP_STABLE_RESULT: ${{ needs.desktop-stable.result }}
           DESKTOP_STABLE_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.fullLifecycle == 'true' }}
           DESKTOP_BETA_RESULT: ${{ needs.desktop-beta.result }}
