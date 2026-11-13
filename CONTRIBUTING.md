@@ -100,7 +100,7 @@ gh run list --event merge_group --json databaseId,headSha,status,conclusion,url
 
 PR은 품질 검사와 Linux Editor browser(8 shard)·Linux HTTP를 실행한다. Linux HTTP는 CLI package·offline 설치와 production Host 연결을 보호하므로 유지한다. 품질의 정책·문서·typecheck·build job과 Linux unit foundation·editor 두 job은 병렬로 실행하며, 두 unit 묶음의 합은 기존 `pnpm test`와 같다.
 
-Windows Desktop unit foundation·editor, Windows HTTP host·plugins, Desktop package+verify+packaged+uninstall, Stable·Beta update는 merge queue와 전체 master fallback에서 경로 규칙에 따라 실행한다. Published 0.0.2 Stable은 릴리스 전용이다. 2026-11-12 CVE-2026-111497로 beta.9 이하 설치 자산을 삭제하여 공개 기준을 beta.6에서 beta.10으로 바꿨고, 이번 후보에서는 최신 공개 Stable 0.0.2로 갱신했다. Windows 전용 결함은 PR 단계가 아니라 queue에서 드러나므로 queue 실패 시 수정·재검토·재진입 비용이 생긴다. queue의 전체 핵심 검사와 모든 단언은 유지한다. PR에서 Windows CI를 수동 실행하는 workflow_dispatch 경로는 없다. 필요하면 기존 로컬 검증 명령을 쓰며 새 수동 workflow는 추가하지 않는다.
+Windows Desktop unit foundation·editor, Windows HTTP host·plugins(단, packaged CLI 테스트 또는 공용 외부 플러그인 fixture 변경은 PR에서도 실행), Desktop package+verify+packaged+uninstall, Stable·Beta update는 merge queue와 전체 master fallback에서 경로 규칙에 따라 실행한다. Published 0.0.2 Stable은 릴리스 전용이다. 2026-11-12 CVE-2026-111497로 beta.9 이하 설치 자산을 삭제하여 공개 기준을 beta.6에서 beta.10으로 바꿨고, 이번 후보에서는 최신 공개 Stable 0.0.2로 갱신했다. Windows 전용 결함은 PR 단계가 아니라 queue에서 드러나므로 queue 실패 시 수정·재검토·재진입 비용이 생긴다. queue의 전체 핵심 검사와 모든 단언은 유지한다. PR에서 Windows CI를 수동 실행하는 workflow_dispatch 경로는 없다. 필요하면 기존 로컬 검증 명령을 쓰며 새 수동 workflow는 추가하지 않는다.
 
 테스트 작성·확대와 PR 기록 기준은 [테스트 설계 지침](docs/contributing/test-design.md)을 따른다.
 

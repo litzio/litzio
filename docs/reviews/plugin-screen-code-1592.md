@@ -91,3 +91,29 @@ npm 전체가 비교한 pacote 설치 트리보다 작고 기존 설정·의존�
 - 비공개 handler의 효과를 선언하지 않으므로 실패 receipt는 uncertain으로 처리한다. 공개 작업은 기존 effect·schema·receipt를 따른다.
 - 외부 dependencies 다운로드는 기존 명령을 유지하고 install이 필요한 bundle을 재생성한다. 기본 JSX에는 다운로드·bundle 파일이 필요 없다.
 - 새 UI·디자인 부품·화면의 문서 저장은 추가하지 않았다. 패키지된 Desktop·원격 PC·실제 외부 서비스·회사 registry/proxy는 미확인이다. 기존 선언형 플러그인 소스는 바꾸지 않았다.
+
+
+### Windows queue packaged 검사 시간 보완
+
+queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사가 기존 60초 제한을 넘겨 취소됐다(관측 67.5초). 타이머는 tarball 생성 뒤의 npm 설치부터 Host·외부 플러그인·두 Root 저장·정리까지를 합친 값이다. 단순 재시도로 처리하지 않았다.
+
+같은 PC의 Windows Node 24.22.2/npm 11.14.1에서 각 실행마다 별도 빈 npm cache와 보존 자료 폴더를 사용했다. tarball은 2,516파일·19,938,792바이트였으며 포함 npm은 1,976파일이다. CLI package 작업 전체는 23.14초, 이미 빌드된 dist의 tarball 생성만 별도 실행한 시간은 5.99초였다. 두 값은 test의 60초 타이머 밖이다.
+
+| 단계 | 원래 위치 인수 설치 | 의존성 사전 선언 설치 |
+| --- | ---: | ---: |
+| 오프라인 npm 설치 | 14.00초 | 9.34초 |
+| npm idealTree:userRequests (설치 시간에 포함) | 4.55초 | 0.00초 |
+| npm idealTree:#root (설치 시간에 포함) | 4.48초 | 4.23초 |
+| npm reify:unpack (설치 시간에 포함) | 4.06초 | 4.14초 |
+| shim | 0.32초 | 0.31초 |
+| Node version/check/format | 1.28초 | 1.27초 |
+| Host 시작 | 1.19초 | 1.18초 |
+| 포함 npm으로 로컬 라이브러리 설치 | 1.09초 | 1.09초 |
+| bundle | 0.10초 | 0.11초 |
+| 두 Root 저장·기여·환경 확인 | 0.37초 | 0.38초 |
+| daemon lock 충돌 | 1.10초 | 1.10초 |
+| 전체(자료 폴더 보존, 정리 제외) | 22.02초 | 17.32초 |
+
+테스트 프로젝트 package.json에 같은 file tarball 의존성을 미리 선언하고 npm install --offline으로 설치해 중복 manifest 해석을 제거했다. 실제 npm 설치·Windows shim·SDK·외부 라이브러리 설치와 bundle·저장·충돌·종료 보호를 모두 유지한다. 제한은 우선 60초 그대로이며 CI에는 단계 시간과 npm 내부 시간을 출력한다. 관련 테스트/공용 fixture 변경은 기존 Windows HTTP 두 job을 PR에서도 선택하고 aggregate가 이를 요구한다.
+
+#1597 기준과 #1599 head를 대조하면 이 packaged 테스트·외부 fixture·배포 build 구성은 바뀌지 않았고 npm install/bundle 호출 횟수도 같다. #1599의 새 install 작업은 이 fixture가 호출하지 않는다. 따라서 새 설치 작업의 중복 활성화가 이 timeout 원인이라는 근거는 없다. 포함 npm의 많은 파일을 가진 tarball을 여러 번 해석·추출하는 기존 작업량이 크며, #1599 이전 queue에서도 48.6/57.3초였다. 실패 run에는 단계 출력이 없어 그 67.5초의 세부 배분은 확정하지 않는다. 일반 사용자도 이 payload 설치 비용을 지불하지만 이번 수정은 테스트의 중복 해석을 줄인 것이며 제품 설치 자체가 빨라졌다고 주장하지 않는다. 실제 Windows CI 측정과 통과 여부는 PR의 후속 검증 기록을 따른다.

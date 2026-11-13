@@ -13,7 +13,7 @@ const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
 const expected = (quality, browser, http, desktop, update, smartquotes = false, fullLayout = update) =>
-  ({ quality, browser, http, desktop, update, fullLifecycle: update, fullRemoval: update, fullLayout, smartquotes, reused: false });
+  ({ quality, browser, http, desktop, update, fullLifecycle: update, fullRemoval: update, fullLayout, smartquotes, prWindowsPackaged: false, reused: false });
 const full = expected(true, true, true, true, true, true);
 
 test('plugin packages retain their consumers without full lifecycle or layout coverage', async () => {
@@ -236,7 +236,7 @@ const response = runs => async (url, options) => {
 test('only a successful same-SHA merge_group run in this workflow permits master push reuse', async () => {
   assert.deepEqual(await successfulQueueRun({ ...apiInputs, fetchRuns: response([successful]) }), successful);
   const result = await executionPolicy('push', { ref: 'refs/heads/master' }, { ...apiInputs, fetchRuns: response([successful]) });
-  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, fullRemoval: false, fullLayout: false, smartquotes: false, reused: true });
+  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, fullRemoval: false, fullLayout: false, smartquotes: false, prWindowsPackaged: false, reused: true });
   for (const candidate of [null, { ...successful, event: 'pull_request' }, { ...successful, head_sha: base },
     { ...successful, conclusion: 'failure' }, { ...successful, conclusion: 'cancelled' },
     { ...successful, status: 'in_progress' }, { ...successful, html_url: undefined }]) {
@@ -488,7 +488,7 @@ test('removal combinations default to full and all remain mandatory in release v
 test('event selection and aggregate agree on PR and queue Windows checks', () => {
   const { jobs } = workflow();
   const env = jobs['quality-and-browser'].steps[0].env;
-  assert.equal(jobs['http-windows'].if, "github.event_name != 'pull_request' && needs.changes.outputs.http == 'true'");
+  assert.equal(jobs['http-windows'].if, "(github.event_name != 'pull_request' || needs.changes.outputs.prWindowsPackaged == 'true') && needs.changes.outputs.http == 'true'");
   assert.equal(env.HTTP_WINDOWS_SELECTED, "${{ " + jobs['http-windows'].if + " }}");
   assert.equal(env.QUALITY_UNIT_SELECTED, '${{ needs.changes.outputs.quality }}');
   assert.equal(jobs['quality-unit'].if, "needs.changes.outputs.quality == 'true'");
@@ -499,7 +499,7 @@ test('event selection and aggregate agree on PR and queue Windows checks', () =>
   }
   // Evaluate real workflow selection expressions against each event's policy outputs.
   for (const eventName of ['pull_request', 'merge_group', 'push']) {
-    for (const paths of [['docs/test/README.md'], ['apps/editor/src/App.tsx'], ['pnpm-lock.yaml'], [],
+    for (const paths of [['docs/test/README.md'], ['apps/editor/src/App.tsx'], ['pnpm-lock.yaml'], ['packages/cli/test/packaged.test.ts'], ['test/helpers/external-plugin.ts'], [],
       ...['packages/plugin-sdk/src/index.ts', 'plugins/onedrive/src/host.ts', 'community-plugins/jira/host.js']
         .flatMap(file => [[file], [file, 'apps/editor/src/App.tsx'], [file, 'apps/desktop/src/updates.ts']])]) {
       const outputs = Object.fromEntries(Object.entries(selectJobs(eventName, paths)).map(([key, value]) => [key, String(value)]));
@@ -528,4 +528,16 @@ test('PR gate requires successful aggregate and rejects pending or failed checks
     [aggregate, { name: 'Linux unit', conclusion: 'CANCELLED' }], [aggregate, { name: 'Linux unit', conclusion: 'FAILURE' }]]) {
     assert.ok(ciProblems(checks).length, JSON.stringify(checks));
   }
+});
+
+
+test('packaged regression changes select Windows HTTP on PRs without enabling Desktop', () => {
+  for (const file of ['packages/cli/test/packaged.test.ts','test/helpers/external-plugin.ts']) {
+    const jobs = selectJobs('pull_request',[file]);
+    assert.equal(jobs.http,true);assert.equal(jobs.prWindowsPackaged,true);assert.equal(jobs.desktop,false);
+  }
+  assert.equal(selectJobs('pull_request',['apps/editor/server/plugins/plugin-host.ts']).prWindowsPackaged,false);
+  const ci=workflow();
+  assert.match(ci.jobs['http-windows'].if,/needs.changes.outputs.prWindowsPackaged/);
+  assert.match(ci.jobs['quality-and-browser'].steps[0].env.HTTP_WINDOWS_SELECTED,/prWindowsPackaged/);
 });
