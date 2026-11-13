@@ -977,7 +977,7 @@ test("authoring refuses deterministic junction replacements between checking and
   });
 });
 
-test("authoring accepts aliases above the data folder and validates canonical and configured paths", async t => {
+test("authoring aliases share canonical validation/install paths and retain write scope", async t => {
   const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-parent-")));
   const data = path.join(root, "real-data"), alias = path.join(root, "data-alias"), documents = path.join(root, "documents");
   mkdirSync(data); mkdirSync(documents);
@@ -993,6 +993,7 @@ test("authoring accepts aliases above the data folder and validates canonical an
       rmdirSync(artifact);
     }
     if (existsSync(expected)) rmdirSync(expected);
+    if (existsSync(path.join(root, "state.json"))) rmSync(path.join(root, "state.json"));
     for (const folder of [documents, data, root]) rmdirSync(folder);
   });
   assert.equal(host.authoringPath(), expected);
@@ -1002,6 +1003,13 @@ test("authoring accepts aliases above the data folder and validates canonical an
   assert.equal((created.result as any).directory, artifact);
   for (const directory of [artifact, path.join(configured, id)]) {
     assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
+    const denied: any = await host.invoke("install", { directory }, access);
+    assert.equal(denied.receipt.outcome, "failure");
+    assert.equal(denied.errors[0].path, "directory");
+    assert.equal(denied.errors[0].code, "outside_plugin_scope");
+    const installed: any = await host.invoke("install", { directory });
+    assert.equal(installed.receipt.outcome, "success", JSON.stringify(installed));
+    assert.equal((await host.list())[0]!.running, true);
   }
 });
 
@@ -1017,6 +1025,9 @@ test("read-only validation never creates a missing plugins directory or its data
   });
   const result = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
   assert.equal(result.activity.outcome, "failure");
+  assert.ok("result" in result);
+  assert.equal((result.result as any).errors[0].path, "directory");
+  assert.match((result.result as any).errors[0].message, /existing plugin directory/);
   assert.equal(existsSync(directory), false);
   assert.equal(existsSync(data), false);
   mkdirSync(data);

@@ -12,7 +12,7 @@ import { assertNoPluginSecrets } from "./secret-redaction.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync, lstatSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { accessPath, canonicalFilePath, inside, RootAccess, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
+import { accessPath, canonicalFilePath, inside, RootAccess, FileAccessError, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess } from "./plugin-process.ts";
 import { healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
@@ -25,6 +25,15 @@ type ManifestIssue = { path: PropertyKey[]; code: string; message: string; issue
 type ValidationDiagnostic = { file: string; line: number | null; column: number | null; kind: string; path?: string; message?: string; code?: string };
 function validationDiagnostics(error: unknown, file: string): ValidationDiagnostic[] {
   if (error instanceof AssistantSkillValidationError) return [{ file: error.file, line: null, column: null, kind: "Assistant skill validation failed", path: error.field, message: error.message, code: "invalid_skill" }];
+  if (file === "artifact directory") {
+    const code = error instanceof FileAccessError ? "outside_plugin_scope" : (error as NodeJS.ErrnoException)?.code;
+    const message = error instanceof FileAccessError
+      ? "Expected a directory inside the pinned plugin authoring folder or allowed Host folders, and the active write scope."
+      : code === "ENOENT" || code === "ENOTDIR" ? "Expected an existing plugin directory; a directory or parent is missing."
+      : code === "EACCES" || code === "EPERM" ? "Expected a readable plugin directory; filesystem access was denied."
+      : "Expected a real plugin directory with unchanged authoring roots; check directory links and Host access.";
+    return [{ file, line: null, column: null, kind: "Artifact directory rejected", path: "directory", message, code: typeof code === "string" && /^[a-zA-Z_]+$/.test(code) ? code : "invalid_artifact_directory" }];
+  }
   const value = error as { name?: string; message?: string; loc?: { file?: string; line: number; column: number }; jsonLocation?: { line: number; column: number }; issues?: ManifestIssue[] };
   if (value?.name === "ScreenCompileError") return [{ file: value.loc?.file ?? file, line: value.loc?.line ?? null, column: value.loc ? value.loc.column + 1 : null, kind: "Screen compilation failed", message: value.message }];
   if (value?.name === "ZodError" && value.issues) {
@@ -119,6 +128,15 @@ export class PluginHost {
     this.authoringRoot.resolve(directory);
     return this.authoringRoot;
   }
+  /** Use the same pinned directory for configured aliases and scaffold's canonical result. */
+  private artifactDirectory(requested: string, creationScope: FileAccess = LOCAL_FILE_ACCESS): string {
+    requested = path.resolve(requested);
+    const expected = this.authoringPath();
+    const authored = inside(this.authoringDirectory, requested) || expected !== undefined && inside(expected, requested);
+    const access = authored ? this.authoringAccess() : this.access;
+    const directory = accessPath(authored ? canonicalFilePath(requested) : requested, access);
+    return accessPath(directory, creationScope);
+  }
   private save() {
     mkdirSync(path.dirname(this.file), { recursive: true });
     const temporary = `${this.file}.${randomUUID()}.tmp`;
@@ -182,7 +200,7 @@ export class PluginHost {
   }
   async list() {
     return Promise.all(Object.entries(this.installed).map(async ([id, r]) => {
-      let file = "artifact";
+      let file = "artifact directory";
       try {
         const { manifest: m, digest } = this.artifact(r.directory, current => { file = current; }), live = this.loaded.get(id);
         if (m.id !== id) throw new Error("Artifact ID changed");
@@ -356,12 +374,11 @@ export class PluginHost {
       let id = args.id!;
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
       if (action === "install") {
-        let file = "artifact";
+        let file = "artifact directory";
         let candidate: PluginInstance | undefined;
         try {
           const requested = args.directory ?? path.join(this.authoringAccess().roots[0]!, id);
-          const directory = accessPath(requested, inside(this.authoringDirectory, path.resolve(requested)) ? this.authoringAccess() : this.access);
-          accessPath(directory, creationScope);
+          const directory = this.artifactDirectory(requested, creationScope);
           file = "litzio-plugin.json";
           const manifest = validateManifest(readArtifactJson(path.join(directory, file)));
           const codeScreens = manifest.contributes.screens.filter(screen => screen.entry);
@@ -414,21 +431,15 @@ export class PluginHost {
         return { ...scaffoldPlugin(directory, id, access, creationScope, args.template, expected), receipt: receipt("success") };
       }
       if (action === "bundle" || action === "dependencies") {
-        const requested = path.resolve(args.directory!);
-        const authored = inside(this.authoringDirectory, requested);
-        const directory = accessPath(requested, authored ? this.authoringAccess() : this.access);
-        accessPath(directory, creationScope);
+        const directory = this.artifactDirectory(args.directory!, creationScope);
         return { ...(action === "dependencies" ? await installScreenDependencies(directory) : bundleScreens(directory)), receipt: receipt("success") };
       }
       if (action === "validate") {
         const errors: ValidationDiagnostic[] = []; let manifestId: string | undefined;
-        let file = "artifact";
+        let file = "artifact directory";
         try {
-          const requested = path.resolve(args.directory!), expected = this.authoringPath();
-          const authored = inside(this.authoringDirectory, requested) || expected !== undefined && inside(expected, requested);
-          const access = authored ? this.authoringAccess() : this.access;
-          const directory = authored ? canonicalFilePath(requested) : requested;
-          const a = this.artifact(accessPath(directory, access), current => { file = current; }); manifestId = a.manifest.id;
+          const directory = this.artifactDirectory(args.directory!);
+          const a = this.artifact(directory, current => { file = current; }); manifestId = a.manifest.id;
           errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: "host entry", ...issue })));
         } catch (error) {
           errors.push(...validationDiagnostics(error, file));
