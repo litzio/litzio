@@ -24,14 +24,18 @@ export function assertDocumentViewPath(path: string, roots: readonly string[]) {
 /** Saved snapshots only. The existing reader owns admission, bibliography and its read timeout. */
 export function DocumentView({ path, target, reloadKey, height = 480, label = i18n.t("Document preview"), onStateChange }: ScreenDocumentViewProps) {
   const scope = useContext(DocumentViewScope);
-  const rootsKey = JSON.stringify(scope?.roots ?? []);
+  let scopeProblem = "";
+  try {
+    if (!scope) throw new Error("DocumentView requires a plugin screen's Host and opened folders.");
+    assertDocumentViewPath(path, scope.roots);
+  } catch (error) { scopeProblem = String((error as Error).message); }
   const [snapshot, setSnapshot] = useState<{ request: object; file: DocumentFileResponse }>();
   const [problem, setProblem] = useState("");
   const [positions, setPositions] = useState<ReadingPosition>();
   const viewport = useRef<HTMLDivElement>(null);
   const jumped = useRef("");
   const notify = useRef(onStateChange); notify.current = onStateChange;
-  const request = useMemo(() => ({}), [path, reloadKey, scope?.client, rootsKey]);
+  const request = useMemo(() => ({}), [path, reloadKey, scope?.client, scopeProblem]);
   const file = snapshot?.request === request ? snapshot.file : undefined;
   useEffect(() => {
     const controller = new AbortController();

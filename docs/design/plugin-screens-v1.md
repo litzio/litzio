@@ -25,7 +25,7 @@ Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다.
 `ui.DocumentView({path,target?,reloadKey?,height?,label?,onStateChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
 
 - `target?: {revision:string,path:NodePath}`: CLI `inspect --format json` 또는 Host 읽기 출력의 Core NodePath 배열을 그대로 받는다. 저장본 revision과 같을 때만 해당 블록으로 내부 스크롤을 이동하고 강조한다. 존재하는 표 셀 경로는 해당 표 전체로 이동·강조한다. 셀 자체·글자 범위·중첩 목록 항목 단위 탐색은 아직 제공하지 않는다. 지원하지 않거나 없는 경로는 target-not-found로 알리고 강조하지 않는다.
-- `reloadKey?: string|number`: 값을 바꾸면 저장본을 다시 읽는다. target 변경은 다시 읽지 않는다. polling·자동 변경 추적·오래된 경로 자동 재대응은 없다. 새 저장본의 revision이 target과 다르면 stale-target으로 알리고 이동·강조하지 않는다.
+- `reloadKey?: string|number`: 값을 바꾸면 저장본을 다시 읽는다. target 변경이나 현재 문서를 여전히 포함하는 무관한 폴더 목록 변경은 다시 읽지 않는다. 현재 문서가 열린 폴더 범위에서 빠지면 요청을 취소하고 표시를 지운다. polling·자동 변경 추적·오래된 경로 자동 재대응은 없다. 새 저장본의 revision이 target과 다르면 stale-target으로 알리고 이동·강조하지 않는다.
 - `height?: number`: 내부 스크롤 영역 높이(px), 기본 480. 외부 폭·배치는 플러그인이 정한다. `label?:string`은 접근성 이름(기본 Document preview)이다.
 - `onStateChange?({state,revision?,message?})`: loading/ready/error/stale-target/target-not-found를 전달한다. 저장본을 읽으면 revision을 제공한다. 기존 문서 탭의 미저장 내용이 아닌 저장본 revision이다.
 
