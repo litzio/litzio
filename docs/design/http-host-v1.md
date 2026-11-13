@@ -50,19 +50,19 @@ during session setup, while execution requires the matching active turn. Complet
 this capability is not daemon authentication. See [Main agent](main-agent-v1.md#문서-도구와-이미지)
 for tool transport; shared question cards are supported, native ACP question extensions are not.
 
-## Host별 클라이언트 경계 (#1174 PR2)
+## 연결에 고정된 클라이언트 경계
 
 운영 연결은 로컬 하나다. per-ID registry·목록·라벨·추가/제거와 다중 monitor는 없다. `hostConnection`은 현재 연결의 capability·상태·실행 계정을 한 곳에서 관측하며 늦은 응답은 attempt token으로 거절한다. 저장·복구에 남은 알 수 없는 식별자를 로컬로 대체하지 않는다. 세션·receipt가 캡처한 client는 유지한다. origin이 바뀌면 기존 저장·rollback·비서·템플릿 요청을 전송 전에 거부하며 새 작업만 새 client를 얻는다. 같은 origin 재연결은 기존 세션을 유지하고 이미 전송한 쓰기는 재전송하지 않는다. 늦은 capability 관측의 세대 보호와 취소도 유지한다.
 
 ## 원격 Host (#1174 PR0~4 완료)
 
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지하며, 저장·복구의 hostId·키·레코드는 PR 3까지 local 형식 그대로 둔다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
 ## 단일 연결과 고정된 작업 대상 (#1595 PR 2)
 
 `host-transport.ts`는 불변 HTTP client를, `host-client.ts`는 단일 연결 관측과 Desktop 주소 gate를 소유한다. 화면 context는 ID를 선택하지 않고 mount 시 client를 캡처한다. 문서 탭·PDF·플러그인 화면·비서·템플릿·파일 작업 확인창은 시작할 때의 client를 유지한다. 주소가 바뀌면 `HostConnectionChangedError`로 기존 작업의 후속 Save·rollback·요청을 전송 전에 거절하고 새 작업만 새 client를 얻는다. 같은 주소 재연결과 진행 중 쓰기의 원래 주소는 유지하며 쓰기를 자동 재전송하지 않는다.
 
-탭 id/key를 바꾸지 않는다. `preferences.ts`, recovery DB/version/record·barrier·session nonce·clean acknowledgement 형식과 local 키는 그대로다. 예전 원격/알 수 없는 복구 ID는 `assertLocalHost`에서 거절하며 로컬로 재해석하지 않는다. 탐색기 폴더와 화면 목록은 한 연결만 사용하지만 요청 취소·최신 응답 확인과 파일 identity 검사는 유지한다.
+탭 id/key를 바꾸지 않는다. 탭·기억·복구의 Host ID는 제거하고 새 namespace에서 path를 사용한다. 옛 복구 DB/키를 읽거나 지우지 않으며 기록을 로컬로 재해석하지 않는다. barrier·session nonce·clean acknowledgement와 트랜잭션 보호는 유지한다. 탐색기 폴더와 화면 목록은 한 연결만 사용하지만 요청 취소·최신 응답 확인과 파일 identity 검사는 유지한다.
 
 ## Editor Host client (#1150 ④)
 
@@ -72,7 +72,7 @@ Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮�
 
 ## Desktop remote registration (#1174 PR3a)
 
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지하며, 저장·복구의 hostId·키·레코드는 PR 3까지 local 형식 그대로 둔다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
 Desktop CSP의 connect/img는 확인된 로컬 daemon의 정확한 origin만 추가하며 script는 앱 번들에 한정한다. main HTTP proxy를 만들지 않는다. 로컬 번들 UI를 위한 한정 health GET/protocol OPTIONS와 API/media의 Origin·JSON·sandbox 경계는 유지한다.
 

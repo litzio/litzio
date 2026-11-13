@@ -1,4 +1,3 @@
-import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { useHostClient } from "./host-context.tsx";
 import { memo, useMemo, useLayoutEffect, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,7 +22,6 @@ import { DocumentScroll } from "./DocumentScroll.tsx";
 export type TextSessionSnapshot = { kind: "text"; file: TextFileResponse; text: string; savedSource: string };
 
 function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot | undefined, recoveryId: string, replaceFile: (file: EditorFileResponse) => void) {
-  const hostId = LOCAL_HOST_ID;
   const client = useHostClient();
   const { requestDocument, requestSave, cancelReads } = useMemo(() => createDocumentRequests(client), [client]);
   const [openedPath, setOpenedPath] = useState(initial.path);
@@ -47,7 +45,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
   const capture = useRef<() => TextSessionSnapshot | null>(() => null);
   const [recorder] = useState(() => createRecoveryRecorder(recoveryId, () => pathRef.current, () => capture.current(),
     cause => setRecoveryError({ key: "Local recovery is unavailable: {{reason}}. Keep this window open and save or copy your work. Changes after the last record may be lost.", values: { reason: messageOf(cause) } }),
-    () => setRecoveryError(""), hostId));
+    () => setRecoveryError("")));
   function getSnapshot(): TextSessionSnapshot {
     return { kind: "text", file: { kind: "text", path: pathRef.current, source: saved.current, revision: revision.current }, text: text.current, savedSource: saved.current };
   }
@@ -109,7 +107,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
       const reason = messageOf(cause); setError(reason); setStatus("open-failed"); return reason;
     } finally { if (current()) { busyRef.current = false; setReloadDialog(false); } }
   }
-  return { client, hostId,
+  return { client,
     kind: "text" as const, markdown, view: markdown ? view : "visual" as const, setView, currentText: text.current, editorRef, input, initialText: restored?.text ?? initial.source, change, getSnapshot,
     acknowledgedRevision: revision.current,
     externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== revision.current,

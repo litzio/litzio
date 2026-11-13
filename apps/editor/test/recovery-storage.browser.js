@@ -1,85 +1,94 @@
 // Actual IndexedDB transactions and recorder scheduling; no in-memory database substitute.
 async page => {
-  // Pre-Host records must never enter Host work summaries or be deleted by listing.
-  await page.evaluate(async () => {
-    const { recoveryStorage: store, RECOVERY_DB } = await import('/src/recovery-storage.ts');
-    await store.list();
-    const record = { id: 'unscoped-v1', version: 1, path: '/old.md', recordedAt: Date.now(), recoveryText: 'preserve me', snapshot: {} };
-    const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open(RECOVERY_DB);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+  // Keep an old-protocol window alive while the new app loads, edits and cleans up.
+  // Matching local/remote paths and IDs must not turn old work or clean ACKs into local work.
+  const oldWindow = await page.context().newPage();
+  try {
+    await oldWindow.goto(page.url());
+    const original = await page.evaluate(async () => (await (await fetch('/api/document')).json()).source);
+    await oldWindow.evaluate(async () => {
+      window.oldRecovery = await new Promise((resolve,reject) => {
+        const request = indexedDB.open('litzio-recovery', 4);
+        request.onupgradeneeded = () => { request.result.createObjectStore('records',{keyPath:'id'}); request.result.createObjectStore('barriers'); };
+        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+      });
+      const file = await (await fetch('/api/document')).json();
+      window.oldRecords = ['local','remote'].map(hostId => ({id:hostId+'-old',version:2,hostId,path:file.path,recordedAt:Date.now(),recordingGeneration:0,recoveryText:'OLD HOST WORK',snapshot:{file,editor:{editorDocument:{type:'doc'}}}}));
+      await new Promise((resolve,reject) => {
+        const tx = oldRecovery.transaction(['records','barriers'],'readwrite');
+        tx.objectStore('records').clear(); tx.objectStore('barriers').clear();
+        for (const record of oldRecords) { tx.objectStore('records').put(record); tx.objectStore('barriers').put({path:record.path,hostId:record.hostId,generation:'old',expiresAt:Date.now()+86400000},['session',record.id]); }
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+      });
+      localStorage.setItem('litzio.recoveryClean.v1.local-old','999');
     });
-    try {
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('records', 'readwrite');
-        tx.objectStore('records').put(record);
-        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
-      });
-      if ((await store.list()).some(r => r.id === record.id)) throw new Error('Unscoped recovery entered Host work summary');
-      await store.list(Date.now() + 11 * 86400000); // Expiry must not delete unidentified records either.
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('records', 'readonly');
-        const request = tx.objectStore('records').get(record.id);
-        tx.oncomplete = () => JSON.stringify(request.result) === JSON.stringify(record) ? resolve() : reject(new Error('Unscoped recovery was changed or deleted'));
-        tx.onerror = () => reject(tx.error);
-      });
-    } finally { db.close(); await store.delete(record.id); }
-  });
-  // Same Host-returned path, two registrations: file operations and barriers stay local.
-  await page.evaluate(async () => {
-    const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
-    const path = '/shared.md';
-    const make = (hostId, id) => ({ id, hostId, path, version: 2, recordedAt: Date.now(), recoveryText: id, snapshot: { file: { path } } });
-    const remote = await store.ticket('remote-record', path, 'remote');
-    await store.write('remote-record', remote, () => make('remote', 'remote-record'));
-    const pending = await store.ticket('remote-pending', path, 'remote');
-    const local = await store.ticket('local-record', path);
-    await store.write('local-record', local, () => make('local', 'local-record'));
-    const revoked = await store.ticket('local-pending', path);
-    await store.changePath(path, '/renamed.md');
-    const moved = await store.list();
-    if (!moved.some(r => r.hostId === 'local' && r.path === '/renamed.md') ||
-        !moved.some(r => r.hostId === 'remote' && r.path === path)) throw new Error('Rename crossed Host identity');
-    if (await store.write('local-pending', revoked, () => make('local', 'local-pending'))) throw new Error('Local old-path permission survived rename');
-    await store.changePath(path, null);
-    await store.delete();
-    if (!(await store.list()).some(r => r.id === 'remote-record')) throw new Error('Local deletion removed remote work');
-    if (!await store.write('remote-pending', pending, () => make('remote', 'remote-pending'))) throw new Error('Local barrier revoked remote permission');
-    await store.delete(undefined, 'remote');
-  });
+    await page.reload();
+    await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await page.evaluate(async () => {
+      const {recoveryStorage:store} = await import('/src/recovery-storage.ts');
+      if ((await store.list()).length) throw new Error('Old Host work entered new recovery');
+      const path='/test.md', id='local-old';
+      await store.write(id,await store.ticket(id,path),()=>({id,path,version:3,recordingGeneration:0,recordedAt:Date.now(),recoveryText:'NEW WORK',snapshot:{file:{path}}}));
+      if (!(await store.list()).some(record=>record.recoveryText==='NEW WORK')) throw new Error('Old clean ACK removed new work');
+    });
+    if (await page.getByTestId('recovery-prompt').count()) throw new Error('Old record was offered against the local document');
+    if (await page.evaluate(async () => (await (await fetch('/api/document')).json()).source) !== original) throw new Error('Loading old recovery changed the original document');
+    await oldWindow.evaluate(async () => {
+      const tx=oldRecovery.transaction('records','readwrite');tx.objectStore('records').clear();
+      await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+    });
+    await page.evaluate(async () => {
+      const {recoveryStorage:store}=await import('/src/recovery-storage.ts');
+      if (!(await store.list()).some(record=>record.recoveryText==='NEW WORK')) throw new Error('Old writer deleted new work');
+    });
+    await oldWindow.evaluate(async () => {
+      const tx=oldRecovery.transaction('records','readwrite');for (const record of oldRecords) tx.objectStore('records').put(record);
+      await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+    });
+    await page.evaluate(async () => {
+      const {recoveryStorage:store}=await import('/src/recovery-storage.ts');
+      if (!(await store.list()).some(record=>record.recoveryText==='NEW WORK')) throw new Error('Old writer replaced new work');
+      await store.changePath('/test.md','/renamed.md'); await store.delete(); await store.list(Date.now()+11*86400000);
+    });
+    await oldWindow.evaluate(async () => {
+      const tx=oldRecovery.transaction('records');const read=tx.objectStore('records').getAll();
+      await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+      if (JSON.stringify(read.result)!==JSON.stringify(oldRecords)) throw new Error('New protocol changed/deleted old records');
+      oldRecovery.close();
+    });
+  } finally { await oldWindow.close(); }
   // A second window has acquired permission but has never persisted its first record.
   await page.evaluate(async () => {
     const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
-    const cases = [['child', '/folder/nested/a.md', 'local'], ['sibling', '/folder-other/a.md', 'local'], ['remote', '/folder/nested/a.md', 'remote'], ['missing', '/folder/missing.md', 'local']];
-    const make = (id, path, hostId) => ({id, path, hostId, version:2, recordedAt:Date.now(), recoveryText:id, snapshot:{file:{path}}});
+    const cases = [['child', '/folder/nested/a.md'], ['sibling', '/folder-other/a.md'], ['missing', '/folder/missing.md']];
+    const make = (id, path) => ({id, path, version:3, recordedAt:Date.now(), recoveryText:id, snapshot:{file:{path}}});
     const tickets = [];
-    for (const [id, path, hostId] of cases) {
-      const token = await store.ticket(id, path, hostId);
-      await store.write(id, token, () => make(id, path, hostId));
-      tickets.push(await store.ticket(id+'-pending', path, hostId));
+    for (const [id, path] of cases) {
+      const token = await store.ticket(id, path);
+      await store.write(id, token, () => make(id, path));
+      tickets.push(await store.ticket(id+'-pending', path));
     }
     await store.discardFolderSnapshot(await store.folderTrashSnapshot(), ['/folder/nested/a.md']);
     const records = await store.list();
-    if (records.some(r => r.id === 'child') || !records.some(r => r.id === 'sibling') || !records.some(r => r.id === 'remote') || !records.some(r => r.id === 'missing')) throw new Error('Folder cleanup crossed path/Host boundary');
+    if (records.some(r => r.id === 'child') || !records.some(r => r.id === 'sibling') || !records.some(r => r.id === 'missing')) throw new Error('Folder cleanup crossed verified path boundary');
     for (let index=0; index<cases.length; index++) {
-      const [id,path,hostId] = cases[index];
-      const written = await store.write(id+'-pending', tickets[index], () => make(id+'-pending',path,hostId));
+      const [id,path] = cases[index];
+      const written = await store.write(id+'-pending', tickets[index], () => make(id+'-pending',path));
       if (written !== (index > 0)) throw new Error('Folder cleanup did not revoke only descendant writers');
     }
-    await store.delete(); await store.delete(undefined,'remote');
-    const win = make('windows-case', 'c:/ROOT/child/draft.md', 'local');
-    const sibling = make('windows-sibling', 'c:/root/child-other/draft.md', 'local');
+    await store.delete();
+    const win = make('windows-case', 'c:/ROOT/child/draft.md');
+    const sibling = make('windows-sibling', 'c:/root/child-other/draft.md');
     for (const record of [win, sibling]) await store.write(record.id, await store.ticket(record.id, record.path), () => record);
     await store.discardFolderSnapshot(await store.folderTrashSnapshot(), [win.path]);
     const kept = await store.list();
     if (kept.some(record => record.id === win.id) || !kept.some(record => record.id === sibling.id)) throw new Error('Windows folder recovery cleanup ignored case or crossed sibling boundary');
     await store.delete();
-    const kelvin = make('kelvin-record', 'C:/Root/K/draft.txt', 'local');
+    const kelvin = make('kelvin-record', 'C:/Root/K/draft.txt');
     await store.write(kelvin.id, await store.ticket(kelvin.id, kelvin.path), () => kelvin);
     await store.discardFolderSnapshot(await store.folderTrashSnapshot(), ['C:/Root/k/draft.txt']);
     if (!(await store.list()).some(record => record.id === kelvin.id)) throw new Error('Unrelated Kelvin-folder recovery was deleted');
-    const known = make('changed-after-snapshot', 'C:/Root/k/draft.txt', 'local');
+    const known = make('changed-after-snapshot', 'C:/Root/k/draft.txt');
     await store.write(known.id, await store.ticket(known.id, known.path), () => known);
     const snapshot = await store.folderTrashSnapshot();
     const latest = await store.ticket(known.id, known.path);
@@ -93,7 +102,7 @@ async page => {
   await page.evaluate(async () => {
     const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
     const path = '/guarded-undo.md', id = 'guarded-undo';
-    const write = async text => store.write(id, await store.ticket(id, path), () => ({ id, path, version:2,hostId:"local", recordedAt: Date.now(), recoveryText: text, snapshot: { file: { path } } }));
+    const write = async text => store.write(id, await store.ticket(id, path), () => ({ id, path, version:3, recordedAt: Date.now(), recoveryText: text, snapshot: { file: { path } } }));
     await write('checked');
     const checked = (await store.list()).filter(record => record.path === path);
     await write('arrived during deletion');
@@ -108,29 +117,34 @@ async page => {
   const results = [];
   try {
     await other.goto(page.url());
-    for (const next of [null, '/renamed-pending.md']) {
+    for (const next of [null, '/renamed-pending.md', 'folder-trash', 'clear-all']) {
       await page.evaluate(async () => { const { recoveryStorage } = await import('/src/recovery-storage.ts'); await recoveryStorage.delete(); });
       await other.evaluate(async () => {
         const { recoveryStorage } = await import('/src/recovery-storage.ts');
         window.pendingFileTicket = await recoveryStorage.ticket('unrecorded-other-window', '/pending.md');
         window.unrelatedFileTicket = await recoveryStorage.ticket('unrelated-window', '/unrelated.md');
       });
-      await page.evaluate(async next => { const { recoveryStorage } = await import('/src/recovery-storage.ts'); await recoveryStorage.changePath('/pending.md', next); }, next);
+      await page.evaluate(async next => {
+        const { recoveryStorage } = await import('/src/recovery-storage.ts');
+        if (next === 'folder-trash') await recoveryStorage.discardFolderSnapshot(await recoveryStorage.folderTrashSnapshot(), ['/pending.md']);
+        else if (next === 'clear-all') await recoveryStorage.delete();
+        else await recoveryStorage.changePath('/pending.md', next);
+      }, next);
       results.push(await other.evaluate(async next => {
         const { recoveryStorage } = await import('/src/recovery-storage.ts');
-        const record = (id, path) => ({ id,version:2,hostId:"local",path,recordedAt:Date.now(),recoveryText:'delayed first write',snapshot:{file:{path}} });
+        const record = (id, path) => ({ id,version:3,path,recordedAt:Date.now(),recoveryText:'delayed first write',snapshot:{file:{path}} });
         const written = await recoveryStorage.write('unrecorded-other-window', window.pendingFileTicket, () => ({
-          id:'unrecorded-other-window',version:2,hostId:"local",path:'/pending.md',recordedAt:Date.now(),recoveryText:'delayed first write',
+          id:'unrecorded-other-window',version:3,path:'/pending.md',recordedAt:Date.now(),recoveryText:'delayed first write',
           snapshot:{file:{path:'/pending.md'}},
         }));
         const count = (await recoveryStorage.list()).filter(record => record.path === '/pending.md').length;
         const unrelated = await recoveryStorage.write('unrelated-window', window.unrelatedFileTicket, () => record('unrelated-window', '/unrelated.md'));
-        const path = next ?? '/pending.md';
+        const path = next === '/renamed-pending.md' ? next : '/pending.md';
         const fresh = await recoveryStorage.write('unrecorded-other-window', await recoveryStorage.ticket('unrecorded-other-window', path), () => record('unrecorded-other-window', path));
-        return { written, count, unrelated, fresh };
+        return { written, count, unrelated, fresh, clearAll: next === 'clear-all' };
       }, next));
     }
-    if (results.some(result => result.written || result.count !== 0 || !result.unrelated || !result.fresh)) throw new Error(`File operation recovery permission mismatch: ${JSON.stringify(results)}`);
+    if (results.some(result => result.written || result.count !== 0 || result.unrelated === result.clearAll || !result.fresh)) throw new Error(`File operation recovery permission mismatch: ${JSON.stringify(results)}`);
   } finally { await other.close(); }
   return page.evaluate(async () => {
   const { recoveryStorage: store, createRecoveryRecorder, recoveryText, RECOVERY_DB } = await import('/src/recovery-storage.ts');
@@ -144,32 +158,9 @@ async page => {
   const list = () => store.list();
   const record = async (id, time = Date.now()) => {
     const token = await store.ticket(id, '/test.md');
-    await store.write(id, token, () => ({id, version:2,hostId:"local", path:'/test.md',recordedAt:time,recoveryText:id,snapshot: snapshot(id)}));
+    await store.write(id, token, () => ({id, version:3, path:'/test.md',recordedAt:time,recoveryText:id,snapshot: snapshot(id)}));
   };
   try {
-    // Upgrade only the storage protocol; preserve records and reject old unbounded-ticket clients.
-    await new Promise((resolve, reject) => {
-      const request = indexedDB.deleteDatabase(RECOVERY_DB); request.onsuccess = resolve; request.onerror = () => reject(request.error);
-    });
-    const oldDb = await new Promise((resolve, reject) => {
-      const request = indexedDB.open(RECOVERY_DB, 2);
-      request.onupgradeneeded = () => { request.result.createObjectStore('records', {keyPath:'id'}); request.result.createObjectStore('barriers'); };
-      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
-    });
-    await new Promise(resolve => {
-      const tx = oldDb.transaction(['records','barriers'], 'readwrite');
-      tx.objectStore('records').put({id:'existing',version:2,hostId:"local",path:'/test.md',recordedAt:Date.now(),recoveryText:'preserved',snapshot:snapshot('preserved')});
-      tx.objectStore('barriers').put(3, ['session','old-session']); tx.oncomplete = resolve;
-    });
-    let oldClosed = false; oldDb.onversionchange = () => { oldClosed = true; oldDb.close(); };
-    check((await list())[0]?.recoveryText === 'preserved', 'Storage upgrade changed an existing recovery record');
-    localStorage.setItem('litzio.recoveryClean.v1.existing', '0');
-    check((await list())[0]?.recoveryText === 'preserved', 'Clean metadata deleted a legacy record without a recording generation');
-    const oldRefused = await new Promise(resolve => { const request=indexedDB.open(RECOVERY_DB,2); request.onerror=()=>resolve(request.error.name==='VersionError'); request.onsuccess=()=>{request.result.close();resolve(false);}; });
-    check(oldRefused && oldClosed, 'Old unbounded ticket protocol can still open the database');
-    let oldWriteRefused = false;
-    try { oldDb.transaction(['records','barriers'], 'readwrite'); } catch (error) { oldWriteRefused = error.name === 'InvalidStateError'; }
-    check(oldWriteRefused, 'An upgraded-out readonly-protocol connection can still write');
     const fallback = snapshot('Applied text');
     fallback.editor.editorDocument.content[0].content[0].marks = [{type:'link',attrs:{href:'https://example.com/kept'}}];
     fallback.editor.editorDocument.content.push({type:'table',content:[
@@ -220,7 +211,7 @@ async page => {
     // A process crash may persist IndexedDB but revert localStorage independently.
     // Reappearing old clean metadata must never erase a newer committed dirty record.
     live = null; recorder.edit(false);
-    const cleanKey = 'litzio.recoveryClean.v1.a';
+    const cleanKey = 'litzio.recoveryClean.v2.a';
     const staleClean = localStorage.getItem(cleanKey);
     live = snapshot('dirty committed after the old clean acknowledgement'); recorder.edit(); await wait();
     localStorage.setItem(cleanKey, staleClean);
@@ -276,7 +267,7 @@ async page => {
     live = null; rapid.edit(false);
     live = snapshot('Redo after clean Undo'); rapid.edit();
     const tokenPromise = store.ticket('a', '/test.md');
-    const writing = tokenPromise.then(token => store.write('a', token, () => ({id:'a',version:2,hostId:"local",path:'/test.md',recordedAt:Date.now(),recoveryText:live.file.revision,snapshot:live})));
+    const writing = tokenPromise.then(token => store.write('a', token, () => ({id:'a',version:3,path:'/test.md',recordedAt:Date.now(),recoveryText:live.file.revision,snapshot:live})));
     live = { ...snapshot('newer applied edits after Save'), file: { ...snapshot('').file, revision:'b'.repeat(64) } };
     release = true; await writing; await completed; rapid.cancel(); db.close();
     check((await list()).find(record => record.id === 'rapid')?.recoveryText === 'newer applied edits after Save', 'Queued clean cleanup deleted newer dirty work');
@@ -327,7 +318,7 @@ async page => {
         await store.ticket('acquisition-fence', '/test.md');
         now -= 500;
         const directRecorded = await store.write('negative-age-direct', validBeforeCorrection, () => ({
-          id:'negative-age-direct',version:2,hostId:"local",path:'/test.md',recordedAt:now,recoveryText:'valid negative age',snapshot:snapshot('valid negative age'),
+          id:'negative-age-direct',version:3,path:'/test.md',recordedAt:now,recoveryText:'valid negative age',snapshot:snapshot('valid negative age'),
         }));
         await wait(); // Let the actual 500ms recorder turn run; no subsequent edit/checkpoint.
         const scheduledRecorded = (await list()).some(record => record.id === 'negative-age-recorder' && record.recoveryText.includes('one edit before clock correction'));
@@ -355,7 +346,7 @@ async page => {
       check(!(await metadata()).length, 'Exact rollback reproduction did not collect the barrier');
       now += 60 * 1000;
       const resurrected = await store.write('rollback-before-delete', beforeClockRollback, () => ({
-        id:'rollback-before-delete',version:2,hostId:"local",path:'/test.md',recordedAt:now,recoveryText:'must not return',snapshot:snapshot('must not return'),
+        id:'rollback-before-delete',version:3,path:'/test.md',recordedAt:now,recoveryText:'must not return',snapshot:snapshot('must not return'),
       }));
       check(!resurrected, 'Ticket at 1h resurrected after rollback-to-0 deletion, GC at 10d, write at 10d+1m');
       now = realNow();
@@ -373,7 +364,7 @@ async page => {
       now++;
       await list();
       check(!(await metadata()).some(key => key[1] === 'idle-for-GC'), 'Idle registration survives expiry');
-      const captureRecord = id => () => ({id,version:2,hostId:"local",path:'/test.md',recordedAt:now,recoveryText:id,snapshot:snapshot(id)});
+      const captureRecord = id => () => ({id,version:3,path:'/test.md',recordedAt:now,recoveryText:id,snapshot:snapshot(id)});
       check(!await store.write('collected',ancient,captureRecord('collected')), 'Ancient ticket resurrected a record after metadata GC');
       // Collected permission stays invalid even if the clock returns to its issuance time.
       now -= lifetime;

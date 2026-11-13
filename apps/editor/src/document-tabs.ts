@@ -1,10 +1,9 @@
-import { LOCAL_HOST_ID, sameLocator, type HostLocator } from "./host-locator.ts";
 import { i18n } from "./i18n.ts";
 import { splitDocumentPath } from "./shell/document-path.ts";
 
 /** Paths here have already been normalized by the Host. Never guess filesystem identity. */
-export function openedTab<T extends HostLocator>(tabs: readonly T[], path: string, hostId = LOCAL_HOST_ID): T | undefined {
-  return tabs.find(tab => sameLocator(tab, { hostId, path }));
+export function openedTab<T extends { path: string }>(tabs: readonly T[], path: string): T | undefined {
+  return tabs.find(tab => tab.path === path);
 }
 
 export function activeAfterClose<T extends { id: string }>(tabs: readonly T[], active: string | null, closing: string): string | null {

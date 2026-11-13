@@ -37,7 +37,7 @@
 
 [ADR-0022](docs/adr/0022-plugin-screen-code.md)에 따라 플러그인은 자기 화면 코드를 제공한다. [플러그인 실행 계약](docs/design/plugin-stage1-v1.md)과 [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다. 삭제된 선언형·Docling은 `archive/plugins-declarative-2026-11-13` 브랜치와 `archive/2026-11-13-plugins-declarative` 태그에 보관한다.
 
-2026-11-13 #1595에 따라 다른 PC의 Host 등록·접속 UI를 삭제했다(보관: `archive/2026-11-13-plugins-declarative`). 같은 PC daemon·수동 다시 연결·CLI `--host`·개발/검사용 독립 HTTP Host는 유지한다. 화면은 단일 연결을 쓰되 세션·작업에 고정된 client를 유지한다. 저장·복구의 local hostId/키/레코드는 PR 3 전까지 바꾸지 않는다.
+2026-11-13 #1595에 따라 다른 PC의 Host 등록·접속 UI를 삭제했다(보관: `archive/2026-11-13-plugins-declarative`). 같은 PC daemon·수동 다시 연결·CLI `--host`·개발/검사용 독립 HTTP Host는 유지한다. 화면은 단일 연결을 쓰되 세션·작업에 고정된 client를 유지한다. 탭·기억·복구는 path로 식별하고 새 namespace로 옛 Host별 기록과 분리한다. 옛 기록을 자동 변환하거나 지우지 않는다.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 

@@ -27,7 +27,7 @@ async (page, { expect, brand, screenshots }) => {
     const url = r.request().url();
     return r.fulfill({ json: url.includes('submissionId=') ? receipt : url.includes('?id=') ? conversation : conversation ? [conversation] : [] });
   });
-  await page.evaluate(prefix => { localStorage.removeItem(prefix + '.assistantConversation:local'); localStorage.setItem(prefix + '.uiLanguage', 'en'); }, brand.storagePrefix);
+  await page.evaluate(prefix => { localStorage.removeItem(prefix + '.assistantConversation.v2'); localStorage.setItem(prefix + '.uiLanguage', 'en'); }, brand.storagePrefix);
   await page.reload(); await page.setViewportSize({ width: 1440, height: 1000 });
   const trigger = page.locator('.assistant-trigger'), panel = page.getByTestId('assistant-panel');
   await trigger.click();
