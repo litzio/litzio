@@ -18,6 +18,8 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { syncBuiltinESMExports } from "node:module";
+import { createAuthoredDocumentFile } from "../server/document-authoring.ts";
 import { history, undo, redo } from "@tiptap/pm/history";
 import { blockDropTarget, reorderBlock } from "../src/block-reorder.ts";
 import { getSchema } from "@tiptap/core";
@@ -753,6 +755,38 @@ test("new Markdown files use Core's canonical empty document and can be edited a
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("authored creation leaves no published or temporary document after partial write failure and can retry", async t => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-create-write-failure-"));
+  const file = path.join(dir, "result.md");
+  t.after(() => { rmSync(file, { force: true }); fs.rmdirSync(dir); });
+  const input = { authoring: { title: "Results", inputs: [{ key: "result", blocks: [{ kind: "paragraph", text: "Complete result" }] }] }, images: [] };
+  const originalWrite = fs.writeFileSync;
+  let injected = false;
+  const fault = t.mock.method(fs, "writeFileSync", (...[target, data, options]: Parameters<typeof fs.writeFileSync>) => {
+    if (typeof target === "number") {
+      originalWrite(target, Buffer.from(String(data)).subarray(0, 8));
+      injected = true;
+      throw Object.assign(new Error("Injected partial write"), { code: "ENOSPC" });
+    }
+    return originalWrite(target, data, options);
+  });
+  syncBuiltinESMExports();
+  try { await assert.rejects(createAuthoredDocumentFile(file, input), { code: "ENOSPC" }); }
+  finally { fault.mock.restore(); syncBuiltinESMExports(); }
+  assert.equal(injected, true);
+  assert.equal(fs.existsSync(file), false, "failed creation must not publish partial content");
+  assert.deepEqual(readdirSync(dir), [], "failed creation must remove its temporary sibling");
+  const created = await createAuthoredDocumentFile(file, input);
+  assert.ok("source" in created && "identity" in created);
+  assert.equal(loadEditorFile(file).kind, "native");
+  assert.equal(readFileSync(file, "utf8"), created.source);
+  assert.equal(created.revision, documentRevision(created.source));
+  const stat = fs.statSync(file, { bigint: true });
+  assert.deepEqual(created.identity, { dev: String(stat.dev), ino: String(stat.ino), birthtimeMs: String(stat.birthtimeMs) });
+  await assert.rejects(createAuthoredDocumentFile(file, input), /file already exists/);
+  assert.equal(readFileSync(file, "utf8"), created.source);
 });
 
 test("new Markdown files reject overwrite, invalid extensions, and missing parent directories", () => {

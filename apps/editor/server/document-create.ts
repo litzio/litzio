@@ -1,7 +1,7 @@
-import { openSync, writeFileSync, fstatSync, closeSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import path from "node:path";
 import { parse, serialize } from "@litzio/core";
-import { textRevision } from "@litzio/file-commit";
+import { createFile, textRevision } from "@litzio/file-commit";
 import { fileIdentity } from "../shared/file-operations.ts";
 import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { resolveDocumentPath } from "./document-path.ts";
@@ -13,16 +13,12 @@ export function createDocumentSourceFile(requestedPath: string, source: string, 
   const file = resolveDocumentPath(requestedPath, access, true);
   try { if (!statSync(path.dirname(file)).isDirectory()) throw new Error(); }
   catch { throw new Error("parent directory does not exist"); }
-  let fd: number;
-  try { fd = openSync(accessPath(file, access, true), "wx"); }
+  try { createFile(accessPath(file, access, true), source); }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") throw Object.assign(new Error("file already exists"),{errorKind:"conflict"});
     throw error;
   }
-  try {
-    writeFileSync(fd, source, { encoding: "utf8" });
-    return { path: file, source, revision: textRevision(source), identity: fileIdentity(fstatSync(fd, { bigint: true })) };
-  } finally { closeSync(fd); }
+  return { path: file, source, revision: textRevision(source), identity: fileIdentity(statSync(accessPath(file, access), { bigint: true })) };
 }
 
 export type DocumentCreationReceipt = ReturnType<typeof createDocumentSourceFile>;

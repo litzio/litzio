@@ -143,3 +143,11 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 정한 것과 이유: `saveDocument({name,authoring,folder?,open?})` 한 개를 제공했다. 기존 작업 패널처럼 대상 Host의 첫 열린 폴더를 기본값으로 삼고, 필요하면 같은 Host의 열린 폴더를 지정한다. 위치 receipt와 `open:true`의 기존 문서 탭 열기로 결과를 찾는다. 기존 CLI `create --input`과 플러그인 native-document/generated-document의 `createAuthoredDocumentFile → Core authorDocument → createDocumentSourceFile`을 재사용한다. 같은 이름은 오류이며 덮어쓰거나 자동으로 이름을 바꾸지 않는다. 원격 호출 실패는 로컬로 재실행하지 않는다.
 
 검증: 전체 typecheck·문서·경계 검사, Host/client 38검사, 플러그인 authoring/K1·화면 관련 15검사, 기존 CLI create --input 검사, production HTTP plugin-screen-code 및 crash/reconnect Save/Reload 회귀, Vite text-mode 회귀를 통과했다. 화면 회귀에는 실제 저장·열기·이름 충돌 오류와 기존 미저장 탭 생존을 추가했다. 첫 회귀 실행은 예상된 충돌 HTTP 400을 console-error 목록에 등록하지 않아 실패했고 해당 경로·상태의 최소 발생을 명시한 뒤 재실행했다. 열린 폴더 없음과 다른 Host 폴더 거부·실패 시 재시도 없음은 client 검사, 문서 유효성과 receipt·충돌 원본 보존은 Host 검사로 보호한다. 실제 원격 PC와 대용량·긴 작업·외부 서비스는 미확인이다. 필수 PR CI 결과는 PR의 최종 head를 따른다. 직접 시작한 Host·browser·시험 프로세스는 종료했고 시험 자료 폴더는 재귀 삭제하지 않았다. 비공개 로컬 시험 위치는 최종 인계에만 남긴다.
+
+### 2-4 독립 리뷰 후 공용 생성 실패 보완
+
+리뷰 head `4649391e`에서 `createAuthoredDocumentFile` 호출 직전 숫자 fd의 첫 8바이트를 실제로 쓰고 ENOSPC를 던지도록 fs.writeFileSync와 syncBuiltinESMExports를 사용했다. 기존 Editor 생성 검사 파일에 넣은 회귀가 최종 문서 잔존 단언에서 실패해 리뷰 결함을 재현했다. 원인은 최종 이름을 wx로 연 다음 직접 쓰고 close만 하던 `createDocumentSourceFile`이다. 같은 함수의 CLI 생성, 템플릿으로 새 문서 생성, 비서 및 기존 플러그인 결과→문서 흐름에도 있던 결함이다.
+
+공용 함수 한 곳을 기존 `file-commit.createFile`로 전환했다. 임시 형제 파일에 쓰기·fsync를 완료한 뒤 hard link로 배타 게시하며 EEXIST 분류와 path/source/revision/identity receipt를 유지한다. 덮어쓸 수 있는 rename이나 직접 쓰기로 fallback하지 않는다. 새 상태·계층·화면 전용 경로는 없다. 회귀는 수정 후 부분 쓰기 실패에 최종/임시 파일이 없고, 같은 이름 재시도가 native 문서·일치하는 revision/identity를 반환하며 기존 파일 충돌은 원본을 보존함을 확인했다. flush·게시 실패와 게시 시점 경쟁은 기존 file-commit 검사가 담당하며 Host마다 중복하지 않았다.
+
+별도 사용자 템플릿 저장(`saveTemplate`)은 다른 함수에서 직접 wx로 쓰므로 이번 공용 생성 수정에는 포함되지 않는다. 그 별도 경로의 실패 게시 보완은 후속으로 제안하며 이번에 해결했다고 주장하지 않는다. 실제 원격 PC·외부 서비스·대용량·패키지된 Desktop 등 비차단 검증 확대는 요청 범위 밖이라 반영하지 않았다.
