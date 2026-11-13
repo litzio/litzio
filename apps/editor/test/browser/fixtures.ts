@@ -96,6 +96,8 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   "inline-document-settings": { files: [{ name: "short.md", create: () => nativeSource(
     "# Short settings\n\n## Section\n\nFirst paragraph.\n\n| Name | Value |\n| --- | --- |\n| A | 1 |\n") }], scenarios: ["inline-document-settings"] },
   "file-actions": { files: [
+    { name: "pending-rename.md", create: () => nativeSource("# Pending rename\n\nKeep the other tab.\n") },
+    { name: "pending-delete.md", create: () => nativeSource("# Pending delete\n\nKeep the other tab.\n") },
     { name: "trash-target/inside.md", create: () => nativeSource("# Inside folder\n\nKeep my work.\n") },
     { name: "trash-target/image.svg", create: () => document("diagram.svg").create() },
     { name: "trash-reference.md", create: () => nativeSource(":::{figure} ./trash-target/image.svg\n\nFolder image.\n:::\n") },
@@ -131,7 +133,6 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "archive.zip", create: () => Buffer.from([0, 1, 2]) },
   ], scenarios: ["file-preview"] },
   "command-center-settings": { files: [{ name: "notes.txt", create: () => "Not a document" }], scenarios: ["command-center"] },
-  "multi-host": { files: [{ name: "same.txt", create: () => "Host fixture" }, { name: "empty.md", create: () => nativeSource("") }], scenarios: ["multi-host"] },
   "document-tabs": { files: [
     ...Array.from({ length: 8 }, (_, index) => ({ name: `technical-${index + 1}.md`, create: () => document("technical-document.md").create() })),
     { name: "bulk-1999.md", create: () => document("technical-document.md").create() },
@@ -142,7 +143,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       { name: `${folder}/guide.md`, create: () => document("technical-document.md").create() },
       { name: `${folder}/diagram.svg`, create: () => document("diagram.svg").create() },
     ]),
-  ], scenarios: ["document-tabs", "editor-groups", "pre-save-diff", "external-change", "recovery", "multi-host", "command-center", "inline-document-settings"] },
+  ], scenarios: ["document-tabs", "editor-groups", "pre-save-diff", "external-change", "recovery", "command-center", "inline-document-settings"] },
   // Preserve the parent directories: the running HTTP Host pins their filesystem identities.
   "http-host-a/fixture": { files: [
     { name: "reading.pdf", create: syntheticPdf },

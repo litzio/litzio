@@ -3,8 +3,7 @@ async (page, { expect, assistantFixture, openPath }) => {
   await page.addInitScript(() => {
     let restartCheck;
     window.__resetCalls = [];
-    window.litzioDesktop = {
-      registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: 'test' }), reportPendingWork: () => {}, reportHostWork: async () => {},
+    window.litzioDesktop = { reportPendingWork: () => {},
       hostConnection: async () => ({ url: location.origin, productVersion: 'test', desktopVersion: 'test' }),
       info: async () => ({ version: 'test', channel: 'beta', updatesSupported: false, update: { phase: 'idle' }, seenUpdate: null }),
       setTheme: async () => false, setWindowBackground: async () => {}, onUpdateState: () => () => {},

@@ -5,6 +5,8 @@
 - Status: Implemented
 - Last verified: 2026-11-13 — 제한 권한의 쓰기 CLI 실패 안내·본문 편집 지침을 코드와 대조. 실제 AI 수락 시험의 범위·결과는 해당 PR 기록을 따른다.
 - Authority: [ADR-0021](../adr/0021-general-agent-assistant.md), [ADR-0014](../adr/0014-main-agent-app-server.md), [ADR-0017](../adr/0017-bundled-client-and-official-ai.md).
+> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
+
 - Scope: 대상 Host의 Codex·Copilot 연결, 설정, 대화와 창 연동. 플러그인의 세부는 화면 코드·실행 계약을 따른다.
 
 ## 역할과 운영 원칙
@@ -193,7 +195,7 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 
 9. Host 재시작 뒤 저장된 대화 권한은 현재 전역 기본값 이하로만 복원한다. 그보다 높은 권한은 사용자가 다시 선택한다.
 
-10. 공급자 원본 로그의 외부 열기는 로컬 Desktop에서 ID·공급자·파일을 검증한 경우만 지원한다. 브라우저·원격 Host는 비활성화하며 경로를 추정하지 않는다.
+10. 공급자 원본 로그의 외부 열기는 로컬 Desktop에서 ID·공급자·파일을 검증한 경우만 지원한다. 브라우저는 비활성화하며 경로를 추정하지 않는다.
 
 11. 제한 권한 첨부는 Host가 저장·검증한 해당 대화의 붙여넣기 이미지를 제외하면 탐색기에 보이는 열린 폴더 안 파일만 허용한다. 전체 접근은 Host Roots 안 숨김·일반 파일도 허용하지만 폴더·심볼릭 링크는 거절한다.
 

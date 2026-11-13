@@ -22,7 +22,7 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 
 ## 원격 Host (#1174 PR0~4 완료)
 
-[ADR-0018](../adr/0018-desktop-remote-hosts.md)의 PR0~4(#1175~#1180)는 완료했다. Desktop 원격 등록·자동 연결/재연결·Host별 탐색기·탭·필터·비서 선택을 제공한다. 실제 Windows Desktop → Linux 연결은 미검증이며, 템플릿 갤러리 진입은 [템플릿 계약](document-templates-v1.md)의 로컬 전용 경계를 따른다.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
 ## Shared daemon Desktop (#1142 PR3)
 
@@ -668,102 +668,8 @@ Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.
 
 ## Desktop-local remote registry (#1174 PR3a)
 
-`apps/editor/server/remote-host-registry.ts` owns the shared local operations used by CLI and
-Desktop Settings → Hosts. The JSON array at `<LITZIO_DATA_DIR or ~/.litzio>/desktop/remote-hosts.json`
-stores immutable UUID hostId, normalized HTTP(S) origin and editable label. Duplicate normalized
-origins, credentials, paths, query/fragment and CSP source syntax are rejected. Validation checks
-both input and normalized origin, including URL-decoded and Unicode-mapped host characters. Address changes
-require new registration. An exclusive sibling lock prevents concurrent lost updates; an atomic
-sibling rename commits the list. Invalid stored data fails explicitly; no migration is provided.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
-Desktop main takes an origin snapshot at startup for connect/img CSP. Scripts remain bundled;
-saving a registration requires a protected restart before the renderer can use it. CLI health
-probes have no renderer privileges and never change this snapshot or restart the app. The CLI
-reports its own observation, never the current window connection state. Protocol differences
-refuse connection; product differences warn. Redirects are refused and probes are bounded.
+설정 Hosts 화면과 등록·검사·제거·적용 재시작 IPC 및 원격 작업 요약은 없다. 로컬 daemon bootstrap·프로토콜/제품 버전 검사·수명과 native close/update/reset의 pending-work 보호는 그대로다. 탐색기 아래 로컬 연결 관측은 5초 간격 읽기만 사용하며 단절 후에도 회복한다.
 
-Removal uses the shared operation after the user closes Host work, resolves all Host recovery
-records and confirms the native removal dialog. Settings disables other document operations
-while it checks live recovery and removes the registration. The Host list offers a Close Host work
-action using the existing Save / Don't save / Cancel protection, one tab at a time.
-
-Desktop writes per-hostId open-work/recovery counts to one file per profile **and process run** under
-`remote-hosts.json.work/<profile-hash>.<pid>.<encoded-process-start>.json`. The profile key is the
-normalized absolute Electron userData path's SHA-256 hash (case-folded on Windows). Startup first
-creates the new run's unknown summary exclusively (`wx`), without replacing a previous run's file.
-It then removes only its own profile's dead-run entries, using PID/OS creation identity from their
-names. Cleanup failure retains the old entry and logs the problem. Other profiles and live runs
-are untouched. Summary updates use a temporary sibling and rename of only the current run's file;
-a sharing violation cannot hide the already-published live owner. Summary writes never acquire
-the registry lock. Interrupted temporary siblings are not committed summaries or locks.
-
-If even the new run's entry cannot be created, Desktop still opens and warns in Hosts settings
-and logs that CLI removal protection could not be recorded; CLI removal can then miss this run.
-If the registry is unreadable, startup logs it and uses only the local Host in the fixed CSP snapshot;
-settings/CLI can report the registry error without preventing Desktop startup.
-Registration mutations serialize writes with an owner PID/creation-time lock. Stale locks are
-never automatically reclaimed: a dead owner or reused PID refuses with the exact lock path and
-instructions to inspect it, delete it after verification, then retry. This avoids concurrent reclamation.
-CLI removal examines every owner: any matching live PID/creation identity, unknown summary,
-unreadable/damaged entry or target Host work/recovery refuses. The existing daemon `processStart`
-observation distinguishes a dead process or reused PID from a live owner; query failure refuses.
-Dead entries retain target Host work/recovery protection until that profile next starts; CLI does
-not delete them. A dead entry without target work/recovery may pass. There is no migration.
-Settings performs the same cross-profile check, allowing only its own live process after its
-existing work/recovery/confirmation guard. Other running profiles must quit; their remaining work
-or recovery must be resolved in those profiles before removal can succeed.
-This is a local safety summary, not a remote registry or audit ledger. Removal never sends stop
-or mutates remote files. Local daemon lifetime and OS shell restrictions remain.
-
-#1205: Before saving, Settings offers an optional “Check connection” for the entered exact HTTP(S)
-origin. Desktop main reuses the CLI health observation (protocol header, five-second timeout,
-redirect refusal, product-version warning), without persistence or expanding renderer CSP.
-`host check <origin>` exposes the same read-only operation before registration. The result is
-an observation, not a connection in this window; editing the address clears it and discards late
-replies. Failure does not block registration: an offline Host may be saved for startup connection
-under ADR-0018. The existing save/restart application flow is unchanged (#1206 is separate).
-The existing Settings actions, secondary Button and HostStatus with keyboard-accessible details
-are reused; no new surface or interaction pattern is introduced.
-
-Manual visual evidence (#1205, native bridge stand-in, no packaged connectivity claim):
-[1440px English Light before](assets/host-check-1205/before-1440.png) /
-[after](assets/host-check-1205/after-1440.png),
-[640px Korean Dark before](assets/host-check-1205/before-640.png) /
-[after](assets/host-check-1205/after-640.png).
-Button/status vertical centers, padding, panel bounds, Korean wrapping and theme contrast were
-reviewed. Capture-only fixture responses omit OS identities; these images are manual evidence,
-not automatic pixel assertions.
-
-Settings lists registered origins, editable labels, connection state, failure details and product
-version warnings. New registration is saved first and explicitly marked unavailable in the current
-window until restart. Restart uses the existing synchronous all-tab unsaved/draft/busy check with
-native input disabled during the handshake; a late unload refusal cancels restart. Only after the
-window closes does main relaunch, taking a new CSP snapshot.
-
-The local Host and applied registered remote Hosts are observed independently at startup.
-Read-only health/capability checks repeat five seconds after each observation, also retrying
-failed observations. The sidebar's local Host status therefore recovers after a transient startup
-capability failure, even when no remote Host is registered (#1487). A failed check still immediately
-reports unreachable and its reason; the next check can restore connected. Each request retains
-its five-second timeout. The Host reuses successfully computed process-lifetime trash support
-and execution identity, so these periodic observations do not launch PowerShell repeatedly;
-failed computations can retry on the next request (see [HTTP Host](http-host-v1.md)). Local observation uses Desktop's verified address and never discovers,
-spawns or restarts a daemon: explicit Reconnect retains that authority. Desktop's separate
-local daemon notification/tray checks retain their existing behavior. Protocol mismatch
-refuses every attempt; a product difference warns. Requests have bounded timeouts, redirects
-are refused, and no document write is replayed. Removing a registration invalidates its client.
-The remote monitor has no daemon start/stop control.
-
-Verification (2026-11-05): isolated registry/CLI and main IPC tests, Host runtime tests, and
-`pnpm browser:test host-settings --screenshots` with a native bridge stand-in. Captures:
-`tmp/host-settings-1440.png`, `tmp/host-settings-640.png`; shared Settings/Input/Button/Notice
-patterns are reused without a new surface. These do not prove packaged Windows → Linux
-connectivity or the actual native app relaunch.
-
-### Host removal failure guidance (#1196)
-
-Settings → Hosts uses the existing error Notice to ask users to close Host work and resolve
-recovery records before retrying a refused removal. IPC validation/transport exceptions
-are not displayed verbatim. Removal still requires the main-process work/recovery proof
-and native confirmation. Recovery records without a Host identity are ignored without
-conversion or deletion, as defined in [Editing session and Save](editing-session-save-v1.md).
+현재 UI는 [단일 Host 화면](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4)을 따른다. 삭제 전 등록·제거의 교차 profile 보호와 캡처는 보관 태그의 이 문서에 있다.

@@ -1,5 +1,3 @@
-import { SettingsSelect } from "@/components/ui/settings.tsx";
-import { hostRegistry } from "../host-client.ts";
 import type { HostClient } from "../host-client.ts";
 import { useHostClient } from "../host-context.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -86,7 +84,6 @@ export function TemplateGallery({ hostId, onHost, active, revision, disabled, on
           <FolderOpen aria-hidden="true" />{templateText("Open template folder")}</Button>
         <Button size="icon-sm" variant="ghost" aria-label={i18n.t("Refresh")} disabled={loading} onClick={() => { setOpen(false); setRefresh(value => value + 1); }}><RotateCcw aria-hidden="true" /></Button>
       </div></header>
-    {hostRegistry.list().length > 1 ? <div className="host-filter"><SettingsSelect label={i18n.t("Host")} value={hostId} options={hostRegistry.list().map(host => ({ value: host.hostId, label: host.label }))} onChange={onHost} disabled={disabled} /></div> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     {loading ? <p role="status">{i18n.t("Loading…")}</p> : null}
     {catalog?.problems.length ? <Notice tone="warning"><strong>{templateText("Some user templates could not be loaded.")}</strong>

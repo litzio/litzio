@@ -1,6 +1,6 @@
 import { PluginScreenCode, ScreenBoundary } from "./PluginScreenCode.tsx";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { hostRegistry, getHostClient, hostLabel, type HostClient } from "../host-client.ts";
+import { hostRegistry, getHostClient, type HostClient } from "../host-client.ts";
 import { viewRequest, type ViewScreen, type ViewResult } from "./view-api.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
@@ -47,7 +47,6 @@ export function ViewWorkspace({ roots = [], id, hostId, root, owner, screen, onH
   const active = connected && !!contribution;
   return <div className="view-workspace" data-testid="view-workspace">
     <h1>{screen.title}</h1>
-    {hostRegistry.list().length > 1 && onHost ? <div className="view-controls"><label>{i18n.t("Host")}<select className="form-select settings-select" value={hostId} onChange={event => onHost(event.target.value)}>{hostRegistry.list().map(h => <option value={h.hostId} key={h.hostId}>{hostLabel(h.hostId)}</option>)}</select></label></div> : null}
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`${hostId}:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} onOpen={path => onOpenDocument?.(path, hostId)} /> : null}</ScreenBoundary>

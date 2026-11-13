@@ -33,7 +33,7 @@ export function rememberAssistantWidth(value: number) { try { localStorage.setIt
 export type AssistantLocalSubmission = { hostId: string; provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
-type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onScreen(): ScreenInfo;
   onScreenAction(action: ScreenAction): Promise<ScreenActionResult>;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
@@ -44,7 +44,7 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay, onScreen, onScreenAction }: Props) {
+export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay, onScreen, onScreenAction }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -485,7 +485,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     {!overlay ? <PanelResize label={i18n.t("Assistant width")} onWidth={onWidth} /> : null}
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || (!onNewHost && !ready)} onClick={() => { if (onNewHost) { onNewHost(); return; } void run(async isCurrent => {
+      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || !ready} onClick={() => { void run(async isCurrent => {
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
@@ -506,7 +506,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
-      <span title={i18n.t("Files and AI run under this Host’s OS account. Start a new conversation to choose another Host.")}>{hostLabel(hostId)}</span>
+      <span title={i18n.t("Files and AI run under this Host’s OS account.")}>{hostLabel(hostId)}</span>
       {documentPath && documentDirty ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>
         {i18n.t("Using saved version")}
       </TooltipTrigger><TooltipContent><span><span className="break-all">{documentPath}</span><br />{i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}</span></TooltipContent></Tooltip>

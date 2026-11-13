@@ -23,7 +23,7 @@ function fixture(t: TestContext) {
     LITZIO_ASSISTANT_SETTINGS_FILE: file("settings-override", "assistant.json"),
     LITZIO_PLUGINS_SETTINGS_FILE: file("settings-override", "plugins.json"),
   });
-  const locations = { userData: file("profile"), host, remoteHostsFile: file("shared", "desktop", "remote-hosts.json"),
+  const locations = { userData: file("profile"), host,
     daemonDirectories: [file("daemon-override", "stable"), file("daemon-override", "beta")], updaterCache: file("update-cache") };
   return { root, file, write, locations, targets: resetStorageTargets(locations) };
 }
@@ -66,8 +66,7 @@ test("custom Desktop profile reset ignores an unrelated redirected log ancestor"
   const f = fixture(t), appData = f.file("app-data"), hostBase = f.file("host-data");
   t.mock.method(os, "homedir", () => f.file("home"));
   const host = hostPaths({ packaged: true }, { APPDATA: appData, XDG_DATA_HOME: appData, LITZIO_DATA_DIR: hostBase });
-  const locations = { ...f.locations, userData: f.file("custom-profile"), host,
-    remoteHostsFile: path.join(hostBase, "desktop", "remote-hosts.json") };
+  const locations = { ...f.locations, userData: f.file("custom-profile"), host };
   const canaries = [path.join(locations.userData, "preferences.json"), path.join(locations.userData, "logs", "desktop.log"),
     path.join(hostBase, "logs", "host.log"), path.join(host.assistant, "conversations.json")];
   for (const file of canaries) f.write(file);
