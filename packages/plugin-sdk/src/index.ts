@@ -40,7 +40,7 @@ const jobContributionSchema = z.discriminatedUnion("resultKind", [
   z.strictObject({ ...jobFields, resultKind: z.literal("file"), resultExtension: extension }),
 ]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
-export const screenContributionSchema = z.strictObject({ id, title: queryViewSchema.shape.title, icon: z.enum(SCREEN_ICONS),
+export const screenContributionSchema = z.strictObject({ id, title: queryViewSchema.shape.title, icon: z.enum(SCREEN_ICONS), entry: z.string().min(1).optional(),
   jobs: z.array(id).max(16).refine(ids => new Set(ids).size === ids.length, "Duplicate screen job").default([]),
   defaultViewIds: z.array(id).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate default view").default([]), primary: z.boolean().default(false) });
 export const manifestSchema = z.strictObject({
@@ -107,7 +107,7 @@ export function validateManifest(input: unknown): PluginManifest {
       !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Column visibility requires SDK 0.3.0 or later in requiresSdk");
   if (Array.isArray(m.settingsSchema.required) && m.settingsSchema.required.length) throw new Error("settingsSchema.required must be empty: settings start at {} and are saved one field at a time. Check missing connection values in connection checks and operations instead; handle defaults in code.");
   compileSchema(m.settingsSchema);
-  for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileViewInputSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
+  for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); (operation.assistant || operation.rowSchema || !m.contributes.screens.some(screen => screen.entry) ? compileViewInputSchema : compileSchema)(operation.inputSchema); compileSchema(operation.outputSchema); }
   for (const source of m.contributes.operations) for (const [field, target] of Object.entries(source.inputSuggestions ?? {})) {
     if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Input suggestions require SDK 0.3.0");
     const properties = source.inputSchema.properties as Record<string, any> | undefined;
@@ -132,7 +132,7 @@ export function validateManifest(input: unknown): PluginManifest {
   }
   if (m.contributes.screens.filter(screen => screen.primary).length > 1) throw new Error("Only one primary screen is allowed");
   for (const screen of m.contributes.screens) {
-    if (!screen.jobs.length && !screen.defaultViewIds.length) throw new Error("Screen needs views or jobs");
+    if (!screen.entry && !screen.jobs.length && !screen.defaultViewIds.length) throw new Error("Screen needs views or jobs");
     if (screen.jobs.length && !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Screen jobs require SDK 0.3.0 or later in requiresSdk");
     for (const job of screen.jobs) if (!m.contributes.jobs.some(j => j.id === job)) throw new Error("Undeclared screen job");
   }
@@ -166,7 +166,9 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("secret-status"), id }),
   z.strictObject({ action: z.literal("secret-delete"), id, name: id }),
   z.strictObject({ action: z.literal("list") }),
-  z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1).optional(), id, template: z.enum(["greet", "query", "file"]).optional() }),
+  z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1).optional(), id, template: z.enum(["greet", "query", "file", "screen", "chart"]).optional() }),
+  z.strictObject({ action: z.literal("dependencies"), directory: z.string().min(1) }),
+  z.strictObject({ action: z.literal("bundle"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("validate"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("register"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("trust"), id, registrationId: z.uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/).optional() }),

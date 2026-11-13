@@ -16,7 +16,7 @@ export function useViewScreens() {
           try {
             const value = await viewRequest(
               getHostClient(host.hostId),
-              { action: "catalog" },
+              { action: "catalog", screenCode: false },
               signal,
             );
             return (value.screens ?? []).map((screen) => ({

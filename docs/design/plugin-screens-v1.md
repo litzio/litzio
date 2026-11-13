@@ -5,6 +5,17 @@
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [플러그인 1단계](plugin-stage1-v1.md), [#1341](https://github.com/litzio/litzio/issues/1341).
 - Scope: 플러그인 기본 화면·수동 조회·입력 폼·공통 표. 비서 생성 UI와 저장 뷰 계약이 아니다.
 
+
+## 화면 코드 1단계 (#1592)
+
+[ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 screens[].entry는 플러그인 폴더의 React JS/JSX 진입점을 지정한다. default export 컴포넌트는 React·ui(Button/Input/DataTable/Notice)·invoke(자기 작업 ID, JSON 입력)를 받는다. React는 앱 인스턴스이며 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다. 기본 scaffold는 screen, SVG 선 그래프 예제는 chart다. 새 차트 라이브러리는 제공하지 않는다.
+
+Host는 검증·reload 시 기존 esbuild로 같은 artifact 안의 로컬 파일을 번들로 변환한다. 실행 시 npm·원격 import 해석은 하지 않는다. 외부 라이브러리는 제작 시 묶은 파일로 포함한다. 빌드 플랫폼의 esbuild 실행 파일을 CLI 배포물에 포함하고 Desktop은 그 배포물을 복사한다. 별도 npm 설치·네트워크가 필요하지 않다. 활성 플러그인만 catalog에 코드와 digest revision을 전달한다. 클라이언트는 CSP script-src의 blob: 모듈로 실행하며 eval은 열지 않는다. Desktop의 기존 connect-src 대상 Host 목록을 유지하고 invoke는 해당 화면 HostClient에 고정된다.
+
+화면 전용 작업은 assistant:false이며 rowSchema 없이 임의 JSON을 반환할 수 있다. read/write 모두 기존 공용 invoke·receipt·검증을 사용한다. 문서 직접 쓰기 경로는 추가하지 않는다. reload·비활성·연결 해제·Host 교체 시 이전 화면을 내리고 새 코드를 받는다. 열린 코드 화면은 소스 없이 활성 revision을 2초 간격으로 관측해 비서·CLI의 명시적 reload·비활성화도 반영한다. 파일 감시·자동 reload는 하지 않는다. import/render/cleanup 오류는 화면 안에 메시지·stack으로 표시하고 변환 실패는 validate의 파일·위치와 플러그인 상태에서 확인한다. async/event 오류는 작성자가 catch해 Notice로 표시한다. 조회 성공과 실제 화면 확인은 별개다.
+
+기존 선언형 query·review·jobs는 이번 단계에서 유지한다. 아래 HTML/JS·Chart 제한은 기존 선언형 문법에만 적용한다. 선언 축소·설치 통합·문서 저장 버튼·기존 문법 삭제는 후속 단계다.
+
 ## 화면과 수명
 
 manifest `contributes.screens`는 id/title/icon, `defaultViewIds`, 선택적 `jobs`, `primary`를 선언한다. 기본 query 정의는 같은 플러그인의 `contributes.views`에 있으며 화면은 그 정의를 직접 사용한다. `.view.json`·`.snapshot.json` 파일을 저장하거나 열지 않는다. 이전 저장 파일의 migration·호환 읽기는 제공하지 않는다.

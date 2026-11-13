@@ -2190,3 +2190,60 @@ test("authoring: query and file templates validate and run through the shared Ho
     }
   } finally { await host.close(); }
 });
+
+
+test("screen code is active-only, reloads local JSX, reports compiler failures and accepts arbitrary JSON", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-screen-code-"));
+  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [], designatedPlugins: [] });
+  try {
+    const { scaffoldPlugin } = await import("../server/plugins/plugin-authoring.ts");
+    const directory = path.join(root, "plugin"); scaffoldPlugin(directory, "fixture.screen", undefined, undefined, "screen");
+    const otherDrive = process.platform === "win32" ? ["C:", "D:"].map(drive => drive + path.sep).find(drive => drive.toLowerCase() !== path.parse(root).root.toLowerCase() && existsSync(drive)) : undefined;
+    if (otherDrive) {
+      const { compileScreen } = await import("../server/plugins/screen-code.ts");
+      const outside = mkdtempSync(path.join(otherDrive, "litzio-screen-boundary-"));
+      const external = path.join(outside, "outside.jsx");
+      writeFileSync(external, 'export default function Screen(){return "outside-drive-marker"}');
+      assert.throws(() => compileScreen(directory, external), /inside plugin folder/);
+      writeFileSync(path.join(directory, "screen.jsx"), `export {default} from ${JSON.stringify(external.replaceAll("\\", "/"))};`);
+      assert.throws(() => compileScreen(directory, "screen.jsx"), /local plugin files/);
+    }
+
+    writeFileSync(path.join(directory, "part.jsx"), 'export const label = "First";');
+    writeFileSync(path.join(directory, "screen.jsx"), 'import {label} from "./part.jsx"; export default function Screen(){return <div>{label}</div>}');
+    await host.start(); await host.invoke("register", { directory });
+    assert.deepEqual(host.viewScreens(), []);
+    await host.invoke("trust", { id: "fixture.screen", registrationId: (await host.list())[0]!.registrationId });
+    await host.invoke("enable", { id: "fixture.screen" });
+    const first = host.viewScreens()[0]!; assert.match(first.code!, /First/);
+    assert.equal(host.viewScreens(false)[0]!.code, undefined); assert.equal(host.viewScreens(false)[0]!.codeRevision, first.codeRevision);
+    assert.deepEqual((await host.invokeOperation("fixture.screen.measurements", {})).result, [10,18,12,24]);
+    writeFileSync(path.join(directory, "part.jsx"), 'export const label = "Second";');
+    await host.invoke("reload", { id: "fixture.screen" });
+    assert.match(host.viewScreens()[0]!.code!, /Second/); assert.notEqual(host.viewScreens()[0]!.codeRevision, first.codeRevision);
+    await host.invoke("disable", { id: "fixture.screen" }); assert.deepEqual(host.viewScreens(), []);
+    writeFileSync(path.join(directory, "screen.jsx"), 'export default function Screen(){return <div>}');
+    const validation: any = await host.invoke("validate", { directory });
+    assert.equal(validation.valid, false); assert.equal(validation.errors[0].file, "screen.jsx"); assert.ok(validation.errors[0].line);
+    await assert.rejects(host.invoke("reload", { id: "fixture.screen" }), /screen.jsx/);
+    assert.deepEqual(host.viewScreens(), []); assert.match((await host.list())[0]!.error!, /screen.jsx/);
+  } finally { await host.close(); }
+});
+
+
+test("screen dependency bundle stays offline and shares the app React instance", async () => {
+  const { bundleScreens, compileScreen } = await import("../server/plugins/screen-code.ts");
+  const React = await import("react"); const { renderToString } = await import("react-dom/server");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-screen-bundle-"));
+  writeFileSync(path.join(root, "litzio-plugin.json"), JSON.stringify({contributes:{screens:[{entry:"screen.jsx"}]}}));
+  const library = path.join(root, "node_modules", "fixture-chart"); mkdirSync(library, {recursive:true});
+  writeFileSync(path.join(library, "package.json"), JSON.stringify({name:"fixture-chart",main:"index.js",type:"module"}));
+  writeFileSync(path.join(library, "index.js"), 'import React from "react"; export function Chart(){const [x]=React.useState(24);return React.createElement("output",null,x)}');
+  writeFileSync(path.join(root,"screen.jsx"),'import {Chart} from "fixture-chart"; export default function Screen(){return <Chart/>}');
+  assert.throws(()=>compileScreen(root,"screen.jsx"), /npm packages/);
+  const result = bundleScreens(root); assert.ok(result.files[0]!.bytes > 0);
+  fs.renameSync(path.join(root,"node_modules"),path.join(root,"authoring-dependencies"));
+  const code=compileScreen(root,"screen.jsx");
+  const module=await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+  assert.equal(renderToString(React.createElement(module.default(React))),"<output>24</output>");
+});

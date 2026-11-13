@@ -1,3 +1,5 @@
+import { installScreenDependencies } from "./screen-dependencies.ts";
+import { compileScreen, bundleScreens } from "./screen-code.ts";
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { designatedPluginDirectories } from "./designated-plugins.ts";
@@ -25,6 +27,7 @@ type ManifestIssue = { path: PropertyKey[]; code: string; message: string; issue
 type ValidationDiagnostic = { file: string; line: number | null; column: number | null; kind: string; path?: string; message?: string; code?: string };
 function validationDiagnostics(error: unknown, file: string): ValidationDiagnostic[] {
   const value = error as { name?: string; message?: string; loc?: { line: number; column: number }; jsonLocation?: { line: number; column: number }; issues?: ManifestIssue[] };
+  if (value?.name === "ScreenCompileError") return [{ file, line: value.loc?.line ?? null, column: value.loc ? value.loc.column + 1 : null, kind: "Screen compilation failed", message: value.message }];
   if (value?.name === "ZodError" && value.issues) {
     const expand = (issues: ManifestIssue[], prefix: PropertyKey[] = []): ValidationDiagnostic[] => issues.flatMap(issue => {
       const parts = [...prefix, ...issue.path];
@@ -56,7 +59,7 @@ import { PluginReviews } from "./reviews.ts";
 import { GeneratedDocuments } from "./generated-documents.ts";
 
 type Installed = { registrationId: string; directory: string; digest: string; trusted?: boolean; enabled: boolean; enabledChoice?: boolean; bundled?: boolean; settings: Record<string, unknown>; operationNames: string[] };
-type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
+type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
 export class PluginHost {
   private installed: Record<string, Installed>;
   private artifacts = new Map<string, { manifest: PluginManifest; digest: string; entry: string }>();
@@ -176,6 +179,7 @@ export class PluginHost {
     if (manifest.contributes.skills.length) inspecting("assistant skill");
     validateAssistantSkills(directory, manifest);
     if (manifest.icon) { inspecting(manifest.icon); readPluginIcon(directory, manifest.icon); }
+    for (const screen of manifest.contributes.screens) if (screen.entry) { inspecting(screen.entry); compileScreen(directory, screen.entry); }
     inspecting("package.json");
     if ((readArtifactJson(path.join(directory, "package.json")) as { version?: unknown }).version !== manifest.version) throw new Error("Package and manifest versions differ");
     inspecting("host entry");
@@ -266,7 +270,7 @@ export class PluginHost {
         const current = live && this.loaded.get(id) === live;
         return { id, registrationId: r.registrationId, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, bundled: !!r.bundled, official: this.official(m, digest), trusted: this.official(m, digest) || !!r.trusted, enabled: r.enabled, running: !!current,
           iconDigest: m.icon && (this.official(m, digest) || !!r.trusted) ? digest : undefined, folderSources: m.contributes.folderSources, healthCheck: m.contributes.healthCheck, jobs: m.contributes.jobs, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
-      } catch (e) { return { id, registrationId: r.registrationId, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null, errors: validationDiagnostics(e, file) }; }
+      } catch (e) { return { id, registrationId: r.registrationId, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : this.errors.get(id) ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) }; }
     }));
   }
   private async enable(id: string): Promise<void> {
@@ -284,13 +288,14 @@ export class PluginHost {
     r.operationNames = names;
     if (this.loaded.has(id)) return;
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
+    const screens = Object.fromEntries(a.manifest.contributes.screens.filter(s => s.entry).map(s => [s.id, compileScreen(r.directory, s.entry!)]));
     const secrets = await this.runtimeSecrets(id, a.manifest);
     const instance = await startPluginProcess(a.entry, a.manifest, structuredClone(r.settings), secrets, () => {
       this.loaded.delete(id); this.jobs.lost(id); this.errors.set(id, "Plugin process failed; reload to recover");
       try { this.assistantSkills.clear(id); } catch { this.errors.set(id, "Plugin process failed; skill cleanup failed"); }
     }, r.directory);
     this.processes.set(id, instance);
-    this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
+    this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set(), screens });
     this.disabling.delete(id);
     this.errors.delete(id);
     try { this.assistantSkills.install(r.directory, a.manifest); }
@@ -391,8 +396,8 @@ export class PluginHost {
   viewContributions() {
     return [...this.loaded.values()].flatMap(live => live.manifest.contributes.views.map(view => ({ plugin: live.manifest.id, ...view })));
   }
-  viewScreens() {
-    return [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined, ...screen })));
+  viewScreens(includeCode = true) {
+    return [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, ...(live.screens[screen.id] ? { ...(includeCode ? { code: live.screens[screen.id] } : {}), codeRevision: this.record(live.manifest.id).digest } : {}), iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined, ...screen })));
   }
   /** Registered namespaces remain valid even while a plugin is disabled. */
   hasViewOwner(id: string): boolean { return Object.hasOwn(this.installed, id); }
@@ -440,7 +445,7 @@ export class PluginHost {
       return { ...publicOperationError(error, op.effect), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { template?: "greet" | "query" | "file"; id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
+  invoke(action: string, args: { template?: "greet" | "query" | "file" | "screen" | "chart"; id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action.startsWith("job-")) return this.jobs.execute({ action, ...args });
     if (action === "input-hint") {
@@ -466,6 +471,13 @@ export class PluginHost {
         const expected = args.directory === undefined ? path.join(access!.roots[0]!, id) : undefined;
         const directory = args.directory ?? expected!;
         return { ...scaffoldPlugin(directory, id, access, creationScope, args.template, expected), receipt: receipt("success") };
+      }
+      if (action === "bundle" || action === "dependencies") {
+        const requested = path.resolve(args.directory!);
+        const authored = inside(this.authoringDirectory, requested);
+        const directory = accessPath(requested, authored ? this.authoringAccess() : this.access);
+        accessPath(directory, creationScope);
+        return { ...(action === "dependencies" ? await installScreenDependencies(directory) : bundleScreens(directory)), receipt: receipt("success") };
       }
       if (action === "validate") {
         const errors: ValidationDiagnostic[] = []; let manifestId: string | undefined;

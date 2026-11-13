@@ -198,3 +198,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Test Guide](test/TEST_GUIDE.md) | Implemented | 현재 실행/수동 검토 절차. 테스트 이름·개수의 원본은 runner. |
 
 | [비서 플러그인 제작 예행연습](reviews/plugin-authoring-rehearsal-2026-11.md) | Historical | Windows 실제 Codex Luna low·Sol 기본 low 비교, 최초 시험 구성 실패와 재시험·스킬 보강 근거. |
+
+- [ADR-0022: 플러그인 화면 코드](adr/0022-plugin-screen-code.md) — Accepted. 원격 Host 화면 코드의 클라이언트 실행과 기존 선언 경계 대체.
+
+- [플러그인 화면 코드 1단계 측정](reviews/plugin-screen-code-1592.md) — Historical. 실제 AI 6턴의 실패·성공, 도구 크기·속도와 화면 확인 경계.
