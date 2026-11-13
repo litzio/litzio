@@ -1,3 +1,5 @@
+import { OpenRefusalDialog, ReloadChangesDialog } from "./shell/DocumentOperationDialogs.tsx";
+import { requestFolder, browseHostFolder, requestCreateFolder, folderPlaces } from "./shell/folder-requests.ts";
 import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
@@ -13,7 +15,7 @@ import { getHostClient, hostConnection, monitorDesktopHost, type HostClient } fr
 import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
-import { brand, productName } from "../../../brand.ts";
+import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { usePanelWidth } from "./shell/panel-width.ts";
 import { AssistantPanel, assistantWidth, rememberAssistantWidth, type AssistantLocalSubmission, type AssistantButtonStatus } from "./shell/AssistantPanel.tsx";
@@ -21,7 +23,7 @@ import { NotificationProvider, NotificationSource, ShellNotificationCenter } fro
 import { UiError } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
 import { useTranslation } from "react-i18next";
-import { i18n, type MessageKey } from "./i18n.ts";
+import { i18n } from "./i18n.ts";
 import { type Operation } from "./operation.ts";
 import { recoveryStorage, type FolderRecoverySnapshot, type RecoveryRecord } from "./recovery-storage.ts";
 import { prepareRecovery } from "./recovery-restore.ts";
@@ -32,12 +34,12 @@ import { RecoveryList, RecoveryPrompt } from "./shell/Recovery.tsx";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
 import { DocumentTab, type EditorSession } from "./DocumentTab.tsx";
-import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
+import { scrollDocumentFromShell } from "./document-scroll.ts";
 import { DocumentScroll } from "./DocumentScroll.tsx";
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
-import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
+import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabNames } from "./document-tabs.ts";
 import { messageOf, NativeOpenError, createDocumentRequests } from "./document-session.ts";
-import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenFolders, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, type DocumentWidth } from "./preferences.ts";
+import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, type DocumentWidth } from "./preferences.ts";
 import { applyTheme, currentTheme } from "./theme.ts";
 import { DocumentPanel } from "./shell/DocumentPanel.tsx";
 import { DocumentStart } from "./shell/DocumentStart.tsx";
@@ -62,20 +64,14 @@ import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
 import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
 import type {
-  DocumentErrorResponse,
   EditorFileResponse,
   DocumentStartResponse,
-  FolderBrowseResponse,
-  FolderCreateRequest,
-  FolderCreateResponse,
   FolderEntry,
-  FolderPlace,
-  FolderPlacesResponse,
   FolderResponse,
 } from "../shared/document-protocol.ts";
 import type { DesktopInfo, RestartCheck } from "../shared/desktop-bridge.ts";
 import { Button } from "@/components/ui/button.tsx";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.tsx";
 
 import { SaveTemplateDialog } from "./shell/SaveTemplateDialog.tsx";
 import type { TemplateSummary } from "../shared/template-protocol.ts";
@@ -1594,83 +1590,11 @@ function EditorApp() {
         returnFocus={newFolderButton}
         onClose={() => setNewFolderDialog(false)}
       />
-      <Dialog open={openRefusal !== null} onOpenChange={(open) => { if (!open) setOpenRefusal(null); }}>
-        <DialogContent showCloseButton={false} finalFocus={openRefusalReturnFocus}>
-          <DialogHeader>
-            <DialogTitle>{i18n.t("Cannot open document")}</DialogTitle>
-            <DialogDescription render={<div />} className="grid gap-4 [overflow-wrap:anywhere]">
-              <p>{i18n.t("“{{name}}” is not a supported {{product}} document.", { name: openRefusal ? splitDocumentPath(openRefusal.path).name : "" })}</p>
-              {/* In plain words first; Core's exact reason and action follow as the details. */}
-              {openRefusal?.code === "native-marker" ? (
-                <p>{i18n.t("{{product}} edits only documents it created. To edit this text here, create a new document with + in the sidebar and paste it in. The file itself is left as it is.")}</p>
-              ) : null}
-              <div className="open-refusal-details">
-                <p>{i18n.t("Technical details")}</p>
-                <p>{openRefusal?.reason}</p>
-                <p>{openRefusal?.action}</p>
-              </div>
-              <p>{document ? i18n.t("Your current document has not changed.") : i18n.t("No document was opened.")}</p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button size="sm" onClick={() => setOpenRefusal(null)}>OK</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={reloadDialog} onOpenChange={(open) => { if (!switching) setReloadDialog(open); }}>
-        <DialogContent showCloseButton={false} finalFocus={fileActionsToggle}>
-          <DialogHeader>
-            <DialogTitle>{switching ? i18n.t("Reloading…") : i18n.t("Discard local changes?")}</DialogTitle>
-            <DialogDescription>{i18n.t("Reload replaces your unsaved changes and unapplied drafts with the file on disk. Keep editing to preserve them. Source lets you copy applied content first.")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" size="sm" disabled={switching} onClick={() => setReloadDialog(false)}>{i18n.t("Keep editing")}</Button>
-            <Button variant="destructive" size="sm" disabled={switching} onClick={() => void reloadFromDisk()}>{i18n.t("Discard and reload")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <OpenRefusalDialog openRefusal={openRefusal} setOpenRefusal={setOpenRefusal} openRefusalReturnFocus={openRefusalReturnFocus} document={document} />
+      <ReloadChangesDialog reloadDialog={reloadDialog} switching={switching} setReloadDialog={setReloadDialog} fileActionsToggle={fileActionsToggle} reloadFromDisk={reloadFromDisk} />
     </div>
     <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
       : documentPanelOpen ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
-}
-
-/** Asks the Host for one level of a folder inside the folder the user chose. */
-async function requestFolder(root: string, path?: string, background = false): Promise<FolderResponse> {
-  const query = new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) });
-  const response = await getHostClient().request(`/api/folder?${query}`);
-  const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);
-  return payload as FolderResponse;
-}
-
-/** Asks the Host for one level of any folder while choosing which folder to open, or an image. */
-async function browseHostFolder(path: string, files?: "image" | "pdf", client = getHostClient()): Promise<FolderBrowseResponse> {
-  const response = await client.request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
-  const payload = (await response.json()) as Partial<FolderBrowseResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || !Array.isArray(payload.entries) || !Array.isArray(payload.crumbs)) throw new Error(payload.error ?? `request failed (${response.status})`);
-  return payload as FolderBrowseResponse;
-}
-
-const browseHostPdfs = (path: string) => browseHostFolder(path, "pdf");
-
-/** Asks the Host to create one folder inside an existing one. */
-async function requestCreateFolder(parent: string, name: string, client = getHostClient()): Promise<FolderCreateResponse> {
-  const response = await client.request(`/api/folder`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ parent, name } satisfies FolderCreateRequest),
-  });
-  const payload = (await response.json()) as Partial<FolderCreateResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || typeof payload.path !== "string") throw new Error(payload.error ?? `request failed (${response.status})`);
-  return { path: payload.path };
-}
-
-/** Asks the Host where choosing a folder can start. */
-async function folderPlaces(client = getHostClient()): Promise<FolderPlace[]> {
-  const response = await client.request(`/api/folder-places`);
-  const payload = (await response.json()) as Partial<FolderPlacesResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || !Array.isArray(payload.places)) throw new Error(payload.error ?? `request failed (${response.status})`);
-  return payload.places;
 }
