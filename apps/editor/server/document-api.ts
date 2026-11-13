@@ -11,6 +11,7 @@ import { executeViewOperation } from "./views.ts";
 import { hostIdentity } from "./host-identity.ts";
 import { executeTemplateOperation } from "./document-templates.ts";
 import { createDocumentSourceFile } from "./document-create.ts";
+import { createAuthoredDocumentFile } from "./document-authoring.ts";
 import { hostPaths } from "./host-paths.ts";
 import { folderVersion } from "./folder-watch.ts";
 import { documentRevisions } from "./document-revisions.ts";
@@ -459,7 +460,14 @@ export async function handleDocumentRequest(
       return;
     }
     if (req.method === "PUT") {
-      const body = JSON.parse(await readBody(req)) as { path?: unknown; template?: unknown; language?: unknown };
+      const body = JSON.parse(await readBody(req)) as { path?: unknown; template?: unknown; language?: unknown; authoring?: unknown; images?: unknown };
+      if (Object.hasOwn(body, "authoring")) {
+        if (body.template !== undefined || body.language !== undefined) throw new Error("authoring cannot be combined with template or language");
+        if (typeof body.path !== "string" || !body.path.trim()) throw new Error("document path is required");
+        const created = await createAuthoredDocumentFile(body.path, { authoring: body.authoring, images: body.images ?? [] }, access);
+        sendJson(res, 201, created);
+        return;
+      }
       const receipt = body.template === undefined ? undefined : executeTemplateOperation("create", body, { access, directory: templatesDirectory });
       const created = receipt ? { ...receipt, kind: "native", ...readModel(receipt.source) }
         : createDocumentFile(typeof body.path === "string" ? body.path : undefined, access);

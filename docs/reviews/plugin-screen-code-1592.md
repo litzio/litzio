@@ -162,3 +162,35 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 - 첫 단위 테스트 호출은 저장소 루트에서 실행해 상대 cwd를 기대하는 기존 Docling/Jira 2개가 실패했다(55/57 통과). 올바른 Editor cwd에서 변경 영역 5개를 다시 통과했다. 무관한 전체 suite 성공으로 보고하지 않는다.
 - 브라우저 HTTP와 Vite를 한 호출로 지정한 첫 시도는 runner가 거부했다. 수동 촬영 harness 첫 두 시도는 VM에 URL 전역이 없음, catalog에 GET을 사용해 405 빈 응답을 JSON으로 읽은 문제로 실패했다. 실제 POST catalog 계약으로 고친 뒤 촬영·조작이 통과했다. 촬영 전용 순회는 CI에 추가하지 않았다.
 - 실제 외부 서비스·원격 PC·패키지된 Desktop·640px 실제 생성 화면·스크린리더 청취·많은 점/긴 문자열은 미확인이다. 문서 저장은 병행 2-4 범위이며 이 변경은 invoke 수명·취소·출력 계약을 바꾸지 않는다. 직접 시작한 격리 Host·browser runner는 종료했고 임시 시험 자료는 보존했다.
+
+## 2-4 — 화면에서 새 문서 저장
+
+2026-11-13, Codex `gpt-6.1-terra` high, 합성 CSV(time/value, 10·18·12·24·16), 격리된 HTTP Host와 persistent Chrome에서 확인했다. 방법·API·도구를 알려 주지 않은 과제만 전달했고 계정·공급자는 바꾸지 않았다. 실제 외부 서비스·원격 PC·패키지된 Desktop 수락은 아니다. 비서의 설치·조회 보고와 아래 직접 클릭·문서 검증을 구분한다.
+
+| 턴 | 과제 | 초 | 결과 |
+| --- | --- | ---: | --- |
+| 새 대화 1 | CSV를 표로 보여 주고 기준 15 초과 행을 리치오 문서로 저장하는 버튼 제작 | 64.315 | 첫 턴 성공. 3파일 40줄(host.mjs 27, 신분증 1, screen.jsx 12), 설치·조회 성공. 직접 화면에서 버튼을 눌러 18·24·16만 저장하고 새 문서 탭에서 확인, `litzio check` valid/writable 통과. 비서 자신은 화면 미확인을 명시했다. |
+| 같은 대화 2 | 저장 제목 변경, 전체/초과 행 수와 평균 요약 문단 추가, 기본 파일명 변경 | 39.344 | 성공. 3파일 41줄(host 27, 신분증 1, 화면 13). 직접 저장한 문서의 제목·전체 5행·초과 3행·평균 19.33과 표를 확인하고 `litzio check` valid/writable 통과. |
+
+총 2턴이다. 빈 줄을 포함하고 마지막 개행은 추가 행으로 세지 않았다. 1440px 라이트 [버튼이 있는 화면](../design/assets/plugin-screen-save-1592/screen-light.png)과 [저장한 문서](../design/assets/plugin-screen-save-1592/document-light.png)를 직접 검토했다. 계정 표시·폴더 위치·명령 검색의 경로 표시는 촬영 시 mask했다. 화면은 기존 Button/Input/DataTable/Notice를 사용하며 새 화면 부품이나 디자인 예외를 만들지 않았다. 시각 확인은 소유자의 승인과 별개다.
+
+시험 구성 오류도 있었다. 첫 실제 클릭은 runner의 scratch 파일 쓰기 보호가 OS 임시 폴더를 거부했다. artifact를 수정하거나 보호를 완화하지 않고, 별도 Host의 허용 Root에 checkout scratch 출력 폴더를 추가해 재시작하고 그 폴더를 UI에서 열어 저장했다. 대화는 같은 ID를 resume했다. 재시작 뒤 resume 전 전송 1회는 Host가 거부하여 비서 턴으로 접수되지 않았다. 두 번째 저장의 제목을 본문 editor와 heading에서 찾던 촬영 스크립트도 실패했다. 제목은 기존 별도 Title textbox이므로 그 값을 검사하도록 고쳤다. 이 과정에서 만들어진 문서는 보존했으며 최종 클릭 검사와 캡처를 다시 통과했다. 이 오류들을 비서의 제작 실패나 제품 저장 실패로 계산하지 않는다.
+
+정한 것과 이유: `saveDocument({name,authoring,folder?,open?})` 한 개를 제공했다. 기존 작업 패널처럼 대상 Host의 첫 열린 폴더를 기본값으로 삼고, 필요하면 같은 Host의 열린 폴더를 지정한다. 위치 receipt와 `open:true`의 기존 문서 탭 열기로 결과를 찾는다. 기존 CLI `create --input`과 플러그인 native-document/generated-document의 `createAuthoredDocumentFile → Core authorDocument → createDocumentSourceFile`을 재사용한다. 같은 이름은 오류이며 덮어쓰거나 자동으로 이름을 바꾸지 않는다. 원격 호출 실패는 로컬로 재실행하지 않는다.
+
+검증: 전체 typecheck·문서·경계 검사, Host/client 38검사, 플러그인 authoring/K1·화면 관련 15검사, 기존 CLI create --input 검사, production HTTP plugin-screen-code 및 crash/reconnect Save/Reload 회귀, Vite text-mode 회귀를 통과했다. 화면 회귀에는 실제 저장·열기·이름 충돌 오류와 기존 미저장 탭 생존을 추가했다. 첫 회귀 실행은 예상된 충돌 HTTP 400을 console-error 목록에 등록하지 않아 실패했고 해당 경로·상태의 최소 발생을 명시한 뒤 재실행했다. 열린 폴더 없음과 다른 Host 폴더 거부·실패 시 재시도 없음은 client 검사, 문서 유효성과 receipt·충돌 원본 보존은 Host 검사로 보호한다. 실제 원격 PC와 대용량·긴 작업·외부 서비스는 미확인이다. 필수 PR CI 결과는 PR의 최종 head를 따른다. 직접 시작한 Host·browser·시험 프로세스는 종료했고 시험 자료 폴더는 재귀 삭제하지 않았다. 비공개 로컬 시험 위치는 최종 인계에만 남긴다.
+
+### 2-4 독립 리뷰 후 공용 생성 실패 보완
+
+리뷰 head `4649391e`에서 `createAuthoredDocumentFile` 호출 직전 숫자 fd의 첫 8바이트를 실제로 쓰고 ENOSPC를 던지도록 fs.writeFileSync와 syncBuiltinESMExports를 사용했다. 기존 Editor 생성 검사 파일에 넣은 회귀가 최종 문서 잔존 단언에서 실패해 리뷰 결함을 재현했다. 원인은 최종 이름을 wx로 연 다음 직접 쓰고 close만 하던 `createDocumentSourceFile`이다. 같은 함수의 CLI 생성, 템플릿으로 새 문서 생성, 비서 및 기존 플러그인 결과→문서 흐름에도 있던 결함이다.
+
+공용 함수 한 곳을 기존 `file-commit.createFile`로 전환했다. 임시 형제 파일에 쓰기·fsync를 완료한 뒤 hard link로 배타 게시하며 EEXIST 분류와 path/source/revision/identity receipt를 유지한다. 덮어쓸 수 있는 rename이나 직접 쓰기로 fallback하지 않는다. 새 상태·계층·화면 전용 경로는 없다. 회귀는 수정 후 부분 쓰기 실패에 최종/임시 파일이 없고, 같은 이름 재시도가 native 문서·일치하는 revision/identity를 반환하며 기존 파일 충돌은 원본을 보존함을 확인했다. flush·게시 실패와 게시 시점 경쟁은 기존 file-commit 검사가 담당하며 Host마다 중복하지 않았다.
+
+별도 사용자 템플릿 저장(`saveTemplate`)은 다른 함수에서 직접 wx로 쓰므로 이번 공용 생성 수정에는 포함되지 않는다. 그 별도 경로의 실패 게시 보완은 후속으로 제안하며 이번에 해결했다고 주장하지 않는다. 실제 원격 PC·외부 서비스·대용량·패키지된 Desktop 등 비차단 검증 확대는 요청 범위 밖이라 반영하지 않았다.
+
+
+### 2-3·2-4 병합 후 통합 확인
+
+#1601 병합 후 master를 merge해 공용 부품은 screenUI 한 객체로, saveDocument는 별도 화면 prop으로 유지했다. 제작 스킬의 SCREEN_UI_GUIDANCE·부품 목록·배치 예시와 저장 API를 함께 보존했고 기본 screen/chart 골격은 ScreenLayout 안 Toolbar의 내용 폭 불러오기·저장 버튼, 합계, 전체 폭 Chart·표를 사용한다. 위 2-3·2-4의 측정 기록은 모두 유지했다.
+
+통합 골격을 격리 HTTP Host에서 scaffold·install하고 persistent browser로 직접 불러오기→저장→문서 탭 열기를 확인했다. 그래프·합계 64·표, Toolbar 안 내용 폭 저장 버튼과 저장 문서의 10·18·12·24 및 제목을 검사하고 litzio check valid/writable을 통과했다. 실제 비서를 다시 호출하지는 않았다. 전체 typecheck, 관련 Host·제작·저장 15검사, production plugin-screen-code와 HTTP crash/reconnect 2검사(44.2초), UI gallery 1검사(21.3초), 통합 골격 수동 확인 1검사(6.2초), CLI/Editor build·docs 검사를 통과했다. 갤러리의 Vite ResizeObserver 알림은 기존처럼 있었으나 runner 판정은 통과했다. 직접 시작한 Host·browser는 종료했고 자료 폴더는 보존했다. 필수 CI는 병합 커밋 head에서 확인한다.

@@ -1,20 +1,30 @@
 # Plugin screens and queries v1
 
 - Status: Implemented
-- Last verified: 2026-11-10 — #1465 문서·탐색기 대조 진입과 공통 화면 제약을 코드·Host/HTTP fixture로 확인. #1341 제거 범위의 과거 검증은 해당 PR의 기록을 따른다.
+- Last verified: 2026-11-13 — #1592 2-4 화면 새 문서 저장을 Host/client·CLI·browser 및 실제 비서 2턴으로 확인. #1465 문서·탐색기 대조와 #1341 제거 범위의 과거 검증은 해당 PR의 기록을 따른다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [플러그인 1단계](plugin-stage1-v1.md), [#1341](https://github.com/litzio/litzio/issues/1341).
 - Scope: 플러그인 기본 화면·수동 조회·입력 폼·공통 표. 비서 생성 UI와 저장 뷰 계약이 아니다.
 
 
 ## 화면 코드 1단계 (#1592)
 
-[ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 screens[].entry는 플러그인 폴더의 React JS/JSX 진입점을 지정한다. default export 컴포넌트는 React·ui·invoke(자기 작업 ID, JSON 입력)를 받는다. React는 앱 인스턴스이며 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다. 기본 scaffold screen과 chart는 공용 부품으로 도구 줄·합계·그래프·표를 조합한다.
+[ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 screens[].entry는 플러그인 폴더의 React JS/JSX 진입점을 지정한다. default export 컴포넌트는 React·ui·invoke(자기 작업 ID, JSON 입력)·saveDocument(아래 2-4)를 받는다. React는 앱 인스턴스이며 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다. 기본 scaffold screen과 chart는 공용 부품으로 도구 줄·합계·그래프·표를 조합한다.
 
 Host는 검증·reload 시 기존 esbuild로 같은 artifact 안의 로컬 파일을 번들로 변환한다. 실행 시 npm·원격 import 해석은 하지 않는다. 외부 라이브러리는 제작 시 묶은 파일로 포함한다. 빌드 플랫폼의 esbuild 실행 파일을 CLI 배포물에 포함하고 Desktop은 그 배포물을 복사한다. 별도 npm 설치·네트워크가 필요하지 않다. 활성 플러그인만 catalog에 코드와 digest revision을 전달한다. 클라이언트는 CSP script-src의 blob: 모듈로 실행하며 eval은 열지 않는다. Desktop의 기존 connect-src 대상 Host 목록을 유지하고 invoke는 해당 화면 HostClient에 고정된다.
 
 화면 전용 작업은 assistant:false이며 rowSchema 없이 임의 JSON을 반환할 수 있다. read/write 모두 기존 공용 invoke·receipt·검증을 사용한다. 문서 직접 쓰기 경로는 추가하지 않는다. reload·비활성·연결 해제·Host 교체 시 이전 화면을 내리고 새 코드를 받는다. 열린 코드 화면은 소스 없이 활성 revision을 2초 간격으로 관측해 비서·CLI의 명시적 reload·비활성화도 반영한다. 파일 감시·자동 reload는 하지 않는다. import/render/cleanup 오류는 화면 안에 메시지·stack으로 표시하고 변환 실패는 validate의 파일·위치와 플러그인 상태에서 확인한다. async/event 오류는 작성자가 catch해 Notice로 표시한다. 조회 성공과 실제 화면 확인은 별개다.
 
-기존 선언형 query·review·jobs는 이번 단계에서 유지한다. 아래 HTML/JS·Chart 제한은 기존 선언형 문법에만 적용한다. 선언 축소·설치 통합은 아래 2단계를 따른다. 문서 저장 버튼·기존 문법 삭제는 후속 단계다.
+기존 선언형 query·review·jobs는 이번 단계에서 유지한다. 아래 HTML/JS·Chart 제한은 기존 선언형 문법에만 적용한다. 선언 축소·설치 통합은 아래 2단계를 따른다. 문서 저장은 아래 2-4, 기존 문법 삭제는 후속 단계다.
+
+### 화면에서 새 문서 저장 (2-4)
+
+화면 props의 `saveDocument({name, authoring, folder?, open?})`는 기존 Core `DocumentAuthoringInput`을 받아 새 `.md` 문서를 만든다. 예: `await saveDocument({name:"results.md",authoring:{title:"Results",inputs:[{key:"rows",blocks:[{kind:"table",rows:[["Value"],["18"]]}]}]},open:true})`.
+
+`name`은 경로 구분자가 없는 `.md` 파일명이다. 기본 위치는 **화면이 속한 Host의 첫 열린 폴더**이며, `folder`를 지정하면 그 Host의 열린 폴더 중 하나여야 한다. 열린 폴더가 없으면 거부한다. 폴더 목록은 클라이언트 소유 상태이며 Host 전역으로 옮기지 않는다. 여러 Host나 원격 Host에서도 그 화면의 HostClient로 요청하고, 파일 경로는 대상 Host에서 해석한다. 클라이언트 PC나 다른 Host로 fallback하지 않는다. 이는 기존 작업 패널의 첫 열린 폴더 기본값을 재사용한 선택이다.
+
+공용 `PUT /api/document`의 `{path,authoring,images?}` 입력은 CLI `litzio create <path.md> --input <json-file> --format json`과 같은 `createAuthoredDocumentFile`을 호출한다(CLI JSON은 `{authoring,images:[]}`). 기존 플러그인 native-document 작업과 generated-document 생성도 이 함수를 사용한다. Core `authorDocument`의 의미 연산·canonical round-trip과 `createDocumentSourceFile`의 배타적 생성·경로 검사를 그대로 사용한다. template/language와 authoring의 혼합은 거부한다. 새 화면 전용 문서 형식·직접 파일 쓰기·기존 문서 수정·generated-document 연결은 만들지 않는다. 공용 생성 함수는 `file-commit.createFile`의 임시 형제 파일 쓰기·fsync 후 배타적 hard-link 게시를 사용한다. 부분 쓰기·flush 실패는 최종 문서를 만들지 않고 임시 파일을 정리하며 같은 이름으로 정상 재시도할 수 있다. 기존 이름은 게시 시점에도 덮어쓰지 않는다. hard link를 지원하지 않는 파일시스템은 실패하며 직접 쓰기로 우회하지 않는다.
+
+성공 결과는 기존 `{path,source,revision,identity,inputs}` receipt다. `open:true`는 기존 문서 열기 callback으로 같은 Host의 새 문서 탭을 연다. 생략 시 작성자는 반환된 위치를 표시한다. 기존 탭·미저장 편집·Undo는 바꾸지 않는다. 같은 이름은 `file already exists` 오류이며 덮어쓰기·자동 이름 변경을 하지 않는다. 입력·권한·충돌·네트워크 실패는 Promise rejection의 `Error.message`를 catch해 `ui.Notice`에 표시한다. 연결 해제·화면 교체 후 늦은 응답은 문서를 열지 않는다. 취소나 응답 유실이 Host 쓰기를 되돌렸다는 뜻은 아니므로 자동 재시도하지 않고 대상 폴더를 확인한다. 실제 원격 PC 수락은 로컬 Host 대상 분리 검사와 별개다.
 
 ## 화면과 수명
 
