@@ -312,16 +312,16 @@ export class PluginHost {
       catch { return { ...s, configured: false, error: "Secret unavailable or damaged" }; }
     })) };
   }
-  private async runtimeSecrets(id: string, m: PluginManifest) {
+  private async runtimeSecrets(id: string, m: PluginManifest, remember = true) {
     if (!this.secrets.supported) {
       if (m.secrets.some(s => s.required)) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
       return Object.freeze({} as Record<string, string>);
     }
-    this.redactionSecrets.set(id, new Map());
+    if (remember) this.redactionSecrets.set(id, new Map());
     const secrets: Record<string, string> = {};
     for (const s of m.secrets) {
       const value = await this.secrets.read(id, s.id);
-      if (value !== undefined) { this.rememberSecret(id, s.id, value); secrets[s.id] = value; }
+      if (value !== undefined) { if (remember) this.rememberSecret(id, s.id, value); secrets[s.id] = value; }
       else if (s.required) throw new Error("Required plugin secret is not configured");
     }
     return Object.freeze(secrets);
@@ -472,6 +472,7 @@ export class PluginHost {
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
       if (action === "install") {
         let file = "artifact";
+        let candidate: PluginInstance | undefined;
         try {
           const requested = args.directory ?? path.join(this.authoringAccess().roots[0]!, id);
           const directory = accessPath(requested, inside(this.authoringDirectory, path.resolve(requested)) ? this.authoringAccess() : this.access);
@@ -491,12 +492,36 @@ export class PluginHost {
           const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
           this.assertOperationNamesAvailable(id, names);
           const previous = Object.hasOwn(this.installed, id) ? this.installed[id] : undefined;
+          const settings = previous?.settings ?? {};
+          if (!compileSchema(a.manifest.settingsSchema)(settings)) throw new Error("Stored settings do not satisfy this artifact schema");
+          const screens = Object.fromEntries(codeScreens.map(screen => [screen.id, compileScreen(directory, screen.entry!)]));
+          const secrets = await this.runtimeSecrets(id, a.manifest, false);
+          file = a.manifest.entry;
+          // Prepare the replacement before touching the active registration or process.
+          candidate = await startPluginProcess(a.entry, a.manifest, structuredClone(settings), secrets, () => {
+            if (!candidate || this.processes.get(id) !== candidate) return;
+            this.loaded.delete(id); this.jobs.lost(id); this.errors.set(id, "Plugin process failed; reload to recover");
+            try { this.assistantSkills.clear(id); } catch { this.errors.set(id, "Plugin process failed; skill cleanup failed"); }
+          }, directory);
+          statusSchema.parse(await candidate.status());
           await this.disable(id);
-          this.installed[id] = { registrationId: previous?.registrationId ?? randomUUID(), directory, digest: a.digest, trusted: true, enabled: false, enabledChoice: true, settings: previous?.settings ?? {}, operationNames: names };
+          this.installed[id] = { registrationId: previous?.registrationId ?? randomUUID(), directory, digest: a.digest, trusted: true, enabled: true, enabledChoice: true, settings, operationNames: names };
+          this.redactionSecrets.set(id, new Map(Object.entries(secrets)));
+          this.processes.set(id, candidate);
+          this.loaded.set(id, { manifest: a.manifest, instance: candidate, pending: new Set(), screens });
+          this.disabling.delete(id); this.errors.delete(id);
           this.save();
-          await this.enable(id); this.installed[id]!.enabled = true; this.save();
+          try { this.assistantSkills.install(directory, a.manifest); }
+          catch { this.errors.set(id, "Assistant skill installation failed; reload to recover"); }
           return { id, plugins: await this.list(), receipt: receipt("success") };
-        } catch (error) { return { id, valid: false, errors: validationDiagnostics(error, file), receipt: receipt("failure") }; }
+        } catch (error) {
+          const errors = validationDiagnostics(error, file);
+          if (candidate && this.processes.get(id) !== candidate) {
+            try { await candidate.dispose(); }
+            catch (cleanupError) { errors.push(...validationDiagnostics(cleanupError, file)); }
+          }
+          return { id, valid: false, errors, receipt: receipt("failure") };
+        }
       }
       if (action === "scaffold") {
         const access = args.directory === undefined ? this.authoringAccess(true) : this.access;

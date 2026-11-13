@@ -1083,4 +1083,4 @@ bundle은 기존 esbuild로 원본 entry와 외부 의존성을 묶어 같은 �
 
 ## 코드 화면 설치 2단계 (#1592)
 
-최소 신분증·3파일 제작과 `plugins install <id-or-directory> --host <origin> --json`은 [화면 계약](plugin-screens-v1.md#코드-화면-제작설치-2단계-1592)을 따른다. 관리 작업 install의 범위는 host이며 검증 실패는 위치별 errors와 failure receipt, 성공은 id·plugins·success receipt다. ID는 Host 제작 폴더의 직접 자식으로 해석한다. 설치는 해당 artifact의 신뢰와 활성 실행을 명시적으로 요청하는 작업이다. 기존 register/trust/enable과 settings·secret·Node child 수명은 유지한다. 제한 권한의 비서는 guard를 우회하지 않고 같은 Host 작업을 manage_plugins로 호출한다.
+최소 신분증·3파일 제작과 `plugins install <id-or-directory> --host <origin> --json`은 [화면 계약](plugin-screens-v1.md#코드-화면-제작설치-2단계-1592)을 따른다. install의 교체 후보 활성화·상태 준비 실패는 기존 실행과 활성 설정을 보존한다. 새 프로세스가 준비된 후 기존 drain·dispose를 수행한다. 기존 reload의 실패 시 비활성 계약은 그대로다. 관리 작업 install의 범위는 host이며 검증 실패는 위치별 errors와 failure receipt, 성공은 id·plugins·success receipt다. ID는 Host 제작 폴더의 직접 자식으로 해석한다. 설치는 해당 artifact의 신뢰와 활성 실행을 명시적으로 요청하는 작업이다. 기존 register/trust/enable과 settings·secret·Node child 수명은 유지한다. 제한 권한의 비서는 guard를 우회하지 않고 같은 Host 작업을 manage_plugins로 호출한다.
