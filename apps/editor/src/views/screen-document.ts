@@ -1,10 +1,11 @@
-import type { DocumentAuthoringInput } from "@litzio/core";
+import type { AuthoredDocumentRequest } from "@litzio/plugin-sdk";
 import type { DocumentCreationReceipt } from "../../server/document-create.ts";
 import type { HostClient } from "../host-client.ts";
 
 export type ScreenDocumentInput = {
   name: string;
-  authoring: DocumentAuthoringInput;
+  authoring: AuthoredDocumentRequest["authoring"];
+  images?: AuthoredDocumentRequest["images"];
   folder?: string;
   open?: boolean;
 };
@@ -19,7 +20,7 @@ export async function saveScreenDocument(client: HostClient, roots: string[], in
   if (typeof input.name !== "string" || !input.name.trim() || /[\\/:\x00-\x1f]/.test(input.name) || !input.name.endsWith(".md")) throw new Error("Use a .md filename without directory separators.");
   const response = await client.request("/api/document", {
     method: "PUT", headers: { "Content-Type": "application/json" }, signal,
-    body: JSON.stringify({ path: `${folder.replace(/[\\/]$/, "")}/${input.name}`, authoring: input.authoring }),
+    body: JSON.stringify({ path: `${folder.replace(/[\\/]$/, "")}/${input.name}`, authoring: input.authoring, images: input.images }),
   });
   const reply = await response.json();
   if (!response.ok || reply.error) throw new Error(reply.error ?? `HTTP ${response.status}`);

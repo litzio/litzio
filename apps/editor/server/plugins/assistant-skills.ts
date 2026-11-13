@@ -7,16 +7,35 @@ const prefix = "litzio-plugin-";
 // Manifest plugin IDs have no consecutive separators; dots become double hyphens.
 const namespace = (plugin: string) => `${prefix}${plugin.replaceAll(".", "--")}---`;
 
+export class AssistantSkillValidationError extends Error {
+  constructor(readonly file: string, readonly field: string, message: string) {
+    super(`${file}: ${field}: ${message}`);
+    this.name = "AssistantSkillValidationError";
+  }
+}
+
 function skillEntry(directory: string, manifest: PluginManifest, skill: PluginManifest["contributes"]["skills"][number]) {
-  const source = realpathSync(path.join(directory, skill.directory));
+  const file = `${skill.directory}/SKILL.md`;
+  const fail = (field: string, message: string): never => { throw new AssistantSkillValidationError(file, field, message); };
+  let source: string;
+  try { source = realpathSync(path.join(directory, skill.directory)); }
+  catch { return fail("directory", "Expected an existing artifact-local skill directory."); }
   const relative = path.relative(realpathSync(directory), source);
-  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Skill directory must stay inside package");
-  const text = readFileSync(path.join(source, "SKILL.md"), "utf8");
+  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) fail("directory", "Expected a directory inside the artifact.");
+  let text: string;
+  try { text = readFileSync(path.join(source, "SKILL.md"), "utf8"); }
+  catch { return fail("SKILL.md", "Expected a readable UTF-8 SKILL.md file."); }
   const frontmatter = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
-  if (!frontmatter) throw new Error("Skill requires YAML frontmatter");
+  if (!frontmatter) return fail("frontmatter", "Expected YAML between opening and closing --- lines at the start of SKILL.md.");
   const document = parseDocument(frontmatter[1]);
+  if (document.errors.length) fail("frontmatter", `Invalid YAML (${document.errors.map(error => error.code).join(", ")}); expected a mapping with name and description strings.`);
+  if (!isMap(document.contents)) fail("frontmatter", "Expected a YAML mapping with name and description strings.");
+  for (const field of ["name", "description"]) {
+    const value = document.get(field);
+    if (typeof value !== "string" || !value.trim()) fail(field, "Expected a non-empty YAML string.");
+  }
   const name = `${namespace(manifest.id)}${skill.id}`;
-  if (document.errors.length || !isMap(document.contents) || typeof document.get("name") !== "string" || !String(document.get("name")).trim() || typeof document.get("description") !== "string" || !String(document.get("description")).trim() || name.length > 64) throw new Error("Invalid skill name or description");
+  if (name.length > 64) fail("skills.id", `Installed name '${name}' has ${name.length} characters; maximum is 64. Shorten the manifest plugin id or skills.id (litzio-plugin- + plugin id with dots replaced by -- + --- + skills.id).`);
   const displayName = `${manifest.name} · ${String(document.get("name")).trim()}`;
   document.set("name", name);
   return { source, name, displayName, text: `---\n${document.toString()}---\n${text.slice(frontmatter[0].length)}` };

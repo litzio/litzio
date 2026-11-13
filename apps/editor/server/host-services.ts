@@ -12,7 +12,7 @@ export type HostServices = {
 };
 
 /** Compose once per Host. Assistant initialization cannot block plugin/view requests. */
-export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS) {
+export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, options?: { origin(): string | undefined }) {
   const paths = hostPaths(undefined, { ...process.env });
   const plugins = createPluginService(access, paths.settingsFile("plugins"), paths.assistant);
   const views = createViewService(access, plugins);
@@ -24,7 +24,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS) {
     plugins, views,
     get assistant() {
       if (closed) throw new Error("The Host is closing.");
-      return assistant ??= createAssistantHost(access, undefined, { plugins, paths });
+      return assistant ??= createAssistantHost(access, undefined, { plugins, paths, origin: options?.origin });
     },
     close() {
       closed = true;

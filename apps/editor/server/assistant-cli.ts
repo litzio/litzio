@@ -19,7 +19,7 @@ export function hostCli(run: HostRun = {}): AssistantCli {
 }
 
 /** Private launch shim: no registry, user/system PATH or optional Desktop integration changes. */
-export function assistantCliEnvironment(cwd: string, cli: AssistantCli, inherited: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+export function assistantCliEnvironment(cwd: string, cli: AssistantCli, inherited: NodeJS.ProcessEnv = process.env, hostOrigin?: string): NodeJS.ProcessEnv {
   // Desktop and HTTP may share an assistant cwd but must retain their own CLI/runtime.
   const identity = createHash("sha256").update(JSON.stringify(cli)).digest("hex").slice(0, 16);
   const directory = path.join(cwd, "bin", identity), runtime = path.join(directory, "runtime");
@@ -34,6 +34,10 @@ export function assistantCliEnvironment(cwd: string, cli: AssistantCli, inherite
   if (process.platform === "win32") writeFileSync(path.join(directory, `${brand.cliCommand}.cmd`), `@echo off\r\nsetlocal DisableDelayedExpansion\r\nset "ELECTRON_RUN_AS_NODE=1"\r\n"%~dp0runtime\\${binary}" "%~dp0cli.cjs" %*\r\nexit /b %errorlevel%\r\n`);
   else writeFileSync(path.join(directory, brand.cliCommand), `#!/bin/sh\nexport ELECTRON_RUN_AS_NODE=1\nexec "$(dirname "$0")/runtime/${binary}" "$(dirname "$0")/cli.cjs" "$@"\n`, { mode: 0o755 });
   const env: NodeJS.ProcessEnv = { ...inherited, LITZIO_PLUGINS: hostPaths().plugins, LITZIO_ASSISTANT_CWD: cwd, LITZIO_ASSISTANT_CLI: path.resolve(directory, brand.cliCommand + (process.platform === "win32" ? ".cmd" : "")) };
+  // Only the owning listener supplies this internal contract; never inherit a
+  // parent assistant's target or discover another running Host.
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "LITZIO_HOST_ORIGIN") delete env[key];
+  if (hostOrigin) env.LITZIO_HOST_ORIGIN = hostOrigin;
   const key = Object.keys(env).find(key => key.toUpperCase() === "PATH") ?? "PATH";
   env[key] = directory + path.delimiter + (env[key] ?? "");
   return env;
