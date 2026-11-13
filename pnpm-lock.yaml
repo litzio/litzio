@@ -531,19 +531,6 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  plugins/onedrive:
-    dependencies:
-      '@litzio/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
-    devDependencies:
-      esbuild:
-        specifier: 0.28.2
-        version: 0.28.2
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-
 packages:
 
   '@agentclientprotocol/sdk@0.17.1':

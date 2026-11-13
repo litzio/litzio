@@ -50,7 +50,7 @@ export default defineConfig({
         // CSS sources are build-time dependencies but their content is shipped.
         const css = ["tailwindcss", "shadcn"].map(name => path.join(editor, "node_modules", name, "package.json"));
         const packages = collectPackages([...this.getModuleIds()].filter(id => !id.startsWith("\0")).map(id => id.split("?")[0]).concat(css), [editor]);
-        const copied = ["Shadcn-copied-source.txt", "Microsoft-FluentUI-OneDrive.txt"].map(name => readFileSync(new URL(`./public/licenses/${name}`, import.meta.url), "utf8")).join("\n\n");
+        const copied = ["Shadcn-copied-source.txt"].map(name => readFileSync(new URL(`./public/licenses/${name}`, import.meta.url), "utf8")).join("\n\n");
         this.emitFile({ type: "asset", fileName: "licenses/THIRD_PARTY_LICENSES.txt", source: packageNotices(packages) + "\n\n" + copied });
       },
     },

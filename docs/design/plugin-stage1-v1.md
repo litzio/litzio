@@ -1,5 +1,9 @@
 # 플러그인 1단계
 
+> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
+
+현재 공급자 없는 기능 정리: 공식 공급 목록·artifact digest 경로·공식 기본값 자동 신뢰는 제거했다. 탐색기의 플러그인 폴더 자동 추가·기본 후보·장식과 설정의 계정 표시는 제거했다. 설정·비밀값과 수동으로 연 폴더·문서는 플러그인의 활성 상태와 독립적으로 유지한다. SDK의 `folderSources`·`folderDecorations`·`accounts` 선언 및 status의 `folders`·`decorations`·`accounts` wire 필드는 Docling을 포함한 기존 선언형 계약과 묶여 있어 다음 제거 단계까지 유지한다. 제품 공급자는 없으며 시험 fixture를 기능 유지 근거로 삼지 않는다.
+
 - Status: Implemented
 - Update #1462 (2026-11-11): 공통 manifest 비서 스킬 선언·활성 수명에 따른 파일 배포와 Docling 검수 스킬. Codex만 사용하며 Copilot은 기존 도구 계약을 유지한다.
 - Transition #1462: 2026-11-11 — SDK 0.5 / Docling format 4의 저장 문서 Core 교정·내용 기준 오래됨·삭제 대응·Undo로 전환. 고정 LSR와 합성 fixture 검증은 3단계 기록을 따른다.
@@ -517,7 +521,7 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 
 ### Jira 커뮤니티 0.0.4 읽기 사례 (#1350, #1362)
 
-저장소의 community-plugins/jira는 독립 배포 전 임시 커뮤니티 artifact다. JQL 검색 v1과 같은 경로 위의 간편 검색 issues v4(프로젝트·보고자·기간 기준·시작/종료일) 두 기본 뷰와 기본 7열은 기존 InputForm/Table 계약을 사용한다. 추가 후보 필드는 공개 행 스키마·데이터로 유지하고 표시 columns에서 제외한다. detail v1은 host read·assistant 작업으로 설명과 최근 생성 댓글 최대 10개, 키·URL·조회 시각·댓글 전체 수/반환 범위·본문 잘림을 반환한다. CLI operation invoke와 비서는 같은 operation을 사용하며 별도 상세 화면·Jira 쓰기·SDK 확장은 없다. 검색은 필요한 fields만 페이지당 최대 500건씩 순차 요청하고 서버의 실제 반환 건수로 진행한다. 전체 8초·최대 500행·Host 10초 RPC 예산은 유지한다. Created·Updated·댓글·조회 시각은 Host PC 현지 `YY-MM-DD HH:mm`, dueDate는 `YY-MM-DD`다. 상한·오류·정렬 한계·검증 경계의 상세 계약은 [Jira README](../../community-plugins/jira/README.md#005-검색과-상세-계약)를 따른다.
+저장소의 community-plugins/jira는 독립 배포 전 임시 커뮤니티 artifact다. JQL 검색 v1과 같은 경로 위의 간편 검색 issues v4(프로젝트·보고자·기간 기준·시작/종료일) 두 기본 뷰와 기본 7열은 기존 InputForm/Table 계약을 사용한다. 추가 후보 필드는 공개 행 스키마·데이터로 유지하고 표시 columns에서 제외한다. detail v1은 host read·assistant 작업으로 설명과 최근 생성 댓글 최대 10개, 키·URL·조회 시각·댓글 전체 수/반환 범위·본문 잘림을 반환한다. CLI operation invoke와 비서는 같은 operation을 사용하며 별도 상세 화면·Jira 쓰기·SDK 확장은 없다. 검색은 필요한 fields만 페이지당 최대 500건씩 순차 요청하고 서버의 실제 반환 건수로 진행한다. 전체 8초·최대 500행·Host 10초 RPC 예산은 유지한다. Created·Updated·댓글·조회 시각은 Host PC 현지 `YY-MM-DD HH:mm`, dueDate는 `YY-MM-DD`다. 상한·오류·정렬 한계·검증 경계의 상세 계약은 [Jira README](https://github.com/litzio/litzio/tree/archive/2026-11-13-plugins-declarative/community-plugins/jira/README.md#005-검색과-상세-계약)를 따른다.
 
 #1395 수동 시각 검토: [1440px 변경 전](assets/plugin-file-jobs-1395/before-1440.png) / [변경 후](assets/plugin-file-jobs-1395/after-1440.png), [한국어 다크 640px 변경 전](assets/plugin-file-jobs-1395/before-640.png) / [변경 후](assets/plugin-file-jobs-1395/after-640.png). 같은 fixture·완료/중단/불확실 상태의 화면에서 입력 면 구분·정렬·줄바꿈·표 내부 스크롤을 확인했다. 경로와 계정은 마스킹했다. K1 16개, plugin-jobs와 HTTP 복구 2개(약 1.6분), 대표 layout-rules/quiet-document 2개, typecheck·CLI/Editor build·문서 검사를 통과했다. 추가 UI 단언은 기존 시나리오의 빈 상태·키보드 안내·형식 선택지·파일 수·시작 이름을 보호하며 별도 subprocess나 전수 조합을 추가하지 않았다. 실제 Docling 변환 품질은 미검증이다.
 

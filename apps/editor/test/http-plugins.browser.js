@@ -1,4 +1,4 @@
-async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocument, waitForExplorerLayout }) => {
+async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocument, reloadDocument, waitForExplorerLayout }) => {
   const captureEntries = screenshots;
   if (pluginFixture.docling?.entryCaptureOnly) screenshots = false;
   // Manual visual review only; automatic assertions do not depend on these images.
@@ -17,7 +17,6 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   };
 
   const secretSaves = [];
-  let listRequests = 0;
   const saveSecret = async () => {
     const start = Date.now();
     const saved = page.waitForResponse(response => response.url().endsWith("/api/plugins/secrets") && response.request().method() === "POST");
@@ -42,30 +41,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await page.locator('.sidebar').getByRole('button',{name,exact:true}).click();
   };
   // Manual comparison evidence exercises only comparison; automatic HTTP still runs
-  // the entire registration/OneDrive/Jira contract below.
+  // the entire registration/settings/secret contract below.
   if (!(screenshots && pluginFixture.docling?.realFile && pluginFixture.docling?.comparisonCapture)) {
-  let detectedFolders = [pluginFixture.folder, pluginFixture.otherFolder];
-  let holdEnabled = false, releaseEnabled;
-  const heldEnabled = new Promise(resolve => { releaseEnabled = resolve; });
-  const delayedResponses = [];
-  // Isolate detection from the machine's real OneDrive account; folder listing still uses the Host.
-  await page.route("**/api/plugins", async route => {
-    if (route.request().method() === "GET") ++listRequests;
-    const delayed = holdEnabled && route.request().method() === "GET";
-    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
-    const value = await response.json();
-    for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
-      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "plugin" })), accounts: [] };
-    }
-    if (delayed && value.plugins.some(plugin => plugin.id === "litzio.onedrive" && plugin.enabled)) {
-      delayedResponses.push(value);
-      await heldEnabled;
-    }
-    await route.fulfill({ response, json: value });
-  });
   await openSettings();
-  const designated = pluginFixture.cli(["plugins", "list"]).plugins.filter(p => ["community.docling", "community.jira"].includes(p.id));
-  expect(designated).toHaveLength(2);
+  const designated = pluginFixture.cli(["plugins", "list"]).plugins.filter(p => ["community.docling"].includes(p.id));
+  expect(designated).toHaveLength(1);
   for (const plugin of designated) {
     expect(plugin.bundled).toBe(true); expect(plugin.official).toBe(false);
     expect(plugin.enabled).toBe(false); expect(plugin.trusted).toBe(false);
@@ -74,89 +54,6 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await expect(page.getByRole("dialog", { name: "Trust and enable Docling?", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("switch", { name: "Enable Docling", exact: true })).not.toBeChecked();
-  const official = page.getByRole("switch", { name: "Enable OneDrive", exact: true });
-  await expect(official).not.toBeChecked();
-  expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "litzio.onedrive").official).toBe(true);
-  if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "tmp/plugin-stage1/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
-  const beforeEnableLists = listRequests;
-  await official.click(); await expect(official).toBeChecked();
-  expect(listRequests).toBe(beforeEnableLists);
-  if (screenshots) {
-    await expect(page.locator(".plugin-heading .plugin-icon")).toBeVisible();
-    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
-    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
-    await page.screenshot({ path: "tmp/folder-1366/settings-1440.png", mask: [page.locator(".sidebar-host-account")] });
-  }
-  await page.keyboard.press("Escape");
-  if (screenshots) {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
-    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
-    await page.waitForLoadState("networkidle");
-    await page.screenshot({ path: "tmp/onedrive-1287/enabled-1440.png", mask: [page.locator(".sidebar-host-account")] });
-    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
-    await page.setViewportSize({ width: 640, height: 900 });
-    await page.reload(); await page.waitForLoadState("networkidle");
-    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
-    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
-    await page.screenshot({ path: "tmp/onedrive-1287/enabled-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
-    await page.getByRole("button", { name: "설정", exact: true }).click();
-    await page.getByRole("button", { name: "플러그인", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
-    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
-    await page.screenshot({ path: "tmp/folder-1366/settings-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
-    await page.keyboard.press("Escape");
-    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
-    await page.reload();
-  }
-  await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
-  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
-  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
-  await openSettings();
-  await page.reload(); await openSettings(); await expect(official).toBeChecked();
-  // Hold a completed Host GET in transport, then finish a later user disable first.
-  // The event requests the same refresh used after plugin management; only its response is delayed.
-  holdEnabled = true;
-  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
-  await expect.poll(() => delayedResponses.length).toBeGreaterThan(0);
-  holdEnabled = false;
-  await official.click(); await expect(official).not.toBeChecked();
-  await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
-  const lateResponse = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "GET" && response.ok());
-  releaseEnabled();
-  await (await lateResponse).finished();
-  // Give the delivered JSON and React render a browser frame before checking the retained state.
-  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  await expect(official).not.toBeChecked();
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
-  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`, { headers: { Connection: "close" } });
-  expect(listing.ok()).toBe(true);
-  await openSettings();
-  await page.reload(); await openSettings(); await expect(official).not.toBeChecked();
-  // A manually opened descendant remains owned and remembered independently of its automatic parent.
-  await page.keyboard.press("Escape");
-  await openFolderPicker(page);
-  await page.getByTestId("folder-path").fill(pluginFixture.folder);
-  await page.getByTestId("folder-open").click();
-  await expect(page.getByTestId("folder-path")).not.toBeVisible();
-  const rememberedFolders = () => page.evaluate(() => JSON.parse(localStorage.getItem(JSON.stringify(["local", "litzio.openFolders"])) ?? "[]"));
-  await expect.poll(rememberedFolders).toEqual([pluginFixture.folder]);
-  detectedFolders = [pluginFixture.folder.replace(/[\\/][^\\/]+$/, "")];
-  await openSettings();
-  await official.click(); await expect(official).toBeChecked();
-  await expect(page.locator(".sidebar-folder-name")).toContainText("http-host-a");
-  await expect.poll(rememberedFolders).toEqual([pluginFixture.folder]);
-  await page.reload(); await openSettings(); await expect(official).toBeChecked();
-  await expect(page.locator(".sidebar-folder-name")).toContainText("http-host-a");
-  await official.click(); await expect(official).not.toBeChecked();
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
-  await expect.poll(rememberedFolders).toEqual([pluginFixture.folder]);
-  await page.reload();
-  await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
-  await openSettings();
-  await page.unrouteAll({ behavior: "wait" });
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   await page.getByTestId("folder-path").fill(pluginFixture.directory);
   // Deliver the same list refresh used after settings changes while the user is
@@ -165,11 +62,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     if (route.request().method() !== "GET") return route.continue();
     const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const value = await response.json();
-    value.plugins.find(plugin => plugin.id === "litzio.onedrive").description = "Refreshed during plugin draft";
+    value.plugins.find(plugin => plugin.id === "community.docling").description = "Refreshed during plugin draft";
     await route.fulfill({ response, json: value });
   });
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
-  await expect(page.locator('section[aria-label="OneDrive"] .settings-description').first()).toHaveText("Refreshed during plugin draft");
+  await expect(page.locator('section[aria-label="Docling"] .settings-description').first()).toHaveText("Refreshed during plugin draft");
   await expect(page.getByTestId("folder-path")).toHaveValue(pluginFixture.directory);
   await expect(page.getByTestId("folder-path")).toBeFocused();
   await page.unrouteAll({ behavior: "wait" });
@@ -256,7 +153,6 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   expect(reloaded.receipt.operation).toBe("plugins.reload");
   expect(reloaded.plugins.find(p => p.id === "fixture.drive").running).toBe(true);
   await expect(page.getByRole("region", { name: "Drive fixture", exact: true }).getByText("Community plugin", { exact: true })).toBeVisible();
-  await expect(page.getByText("Account: Fixture account (Isolated fixture)", { exact: true })).toBeVisible();
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.locator('[data-testid="settings-dialog"]').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -277,38 +173,44 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await saveSecret();
     await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
     let live = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
-    expect(live.status.accounts[0].label).toBe("Secret applied");
+    expect(live.status.message).toBe("Secret applied");
     expect(JSON.stringify(live)).not.toContain("enabled-isolated-secret");
     pluginFixture.cli(["plugins", "secret-delete", "fixture.drive", "pat"]);
     live = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
     expect(live.running).toBe(true);
-    expect(live.status.accounts[0].label).toBe("Fixture account");
+    expect(live.status.message).toBe("UI connection");
   }
   await page.keyboard.press("Escape");
   await expect(page.locator(".plugin-settings-dialog")).not.toBeVisible();
   // Escape exits Settings after the nested dialog has finished closing.
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
-  // Any running folder source opens automatically, before a manual folder action.
-  if(await expandExplorer.isVisible()) await expandExplorer.click();
-  await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
-  await expect(page.locator(`[data-testid="folder"][data-root=${JSON.stringify(pluginFixture.otherFolder)}]`)).toBeVisible();
-  await openFolderPicker(page);
-  await page.getByTestId("folder-path").fill(pluginFixture.folder);
-  await page.getByTestId("folder-open").click();
-  await expect(page.getByTestId("folder-path")).not.toBeVisible();
-  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toBeVisible();
-  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
-  for (const width of [1440, 640]) {
-    await page.setViewportSize({ width, height: 900 });
-    if (screenshots) await page.screenshot({ path: `tmp/plugin-stage1/decoration-${width}.png` });
-  }
+  await openDocument(page, pluginFixture.document);
+  const beforeDisable = await page.locator(".tiptap").first().innerText();
   await openSettings();
+  await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).toBeChecked();
+  // A stale completed GET must not undo a later disable mutation.
+  let release, held = false;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route("**/api/plugins", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
+    held = true;
+    await gate;
+    await route.fulfill({ response });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  await expect.poll(() => held).toBe(true);
   await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
   await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(false);
+  const delivered = page.waitForResponse(r => r.url().endsWith("/api/plugins") && r.request().method() === "GET");
+  release(); await (await delivered).finished();
+  await page.unrouteAll({ behavior: "wait" });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
   await page.keyboard.press("Escape");
-  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(0);
+  await expect(page.locator(".tiptap").first()).toHaveText(beforeDisable);
   await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
   await openSettings();
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
@@ -529,295 +431,5 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       await docling.cli(["plugins", "unregister", id]);
     }
   }
-  requestPhase = "after-docling";
-  let assignedQueryMs;
-  const jira = pluginFixture.jira;
-  expect((await jira.cli(["plugins", "validate", jira.directory])).valid).toBe(true);
-  await jira.cli(["plugins", "register", jira.directory]);
-  try {
-    const registered = (await jira.cli(["plugins", "list"])).plugins.find(p => p.id === "community.jira");
-    expect(registered.official).toBe(false);
-    // Required PAT uses the production Windows secret store; other Hosts validate only.
-    if (registered.secrets.supported) {
-      await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
-      await page.reload(); await openSettings();
-      await page.getByRole("button", { name: "Jira settings", exact: true }).click();
-      await page.getByLabel("개인 액세스 토큰: Not configured", { exact: true }).fill("mock-jira-token");
-      await saveSecret();
-      await expect(page.getByLabel("개인 액세스 토큰: Configured", { exact: true })).toHaveValue("");
-      await jira.cli(["plugins", "enable", "community.jira", "--trust", "--registration", registered.registrationId]);
-      await page.reload(); await openSettings();
-      await page.getByRole("button", { name: "Jira settings", exact: true }).click();
-      const health = page.getByRole("button", { name: "Check connection", exact: true });
-      await health.click();
-      await expect(page.getByRole("status").filter({ hasText: "Jira 연결과 PAT 인증을 확인했습니다." })).toBeVisible();
-      if (screenshots) {
-        for (const width of [1440, 640]) {
-          if (width === 640) {
-            await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
-            await page.reload();
-            await page.getByRole("button", { name: "설정", exact: true }).click();
-            await page.getByRole("button", { name: "플러그인", exact: true }).click();
-            await page.getByRole("button", { name: "Jira 설정", exact: true }).click();
-            await page.getByRole("button", { name: "연결 확인", exact: true }).click();
-            await expect(page.getByRole("status").filter({ hasText: "Jira 연결과 PAT 인증을 확인했습니다." })).toBeVisible();
-          }
-          await page.setViewportSize({ width, height: 900 });
-          await page.screenshot({ path: `tmp/jira-1350/connection-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
-        }
-        await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
-        await page.reload(); await openSettings();
-        await page.getByRole("button", { name: "Jira settings", exact: true }).click();
-      }
-      jira.setFault(401);
-      await health.click();
-      await expect(page.getByRole("status").filter({ hasText: "인증에 실패했습니다. PAT를 확인하세요. (401)" })).toBeVisible();
-      expect(await page.getByRole("dialog", { name: "Jira", exact: true }).innerText()).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
-      jira.setFault(0);
-      await page.keyboard.press("Escape");
-      await page.keyboard.press("Escape");
-      const invoke = () => jira.cli(["operation", "invoke", "community.jira.issues", "--input", jira.input]);
-      const connected = await invoke();
-      expect(connected.result.rows.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
-      expect(connected.result.rows[0].assignee).toBe("—");
-      await page.reload(); await openSettings();
-      await page.keyboard.press("Escape");
-      await openScreen('Jira');
-      await page.getByRole("textbox", { name: "JQL", exact: false }).fill("project = MOCK ORDER BY updated DESC");
-      await page.getByRole("button", { name: "조회", exact: true }).click();
-      await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
-      jira.setFault(400);
-      jira.setQuery({ jql: "project =" });
-      const syntax = await jira.cli(["operation", "invoke", "community.jira.jql", "--input", jira.input]);
-      expect(syntax.errorKind).toBe("failed");
-      expect(JSON.stringify(syntax)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
-      await page.getByRole("textbox", { name: "JQL", exact: false }).fill("project =");
-      await page.getByRole("button", { name: "조회", exact: true }).click();
-      await expect(page.getByText("View operation failed.", { exact: false })).toBeVisible();
-      jira.setFault(0);
-      await page.getByRole("button", { name: "간편 검색", exact: true }).click();
-      const accountInput = page.locator('[data-view-field="account"]');
-      const projectInput = page.locator('[data-view-field="project"]');
-      const more = page.getByRole("button", { name: /Additional conditions/ });
-      await expect(accountInput).toHaveAttribute("placeholder", "Fixture PAT user");
-      await expect(accountInput).toHaveValue("");
-      await expect(page.locator('[data-view-field="reporter"]')).toHaveCount(0);
-      // Candidates insert Jira identifiers, never display names. Guidance alone never queries.
-      const beforeCandidates = jira.searches().length;
-      await accountInput.fill("mo");
-      await page.getByRole("option", { name: "Fixture PAT user (mock-user)", exact: true }).click();
-      await expect(accountInput).toHaveValue("mock-user");
-      await accountInput.fill("");
-      await projectInput.fill("Fi");
-      await page.getByRole("option", { name: "Fixture project (MOCK)", exact: true }).click();
-      await expect(projectInput).toHaveValue("MOCK");
-      await projectInput.fill("");
-      expect(jira.searches().length).toBe(beforeCandidates);
-      await more.click();
-      const reporterInput = page.locator('[data-view-field="reporter"]');
-      await reporterInput.fill("mo");
-      await page.getByRole("option", { name: "Fixture PAT user (mock-user)", exact: true }).click();
-      await expect(reporterInput).toHaveValue("mock-user");
-      await reporterInput.fill("");
-      await more.click();
-      const assignedStart = Date.now();
-      const queryButton = page.getByRole("button", { name: "조회", exact: true });
-      const queryRows = async value => {
-        jira.setQuery(value);
-        const cli = await invoke();
-        expect(cli.receipt.outcome).toBe("success");
-        return cli.result.rows;
-      };
-      const mine = await queryRows({});
-      expect(mine.map(row => row.key)).toEqual(["MOCK-1", "MOCK-8"]);
-      expect(jira.searches()).toEqual([{ jql: "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC", startAt: 0 }]);
-      await queryButton.click();
-      await expect(page.getByRole("cell", { name: "MOCK-8", exact: true })).toBeVisible();
-      const account = 'someone"\\else';
-      const all = await queryRows({ account, status: "전체" });
-      expect(all.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
-      expect(jira.searches().map(v => v.startAt)).toEqual([0, 2]);
-      expect(jira.searches()[0].jql).toBe('assignee = "someone\\"\\\\else" ORDER BY updated DESC');
-      await page.locator('[data-view-field="account"]').fill(account);
-      await page.getByRole("combobox", { name: "해결 여부", exact: false }).selectOption("전체");
-      await queryButton.click();
-      await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
-      expect((await queryRows({ status: "해결됨" })).map(row => row.key)).toEqual(["MOCK-2"]);
-      const filters = { project: "MOCK", reporter: account, dateField: "생성일", dateFrom: "2026-11-01", dateTo: "2026-11-09" };
-      await queryRows(filters);
-      expect(jira.searches()[0].jql).toBe('assignee = currentUser() AND resolution = Unresolved AND project = "MOCK" AND reporter = "someone\\\"\\\\else" AND created >= "2026-11-01" AND created < "2026-11-10" ORDER BY updated DESC');
-      await more.click();
-      for (const [field, value] of Object.entries(filters).filter(([field]) => field !== "dateField")) await page.locator(`[data-view-field="${field}"]`).fill(value);
-      await page.getByRole("combobox", { name: "기간 기준", exact: false }).selectOption("생성일");
-      await more.click();
-      await expect(page.locator(".view-query-summary")).toContainText("2026-11-01");
-      await expect(page.locator(".view-query-summary")).toContainText(account);
-      await queryButton.click();
-      await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
-      await more.click();
-      await expect(page.locator('[data-view-field="reporter"]')).toHaveValue(account);
-      await queryRows({ dateFrom: "2026-02-30" }).then(() => { throw new Error("Invalid date accepted"); }, () => {});
-      for (const label of ["프로젝트 키", "보고자", "시작일", "종료일"]) await page.getByLabel(label, { exact: true }).fill("");
-      jira.setQuery({ key: "MOCK-1" });
-      const detail = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
-      expect(detail.receipt.outcome).toBe("success");
-      expect(detail.result).toMatchObject({ key: "MOCK-1", issueUrl: jira.baseUrl + "/browse/MOCK-1", commentsTotal: 12, commentsStartAt: 0, commentsReturned: 10, descriptionTruncated: true });
-      expect(detail.result.description).toHaveLength(16000);
-      expect(detail.result.comments[0]).toMatchObject({ id: "12", bodyTruncated: true });
-      expect(detail.result.comments[0].body).toHaveLength(4000);
-      expect(detail.result.fetchedAt).toMatch(/^\d{2}-\d{2}-\d{2} \d{2}:\d{2}$/);
-      jira.setFault(403);
-      const detailDenied = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
-      expect(detailDenied.errorKind).toBe("forbidden");
-      expect(JSON.stringify(detailDenied)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
-      jira.setFault(0);
-      jira.setLarge(true);
-      const capped = await queryRows({});
-      expect(capped).toHaveLength(500);
-      expect(capped.at(-1).key).toBe("MOCK-500");
-      expect(jira.searches().map(v => v.startAt)).toEqual([0, 100, 200, 300, 400]);
-      await queryButton.click();
-      await expect(page.getByText("500 / 500 · Total: 501", { exact: true })).toBeVisible();
-      if (screenshots) {
-        await page.setViewportSize({ width: 1440, height: 900 });
-        await page.getByRole("table").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: "tmp/jira-1350/assigned-500-1440.png", mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
-      }
-      assignedQueryMs = Date.now() - assignedStart;
-      jira.setLarge(false);
-      jira.setInput("MOCK-1, MOCK-2, MOCK-404");
-      await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
-      const search = page.getByRole("button", { name: "조회", exact: true });
-      await search.click();
-      for (const row of connected.result.rows) {
-        const tr = page.getByRole("row").filter({ has: page.getByRole("cell", { name: row.key, exact: true }) });
-        expect(row.issueUrl).toBe(jira.baseUrl + "/browse/" + row.key);
-        await expect(tr.getByRole("cell")).toHaveText([row.key, row.summary, row.status, row.assignee, row.reporter, row.created, row.updated]);
-      }
-      await page.getByRole("button", { name: "Columns", exact: true }).click();
-      await page.getByRole("menuitemcheckbox", { name: "우선순위", exact: true }).click();
-      await page.keyboard.press("Escape");
-      await expect(page.getByRole("columnheader", { name: "우선순위", exact: false })).toBeVisible();
-      await page.getByRole("button", { name: "Columns", exact: true }).click();
-      await page.getByRole("menuitemcheckbox", { name: "우선순위", exact: true }).click();
-      await page.keyboard.press("Escape");
-      const issueLink = page.getByRole("link", { name: "MOCK-1", exact: true });
-      await expect(issueLink).toBeVisible();
-      await expect(issueLink).toHaveAttribute("href", jira.baseUrl + "/browse/MOCK-1");
-      if (screenshots) {
-        for (const width of [1440, 640]) {
-          await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
-          await page.setViewportSize({ width, height: 900 });
-          await page.reload();
-          await openScreen('Jira');
-          await page.getByRole("button", { name: "간편 검색", exact: true }).click();
-          const disclosure = page.getByRole("button", { name: width === 640 ? /추가 조건/ : /Additional conditions/ });
-          await expect(page.locator('[data-view-field="account"]')).toHaveAttribute("placeholder", "Fixture PAT user");
-          const capture = async state => {
-            await page.mouse.move(0, 0);
-            await page.screenshot({ path: `docs/design/assets/search-form-1370/${state}-${width}${width===640?"-ko-dark":""}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
-          };
-          await capture("default");
-          await disclosure.click();
-          await page.locator('[data-view-field="project"]').fill("MOCK");
-          await page.locator('[data-view-field="reporter"]').fill("mock-user");
-          await page.locator('[data-view-field="dateFrom"]').fill("2026-11-01");
-          await page.locator('[data-view-field="dateTo"]').fill("2026-11-09");
-          await disclosure.click();
-          await search.click();
-          await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
-          await capture("collapsed");
-          await page.getByRole("button", { name: width === 640 ? "열 선택" : "Columns", exact: true }).click();
-          await capture("columns");
-          await page.keyboard.press("Escape");
-          await disclosure.click();
-          await page.keyboard.press("Escape");
-          await capture("expanded");
-          if (width === 640) {
-            await page.locator('[data-view-field="keys"]').scrollIntoViewIfNeeded();
-            await capture("expanded-bottom");
-          }
-        }
-        await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
-        await page.reload();
-        await openScreen('Jira');
-        await page.getByRole("button", { name: "간편 검색", exact: true }).click();
-        await page.getByRole("button", { name: /Additional conditions/ }).click();
-        await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
-        await search.click();
-        await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
-      }
-      jira.setQuery({});
-      await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("");
-      for (const [status, kind, advice] of [[401, "auth", "Authentication required."], [403, "forbidden", "Access denied."], [500, "unavailable", "Service unavailable."], [302, "failed", "View operation failed."], [408, "timeout", "Operation timed out."]]) {
-        jira.setFault(status);
-        const failed = await invoke();
-        expect(failed.errorKind).toBe(kind);
-        expect(JSON.stringify(failed)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
-        const queried = page.waitForResponse(response => response.url().endsWith("/api/views") && response.request().method() === "POST" && response.request().postDataJSON()?.action === "run");
-        await search.click();
-        const ui = await (await queried).json();
-        expect(ui.errorKind).toBe(kind);
-        expect(JSON.stringify(ui)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
-        await expect(page.getByRole("alert").filter({ hasText: advice })).toBeVisible();
-        await expect(page.getByRole("status").filter({ hasText: /Previous query result/ })).toBeVisible();
-        expect(await page.locator("body").innerText()).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
-      }
-      expect(jira.redirects()).toBe(0);
-      jira.setFault(0);
-      jira.setSettings({ baseUrl: "https://jira.example.com/context", apiUrl: jira.baseUrl + "/rest/api/2/" });
-      await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
-      jira.setInput("MOCK-2, MOCK-1, MOCK-2");
-      const overridden = (await invoke()).result;
-      expect(overridden.rows.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
-      expect(overridden.rows.map(row => row.issueUrl)).toEqual(["https://jira.example.com/context/browse/MOCK-1", "https://jira.example.com/context/browse/MOCK-2"]);
-      for (const baseUrl of ["https://user:password@example.com", "https://example.com?query=1", "https://example.com#fragment"]) {
-        jira.setSettings({ baseUrl });
-        await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
-        expect((await invoke()).errorKind).toBe("failed");
-      }
-      jira.setInput("MOCK-1, MOCK-2, MOCK-404");
-      jira.setSettings({ baseUrl: jira.baseUrl });
-      await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
-      await search.click();
-      await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
-      if (jira.mock) {
-        jira.setSettings({ baseUrl: "http://127.0.0.1:8081" });
-        await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
-        const healthResult = await jira.cli(["operation", "invoke", "community.jira.connection", "--input", jira.healthInput]);
-        expect(healthResult.result).toEqual({ ok: true, message: "Jira 연결과 PAT 인증을 확인했습니다." });
-        const mockAll = await queryRows({ status: "전체" });
-        expect(mockAll.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
-        // Mock supports connection and current-user search, not key-in JQL or comments.
-        const mock = { result: mockAll };
-        expect(mock.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
-        expect(mock.result[0].summary).not.toBe("—");
-        expect(mock.result[0].issueUrl).toBe("http://127.0.0.1:8081/browse/MOCK-1");
-      }
-    }
-  } finally {
-    await jira.cli(["plugins", "disable", "community.jira"]);
-    await jira.cli(["plugins", "unregister", "community.jira"]);
-  }
-  if (screenshots && pluginFixture.realSnapshot) {
-    // Manual real-plugin evidence only. Node CLI reads the isolated Host, then masks
-    // account/path metadata before any real data reaches browser tracing or screenshots.
-    const snapshot = pluginFixture.realSnapshot();
-    await page.route("**/api/plugins", route => route.fulfill({ json: snapshot }));
-    await page.route("**/api/host-capabilities", route => route.fulfill({ json: { fileDeletion: "trash", identity: { runAs: "Example User" } } }));
-    await page.evaluate(() => localStorage.clear());
-    await page.reload(); await openSettings();
-    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
-    for (const width of [1440, 640]) {
-      if (width === 640) { await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); }); await page.reload(); await page.getByRole("button", { name: "설정", exact: true }).click(); await page.getByRole("button", { name: "플러그인", exact: true }).click(); }
-      await page.setViewportSize({ width, height: 900 });
-      await page.screenshot({ path: `tmp/plugin-stage1/onedrive-settings-${width}.png` });
-      await page.keyboard.press("Escape");
-      await page.screenshot({ path: `tmp/plugin-stage1/onedrive-source-${width}.png` });
-      if (width === 1440) await openSettings();
-    }
-  }
 
-  page.off("request", countRequest);
-  return { secretSaves, assignedQueryMs, requestCounts, maxRequestsPerSecond: Math.max(0, ...Object.values(requestSeconds)) };
 }

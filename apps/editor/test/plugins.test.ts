@@ -687,11 +687,11 @@ test("fixed LSR document uses Core corrections through save, cold read, Undo and
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
-  const manifest = { schemaVersion: 1, id: "litzio.onedrive", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string", minLength: 1 }, nested: { type: "object", properties: { value: { type: "string" } }, required: ["value"] } }, additionalProperties: false } };
+  const manifest = { schemaVersion: 1, id: "fixture.lifecycle", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string", minLength: 1 }, nested: { type: "object", properties: { value: { type: "string" } }, required: ["value"] } }, additionalProperties: false } };
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
   writeFileSync(path.join(directory, "host.js"), `export function activate(c){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return c.settings.label ?? "done"}},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
-  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [] });
+  const host = new PluginHost(path.join(root, "state.json"), {  });
   try {
     await host.invoke("register", { directory });
     await assert.rejects(host.invoke("settings", { id: manifest.id, settings: { label: 42 } }), (error: any) => {
@@ -709,17 +709,17 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     const collision = path.join(root, "collision"); mkdirSync(collision);
     writeFileSync(path.join(collision, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     writeFileSync(path.join(collision, "host.js"), "throw new Error('Must not import conflicting plugin')");
-    writeFileSync(path.join(collision, "litzio-plugin.json"), JSON.stringify({ ...manifest, id: "litzio", contributes: { operations: [{ ...manifest.contributes.operations[0], id: "onedrive.read" }] } }));
+    writeFileSync(path.join(collision, "litzio-plugin.json"), JSON.stringify({ ...manifest, id: "fixture", contributes: { operations: [{ ...manifest.contributes.operations[0], id: "lifecycle.read" }] } }));
     await assert.rejects(host.invoke("register", { directory: collision }), /collision/);
     const registered = (await host.list())[0]!;
     assert.equal(registered.running, false); assert.equal(registered.official, false);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /trust/);
     await host.invoke("trust", { id: manifest.id, registrationId: registered.registrationId });
     await host.invoke("enable", { id: manifest.id });
-    const admitted = host.invokeOperation("litzio.onedrive.read", {});
+    const admitted = host.invokeOperation("fixture.lifecycle.read", {});
     const disabling = host.invoke("disable", { id: manifest.id });
     await new Promise(resolve => setImmediate(resolve));
-    await assert.rejects(host.invokeOperation("litzio.onedrive.read", {}), /disabled/);
+    await assert.rejects(host.invokeOperation("fixture.lifecycle.read", {}), /disabled/);
     await disabling; assert.equal((await admitted).result, "done");
     await host.invoke("settings", { id: manifest.id, settings: { label: "saved" } });
     assert.deepEqual((await host.list())[0]?.settings, { label: "saved" });
@@ -728,12 +728,12 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     assert.deepEqual(activities, [{ action: "enable", id: manifest.id, outcome: "success" }]);
     assert.equal((await host.list())[0]?.running, true);
     await executePluginTool(host, { action: "settings", id: manifest.id, settings: { label: "live" } }, () => {});
-    assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "live");
+    assert.equal((await host.invokeOperation("fixture.lifecycle.read", {})).result, "live");
     writeFileSync(path.join(directory, "extra.js"), "// updated artifact");
     await host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } });
     assert.equal((await host.list())[0]!.trusted, true);
     assert.equal((await host.list())[0]?.running, true);
-    assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "recovered");
+    assert.equal((await host.invokeOperation("fixture.lifecycle.read", {})).result, "recovered");
     await host.invoke("disable", { id: manifest.id });
     const { statSync, utimesSync } = await import("node:fs");
     const entry = path.join(directory, "host.js"), metadata = statSync(entry);
@@ -870,7 +870,8 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
 function lifecycleFixture(root: string, id: string, code = "export function activate(){return {operations:{},status:()=>({available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}),dispose(){}}}") {
   const directory = path.join(root, id); mkdirSync(directory);
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-  writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: id, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: {} }));
+  writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: id, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { screens: [{ id: "main", title: id, icon: "ChartColumn", entry: "screen.jsx", primary: true }] } }));
+  writeFileSync(path.join(directory, "screen.jsx"), "export default function Screen(){return null}");
   writeFileSync(path.join(directory, "host.js"), code);
   return directory;
 }
@@ -1106,7 +1107,7 @@ test("K1 assistant job tools use shared definitions without per-call consent and
 });
 
 test("subprocess isolation, fresh artifact reload, trust failure recovery and crash status", async t => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [], designatedPlugins: [] });
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { designatedPlugins: [] });
   const connection = new ProviderConnections(path.join(root, "assistant"));
   const skills = path.join(root, "assistant", ".agents", "skills"), installedSkill = path.join(skills, "litzio-plugin-fixture--reload---review");
   const marker = path.join(root, "disposed");
@@ -1741,48 +1742,13 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
 });
 
 // Host policy combinations belong here; browser coverage owns the folder picker and toggle wiring.
-test("bundled defaults follow supply until an explicit choice; update verification cannot be bypassed", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-bundled-"));
-  const directory = lifecycleFixture(root, "fixture.bundled");
-  const file = path.join(directory, "litzio-plugin.json");
-  const manifest = JSON.parse(readFileSync(file, "utf8")); manifest.tier = "official";
-  writeFileSync(file, JSON.stringify(manifest));
-  const supply = [{ id: manifest.id, publisher: "fixture", directory, digest: artifactDigest(directory), defaultEnabled: false }];
-  const state = path.join(root, "state.json");
-  let host = new PluginHost(state, { officialPlugins: supply });
-  try {
-    await host.start(); assert.equal((await host.list())[0]!.enabled, false);
-    // Saving unrelated settings must not turn a default into an explicit choice.
-    await host.invoke("settings", { id: manifest.id, settings: {} }); await host.close();
-    supply[0]!.defaultEnabled = true;
-    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
-    assert.equal((await host.list())[0]!.running, true);
-    await host.invoke("disable", { id: manifest.id }); await host.close();
-    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
-    assert.equal((await host.list())[0]!.enabled, false);
-    await host.invoke("enable", { id: manifest.id }); await host.close();
-    supply[0]!.defaultEnabled = false;
-    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
-    assert.equal((await host.list())[0]!.running, true);
-    await assert.rejects(host.invoke("unregister", { id: manifest.id }), /disabled/);
-    await assert.rejects(host.invoke("register", { directory }), /app only/);
-    await host.close(); writeFileSync(path.join(directory, "tampered.js"), "changed");
-    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
-    const status = (await host.list())[0]!;
-    assert.equal(status.official, false); assert.equal(status.running, false); assert.match(status.error!, /verification/);
-    await assert.rejects(host.invoke("trust", { id: manifest.id, registrationId: status.registrationId }), /disabled/);
-    await assert.rejects(host.invoke("enable", { id: manifest.id }), /verification/);
-    await assert.rejects(host.invoke("enable", { id: manifest.id, trust: true }), /disabled/);
-  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
-});
-
 
 test("plugin service shutdown waits for startup and confirms the started child exits once", async t => {
   const { createPluginService } = await import("../server/plugin-service.ts");
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-start-close-"));
   const file = path.join(root, "state.json");
   const directory = lifecycleFixture(root, "fixture.start", `export function activate(){return {operations:{},status:()=>({available:true,message:String(process.pid),folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
-  const seed = new PluginHost(file, { officialPlugins: [] });
+  const seed = new PluginHost(file, {  });
   try {
     await seed.invoke("register", { directory });
     await seed.invoke("trust", { id: "fixture.start", registrationId: (await seed.list())[0]!.registrationId });
@@ -1815,7 +1781,7 @@ test("plugin service shutdown waits for startup and confirms the started child e
 
 test("health check publication enforces the SDK result even with a permissive plugin schema", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-health-"));
-  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [] });
+  const host = new PluginHost(path.join(root, "state.json"), {  });
   try {
     const directory = lifecycleFixture(root, "fixture.health", `export function activate(c){return {operations:{connection:()=>c.settings.invalid ? {ok:true,message:'fixed',raw:'private service response'} : {ok:false,message:'Service unavailable'}},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
     const file = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(file, "utf8"));
@@ -1835,80 +1801,6 @@ test("health check publication enforces the SDK result even with a permissive pl
     assert.equal(invalid.result, undefined);
     assert.ok(!JSON.stringify(invalid).includes("private service response"));
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
-});
-
-test("Jira activates with empty ordinary settings and guides connection setup", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-jira-empty-"));
-  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [], designatedPlugins: [], secrets: {
-    supported: true, async read() { return "synthetic-pat"; }, async status() { return true; }, async set() {}, async delete() {},
-  } });
-  try {
-    const directory = path.resolve("../../community-plugins/jira");
-    await host.invoke("register", { directory });
-    const id = "community.jira";
-    await host.invoke("trust", { id, registrationId: (await host.list()).find(p => p.id === id)!.registrationId });
-    await host.invoke("enable", { id });
-    const connection = await host.invokeOperation(`${id}.connection`, {});
-    assert.deepEqual(connection.result, { ok: false, message: "Jira 주소를 입력하세요." });
-    for (const [operation, input] of [["issues", {}], ["jql", { jql: "project = MOCK" }], ["detail", { key: "MOCK-1" }], ["current-account", {}], ["users", { query: "mo" }], ["projects", { query: "mo" }]] as const) {
-      const result = await host.invokeOperation(`${id}.${operation}`, input);
-      assert.ok("errorKind" in result);
-      assert.equal(result.errorKind, "not_found");
-      assert.equal(result.error, "Target not found. Check the target address or identifier.");
-    }
-  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
-});
-
-test("Jira artifact filters reject malformed dates/JQL controls and detail preserves bounded text and comment range", async t => {
-  const source = readFileSync(new URL("../../../community-plugins/jira/host.js", import.meta.url), "utf8");
-  const { activate } = await import("data:text/javascript;base64," + Buffer.from(source.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
-  let calls: URL[] = [], body: any = { startAt: 0, total: 0, issues: [] };
-  t.mock.method(globalThis, "fetch", async (url: string) => { calls.push(new URL(url)); return new Response(JSON.stringify(body)); });
-  const plugin = activate({ settings: { baseUrl: "https://jira.example.com/jira" }, secrets: { pat: "synthetic" } });
-  t.after(() => plugin.dispose());
-  for (const input of [{ dateFrom: "2026-02-29" }, { dateTo: "2026-13-01" }, { dateFrom: "2026-11-09", dateTo: "2026-11-01" }, { project: 'X" OR true' }, { reporter: "user\nOR true" }]) {
-    await assert.rejects(plugin.operations.issues(input));
-  }
-  assert.equal(calls.length, 0);
-  await plugin.operations.issues({ dateField: "생성일", reporter: 'name"\\x', project: "MOCK", dateFrom: "2024-02-29", dateTo: "2024-02-29" });
-  assert.equal(calls[0]!.searchParams.get("jql"), 'assignee = currentUser() AND resolution = Unresolved AND project = "MOCK" AND reporter = "name\\"\\\\x" AND created >= "2024-02-29" AND created < "2024-03-01" ORDER BY updated DESC');
-  await assert.rejects(plugin.operations.jql({ jql: " " }));
-  await assert.rejects(plugin.operations.jql({ jql: "x".repeat(4001) }));
-  const offsets: number[] = [];
-  t.mock.method(globalThis, "fetch", async (url: string) => {
-    const query = new URL(url).searchParams;
-    assert.equal(query.get("jql"), "project = MOCK ORDER BY updated DESC");
-    assert.equal(query.get("fields"), "summary,status,assignee,reporter,created,updated,priority,issuetype,resolution,duedate,components,labels");
-    assert.equal(query.get("maxResults"), String(500 - Number(query.get("startAt"))));
-    const startAt = Number(query.get("startAt")); offsets.push(startAt);
-    return new Response(JSON.stringify({ startAt, maxResults: 2, total: 4, issues: Array.from({length: startAt === 0 ? 2 : 1}, (_, i) => ({key: `MOCK-${startAt+i+1}`, fields:{summary:"Fixture", created:"2025-12-31T23:30:00.000+0000", updated:"2026-01-01T01:30:00.000+0000", duedate:"2026-01-02"}})) }));
-  });
-  const result = await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"});
-  assert.equal(result.truncated, false); assert.equal(result.total, 4);
-  const rows = result.rows;
-  assert.deepEqual(rows.map((r: any) => r.key), ["MOCK-1", "MOCK-2", "MOCK-3", "MOCK-4"]);
-  const localTime = (value: string) => {
-    const d = new Date(value), pad = (v: number) => String(v).padStart(2, "0");
-    return `${pad(d.getFullYear() % 100)}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-  assert.equal(rows[0].created, localTime("2025-12-31T23:30:00Z"));
-  assert.equal(rows[0].updated, localTime("2026-01-01T01:30:00Z"));
-  assert.ok(rows[0].created < rows[0].updated);
-  assert.equal(rows[0].dueDate, "26-01-02");
-  assert.equal(rows[0].assignee, "—");
-  assert.deepEqual(offsets, [0, 2, 3]);
-  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({errorMessages:["RAW-JIRA-SENTINEL"]}), {status:400}));
-  await assert.rejects(plugin.operations.jql({jql:"project ="}), (e: any) => e.kind === "failed" && !e.message.includes("SENTINEL"));
-  body = { key: "MOCK-1", fields: { description: null } };
-  t.mock.method(globalThis, "fetch", async (url: string) => new Response(JSON.stringify(url.includes("/comment?") ? { startAt: 0, total: 0, comments: [] } : body)));
-  const detail = await plugin.operations.detail({ key: "MOCK-1" });
-  assert.equal(detail.description, ""); assert.equal(detail.commentsTotal, 0); assert.equal(detail.commentsReturned, 0);
-  t.mock.method(globalThis, "fetch", async (url: string) => new Response(JSON.stringify(url.includes("/comment?") ? { startAt: 0, total: 1, comments: [{ id: "1", body: "Comment", created: "2026-01-01T01:30:00.000+0000", updated: "2026-01-01T02:30:00.000+0000" }] } : body)));
-  const withComment = await plugin.operations.detail({ key: "MOCK-1" });
-  assert.equal(withComment.comments[0].created, localTime("2026-01-01T01:30:00Z"));
-  assert.equal(withComment.comments[0].updated, localTime("2026-01-01T02:30:00Z"));
-  body.fields.description = {};
-  await assert.rejects(plugin.operations.detail({ key: "MOCK-1" }));
 });
 
 test("registered icons enforce image bounds, artifact links and digest trust", async () => {
@@ -1949,7 +1841,7 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
 
 test("suggestion admission and generic CLI invocation share validated results", async () => {
  const root=mkdtempSync(path.join(os.tmpdir(),"litzio-suggestions-"));
- const host=new PluginHost(path.join(root,"state.json"),{officialPlugins:[]});
+ const host=new PluginHost(path.join(root,"state.json"),{});
  const directory=path.join(root,"artifact");mkdirSync(directory);
  const operations=[{id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"},inputHints:{person:"hint"}},{id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}}];
  operations.push({id:"hint",version:1,effect:"read",scope:"host",inputSchema:{type:"object"},outputSchema:{type:"object"}} as any);
@@ -1978,7 +1870,7 @@ test("suggestion admission and generic CLI invocation share validated results", 
 test("registration trust survives updates and restart, but not removal", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-registration-trust-"));
   const file = path.join(root, "state.json");
-  let host = new PluginHost(file, { officialPlugins: [], designatedPlugins: [] });
+  let host = new PluginHost(file, { designatedPlugins: [] });
   try {
     const directory = lifecycleFixture(root, "fixture.trust"), id = "fixture.trust";
     await host.invoke("register", { directory });
@@ -1992,7 +1884,7 @@ test("registration trust survives updates and restart, but not removal", async (
     writeFileSync(path.join(directory, "update.txt"), "updated");
     assert.equal((await host.list())[0]!.trusted, true);
     await host.invoke("reload", { id });
-    await host.close(); host = new PluginHost(file, { officialPlugins: [], designatedPlugins: [] });
+    await host.close(); host = new PluginHost(file, { designatedPlugins: [] });
     await host.start();
     assert.equal((await host.list())[0]!.running, true);
     assert.equal((await host.list())[0]!.registrationId, originalRegistration);
@@ -2053,7 +1945,7 @@ test("designated community supply requires trust, persists across updates and yi
   writeFileSync(entry, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'imported');\n` + readFileSync(entry, "utf8").replace("operations:{}", "operations:{read:()=>'designated'}"));
   const designatedPlugins = [{ id: "fixture.designated", directory }];
   const state = path.join(root, "state.json");
-  const options = { officialPlugins: [], designatedPlugins };
+  const options = { designatedPlugins };
   let host = new PluginHost(state, options);
   const item = async () => (await host.list()).find(p => p.id === "fixture.designated")!;
   try {
@@ -2194,7 +2086,7 @@ test("authoring: query and file templates validate and run through the shared Ho
 
 test("screen code is active-only, reloads local JSX, reports compiler failures and accepts arbitrary JSON", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-screen-code-"));
-  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [], designatedPlugins: [] });
+  const host = new PluginHost(path.join(root, "state.json"), { designatedPlugins: [] });
   try {
     const { scaffoldPlugin } = await import("../server/plugins/plugin-authoring.ts");
     const directory = path.join(root, "plugin"); scaffoldPlugin(directory, "fixture.screen", undefined, undefined, "screen");
@@ -2251,7 +2143,7 @@ test("screen dependency bundle stays offline and shares the app React instance",
 
 test("install uses authoring ID in opened folders, repeats edits and refuses private CLI calls", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-install-"));
-  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins"), officialPlugins: [], designatedPlugins: [] });
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins"), designatedPlugins: [] });
   const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
   const id = "local.install";
   try {

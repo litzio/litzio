@@ -38,38 +38,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
 
     return;
   }
-  // Match the HTTP fixture: machine OneDrive accounts are unrelated to connection settings.
-  await page.route("**/api/plugins", async route => {
-    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
-    const value = await response.json();
-    for (const plugin of value.plugins ?? []) if (plugin.id === "litzio.onedrive" && plugin.running) {
-      plugin.status = { available: true, folders: [], decorations: [], accounts: [] };
-    }
-    await route.fulfill({ response, json: value });
-  });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
-  const official = page.getByRole("region", { name: "OneDrive", exact: true });
-  const officialToggle = official.getByRole("switch", { name: "Enable OneDrive", exact: true });
-  await expect(official.getByText("Official plugin", { exact: true })).toBeVisible();
-  await expect(officialToggle).not.toBeChecked();
-  await official.getByRole("button", { name: "OneDrive settings", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
-  await expect(page.getByRole("dialog").getByRole("button", { name: "Check connection", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  for (const name of ["Docling", "Jira"]) {
-    await page.getByRole("region", { name, exact: true }).getByRole("button", { name: `${name} settings`, exact: true }).click();
-    await expect(page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
-    await page.keyboard.press("Escape");
-  }
-  const officialEnabled = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "POST" && response.request().postDataJSON()?.action === "enable");
-  await officialToggle.click();
-  expect((await officialEnabled).ok()).toBe(true);
-  await expect(official.getByRole("switch")).toBeChecked();
-  await officialToggle.click();
-  await expect(official.getByRole("switch")).not.toBeChecked();
-
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   const input = page.getByTestId("folder-path");
   const register = page.getByTestId("folder-open");

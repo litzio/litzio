@@ -18,7 +18,7 @@ const policyFiles = new Set([
 const policyOnly = path => policyFiles.has(path) ||
   path.startsWith('.agents/skills/') || path.startsWith('.claude/skills/');
 const inPackage = (path, name) => path.startsWith(`${name}/`);
-const pluginPackage = path => ['packages/plugin-sdk', 'plugins/onedrive', 'community-plugins']
+const pluginPackage = path => ['packages/plugin-sdk', 'community-plugins']
   .some(name => inPackage(path, name));
 const pluginDocumentation = path => pluginPackage(path) && path.endsWith('.md');
 const editorUpdate = path => ['apps/editor/shared/desktop-bridge.ts',
@@ -92,8 +92,8 @@ function selectPathJobs(eventName, paths) {
   const full = paths.some(path => !policyOnly(path) && (shared(path) || !known(path)));
   // Editor scenarios consume UI assets and Host operations.
   // Select whole packages rather than maintaining a second dependency graph.
-  // vite-plugins activates the real OneDrive artifact. The shared scenario setup
-  // reads the Docling fixture; HTTP scenarios additionally load Docling/Jira.
+  // The shared scenario setup
+  // reads the Docling fixture; HTTP scenarios additionally load Docling.
   const pluginConsumers = paths.some(path => pluginPackage(path) && !pluginDocumentation(path));
   const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', ]
     .some(name => inPackage(path, name))) || pluginConsumers;

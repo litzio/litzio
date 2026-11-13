@@ -23,7 +23,6 @@ type FolderTreeProps = {
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
-  decoration?: ReactNode;
   tree: FolderTreeState;
   focusFolder?: string | null;
   onFolderFocused?(): void;
@@ -67,7 +66,7 @@ function pathActions(path: string, root: string, copy?: (path: string) => void):
 }
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-export function FolderTree({ onCompare, onCopyPath, decoration,  onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+export function FolderTree({ onCompare, onCopyPath, onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -147,13 +146,12 @@ export function FolderTree({ onCompare, onCopyPath, decoration,  onAddToChat, on
   return (
     <section ref={section} className="sidebar-folder" aria-label={folderName} data-testid="folder" data-root={tree.root}>
       <ContextMenu actions={actions} trigger={<div className="sidebar-folder-header">
-        <p className={`sidebar-folder-name${decoration ? " sidebar-folder-name--decorated" : ""}`} title={tree.root}>
+        <p className="sidebar-folder-name" title={tree.root}>
           <span className="sidebar-tree-chevron">
             <Button type="button" variant="ghost" size="icon-xs" className="sidebar-folder-toggle"
               aria-label={toggleName} title={toggleName} aria-expanded={tree.sectionExpanded} aria-controls={treeId}
               onClick={onToggleSection}><ChevronRight aria-hidden="true" /></Button>
           </span>
-          {decoration}
           <span className="sidebar-tree-name" onClick={event => {
             // A double-click must not immediately undo its first toggle.
             if (event.detail <= 1) onToggleSection();

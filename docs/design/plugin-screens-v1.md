@@ -1,5 +1,7 @@
 # Plugin screens and queries v1
 
+> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
+
 - Status: Implemented
 - Last verified: 2026-11-13 — #1592 2-4 화면 새 문서 저장을 Host/client·CLI·browser 및 실제 비서 2턴으로 확인. #1465 문서·탐색기 대조와 #1341 제거 범위의 과거 검증은 해당 PR의 기록을 따른다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [플러그인 1단계](plugin-stage1-v1.md), [#1341](https://github.com/litzio/litzio/issues/1341).
@@ -154,7 +156,7 @@ native-document job의 선택 comparison 선언과 완료 result 참조에서 �
 
 `host.mjs`는 activate(context)에서 operations·status·dispose를 반환한다. 화면은 default React 컴포넌트이며 제공된 React·ui·invoke를 사용한다. ESM 확장자 덕분에 package.json이 필요 없다. 화면 전용 handler는 선언 없이 invoke로 호출한다. 공개할 작업만 신분증의 선택적 operations에 id·version·effect·scope·assistant·inputSchema를 선언한다(outputSchema 생략은 임의 JSON). 기존 공개 작업의 schema 검증과 receipt는 유지한다. 비공개 handler는 화면 전용 dispatcher가 자기 플러그인 안에서만 찾으며 CLI·비서 작업 목록에 노출하지 않는다. 비공개 handler는 효과를 분류하지 않으므로 실패 receipt는 uncertain이다. JSON 공개·secret redaction과 하위 프로세스 수명은 공통 경로를 쓴다.
 
-화면·조회·표·행 형식 선언과 플러그인별 타입 안내 파일은 필요 없다. 선언형 views/jobs/reviews와 코드 화면의 혼합은 거부한다. 기존 OneDrive·Docling·Jira의 선언형 문법과 수동 등록·신뢰·활성 UI는 유지한다.
+화면·조회·표·행 형식 선언과 플러그인별 타입 안내 파일은 필요 없다. 선언형 views/jobs/reviews와 코드 화면의 혼합은 거부한다. 기존 Docling의 선언형 문법과 수동 등록·신뢰·활성 UI는 유지한다.
 
 ```sh
 litzio plugins scaffold --id local.measurements --template screen --host <origin> --json

@@ -1,5 +1,7 @@
 # ADR-0020: 플러그인 구조와 기본 화면
 
+> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
+
 - Status: Accepted
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Decision date: 2026-11-05
@@ -38,7 +40,7 @@
 
 2026-11-09 소유자 승인 예외 ([#1321](https://github.com/litzio/litzio/issues/1321)): 개념 검증 동안 Docling 개인 플러그인 소스는 `community-plugins/docling/`에 둔다. 커뮤니티 계층이며 공식 공급 목록·Desktop 번들·기본 활성화에 포함하지 않는다. pnpm workspace에서 제외하고 외부 scaffold 구조 및 Host 제공 공개 `@litzio/plugin-sdk`만 사용한다. 독립 배포·유지 책임이 필요해지면 해당 디렉터리를 독립 저장소로 분리하며 Litzio 내부 import나 workspace 의존을 분리 전제로 추가하지 않는다. 서버 주소 설정·수동 연결 조회에 이어 #1322의 정정 범위는 PDF → 원본 `.docling` 보관과 `.docling` → Litzio 문서 만들기의 두 작업이다. 두 작업은 공개 SDK의 K1 일반 파일/native-document 결과로 구현하며 형식 해석은 플러그인에 둔다. 형식·변환 규칙·검증 한계는 플러그인 안내를 따른다. 사용·검증 경계는 [플러그인 안내](../../community-plugins/docling/README.md)를 따른다.
 
-2026-11-09 같은 소유자 승인 예외 ([#1328](https://github.com/litzio/litzio/issues/1328))로 Jira도 `community-plugins/jira/`에 두며 위와 같은 workspace·공식 공급·번들 제외 및 공개 SDK 경계를 따른다. 설정·PAT·번호 기반 조회와 검증 범위는 [Jira 안내](../../community-plugins/jira/README.md)를 따른다.
+2026-11-09 같은 소유자 승인 예외 ([#1328](https://github.com/litzio/litzio/issues/1328))로 Jira도 `community-plugins/jira/`에 두며 위와 같은 workspace·공식 공급·번들 제외 및 공개 SDK 경계를 따른다. 설정·PAT·번호 기반 조회와 검증 범위는 [Jira 안내](https://github.com/litzio/litzio/tree/archive/2026-11-13-plugins-declarative/community-plugins/jira/README.md)를 따른다.
 
 재개 단계에 맞춰 다음 위치를 사용한다. 경로는 책임 배치이며 지금 디렉터리를 만들라는 지시가 아니다.
 

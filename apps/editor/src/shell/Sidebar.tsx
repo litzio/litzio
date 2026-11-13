@@ -1,10 +1,9 @@
 import type { ComparisonTarget } from "../review/GeneratedComparison.tsx";
-import { PluginIcon } from "../PluginIcon.tsx";
 import { getHostClient } from "../host-client.ts";
 import { ContextMenu } from "@/components/ui/context-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
-import { usePlugins, defaultFolderCandidate } from "../PluginSettings.tsx";
+import { usePlugins } from "../PluginSettings.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
@@ -90,8 +89,6 @@ export function Sidebar({
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
   const { plugins } = usePlugins();
-  const candidate = defaultFolderCandidate(plugins, { folders: folders.length, recent: recent.length, documentPath });
-  const candidatePlugin = candidate && plugins.find(p => p.running && p.status?.folders.includes(candidate));
   const only = folders.length === 1 ? folders[0] : undefined;
   const blankActions = only ? folderActions({
     onCopyPath,
@@ -139,12 +136,11 @@ export function Sidebar({
         <section className="sidebar-host" data-host-id="local" hidden={!!hostFilter && hostFilter !== "local"} aria-label={hosts.find(host => host.hostId === "local")?.label ?? "Local"}>
         {hosts.length > 1 ? <HostHeading hostId="local" /> : null}
         {folders.length > 0 ? folders.map(tree => {
-          const decoration = plugins.find(p => p.enabled && p.running && p.iconDigest && p.status?.decorations.some(d => d.path === tree.root));
           return <FolderTree onCompare={target => onCompare?.(tree.hostId, target)} onCopyPath={onCopyPath}
             key={locatorKey({ hostId: tree.hostId, path: tree.root })}
             onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: tree.hostId, path }, focus) : undefined}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
-            tree={tree} decoration={decoration ? <PluginIcon client={getHostClient(tree.hostId)} plugin={decoration.id} digest={decoration.iconDigest} /> : null}
+            tree={tree}
             focusFolder={focusFolder}
             onFolderFocused={onFolderFocused}
             documentPath={documentHostId === "local" ? documentPath : ""}
@@ -169,7 +165,6 @@ export function Sidebar({
             {onNewDocument ? <Button type="button" size="sm" variant="ghost" className="w-full justify-start"
               onClick={event => onNewDocument(event.currentTarget)}>
               <Plus aria-hidden="true" />{i18n.t("New document…")}</Button> : null}
-            {candidate && onOpenRecent ? <Button type="button" size="sm" variant="ghost" className="w-full justify-start" title={candidate.path} onClick={() => onOpenRecent(candidate.path)}>{candidatePlugin ? <PluginIcon client={getHostClient("local")} plugin={candidatePlugin.id} digest={candidatePlugin.iconDigest} fallback={<FolderOpen aria-hidden="true" />} /> : null}{i18n.t("Open {{name}}", { name: candidate.label })}</Button> : null}
             {recent.length > 0 && onOpenRecent ? (
               <section className="sidebar-recent" aria-labelledby="sidebar-recent-label">
                 <p className="sidebar-recent-label" id="sidebar-recent-label">{i18n.t("Recent")}</p>
