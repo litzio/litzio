@@ -388,18 +388,18 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 구분선과 목록 여백을 쓴다. 마지막 대화 선택은 origin별 UI 환경설정이며 새 대화는
 기존 버튼으로 시작한다([현재 계약](main-agent-v1.md#대화와-표시)).
 
-템플릿 갤러리(#1185)는 탐색기와 같은 SettingsSelect/host-filter로 대상 Host를 표시·선택한다. 선택은 갤러리 탭의 일시 상태이며 문서·기기 설정과 분리한다. 목록·미리보기는 선택한 Host에 mount하고 생성 picker·이름 Dialog·생성 탭은 시작 당시 Host를 유지한다. 탐색기·플러그인 화면의 Host 선택과 공통 control을 대조했으며 새 상호작용 예외는 없다. 검증과 전후 화면은 [템플릿 계약](document-templates-v1.md#remote-gallery-verification-1185)을 따른다.
+템플릿 갤러리는 단일 연결에서 시작 시점의 client를 유지한다. Host 선택기는 없으며 목록·미리보기·생성 picker·이름 Dialog·생성 탭이 같은 client를 쓴다. 현재 [템플릿 계약](document-templates-v1.md)을 따른다.
 
 ## P12 모달·파일·복구·설정 범위
 
 #1461의 U22 플러그인 추가는 U23의 공통 FolderDialog를 유지하며, 목록 갱신으로 입력 초안과
-focus를 초기화하지 않는다. App의 이미지 picker와 같은 Host별 안정된 조회 콜백을 사용한다.
+focus를 초기화하지 않는다. App의 이미지 picker와 같은 고정 client의 안정된 조회 콜백을 사용한다.
 선택한 플러그인이 외부에서 제거될 때만 기존 Dialog를 닫고 Notice로 안내한다.
 `http-plugins`에서 갱신 응답 반영 뒤 초안·focus 보존과 외부 제거 안내를 확인한다.
 새 표면·control·시각 토큰 예외는 없으며 [현재 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#공식-번들-공급과-외부-폴더-추가-1279)을 따른다.
 
 #1401은 U23의 폴더 메뉴에서 U24의 기존 DangerConfirmation을 연다. 일반 파일 삭제,
-생성 Undo와 Settings의 복구 삭제·Host 제거에서 쓰는 Cancel 초기 focus·pending 방지·
+생성 Undo와 Settings의 복구 삭제에서 쓰는 Cancel 초기 focus·pending 방지·
 살아남는 항목으로 복귀를 유지한다. 폴더는 미저장 문서를 버리는 선택 없이 저장을 요구한다.
 저장된 탭·복구 정리는 성공 receipt 뒤에만 수행하고 실패·불확실 결과는 보존한다.
 한국어 다크 1440/640px 캡처를 수동 검토했고, `file-actions`·`recovery-storage`에서
@@ -556,6 +556,8 @@ captures are recorded in [Editor UX Shell](editor-ux-shell-v1.md#multiple-host-s
 ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의 host-summary 행과 공용 Notice·Tooltip·Button·Dialog·settings-switch 및 HostStatus 점/톤 스타일을 재사용한다. manifest name 하나를 버튼이 아닌 제목으로 두고 공급자/계층/신뢰 배지·설명을 왼쪽에 묶는다. 같은 행 오른쪽 끝에는 항상 ghost 톱니 아이콘 Button(Tooltip: 설정/Settings, aria-label에 이름 포함)과 스위치를 이 순서로 둔다. 설정 항목이 없어도 톱니로 정보에 진입한다. 상태와 계정은 별도 줄이며 1단계 UI는 로컬 Host만 지원한다.
 ## 공용 원본 대조와 변경 제안 (catalog V5, #1241 A안)
 
+> 삭제 전 UI 결정·검증 기록이다(2026-11-13 #1592 삭제). 현재 화면·입력·문서 보기는 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
+
 현재 [번들 renderer](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/apps/editor/src/review/ReviewRenderer.tsx)는 독립 fixture로 검증한다.
 실제 review Host·CLI 연결과 공통 Views 진입점은 V4/V3 통합 후 확인한다.
 명세는 자료 binding과 조합만 소유하며 아래 동작은 앱 코드가 소유한다.
@@ -605,6 +607,8 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
 저장 의미를 정의하지 않으며 Docling 수락이나 V4 통합 완료 증거가 아니다.
 
 ## Query renderer V3
+
+> 삭제 전 UI 결정·검증 기록이다(2026-11-13 #1592 삭제). 현재 화면·입력·문서 보기는 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
 
 #1241 A안에 따라 제품 화면은 코드로 유지하고, 플러그인 조회 화면은
 제품 공통 Input·Button·Dialog·Notice·FieldError·SettingsSelect 레시피·Lucide를 조합한다.
@@ -745,6 +749,8 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 
 ## 플러그인 화면 작업 패널 (#1340)
 
+> 삭제 전 UI 결정·검증 기록이다(2026-11-13 #1592 삭제). 현재 화면·입력·문서 보기는 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
+
 #1376은 같은 표에 Host가 정한 Root 상대 결과 경로를 표시한다. 동명 결과는 기존 이미지의 `-N` 관례로 자동 선택하며, 시작 거부·접수 실패의 정해진 종류와 상세는 기존 Info Tooltip에 둔다. 공통 Table의 내부 가로 스크롤·Button·Tooltip·JobState를 유지하고 별도 입력·공통 상호작용 예외는 추가하지 않는다. [1440px 변경 전](assets/job-start-1376/before-1440.png) / [변경 후](assets/job-start-1376/after-1440.png), [640px 한국어 다크 변경 전](assets/job-start-1376/before-640.png) / [변경 후](assets/job-start-1376/after-640.png), [실패 상세](assets/job-start-1376/failure-details-640.png)는 localhost fixture의 수동 검토 근거다.
 
 기존 SettingsSelect·Button, 체크박스, view-panel·view-table-scroll과 K1의 JobState·JobActions·파일 탐색 함수를 재사용한다. 패널을 위, 기존 조회 뷰를 아래에 세로 배치한다. 표는 열을 보존하며 내부 가로 스크롤을 제공한다. 파일과 작업, 상태, 단계, 경과, 현재 가능한 행동만 상시 표시한다. 작업 표의 오류·불확실 안내는 공통 Info 아이콘 Tooltip에 두고 키보드 focus로 연다. 결과 열기는 ghost/sm ‘열기’로 표시하고 aria-label에 파일 이름을 포함한다. opaque 경로 복사는 기존 K1과 동일하다. 파일 목록·표의 상시 세로 스크롤은 두지 않으며 페이지가 세로 스크롤을 소유하고 표만 내부 가로 스크롤한다. 별도 공통 상호작용 예외는 없다. 작업만 있는 화면의 근거와 선언·수명은 [현재 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)을 따른다.
@@ -771,6 +777,8 @@ PluginIcon shares the same decorative 16px img in existing sidebar entries, Docu
 
 ### 공통 조회 폼의 추가 조건 (#1370)
 
+> 삭제 전 UI 결정·검증 기록이다(2026-11-13 #1592 삭제). 현재 화면·입력·문서 보기는 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
+
 소유자 승인 A: InputForm의 `advanced: true` 선택 입력만 ‘추가 조건’ Button으로 접는다. 필수 입력은 항상 표시하고 기존 Input/Select/SuggestedInput·FieldError를 재사용한다. 접힌 지정값은 label: value로 빠짐없이 요약하고 긴 값은 줄바꿈한다. 접기는 값을 지우지 않으며 숨은 입력은 Tab 순서에서 제외한다. 오류는 자동 펼침 후 첫 오류 focus, 조회는 기존 명시적 실행과 이전 결과 안내를 유지한다. 빈 자유 입력의 동적 안내는 inputHints read 작업 결과를 placeholder·접근성 설명으로만 표시한다. 현재 값·args에 넣지 않는다. 입력 안내 실패는 수동 입력을 막지 않는다. 자동완성 후보는 입력 focus 밖에서 닫고 늦게 도착한 응답도 다시 열지 않는다. 자세한 선언·수명은 [플러그인 화면 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-screens-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370). 별도 PluginJobPanel은 이 입력 폼이 아니므로 자동 적용하지 않는다.
 
 검증(2026-11-09): `ui-gallery`의 기존 QueryInputs fixture에서 필수 advanced 입력 상시 노출, 숨은 입력 제거, 오류 펼침/첫 오류 focus, 지정값 0·false·null·유효한 빈 문자열과 편집값 보존을 확인했다. `http-plugins`의 가짜 Jira는 실제 Host/CLI/번들 renderer를 통해 PAT 표시 이름 안내(빈 args 유지), 계정·보고자·프로젝트 후보 선택과 수동 조회·접힌 조건 보존을 검증했다. localhost·합성 PAT/자료이며 회사 Jira 성공이나 소유자 시각 승인을 뜻하지 않는다.
@@ -794,6 +802,8 @@ description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장�
 실행 계약은 [플러그인 1단계](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#연결-설정-피드백-1396-sdk-040)를 따른다.
 
 ## 생성 문서의 PDF 대조 (#1408)
+
+> 삭제 전 UI 결정·검증 기록이다(2026-11-13 #1592 삭제). 현재 화면·입력·문서 보기는 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
 
 기존 review 작업 탭·SourceDocumentCompare·DocumentEditor readOnly preview와 PageSurface 이미지 표시를 재사용한다. 완료 작업의 공통 JobActions에서 선언된 comparison 참조를 열며, 상단에는 대상·문서 열기·다시 읽기·페이지 확인 상태만 둔다. PDF 영역의 종류/상태는 hover·keyboard focus로 표시하며 기존 PNG 대조의 상시 label은 유지한다. 새 공통 부품이나 플러그인별 화면은 없다. 기존 K4의 1024px 안내와 달리 이번 생성 문서 대조는 640px 이상에서 패널 내부 스크롤로 두 열을 유지한다. 현재 #1435 대조는 문서 패널 폭으로 본문을 줄바꿈하고 넓은 표·코드·수식만 각 블록 안에서 가로 스크롤한다. 대조 콘텐츠 폭 640px 이하에서는 원본:문서를 1:3으로 두고 기존 14px 본문·18/16/15/14px 제목 토큰으로 compact 읽기를 제공한다. 일반 단어는 통째로 유지하고 긴 단일 토큰만 비상 줄바꿈하며 넓은 대조는 유지한다. [#1455 결정](https://github.com/litzio/litzio/issues/1455)에 따라 640px은 깨지지 않는 기본 동작과 공통 Tooltip의 짧은 ‘넓은 창 권장’을 보장하며 탐색기 오버레이는 별도 범위다. 파일명·확인 개수·페이지 이동·확대·동기화·문서 열기·새로고침은 한 도구 막대(640px 최대 두 줄)에 합친다. 확인 개수와 페이지 이동 분수를 구별하며 아이콘의 Tooltip과 접근성 이름을 사용한다. 확인 기록은 순서대로 저장하며 페이지 이동은 저장 완료를 기다리지 않는다. 저장 중에는 상태를 표시하고 대응 선택을 막으며, 실패나 외부 변경 후 대응·확인을 잠근다. 수정/승인/완료 동작은 표시하지 않는다. Host·CLI·저장 경계는 [공용 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다.
 
@@ -868,9 +878,13 @@ No common interaction exception or new persistent chrome was introduced.
 
 ## Workspace 대조·중간 내보내기 (#1462 P1b)
 
+> 삭제 전 UI 결정·검증 기록이다(2026-11-13 #1592 삭제). 현재 화면·입력·문서 보기는 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
+
 공용 원본 대조 패턴은 기존 ReviewRenderer의 source pages/Read/연결·확인과 Button/Tooltip/Notice를 재사용한다. 문서 파일이 없는 내부 snapshot은 “문서 열기”를 숨기고 현재 상태 내보내기를 제공한다. 출력 선택/충돌 확인은 P12의 Dialog/Input/Button/checkbox를 재사용하고 미저장 열린 대상을 거부한다. 새 token/control 예외는 없다. [P1b 동작과 시각 근거](docling-review-stage3.md#p1b-내부-대조이미지명시-export)를 따른다. 완료 승인 화면은 이 구현에 포함하지 않는다.
 
 ## 생성 문서 대조 진입 (#1465)
+
+> 삭제 전 UI 결정·검증 기록이다(2026-11-13 #1592 삭제). 현재 화면·입력·문서 보기는 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
 
 기존 문서 관리 경고(Notice/Tooltip) 옆에 ghost sm Button을 배치하고 폭이 부족하면
 같은 안내 안에서 줄바꿈한다. 탐색기는 기존 ContextMenu와 PanelRightOpen 아이콘,
