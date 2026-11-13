@@ -258,4 +258,3 @@ Explorer PDF activation uses the existing task tab rather than the transient ima
 ## 플러그인 입력 후보 (#1352)
 
 선언형 입력 후보·QueryInputs는 2026-11-13 삭제했다. 당시 UI 결정은 [보관본](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-decision-table-v1.md#플러그인-입력-후보-1352)에 남긴다. 현재 입력 UI는 플러그인의 화면 코드가 제공한다.
-
