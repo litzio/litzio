@@ -24,9 +24,14 @@ test("screen document saves require opened folders and do not replay failures", 
   await assert.rejects(saveScreenDocument(client, [], input), /Open a folder/);
   await assert.rejects(saveScreenDocument(client, ["D:/remote"], { ...input, folder: "C:/other" }), /Open a folder/);
   await assert.rejects(saveScreenDocument(client, ["D:/remote"], { ...input, name: "../results.md" }), /filename/);
+  await assert.rejects(saveScreenDocument(client, ["D:/remote"], { ...input, folder: "D:/remote/../other" }), /Open a folder/);
+  await assert.rejects(saveScreenDocument(client, ["D:/remote"], { ...input, folder: "D:/remote-other" }), /Open a folder/);
   assert.equal(requests.length, 0);
   await assert.rejects(saveScreenDocument(client, ["D:/remote"], input), /already exists/);
   assert.deepEqual(requests, [{ url: "/api/document", body: { path: "D:/remote/results.md", authoring: input.authoring } }]);
+  const successful = {...client, async request(url: string, init: RequestInit) { return Response.json({path:JSON.parse(String(init.body)).path,revision:"created"}); }};
+  const created = await saveScreenDocument(successful, ["D:/remote"], {...input,folder:"D:/remote/output"});
+  assert.equal(created.path,"D:/remote/output/results.md");
 });
 
 // Real independent HTTP fixtures exercise the client boundary, not document semantics.

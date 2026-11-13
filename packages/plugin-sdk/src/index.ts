@@ -96,4 +96,5 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
 
 export { validatePluginSource } from "./authoring.ts";
 export { SCREEN_UI, SCREEN_UI_GUIDANCE } from "./screen-ui.ts";
+export type { ScreenPickPathInput, ScreenPickedPath, ScreenOpenDocumentResult } from "./screen-actions.ts";
 export type { ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "./screen-ui.ts";

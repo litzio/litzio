@@ -4,11 +4,12 @@ import { hostConnection, getHostClient, type HostClient } from "../host-client.t
 import { viewRequest, type ViewScreen, type ViewResult } from "./view-api.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
+import type { ScreenOpenDocumentResult } from "@litzio/plugin-sdk";
 
 /** Plugin manifest screens; definitions are supplied by the active plugin, never saved view files. */
 export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocument, client }: {
   roots?: string[]; client: HostClient; id: string; root: string; owner: string; screen: ViewScreen;
-  onOpenDocument?(path: string): void;
+  onOpenDocument?(path: string, signal: AbortSignal): Promise<ScreenOpenDocumentResult>;
 }) {
   useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
   const connected = hostConnection.get().state === "connected";
