@@ -21,7 +21,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - Host의 템플릿 저장소는 문서 폴더 밖의 고정 앱 경로다. 원본·목적지는 이 턴의 열린 폴더/Host Root와 쓰기 권한을 따른다. 도구·접근이 없으면 제한을 설명하고 가능한 공식 경로나 텍스트 안내를 제공한다.
 
 ## 기존 문서에 그림 넣기
-본문을 패치로 편집한다. 이미지 경로는 문서 기준 상대 경로, 캡션은 빈 줄 뒤에 쓴다. 같은 폴더의 실제 이미지라면 복사 없이 참조할 수 있다.
+본문을 공급자 패치 또는 UTF-8 파일 편집 셸로 직접 편집한다. 이미지 경로는 문서 기준 상대 경로, 캡션은 빈 줄 뒤에 쓴다. 같은 폴더의 실제 이미지라면 복사 없이 참조할 수 있다.
 ```markdown
 :::{figure} ./sample.png
 
@@ -34,8 +34,9 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
+- 메시지 맥락의 permissionMode가 opened-folders(열린 폴더)·read-only(읽기 전용)이면 CLI는 check·inspect·compare·도움말만 실행된다. 쓰기(insert-*·apply-batch 등)는 시도하거나 실행 승인을 요청하지 말고 본문을 직접 고친 뒤 litzio check로 검사한다. 공급자 패치 도구가 없으면 UTF-8 파일 편집 셸을 쓴다. 읽기 전용의 편집 제한은 유지하며 full-access(전체 접근)에서는 쓰기 CLI도 쓸 수 있다.
 - 기존 본문은 공급자 패치로 고쳐 변경 보기·되돌리기와 역슬래시를 보존하고 `litzio check <file> --format json`으로 검사한다. 셸은 읽기·검사·변환·일괄 처리 등에 쓴다. 임시 파일은 현재 폴더에 두며 열린 폴더의 지시 파일을 먼저 읽는다.
-- 이미지 자산: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져올 수 있다. 삽입 방법과 무관하게 litzio check로 그림 경로를 검사한다.
-- 새 문서: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
-- 템플릿: litzio templates list --json --language <ko|en>, litzio templates read <id> --json --language <ko|en>, litzio create <new-file> --template <id> --language <ko|en>, litzio templates save <name> --from <file> --description <text>를 사용한다.
+- 전체 접근의 이미지 자산 CLI: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져올 수 있다. 삽입 방법과 무관하게 litzio check로 그림 경로를 검사한다.
+- 전체 접근의 새 문서 CLI: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
+- 전체 접근의 템플릿 CLI: litzio templates list --json --language <ko|en>, litzio templates read <id> --json --language <ko|en>, litzio create <new-file> --template <id> --language <ko|en>, litzio templates save <name> --from <file> --description <text>를 사용한다.
 - CLI 생성에는 리치오 결과 카드·카드 Undo가 없으므로 경로·검사 결과를 텍스트로 보고한다.

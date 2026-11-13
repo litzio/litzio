@@ -1,7 +1,7 @@
 # 비서: 현재 동작 계약
 
 - Status: Implemented
-- Last verified: 2026-11-13 — 현재 코드·제품 지시문과 정적 대조. 제품 실행·실제 AI 호출 검증 없음.
+- Last verified: 2026-11-13 — 제한 권한의 쓰기 CLI 실패 안내·본문 편집 지침을 코드와 대조. 실제 AI 수락 시험의 범위·결과는 해당 PR 기록을 따른다.
 - Authority: [ADR-0021](../adr/0021-general-agent-assistant.md), [ADR-0014](../adr/0014-main-agent-app-server.md), [ADR-0017](../adr/0017-bundled-client-and-official-ai.md).
 - Scope: 대상 Host의 Codex·Copilot 연결, 설정, 대화와 창 연동. Docling·플러그인의 세부는 각 계약을 따른다.
 
@@ -205,6 +205,7 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 
 16. 열린 탭의 경로 표기가 canonical 경로와 다르면 되돌리기 전 미저장 확인·이후 재읽기가 적용되지 않을 수 있다. 저장 시 revision 충돌 보호는 남는다.
 
+17. 제한 권한에서는 `litzio` 쓰기 명령이 app-reset guard에 참여하지 못해 실행되지 않으며 비서는 본문 직접 편집을 쓴다(읽기 전용의 편집 제한은 유지). guard 보호를 유지하기 위한 현재 한계다.
 
 ## 검증
 

@@ -59,7 +59,8 @@ test("read-only CLI commands run without a reset lease while writers still refus
   const target = path.join(fixtures, "guard-refused.md"), write = execute(["create", target]);
   assert.equal(write.status, 1);
   assert.match(write.stderr, /app-reset writer guard/);
-  assert.match(write.stderr, /file editing tool or request execution approval/);
+  assert.match(write.stderr, /This write command cannot run with restricted permissions\. Edit the document file directly with the editing tool, then run litzio check\./);
+  assert.doesNotMatch(write.stderr, /request execution approval/);
   assert.equal(fs.existsSync(target), false);
   assert.equal(readFileSync(document, "utf8"), nativeSource("Keep this document."));
 });

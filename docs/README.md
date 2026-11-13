@@ -40,7 +40,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | --- | --- | --- |
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
 | [Document templates](design/document-templates-v1.md) | Implemented | #936 1–3단계. Core template 메타데이터·생성, 공용 CLI/Host, ko/en 기본 2종, Editor 카드 갤러리·사용자 저장. #1128 공용 작업·Codex 템플릿 도구·생성 receipt/Undo와 child CLI PATH. |
-| [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 유지 규칙 34개와 이유, 공급자별 권한 매핑, 창 연동의 최소 경계, 현재 한계 16개. Docling·플러그인 세부와 수락 시험을 연결하고 과거 기록은 고정 커밋으로 보존한다. |
+| [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 유지 규칙 34개와 이유, 공급자별 권한 매핑, 창 연동의 최소 경계, 현재 한계 17개. Docling·플러그인 세부와 수락 시험을 연결하고 과거 기록은 고정 커밋으로 보존한다. |
 | [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse/참조 진단 도달성, URL·inline HTML backport와 patch 제거 조건. |
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 Host별 위치 식별·로컬 복구(#1174 PR1). |
