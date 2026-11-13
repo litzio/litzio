@@ -169,7 +169,7 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 
 | 턴 | 과제 | 초 | 결과 |
 | --- | --- | ---: | --- |
-| 새 대화 1 | CSV를 표로 보여 주고 기준 15 초과 행을 리치오 문서로 저장하는 버튼 제작 | 64.315 | 첫 턴 성공. 3파일 40줄(host.mjs 27, 신분증 1, screen.jsx 12), 설치·조회 성공. 직접 화면에서 버튼을 눌러 18·24·16만 저장하고 새 문서 탭에서 확인, `litzio check` valid/writable 통과. 비서 자신은 화면 미확인을 명시했다. |
+| 새 대화 1 | CSV를 표로 보여 주고 기준 15 초과 행을 리치오 문서로 저장하는 버튼 제작 | 64.315 | 첫 턴 성공. 3파일 42줄(host.mjs 27, 신분증 1, screen.jsx 12), 설치·조회 성공. 직접 화면에서 버튼을 눌러 18·24·16만 저장하고 새 문서 탭에서 확인, `litzio check` valid/writable 통과. 비서 자신은 화면 미확인을 명시했다. |
 | 같은 대화 2 | 저장 제목 변경, 전체/초과 행 수와 평균 요약 문단 추가, 기본 파일명 변경 | 39.344 | 성공. 3파일 41줄(host 27, 신분증 1, 화면 13). 직접 저장한 문서의 제목·전체 5행·초과 3행·평균 19.33과 표를 확인하고 `litzio check` valid/writable 통과. |
 
 총 2턴이다. 빈 줄을 포함하고 마지막 개행은 추가 행으로 세지 않았다. 1440px 라이트 [버튼이 있는 화면](../design/assets/plugin-screen-save-1592/screen-light.png)과 [저장한 문서](../design/assets/plugin-screen-save-1592/document-light.png)를 직접 검토했다. 계정 표시·폴더 위치·명령 검색의 경로 표시는 촬영 시 mask했다. 화면은 기존 Button/Input/DataTable/Notice를 사용하며 새 화면 부품이나 디자인 예외를 만들지 않았다. 시각 확인은 소유자의 승인과 별개다.
@@ -311,12 +311,12 @@ Editor·전체 패키지 typecheck, CLI/Editor production build, 기존 제작·
 | --- | ---: | --- |
 | 주간 요청 / 카드 답 | 44.357 / 48.874 | 자료 먼저 확인·3질문·계획·3팀 조회·화면 확인 |
 | 변환 조건 부족 첫 시도 | 172.149 | 무응답 중단, 원인 미확정 |
-| 조건 부족 새 대화 / 답변 | 67.341 / 164.054 | 질문 뒤 계획 생성, 3파일 40줄 설치. PDF 없는 폴더여서 변환은 미확인 |
+| 조건 부족 새 대화 / 답변 | 67.341 / 164.054 | 질문 뒤 계획 생성, 3파일 42줄 설치. PDF 없는 폴더여서 변환은 미확인 |
 | 계약 전체 첫 턴 / 계속 | 69.518 / 156.228 | 무질문이나 골격 중단, 후속 설치도 변환 미실행 |
 | 실제 timeout 전달 뒤 수정 | 148.923 | 기존 task success 확인, 재제출 없이 접수+job/recover 조회로 수정·재설치 |
 | 폴더 설치 첫 요청 / 등록 해제 후 | 44.844 / 23.516 | 이미 설치됨 확인 뒤 기존 Host 사본을 재설치. 독립 폴더 설치 증거는 아님 |
 
-과제 2 최종은 3파일 40줄(host 23, manifest 1, screen 16), 과제 1은 3파일 28줄(host 21, manifest 1, screen 6)이다. 과제 3은 5파일 577줄(host 60, manifest 56, screen 12, options 398, profile 51)이며 옵션/프로필 자료가 대부분이다. 줄 수는 빈 줄 포함·마지막 개행 제외. 두 계획 문서는 CLI check valid/writable을 통과했다. 과제 3은 조건이 충분한 화면 하나여서 계획 문서를 강요하지 않았다.
+과제 2 최종은 3파일 42줄(host 24, manifest 1, screen 17), 과제 1은 3파일 28줄(host 21, manifest 1, screen 6)이다. 과제 3은 5파일 579줄(host 61, manifest 56, screen 13, options 398, profile 51)이며 옵션/프로필 자료가 대부분이다. 줄 수는 빈 줄 포함·마지막 개행 제외. 두 계획 문서는 CLI check valid/writable을 통과했다. 과제 3은 조건이 충분한 화면 하나여서 계획 문서를 강요하지 않았다.
 
 시험자가 수정본 화면에서 **새 결과 위치로 명시적으로 별도 시험**을 실행해 접수→2초 간격 job 조회→finished를 확인했다(persistent browser 49.6초). 서버 처리와 파일 저장은 46.254초였다. 결과는 후보 폴더의 source.pdf/document.json/conversion-record.json이며 서버 task/result success·errors 0·13쪽·DoclingDocument 1.10.0·15개 data URI와 실제 옵션 기록을 확인했다. 그러나 이미지 실제 decode 검증은 구현하지 않고 `image_decode_verified:false`, `complete:false`, `state:incomplete`로 남겼다. 따라서 **완전 성공 아님**이다. 기본 프로필 request와 actual_request는 전체 일치했고 overrides는 {}였다. 원본을 중복 복사하지 않는 fixtures의 참조 예외도 구현하지 않아 source.pdf를 복사했다. 중단 UI와 공개 취소 handler도 없다. 이런 계약 미완성을 플랫폼 기능 부족으로 포장하지 않는다.
 
