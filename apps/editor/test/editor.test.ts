@@ -1,5 +1,5 @@
 import { parse as parseTemplateDocument, getEditableDocument as templateReadModel, referenceNumberText as templateReference, captionNumberText as templateCaption } from "@litzio/core";
-import { listTemplates as listDocumentTemplates } from "../server/document-templates.ts";
+import { saveTemplate, listTemplates as listDocumentTemplates } from "../server/document-templates.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { allocateBlockPath } from "../src/block-locators.ts";
 import { prepareEditorSnapshot } from "../src/editor-snapshot.ts";
@@ -2633,3 +2633,26 @@ test("template Host routes expose localized previews, save from authorized files
   assert.equal((await send("/api/templates", "POST", { name: "Bad", from: file, description: "line\nbreak" })).status, 400);
   assert.equal(fs.existsSync(path.join(templates, "Bad.md")), false);
 });
+
+ test("template partial write never publishes and permits same-name retry", t => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-template-write-"));
+  const source = path.join(dir, "source.md"), templates = path.join(dir, "templates");
+  writeFileSync(source, "---\nlitzio: 1\n---\n\nComplete body\n");
+  const original = fs.writeFileSync;
+  const fault = t.mock.method(fs, "writeFileSync", (...[target, data, options]: Parameters<typeof fs.writeFileSync>) => {
+    if (typeof target === "number" || String(target).endsWith("Retry.md")) {
+      original(target, Buffer.from(String(data)).subarray(0, 8), options);
+      throw Object.assign(new Error("Injected partial write"), {code:"ENOSPC"});
+    }
+    return original(target, data, options);
+  });
+  syncBuiltinESMExports();
+  try { assert.throws(() => saveTemplate({name:"Retry",from:source}, undefined, templates), {code:"ENOSPC"}); }
+  finally { fault.mock.restore(); syncBuiltinESMExports(); }
+  assert.deepEqual(readdirSync(templates), []);
+  const result = saveTemplate({name:"Retry",from:source}, undefined, templates);
+  assert.equal(readFileSync(path.join(templates,"Retry.md"),"utf8"), result.source);
+  assert.throws(() => saveTemplate({name:"Retry",from:source}, undefined, templates), /already exists/);
+  assert.equal(readFileSync(path.join(templates,"Retry.md"),"utf8"), result.source);
+  fs.unlinkSync(path.join(templates,"Retry.md")); fs.rmdirSync(templates); fs.unlinkSync(source); fs.rmdirSync(dir);
+ });

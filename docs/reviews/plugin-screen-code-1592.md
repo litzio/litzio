@@ -221,3 +221,31 @@ Review checks label/value axes, spacing, clipping/overlap, typography hierarchy 
 The subtle light border remains deliberately quiet. Owner visual approval is separate.
 
 UI verification: Editor/SDK types, token checks, UI gallery, production screen-code and HTTP crash/reconnect passed. No actual assistant or packaged Desktop was invoked. Long-label 1440px review caught an additional overlap; increased library tick spacing and checked both supported widths. Persistent runner processes were closed by fixture teardown.
+Template fault injection wrote 8 bytes then threw ENOSPC: before, Retry.md remained and the
+regression failed; after createFile reuse, no final/temp sibling remains, same-name retry
+succeeds and a subsequent collision preserves the complete template. Existing Host template
+routes retain case/reserved-name/source-scope checks. No replacement semantics were added.
+
+Direct-write inventory (server and CLI sources):
+- document-templates: final native template write fixed here using createFile.
+- assistant-attachments: clipboard image bytes are written directly to a private conversation
+  attachment file, before indexing. This is a remaining image-related path, reported only:
+  createFile takes UTF-8 text and createFileFromPath requires staging, so this is more than a
+  one-line switch. A write fault can leave an unindexed partial attachment.
+- asset-api: image bytes go to an owned temporary sibling, fsync, exclusive hard-link publish;
+  generated-documents/jobs/review-workspaces and authoring-templates write staging candidates,
+  subsequently admitted/published through shared paths. No direct final document write found.
+- sample-documents: copies into a private staged directory then renames the complete set.
+- Non-document writes, unchanged: assistant attachment/conversation indexes and settings;
+  daemon identity/log/locks; remote-host registry/locks/cache; reset markers; provider-generated
+  instructions/skills and CLI shims; plugin artifact scaffold/screen bundle/skills, installation
+  registry and secret-store files. CLI cli.ts/document-api import writeFileSync but do not call it;
+  CLI daemon writes temporary registry state. No additional final native-document writer found.
+
+Verification: Editor/SDK types, template Host + partial-write tests, image-assets + token tests,
+UI gallery, production screen-code + crash/reconnect, production build and docs checks.
+Initial gallery selector and element screenshot attempts were corrected after inspection;
+element capture clipped the long-label right edge, so viewport captures are used instead.
+No actual assistant, installed application, user daemon/data, remote PC, packaged Desktop,
+power-loss or all possible string/value combinations were tested. Runner-owned processes
+are torn down by the existing persistent fixture; test artifacts are retained.
