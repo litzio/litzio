@@ -3113,5 +3113,19 @@ test("inspect preserves Core inline content at every native location", () => {
       }
       if (block.block === "figure") assert.deepEqual(nodes.find((n: any) => n.type === "caption" && JSON.stringify(n.path) === JSON.stringify(block.caption.path)).content, block.caption.content);
     }
+    const blocks = model.blocks.map(block => {
+      const node = nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(block.path));
+      if (block.block === "table") return { kind: "table", label: node.label, caption: node.caption,
+        rows: block.rows.map(row => row.cells.map(cell => nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(cell.path)).content)) };
+      if (block.block === "figure") return { kind: "figure", imageUrl: node.imageUrl, imageAlt: node.imageAlt,
+        caption: nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(block.caption.path)).content };
+      const { type: kind, path, text, editable, section, numbers, headingNumber, referenceText, captionNumberText, ...fields } = node;
+      return { kind, ...fields };
+    });
+    const input = path.join(dir, "input.json"), rebuilt = path.join(dir, "rebuilt.md");
+    writeFileSync(input, JSON.stringify({ authoring: { inputs: [{ key: "read", blocks }] } }));
+    const created = runProcess(["create", rebuilt, "--input", input, "--format", "json"]);
+    assert.equal(created.status, 0, created.stderr);
+    assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
