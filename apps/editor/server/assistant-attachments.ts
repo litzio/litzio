@@ -70,14 +70,14 @@ export class AssistantAttachments {
     this.records.push({ file, identity: identity(fs.statSync(file, { bigint: true })), digest: createHash("sha256").update(bytes).digest("hex"), ...(args.id ? { owner: args.id } : {}) });
     try { this.persist(); }
     catch (error) { this.records.pop(); fs.unlinkSync(file); throw error; }
-    return { path: file, name: path.basename(file), kind: "image" } as AssistantFileReference;
+    return { path: file, name: path.basename(file), kind: "image", pastedImage: true } as AssistantFileReference;
   }
   reference(file: string, owner?: string): AssistantFileReference | undefined {
     const record = this.records.find(record => record.file === file);
     if (!record) return;
     if (record.owner && record.owner !== owner) throw new Error("Attachment belongs to another conversation.");
     this.bytes(record);
-    return { path: file, name: path.basename(file), kind: "image" };
+    return { path: file, name: path.basename(file), kind: "image", pastedImage: true };
   }
   claim(files: string[], owner: string) {
     if (!files.some(file => this.records.some(record => record.file === file))) return;

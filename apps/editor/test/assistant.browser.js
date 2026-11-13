@@ -215,7 +215,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
-      if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image' } }); }
+      if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } }); }
       if (body.action?.endsWith('-ack')) return route.fulfill({ json: { acknowledged: true } });
       if (body.action === 'screen-result') { screenReply = body.reply; await screenReplyGate; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
       if (body.action === 'display-result') {
@@ -258,7 +258,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         }
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
-        turn.items.push({ id: 'user-' + sent.length, kind: 'user', userMessageSource: body.message === 'Prompt lost before provider record' && promptReject ? 'host' : 'provider-history', submissionId: body.submissionId, text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
+        turn.items.push({ id: 'user-' + sent.length, kind: 'user', userMessageSource: body.message === 'Prompt lost before provider record' && promptReject ? 'host' : 'provider-history', submissionId: body.submissionId, text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file', ...(pastedPaths.includes(path) ? { pastedImage: true } : {}) })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
         if (turn.items.length === 1) turn.items.push({ id: 'summary-' + sent.length, kind: 'reasoning', text: 'Checking the document and opened folders.' },
           { id: 'tool-' + sent.length, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: assistantFixture.document, revision: 'fixture-created-revision' }) }] } },
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
@@ -477,17 +477,41 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const pasteImages = async (count = 1) => message.evaluate((element, count) => {
     const data = new DataTransfer();
     data.setData('text/plain', 'screenshot companion text');
-    for (let n = 0; n < count; n++) data.items.add(new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9S8AAAAASUVORK5CYII='), c => c.charCodeAt(0))], 'image.png', { type: 'image/png' }));
+    for (let n = 0; n < count; n++) {
+      const canvas = document.createElement('canvas'); canvas.width = 120; canvas.height = 80;
+      const context = canvas.getContext('2d');
+      context.fillStyle = ['#315fd4', '#875717', '#315f38'][n % 3]; context.fillRect(0, 0, 120, 80);
+      context.fillStyle = '#ffffff'; context.font = 'bold 48px sans-serif'; context.fillText(String(n + 1), 45, 58);
+      const bytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), c => c.charCodeAt(0));
+      data.items.add(new File([bytes], 'image.png', { type: 'image/png' }));
+    }
     const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
     element.dispatchEvent(event);
     return event.defaultPrevented;
   }, count);
   expect(await pasteImages()).toBe(true);
   await expect(draftChips).toHaveCount(2);
-  await draftChips.filter({ hasText: 'clipboard-' }).getByRole('button').click();
+  await draftChips.filter({ hasText: 'Image 1' }).getByRole('button').click();
   await expect(draftChips).toHaveCount(1);
   expect(await pasteImages(3)).toBe(true);
   await expect(draftChips).toHaveCount(4);
+  await expect(draftChips).toHaveText(['document.md', 'Image 1', 'Image 2', 'Image 3']);
+  await expect(draftChips.locator('img')).toHaveCount(3);
+  await expect.poll(() => draftChips.locator('img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
+  const assertChipFlow = async () => {
+    const geometry = await panel.locator('.assistant-composer .assistant-references').evaluate(list => ({
+      right: list.getBoundingClientRect().right, gap: parseFloat(getComputedStyle(list).gap),
+      chips: [...list.children].map(chip => { const box = chip.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, width: box.width }; }),
+    }));
+    for (let n = 1; n < geometry.chips.length; n++) {
+      const previous = geometry.chips[n - 1], next = geometry.chips[n];
+      expect(next.right).toBeLessThanOrEqual(geometry.right + 1);
+      if (next.top > previous.top) expect(previous.right + geometry.gap + next.width).toBeGreaterThan(geometry.right);
+      else expect(next.left).toBeGreaterThanOrEqual(previous.right);
+    }
+    expect(geometry.chips.some((chip, n, chips) => n > 0 && chip.top === chips[n - 1].top)).toBe(true);
+  };
+  await assertChipFlow();
   await expect(message).toHaveValue('What changed in the current document?');
   expect(await message.evaluate(element => {
     const data = new DataTransfer(); data.setData('text/plain', 'plain text');
@@ -500,9 +524,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption(theme);
       await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await panel.locator('textarea').focus();
+      await expect(draftChips).toHaveText(['document.md', '이미지 1', '이미지 2', '이미지 3']);
+      await assertChipFlow();
       await page.screenshot({ path: `tmp/1589-${theme}-1440-ko.png`, mask: [page.locator(".sidebar-host-account")] });
     }
     await page.setViewportSize({ width:640,height:900 });
+    await assertChipFlow();
     await page.screenshot({ path:'tmp/1589-dark-640-ko.png' });
     await page.setViewportSize({ width:1440,height:1000 });
     await page.getByRole('button', { name:'설정',exact:true }).click();
@@ -558,6 +585,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent[0].responseLanguage).toBeUndefined();
   expect(sent[0].references).toEqual([assistantFixture.document, ...pastedPaths.slice(1)]);
   await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(4);
+  await expect(panel.locator('.assistant-user .assistant-reference')).toHaveText(['document.md', 'Image 1', 'Image 2', 'Image 3']);
+  await expect(panel.locator('.assistant-user .assistant-reference img')).toHaveCount(3);
   await expect(draftChips).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeDisabled();
   await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
@@ -917,6 +946,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await expect(panel.locator('.assistant-user .assistant-reference').filter({ hasText: '$litzio-guide' })).toHaveCount(1);
+  await expect(panel.locator('.assistant-user').first().locator('.assistant-reference')).toHaveText(['document.md', 'Image 1', 'Image 2', 'Image 3']);
   // #1270: the history surface renders the API's original utterance and chips only.
   await expect(panel.locator('.assistant-user').first()).toContainText('What changed in the current document');
   await expect(panel).not.toContainText('# Litzio plugin authoring skill');

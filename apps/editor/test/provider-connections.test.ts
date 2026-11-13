@@ -1554,6 +1554,7 @@ test("pasted images use ACP image bytes and retained Host attachments survive re
   const { AssistantAttachments } = await import("../server/assistant-attachments.ts");
   const restored = new AssistantAttachments(cwd);
   assert.equal(restored.reference(image.path, result.id)?.kind, "image");
+  assert.equal(restored.reference(image.path, result.id)?.pastedImage, true, "restored references retain the presentation marker");
   restored.remove(result.id);
   assert.equal(existsSync(image.path), false);
 });
