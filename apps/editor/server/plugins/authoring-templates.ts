@@ -23,7 +23,7 @@ export function authoringTemplate(id: string, template: "query" | "file" | "scre
     dispose() {},
   };
 }\n`,
-    screen: template === "screen" ? `export default function Screen({React, ui, invoke}) {
+    screen: template === "screen" ? `export default function Screen({React, ui, invoke, saveDocument}) {
   const [result,setResult] = React.useState(null), [error,setError] = React.useState("");
   const load = () => invoke("measurements").then(setResult).catch(e=>setError(e.message));
   return (
@@ -31,6 +31,7 @@ export function authoringTemplate(id: string, template: "query" | "file" | "scre
       <ui.Button onClick={load}>불러오기</ui.Button>
       {error && <ui.Notice tone="error">{error}</ui.Notice>}
       <pre>{JSON.stringify(result)}</pre>
+      <ui.Button disabled={!result} onClick={()=>saveDocument({name:"measurements.md",authoring:{title:"Measurements",inputs:[{key:"values",blocks:[{kind:"table",rows:[["Value"],...result.map(value=>[String(value)])]}]}]},open:true}).catch(e=>setError(e.message))}>문서로 저장</ui.Button>
     </section>
   );
 }\n` : `export default function Screen({React, ui, invoke}) {

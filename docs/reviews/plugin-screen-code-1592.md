@@ -126,3 +126,20 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 최종 로컬 Windows 실제 packaged 검사에서는 설치 3.041초(root manifest 1.104초·unpack 1.003초 포함), Host 기동 1.189초, 첫 dependencies 4.515초(그 안의 npm cache 준비 3.370초), bundle 0.119초, 전체 14.890초로 통과했다. 로컬 값은 자료 폴더 보존으로 정리 시간을 제외한다. 외부 라이브러리를 처음 만드는 사람은 일회성 추출 비용을 뒤로 미루어 지불하지만, 모든 사용자의 CLI·Desktop 설치에서는 npm의 1,976파일을 개별 설치하지 않는다. archive 압축 byte 수 자체를 크게 줄였다는 주장은 아니다.
 
 첫 구현 시험에서는 pnpm의 hardlink 원본을 tar로 바로 묶을 때 일부 entry가 잘못 기록되어 실패했다. 원래 build가 하던 복사를 먼저 수행한 뒤 독립 파일의 복사본을 압축하도록 고치고, 실제 offline dependencies/bundle을 다시 통과했다. 완료 캐시는 임시 폴더의 완전 추출 후 rename으로만 게시한다. 단위 검사는 동시 요청·재사용·중단 흔적·불완전 archive와 새 archive를 확인한다. OS 프로세스 강제 중단이나 패키지된 Desktop 자체의 로컬 시험을 추가로 수행했다는 뜻은 아니다. 압축 배포 head의 Windows CI 결과는 PR 후속 검증에 남긴다.
+
+## 2-4 — 화면에서 새 문서 저장
+
+2026-11-13, Codex `gpt-6.1-terra` high, 합성 CSV(time/value, 10·18·12·24·16), 격리된 HTTP Host와 persistent Chrome에서 확인했다. 방법·API·도구를 알려 주지 않은 과제만 전달했고 계정·공급자는 바꾸지 않았다. 실제 외부 서비스·원격 PC·패키지된 Desktop 수락은 아니다. 비서의 설치·조회 보고와 아래 직접 클릭·문서 검증을 구분한다.
+
+| 턴 | 과제 | 초 | 결과 |
+| --- | --- | ---: | --- |
+| 새 대화 1 | CSV를 표로 보여 주고 기준 15 초과 행을 리치오 문서로 저장하는 버튼 제작 | 64.315 | 첫 턴 성공. 3파일 40줄(host.mjs 27, 신분증 1, screen.jsx 12), 설치·조회 성공. 직접 화면에서 버튼을 눌러 18·24·16만 저장하고 새 문서 탭에서 확인, `litzio check` valid/writable 통과. 비서 자신은 화면 미확인을 명시했다. |
+| 같은 대화 2 | 저장 제목 변경, 전체/초과 행 수와 평균 요약 문단 추가, 기본 파일명 변경 | 39.344 | 성공. 3파일 41줄(host 27, 신분증 1, 화면 13). 직접 저장한 문서의 제목·전체 5행·초과 3행·평균 19.33과 표를 확인하고 `litzio check` valid/writable 통과. |
+
+총 2턴이다. 빈 줄을 포함하고 마지막 개행은 추가 행으로 세지 않았다. 1440px 라이트 [버튼이 있는 화면](../design/assets/plugin-screen-save-1592/screen-light.png)과 [저장한 문서](../design/assets/plugin-screen-save-1592/document-light.png)를 직접 검토했다. 계정 표시·폴더 위치·명령 검색의 경로 표시는 촬영 시 mask했다. 화면은 기존 Button/Input/DataTable/Notice를 사용하며 새 화면 부품이나 디자인 예외를 만들지 않았다. 시각 확인은 소유자의 승인과 별개다.
+
+시험 구성 오류도 있었다. 첫 실제 클릭은 runner의 scratch 파일 쓰기 보호가 OS 임시 폴더를 거부했다. artifact를 수정하거나 보호를 완화하지 않고, 별도 Host의 허용 Root에 checkout scratch 출력 폴더를 추가해 재시작하고 그 폴더를 UI에서 열어 저장했다. 대화는 같은 ID를 resume했다. 재시작 뒤 resume 전 전송 1회는 Host가 거부하여 비서 턴으로 접수되지 않았다. 두 번째 저장의 제목을 본문 editor와 heading에서 찾던 촬영 스크립트도 실패했다. 제목은 기존 별도 Title textbox이므로 그 값을 검사하도록 고쳤다. 이 과정에서 만들어진 문서는 보존했으며 최종 클릭 검사와 캡처를 다시 통과했다. 이 오류들을 비서의 제작 실패나 제품 저장 실패로 계산하지 않는다.
+
+정한 것과 이유: `saveDocument({name,authoring,folder?,open?})` 한 개를 제공했다. 기존 작업 패널처럼 대상 Host의 첫 열린 폴더를 기본값으로 삼고, 필요하면 같은 Host의 열린 폴더를 지정한다. 위치 receipt와 `open:true`의 기존 문서 탭 열기로 결과를 찾는다. 기존 CLI `create --input`과 플러그인 native-document/generated-document의 `createAuthoredDocumentFile → Core authorDocument → createDocumentSourceFile`을 재사용한다. 같은 이름은 오류이며 덮어쓰거나 자동으로 이름을 바꾸지 않는다. 원격 호출 실패는 로컬로 재실행하지 않는다.
+
+검증: 전체 typecheck·문서·경계 검사, Host/client 38검사, 플러그인 authoring/K1·화면 관련 15검사, 기존 CLI create --input 검사, production HTTP plugin-screen-code 및 crash/reconnect Save/Reload 회귀, Vite text-mode 회귀를 통과했다. 화면 회귀에는 실제 저장·열기·이름 충돌 오류와 기존 미저장 탭 생존을 추가했다. 첫 회귀 실행은 예상된 충돌 HTTP 400을 console-error 목록에 등록하지 않아 실패했고 해당 경로·상태의 최소 발생을 명시한 뒤 재실행했다. 열린 폴더 없음과 다른 Host 폴더 거부·실패 시 재시도 없음은 client 검사, 문서 유효성과 receipt·충돌 원본 보존은 Host 검사로 보호한다. 실제 원격 PC와 대용량·긴 작업·외부 서비스는 미확인이다. 필수 PR CI 결과는 PR의 최종 head를 따른다. 직접 시작한 Host·browser·시험 프로세스는 종료했고 시험 자료 폴더는 재귀 삭제하지 않았다. 비공개 로컬 시험 위치는 최종 인계에만 남긴다.

@@ -12,6 +12,22 @@ import { createAssetHost, chooseHostImage } from "../src/image-assets.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
 import { createTemplateRequest } from "../src/template-api.ts";
 import { resolveFigureSource } from "../src/node-views/figure-view.tsx";
+import { saveScreenDocument } from "../src/views/screen-document.ts";
+
+test("screen document saves require opened folders and do not replay failures", async () => {
+  const requests: unknown[] = [];
+  const client = { assertCurrent() {}, async request(url: string, init: RequestInit) {
+    requests.push({ url, body: JSON.parse(String(init.body)) });
+    return Response.json({ error: "file already exists" }, { status: 400 });
+  } } as any;
+  const input = { name: "results.md", authoring: { inputs: [] } };
+  await assert.rejects(saveScreenDocument(client, [], input), /Open a folder/);
+  await assert.rejects(saveScreenDocument(client, ["D:/remote"], { ...input, folder: "C:/other" }), /Open a folder/);
+  await assert.rejects(saveScreenDocument(client, ["D:/remote"], { ...input, name: "../results.md" }), /filename/);
+  assert.equal(requests.length, 0);
+  await assert.rejects(saveScreenDocument(client, ["D:/remote"], input), /already exists/);
+  assert.deepEqual(requests, [{ url: "/api/document", body: { path: "D:/remote/results.md", authoring: input.authoring } }]);
+});
 
 // Real independent HTTP fixtures exercise the client boundary, not document semantics.
 test("Host-bound operations retain origin, isolate outage, and never replay writes", async t => {

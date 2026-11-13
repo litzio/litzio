@@ -67,7 +67,7 @@ export function ViewWorkspace({ roots = [], jobsActive = true, id, hostId, root,
     {hostRegistry.list().length > 1 && onHost ? <div className="view-controls"><label>{i18n.t("Host")}<select className="form-select settings-select" value={hostId} onChange={event => onHost(event.target.value)}>{hostRegistry.list().map(h => <option value={h.hostId} key={h.hostId}>{hostLabel(h.hostId)}</option>)}</select></label></div> : null}
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
-    <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`${hostId}:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} /> : null}</ScreenBoundary>
+    <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`${hostId}:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} onOpen={path => onOpenDocument?.(path, hostId)} /> : null}</ScreenBoundary>
     {contribution?.jobs?.length ? <PluginJobPanel key={`${hostId}:${owner}:${screen.id}`} client={client} plugin={owner} jobIds={contribution.jobs} roots={roots} active={active && jobsActive} onCompare={onCompare} onOpen={async path => { onOpenDocument?.(path, hostId); }} /> : null}
     {defaults.length > 1 ? <section className="view-controls" aria-label={i18n.t("Default views")}>{defaults.map(v => <Button key={v.id} size="sm" variant="ghost" disabled={!active} aria-pressed={selected === v.id} onClick={() => {
       setPages(previous => previous[v.id] ? previous : { ...previous, [v.id]: v.definition }); setSelected(v.id);

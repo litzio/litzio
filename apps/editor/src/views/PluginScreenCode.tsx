@@ -5,8 +5,9 @@ import { Input } from "../components/ui/input.tsx";
 import { DataTable } from "../components/DataTable.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import type { HostClient } from "../host-client.ts";
+import { saveScreenDocument, type ScreenDocumentInput } from "./screen-document.ts";
 const ui = { Button, Input, DataTable, Notice };
-type ScreenProps = { React: typeof React; ui: typeof ui; invoke(operation: string, input?: unknown): Promise<unknown> };
+type ScreenProps = { React: typeof React; ui: typeof ui; invoke(operation: string, input?: unknown): Promise<unknown>; saveDocument(input: ScreenDocumentInput): ReturnType<typeof saveScreenDocument> };
 export class ScreenBoundary extends React.Component<{ children: React.ReactNode; resetKey?: string; closing?: boolean }, { error?: Error }> {
   state: { error?: Error } = {};
   static getDerivedStateFromError(error: Error) { return { error }; }
@@ -15,7 +16,7 @@ export class ScreenBoundary extends React.Component<{ children: React.ReactNode;
   }
   render() { return this.state.error && this.props.closing ? null : this.state.error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{this.state.error.stack ?? this.state.error.message}</pre></Notice> : this.props.children; }
 }
-export function PluginScreenCode({ code, owner, client }: { code: string; owner: string; client: HostClient }) {
+export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code: string; owner: string; client: HostClient; roots: string[]; onOpen?(path: string): void }) {
   const lifetime = React.useRef<AbortController | null>(null);
   const [Screen, setScreen] = React.useState<React.ComponentType<ScreenProps>>();
   const [error, setError] = React.useState("");
@@ -40,5 +41,11 @@ export function PluginScreenCode({ code, owner, client }: { code: string; owner:
     if (!response.ok || reply.error || reply.receipt?.outcome !== "success") throw new Error(reply.error ?? `HTTP ${response.status}`);
     return reply.result;
   }, [client, owner]);
-  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <Screen React={React} ui={ui} invoke={invoke} /> : null;
+  const saveDocument = React.useCallback(async (input: ScreenDocumentInput) => {
+    const signal = lifetime.current?.signal;
+    const receipt = await saveScreenDocument(client, roots, input, signal);
+    if (!signal?.aborted && input.open) { client.assertCurrent(); onOpen?.(receipt.path); }
+    return receipt;
+  }, [client, roots, onOpen]);
+  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} /> : null;
 }

@@ -364,6 +364,31 @@ const saveBody = (file: string, text = "Edited.") => {
     paragraphs: [{ path: [2], content: [{ kind: "text", text }] }] };
 };
 
+test("HTTP authored creation preserves Core validity, receipt and exclusive publication", async t => {
+  const { a, outside, send } = await fixture(t);
+  const file = path.join(a, "authored.md");
+  const authoring = { title: "Measurements", inputs: [{ key: "filtered", blocks: [{ kind: "paragraph", text: "Above 15" }, { kind: "table", rows: [["Value"], ["18"], ["24"]] }] }] };
+  const response = await send("/api/document", "PUT", { path: file, authoring });
+  assert.equal(response.status, 201);
+  const receipt = await response.json();
+  assert.equal(receipt.path, file);
+  assert.equal(receipt.revision, documentRevision(receipt.source));
+  assert.ok(receipt.identity);
+  assert.equal(receipt.inputs[0].targets.length, 2);
+  const reopened = await (await send(documentQuery(file))).json();
+  assert.equal(reopened.kind, "native");
+  assert.equal(reopened.source, receipt.source);
+  const collision = await send("/api/document", "PUT", { path: file, authoring });
+  assert.equal(collision.status, 400);
+  assert.match((await collision.json()).error, /already exists/);
+  assert.equal(fs.readFileSync(file, "utf8"), receipt.source);
+  for (const payload of [{ path: path.join(a, "invalid.md"), authoring: {} }, { authoring }, { path: path.join(a, "mixed.md"), authoring, template: "builtin:technical-document" }]) {
+    assert.equal((await send("/api/document", "PUT", payload)).status, 400);
+  }
+  assert.equal(fs.existsSync(path.join(a, "invalid.md")), false);
+  assert.equal((await send("/api/document", "PUT", { path: path.join(outside, "blocked.md"), authoring })).status, 403);
+});
+
 test("HTTP starts with only allowed places and saves both roots through Core and revision checks", async t => {
   const { a, b, send, host, url } = await fixture(t);
   assert.deepEqual(await (await send("/api/document")).json(), { start: true, allowedRoots: [a, b] });
