@@ -1,5 +1,6 @@
 import { ScreenPartsExample } from "./screen-parts-example.tsx";
 import { ScreenPathExample } from "./screen-path-example.tsx";
+import { DocumentViewExample } from "./document-view-example.tsx";
 import {TableInteractionExample} from "./data-table-example.tsx";
 import { useRef, useState } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
@@ -127,7 +128,7 @@ export function UiGallery() {
     <div className="ui-gallery-body">
     <aside className="ui-gallery-navigation settings-navigation">
       <nav aria-label="Gallery elements">
-        {["Controls", "Surfaces", "Menus", "Notifications", "Tables", "Screen parts"].map(value =>
+        {["Controls", "Surfaces", "Menus", "Notifications", "Tables", "Screen parts", "Document view"].map(value =>
           <Button key={value} variant="ghost" size="sm" aria-current={category === value ? "page" : undefined}
             onClick={() => setCategory(value)}>{value}</Button>)}
       </nav>
@@ -144,6 +145,7 @@ export function UiGallery() {
         : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p></details>
     </div>
     {visible("Screen parts") ? <><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
+    {visible("Document view") ? <DocumentViewExample /> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}

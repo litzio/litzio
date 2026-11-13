@@ -1,3 +1,20 @@
+import type { NodePath } from "@litzio/core";
+
+export type ScreenDocumentViewState = {
+  state: "loading" | "ready" | "error" | "stale-target" | "target-not-found";
+  revision?: string;
+  message?: string;
+};
+export interface ScreenDocumentViewProps {
+  path: string;
+  target?: { revision: string; path: NodePath };
+  /** Change to explicitly reread the saved file. Target changes never reread. */
+  reloadKey?: string | number;
+  height?: number;
+  label?: string;
+  onStateChange?(state: ScreenDocumentViewState): void;
+}
+
 export interface ScreenChartProps {
   title: string; data: Record<string, unknown>[]; xKey: string; yKey: string;
   kind?: "line" | "bar"; baseline?: number; showValues?: boolean; emptyMessage?: string;
@@ -9,6 +26,7 @@ export interface ScreenSliderProps {
 export interface ScreenSummaryProps { label: string; value: string | number; description?: string }
 /** Shared by the client binding and bundled authoring guidance. No renderer dependency. */
 export const SCREEN_UI = {
+  DocumentView: 'path:string inside this screen\'s opened folders; target?:{revision:string,path:Core NodePath}; reloadKey?:string|number (change to reread saved file); height?:number (480px); label?:string; onStateChange?:({state,revision?,message?})=>void. States: loading/ready/error/stale-target/target-not-found. Actual read-only Litzio renderer. Block navigation; valid table-cell paths reveal/highlight the whole table. A mismatched revision never navigates/highlights. No editing, save, polling or tab interaction.',
   Button: 'Standard button props; variant default/secondary/outline/ghost, size default/sm/icon.',
   Input: 'Standard input props; wrap in a visible label.',
   Notice: 'children, optional tone="error"; catch async/event failures here.',
@@ -21,6 +39,10 @@ export const SCREEN_UI = {
 } as const;
 
 export const SCREEN_UI_GUIDANCE = Object.entries(SCREEN_UI).map(([name, props]) => `ui.${name}: ${props}`).join('\n') + `
+Document view example (inside Screen):
+const [read,setRead]=React.useState(), [reload,setReload]=React.useState(0);
+<ui.DocumentView path={absoluteDocumentPath} target={targetFromInspect} reloadKey={reload} onStateChange={setRead} height={480} />;
+Change reload to read an externally changed saved file. targetFromInspect is {revision:inspect.revision,path:inspect.nodes.find(n=>n.type==="cell").path}; the whole containing table is highlighted. A stale target is reported without navigation. Read state.revision before supplying new snapshot locators. The component is bound to this screen's Host/opened folders; no file picker, editor instance, unsaved state, tab control or PDF renderer is exposed.
 Prefer these components; custom SVG/styles and external libraries remain allowed. Buttons use content width (Toolbar), not grid stretch. Inherit background and font. Color: var(--id-color-text), var(--id-color-text-muted), var(--id-color-accent), var(--id-color-danger), var(--id-color-surface); SVG stroke/fill accept these same var() values. Spacing: var(--space-2), var(--space-3), var(--space-4); typography: var(--font-size-sm), var(--font-size-start-title). Keep table/chart full width with minWidth:0; DataTable owns horizontal scroll. The page owns title, padding and scrolling. See ScreenLayout before adding another heading.
 Screen also receives pickPath({kind:"pdf"|"folder"|"document",initialPath?}) -> Promise<{path,kind}|null> and openDocument({path}) -> Promise<{status:"opened",path}|{status:"refused",path,message}>. initialPath is a starting folder (default: first opened folder). Use only paths within this screen's opened folders. PDF/.md file selection or folder selection never opens another sidebar folder. User cancel returns null; read failures reject; reload/unmount or any opened-folder list change aborts pending selection with AbortError. Catch failures in Notice. openDocument supports .md only, retains unsaved tabs and never moves to a target position. Example inside Screen: const picked=await pickPath({kind:"document"}); if(picked) { const opened=await openDocument({path:picked.path}); if(opened.status==="refused")setError(opened.message); } For a destination use pickPath({kind:"folder"}), then saveDocument({name:"result.md",authoring,folder:picked.path,open:true}); creation returns its receipt plus opening, whose refusal must never trigger recreating the document.
 Opened-folder scope checks compare path strings, not the physical destination behind directory/file links (including junctions). This applies to pickPath, openDocument and saveDocument. The Host's allowed-Root real-path restriction still applies; the screen's opened-folder scope is not a security boundary.

@@ -4,6 +4,7 @@ import { screenUI as ui } from "./screen-ui.ts";
 import { Notice } from "../ui/primitives.tsx";
 import type { HostClient } from "../host-client.ts";
 import { saveScreenDocument, type ScreenDocumentInput } from "./screen-document.ts";
+import { DocumentViewScope } from "./screen-document-view.tsx";
 import type { ScreenOpenDocumentResult, ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
 import { useScreenPathPicker } from "./screen-path-picker.tsx";
 import { isScreenPath } from "./screen-path.ts";
@@ -68,5 +69,5 @@ export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code:
     catch (cause) { opening = {status:"refused",path:receipt.path,message:String((cause as Error).message ?? cause)}; }
     return {...receipt, opening};
   }, [client, openDocument]);
-  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} pickPath={pickPath} openDocument={openDocument} />{dialog}</> : null;
+  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} pickPath={pickPath} openDocument={openDocument} />{dialog}</DocumentViewScope.Provider> : null;
 }
