@@ -234,6 +234,9 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await page.getByRole('button',{name:'Close technical-1.md',exact:true}).click();
   await expect.poll(async () => (await memory()).paths).toEqual([nonnative,b]);
   await activate('technical-2.md');
+  await page.getByRole('tab',{name:'technical-2.md',exact:true}).click({button:'right'});
+  await page.getByRole('menuitem',{name:'Open to the right',exact:true}).click();
+  await page.getByRole('tab',{name:'README.md',exact:true}).click();
   let releaseOpen, openArrived, finishOpen;
   const openFinished = new Promise(resolve => { finishOpen=resolve; });
   const pendingOpen = new Promise(resolve => { openArrived=resolve; });
@@ -248,14 +251,20 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   try {
     await page.locator(`[role="treeitem"][data-path=${JSON.stringify(a)}]`).click();
     await pendingOpen;
+    await activate('technical-2.md');
     await editor().locator('p').first().click();await page.keyboard.press('Home');await page.keyboard.type('Saved while another read was pending. ');
-    await page.getByTestId('save').click();await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
+    const savingGroup=page.locator('[data-editor-group]').filter({has:page.getByRole('tab',{name:/^technical-2\.md(?:, Unsaved changes)?$/})});
+    await savingGroup.getByTestId('save').click();await expect(savingGroup.getByTestId('status')).toHaveAttribute('data-operation','saved');
     const kept=await editor().evaluate(node=>JSON.stringify(node.editor.getJSON()));
-    // Explicitly selecting this tab invalidates its group's pending navigation.
-    await activate('technical-2.md');releaseOpen();await openFinished;await flush();
+    // Another group's Open/Save remain usable; cancellation rejects the late admission.
+    await openPath(page,file('technical-3.md'));
+    await page.getByRole('button',{name:'Close technical-3.md',exact:true}).click();
+    await activate('technical-2.md');
+    await showNotifications(page);await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    releaseOpen();await openFinished;await flush();
     await expect(page.getByRole('tab',{name:'technical-1.md',exact:true})).toHaveCount(0);
     await expect.poll(()=>editor().evaluate(node=>JSON.stringify(node.editor.getJSON()))).toBe(kept);
-  } finally {releaseOpen();await page.unroute('**/api/document?**',delayedOpen);}
+  } finally {releaseOpen();await openFinished;await page.unroute('**/api/document?**',delayedOpen);}
   // The same read without navigation is bounded by the production timeout.
   let releaseTimeout;
   const timeoutGate=new Promise(resolve=>{releaseTimeout=resolve;});
@@ -274,6 +283,8 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   } finally {releaseTimeout();await page.unroute('**/api/document?**',timeoutRead);}
 
   // An explicit URL request wins and still does not rewrite memory merely by starting.
+  // Restore this case's original input after the explicit-close/navigation cases above.
+  await page.evaluate(saved=>localStorage.setItem(JSON.stringify(["local","litzio.openTabs"]),JSON.stringify(saved)),saved);
   await page.goto(`${origin}/?path=${encodeURIComponent(b)}`); await ready();
   check(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1 && await page.getByRole('tab',{name:'technical-2.md',exact:true}).count() === 1, 'Explicit URL did not take precedence over remembered tabs');
   check(JSON.stringify(await memory()) === JSON.stringify(saved), 'Explicit startup rewrote the remembered list');

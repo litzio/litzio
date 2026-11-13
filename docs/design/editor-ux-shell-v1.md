@@ -2274,7 +2274,7 @@ along with workspace typecheck and documentation checks.
 
 ## Remote Host settings (#1174 PR3b)
 
-2026-11-13 삭제했다. 설정에는 원격 Hosts 카테고리가 없다. 공통 HostStatus는 탐색기 아래 로컬 연결 관측과 공급자 상태 표시에 유지한다. 당시 등록·제거·재시작 계약은 `archive/2026-11-13-plugins-declarative`의 이 문서에 보관한다.
+2026-11-13 삭제했다. 설정에는 원격 Hosts 카테고리가 없다. 공통 HostStatus는 탐색기 아래 로컬 연결 관측에 유지한다. 상태 점 CSS는 공급자 표시와 공유한다. 당시 등록·제거·재시작 계약은 `archive/2026-11-13-plugins-declarative`의 이 문서에 보관한다.
 
 ## 활성 Host 실행 계정 (#1199)
 

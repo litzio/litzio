@@ -397,10 +397,10 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
     await dialog.getByRole('button',{name:'Delete file',exact:true}).click();
     await expect(dialog.getByRole('alert')).toContainText('Fixture deletion failure');
     expect(deletionAttempts).toBe(1);
-    await expect(page.getByRole('tab',{name:'pending-renamed.md',exact:true})).toHaveCount(1);
-    await expect(row('pending-renamed.md')).toHaveCount(1);
     expect(await recoveryRecords(page)).toEqual(recoveryBeforeFailure);
     await cancel();
+    await expect(page.getByRole('tab',{name:'pending-renamed.md',exact:true})).toHaveCount(1);
+    await expect(row('pending-renamed.md')).toHaveCount(1);
   } finally {await page.unroute('**/api/file');}
   return {metadata,root,renamedWithoutRead:true,undoPreserved:true,recoveryMovedAndDeleted:true,otherWindowFirstWriteRevoked:true,
     dirtyReferenceRefused:true,draftReferenceRefused:true,cleanReferenceTabsReloaded:true,otherWindowSaveConflict:true};

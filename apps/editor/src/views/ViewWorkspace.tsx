@@ -1,6 +1,6 @@
 import { PluginScreenCode, ScreenBoundary } from "./PluginScreenCode.tsx";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { hostRegistry, getHostClient, hostLabel, type HostClient } from "../host-client.ts";
+import { hostRegistry, getHostClient, type HostClient } from "../host-client.ts";
 import { viewRequest, type ViewScreen, type ViewResult } from "./view-api.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";

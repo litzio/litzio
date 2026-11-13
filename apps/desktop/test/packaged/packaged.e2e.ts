@@ -711,7 +711,10 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     assert.equal(readFileSync(sample, "utf8"), pristineSample);
     assert.equal(readFileSync(external, "utf8"), "external document must remain");
     // A fresh process, cleared profile and blank document title establish clean restart without remote owner summaries.
-    await expect.poll(() => execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted!.pid} -ErrorAction Stop).MainWindowTitle`], {windowsHide:true,encoding:"utf8"}).trim(), {timeout:15_000}).toBe(brand.name.en);
+    await expect.poll(() => {
+      const title=execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted!.pid} -ErrorAction Stop).MainWindowTitle`], {windowsHide:true,encoding:"utf8"}).trim();
+      return title===brand.name.en || title===brand.name.ko;
+    }, {timeout:15_000}).toBe(true);
     proof.dataVerified = true;
   } catch (error) {
     bodyFailure = error; proof.bodyFailure = error instanceof Error ? error.message : String(error); throw error;

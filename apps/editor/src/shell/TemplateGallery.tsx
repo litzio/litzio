@@ -1,4 +1,3 @@
-import { SettingsSelect } from "@/components/ui/settings.tsx";
 import type { HostClient } from "../host-client.ts";
 import { useHostClient } from "../host-context.tsx";
 import { useEffect, useRef, useState } from "react";
