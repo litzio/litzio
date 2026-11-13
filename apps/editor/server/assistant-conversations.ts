@@ -2,9 +2,7 @@ import { AssistantAttachments } from "./assistant-attachments.ts";
 import { AssistantFileChanges } from "./assistant-file-changes.ts";
 import { codexApproval } from "./assistant-approvals.ts";
 import { assistantToolFailure, assistantToolResult } from "./assistant-tool-results.ts";
-import { AgentScreenActionRequests, screenActionTools } from "./assistant-screen-action-tools.ts";
 import { AssistantMcp, type HostToolCall, type HostToolResult } from "./assistant-mcp.ts";
-import { AgentScreenRequests, screenTool } from "./assistant-screen-tools.ts";
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginOperationTools, executePluginOperationTool } from "./assistant-plugin-tools.ts";
@@ -23,7 +21,6 @@ import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption } from "./copilot-acp.ts";
 
-import { AgentDisplayRequests, displayTools } from "./assistant-display-tools.ts";
 import { questionTool } from "./assistant-question-tool.ts";
 
 type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import("./assistant-attachments.ts").AttachmentRecord[]; copilotCliReasoningEffort?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
@@ -32,9 +29,6 @@ type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import
 export class AssistantConversations {
   readonly attachments: AssistantAttachments;
   private readonly copilotRoot = copilotLogRoot();
-  readonly screenActions = new AgentScreenActionRequests();
-  readonly screen = new AgentScreenRequests();
-  readonly display = new AgentDisplayRequests();
   private fileChanges = new Map<string, AssistantFileChanges>();
   fileChange(id: string, turnId: string, file: string, undo = false, folders?: string[]) {
     const conversation = this.current(id);
@@ -89,7 +83,7 @@ export class AssistantConversations {
     const entry = input.submissionId ? this.submissions.get(input.submissionId) : undefined;
     if (entry) { entry.dispatched = true; entry.receipt.conversationId = conversation.id; }
   }
-  private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
+  private scopes = new Map<string, DocumentToolScope & { turnId?: string }>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
   private validators = new Map<string, (answers: AssistantUserInputAnswers) => unknown>();
   private cancellations = new Map<string, () => void>();
@@ -102,7 +96,7 @@ export class AssistantConversations {
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
-        this.screen.cancel(conversation.id); this.screenActions.cancel(conversation.id); this.display.cancel(conversation.id);
+
         this.loaded.delete(conversation.id); this.scopes.delete(conversation.id); this.mcp.revokeConversation(conversation.id);
         for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
         if (this.expireQuestion(conversation)) this.save(conversation);
@@ -131,7 +125,7 @@ export class AssistantConversations {
     connection.client.toolCall = params => this.executeTool(params);
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
-      for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.screen.cancel(id); this.screenActions.cancel(id); this.display.cancel(id); this.loaded.delete(id); this.scopes.delete(id); }
+      for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
       for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
         for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
         if (this.expireQuestion(conversation)) this.save(conversation);
@@ -161,10 +155,6 @@ export class AssistantConversations {
         ? await executePluginTool(this.plugins, params.arguments, entry => {
           active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
         }, scope)
-        : screenActionTools.some(tool => tool.name === params.tool) ? await this.screenActions.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
-        : params.tool === screenTool.name ? await this.screen.execute(params.arguments, params.threadId, scope.displayClient)
-        : displayTools.some(tool => tool.name === params.tool)
-        ? await this.display.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
         : params.tool === templateOperations.list.name ? executeTemplateOperation("list", params.arguments, templateScope)
         : params.tool === templateOperations.read.name ? executeTemplateOperation("read", params.arguments, templateScope)
         : params.tool === templateOperations.save.name ? executeTemplateOperation("save", params.arguments, templateScope)
@@ -173,7 +163,7 @@ export class AssistantConversations {
       return { contentItems: [{ type: "inputText", text }], success: !(result && typeof result === "object" && "error" in result && result.error) };
     };
 
-  get tools() { return [...documentTools, screenTool, ...screenActionTools, ...displayTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginOperationTools] : [])]; }
+  get tools() { return [...documentTools, ...templateTools, questionTool, ...(this.plugins ? [...pluginTools, ...pluginOperationTools] : [])]; }
   readonly mcp = new AssistantMcp(() => this.tools, params => this.executeTool(params));
   private get file() { return path.join(this.connection.cwd, "conversations.json"); }
   list(): ConversationIndexEntry[] {
@@ -303,7 +293,7 @@ export class AssistantConversations {
     this.loaded.add(id);
     return conversation;
   }
-  async send(input: AssistantConversationInput, settings: AssistantSettings, displayClient?: string) {
+  async send(input: AssistantConversationInput, settings: AssistantSettings) {
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const existing = input.id ? this.current(input.id) : undefined;
@@ -334,7 +324,7 @@ export class AssistantConversations {
       if (conversation && (conversation.provider ?? "codex") !== settings.provider) throw new Error("Start a conversation with the selected provider.");
       if (settings.provider === "copilot") {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
-        return await this.sendCopilot(input, settings, folders, references, conversation, displayClient);
+        return await this.sendCopilot(input, settings, folders, references, conversation);
       }
       if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
@@ -361,7 +351,7 @@ export class AssistantConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access, active ? conversation!.permissionMode : settings.permissionMode, this.attachments, conversation.id);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { permissionMode: active ? conversation!.permissionMode : settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null,  references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { permissionMode: active ? conversation!.permissionMode : settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), document: input.document ? { path: input.document.path } : null,  references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -371,7 +361,7 @@ export class AssistantConversations {
       } else {
         if (input.permissionMode !== undefined && input.permissionMode !== conversation.permissionMode) delete conversation.permissionFallback;
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
-        this.scopes.set(conversation.id, { folders: documentFolders(folders, settings.permissionMode, this.access), permissionMode: settings.permissionMode, access: this.access, displayClient });
+        this.scopes.set(conversation.id, { folders: documentFolders(folders, settings.permissionMode, this.access), permissionMode: settings.permissionMode, access: this.access });
         const writableRoots = [...folders];
         if (settings.permissionMode === "opened-folders" && this.plugins) {
           const directory = this.plugins.authoringPath();
@@ -436,7 +426,7 @@ export class AssistantConversations {
     for (const conversation of this.conversations.values()) this.expireQuestion(conversation);
     this.attachments.discardDrafts();
     this.mcp.close();
-    this.screen.cancel(); this.screenActions.cancel(); this.display.cancel();
+
 
   }
   private expireQuestion(conversation: AssistantConversation, turnId?: string, requestId?: string | number) {
@@ -456,12 +446,12 @@ export class AssistantConversations {
   expireProviderQuestions(provider: AssistantSettings["provider"]) {
     for (const conversation of this.conversations.values()) if ((conversation.provider ?? "codex") === provider && this.expireQuestion(conversation)) this.save(conversation);
   }
-  answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers, displayClient?: string) {
+  answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers) {
     const conversation = this.current(id), question = conversation.turns.find(turn => turn.id === turnId)?.items.find(item => item.question?.requestId === requestId)?.question;
     const key = this.answerKey(id, turnId, requestId), respond = this.answers.get(key);
     if (!question || question.status !== "pending" || question.delivery === "blocking" && !respond) throw new Error("Question expired.");
     if (!validQuestionAnswers(question, answers)) throw new Error("Invalid question answers.");
-    if (question.delivery === "async") return this.answerAsync(conversation, question, answers, displayClient);
+    if (question.delivery === "async") return this.answerAsync(conversation, question, answers);
     this.validators.get(key)?.(answers);
     question.status = "answered";
     question.answers = recordedAnswers(question, answers);
@@ -470,13 +460,13 @@ export class AssistantConversations {
     catch (error) { question.status = "unknown"; question.error = (error as Error).message; throw error; }
     return conversation;
   }
-  private async answerAsync(conversation: AssistantConversation, question: AssistantQuestionRecord, answers: AssistantUserInputAnswers, displayClient?: string) {
+  private async answerAsync(conversation: AssistantConversation, question: AssistantQuestionRecord, answers: AssistantUserInputAnswers) {
     question.status = "sending"; question.answers = recordedAnswers(question, answers); this.refreshQuestion(conversation);
     try {
       this.save(conversation);
       const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
       await this.send({ id: conversation.id, message, folders: conversation.folders, model: conversation.model, reasoningEffort: conversation.reasoningEffort },
-        { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort }, displayClient);
+        { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort });
     question.status = "answered"; this.save(conversation);
       return conversation;
     } catch (error) {
@@ -489,7 +479,7 @@ export class AssistantConversations {
     const conversation = this.current(id), turn = conversation.turns.find(turn => turn.status === "inProgress");
     this.expireQuestion(conversation);
     this.save(conversation);
-    this.screen.cancel(id); this.screenActions.cancel(id); this.display.cancel(id);
+
     if (turn && conversation.provider === "copilot") {
       this.mcp.endTurn(id);
       const client = await this.connection.copilot.connect();
@@ -497,7 +487,7 @@ export class AssistantConversations {
     } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
   }
-  private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation, displayClient?: string) {
+  private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
     const acp = this.connection.copilot;
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     const catalog = await this.connection.models("copilot");
@@ -568,13 +558,13 @@ export class AssistantConversations {
         conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
       }
       references = checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode, this.attachments, conversation?.id);
-      const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null,  references };
+      const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), document: input.document ? { path: input.document.path } : null,  references };
       const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
       this.dispatch(input, conversation);
       conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
       conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
       lease.turnId = turn.id;
-      this.scopes.set(id, { folders: documentFolders(folders, settings.permissionMode, this.access), access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, displayClient });
+      this.scopes.set(id, { folders: documentFolders(folders, settings.permissionMode, this.access), access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
       this.save(conversation);
       // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
       const failedPrompt = (message: string) => {
@@ -591,7 +581,7 @@ export class AssistantConversations {
           if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
         }
       }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => {
-        this.screen.cancel(id); this.screenActions.cancel(id); this.display.cancel(id);
+
         if (lease.turnId === turn.id) lease.turnId = undefined;
         if (this.scopes.get(id)?.turnId === turn.id) this.scopes.delete(id);
         if (this.expireQuestion(conversation!, turn.id)) this.save(conversation!);
@@ -715,7 +705,7 @@ export class AssistantConversations {
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
-      else {  this.screen.cancel(params.threadId); this.screenActions.cancel(params.threadId); this.display.cancel(params.threadId); this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
+      else {  this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
       if (params.turn.error) turn.error = permissionError(params.turn.error.message);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
@@ -748,7 +738,7 @@ export class AssistantConversations {
     } else if (method === "turn/plan/updated") {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
-    } else if (method === "error" && !params.willRetry) { this.screen.cancel(params.threadId); this.screenActions.cancel(params.threadId); this.display.cancel(params.threadId); turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
+    } else if (method === "error" && !params.willRetry) { turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
 
     if ((method === "turn/completed" || method === "error" && !params.willRetry) && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }
@@ -782,7 +772,7 @@ function itemFrom(item: any, userMessageSource: AssistantConversationItem["userM
       if (marker >= 0) {
         try {
           const value = JSON.parse(part.text.slice(marker + CONTEXT.length));
-          if (value && Array.isArray(value.folders)) {
+          if (value && typeof value.userMessage === "string") {
             if (typeof value.submissionId === "string") submissionId = value.submissionId;
             if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
             if (typeof value.userMessage === "string") { text.length = 0; text.push(value.userMessage); }

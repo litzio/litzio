@@ -47,7 +47,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.submissionId) return history().submission(args.submissionId);
       if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args)).map(({ attachments: _attachments, ...info }) => info);
       const conversation = history().current(args.id);
-      return { ...conversation, screenActionRequest: history().screenActions.snapshot(args.id, args.displayClient), screenRequest: history().screen.snapshot(args.id, args.displayClient), displayRequest: history().display.snapshot(args.id, args.displayClient) };
+      return conversation;
     },
     assistantConversation: async (args: any): Promise<any> => {
       if (args.action === "upload-image") {
@@ -67,16 +67,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.action === "send") await plugins?.start();
       if (closed) throw new Error("The Assistant Host is closing.");
       const currentSettings = settings();
-      if (["screen-ack", "screen-action-ack", "display-ack"].includes(args.action)) {
-        const requests = args.action === "screen-ack" ? history().screen : args.action === "screen-action-ack" ? history().screenActions : history().display;
-        requests.acknowledge(args.id, args.displayClient, args.requestId);
-        return { acknowledged: true };
-      }
-      if (args.action === "screen-action-result") { history().screenActions.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
-      if (args.action === "screen-result") { history().screen.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
-      if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "file-change-compare" || args.action === "file-change-undo") return history().fileChange(args.id, args.turnId, args.path, args.action === "file-change-undo", args.folders ?? []);
-      if (args.action === "display-undo") return history().display.undo(args.id, args.displayClient, args.requestId);
       if (args.action === "resume") return history().resume(args.id, currentSettings);
       if (args.action === "send") {
         const existing = args.id ? history().current(args.id) : undefined;
@@ -87,9 +78,9 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
           if (!status.connected || selected === "codex" && !status.account) throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
           if (closed) throw new Error("The Assistant Host is closing.");
         }
-        return history().send(args, currentSettings, args.displayClient );
+        return history().send(args, currentSettings);
       }
-      if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers, args.displayClient);
+      if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
       if (args.action === "interrupt") return history().interrupt(args.id);
       throw new Error("Unknown conversation action.");
   };

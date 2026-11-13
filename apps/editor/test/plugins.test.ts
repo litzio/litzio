@@ -143,7 +143,7 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     await host.invoke("register", { directory });
     await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id: manifest.id });
-    const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
+    const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
     const start = readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).find(entry => entry.method === "thread/start");
     assert.ok(start.params.dynamicTools.some((tool: any) => tool.name === "invoke_plugin_operation"));
     const invoke = async (operation: string, input: unknown, id = conversation.id) => {
@@ -192,7 +192,7 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     assert.doesNotMatch(recorded, /input-only-marker|output-only-marker|synthetic-plugin-tool-PAT-private/);
     assert.equal(readFileSync(log, "utf8").includes(secret), false);
     const readOnly = { ...settings, permissionMode: "read-only" as const };
-    const restricted = await conversations.send({ message: "Inspect only", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, readOnly, "window-a");
+    const restricted = await conversations.send({ message: "Inspect only", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, readOnly);
     for (const name of ["read", "connection"]) {
       const allowed = await invoke(`fixture.lookup.${name}`, name === "read" ? { mode: "success" } : {}, restricted.id);
       assert.equal(allowed.success, true); assert.equal(allowed.receipt.outcome, "success");

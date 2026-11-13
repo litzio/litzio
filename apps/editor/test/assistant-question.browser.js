@@ -17,7 +17,7 @@ async (page, { expect, brand, screenshots }) => {
       }
       if (body.action === 'answer') {
         if (body.requestId.startsWith('permission-')) approvalAnswers.push(body.answers);
-        expect(body.displayClient).toBeTruthy();
+        expect(body.displayClient).toBeUndefined();
         const q = conversation.turns.flatMap(t => t.items).find(i => i.question?.requestId === body.requestId).question;
         q.status = 'answered'; q.answers = body.answers; refreshInput();
       }

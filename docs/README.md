@@ -36,7 +36,7 @@
 | [ADR-0018: Desktop의 원격 Host 등록과 여러 Host 보기](adr/0018-desktop-remote-hosts.md) | Superseded | 2026-11-13 #1595·제품 목적에 따라 원격 등록/접속·여러 Host UI 삭제. 같은 PC daemon·독립 개발 HTTP Host는 유지. 당시 결정 본문 보존, archive/2026-11-13-plugins-declarative에 구현 보관. 내부 연결·탭·복구 형식은 후속 정리. |
 | [ADR-0019: 공식 플러그인과 커뮤니티 플러그인](adr/0019-plugin-tiers.md) | Accepted | 2026-11-05 소유자 개념 결정. 공식 공급·유지 책임, 공통 manifest·SDK·권한, 커뮤니티 실행 차단·명시 신뢰, Host 실행·자격 증명, 번들 UI·공용 작업·CLI. ADR-0012 개정·0017 보완이며 구현 재개·보류 해제 아님. 비서는 제품 기능, Docling은 재개 시 커뮤니티 계층. |
 | [ADR-0020: 플러그인 구조와 공통 UI](adr/0020-plugin-architecture.md) | Accepted | ADR-0019의 공통 SDK·manifest, 공식/커뮤니티 공급·대상 daemon 하위 프로세스·reload·Windows secret·비서 제작/관리·작업/review 경계. 2026-11-09 #1341에서 비서 생성 UI·즐겨찾기·snapshot·통계·Chart 결정을 종료하고 과거 기록을 보관했다. 남는 플러그인 화면·조회·Table·입력 폼은 plugin-screens-v1, 현재 SDK/Host 작업은 plugin-stage1-v1을 따른다. 카탈로그 v2의 미구현 제안은 Draft로 구분한다. |
-| [ADR-0021: 범용 에이전트 비서](adr/0021-general-agent-assistant.md) | Accepted | 2026-11-12 #1565 소유자 결정. 문서 직접 수정, CLI·스킬 기본, 창 연동 전용 도구, 공급자 권한, 짧은 결정 문서와 앱 데이터 작업 폴더 유지. 미구현이며 후속 PR에서 구현·계약 갱신. |
+| [ADR-0021: 범용 에이전트 비서](adr/0021-general-agent-assistant.md) | Accepted | 2026-11-12 #1565 소유자 결정. 문서 직접 수정, CLI·스킬 기본, 공급자 권한, 짧은 결정 문서와 앱 데이터 작업 폴더 유지. 2026-11-13 #1360에서 창 연동 도구·통로 제거, 활성 문서 경로와 문서 보호 유지. |
 
 ## Current implemented contracts
 
@@ -46,7 +46,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | --- | --- | --- |
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
 | [Document templates](design/document-templates-v1.md) | Implemented | #936 1–3단계. Core template 메타데이터·생성, 공용 CLI/Host, ko/en 기본 2종, Editor 카드 갤러리·사용자 저장. #1128 공용 작업·Codex 템플릿 도구·생성 receipt/Undo와 child CLI PATH. |
-| [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 유지 규칙 32개와 이유, 공급자별 권한 매핑, 창 연동의 최소 경계, 현재 한계 18개. 화면 코드 플러그인 계약과 수락 시험을 연결하고 과거 기록은 고정 커밋으로 보존한다. |
+| [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 유지 규칙 32개와 이유, 공급자별 권한 매핑, 활성 문서 경로·대화의 최소 경계, 현재 한계 15개. 화면 코드 플러그인 계약과 수락 시험을 연결하고 과거 기록은 고정 커밋으로 보존한다. |
 | [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse/참조 진단 도달성, URL·inline HTML backport와 patch 제거 조건. |
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 Host별 위치 식별·로컬 복구(#1174 PR1). |
