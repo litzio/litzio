@@ -1,22 +1,14 @@
 # Figure authoring v1
 
 - Status: Implemented
+- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
 - Pointer and popover correction: 2026-10-29 (#760; first prose click, quiet fields, aligned controls and metadata clearance).
 - Property popover: 2026-10-29 (#757; owner decisions in #740 and implementation handoff).
 - Fixed numbering: 2026-10-29 (#720 Core/CLI and Editor property controls/warnings); [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
-- Mermaid update: 2026-10-28 (#651: Core/CLI source semantics and Editor in-document authoring/rendering).
-- Mermaid image verification: 2026-10-29 (#707: newline label decoding, XML/XHTML serialization, decoder failure notice and recovery in `mermaid-authoring`; unchanged source/disk/history).
-- Media reference verification: 2026-10-27 (#504: simultaneous exact source replacement, canonical preservation/refusal, CLI dry-run/batch/revision conflicts, real Host rename and Editor reload).
-- Property-entry update: 2026-10-27 (#557: shared selection/Enter/double-click and explicit property drafts; see [Continuous editing](document-editing-v1.md#continuous-editing)).
-- Active image preview verification: 2026-10-26 (#480: Figure browser preview/race/focus/overflow checks and [same-state manual captures](folder-picker-v1.md#active-image-preview-480); Editor tests/typecheck/build).
-- Double-click verification: 2026-10-26 (#470: figure-authoring checks Image-field focus, Edit-equivalent Cancel/Escape, unchanged document and Undo/Redo, caption word selection, pending entry and preservation of invalid/unapplied drafts; new entry assertions failed before the change).
-- Image picker verification: 2026-10-26 (#461: click selection, sibling visibility, editing/Tab filtering, Use and reopening in figure-authoring; image-assets/folder-navigation/layout-rules/quiet-document browser regressions and Editor tests/typecheck/build).
-- Caption-label verification: 2026-10-26 (#462 Core template rule, CLI inspect, cross-reference browser immediate update, Undo/Redo, Source and Save → Reload).
-- CLI asset verification: 2026-10-15 (#289 document-relative image-file/stat warnings, directory/junction and stat-failure regressions, Host path parity and dry-run result checks; source CLI and targeted tests).
-- CLI insertion verification: 2026-10-15 (#280 `--at end` before endnotes; Core/CLI tests).
-- Property-focus verification: 2026-10-15 (#275 actual Apply click/Enter/Cancel/Escape reproduction, shared safe caret restoration, unchanged-caption caret/typing and formatted Save/Reload browser regressions).
-- Last verified: 2026-10-14 (#212: empty-Figure paste/drop fill, existing-image insertion, single Undo/Redo and real-file Save → Reload in `image-assets`; changed-target cancellation/rollback in Editor tests. #211 / PR #229: normal media separators and standalone dot-segment transport in Editor path-table tests; Host traversal rejection, actual image loading/failure and unchanged Save → Reload paths in Editor tests and `image-assets`; Choose… image selection and existing pending Figure regressions).
 - Scope: empty, pending, image and Mermaid Figures in Core/CLI; image and Mermaid authoring in Editor, under [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md), [Document support](document-support-v1.md) and [Editing session and Save](editing-session-save-v1.md).
+
+검증 이력은 [별도 기록](../reviews/figure-authoring-history-2026-11.md)에 보존한다.
+
 
 ## Scope and completion
 
@@ -372,28 +364,6 @@ or section heading. Width, thumbnail size and anchor gap are adjustable tokens; 
 spacing and state tokens. Equation, table, endnote and Mermaid source forms retain their UI.
 This is Editor interaction only; no Core or CLI operation is added.
 
-### Popover comparison and verification (#757)
-
-Same-state manual captures use Windows installed Chrome, checkout-owned persistent profiles,
-English UI, bundled Pretendard, DPR 1 and default zoom, at 1440/640 × 900. Before is clean
-`777368e1`; After is this PR. Both use the Mermaid/image fixture with sixteen preceding plain
-context paragraphs so each target can be placed near the viewport's top or bottom. The
-selected target and its caption remain visible in After; following document content may be covered.
-The separate capture traversal waits for real Mermaid image rendering. It is presentation evidence,
-not an additional pixel gate. Large traces/build outputs and the temporary capture driver stay
-outside Git. The preview-to-prose first-click defect observed here is corrected by #760.
-
-| Target / viewport / placement | Before | After |
-| --- | --- | --- |
-| image / 1440px / below | [Before](assets/figure-properties-757/before-image-1440-below.png) | [After](assets/figure-properties-757/after-image-1440-below.png) |
-| image / 1440px / above | [Before](assets/figure-properties-757/before-image-1440-above.png) | [After](assets/figure-properties-757/after-image-1440-above.png) |
-| image / 640px / below | [Before](assets/figure-properties-757/before-image-640-below.png) | [After](assets/figure-properties-757/after-image-640-below.png) |
-| image / 640px / above | [Before](assets/figure-properties-757/before-image-640-above.png) | [After](assets/figure-properties-757/after-image-640-above.png) |
-| mermaid / 1440px / below | [Before](assets/figure-properties-757/before-mermaid-1440-below.png) | [After](assets/figure-properties-757/after-mermaid-1440-below.png) |
-| mermaid / 1440px / above | [Before](assets/figure-properties-757/before-mermaid-1440-above.png) | [After](assets/figure-properties-757/after-mermaid-1440-above.png) |
-| mermaid / 640px / below | [Before](assets/figure-properties-757/before-mermaid-640-below.png) | [After](assets/figure-properties-757/after-mermaid-640-below.png) |
-| mermaid / 640px / above | [Before](assets/figure-properties-757/before-mermaid-640-above.png) | [After](assets/figure-properties-757/after-mermaid-640-above.png) |
-
 ### Pointer and visual correction verification (#760)
 
 The pre-fix physical prose click retained Figure NodeSelection; after metadata completion,
@@ -498,23 +468,3 @@ CLI only passes source to Core. `inspect` exposes `mermaidSource` in JSON and te
 CLI `check` also reports each image Figure whose document-relative source is not a regular file or could not be checked in `readiness.missingImageFigures` (`path`, `label` as in `pendingFigures` with an empty string when unlabeled, and `source` as written), or one stderr warning line per Figure in text mode. It shares the Editor source classification/encoding and Host media resolver: bare and `./` paths are equivalent, non-ASCII and literal percent characters retain their filename meaning, and encoded traversal is refused. Sources with a scheme, protocol-relative sources, root-absolute and Windows drive/UNC paths are skipped. Paths the Host refuses, including `../` that escapes the document directory and symlink escapes, are skipped rather than reported as missing; paths containing `..` that resolve inside the boundary are checked. After Host resolution, `stat` follows symlinks and requires a regular file: directories and links to directories warn. All stat failures, including `ENOENT` and `EACCES`, use the same short warning, `is not a file or could not be checked`; they do not claim that an inaccessible target is absent. The existing JSON field name is retained and covers these cases. This checks filesystem file type only, not image loading, readability or decoding. Core remains headless. These warnings leave exit code, `ok`, writeability and all writes unchanged. `--dry-run` uses the same diagnostics on its result document relative to the same target file.
 
 Core and CLI `check` diagnose missing targets for both `[](#label)` links and role references ([#151](https://github.com/litzio/litzio/issues/151), implemented in [PR #166](https://github.com/litzio/litzio/pull/166)). Unresolved references are warnings, stay as written and do not block a lossless canonical write; [Section references](section-references-v1.md#scope) defines the diagnosis contract. The existing numbered role-reference UI remains. The prior spike remains historical evidence in [PR #150](https://github.com/litzio/litzio/pull/150); its experimental code is not merged here.
-
-## Visual verification
-
-The same pending Markdown was opened at master `252de5c` and with this implementation in Chrome (1440×1000, DPR 1, zoom 1, same profile and preferences). Before, canonical preflight made the document read-only; after, the pending Figure is editable and visibly incomplete. Both retain caption and `Figure 1`. The new frame uses existing muted text/surface tokens and a dashed boundary; no global control style or document typography changes.
-
-| Before | After |
-| --- | --- |
-| ![Pending Figure at master 252de5c](assets/pending-figure-before.png) | ![Editable pending Figure with no-content frame](assets/pending-figure-after.png) |
-
-Screenshots are manual presentation evidence. The `pending-figure` browser regression separately proves actual insertion/Apply/Source/history/Save/Reload and subsequent image connection; `layout-rules` and `quiet-document` check existing geometry and typography.
-
-### Relative paths and load failure (#211)
-
-The same clean `tmp/image-assets/paths.md` was opened before the fix at `2d5b2fb` and after it in this worktree's Vite server on port 5373. Both captures use the same checkout-specific persistent Chrome profile, 1440×1000 viewport, DPR 1, zoom 1, scroll top, no hovered/selected block and loaded Pretendard fonts. The first Figure uses `./assets/diagram.svg`, the second uses `assets/diagram.svg`, and the third uses the missing `assets/missing.png`. Before, the second and third showed broken images without an explanation. After, both valid sources load the same image and only the missing image shows an error Notice, with its caption retained.
-
-| Before | After |
-| --- | --- |
-| ![Bare relative path and missing image fail silently](assets/relative-image-path-before.png) | ![Both relative paths load and the missing image has an error Notice](assets/relative-image-path-after.png) |
-
-These captures are manual evidence, separate from the automated `image-assets` integration checks. The error Notice uses the existing danger text/surface/border and 14/20px UI type; it is visible at rest and adds no controls. The 375px collapsed-sidebar state was also inspected. The existing `figure-authoring`, `pending-figure`, `layout-rules` and `quiet-document` regressions protect properties, pending content and surrounding presentation.

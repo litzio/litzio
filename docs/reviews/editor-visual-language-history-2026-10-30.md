@@ -44,15 +44,15 @@ The current capture procedure is [Reviewing a visual change](../test/README.md#r
 - Source wrapping verification: 2026-10-26 (#476: Source soft wrapping; Editor tests/typecheck/build, Source/layout/quiet-document browser checks and [1440/375px Before/After](../design/editor-ux-shell-v1.md#source-wrapping-476)).
 - Table deletion verification: 2026-10-26 (#474: existing MessageArea/ghost Undo action, 1280/375px English/Korean captures and byte-identical quiet-document rest pairs; [verification](../design/table-interaction-v1.md#table-deletion-notice-verification-474)).
 - Previous verification: 2026-10-26 (#469: typing/IME hover suppression, offset-aware Figure/Equation corners, targeted browser regressions and [1440px comparison](#typing-and-outline-verification-469)).
-- Previous verification: 2026-10-25 (#438: bibliography connection controls, bilingual notices, 1280/375px captures and unchanged quiet-document rest pairs; [verification](../design/citations-v1.md#bibliography-connection-verification-438)).
-- Previous verification: 2026-10-25 (#425: collapsible folder sections; Editor tests/typecheck/build, folder-navigation/folder-memory/command-center/editor-shell/layout-rules/ui-language/quiet-document and [desktop/phone captures](../design/editor-ux-shell-v1.md#section-disclosure-verification-and-captures)).
+- Previous verification: 2026-10-25 (#438: bibliography connection controls, bilingual notices, 1280/375px captures and unchanged quiet-document rest pairs; [verification](citations-history-2026-11.md#bibliography-connection-verification-438)).
+- Previous verification: 2026-10-25 (#425: collapsible folder sections; Editor tests/typecheck/build, folder-navigation/folder-memory/command-center/editor-shell/layout-rules/ui-language/quiet-document and [desktop/phone captures](editor-ux-shell-history-2026-11.md#section-disclosure-verification-and-captures)).
 - Previous verification: 2026-10-24 (#385: Sidebar header entry, Close-only folder menus; folder-navigation browser check, Editor tests/typecheck/build and [same-state desktop/phone evidence](../design/editor-ux-shell-v1.md#sidebar-open-folder-entry-385)).
 - Previous verification: 2026-10-24 (#401: long-name/path dialogs at 1440/375px; [measurements and captures](#long-dialog-names-and-paths-401)).
-- Previous verification: 2026-10-24 (#395: recovery review path wrapping and footer bounds at 1440/375px; [same-state evidence](../design/editing-session-save-v1.md#recovery-review-layout-395)).
+- Previous verification: 2026-10-24 (#395: recovery review path wrapping and footer bounds at 1440/375px; [same-state evidence](editing-session-save-history-2026-11.md#recovery-review-layout-395)).
 - Previous verification: 2026-10-24 (#382 / #391 review: recovery deletion confirmations, nested backdrop outside dismissal/pending guards; refreshed 1440/375px English/Korean [captures and environment](../design/editing-session-save-v1.md#local-recovery-records-296-pr2)).
-- Previous verification: 2026-10-23 (#363 command center; Editor tests, typecheck/build, command-center/editor-shell/document-tabs/ui-language/layout-rules/quiet-document browser checks; [actual captures](../design/editor-ux-shell-v1.md#command-center-verification-363)).
-- Previous verification: 2026-10-23 (#265 citation form reusing the reference form surface and existing tokens; [verification and captures](../design/citations-v1.md#unit-c-verification-265)).
-- Previous verification: 2026-10-22 (#265 derived References with existing type/spacing tokens; [verification and captures](../design/citations-v1.md#unit-b-verification-265)).
+- Previous verification: 2026-10-23 (#363 command center; Editor tests, typecheck/build, command-center/editor-shell/document-tabs/ui-language/layout-rules/quiet-document browser checks; [actual captures](editor-ux-shell-history-2026-11.md#command-center-verification-363)).
+- Previous verification: 2026-10-23 (#265 citation form reusing the reference form surface and existing tokens; [verification and captures](citations-history-2026-11.md#unit-c-verification-265)).
+- Previous verification: 2026-10-22 (#265 derived References with existing type/spacing tokens; [verification and captures](citations-history-2026-11.md#unit-b-verification-265)).
 - Previous verification: 2026-10-22 (#217: all-file Sidebar listing, bounded read-only image preview; Host/Editor/Desktop protocol tests and actual Vite/production HTTP browser regressions).
 - Previous verification: 2026-10-22 (#332 citation display and shared reference underline token; [verification and captures](../design/citations-v1.md#verification)).
 - Previous verification: 2026-10-19 (#255: Add a title place and empty-title placeholder in the document's subtle hint role).
@@ -74,7 +74,7 @@ group's tab-row background supplies a quiet group cue alongside each active tab'
 existing accent marker. The shared title strip and document typography do not change.
 Floating editor controls retain their existing surface, shadow, typography and targets;
 the group's viewport bounds their placement and maximum size. See the [review correction
-and comparison](../design/editor-ux-shell-v1.md#group-verification-and-visual-evidence).
+and comparison](editor-ux-shell-history-2026-11.md#group-verification-and-visual-evidence).
 
 All `.view-toggle` consumers share the same selected 600 semibold, themed `surface` and
 `--shadow-segment`, without a `border-control` edge. A hidden semibold label reserves width
@@ -121,7 +121,7 @@ and returns focus to the surviving row/adjacent tree target. Busy confirmation b
 errors retain the dialog. Rename reuses the compact shared Dialog/Input/footer geometry and
 shows the fixed extension beside the selected stem. Long descriptions/errors wrap within the
 popup. At the supported 640px minimum and at desktop widths, the existing footer retains horizontal actions.
-The [shell capture record](../design/editor-ux-shell-v1.md#file-action-verification-and-captures) records both
+The [shell capture record](editor-ux-shell-history-2026-11.md#file-action-verification-and-captures) records both
 sizes and light/dark OS preferences, using the current System theme and shared #595 roles.
 
 
@@ -957,10 +957,10 @@ Values meant to be tuned by hand, or that change with a user's taste, are shared
 - Overflow entry: `--size-overflow-fade` (32px), how far a wide table or formula fades out at an edge with more content to scroll to.
 - Start entries (#298): `--layout-start-width` (40rem / 640px), the centered start column, and `--size-start-mark` (2rem / 32px), the product mark above its title.
 - Inline math entry: `--math-inline-size` (1.1em of its text). KaTeX's own 1.21em reads larger than Pretendard body text and, with integral or sum limits, makes a line taller.
-- Derived bibliography: one section after endnotes, document font and body line-height, metadata heading/status, `--space-6` separation, `--space-3` top inset, existing subtle rule. Number and wrapped text use a flex row with `--space-2` gap. No new adjustable dimension. [Contract and captures](../design/citations-v1.md#unit-b-verification-265).
+- Derived bibliography: one section after endnotes, document font and body line-height, metadata heading/status, `--space-6` separation, `--space-3` top inset, existing subtle rule. Number and wrapped text use a flex row with `--space-2` gap. No new adjustable dimension. [Contract and captures](citations-history-2026-11.md#unit-b-verification-265).
 - Bibliography connections (#438): a trailing References action even without citations; compact ghost Connect/Disconnect controls, outlined file choices and metadata helper/status text use existing tokens. Long file choices ellipsize inside the panel, with the full filename in the title and accessible name. No new adjustable dimension. [Contract and verification](../design/citations-v1.md#connect-and-disconnect-bibliography-files-438).
 - Reference entry: `--reference-underline-offset` (3px), shared by references and unchecked citations. Citation groups wrap with ordinary inline content.
-- Citation form: the reference form surface, select, input and buttons. Its ordered key chips use the standard border, `--id-radius-sm`, `--space-1`/`--space-2` and small text, and wrap long keys. No new adjustable dimension. [Contract and captures](../design/citations-v1.md#unit-c-verification-265).
+- Citation form: the reference form surface, select, input and buttons. Its ordered key chips use the standard border, `--id-radius-sm`, `--space-1`/`--space-2` and small text, and wrap long keys. No new adjustable dimension. [Contract and captures](citations-history-2026-11.md#unit-c-verification-265).
 - Folder picker entries: `--layout-folder-picker-width` controls the dialog; `--layout-folder-picker-list-height` caps the image-mode list at 15rem and `--layout-folder-picker-folder-list-height` caps the folder-only list at 16rem. Recent folder paths are browser navigation preferences and do not themselves restore a sidebar folder; separately remembered opened-folder paths restore on reload under [ADR-0009](../adr/0009-multiple-opened-folders.md). Neither preference alters the document.
 - File preview entries: `--layout-file-preview-width` (48rem) and `--layout-file-preview-image-max-height` (60dvh) control the preferred modal width and image height cap. The existing viewport inset still bounds the modal.
 
@@ -1617,7 +1617,7 @@ including the collapsed rail. A localized version tooltip and a new-version acce
 accompany the 8px dot. The direct About destination highlights update actions with the existing
 selected-surface color, interaction outline and control radius. It does not flash or animate.
 The top update banner and Later control are removed; ordinary Settings entry remains unchanged.
-See the [current update contract and before/after evidence](../design/desktop-distribution-v1.md#settings-update-cue-verification-665).
+See the [current update contract and before/after evidence](desktop-distribution-history-2026-11.md#settings-update-cue-verification-665).
 
 ## Single-line Outline #719
 
