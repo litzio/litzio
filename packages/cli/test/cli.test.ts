@@ -3089,3 +3089,29 @@ test("compare returns shared JSON receipts without changing either file; rejects
   assert.notEqual(failure.status, 0); assert.equal(failure.stdout, "");
   assert.equal(readFileSync(after, "utf8"), "not native");
 });
+
+
+test("inspect preserves Core inline content at every native location", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-inline-read-"));
+  const file = path.join(dir, "sample.md");
+  const rich = "**bold** *italic* {sup}`2` {sub}`n` $x$ `code` [link](https://example.com) {ref}`section`";
+  const source = nativeSource(`(section)=\n# ${rich}\n\n${rich}[^n]\n\n> ${rich}\n\n:::{note}\n${rich}\n:::\n\n- ${rich}\n  - Nested $y$\n\n:::{table} ${rich}\n:label: tbl\n\n| Value |\n| --- |\n| ${rich}[^n] |\n:::\n\n:::{figure} ./image.png\n${rich}\n:::\n\n[^n]: ${rich}\n`);
+  try {
+    writeFileSync(file, source);
+    const model = getEditableDocument(parse(source));
+    const result = run(["inspect", file, "--format", "json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const nodes = JSON.parse(result.stdout).nodes;
+    for (const block of model.blocks) {
+      const node = nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(block.path));
+      if ("content" in block) assert.deepEqual(node.content, block.content);
+      if (block.block === "list") assert.deepEqual(node.items, block.items);
+      if (block.block === "table") {
+        assert.deepEqual(node.caption, block.caption);
+        for (const row of block.rows) for (const cell of row.cells)
+          assert.deepEqual(nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(cell.path)).content, cell.content);
+      }
+      if (block.block === "figure") assert.deepEqual(nodes.find((n: any) => n.type === "caption" && JSON.stringify(n.path) === JSON.stringify(block.caption.path)).content, block.caption.content);
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
