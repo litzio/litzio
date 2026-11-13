@@ -1,28 +1,9 @@
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { LOCAL_HOST_ID } from "./host-locator.ts";
 
-export class HostConnectionChangedError extends Error {
-  readonly code = "host-connection-changed";
-  constructor() { super("The Host connection changed. This operation belongs to the previous connection; reopen it explicitly."); }
-}
+import { createHostClient, HostConnectionChangedError, type HostClient } from "./host-transport.ts";
+export { createHostClient, HostConnectionChangedError, type HostClient } from "./host-transport.ts";
 
-export type HostClient = ReturnType<typeof createHostClient>;
-/** Immutable address boundary. Never persists Host URLs in document content. */
-export function createHostClient(base: string, ready: Promise<void> = Promise.resolve()) {
-  const prefix = base.replace(/\/$/, "");
-  const url = (path: string) => `${prefix}/${path.replace(/^\//, "")}`;
-  return {
-    url,
-    assertCurrent() { /* Immutable registered origin. */ },
-    get crossOrigin(): "anonymous" | undefined {
-      return typeof window !== "undefined" && new URL(url("/"), window.location.href).origin !== window.location.origin ? "anonymous" : undefined;
-    },
-    async request(path: string, init?: RequestInit): Promise<Response> {
-      await ready;
-      return fetch(url(path), init);
-    },
-  };
-}
 class HostProtocolMismatch extends Error {}
 
 export type HostRuntime = {
