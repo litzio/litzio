@@ -5,7 +5,8 @@
 - Status: Accepted
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Decision date: 2026-10-31
-- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Last verified: 2026-11-14 — 같은 날 소유자 승인 Q1·Q2 개정과 관련 인용·색인을 문서 대조했다. 제품·브라우저·AI 실행 검증 없음.
+- Previous verification: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Previous verification: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Previous verification: 2026-10-31 (#853 Host worker and #857 UI manifest/assets/contributions, React compatibility, disposal/re-registration and failure-isolation verification; real Docling remains manual).
 - Authority: owner approval in [Discussion #767](https://github.com/litzio/litzio/discussions/767#discussioncomment-19307920), under [AGENTS.md](../../AGENTS.md). Related: [ADR-0011](0011-code-module-boundary.md), [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0007](0007-editing-session-lifetime.md), [staged Host decision #834](https://github.com/litzio/litzio/discussions/834#discussioncomment-19307667).
@@ -32,6 +33,8 @@ Core 의미·공식 쓰기·원본 보존과 실행/화면 수명 분리의 경�
 [ADR-0019](0019-plugin-tiers.md)은 공식/커뮤니티 계층과 공통 manifest·SDK·권한, 대상 Host 실행·자격 증명, 앱 번들 UI·공용 작업·CLI 경계를 개념으로 결정한다. 과거 same-origin ESM/CSS 로딩은 최초 UI에서 채택하지 않는다. 비서는 제품 기능이며 Docling은 재개 시 커뮤니티 계층으로 다룰 수 있다. 충돌하는 개념에는 ADR-0019를 우선 적용하되 아래 과거 결정·구현 기록은 보존한다. ADR-0017의 기능 제거·보관과 소유자의 명시적 재개 개시 조건은 유지하며, 이번 개념 결정으로 구현을 재개하지 않는다.
 
 ## Amendment: 공식 AI·Docling 전환과 Desktop 번들 UI (2026-11-04, #1150)
+
+> 아래 ADR-0017 인용 중 `aiTasks` 재개·복원 예약은 [2026-11-14 소유자 개정](0017-bundled-client-and-official-ai.md#2026-11-14-개정)으로 대체됐다. 플러그인 재개만으로 복원하지 않으며, 현재 비서·CLI로 끝내지 못하는 실제 사례가 생길 때 소유자가 재개 여부·최소 계약을 새로 정한다. 다른 결정과 당시 원문은 유지한다.
 
 [ADR-0017](0017-bundled-client-and-official-ai.md)은 AI를 항상 존재하는 daemon 공식 기능으로 먼저 이전한 뒤 플러그인 런타임·UI 기여·관리 CLI/설정·Docling과 관련 테스트·문서를 삭제하도록 결정한다. 공식 AI가 쓰지 않는 `@litzio/plugin-api` 부분도 삭제한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이는 기능 제거이며 테스트 예외가 아니다. 소유자는 이미 검증한 설계여서 재개발 비용이 낮을 것으로 판단했다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고하여 컨셉을 다시 개발하며 그대로 복구하지 않는다. aiTasks 계약 복원·플러그인 UI 신뢰·원격 UI·번들 origin 로드 경계·Docling 재개발은 그때 결정한다. 1단계와 #1150 코어 전환 완료 전에는 릴리스하지 않으며 이후 플러그인 없는 제품의 릴리스 여부는 소유자가 정한다. 아래 구현 기록은 삭제 구현 전 근거이며 실제 코드·관련 문서 제거는 구현 PR에서 한다.
 

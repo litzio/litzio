@@ -5,7 +5,8 @@
 - Status: Accepted
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-04
-- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Last verified: 2026-11-14 — 같은 날 소유자 승인 Q1·Q2 개정과 관련 인용·색인을 문서 대조했다. 제품·브라우저·AI 실행 검증 없음.
+- Previous verification: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Previous verification: 2026-11-05 — #1174·ADR-0018 결정 및 ADR-0020의 재개 시 비서 관리 개정과 문서 대조. 제품 실행 검증 없음.
 - Previous verification: 2026-11-04 — #1150·#1142, 관련 ADR 및 Paseo `bfbd4d5` 사전 정적 조사 대조. 제품 실행 검증 없음.
 - Authority: 2026-11-04 소유자 승인 결정, [#1150](https://github.com/litzio/litzio/issues/1150), under [AGENTS.md](../../AGENTS.md). AI 가용성과 플러그인·Docling 기능 제거·보관은 소유자 최종 결정이다. 플러그인 컨셉 재개발은 소유자가 명시적으로 개시할 때 다룬다.
@@ -16,7 +17,18 @@
 
 ## 현재 적용 범위 (2026-11-14 정적 확인)
 
-현재 Desktop 번들 UI·daemon 공식 AI와 고정 client·실패 시 로컬 재실행 금지는 유지한다. 원격 등록·여러 Host는 삭제됐고 탭·기억·복구의 path·새 namespace 전환도 완료했다([HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), [저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 아래 #1150 제거·PR 단계·ADR-0018 개정은 당시 이력이다. 이후 재개된 플러그인의 현재 실행·화면은 [실행 계약](../design/plugin-stage1-v1.md)·[화면 코드 계약](../design/plugin-screens-v1.md)이 정한다. **아래 `aiTasks` 복원 의무·최소 서비스 계약·재개 조건의 뜻과 문장은 이번 사실 갱신에서 변경하지 않는다.**
+현재 Desktop 번들 UI·daemon 공식 AI와 고정 client·실패 시 로컬 재실행 금지는 유지한다. 원격 등록·여러 Host는 삭제됐고 탭·기억·복구의 path·새 namespace 전환도 완료했다([HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), [저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 아래 #1150 제거·PR 단계·ADR-0018 개정은 당시 이력이다. 이후 재개된 플러그인의 현재 실행·화면은 [실행 계약](../design/plugin-stage1-v1.md)·[화면 코드 계약](../design/plugin-screens-v1.md)이 정한다. **아래 `aiTasks` 자동 복원 의무는 2026-11-14 개정으로 종료됐다. 공식 AI·번들 화면·실패 시 다른 경로로 재실행하지 않는 결정은 유지한다.**
+
+## 2026-11-14 개정
+
+- Authority: 2026-11-14 소유자 결정(Q2 승인, #1595 목적 기준 재검토).
+- 근거: [목적 문서의 지금 하지 않는 것](../purpose.md#지금-하지-않는-것)은 지금 구현하거나 미리 설계하지 않으며, 실제 사례를 근거로 재논의하고 재개는 소유자가 정한다.
+
+**삭제한 `aiTasks`를 플러그인 재개 때 복원해야 한다는 의무를 없앤다.** 지금의 비서와 CLI로 끝내지 못하는 실제 플러그인 사례가 생길 때 소유자가 재개 여부와 최소 계약을 새로 정한다. 플러그인을 재개했다는 사실만으로 서비스 복원·계약 설계를 시작하지 않는다.
+
+대체 대상은 아래 1절의 “플러그인 컨셉 재개발 때 복원할 계약” 및 “재개 때 복원할 최소 서비스 계약”이라는 의무와, 4절·이행 순서 7·Deferred에서 이를 재개 시 정할 것으로 예약한 부분이다. 옛 caller·baseline·receipt·UUID·uncertain/no-replay 최소 계약은 당시 근거로 보존하지만, 새 서비스의 미리 정해진 필수 계약으로 쓰지 않는다. [ADR-0013](0013-ai-agent-task-service.md)의 제거된 작업 서비스는 현재 비서 계약이나 복원 요구가 아니라는 설명과 같은 뜻이다.
+
+공식 AI·프로바이더 가용성·daemon 수명·Desktop 번들 화면·공용 작업과 CLI·실패 시 다른 경로로 재실행하지 않는 결정은 그대로 유효하다. 현재 작업의 요청 중복 방지·결과 불확실·문서 보호를 약화하지 않는다. 원래 문장·결정 날짜·당시 검증은 아래에 보존하고 이 의무의 대체 표시만 단다. 그 밖의 결정은 바꾸지 않는다.
 
 ## Amendment: 플러그인 계층 개념 (2026-11-05)
 
@@ -45,6 +57,8 @@ Litzio 조사 기준은 master `3ffe557381c250f1a095996761d24de6b232ce86`이다.
 AI 에이전트는 기본 포함 플러그인에서 daemon의 공식 기능으로 흡수한다. AI 수명은 daemon 수명이며 [#1142 PR4 (#1151)](https://github.com/litzio/litzio/pull/1151)에서 완료한 연결·실행·중단·종료 계약을 그대로 가져온다. 화면 닫힘이나 연결 해제를 AI 종료 신호로 바꾸지 않는다. daemon 종료로 확정할 수 없는 진행 요청은 uncertain·결과 비공개·UUID 재실행 금지로 남기고, 명시적 사용자 취소와 이미 결정된 timeout은 구분한다. 소유 worker/provider 종료를 기다리며 기존 보호를 유지한다. PR4는 master에 병합되어 #1142가 닫혔으며 이 전환에서 새 수명 정책을 임의로 추가하지 않는다.
 
 **소유자 최종 결정: AI는 항상 존재하는 공식 기능이며 AI를 끄는 버튼·스위치를 제공하지 않는다.** 사용 가능한 프로바이더가 있는지로만 AI 사용 가능 여부를 판단한다. 사용 가능한 프로바이더가 없으면 새 AI 작업(대화·`aiTasks` 요청)은 그 이유를 알리며 거부하고 이미 진행 중인 작업에는 영향을 주지 않는다. Docling 등 플러그인이 확인하던 AI 사용 가능 상태도 프로바이더 가용성으로 대체한다. 기존 “Codex 사용” 같은 켜기/끄기 설정은 남기지 않으며 하위 호환은 제공하지 않는다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI는 공식 설정 명령으로 옮기고 ADR-0015에 따라 입력·결과·범위·receipt를 공용 Host 작업으로 정의한다. 새 AI 사용자 기능은 공용 작업 + CLI를 제공하되 기존 기능 전체의 CLI화를 요구하지 않는다. 구체 명령 표기는 구현 PR에서 정하며 호환 alias나 과거 데이터 migration은 만들지 않는다. 비서는 AI 권한·프로바이더·모델을 변경하지 못한다는 기존 도구 원칙을 유지한다.
+
+> 다음 두 문단의 재개 시 복원 의무·최소 계약 예약은 [2026-11-14 개정](#2026-11-14-개정)으로 대체됐다. 원문은 당시 근거로 보존한다.
 
 ADR-0013의 Host 중개 작업 메시지, provider-neutral 기능 요청, caller의 내용 검증과 baseline 확인, UUID·uncertain/no-replay 보호는 플러그인 컨셉 재개발 때 복원할 계약으로 기록만 한다. 공식 기능 전환을 문서 의미의 Host 이전이나 새 provider framework의 근거로 쓰지 않는다.
 
@@ -80,6 +94,8 @@ ADR-0016의 고정 HTTP origin은 daemon에 유지한다. Desktop UI는 별도 �
 
 기능 제거 후 daemon은 플러그인 worker·route·UI 기여 ESM/CSS를 로드·실행하지 않으며 Desktop 번들 UI도 플러그인 UI를 싣지 않는다. 이전의 “로컬 daemon에 등록된 신뢰 플러그인 UI만 특권 창에서 실행” 추천은 이번 코어 전환의 적용 규칙으로 확정하지 않는다.
 
+> 다음 문단 중 `aiTasks` 재개·복원 예약은 [2026-11-14 개정](#2026-11-14-개정)으로 대체됐다. 다른 경계에 대한 기존 결정은 유지한다.
+
 소유자 재개 개시 때 `aiTasks` 계약 복원, 플러그인 UI 신뢰, 원격 Host 플러그인 UI 실행 방식(격리 iframe, 미실행 등), 번들 origin의 플러그인 ESM/CSS 로드 경계 및 Docling 재개발을 결정한다. 보관 코드의 기존 same-origin 전제를 자동 채택하지 않으며 Paseo의 원격 bundle 실행도 안전성 보증으로 채택하지 않는다.
 
 ## 이행 순서와 완료 조건
@@ -92,11 +108,15 @@ ADR-0016의 고정 HTTP origin은 daemon에 유지한다. Desktop UI는 별도 �
 6. **⑤ Desktop 번들 UI + daemon origin 허용:** daemon 중단 상태의 화면·수동 다시 연결, 정확한 Desktop 번들 origin 허용·OPTIONS, 기존 cross-site API/media 거부 및 CORP same-origin 규칙의 전환, 문서 이미지·미리보기와 Electron main-frame IPC 검사, 브라우저 접속을 검증한다. 플러그인 ESM/CSS는 로드하지 않는다. ⑤ 구현은 `litzio://app` static UI·main 확인 후 Host URL 설정·최초 연결 실패 화면과 수동 Reconnect·anonymous CORS 미디어를 제공한다. 새 origin 복구/충돌과 미가동 시작의 packaged 검사는 CI가 실행한다. ③과 ⑤를 한 PR로 합치지 않는다.
 7. **소유자 개시 시 컨셉 재개발:** 보관 코드를 참고하여 위 서비스·UI 경계를 결정하고 Docling을 새 구조와 공식 AI에 연결한다. 소스를 그대로 복구하거나 fixture만으로 재개 완료를 선언하지 않는다.
 
+   > 위 서비스 경계 결정 중 `aiTasks` 복원 예약만 [2026-11-14 개정](#2026-11-14-개정)으로 대체됐다. 다른 이행 기록은 유지한다.
+
 복구 검증은 둘로 구분한다. #1142 PR4의 재연결은 같은 편집 세션의 미저장 내용·Undo → Save를 검증한다. Desktop 번들 UI 전환에서는 새 번들 origin에서 앱 종료·재시작 → Restore → Save 및 외부 변경 충돌을 별도로 검증한다. 과거 origin 데이터 이전은 없다.
 
 ADR 채택 PR은 문서만 변경했다. 각 구현 PR이 해당 [HTTP Host](../design/http-host-v1.md), [Desktop distribution](../design/desktop-distribution-v1.md), [Main agent](../design/main-agent-v1.md), [Plugin runtime](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md), [Plugin UI](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md), [Docling conversion](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md) 계약을 실제 동작과 함께 갱신한다. 아직 구현되지 않은 결정을 Implemented 계약의 현재 동작으로 쓰지 않는다.
 
 ## Deferred
+
+> 아래 `aiTasks` 복원 예약만 [2026-11-14 개정](#2026-11-14-개정)으로 대체됐다. 실제 플러그인 사례가 생기면 소유자가 재개 여부·최소 계약을 새로 정한다. 나머지 보류 항목은 이번 개정으로 바꾸지 않는다.
 
 - 원격 Host 주소 설정과 여러 Host 동시 보기는 [ADR-0018](0018-desktop-remote-hosts.md)에서 보류를 해제했다. #1174 PR1~4의 구현 대상이며 이 문서의 #1150 구현 완료에 포함하지 않는다.
 - 소유자 재개 개시 때 결정: aiTasks 계약 복원, 플러그인 UI 신뢰, 원격 Host 플러그인 UI 실행 방식, 번들 origin의 플러그인 로드 경계, Docling 재개발.
