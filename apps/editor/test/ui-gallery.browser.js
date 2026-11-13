@@ -55,14 +55,20 @@ async (page, { expect, screenshots }) => {
   const ticks = page.getByRole('figure',{name:'Long time labels',exact:true}).locator('text').filter({hasText:'2026-11-13T00:'});
   await expect(ticks.first()).toContainText('2026-11-13T00:00:00Z');
   await expect(ticks.last()).toContainText('2026-11-13T00:59:00Z');
+  // Responsive chart rendering can replace ticks between browser round trips.
+  // Measure the frame and current ticks in one DOM snapshot within the existing poll.
+  let geometry;
   await expect.poll(async () => {
-    const box = await page.getByRole('figure',{name:'Long time labels',exact:true}).boundingBox();
-    const last = await ticks.last().boundingBox();
-    return last.x + last.width <= box.x + box.width;
+    geometry = await ticks.evaluateAll(nodes => ({
+      bounds: nodes.map(n => n.getBoundingClientRect().toJSON()),
+      frame: nodes[0]?.closest('figure')?.getBoundingClientRect().toJSON(),
+    }));
+    const { bounds, frame } = geometry;
+    return !!frame && frame.width > 0 && bounds.length > 0 && bounds.every(b => b.width > 0) &&
+      bounds.at(-1).right <= frame.right;
   }).toBe(true);
-  const bounds = await ticks.evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().toJSON()));
+  const { bounds, frame } = geometry;
   for(let i=1;i<bounds.length;i++) expect(bounds[i].left).toBeGreaterThanOrEqual(bounds[i-1].right);
-  const frame = await page.getByRole('figure',{name:'Long time labels',exact:true}).boundingBox();
   expect(bounds[0].left).toBeGreaterThanOrEqual(frame.x);
   expect(bounds.at(-1).right).toBeLessThanOrEqual(frame.x + frame.width);
   }

@@ -5,7 +5,7 @@ import { DEFAULT_ASSISTANT_SETTINGS, type AssistantExecutionSettings } from "../
 import { brand } from "../../../brand.ts";
 
 declare const __LITZIO_CLI_BUILD__: unknown;
-export type HostRun = { packaged?: boolean; checkoutRoot?: string; cli?: import("./assistant-cli.ts").AssistantCli };
+export type HostRun = { packaged?: boolean; checkoutRoot?: string; cli?: import("./host-cli.ts").HostCli };
 
 /** Known source module location; bundled Desktop supplies its build/app-relative root. */
 export function hostPaths(run: HostRun = {}, env: NodeJS.ProcessEnv = process.env) {

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PLUGIN_ERROR_KINDS, SDK_VERSION, PluginOperationError, pluginErrorKind, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
+import { PLUGIN_ERROR_KINDS, SDK_VERSION, PluginOperationError, pluginErrorKind, type PluginCli, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
 
 let sdkUrl: Promise<string> | undefined;
 declare const __LITZIO_CLI_BUILD__: { desktop: boolean };
@@ -56,7 +56,7 @@ process.on('message', async ({id, method, args}) => {
       }});
       if ((await import('@litzio/plugin-sdk')).SDK_VERSION !== args.sdkVersion) throw new Error('Unsupported SDK version');
       const module = await import(pathToFileURL(args.entry).href);
-      instance = await module.activate({secrets: Object.freeze(args.secrets), settings: args.settings, platform: process.platform, env: {...process.env}, isDirectory(file) {try {return statSync(file).isDirectory()} catch {return false}}});
+      instance = await module.activate({...(args.cli ? {cli: Object.freeze({bin: args.cli.bin, args: Object.freeze(args.cli.args)})} : {}), secrets: Object.freeze(args.secrets), settings: args.settings, platform: process.platform, env: {...process.env}, isDirectory(file) {try {return statSync(file).isDirectory()} catch {return false}}});
       if (!instance || typeof instance.status !== 'function' || typeof instance.dispose !== 'function' || !instance.operations || args.operations.some(key => typeof instance.operations[key] !== 'function' || !Object.hasOwn(instance.operations, key)) || Object.keys(instance.operations).some(key => typeof instance.operations[key] !== 'function' || !args.codeScreen && !args.operations.includes(key))) throw new Error('Invalid handlers');
       result = Object.keys(instance.operations);
     } else if (method === 'status') result = await instance.status();
@@ -73,7 +73,7 @@ process.on('message', async ({id, method, args}) => {
 });
 `;
 
-export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: () => void, artifactDirectory = path.dirname(entry)): Promise<PluginInstance> {
+export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: () => void, artifactDirectory = path.dirname(entry), cli?: PluginCli): Promise<PluginInstance> {
   const runtimeUrl = await hostSdkUrl();
   const child = spawn(process.execPath, ["--input-type=module", "--eval", bootstrap], {
     stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -105,7 +105,7 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
   });
   const stop = async () => { stopped = true; child.kill(); await exited; };
   let operationNames: string[];
-  try { operationNames = await request("activate", { entry, settings, secrets, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id), codeScreen: manifest.contributes.screens?.some(screen => screen.entry) ?? false }); }
+  try { operationNames = await request("activate", { entry, settings, secrets, cli, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id), codeScreen: manifest.contributes.screens?.some(screen => screen.entry) ?? false }); }
   catch (error) { await stop(); throw error; }
   return {
     operations: Object.fromEntries(operationNames.map(id => [id, (input: unknown) => request("invoke", { operation: id, input })])),

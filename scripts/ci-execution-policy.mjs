@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
-const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullRemoval: true, fullLayout: true, smartquotes: true, prWindowsPackaged: false });
+const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, windowsUnit: true, update: true, fullLifecycle: true, fullRemoval: true, fullLayout: true, smartquotes: true, prWindowsPackaged: false });
 // Consumers: root issue/docs commands and the always-run CI policy checks.
 // Product builds/tests do not load these files. Keep other scripts conservative.
 const policyFiles = new Set([
@@ -104,6 +104,7 @@ function selectPathJobs(eventName, paths) {
     quality: !paths.every(path => policyOnly(path) || isDocumentationOnly(eventName, [path])),
     browser, http,
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),
+    windowsUnit: http || paths.some(path => inPackage(path, 'apps/desktop')),
     update,
     // Removal runs with every Desktop package; build inputs must not depend on update selection.
     fullRemoval: paths.some(path => !policyOnly(path) && (lifecycleFullPaths(path) || removalBuildInput(path))),
@@ -117,7 +118,7 @@ function selectPathJobs(eventName, paths) {
   };
 }
 
-// Preserve path scopes for the queue; Windows execution is deferred on PRs.
+// Unit coverage follows product consumers on both events; packaging stays queue-only.
 export function selectJobs(eventName, paths) {
   const jobs = selectPathJobs(eventName, paths);
   return eventName === 'pull_request' ? { ...jobs, desktop: false } : jobs;

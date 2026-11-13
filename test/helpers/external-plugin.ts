@@ -25,6 +25,17 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
     const invoked = await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "External" } });
     assert.deepEqual(invoked.result, { greeting: "Hello, External!" });
     assert.equal(invoked.receipt.outcome, "success");
+    const manifestFileForCli = path.join(directory, "litzio-plugin.json");
+    const manifestForCli = JSON.parse(readFileSync(manifestFileForCli, "utf8"));
+    manifestForCli.operations = [PLUGIN_CLI_OPERATION];
+    writeFileSync(manifestFileForCli, JSON.stringify(manifestForCli));
+    writeFileSync(path.join(directory, "host.mjs"), PLUGIN_CLI_SOURCE);
+    await manage({ action: "install", directory });
+    await verifyPluginCli(async args => (await manage({ action: "invoke", operation: `${id}.run`, input: { args } })).result, parent);
+    // The remaining probes need only private screen handlers.
+    await manage({ action: "unregister", id });
+    writeFileSync(manifestFileForCli, JSON.stringify({ ...manifestForCli, operations: [] }));
+    await manage({ action: "install", directory });
     // Shipped compiler/npm must work outside asar with the Host's own Node/Electron.
     const packageFile = path.join(directory, "package.json");
     const pkg = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, "utf8")) : {name:id,private:true,type:"module"};
@@ -68,4 +79,40 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
       assert.equal((await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id).running, false);
     }
   } finally { await manage({ action: "unregister", id }); }
+}
+
+/** Shared Node plugin fixture; CLI semantics remain owned by CLI/Core tests. */
+export const PLUGIN_CLI_OPERATION = { id: "run", effect: "write", inputSchema: { type: "object", properties: { args: { type: "array", items: { type: "string" } } }, required: ["args"], additionalProperties: false }, outputSchema: { type: "object" } };
+export const PLUGIN_CLI_SOURCE = `import { spawnSync } from 'node:child_process';
+import { PluginOperationError } from '@litzio/plugin-sdk';
+export function activate(context) { return {
+  operations: { run: ({args}) => {
+    if (!context.cli) throw new PluginOperationError('unavailable');
+    const result = spawnSync(context.cli.bin, [...context.cli.args, ...args], {encoding:'utf8', windowsHide:true});
+    if (result.error) throw new PluginOperationError('failed');
+    return {status:result.status, stdout:result.stdout, stderr:result.stderr};
+  } },
+  status: () => ({available:!!context.cli, message:context.cli ? 'CLI ready' : 'This Host has no official CLI launcher'}),
+  dispose() {}
+}; }
+`;
+
+export async function verifyPluginCli(invoke: (args: string[]) => Promise<any>, parent: string) {
+  const file = path.join(parent, "plugin report.md"), input = path.join(parent, "authoring.json"), batch = path.join(parent, "batch.json");
+  writeFileSync(input, JSON.stringify({authoring:{inputs:[{key:"result",blocks:[
+    {kind:"paragraph",text:"Before"},
+    {kind:"figure",imageAsset:"picture",imageAlt:"Picture",caption:"Result"}
+  ]}]},images:[{key:"picture",mime:"image/png",base64:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII="}]}));
+  const created = await invoke(["create", file, "--input", input, "--format", "json"]);
+  assert.equal(created.status, 0, created.stderr);
+  const receipt = JSON.parse(created.stdout);
+  assert.equal(readFileSync(file,"utf8"), receipt.source);
+  const image = /\.\/assets\/[^\r\n]+\.png/.exec(receipt.source);
+  assert.ok(image, receipt.source); assert.ok(existsSync(path.resolve(parent, image[0])));
+  writeFileSync(batch, JSON.stringify([{command:"replace-text",from:"Before",to:"After"}]));
+  const edited = await invoke(["apply-batch", file, "--operations", batch]);
+  assert.equal(edited.status, 0, edited.stderr);
+  assert.match(readFileSync(file,"utf8"), /After/);
+  const checked = await invoke(["check", file, "--format", "json"]);
+  assert.equal(checked.status, 0, checked.stderr);
 }
