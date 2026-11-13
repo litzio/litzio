@@ -2297,3 +2297,34 @@ test("install uses authoring ID in opened folders, repeats edits and refuses pri
     assert.equal(refused.errorKind,"forbidden");
   } finally {await host.close();}
 });
+
+
+test("bundled npm cache publishes complete archives, reuses them and retries interruption", async () => {
+  const { c } = await import("tar");
+  const { prepareScreenNpm } = await import("../server/plugins/screen-npm.ts");
+  const root = mkdtempSync(path.join(os.tmpdir(),"litzio-npm-cache-"));
+  const source = path.join(root,"source"), cache = path.join(root,"cache"), archive = path.join(root,"npm.tar.gz");
+  mkdirSync(path.join(source,"bin"),{recursive:true});
+  const entry = path.join(source,"bin/npm-cli.js");
+  writeFileSync(entry,"version one");
+  await c({cwd:source,file:archive,gzip:true},["."]);
+  const ready = await Promise.all([prepareScreenNpm(archive,cache),prepareScreenNpm(archive,cache)]);
+  assert.equal(ready[0].entry,ready[1].entry);
+  assert.equal(ready.filter(result=>result.extracted).length,1);
+  assert.equal(readFileSync(ready[0].entry,"utf8"),"version one");
+  assert.equal((await prepareScreenNpm(archive,cache)).extracted,false);
+  assert.equal(fs.readdirSync(cache).filter(name=>name.startsWith(".npm-")).length,0);
+  // An abandoned staging directory is never mistaken for a completed version.
+  mkdirSync(path.join(cache,".npm-interrupted","bin"),{recursive:true});
+  writeFileSync(path.join(cache,".npm-interrupted","bin/npm-cli.js"),"partial");
+  const bytes = readFileSync(archive);
+  writeFileSync(archive,bytes.subarray(0,Math.floor(bytes.length/2)));
+  await assert.rejects(prepareScreenNpm(archive,cache));
+  assert.equal(readFileSync(ready[0].entry,"utf8"),"version one");
+  writeFileSync(entry,"version two");
+  await c({cwd:source,file:archive,gzip:true},["."]);
+  const updated=await prepareScreenNpm(archive,cache);
+  assert.notEqual(updated.entry,ready[0].entry);
+  assert.equal(updated.extracted,true);
+  assert.equal(readFileSync(updated.entry,"utf8"),"version two");
+});

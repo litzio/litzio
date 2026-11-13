@@ -117,3 +117,12 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 테스트 프로젝트 package.json에 같은 file tarball 의존성을 미리 선언하고 npm install --offline으로 설치해 중복 manifest 해석을 제거했다. 실제 npm 설치·Windows shim·SDK·외부 라이브러리 설치와 bundle·저장·충돌·종료 보호를 모두 유지한다. 제한은 우선 60초 그대로이며 CI에는 단계 시간과 npm 내부 시간을 출력한다. 관련 테스트/공용 fixture 변경은 기존 Windows HTTP 두 job을 PR에서도 선택하고 aggregate가 이를 요구한다.
 
 #1597 기준과 #1599 head를 대조하면 이 packaged 테스트·외부 fixture·배포 build 구성은 바뀌지 않았고 npm install/bundle 호출 횟수도 같다. #1599의 새 install 작업은 이 fixture가 호출하지 않는다. 따라서 새 설치 작업의 중복 활성화가 이 timeout 원인이라는 근거는 없다. 포함 npm의 많은 파일을 가진 tarball을 여러 번 해석·추출하는 기존 작업량이 크며, #1599 이전 queue에서도 48.6/57.3초였다. 실패 run에는 단계 출력이 없어 그 67.5초의 세부 배분은 확정하지 않는다. 일반 사용자도 이 payload 설치 비용을 지불하지만 이번 수정은 테스트의 중복 해석을 줄인 것이며 제품 설치 자체가 빨라졌다고 주장하지 않는다. 실제 Windows CI 측정과 통과 여부는 PR의 후속 검증 기록을 따른다.
+
+
+후속 측정(압축 배포 전 head ce3af2e2): PR에서 실제 Windows HTTP 두 job을 실행했다(run 43365035964). host job의 npm 설치 43.238초, Host 기동 1.042초, 로컬 라이브러리 설치 2.809초, bundle 0.038초, 정리 0.939초, 전체 56.462초였다. plugins job은 각각 28.514초·1.003초·1.592초·0.040초·0.513초, 전체 39.263초였다. npm userRequests는 0이 됐지만 큰 payload의 root manifest 해석·unpack이 계속 대부분을 차지했다. 이는 단순 flake가 아니라 파일 수가 많은 배포물에 여유가 부족한 구조다.
+
+소유자가 추가한 압축 배포 후보도 격리된 폴더에서 측정했다. npm 11.19.1 자체를 바꾸지 않고 단일 archive로 실으면 배포 파일 수가 2,516→541, 실험 설치는 2.846초, 최초 npm 추출은 3.380초였다. 기존 Desktop 복사 설정을 바꿀 필요 없이 CLI build와 dependencies 준비에 한정할 수 있어 이 PR에서 적용했다. esbuild 실행 파일은 그대로다.
+
+최종 로컬 Windows 실제 packaged 검사에서는 설치 3.041초(root manifest 1.104초·unpack 1.003초 포함), Host 기동 1.189초, 첫 dependencies 4.515초(그 안의 npm cache 준비 3.370초), bundle 0.119초, 전체 14.890초로 통과했다. 로컬 값은 자료 폴더 보존으로 정리 시간을 제외한다. 외부 라이브러리를 처음 만드는 사람은 일회성 추출 비용을 뒤로 미루어 지불하지만, 모든 사용자의 CLI·Desktop 설치에서는 npm의 1,976파일을 개별 설치하지 않는다. archive 압축 byte 수 자체를 크게 줄였다는 주장은 아니다.
+
+첫 구현 시험에서는 pnpm의 hardlink 원본을 tar로 바로 묶을 때 일부 entry가 잘못 기록되어 실패했다. 원래 build가 하던 복사를 먼저 수행한 뒤 독립 파일의 복사본을 압축하도록 고치고, 실제 offline dependencies/bundle을 다시 통과했다. 완료 캐시는 임시 폴더의 완전 추출 후 rename으로만 게시한다. 단위 검사는 동시 요청·재사용·중단 흔적·불완전 archive와 새 archive를 확인한다. OS 프로세스 강제 중단이나 패키지된 Desktop 자체의 로컬 시험을 추가로 수행했다는 뜻은 아니다. 압축 배포 head의 Windows CI 결과는 PR 후속 검증에 남긴다.

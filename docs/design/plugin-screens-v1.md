@@ -154,3 +154,6 @@ litzio plugins install local.measurements --host <origin> --json
 파일은 Host가 공급한 LITZIO_PLUGINS 환경변수 아래 ID 폴더에 쓴다. PowerShell은 `Join-Path $env:LITZIO_PLUGINS "local.measurements"`로 계산한다. 반환된 긴 절대 경로를 다시 입력하지 않는다. install은 ID 또는 명시적 폴더를 받아 정적 검증·필요한 화면 bundle·등록·신뢰·활성·reload를 수행한다. 외부 패키지를 쓰면 기존 dependencies 작업으로 먼저 내려받고, install이 매번 bundle을 재생성한다. 같은 명령으로 수정을 반영하며 설정·등록 ID를 보존한다. 재설치는 새 프로세스의 활성화와 상태 응답을 먼저 확인한 후 기존 실행을 교체한다. 그 준비가 실패하면 기존 프로세스·활성 설정·화면 revision을 보존한다. 디스크 artifact 변경을 감지하는 기존 작업 호출 검사는 유지하므로, 소스를 수정한 상태의 호출에는 reload 안내가 나올 수 있다. 앱에 포함된 플러그인은 install로 교체하지 않는다. 검증 실패는 기존 file/line/column/kind/path/message 오류 형식과 failure receipt를 반환한다. 실행 단계 실패에는 정적으로 위치를 특정할 수 없는 경우도 있다.
 
 opened-folders에서 CLI reset guard가 막으면 같은 Host 작업인 `manage_plugins {action:"install",id:"local.measurements"}`를 사용한다. 읽기 전용에서는 거부하며 sandbox·guard를 완화하지 않는다. 자동 파일 감시는 없고 열린 화면은 기존 revision 관측으로 갱신한다.
+
+
+제작용 npm은 배포물의 단일 archive로 제공하며 외부 라이브러리 dependencies를 처음 사용할 때만 Host 데이터 아래에 준비한다. [포함 npm 지연 준비](plugin-stage1-v1.md#포함-npm의-지연-준비-1592)를 따른다. npm cache 준비는 라이브러리 bundle을 소비하는 화면에는 필요하지 않다. esbuild와 React 실행 경계는 그대로다.

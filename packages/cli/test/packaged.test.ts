@@ -3,7 +3,7 @@ import { verifyExternalPlugin } from "../../../test/helpers/external-plugin.ts";
 import assert from "node:assert/strict";
 import { execSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -82,8 +82,13 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     });
     assert.equal((await fetch(url)).status, 200);
     timing("host-start");
+    assert.equal(existsSync(path.join(path.dirname(entry),"npm.tar.gz")),true);
+    assert.equal(existsSync(path.join(path.dirname(entry),"npm")),false);
+    assert.equal(existsSync(path.join(scratch,"data/plugins/.npm-cache")),false,"Ordinary Host use must not extract npm");
     await verifyExternalPlugin(url, a, path.dirname(entry), timing);
     timing("external-plugin-complete");
+    const tools = path.join(scratch,"data/plugins/.npm-cache");
+    assert.equal(readdirSync(tools).filter(name=>name.startsWith("npm-")).length,1,"Dependencies must prepare the bundled npm cache");
     const plugins = (await (await fetch(url + "/api/plugins")).json()).plugins;
     assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
     for (const id of ["community.docling", "community.jira"]) {

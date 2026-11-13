@@ -1084,3 +1084,10 @@ bundle은 기존 esbuild로 원본 entry와 외부 의존성을 묶어 같은 �
 ## 코드 화면 설치 2단계 (#1592)
 
 최소 신분증·3파일 제작과 `plugins install <id-or-directory> --host <origin> --json`은 [화면 계약](plugin-screens-v1.md#코드-화면-제작설치-2단계-1592)을 따른다. install의 교체 후보 활성화·상태 준비 실패는 기존 실행과 활성 설정을 보존한다. 새 프로세스가 준비된 후 기존 drain·dispose를 수행한다. 기존 reload의 실패 시 비활성 계약은 그대로다. 관리 작업 install의 범위는 host이며 검증 실패는 위치별 errors와 failure receipt, 성공은 id·plugins·success receipt다. ID는 Host 제작 폴더의 직접 자식으로 해석한다. 설치는 해당 artifact의 신뢰와 활성 실행을 명시적으로 요청하는 작업이다. 기존 register/trust/enable과 settings·secret·Node child 수명은 유지한다. 제한 권한의 비서는 guard를 우회하지 않고 같은 Host 작업을 manage_plugins로 호출한다.
+
+
+### 포함 npm의 지연 준비 (#1592)
+
+CLI 배포물은 npm 디렉터리 대신 `npm.tar.gz` 하나를 싣고 Desktop은 기존 CLI extraResources 복사 경로를 그대로 쓴다. esbuild 실행 파일은 그대로 둔다. 문서 작업·일반 Host 기동·JSX 화면은 npm을 풀지 않는다. dependencies를 처음 실행할 때 Host의 기존 데이터 위치 `plugins/.npm-cache/npm-<archive SHA-256>`에 푼다. 설치 폴더에는 쓰지 않는다. 완전히 푼 고유 임시 디렉터리를 rename해 게시하며 동시 시도는 완성된 승자의 캐시만 사용한다. 실패한 시도는 자기 임시 디렉터리만 정리하고, 중단돼 남은 디렉터리는 완료 캐시로 보지 않는다. archive가 바뀌면 다른 캐시를 사용한다.
+
+Node/Electron과 공개 tar 라이브러리로 로컬 archive를 풀며 네트워크·시스템 npm·외부 tar 명령이 필요 없다. 이후 npm의 기존 npmrc·proxy와 ignore-scripts 계약은 유지한다. dependencies 결과의 선택적 npm 항목은 extracted·milliseconds만 반환하고 캐시 절대 경로를 공개하지 않는다. 버전 협상이나 플러그인 버전 보관 계층이 아니다.
