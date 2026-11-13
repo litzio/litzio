@@ -162,4 +162,3 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 - 첫 단위 테스트 호출은 저장소 루트에서 실행해 상대 cwd를 기대하는 기존 Docling/Jira 2개가 실패했다(55/57 통과). 올바른 Editor cwd에서 변경 영역 5개를 다시 통과했다. 무관한 전체 suite 성공으로 보고하지 않는다.
 - 브라우저 HTTP와 Vite를 한 호출로 지정한 첫 시도는 runner가 거부했다. 수동 촬영 harness 첫 두 시도는 VM에 URL 전역이 없음, catalog에 GET을 사용해 405 빈 응답을 JSON으로 읽은 문제로 실패했다. 실제 POST catalog 계약으로 고친 뒤 촬영·조작이 통과했다. 촬영 전용 순회는 CI에 추가하지 않았다.
 - 실제 외부 서비스·원격 PC·패키지된 Desktop·640px 실제 생성 화면·스크린리더 청취·많은 점/긴 문자열은 미확인이다. 문서 저장은 병행 2-4 범위이며 이 변경은 invoke 수명·취소·출력 계약을 바꾸지 않는다. 직접 시작한 격리 Host·browser runner는 종료했고 임시 시험 자료는 보존했다.
-
