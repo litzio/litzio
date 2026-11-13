@@ -721,3 +721,57 @@ test("structured authoring retains explicit long-document and table/string bound
   boundary.padding += "x";
   await assert.rejects(authorDocument(boundary), (error: any) => error.code === "limit");
 });
+
+
+test("authoring reuses native inline/list semantics and preserves canonical source and receipt paths", async () => {
+  const rich = "**bold** *italic* {sup}`2` {sub}`n` $x$ `code` [link](https://example.com) {ref}`section`";
+  const original = parse(native(`(section)=\n# ${rich}\n\n${rich}[^n]\n\n> ${rich}\n\n:::{note}\n${rich}\n:::\n\na) ${rich}\n   i. Nested $y$\n\n:::{table} ${rich}\n:label: tbl\n\n| Value |\n| --- |\n| ${rich}[^n] |\n:::\n\n:::{figure} ./image.png\n:label: fig\n${rich}\n:::\n\n[^n]: ${rich}\n`));
+  const model = getEditableDocument(original);
+  const blocks = model.blocks.map(block => {
+    if (block.block === "table") return { kind: "table", rows: block.rows.map(row => row.cells.map(cell => cell.content)), caption: block.caption, label: block.label };
+    if (block.block === "figure") return { kind: "figure", imageUrl: block.imageUrl, imageAlt: block.imageAlt, caption: block.caption.content, label: block.label };
+    const { block: kind, path, ...fields } = block;
+    const { text, editable, ...semantic } = fields as any;
+    return { kind, ...semantic };
+  });
+  const authored = await authorDocument({ inputs: [{ key: "sample", blocks }] });
+  assert.equal(authored.source, serialize(original));
+  assert.deepEqual(getEditableDocument(parse(authored.source)), model);
+  // Endnote relocation must not retarget input receipts.
+  const moved = await authorDocument({ inputs: [{ key: "moved", blocks: [
+    { kind: "footnote", label: "n", text: "definition" },
+    { kind: "paragraph", content: [{ kind: "footnote", label: "n" }] },
+  ] }] });
+  assert.deepEqual(moved.inputs[0].targets.map(target => target.path), [[2], [1]]);
+});
+
+test("authoring refuses broken connections, invalid nesting and ambiguous inputs with locations", async () => {
+  const cases = [
+    [{ kind: "paragraph", content: [{ kind: "footnote", label: "missing" }] }],
+    [{ kind: "paragraph", content: [{ kind: "reference", role: "ref", label: "missing" }] }],
+    [{ kind: "equation", latex: "x", label: "same" }, { kind: "equation", latex: "y", label: "same" }],
+    [{ kind: "paragraph", content: [{ kind: "superscript", children: [{ kind: "subscript", children: [{ kind: "text", text: "x" }] }] }] }],
+    [{ kind: "paragraph", text: "literal", content: [] }],
+    [{ kind: "paragraph" }],
+    [{ kind: "table", rows: [[[ { kind: "paragraph", text: "block" } ]]] }],
+    [{ kind: "footnote", label: "unused", text: "definition" }],
+    [{ kind: "list", ordered: false, style: "lower-alpha", items: ["x"] }],
+  ];
+  for (const blocks of cases) await assert.rejects(authorDocument({ inputs: [{ key: "bad", blocks }] }), (error: any) => {
+    assert.ok(error instanceof DocumentAuthoringError);
+    assert.ok(error.diagnostics.length);
+    assert.deepEqual(error.diagnostics[0].path.slice(0, 3), ["inputs", 0, "blocks"]);
+    assert.ok(error.diagnostics[0].reason);
+    return true;
+  });
+});
+
+
+test("structured authoring applies limits inside inline content and nested lists", () => {
+  const parseInput = (blocks: unknown[]) => core.documentAuthoringSchema.safeParse({ inputs: [{ key: "limits", blocks }] });
+  assert.equal(parseInput([{ kind: "paragraph", content: [{ kind: "strong", children: [{ kind: "text", text: "x".repeat(DOCUMENT_AUTHORING_LIMITS.string) }] }] }]).success, true);
+  assert.equal(parseInput([{ kind: "paragraph", content: [{ kind: "strong", children: [{ kind: "text", text: "x".repeat(DOCUMENT_AUTHORING_LIMITS.string + 1) }] }] }]).success, false);
+  const list = { ordered: false, items: Array.from({ length: 100 }, () => ({ content: [] })) };
+  assert.equal(parseInput([{ kind: "list", ordered: false, items: Array.from({ length: 49 }, () => ({ content: [], list })) }]).success, true);
+  assert.equal(parseInput([{ kind: "list", ordered: false, items: Array.from({ length: 50 }, () => ({ content: [], list })) }]).success, false);
+});

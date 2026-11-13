@@ -395,3 +395,18 @@ block-count and fingerprint-size refusal. UI rendering requires separate measure
 CLI `inspect --format json`의 `nodes`는 Core `getEditableDocument`의 인라인 구조를 그대로 노출한다. 문단·제목·인용·주의 상자·미주 정의·그림 caption 노드·표 cell 노드는 `content: InlineContent[]`를 제공한다. 표 캡션은 table 노드의 `caption`, 목록은 `items[].content`와 재귀적인 `items[].list`로 제공한다. 빈 인라인 내용은 빈 배열이다.
 
 `text`는 기존 표시·요약 소비자를 위해 유지한다. `content`가 구조 보존과 재작성의 입력이며 `text`에서 서식이나 원자를 추론하지 않는다. 인라인 서식, 첨자, 수식, 코드, 링크, 참조, 미주 표시는 Core 타입 그대로다. 경로는 해당 revision의 locator다. 번호 등 파생 표시 필드는 저장 의미가 아니다. JSON 투영은 Host 공용 `machineNodes`를 사용한다. 비서의 `read_document`는 원문과 revision을 반환하며 별도의 의미 투영을 만들지 않는다. 비서가 JSON 구조를 필요로 하면 같은 CLI를 사용한다.
+
+## 공식 문서 작성 입력
+
+Core `documentAuthoringSchema`와 `authorDocument`가 CLI `create --input` 및 화면 `saveDocument`의 공통 계약이다. SDK는 Core schema를 재수출하고 request의 이미지 바인딩을 검증한다. 입력은 `{title?, inputs:[{key,blocks:[]}]} `이다.
+
+- paragraph·heading(level)·quote·admonition(variant)·footnote(label)는 `text` 또는 `content: InlineContent[]` 중 정확히 하나를 받는다. 문자열은 Markdown 해석 없이 글자 그대로다.
+- table의 `rows` 각 셀과 figure의 `caption`은 문자열 또는 같은 InlineContent 배열이다. table은 `caption`, `label`, `align`도 받는다.
+- list는 Core ListContent의 `ordered`, `start`, `style`, `delimiter`, `items:[{content,list?}]`를 받는다. 기존 문자열 items도 유지한다.
+- target(label)은 heading 앞의 Core target 블록이다. figure·table·equation도 label을 받는다. 참조는 InlineContent의 reference(role,label), 미주 표시는 footnote(label), 정의는 footnote 블록으로 연결한다. 정의는 Core 규칙대로 본문 뒤 첫 참조 순서로 배치하며 입력별 target receipt는 재배치된 경로를 가리킨다.
+
+읽기 출력의 `content`와 목록 `items`를 변환 없이 해당 입력 필드에 넣는다. JSON nodes의 type은 blocks의 kind에, 표 cell 노드는 rows에, 별도 그림 caption 노드는 figure.caption에 매핑한다. path·text·editable·파생 번호 등 조회 필드는 입력이 아니다.
+
+Core 수정 연산과 native 검증·정규 직렬화 재검증을 재사용한다. 이 완성 문서 작성 입력은 끊긴 미주, 사용되지 않은 정의, 중복 레이블(암시적 heading ID 포함), 없는 참조 대상, 지원하지 않는 중첩을 거부한다. 일반 편집 초안에서 미해결 상호 참조를 허용하는 계약은 유지한다. `DocumentAuthoringError.diagnostics`는 입력 path와 reason을 제공하고 message에도 포함한다.
+
+기존 4 MiB 입력/출력, 5000 input·block, 문자열 16384자, 표 100행·32열, 목록당 100항목 한도를 유지한다. 모든 중첩 문자열에도 같은 한도를 적용하며 중첩 목록 항목은 총 block 한도에 합산한다. 새 저장 문법은 없다. 병합 셀·복합 머리·머리 열·셀 안 블록·표 전용 주석 구역은 지원하지 않는다.
