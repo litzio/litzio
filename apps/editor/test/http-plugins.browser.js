@@ -210,7 +210,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
   await page.keyboard.press("Escape");
-  await expect(page.locator(".tiptap").first()).toHaveText(beforeDisable);
+  await expect.poll(() => page.locator(".tiptap").first().innerText()).toBe(beforeDisable);
   await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
   await openSettings();
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();

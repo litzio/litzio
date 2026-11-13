@@ -20,7 +20,7 @@
 - Verification #1287: 2026-11-06 — OneDrive 탐색기 자동 표시·비활성화 목록 제거의 HTTP browser fixture 검증. 실제 계정 동기화는 미검증.
 - Previous verification: 2026-11-06 — #1244 플러그인별 값 마스킹·키 보존·삭제·로그 비노출과 #1245 접수/작업 수명 분리·실제 10초 초과 subprocess 회귀. 기존 검증: 2026-11-05 SDK·Host·OneDrive fixture, 제작 lifecycle·CLI·실제 Codex 두 모델 및 http-plugins 검사. 필수 CI 결과는 구현 PR에 기록한다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md)의 소유자 1단계 개시. [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0018](../adr/0018-desktop-remote-hosts.md)을 따른다.
-- Scope: 최소 SDK, 명시적 로컬 등록·신뢰·활성화, 공용 작업·CLI·설정과 OneDrive, 비서 제작 키트. Jira와 동적 UI 스파이크는 후속이다.
+- Scope: 최소 SDK, 명시적 로컬 등록·신뢰·활성화, 공용 작업·CLI·설정·비서 제작 키트. OneDrive·Jira 제품은 삭제했으며 Docling·선언형 제거는 별도 단계다.
 
 2026-11-05 소유자 제작 로드맵 결정 2·5에 따라 아래 하위 프로세스·reload·관리별 승인 제거를 구현한다. 같은 결정은 ADR-0020의 비서 제작 로드맵 개정에 기록되어 있다.
 
@@ -79,26 +79,11 @@ settings는 --file 없이 현재 일반 설정을 조회한다. 일반 설정과
 
 ## OneDrive
 
-`plugins/onedrive`는 SDK 타입과 Node API만 사용한다. `pnpm --filter @litzio/onedrive build`가 자체 실행 의존성을 포함한 artifact 디렉터리를 만든다. Host와 CLI는 OneDrive source를 import하지 않는다. 공식 artifact는 앱에 포함해 자동 표시하며 사용자가 토글로 활성화한다.
-
-Windows 환경 변수 OneDrive/OneDriveConsumer/OneDriveCommercial과 실재 폴더를 우선한다. HKCU Software/Microsoft/OneDrive/Accounts 직하위 계정의 UserFolder를 best-effort로 보완하며 중복 경로를 합친다. 조회 실패·불완전/없는 경로 수와 출처를 보존한다. UserEmail/DisplayName이 실제 조회된 경우만 표시하고, 그 밖에는 경로 기반 중립 라벨을 쓴다. raw 레지스트리 출력은 로그에 쓰지 않는다. SyncEngines, ini, WinRT, Graph/OAuth와 동기화 엔진은 사용하지 않는다. Linux 등 다른 OS에서는 지원하지 않음을 표시한다.
-
-폴더 감지는 로그인이나 동기화 상태의 증거가 아니다. 활성화되어 실행 중인 플러그인이 status.folders로 알린 모든 폴더를 ID와 무관하게 로컬 Explorer에 자동 표시한다. OneDrive도 같은 경로를 사용한다. defaultCandidate는 기존처럼 빈 탐색기에서 단일 후보를 제안할 때만 쓰며 자동 표시는 모든 폴더에 적용한다. 기존 파일 Host의 폴더 검증·FolderTree를 재사용하고 기존 폴더·탭을 덮지 않는다. 자동 표시의 소유자는 앱의 폴더 상태이며 일반 열린 폴더 기억 목록에 저장하지 않는다. 비활성화하면 자동 표시한 폴더를 탐색기 목록에서 제거하며 디스크의 원본 폴더·문서와 열린 탭은 보존한다. 자동 상위 루트가 기존 수동 하위 폴더를 화면에서 합쳐 표시해도 수동 루트의 소유권·기억 목록·접힘/펼침 상태는 보존하고, 자동 루트 제거 시 수동 트리를 복원한다. 활성 상태에서 새로고침해도 일반 폴더 기억 목록으로 같은 수동 루트를 먼저 복원한다. 감지 루트 자체를 일반 폴더로 직접 추가한 뒤 비활성화하는 예외는 #1287 범위 밖이다. 앱의 플러그인 상태 조회는 가장 최근 시작한 요청의 결과·오류만 반영하고 관리 시작·구독 해제 시 이전 요청을 무효화한다. Host가 활성 상태로 생성한 응답의 전달이 비활성화 완료 뒤로 늦어져도 이전 폴더·토글을 복원하지 않는다. 수동 전후 캡처: [1440px Before](assets/onedrive-explorer-1287/before-1440.png) / [After](assets/onedrive-explorer-1287/after-1440.png), [640px 한국어 Dark Before](assets/onedrive-explorer-1287/before-640-ko-dark.png) / [After](assets/onedrive-explorer-1287/after-640-ko-dark.png). 같은 활성 상태와 격리된 두 후보를 수정 전·후 코드에서 촬영했다. 당시 기존 FolderTree와 내장 OneDrive 아이콘을 재사용했으며 새 표면·공통 패턴 예외는 없다. 행 정렬·여백·패널 잘림과 한국어 줄바꿈을 확인했다.
-
-장식은 정확한 루트에 제공 플러그인의 manifest 아이콘을 사용하고(같은 루트에 여러 제공자가 있으면 목록의 첫 이미지 제공자), 자식에게 전파하지 않는다. OneDrive 0.1.1은 기존 Microsoft Fluent UI OneDriveLogoIcon 실루엣을 파란색(#0078D4) SVG로 제공한다. MIT 라이선스 고지를 플러그인 소스와 빌드 artifact에 포함하며 Editor 내장 OneDrive 아이콘은 없다. build가 manifest·아이콘·고지를 artifact에 복사하고 digest를 재생성한다.
+2026-11-13 삭제했다. [삭제 전 구현과 검증](https://github.com/litzio/litzio/tree/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#onedrive)에 보관한다.
 
 ### 공통 폴더 기여와 아이콘 검증 (#1366)
 
-기존 `http-plugins`의 커뮤니티 fixture가 수동 폴더와 다른 폴더를 알리도록 보완했다. 변경 전 production 빌드는 두 루트 기대에 한 루트만 표시해 실패했고, 변경 후에는 자동 표시·장식 이미지 로드·비활성화 후 수동 폴더 보존을 검사한다. OneDrive 단위 검사는 일반화된 장식 값을 확인한다. 기존 `plugin-jobs`는 해당 플러그인의 탭·사이드바·설정 이미지 연결을 확인하며, 공식 OneDrive 이미지가 추가되어도 다른 플러그인 이미지와 혼동하지 않도록 행 범위를 명시한다. 새 시나리오·subprocess·전수 조합은 추가하지 않았다. 실제 계정 로그인·동기화 검증은 아니다.
-
-수동 전후 비교는 같은 두 격리 후보·활성 상태, Windows 설치형 Chrome의 checkout별 persistent profile, DPR 1·zoom 100%, 900px 높이에서 촬영했다. Before는 `2325f358`의 production 빌드이며 After는 #1366 구현이다. 목록과 이미지 로드를 기다린 뒤 촬영했고 Host 계정은 가렸다. 기존 FolderTree의 아이콘 칸과 설정 plugin-heading, 공통 PluginIcon을 재사용하며 예외는 없다. 1440px 영어 라이트와 640px 한국어 다크에서 세로 중심·여백·잘림·배지 줄바꿈과 파란 아이콘의 식별을 확인했다. 소유자의 최종 시각 승인을 대신하지 않는다.
-
-| 화면 | 변경 전 | 변경 후 |
-| --- | --- | --- |
-| Explorer 1440px | [Before](assets/folder-plugins-1366/before-explorer-1440.png) | [After](assets/folder-plugins-1366/after-explorer-1440.png) |
-| Explorer 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-explorer-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-explorer-640-ko-dark.png) |
-| Settings 1440px | [Before](assets/folder-plugins-1366/before-settings-1440.png) | [After](assets/folder-plugins-1366/after-settings-1440.png) |
-| Settings 640px 한국어 다크 | [Before](assets/folder-plugins-1366/before-settings-640-ko-dark.png) | [After](assets/folder-plugins-1366/after-settings-640-ko-dark.png) |
+공급자가 없어진 폴더 자동 추가·후보·장식과 계정 표시는 제거했다. 사용자가 직접 연 폴더는 플러그인 활성 상태와 독립적으로 유지한다.
 
 ## 플러그인 비서 스킬 (#1462)
 
@@ -122,11 +107,11 @@ SDK manifest 단위 검사는 선언·기능 버전·경로·중복 ID를 보호
 
 ## 검증 경계
 
-SDK 검사는 manifest와 미지원 확장·외부 schema를, Host 검사는 등록 신뢰·disable drain·설정 보존·하위 프로세스 수명·reload 회복과 비서 활동 기록을 소유한다. OneDrive 검사는 주입한 환경·디렉터리·레지스트리로 단일/복수/없음/잔존을 검증하며 실제 계정에 의존하지 않는다. `pnpm browser:test http-plugins`는 격리된 production HTTP Host와 CLI·설정 UI 일치 및 OneDrive 활성화·새로고침 후 복수 폴더 자동 표시, 비활성화 후 목록 제거와 원본 폴더 보존을 확인한다. OneDrive 상태는 격리된 후보로 대체하고 실제 폴더 목록은 HTTP Host로 검증하므로 실제 계정 동기화의 증거는 아니다. 커뮤니티 fixture의 수동 폴더 보존 검사도 유지한다. `--screenshots`는 수동 검토용 1440px·640px 설정·장식 캡처를 tmp/plugin-stage1에 남긴다. 필수 CI는 기존 전체 제품 판정을 유지한다.
+SDK 검사는 manifest와 미지원 확장·외부 schema를, Host 검사는 등록 신뢰·disable drain·설정 보존·하위 프로세스 수명·reload 회복과 비서 활동 기록을 소유한다. `pnpm browser:test http-plugins`는 격리된 production HTTP Host에서 코드 화면 fixture의 등록·신뢰·활성·reload·설정·secret과 늦은 응답을 검사한다. 수동 폴더와 열린 문서가 비활성화 후에도 남는지 확인한다. 실제 외부 계정 동기화의 증거는 아니다. 필수 CI는 기존 전체 제품 판정을 유지한다.
 
 1단계 UI는 로컬 Host만 지원한다. 원격 HostExplorer의 폴더 후보·장식 및 원격 Plugins 설정 UI는 이번 범위에 포함하지 않는다. CLI의 명시 대상 Host 계약과 구별한다. 누락된 artifact는 해당 플러그인만 artifact 없음으로 표시하며 다른 등록은 차단하지 않는다. unregister는 신규 요청 차단·진행 상태 조회/기능 작업 drain·dispose 뒤 등록과 일반 설정을 해제하고 artifact 파일은 삭제하지 않는다. 비서 unregister도 승인 질문 없이 실행하고 활동 기록을 남긴다. 상태 조회도 drain에 포함하며 비활성화 후 늦은 조회는 이전 폴더/장식을 반환하지 않는다.
 
-목록 성능(#1348): Host는 실제 디렉터리별 최신 content digest에 manifest·entry 검증과 스키마 컴파일 성공 결과를 캐시한다. digest 변경은 전체 검증을 다시 수행하며 실패 결과는 캐시하지 않는다. 반환값은 복제하여 캐시 오염을 막는다. artifact 변경 판정과 공식 공급 검증은 매번 파일 내용을 해시한다. mtime·크기 기반 digest 캐시는 같은 크기와 timestamp 복원/해상도에 따른 변경 누락 가능성이 있어 사용하지 않는다. 기존 동시 파일 변경과 검증/실행 사이의 경합 한계는 바뀌지 않는다. 관리 응답의 목록은 같은 Host의 화면 구독자에게 전달하여 불필요한 재조회를 없애고, 목록 없는 변경 이벤트는 기존처럼 새로 조회한다.
+목록 성능(#1348): Host는 실제 디렉터리별 최신 content digest에 manifest·entry 검증과 스키마 컴파일 성공 결과를 캐시한다. digest 변경은 전체 검증을 다시 수행하며 실패 결과는 캐시하지 않는다. 반환값은 복제하여 캐시 오염을 막는다. artifact 변경 판정과 플러그인 검증은 매번 파일 내용을 해시한다. mtime·크기 기반 digest 캐시는 같은 크기와 timestamp 복원/해상도에 따른 변경 누락 가능성이 있어 사용하지 않는다. 기존 동시 파일 변경과 검증/실행 사이의 경합 한계는 바뀌지 않는다. 관리 응답의 목록은 같은 Host의 화면 구독자에게 전달하여 불필요한 재조회를 없애고, 목록 없는 변경 이벤트는 기존처럼 새로 조회한다.
 
 ## Secret 저장과 실행 전달 (로드맵 1c)
 
@@ -386,9 +371,7 @@ Host가 verification을 소유한다. 아직 원래 호출이 진행 중이면 p
 기존 `http-plugins`에 갱신 응답 반영 뒤 경로·focus 보존과 외부 제거 안내 검사를 보완했다.
 Windows persistent Chrome의 localhost fixture 검증이며 실제 외부 서비스 수락 근거는 아니다.
 
-공식 OneDrive는 개발 실행·CLI·Desktop에 artifact를 포함하고 Host 시작 때 등록 없이 Settings → Plugins 및 공용 `plugins list`/비서 `manage_plugins` 목록에 표시한다. 기본은 꺼짐이다. 제품 공급 목록 `OFFICIAL_PLUGINS` 항목의 `defaultEnabled` 하나로 기본값을 바꾼다. Host는 사용자 선택 `enabledChoice`를 저장해 기본값보다 우선하고, 선택 전에는 설정 저장·재시작을 거쳐도 공급 기본값을 따른다. 기본값이 켜짐으로 바뀌면 선택하지 않은 사용자만 자동 활성화한다.
-
-OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json`을 생성한다. CLI 빌드는 매번 OneDrive를 빌드해 artifact와 digest를 함께 복사하고 npm 배포 파일 목록에 포함한다. Desktop은 이 CLI 산출물 전체를 사용한다. 개발 `pnpm editor`도 OneDrive를 먼저 빌드한다. Host는 공급 목록 id·publisher·digest를 대조하며 불일치·누락은 오류 행으로 남기고 실행·trust 우회를 막는다. 공식 플러그인은 앱 업데이트와 함께만 갱신하며 등록 교체·unregister는 불가하고 끄기만 제공한다. 비활성화의 설정·secret·열린 탭 보존 계약은 유지하며 OneDrive 자동 표시 폴더만 위 계약에 따라 목록에서 제거한다.
+공식 공급 목록과 기본값·digest 검증 경로는 OneDrive 삭제와 함께 제거했다. [당시 공급 계약](https://github.com/litzio/litzio/tree/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#공식-번들-공급과-외부-폴더-추가-1279)은 보관 소스에서 확인한다. 등록 단위 신뢰·digest 변경 판정과 비활성화의 설정·secret·열린 문서 보존은 유지한다.
 
 외부 플러그인은 “플러그인 추가…”에서 기존 Host 측 `FolderDialog`로 artifact 폴더를 선택한다. Settings의 별도 절대 경로 입력란은 제거한다. 기존 Button·FolderDialog·설정 행과 토글을 재사용하며 새 공통 UI 패턴은 없다. 폴더 탐색은 현재 Host client를 통해 수행하고 로컬 PC 파일 선택 창으로 대체하지 않는다. 1단계 설정 UI의 로컬 Host 범위는 유지하며 원격 UI를 새로 개방하지 않는다. CLI `plugins register <directory>`와 비서 도구의 외부 경로·trust·enable·unregister는 기존 공용 작업을 유지한다.
 
@@ -400,7 +383,7 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 
 #1450: Docling 지정 공급에는 [LSR 1.1 체험용 샘플](../../community-plugins/docling/sample/lsr-1.1/README.md)을 함께 포함한다. 입력 PDF·작성자 기대 구조·라이선스 고지와 SHA-256 목록을 명시적 파일 목록으로 CLI와 Desktop에 배포한다. Docling 출력 정답·품질 합격선이나 자동 변환·채점 기능은 제공하지 않는다.
 
-제품 고정 `DESIGNATED_COMMUNITY_PLUGINS` 한 곳에서 지정 ID·폴더·실행 파일 목록을 관리한다. 초기 Docling·Jira는 개발 실행·CLI·Desktop에 포함되어 등록 없이 목록에 나타나며 계속 커뮤니티로 표시한다. 사용자·비서·설정으로 지정 목록을 바꾸지 않는다. 처음에는 꺼짐·미신뢰이며 기존 신뢰 확인을 거친 뒤에만 entry를 실행한다. 같은 등록의 신뢰·켜기/끄기·설정·secret은 재시작과 앱 업데이트에도 유지한다. 공식 공급 id·publisher·digest 검증은 별도로 유지한다.
+제품 고정 `DESIGNATED_COMMUNITY_PLUGINS` 한 곳에서 지정 ID·폴더·실행 파일 목록을 관리한다. 현재 Docling만 개발 실행·CLI·Desktop에 포함되어 등록 없이 목록에 나타나며 계속 커뮤니티로 표시한다. 사용자·비서·설정으로 지정 목록을 바꾸지 않는다. 처음에는 꺼짐·미신뢰이며 기존 신뢰 확인을 거친 뒤에만 entry를 실행한다. 같은 등록의 신뢰·켜기/끄기·설정·secret은 재시작과 앱 업데이트에도 유지한다. 공식 공급 id·publisher·digest 검증은 별도로 유지한다.
 
 지정 복사본은 unregister를 거부하고 끄기만 허용한다. 같은 ID를 폴더에서 등록하면 그 등록이 우선한다(활성이면 먼저 끈다). 등록 교체는 새 registrationId로 다시 신뢰하며, 외부 등록을 제거하면 다음 Host 시작에 꺼짐·미신뢰 지정 복사본을 다시 표시한다. 외부 등록 제거의 기존 설정·secret 삭제 계약은 유지한다. 지정 복사본이 시작 시 복귀할 때 기존 등록과 operation ID가 충돌하면 목록에 `Plugin operation ID collision` 오류로 남기고 활성화도 거부하며, 먼저 등록된 플러그인의 실행은 유지한다. 공용 plugins 작업·CLI list·비서 도구가 같은 상태를 사용하며 새 명령은 없다.
 
@@ -521,10 +504,7 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 
 ### Jira 커뮤니티 0.0.4 읽기 사례 (#1350, #1362)
 
-저장소의 community-plugins/jira는 독립 배포 전 임시 커뮤니티 artifact다. JQL 검색 v1과 같은 경로 위의 간편 검색 issues v4(프로젝트·보고자·기간 기준·시작/종료일) 두 기본 뷰와 기본 7열은 기존 InputForm/Table 계약을 사용한다. 추가 후보 필드는 공개 행 스키마·데이터로 유지하고 표시 columns에서 제외한다. detail v1은 host read·assistant 작업으로 설명과 최근 생성 댓글 최대 10개, 키·URL·조회 시각·댓글 전체 수/반환 범위·본문 잘림을 반환한다. CLI operation invoke와 비서는 같은 operation을 사용하며 별도 상세 화면·Jira 쓰기·SDK 확장은 없다. 검색은 필요한 fields만 페이지당 최대 500건씩 순차 요청하고 서버의 실제 반환 건수로 진행한다. 전체 8초·최대 500행·Host 10초 RPC 예산은 유지한다. Created·Updated·댓글·조회 시각은 Host PC 현지 `YY-MM-DD HH:mm`, dueDate는 `YY-MM-DD`다. 상한·오류·정렬 한계·검증 경계의 상세 계약은 [Jira README](https://github.com/litzio/litzio/tree/archive/2026-11-13-plugins-declarative/community-plugins/jira/README.md#005-검색과-상세-계약)를 따른다.
-
-#1395 수동 시각 검토: [1440px 변경 전](assets/plugin-file-jobs-1395/before-1440.png) / [변경 후](assets/plugin-file-jobs-1395/after-1440.png), [한국어 다크 640px 변경 전](assets/plugin-file-jobs-1395/before-640.png) / [변경 후](assets/plugin-file-jobs-1395/after-640.png). 같은 fixture·완료/중단/불확실 상태의 화면에서 입력 면 구분·정렬·줄바꿈·표 내부 스크롤을 확인했다. 경로와 계정은 마스킹했다. K1 16개, plugin-jobs와 HTTP 복구 2개(약 1.6분), 대표 layout-rules/quiet-document 2개, typecheck·CLI/Editor build·문서 검사를 통과했다. 추가 UI 단언은 기존 시나리오의 빈 상태·키보드 안내·형식 선택지·파일 수·시작 이름을 보호하며 별도 subprocess나 전수 조합을 추가하지 않았다. 실제 Docling 변환 품질은 미검증이다.
-
+2026-11-13 삭제했다. [삭제 전 사례](https://github.com/litzio/litzio/tree/archive/2026-11-13-plugins-declarative/community-plugins/jira/README.md)는 역사 기록이며 현재 제공하지 않는다.
 
 ## Plugin image icon (#1346)
 
@@ -532,7 +512,7 @@ Optional manifest `icon` (SDK 0.3.0) names one artifact-relative PNG or SVG file
 
 The entire artifact, including the icon, contributes to its content digest. GET `/api/plugins/icon?id=<plugin>&digest=<digest>` serves only the declared file of a registered artifact whose registration is trusted (including unchanged digest verification for official supply). It returns fixed image/png or image/svg+xml, nosniff and no-store; Content-Disposition attachment prevents standalone SVG document navigation. No arbitrary file path is accepted. An icon request must match the current artifact digest. Community updates retain registration trust; removed or replaced registrations require trust again. Invalid images and stale digest requests remain rejected.
 
-Explorer folder decorations, default folder suggestions, sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
+Sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
 
 Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settings 1440](assets/plugin-icon-1346/settings-1440.png), [screen Korean dark 640](assets/plugin-icon-1346/screen-640-ko-dark.png), [settings Korean dark 640](assets/plugin-icon-1346/settings-640-ko-dark.png). Host identity is masked; no real external service is involved.
 
