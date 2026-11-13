@@ -1,7 +1,7 @@
 import type { ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "@litzio/plugin-sdk";
 import type { ReactNode } from "react";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
-import { Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, ResponsiveContainer, Tooltip, Text, XAxis, YAxis } from "recharts";
 import "./screen-parts.css";
 
 export function ScreenLayout({ title, description, children }: { title?: string; description?: string; children: ReactNode }) {
@@ -25,7 +25,7 @@ export function Chart({ title, data, xKey, yKey, kind = "line", baseline, showVa
   return <figure className="screen-chart" aria-label={title}><figcaption>{title}</figcaption>{rows.length ? <ResponsiveContainer width="100%" height={300} minWidth={0}>
     <ComposedChart data={rows} accessibilityLayer margin={{ top: 24, right: 32, bottom: 8, left: 0 }}>
       <CartesianGrid stroke="var(--id-color-border-subtle)" vertical={false} />
-      <XAxis dataKey={xKey} tick={{ fill: "var(--id-color-text-muted)" }} stroke="var(--id-color-border)" />
+      <XAxis dataKey={xKey} interval="preserveStartEnd" minTickGap={80} height={60} tick={({x, y, payload}) => <Text x={x} y={y} width={140} breakAll verticalAnchor="start" textAnchor={payload.value === rows[0][xKey] ? "start" : payload.value === rows.at(-1)?.[xKey] ? "end" : "middle"} fill="var(--id-color-text-muted)">{String(payload.value)}</Text>} stroke="var(--id-color-border)" />
       <YAxis tick={{ fill: "var(--id-color-text-muted)" }} stroke="var(--id-color-border)" domain={["auto", "auto"]} />
       <Tooltip contentStyle={{ background: "var(--id-color-surface)", borderColor: "var(--id-color-border-subtle)", color: "var(--id-color-text)" }} itemStyle={{ color: "var(--id-color-text)" }} cursor={{ stroke: "var(--id-color-text-muted)", fill: "var(--id-color-surface-subtle)" }} />
       {baseline !== undefined && <ReferenceLine y={baseline} ifOverflow="extendDomain" stroke="var(--id-color-danger)" strokeDasharray="4 4" label={{ value: String(baseline), fill: "var(--id-color-danger)", position: "insideTopRight" }} />}

@@ -178,3 +178,7 @@ opened-folders에서 CLI reset guard가 막으면 같은 Host 작업인 `manage_
 - Toolbar: label과 children, 줄바꿈 가능한 내용 폭 controls. SummaryCard: label/value/description. ScreenLayout: 선택 title/description과 본문 children. 페이지가 이미 제목을 제공하면 title을 생략한다.
 
 기존 Layout Rules·Visual Language의 space-2/3/4, 제목·본문 위계, subtle border와 상속 토큰을 사용한다. 버튼은 내용 폭, 표·그래프는 사용 가능한 전체 폭과 min-width:0, 표 내부 가로 스크롤을 유지한다. 배경·font는 상속한다. 자체 SVG stroke/fill에도 `var(--id-color-accent)`·`var(--id-color-text-muted)` 등을 쓸 수 있다. 검사·금지로 디자인을 강제하지 않는다. 화면 선택·hover·구간 상태는 해당 React 화면 소유이고 Host나 문서에 저장하지 않는다.
+
+### Screen parts geometry follow-up (#1592)
+
+Chart preserves both endpoint ticks and wraps long axis labels; intermediate ticks yield to available space. SummaryCard siblings in Toolbar stretch to the same row height with top-aligned label/value rows; buttons remain vertically centered. Code-screen DataTable uses a content-width scroll border bounded by available width, retaining shared column sizing and overflow. Declarative tables are unchanged. This follows the existing content-sized columns rather than stretching short values across empty space.

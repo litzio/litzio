@@ -37,6 +37,30 @@ async (page, { expect, screenshots }) => {
   await expect(fixed).toBeDisabled();
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
+  if (screenshots) for (const width of [1440,640]) for (const theme of ['light','dark']) {
+    await page.setViewportSize({width,height:1000});
+    await page.evaluate(theme=>document.documentElement.setAttribute('data-theme',theme),theme);
+    await page.getByRole("heading",{name:"Screen parts",exact:true}).scrollIntoViewIfNeeded();
+    await page.screenshot({path:`tmp/parts-${width}-${theme}.png`});
+    await page.getByRole("figure",{name:"Long time labels",exact:true}).scrollIntoViewIfNeeded();
+    await page.screenshot({path:`tmp/parts-long-${width}-${theme}.png`});
+    await page.getByRole("table").scrollIntoViewIfNeeded();
+    await page.screenshot({path:`tmp/parts-table-${width}-${theme}.png`});
+  }
+  const cards = page.locator('.screen-summary');
+  const boxes = await cards.evaluateAll(nodes => nodes.map(n => ({height:n.getBoundingClientRect().height, label:n.firstElementChild.getBoundingClientRect().top,value:n.querySelector('strong').getBoundingClientRect().top})));
+  expect(boxes[0]).toEqual(boxes[1]);
+  for (const width of [1440,640]) {
+  await page.setViewportSize({width,height:1000});
+  const ticks = page.getByRole('figure',{name:'Long time labels',exact:true}).locator('text').filter({hasText:'2026-11-13T00:'});
+  await expect(ticks.first()).toContainText('2026-11-13T00:00:00Z');
+  await expect(ticks.last()).toContainText('2026-11-13T00:59:00Z');
+  const bounds = await ticks.evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().toJSON()));
+  for(let i=1;i<bounds.length;i++) expect(bounds[i].left).toBeGreaterThanOrEqual(bounds[i-1].right);
+  const frame = await page.getByRole('figure',{name:'Long time labels',exact:true}).boundingBox();
+  expect(bounds[0].left).toBeGreaterThanOrEqual(frame.x);
+  expect(bounds.at(-1).right).toBeLessThanOrEqual(frame.x + frame.width);
+  }
   const range = page.getByRole('slider', {name:'Visible range 1',exact:true});
   await range.focus(); await page.keyboard.press('ArrowRight');
   await expect(range).toHaveAttribute('aria-valuenow','1');

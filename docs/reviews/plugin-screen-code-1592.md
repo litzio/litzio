@@ -194,3 +194,30 @@ queue run 43363194407에서 Windows host·plugins 양쪽의 packaged CLI 검사�
 #1601 병합 후 master를 merge해 공용 부품은 screenUI 한 객체로, saveDocument는 별도 화면 prop으로 유지했다. 제작 스킬의 SCREEN_UI_GUIDANCE·부품 목록·배치 예시와 저장 API를 함께 보존했고 기본 screen/chart 골격은 ScreenLayout 안 Toolbar의 내용 폭 불러오기·저장 버튼, 합계, 전체 폭 Chart·표를 사용한다. 위 2-3·2-4의 측정 기록은 모두 유지했다.
 
 통합 골격을 격리 HTTP Host에서 scaffold·install하고 persistent browser로 직접 불러오기→저장→문서 탭 열기를 확인했다. 그래프·합계 64·표, Toolbar 안 내용 폭 저장 버튼과 저장 문서의 10·18·12·24 및 제목을 검사하고 litzio check valid/writable을 통과했다. 실제 비서를 다시 호출하지는 않았다. 전체 typecheck, 관련 Host·제작·저장 15검사, production plugin-screen-code와 HTTP crash/reconnect 2검사(44.2초), UI gallery 1검사(21.3초), 통합 골격 수동 확인 1검사(6.2초), CLI/Editor build·docs 검사를 통과했다. 갤러리의 Vite ResizeObserver 알림은 기존처럼 있었으나 runner 판정은 통과했다. 직접 시작한 Host·browser는 종료했고 자료 폴더는 보존했다. 필수 CI는 병합 커밋 head에서 확인한다.
+
+## Screen-parts polish and template publication follow-up
+
+The follow-up uses synthetic gallery and screen-code fixtures, without assistant calls.
+Layout Rules' wrapping/overflow boundary and P09/P10's shared table/tools remain intact;
+neither document mandates equal-width columns. Keep DataTable's measured content columns,
+limit only code-screen scroll borders to content width, and preserve declarative consumers.
+Toolbar cards stretch per flex row with top-aligned label/value; buttons stay centered.
+Recharts preserves endpoint ticks; its Text wraps long strings within 140px and endpoint
+anchors face inward. Intermediate ticks may be omitted. Long UTC/60-point coverage is new.
+
+| Capture | Before | After |
+| --- | --- | --- |
+| Gallery 1440 light | [PNG](../design/assets/screen-parts-polish/before-parts-1440-light.png) | [PNG](../design/assets/screen-parts-polish/parts-1440-light.png) |
+| Gallery 1440 dark | [PNG](../design/assets/screen-parts-polish/before-parts-1440-dark.png) | [PNG](../design/assets/screen-parts-polish/parts-1440-dark.png) |
+| Screen 1440 light | [PNG](../design/assets/screen-parts-polish/before-screen-light.png) | [PNG](../design/assets/screen-parts-polish/screen-light.png) |
+| Screen 1440 dark | [PNG](../design/assets/screen-parts-polish/before-screen-dark.png) | [PNG](../design/assets/screen-parts-polish/screen-dark.png) |
+| Long labels 640 dark | Added stress fixture | [PNG](../design/assets/screen-parts-polish/parts-long-640-dark.png) |
+| Table 640 light | Original gallery above | [PNG](../design/assets/screen-parts-polish/parts-table-640-light.png) |
+
+Windows persistent Chrome, DPR 1, 1440/640 x 1000, gallery and production HTTP screen scenario.
+Original gallery overview precedes the added long-label fixture; after captures include that
+fixture and separate table view. Account/folder areas are masked in application captures.
+Review checks label/value axes, spacing, clipping/overlap, typography hierarchy and contrast.
+The subtle light border remains deliberately quiet. Owner visual approval is separate.
+
+UI verification: Editor/SDK types, token checks, UI gallery, production screen-code and HTTP crash/reconnect passed. No actual assistant or packaged Desktop was invoked. Long-label 1440px review caught an additional overlap; increased library tick spacing and checked both supported widths. Persistent runner processes were closed by fixture teardown.
