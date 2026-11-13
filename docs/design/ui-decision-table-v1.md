@@ -6,6 +6,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 플러그인 화면 안에서 저장본을 읽고 위치를 확인한다 (#1592) | 화면 소유의 내부 스크롤 영역 | ui.DocumentView + 기존 DocumentEditor readOnly/preview, paper·accent·Notice | 같은 Host/열린 폴더, 명시 다시 읽기, revision이 같은 블록·표 셀(표 전체) 이동/강조 | UI gallery → Document view; [화면 계약](plugin-screens-v1.md#읽기-전용-문서-보기) | 새 editor/세션/검수 틀 없음. 폭·원문 배치는 플러그인 소유 |
 | 플러그인 코드 화면의 그래프·구간·요약 (#1592 2-3) | 기존 플러그인 작업 탭 | Chart(Recharts), Slider(Base UI), Toolbar, SummaryCard, ScreenLayout, 기존 Button/Input/DataTable/Notice | 토큰 색·전체 폭 그래프·hover/키보드 값·단일/구간 선택 | UI gallery → Screen parts; [화면 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-screens-v1.md#화면-부품과-디자인-안내-2-3-1592) | 자체 화면 코드 허용, 디자인 강제 없음. 기존 부품이 없어 그래프·슬라이더 wrapper와 작은 배치 부품 추가 |
 | Copilot 사용량 확인 (#1581) | 기존 컨텍스트 링 hover/focus | AssistantUsageTooltip·Base UI Tooltip·기존 토큰 | 컨텍스트와 세션 보고값 표시, 계정 한도 미제공 명시 | [Copilot 사용량](main-agent-v1.md#질문과-사용량) | 없음 |
 

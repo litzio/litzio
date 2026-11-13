@@ -1,6 +1,12 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Document preview": "Document preview",
+  "Choose a document inside this screen's opened folders.": "Choose a document inside this screen's opened folders.",
+  "The target revision differs from this saved snapshot. Read again before navigating.": "The target revision differs from this saved snapshot. Read again before navigating.",
+  "The target is not a supported block or table cell in this snapshot.": "The target is not a supported block or table cell in this snapshot.",
+  "This document could not be displayed.": "This document could not be displayed.",
+  "Loading document…": "Loading document…",
   "This conversation": "This conversation",
   "Session cost": "Session cost",
   "Latest reported usage": "Latest reported usage",
@@ -1241,6 +1247,12 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Document preview": "문서 미리 보기",
+  "Choose a document inside this screen's opened folders.": "이 화면에서 열린 폴더 안의 문서를 선택하세요.",
+  "The target revision differs from this saved snapshot. Read again before navigating.": "대상이 가리키는 저장본과 현재 문서가 다릅니다. 다시 읽은 뒤 위치를 지정하세요.",
+  "The target is not a supported block or table cell in this snapshot.": "이 저장본에서 지원하는 블록 또는 표 셀 위치가 아닙니다.",
+  "This document could not be displayed.": "문서를 표시할 수 없습니다.",
+  "Loading document…": "문서를 읽는 중…",
   "This conversation": "이 대화",
   "Session cost": "세션 비용",
   "Latest reported usage": "최근 보고된 사용량",

@@ -98,4 +98,4 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
 
 export { validatePluginSource } from "./authoring.ts";
 export { SCREEN_UI, SCREEN_UI_GUIDANCE } from "./screen-ui.ts";
-export type { ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "./screen-ui.ts";
+export type { ScreenChartProps, ScreenSliderProps, ScreenSummaryProps, ScreenDocumentViewProps, ScreenDocumentViewState } from "./screen-ui.ts";

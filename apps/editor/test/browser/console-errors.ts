@@ -28,7 +28,7 @@ const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
     {status:503, pathname:"/api/document-compare", minimum:1, description:"an explicitly refused Visual request explains fallback to Source"},
     {status:409, pathname:"/api/document", minimum:1, description:"comparison preserves the acknowledged revision and Save still conflicts"},
   ],
-  "plugin-screen-code": [{status:400, pathname:"/api/document", minimum:1, description:"duplicate screen document name is rejected and shown without replacing tabs"},{pathname:"", text:"Fixture cleanup failure", minimum:1, description:"screen cleanup error is caught by its boundary"},{pathname:"", text:"Fixture screen failure", minimum:1, description:"screen render error is caught by its boundary"}],
+  "plugin-screen-code": [{status:400, pathname:"/api/document", minimum:2, description:"duplicate screen document name and missing preview document are rejected without replacing tabs"},{pathname:"", text:"Fixture cleanup failure", minimum:1, description:"screen cleanup error is caught by its boundary"},{pathname:"", text:"Fixture screen failure", minimum:1, description:"screen render error is caught by its boundary"}],
   "save-error": [
     {status:400, pathname:"/api/document", minimum:5, description:"Core refuses unpreservable table-cell inline math at the current submitted location"},
   ],
