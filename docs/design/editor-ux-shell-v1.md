@@ -2324,3 +2324,5 @@ Upstream viewer CSS is scoped to the PDF viewer to avoid changing the app shell.
 연결 ID 선택·갤러리 대상·원격 opener/control·Host 라벨 배지를 제거했다. 문서·PDF·화면 탭의 id/key는 유지해 열린 편집기의 초안과 history를 remount로 잃지 않는다. 비서·템플릿·폴더의 일반 동작은 같은 client 경계와 공용 부품을 사용한다. 새 UI 부품이나 상호작용 예외는 없다.
 
 1440px 라이트의 [변경 전](assets/assistant-screen-removal/after-1440-light.png)은 #1612에서 캡처한 동일 baseline 화면이며 [변경 후](assets/single-host-connection/after-1440-light.png)는 이번 시나리오 실행으로 확인한다.
+
+같은 `local-host --screenshots` 실행에서 [탐색기](assets/single-host-connection/after-explorer.png)·[설정](assets/single-host-connection/after-settings.png)·[비서](assets/single-host-connection/after-assistant.png)를 확인했다. 실행 계정은 합성 fixture 값이며 실제 계정 정보는 캡처하지 않았다.
