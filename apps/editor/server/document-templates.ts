@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createDocumentFromTemplate, getTemplateMetadata, parse, serialize, updateTemplateMetadata } from "@litzio/core";
-import { decodeUtf8 } from "@litzio/file-commit";
+import { createFile, decodeUtf8 } from "@litzio/file-commit";
 import { validFileStem } from "../shared/file-operations.ts";
 import type { SaveTemplateRequest, TemplateContent, TemplateLanguage, TemplateList } from "../shared/template-protocol.ts";
 import { accessPath, LOCAL_FILE_ACCESS, type FileAccess, type RootAccess } from "./file-access.ts";
@@ -86,7 +86,7 @@ export function saveTemplate(request: SaveTemplateRequest, access: FileAccess = 
       (fs.existsSync(directory) && fs.readdirSync(directory).some(file => identity(file) === identity(`${name}.md`)))) throw Object.assign(new Error("Template already exists."),{errorKind:"conflict"});
   realDirectory(directory);
   fs.mkdirSync(directory, { recursive: true });
-  fs.writeFileSync(path.join(directory, `${name}.md`), source, { encoding: "utf8", flag: "wx" });
+  createFile(path.join(directory, `${name}.md`), source);
   return { id: `user:${name}`, kind: "user", name, description, source };
 }
 
