@@ -9,7 +9,7 @@
 
 ## 대체 결정 (2026-11-13)
 
-[리치오의 목적](../purpose.md)과 [#1595 소유자 결정](https://github.com/litzio/litzio/issues/1595)에 따라 ADR-0018의 원격 등록·접속·여러 Host 보기를 폐기한다. 사용자 UI·CLI·IPC·CSP 목록을 먼저 삭제하며 내부 연결/탭/복구 형식 정리는 후속 PR에서 한다. 같은 PC daemon(ADR-0016)과 개발·검사용 독립 HTTP Host(ADR-0005), 작업 대상 CLI --host는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래는 당시 결정 원문이다.
+[리치오의 목적](../purpose.md)과 [#1595 소유자 결정](https://github.com/litzio/litzio/issues/1595)에 따라 ADR-0018의 원격 등록·접속·여러 Host 보기를 폐기한다. 사용자 UI·CLI·IPC·CSP 목록, 다중 연결과 탭·기억·복구의 hostId를 삭제한다. 새 저장 namespace는 옛 기록과 writer를 분리하며 자동 변환·삭제하지 않는다. 같은 PC daemon(ADR-0016)과 개발·검사용 독립 HTTP Host(ADR-0005), 작업 대상 CLI --host는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래는 당시 결정 원문이다.
 
 ## 배경과 근거
 

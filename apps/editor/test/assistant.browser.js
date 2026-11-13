@@ -1203,7 +1203,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await older.click();
   await expect(older).toBeHidden();
   await expect(panel.getByRole('textbox')).toBeEnabled();
-  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation:local'), brand.storagePrefix)).toBe('history-older');
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation.v2'), brand.storagePrefix)).toBe('history-older');
   await panel.getByRole('button', { name: '대화 기록' }).click();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
@@ -1223,8 +1223,18 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.locator('.assistant-turn').count()).toBe(0);
   expect(await panel.getByRole('alert').count()).toBe(0);
-  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation:local'), brand.storagePrefix)).toBe(null);
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation.v2'), brand.storagePrefix)).toBe(null);
   resumeFailure = false;
+  // Old local/remote pointers do not select a conversation in the new namespace.
+  await page.evaluate(prefix => {
+    localStorage.setItem(prefix + '.assistantConversation:local', 'history-older');
+    localStorage.setItem(prefix + '.assistantConversation:remote', 'history-newer');
+  }, brand.storagePrefix);
+  await page.reload();
+  await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  expect(await panel.locator('.assistant-turn').count()).toBe(0);
+  expect(await page.evaluate(prefix => [localStorage.getItem(prefix + '.assistantConversation.v2'), localStorage.getItem(prefix + '.assistantConversation:local'), localStorage.getItem(prefix + '.assistantConversation:remote')], brand.storagePrefix)).toEqual([null, 'history-older', 'history-newer']);
   await panel.getByRole('button', { name: '대화 기록' }).click();
   await panel.getByRole('button', { name: /실험 결과 표와 다음 작업 확인/ }).click();
   await panel.getByRole('button', { name: '새 대화' }).click();
@@ -1464,6 +1474,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByText('Accepted before observation', { exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   // Restore preferences for the other stable scenarios.
-  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation:local'); }, brand.storagePrefix);
+  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation.v2'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };
 }

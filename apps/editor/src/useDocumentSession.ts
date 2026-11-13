@@ -1,4 +1,3 @@
-import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { flushSync } from "react-dom";
 import type { HostClient } from "./host-client.ts";
 import { useHostClient } from "./host-context.tsx";
@@ -38,7 +37,7 @@ export type DocumentSessionSnapshot = {
 /** One document's state and operations. The shell owns the shared work-loss confirmation. */
 export function useDocumentSession(initial: DocumentFileResponse, restored?: Pick<DocumentSessionSnapshot, "editor" | "savedEdits">, recoveryId?: string, onAssetChange?: (documentPath: string, assetPath: string) => void, renameImage?: ImageRenamer, replaceFile?: (file: EditorFileResponse) => void) {
   const client = useHostClient();
-  const hostId = LOCAL_HOST_ID;
+
   const { requestBibliography, requestDocument, requestSave, requestSource, validateFigure, cancelReads } = useMemo(() => createDocumentRequests(client), [client]);
   const renameRef = useRef(renameImage);
   renameRef.current = renameImage;
@@ -52,7 +51,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const openedPathRef = useRef(openedPath);
   const [recorder] = useState(() => recoveryId ? createRecoveryRecorder(recoveryId, () => openedPathRef.current, () => captureRef.current(),
     cause => setRecoveryError({ key: "Local recovery is unavailable: {{reason}}. Keep this window open and save or copy your work. Changes after the last record may be lost.", values: { reason: messageOf(cause) } }),
-    () => setRecoveryError(""), hostId) : undefined);
+    () => setRecoveryError("")) : undefined);
   const [document, setDocument] = useState<EditableDocument>(initial.document);
   const sourceRevision = useRef(initial.revision);
   const [externalRevision, setExternalRevision] = useState<string | null>();
@@ -99,7 +98,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const lifetime = useRef(createDocumentSessionLifetime()).current;
   const isCurrent = useMemo(() => lifetime.capture(), [lifetime, editorGeneration]);
   // A Figure's Choose… opens the image picker; its promise settles when the picker closes.
-  const [imageChoice, setImageChoice] = useState<{ client: HostClient; hostId: string; documentPath: string; resolve(choice?: ImageChoice): void } | null>(null);
+  const [imageChoice, setImageChoice] = useState<{ client: HostClient; documentPath: string; resolve(choice?: ImageChoice): void } | null>(null);
   const imageChoiceRef = useRef(imageChoice);
   const imageReturnFocus = useRef<HTMLElement | null>(null);
 
@@ -120,7 +119,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     const chooseImage: ImageChooser = (documentPath, returnFocus) => new Promise(resolve => {
       if (!isCurrent()) { resolve(undefined); return; }
       imageReturnFocus.current = returnFocus.current;
-      imageChoiceRef.current = { client, hostId, documentPath, resolve };
+      imageChoiceRef.current = { client, documentPath, resolve };
       setImageChoice(imageChoiceRef.current);
     });
     return {
@@ -365,7 +364,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   captureRef.current = () => isCurrent() && editorRef.current?.hasDocumentChanges() ? getSnapshot() : null;
 
   return {
-    client, hostId, kind: "native" as const,
+    client, kind: "native" as const,
     recoveryError, discardRecovery: () => recorder?.discard(),
     suspendRecovery: () => recorder?.cancel(),
     resumeRecovery: () => { if (editorRef.current?.hasDocumentChanges()) recorder?.edit(); },

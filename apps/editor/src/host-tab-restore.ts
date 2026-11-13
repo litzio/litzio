@@ -2,7 +2,6 @@ import { useEffect, useReducer, useRef, useState, type Dispatch, type MutableRef
 import type { DesktopBridge } from "../shared/desktop-bridge.ts";
 import type { DocumentStartResponse, EditorFileResponse } from "../shared/document-protocol.ts";
 import { getHostClient } from "./host-client.ts";
-import { LOCAL_HOST_ID, locatorKey, sameLocator, type HostLocator } from "./host-locator.ts";
 import { openedTab, type EditorGroups, type GroupAction } from "./document-tabs.ts";
 import { createDocumentRequests } from "./document-session.ts";
 import { readOpenTabs, writeOpenTabs } from "./preferences.ts";
@@ -29,12 +28,12 @@ export function useTabNavigationMemory(tabs: Tab[], navigation: EditorGroups, ac
   // Session reports, Save and restoration alone never write navigation preferences.
   useEffect(() => {
     if (tabsRestored && rememberVersion > 0) {
-      const paths = navigation.groups.flatMap(group => group.tabs).flatMap(id => tabs.filter(tab => tab.id === id && tab.hostId === LOCAL_HOST_ID).map(tab => tab.path));
-      writeOpenTabs({ paths, activePath: tabs.find(tab => tab.id === activeId && tab.hostId === LOCAL_HOST_ID)?.path ?? null }, LOCAL_HOST_ID);
+      const paths = navigation.groups.flatMap(group => group.tabs).flatMap(id => tabs.filter(tab => tab.id === id).map(tab => tab.path));
+      writeOpenTabs({ paths, activePath: tabs.find(tab => tab.id === activeId)?.path ?? null });
     }
   }, [serializedTabs, tabsRestored, rememberVersion]);
-  function markStartupOverride(locator: HostLocator): void {
-    startupOverrides.current.add(locatorKey(locator));
+  function markStartupOverride(path: string): void {
+    startupOverrides.current.add(path);
   }
   return { tabsRestored, setTabsRestored, startupOverrides, rememberTabs, markStartupOverride, explicitNavigation, hasExplicitNavigation: rememberVersion > 0 };
 }
@@ -96,21 +95,21 @@ export function useHostTabRestore({ memory, folders, desktop, addInitial,
         if (!("start" in next)) {
           add(next);
           activePath = next.path;
-          recovery = records?.find(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: next.path }));
+          recovery = records?.find(record => record.path === next.path);
         }
       } else if (records) {
         for (const remembered of saved.paths) {
           if (!current) return;
           // Even malformed/unsupported recovery records retain their existing review flow.
-          if (records.some(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: remembered }))) continue;
+          if (records.some(record => record.path === remembered)) continue;
           try {
             const file = await requestDocument("GET", remembered, folders.rootOf(remembered));
             if (!current) return;
-            if (!("start" in file) && !records.some(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: file.path }))) add(file);
+            if (!("start" in file) && !records.some(record => record.path === file.path)) add(file);
           } catch { /* Missing, refused and non-native documents are quietly left out. */ }
         }
         activePath = saved.activePath;
-        recovery = records.find(record => record.hostId === LOCAL_HOST_ID && saved.paths.includes(record.path));
+        recovery = records.find(record => saved.paths.includes(record.path));
       }
       if (!current) return;
       client.assertCurrent();

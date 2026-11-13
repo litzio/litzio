@@ -1,6 +1,6 @@
 # Verification
 
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
+> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. Host 구분을 제거한 새 기억·복구 형식은 옛 기록을 읽거나 지우지 않는다([전환 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 연결 고정 client와 취소/세대 보호는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
 
 > 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](../design/plugin-stage1-v1.md)과 [화면 코드](../design/plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
 
@@ -506,4 +506,4 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 
 ### 단일 Host 연결 (#1595 PR 2)
 
-`host-client` 검사는 주소에 고정된 문서·asset receipt·비서·템플릿, 변경된 주소의 기존 Save/rollback 거절, 관측 장애 뒤 쓰기 재전송 없음, 늦은 capability 응답 거부, protocol/product 확인과 read-only monitor 중단을 유지한다. 삭제한 검사 부분은 registry 등록/라벨/제거와 서로 다른 Host의 같은 경로 분리뿐이다. `folder-tree`의 늦은 listing·중첩 병합·접힘 보호는 유지한다. `local-host`, `document-tabs`, `folder-navigation`, `file-actions`, `recovery`, `save-session`, `assistant`, `template-gallery`, `plugin-screen-code`와 HTTP recovery는 단일 연결 통합을 검사한다. 저장·복구 형식·barrier·nonce·clean acknowledgement 검사는 그대로다. Windows packaged Desktop은 CI에서만 실행한다.
+`host-client` 검사는 주소에 고정된 문서·asset receipt·비서·템플릿, 변경된 주소의 기존 Save/rollback 거절, 관측 장애 뒤 쓰기 재전송 없음, 늦은 capability 응답 거부, protocol/product 확인과 read-only monitor 중단을 유지한다. 삭제한 검사 부분은 registry 등록/라벨/제거와 서로 다른 Host의 같은 경로 분리뿐이다. `folder-tree`의 늦은 listing·중첩 병합·접힘 보호는 유지한다. `local-host`, `document-tabs`, `folder-navigation`, `file-actions`, `recovery`, `save-session`, `assistant`, `template-gallery`, `plugin-screen-code`와 HTTP recovery는 단일 연결 통합을 검사한다. 새 형식에서도 barrier·nonce·clean acknowledgement 검사를 유지한다. `recovery-storage`는 구형 로컬/원격 DB·clean ACK가 새 기록을 읽거나 덮거나 지우지 못함과 원본 불변, 두 창의 지연 첫 기록/rename/delete/폴더 정리를 검사한다. `shell`은 구형 기억 키 보존과 새 path 기억을 검사한다. Windows packaged Desktop은 CI에서만 실행한다.

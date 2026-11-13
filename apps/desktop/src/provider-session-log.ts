@@ -4,9 +4,9 @@ import path from "node:path";
 import { sessionIdPattern, validateProviderLog } from "../../editor/server/provider-session-log.ts";
 
 /** Main resolves only its own local daemon; renderer paths and remote origins never reach the OS. */
-export async function openProviderSessionLog(input: { hostId: unknown; id: unknown; provider: unknown; action: unknown }, resolve: (id: string, provider: string) => Promise<any>, reveal: (file: string) => void, open = openNotepad) {
-  const { hostId, id, provider, action } = input;
-  if (process.platform !== "win32" || hostId !== "local" || typeof id !== "string" || !sessionIdPattern.test(id) || !["codex", "copilot"].includes(provider as string) || !["open", "reveal"].includes(action as string)) throw new Error("Provider logs can only be opened from the local Windows Desktop Host.");
+export async function openProviderSessionLog(input: { id: unknown; provider: unknown; action: unknown }, resolve: (id: string, provider: string) => Promise<any>, reveal: (file: string) => void, open = openNotepad) {
+  const { id, provider, action } = input;
+  if (process.platform !== "win32" || typeof id !== "string" || !sessionIdPattern.test(id) || !["codex", "copilot"].includes(provider as string) || !["open", "reveal"].includes(action as string)) throw new Error("Provider logs can only be opened from the local Windows Desktop Host.");
   const result = await resolve(id, provider as string);
   if (result.available === false) return result as ProviderLogFailure;
   if (result.id !== id || result.provider !== provider || typeof result.path !== "string") throw new Error("Provider log identity changed.");
