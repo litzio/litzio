@@ -15,7 +15,7 @@ import { getHostClient, hostConnection, monitorDesktopHost, type HostClient } fr
 import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
-import { brand, productName } from "../../../brand.ts";
+import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { usePanelWidth } from "./shell/panel-width.ts";
 import { AssistantPanel, assistantWidth, rememberAssistantWidth, type AssistantLocalSubmission, type AssistantButtonStatus } from "./shell/AssistantPanel.tsx";
@@ -23,7 +23,7 @@ import { NotificationProvider, NotificationSource, ShellNotificationCenter } fro
 import { UiError } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
 import { useTranslation } from "react-i18next";
-import { i18n, type MessageKey } from "./i18n.ts";
+import { i18n } from "./i18n.ts";
 import { type Operation } from "./operation.ts";
 import { recoveryStorage, type FolderRecoverySnapshot, type RecoveryRecord } from "./recovery-storage.ts";
 import { prepareRecovery } from "./recovery-restore.ts";
@@ -34,12 +34,12 @@ import { RecoveryList, RecoveryPrompt } from "./shell/Recovery.tsx";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
 import { DocumentTab, type EditorSession } from "./DocumentTab.tsx";
-import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
+import { scrollDocumentFromShell } from "./document-scroll.ts";
 import { DocumentScroll } from "./DocumentScroll.tsx";
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
-import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
+import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabNames } from "./document-tabs.ts";
 import { messageOf, NativeOpenError, createDocumentRequests } from "./document-session.ts";
-import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenFolders, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, type DocumentWidth } from "./preferences.ts";
+import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, type DocumentWidth } from "./preferences.ts";
 import { applyTheme, currentTheme } from "./theme.ts";
 import { DocumentPanel } from "./shell/DocumentPanel.tsx";
 import { DocumentStart } from "./shell/DocumentStart.tsx";
@@ -1598,5 +1598,3 @@ function EditorApp() {
       : documentPanelOpen ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
 }
-
-const browseHostPdfs = (path: string) => browseHostFolder(path, "pdf");
