@@ -27,7 +27,7 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
     assert.equal(invoked.receipt.outcome, "success");
     // Shipped compiler/npm must work outside asar with the Host's own Node/Electron.
     const packageFile = path.join(directory, "package.json");
-    const pkg = JSON.parse(readFileSync(packageFile, "utf8"));
+    const pkg = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, "utf8")) : {name:id,private:true,type:"module"};
     pkg.dependencies = { "fixture-screen-library": "file:./library" };
     writeFileSync(packageFile, JSON.stringify(pkg));
     mkdirSync(path.join(directory, "library"));
@@ -37,13 +37,13 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
     assert.equal(existsSync(path.join(directory,"node_modules/fixture-screen-library/script-ran")), false);
     const manifestFile = path.join(directory,"litzio-plugin.json");
     const manifest = JSON.parse(readFileSync(manifestFile,"utf8"));
-    manifest.contributes.screens=[{id:"main",title:"External chart",icon:"ChartColumn",entry:"screen.jsx"}];
+    manifest.screen="screen.jsx";
     writeFileSync(manifestFile,JSON.stringify(manifest));
     writeFileSync(path.join(directory,"screen.jsx"),'import React from "react";import {label} from "fixture-screen-library";export default function Screen(){return <output>{label}</output>}');
     const bundled=await manage({action:"bundle",directory});assert.ok(bundled.files[0].bytes>0);
     renameSync(path.join(directory,"node_modules"),path.join(parent,"authoring libraries"));
     await manage({action:"reload",id});
-    const catalog=await (await fetch(url+"/api/views",{method:"POST",headers:{Origin:url,"Content-Type":"application/json"},body:JSON.stringify({action:"catalog"})})).json();
+    const catalog=await (await fetch(url+"/api/plugin-screens",{method:"POST",headers:{Origin:url,"Content-Type":"application/json"},body:JSON.stringify({action:"screens"})})).json();
     const screen=catalog.screens.find((screen:any)=>screen.plugin===id);
     const module=await import(`data:text/javascript;base64,${Buffer.from(screen.code).toString("base64")}`);
     const React={createElement:(type:string,_props:unknown,value:string)=>({type,value})};
@@ -52,7 +52,7 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
     // CLI-only chunks may exist; the SDK itself is built without shared chunks.
     const privateFile = path.join(hostBundleDirectory,
       readdirSync(hostBundleDirectory).find(name => /^chunk-.*\.mjs$/.test(name)) ?? "cli.mjs");
-    const entry = path.join(directory, "host.js");
+    const entry = path.join(directory, "host.mjs");
     const source = readFileSync(entry, "utf8");
     for (const prefix of [
       `import ${JSON.stringify(pathToFileURL(privateFile).href)};`,

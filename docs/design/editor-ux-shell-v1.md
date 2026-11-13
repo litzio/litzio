@@ -1799,7 +1799,7 @@ double-click and drag selection, Korean composition through Chromium's IME proto
 Ctrl/Cmd+' link authoring and Undo. It never repairs focus or selection before those
 input checks. The click/caret regression fails on the original preview implementation
 (`33c3bf2b67b7f814dd4083b3a02798d3f680101d`). Native Core admission and canonical round-trip were checked
-before implementation with `[^n]: [그림 보기](assets/footnote-110.png)`; the link's
+before implementation with `[^n]: [그림 보기](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/assets/footnote-110.png)`; the link's
 URL/text and stable reserialization are already supported.
 
 Manual-review pairs below use base `a5c1c702f375712a5bdd9e3962ec6c7e137e9f9f`

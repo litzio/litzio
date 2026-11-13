@@ -168,7 +168,7 @@ export type SampleDocuments = { ko: string; en: string };
 export type SampleAvailability = { samples?: SampleDocuments; sampleProblem?: "unavailable" };
 
 export type DocumentFileResponse = SampleAvailability & {
-  managedGenerated?: boolean;
+
   kind?: "native";
   /** Per-open dependency context; changing the Sidebar never changes this value. */
   bibliographyRoot?: string;
@@ -185,7 +185,7 @@ export type DocumentFileResponse = SampleAvailability & {
 
 /** Plain text has no Core read model or semantic edits. */
 export type TextFileResponse = SampleAvailability & {
-  managedGenerated?: boolean;
+
   kind: "text";
   path: string;
   source: string;

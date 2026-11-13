@@ -54,40 +54,18 @@
 
 ## 플러그인 계층 개념 (ADR-0019, 미구현)
 
-아래는 [ADR-0019](../adr/0019-plugin-tiers.md)의 승인 용어이며 현재 기능 제공이나 구현 재개를 뜻하지 않는다. ADR-0020이 manifest 초안의 계층 키를 `tier`로 구체화한다. 세부 SDK 형식은 구현 PR에서 정한다.
+2026-11-13 공식/커뮤니티 tier·publisher·기본 포함 공급 필드는 제거했다. 당시 계층 용어는 ADR-0019·0020의 역사 기록이다. 현재 플러그인은 등록 단위 신뢰와 활성/비활성 상태를 사용한다.
 
-| 개념 | 한국어 UI | 영어 UI | 코드·API 후보 | 문서 용어 |
-| --- | --- | --- | --- | --- |
-| 공식 공급·유지 책임을 맡는 계층 | 공식 플러그인 | Official plugin | `tier: 'official'` (ADR-0020 초안) | 공식 플러그인; 작성자가 공식 개발자라는 사실만으로 분류하지 않음 |
-| 공식 공급·유지 책임을 맡지 않는 계층 | 커뮤니티 플러그인 | Community plugin | `tier: 'community'` (ADR-0020 초안) | 커뮤니티 플러그인; 공식 개발자의 개인·실험 플러그인도 가능 |
-| 플러그인 공급 주체 | 공급자 | Publisher | `publisher` | 플러그인 공급자(Publisher); 비서의 AI 공급자(provider)와 구별 |
-| 배포물에 포함됨 | 기본 포함 | Bundled | 번들 여부; 형식 미정 | 기본 포함; 계층·기본 활성 상태와 독립 |
-| 플러그인 실행 상태 | 활성화 / 비활성화 | Enabled / Disabled | `enabled` | 활성화/비활성화; 설치됨·신뢰함·사용 가능·제거·기존 작업 취소와 구별 |
+## 플러그인 화면과 실행
 
-“코어 플러그인”은 `@litzio/core` 문서 엔진과 혼동되므로 쓰지 않는다. 두 계층은 같은 manifest·SDK·권한을 사용하며 공식 전용 내부 API는 없다. 커뮤니티 기본 실행 차단은 명시적 신뢰를 위한 절차이며 sandbox나 실행 후 격리 보장이 아니다. 비서는 플러그인과 무관한 제품 기능이다. Docling은 공식 유지 대상이 아니며 재개 시 커뮤니티 계층으로 다룰 수 있다.
+현재 계약은 [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작](../design/plugin-stage1-v1.md), [화면 코드](../design/plugin-screens-v1.md)를 따른다.
 
-## 플러그인 화면과 공통 UI (ADR-0020)
+| 개념 | 한국어 | 영어 | 코드 |
+|---|---|---|---|
+| 자기 코드를 그리는 화면 | 플러그인 화면 | Plugin screen | screen |
+| 외부에 공개하는 호출 | 공개 작업 | Public operation | operations |
+| 일반 연결 설정 | 설정 | Settings | settingsSchema |
+| Host가 보관하는 자격 증명 | 비밀값 | Secret | secrets |
+| 비서에게 제공하는 지침 | 스킬 | Skill | skills |
 
-현재 용어와 동작은 [ADR-0020](../adr/0020-plugin-architecture.md) 및 [플러그인 화면 계약](../design/plugin-screens-v1.md)을 따른다.
-
-| 개념 | 한국어 UI | 영어 UI | 코드·API | 문서 용어 |
-| --- | --- | --- | --- | --- |
-| 앱이 연결할 수 있는 선언된 확장 위치 | 기여 지점 | Contribution point | `contributes` | 공용 작업·화면·설정 등; 임의 코드 주입점 아님 |
-| 플러그인 기본 화면 진입 | 플러그인 화면 | Plugin screen | `contributes.screens` | 기본 조회와 선택적 작업 패널; Host별 사이드바·탭 |
-| 조회·입력·표현의 공통 정의 | 조회 명세 | Query view | `contributes.views`, `schemaVersion`, `sources`, `layout` | 등록된 read operation·입력 폼·세로 Panel·Table |
-| 앱 소유 컴포넌트의 허용 목록 | UI 카탈로그 | UI catalog | `catalog` | 공통 Table·입력 폼·review 렌더러; Chart·가로 Panel 없음 |
-| 플러그인의 연결별 설정 단위 | 연결 | Connection | `connectionId` | 플러그인 연결; Host 등록·AI 공급자 연결과 맥락을 구별 |
-
-#1341에서 생성 UI·즐겨찾기 뷰·저장된 뷰·뷰 데이터 스냅샷을 제거했다. 이전 용어와 형식은 [Historical 생성 뷰 계약](../design/generated-views-v1.md)에 보존한다. 일반 문서 read model과 review·작업 결과의 snapshot은 이 제거 대상과 다른 개념이다.
-
-현재 SDK·secret·비서 관리와 제작 작업은 [플러그인 1단계](../design/plugin-stage1-v1.md)를 따른다. manifest 기여 필드는 `contributes`, 계층은 `tier`다. secret 값은 사용자가 앱 설정 UI로 직접 입력한다.
-
-### 비서 플러그인 제작 로드맵 용어
-
-| 용어 | 의미 |
-| --- | --- |
-| 하위 프로세스 reload (Subprocess reload) | daemon 하위 프로세스 플러그인을 정지·정리·다시 불러오기·시작. daemon 재시작이나 sandbox를 뜻하지 않음 |
-| 제작 키트 (Authoring kit) | 비서 제작 스킬과 `plugins scaffold/validate/reload` 공용 작업·CLI |
-| 활동 기록 (Activity log) | 비서 플러그인 관리의 대상·변경·결과를 사용자에게 보이는 기록. 승인이나 안전 실행 보증이 아님 |
-
-이 용어는 ADR-0020의 승인된 후속 방향이며 현재 제공 완료를 뜻하지 않는다.
+선언형 조회 명세·UI 카탈로그·검수 대조 틀과 기존 Docling은 삭제했다. 과거 용어는 `archive/2026-11-13-plugins-declarative` 태그에 보관한다. 일반 문서 read model·비서 변경 보기·Undo와 혼동하지 않는다.

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { JOB_DOCUMENT_MAX_BYTES, PLUGIN_ERROR_KINDS, SDK_VERSION, PluginOperationError, pluginErrorKind, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
+import { PLUGIN_ERROR_KINDS, SDK_VERSION, PluginOperationError, pluginErrorKind, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
 
 let sdkUrl: Promise<string> | undefined;
 declare const __LITZIO_CLI_BUILD__: { desktop: boolean };
@@ -63,7 +63,6 @@ process.on('message', async ({id, method, args}) => {
     else if (method === 'invoke') result = await instance.operations[args.operation](args.input);
     else if (method === 'dispose') await instance?.dispose?.();
     else throw new Error('Unknown method');
-    if (result?.document && Buffer.byteLength(JSON.stringify(result.document)) > ${JOB_DOCUMENT_MAX_BYTES}) throw new Error('Document payload exceeds limit');
     process.send({id, ok: true, result});
   } catch (error) {
     // Artifact errors can contain credentials. Do not forward arbitrary error text.

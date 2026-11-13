@@ -24,7 +24,6 @@ export function resetStorageTargets(locations: ResetStorageLocations): ResetStor
     { path: locations.host.settingsFile("assistant"), kind: "file", contents: "Assistant settings" },
     { path: plugins, kind: "file", contents: "Plugin registrations, trust and settings" },
     { path: `${plugins}.secrets`, kind: "directory", contents: "Plugin secrets" },
-    { path: locations.host.settingsFile("generated-documents") + ".d", kind: "directory", contents: "Host-managed generated document connections" },
     { path: locations.remoteHostsFile, kind: "file", contents: "Desktop remote Host registrations" },
     { path: `${locations.remoteHostsFile}.work`, kind: "directory", contents: "Desktop work summaries" },
     ...locations.daemonDirectories.map(directory => ({ path: directory, kind: "directory" as const, contents: "Stopped daemon discovery, locks and logs" })),

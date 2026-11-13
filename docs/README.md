@@ -51,7 +51,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 Host별 위치 식별·로컬 복구(#1174 PR1). |
 | [Filesystem Host boundary](design/filesystem-host-boundary-v1.md) | Implemented | 파일·asset·folder 계약. Vite, Desktop, HTTP Host가 같은 handler를 재사용. |
-| [플러그인 1단계](design/plugin-stage1-v1.md) | Implemented | ADR-0020 명시 개시: V4 review Host·CLI/K1 완료 bundle과 최소 SDK·로컬 등록·신뢰·활성·공용 작업·CLI·하위 프로세스/reload·비서 활동 기록. OneDrive·Jira는 2026-11-13 삭제(보관 태그 `archive/2026-11-13-plugins-declarative`). Windows DPAPI secret 저장·설정 UI·상태/삭제 CLI·실행 전달. 비서 제작 키트 scaffold/validate·번들 스킬과 플러그인 비서 스킬 배포(Codex) 포함. 뷰 runtime 없음. |
+| [플러그인 실행·제작 계약](design/plugin-stage1-v1.md) | Implemented | 화면 코드 manifest, Node child·신뢰·설치·reload·설정·secret·스킬·npm/번들러. 선언형·Docling·K1·검수 대조는 삭제하고 보관했다. |
 | [Plugin screens and queries](design/plugin-screens-v1.md) | Implemented | #1370 선택 입력 접기·동적 안내값. manifest 기본 화면·작업 패널 연결, 수동 Host 조회·입력·Table·링크, view run/validate와 review 경계. |
 | [HTTP Host](design/http-host-v1.md) | Implemented | 무인증 단계(#1145) daemon start/stop/status·실행 주체/상세 상태·stale 회수·Desktop pipe 수명·고정 origin·선택 Root·버전·OS 휴지통, CLI 배포와 HTTP·프록시 경계. |
 | [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | Windows Host, NSIS, Stable/Beta, signing 및 수동 workflow 실행 후 검증 성공 시 추가 승인 없는 게시 계약. 현재 소스·최신 공개 Beta Litzio 0.0.3-beta.1·최신 Stable/Latest Litzio 0.0.2·직전 Litzio 0.0.2-beta.10·이전 Litzio 0.0.2-beta.9·이전 Litzio 0.0.2-beta.8·이전 Litzio 0.0.2-beta.7·이전 Litzio 0.0.2-beta.6·이전 Litzio 0.0.2-beta.5·이전 IeumDoc 0.0.2-beta.4·이전 0.0.2-beta.3·이전 0.0.2-beta.2·0.0.2-beta.1과 기존 두 0.1.0 Beta 철회 근거·실제 GitHub 업데이트 미검증 범위 보존. |
@@ -95,8 +95,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [카탈로그 v2](design/catalog-v2.md) | Draft | #1341 이후 남는 query/InputForm/Table·K2/K3/K4·V5와 후속 수락 경계. 생성·저장·Chart 요구는 종료. |
-| [Docling 검수 3단계](design/docling-review-stage3.md) | Draft | #1462 2026-11-11 소유자 확정: 리치오 문서 정본·Core 교정·경로 대응·불변 변환 결과 렌즈·보조 원문 후보·비차단 검증 범위 보고서와 3~7단계 계획. 3단계는 저장 문서 Core 교정·삭제 대응·before 판정·Undo와 고정 LSR/fixture 검증으로 전환. 4a는 공식 1.10.0 schema 검증·최초 원본 렌즈·전체 그림/표 목록·검사 종류별 범위 보고와 CLI 읽기를 구현했다. 4b는 보조 PDF 증거 후보의 inspection 저장·CLI 실행과 Core insert 교정·대응·Undo를 구현했다. 이전 patch/replay 계획·측정은 대체 이력이고 5~7단계는 Draft. |
+| [카탈로그 v2](design/catalog-v2.md) | Historical | 2026-11-13 삭제. 보관 브랜치 `archive/plugins-declarative-2026-11-13`, 태그 `archive/2026-11-13-plugins-declarative`. |
+| [Docling 검수 3단계](design/docling-review-stage3.md) | Historical | 2026-11-13 삭제. 보관 브랜치 `archive/plugins-declarative-2026-11-13`, 태그 `archive/2026-11-13-plugins-declarative`. |
 
 ## UI pattern targets awaiting implementation
 

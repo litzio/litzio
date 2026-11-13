@@ -10,14 +10,14 @@ import { classifyConsoleErrors } from "./browser/console-errors.ts";
 import { browserHostEnvironment } from "./browser/host-environment.ts";
 import { hostPaths } from "../server/host-paths.ts";
 
-test("owned browser Hosts isolate persisted jobs and app paths between runs", () => {
+test("owned browser Hosts isolate persisted settings and app paths between runs", () => {
   const first = browserHostEnvironment({}), second = browserHostEnvironment({});
   try {
     const paths = [first, second].map(run => hostPaths({ packaged: true }, run.env));
-    mkdirSync(path.dirname(paths[0].jobHistory), { recursive: true });
-    writeFileSync(paths[0].jobHistory, "previous run");
-    assert.notEqual(paths[0].jobHistory, paths[1].jobHistory);
-    assert.equal(existsSync(paths[1].jobHistory), false);
+    mkdirSync(path.dirname(paths[0].settingsFile("plugins")), { recursive: true });
+    writeFileSync(paths[0].settingsFile("plugins"), "previous run");
+    assert.notEqual(paths[0].settingsFile("plugins"), paths[1].settingsFile("plugins"));
+    assert.equal(existsSync(paths[1].settingsFile("plugins")), false);
     for (const key of ["LITZIO_DAEMON_DIR", "LITZIO_PLUGINS_SETTINGS_FILE", "LITZIO_ASSISTANT_CWD", "LITZIO_ASSISTANT_SETTINGS_FILE"] as const) {
       assert.notEqual(first.env[key], second.env[key]);
       assert.ok(path.relative(first.env.LITZIO_BROWSER_DAEMON_DIR!, first.env[key]!).startsWith("..") === false);

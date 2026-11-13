@@ -26,7 +26,7 @@
 
 ## 입력과 보존
 
-LSR는 [보관된 CC0 합성 PDF](../../community-plugins/docling/sample/lsr-1.1/README.md) 13쪽 전체다. 이 worktree에는 이전 JSON이 없어서 기존 `docling-serve` 컨테이너를 시작하고 기존 `convertPdfToArchive`와 변경하지 않은 `litzio-pdf-en-v1` 프로필로 한 번 변환했다. 서버 1.32.0 / Docling 2.124.0 / core 2.93.0이었다. **JSON 해시가 P1a·P1b 및 앞선 렌즈 측정과 같은 `fc3a…098d`로 재현됐다.** 프로필의 OCR·수식 enrichment는 기존 변환 처리다. 별도 AI 검수·생성 호출은 0회다.
+LSR는 [보관된 CC0 합성 PDF](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/community-plugins/docling/sample/lsr-1.1/README.md) 13쪽 전체다. 이 worktree에는 이전 JSON이 없어서 기존 `docling-serve` 컨테이너를 시작하고 기존 `convertPdfToArchive`와 변경하지 않은 `litzio-pdf-en-v1` 프로필로 한 번 변환했다. 서버 1.32.0 / Docling 2.124.0 / core 2.93.0이었다. **JSON 해시가 P1a·P1b 및 앞선 렌즈 측정과 같은 `fc3a…098d`로 재현됐다.** 프로필의 OCR·수식 enrichment는 기존 변환 처리다. 별도 AI 검수·생성 호출은 0회다.
 
 보조 입력은 [보관 이력](https://github.com/litzio/litzio/tree/ce90560aacaee2482d37c4b25e36e93060ed156c/plugins/docling/test/fixtures/nist-sp1108r4)의 NIST SP 1108r4 PDF와 기존 JSON을 그대로 사용했다. PDF 발췌본의 물리 6·9·10쪽(인쇄 17·20·21쪽)만 측정했다. 새 발췌 PDF나 새 변환은 만들지 않았다. 전체 원본 JSON을 현행 변환기에 전달한 후, 변환 report의 target과 원래 provenance로 해당 3쪽의 리치오 출력 단위를 선택했다. PDF 증거는 선택된 페이지의 모든 텍스트를 유지했다. 이 선택은 표본 범위 지정이며 Docling이 찾지 못한 PDF 항목을 버리는 필터가 아니다.
 

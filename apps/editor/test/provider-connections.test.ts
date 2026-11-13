@@ -1,7 +1,6 @@
 import { AgentScreenActionRequests } from "../server/assistant-screen-action-tools.ts";
 import { AgentScreenRequests } from "../server/assistant-screen-tools.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
-import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { spawnSync } from "node:child_process";
 import { assistantCliEnvironment, hostCli } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
@@ -266,10 +265,8 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const conversations = new AssistantConversations(connection, new RootAccess([root]), plugins);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
-    reviewWorkspace:{path:path.join(root,"review.docling"),source:"UNSAVED REVIEW CONTEXT"},
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
   writeFileSync(input.document.path, "ON DISK");
-  writeFileSync(input.reviewWorkspace.path,"WORKSPACE CONTENT IS NOT CONTEXT");
   writeFileSync(path.join(root, "image.png"), "image fixture");
   writeFileSync(path.join(root, "report.pdf"), "REFERENCE CONTENT MUST NOT BE IN INPUT");
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
@@ -344,8 +341,6 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
 
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
-  assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).reviewWorkspace,{path:input.reviewWorkspace.path});
-  assert.equal(start.input[1].text.includes("UNSAVED REVIEW CONTEXT"),false);
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
   assert.equal(rpc.find(item => item.method === "turn/steer").params.expectedTurnId, conversation.turns[0]!.id);
   await connection.close();
@@ -377,7 +372,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
       await assert.rejects(resumed.send({ ...input, permissionMode, folders: [cwd], references: [input.document.path] }, settings), /outside/);
       await assert.rejects(resumed.send({ ...input, permissionMode, references: [path.join(root, ".hidden")] }, settings), /unavailable/);
     }
-    const full = { ...input, permissionMode: "full-access" as const, reviewWorkspace: undefined, folders: [], references: [input.document.path, path.join(root, ".hidden"), input.document.path] };
+    const full = { ...input, permissionMode: "full-access" as const, folders: [], references: [input.document.path, path.join(root, ".hidden"), input.document.path] };
     const attached = await resumed.send(full, settings);
     assert.deepEqual(attached.turns[0]!.items.find(item => item.kind === "user")!.references!.map(file => file.path), [input.document.path, path.join(root, ".hidden")]);
     await resumed.interrupt(attached.id);
@@ -456,7 +451,6 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(instructions, /uncertain.*쓰기를 재실행하지 않는다.*기존 requestId.*먼저 조회/);
   assert.match(instructions, /상태 미발견은 쓰기가 없었다는 증거가 아니다/);
   assert.match(instructions, /accepted:true.*저장.*렌더 확인·답변 수신을 뜻하지 않는다/);
-  assert.match(instructions, /apply_review_groups로 즉시 적용/);
   assert.match(instructions, /표·목록·그림·캡션·수식.*공급자 패치로 본문을 고치고.*litzio check/);
   assert.match(instructions, /AGENTS.md.*먼저 읽는다/);
   for (const text of [instructions, generatedGuide]) {
@@ -1155,7 +1149,7 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   const firstUrl = endpoint();
   const connect = async (url: string) => { const client = new Client({ name: "fixture", version: "1" }); clients.push(client); await client.connect(new StreamableHTTPClientTransport(new URL(url))); return client; };
   const one = await connect(firstUrl);
-  assert.deepEqual((await one.listTools()).tools, conversations.tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { type: "object", ...inputSchema } })));
+  assert.deepEqual((await one.listTools()).tools, conversations.tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { ...inputSchema } })));
   assert.equal((await one.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
   const { documentTools } = await import("../server/assistant-document-tools.ts");
   const published = (await one.listTools()).tools;

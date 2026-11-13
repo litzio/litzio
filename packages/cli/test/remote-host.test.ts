@@ -207,7 +207,7 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   assert.deepEqual(bodies, [{ action: "scaffold", directory: "C:/host/greeting", id: "local.greeting" }, { action: "validate", directory: "C:/host/greeting" }]);
   await runCliAsync(["plugins", "scaffold", "--id", "local.default", "--host", "http://127.0.0.1:5180", "--json"]);
   assert.deepEqual(bodies.at(-1), { action: "scaffold", id: "local.default" });
-  for (const template of ["greet", "query", "file"]) {
+  for (const template of ["greet", "screen", "chart"]) {
     await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", template, "--host", "http://127.0.0.1:5180", "--json"]);
     assert.deepEqual(bodies.at(-1), { action: "scaffold", directory: "C:/host/example", id: "local.example", template });
     await runCliAsync(["plugins", "scaffold", "--id", "local.example", "--template", template, "--host", "http://127.0.0.1:5180", "--json"]);
@@ -229,19 +229,7 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   const sent = bodies.length;
   for (const args of [["trust", "local.greeting"], ["enable", "local.greeting", "--trust"]]) assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.equal(bodies.length, sent, "missing registration cannot dispatch consent");
-  const root = mkdtempSync(path.join(tmpdir(), "litzio-review-cli-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const input = path.join(root, "input.json"), request = {root:"/host/documents",workspace:"fixed.docling",plugin:"fixture",job:"import",pageNo:1};
-  const saveRequest={root:"/host/documents",workspace:"fixed.docling",plugin:"fixture",job:"import",baseline:"a".repeat(64),requestId:"62fbf782-043e-4c03-8b20-60aaaf34b6da",source:"---\nlitzio: 1\n---\n\nCorrected by a person.\n"};
-  writeFileSync(input,JSON.stringify(saveRequest));
-  assert.equal(await runCliAsync(["review","workspace-save","--input",input,"--host","http://127.0.0.1:5180","--json"]),1);
-  assert.deepEqual(bodies.at(-1),{...saveRequest,action:"workspace-save"});
 
-  writeFileSync(input, JSON.stringify(request));
-  for (const action of ["workspace-material", "workspace-image-read", "workspace-image-usage"]) {
-    assert.equal(await runCliAsync(["review",action,"--input",input,"--host","http://127.0.0.1:5180","--json"]),1);
-    assert.deepEqual(bodies.at(-1), {...request,action}, "CLI forwards common input and preserves Host rejection without replay");
-  }
 });
 
 

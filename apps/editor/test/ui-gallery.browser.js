@@ -79,24 +79,7 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('button',{name:'Switch chart',exact:true}).click();
   await expect(chart.locator('.recharts-bar')).toBeVisible();
   await expect(page.getByRole('figure',{name:'Empty measurements',exact:true})).toContainText('No data');
-  await navigation.getByRole('button', {name:'Query lifetime',exact:true}).click();
-  const lifecycle=page.getByRole('region',{name:'예시: View lifecycle',exact:true});
-  const replacement=lifecycle.getByTestId('plugin-query-view').first();
-  await expect(replacement.getByLabel('Text',{exact:true})).toHaveValue('alpha');
-  await replacement.getByRole('button',{name:'Search',exact:true}).click();
-  await expect(replacement.getByText('Loading data…',{exact:true})).toBeVisible();
-  await lifecycle.getByRole('button',{name:'Replace definition',exact:true}).click();
-  await expect(replacement.getByLabel('Text',{exact:true})).toHaveValue('beta');
-  await lifecycle.getByRole('button',{name:'Resolve previous query',exact:true}).click();
-  await expect(replacement.locator('tbody tr')).toHaveCount(0);
-  await replacement.getByRole('button',{name:'Search',exact:true}).click();
-  await expect(replacement.getByRole('cell',{name:'beta',exact:true})).toBeVisible();
-  await lifecycle.getByRole('button',{name:'Toggle availability',exact:true}).click();
-  await expect(replacement.getByRole('button',{name:'Search',exact:true})).toBeDisabled();
-  await expect(replacement.getByRole('cell',{name:'beta',exact:true})).toBeVisible();
-  await expect(replacement).toContainText('Previous query result');
   await navigation.getByRole('button',{name:'Tables',exact:true}).click();
-  const examples = page.getByRole('region', { name: 'Plugin views examples' });
   const table = page.getByRole('region', {name:'Table — 예시: 열별 정렬·필터',exact:true}).first();
   await page.getByRole('group',{name:'Theme',exact:true}).getByRole('button',{name:'Dark',exact:true}).click();
   await page.evaluate(() => { window.__openedLinks = []; window.open = (...args) => { window.__openedLinks.push(args); return null; }; });
@@ -186,99 +169,5 @@ async (page, { expect, screenshots }) => {
   await expect(table.locator('tbody tr')).toHaveCount(50);
   await expect(table.locator('tbody tr').first()).toContainText('100');
 
-  await navigation.getByRole('button',{name:'Plugin views',exact:true}).click();
-  await expect(examples.getByRole('table')).toHaveCount(2);
-  const states = examples.getByRole('group', { name: 'Generated view state', exact: true });
-  await states.getByRole('button', { name: 'Authentication required', exact: true }).click();
-  await expect(examples.getByText('Authentication required. Check credentials in plugin settings.', { exact: true })).toBeVisible();
-  await states.getByRole('button', { name: 'Loading (previous data)', exact: true }).click();
-  await expect(examples.getByText('Previous query result · 09:00', { exact: true })).toBeVisible();
-  await expect(examples.getByRole('table')).toHaveCount(2);
-  await states.getByRole('button', { name: 'Field errors', exact: true }).click();
-  await expect(examples.getByRole('textbox', { name: 'Search text' })).toHaveAttribute('aria-invalid', 'true');
-  await examples.getByRole('group', { name: 'View profile', exact: true }).getByRole('button', { name: 'review', exact: true }).click();
-  await states.getByRole('button', { name: 'Cannot verify request', exact: true }).click();
-  await expect(examples.getByText('Status checks cannot resolve this outcome. Do not repeat this change.', { exact: false })).toBeVisible();
-  await examples.getByRole('group', { name: 'View profile', exact: true }).getByRole('button', { name: 'query', exact: true }).click();
-
-  await page.goto(await page.evaluate(()=>location.origin+'/test/fixtures/input-suggestions/index.html'));
-  const field = page.locator('[data-view-field="person"]');
-  if (screenshots) for (const width of [1440,640]) {
-    await page.setViewportSize({width,height:1000});
-    await page.evaluate(dark=>document.documentElement.setAttribute('data-theme',dark?'dark':'light'),width===640);
-    await page.screenshot({path:`tmp/input-suggestions/before-${width}.png`});
-  }
-  const requests = [];
-  let release, releaseBlur;
-  await page.route('**/api/plugins', async route => {
-    const body = route.request().postDataJSON();
-    requests.push(body.input.query);
-    if(body.input.query==='old') await new Promise(resolve=>release=resolve);
-    if(body.input.query==='blur') await new Promise(resolve=>releaseBlur=resolve);
-    const result = [{value:body.input.query+'-id',label:'예시: '+body.input.query+' 담당자'}];
-    await route.fulfill({json:{result,receipt:{outcome:body.input.query==='fail'?'failure':'success'}}}).catch(()=>{});
-  });
-  await page.getByRole('button',{name:'후보 사용'}).click();
-  await field.fill('old');
-  await expect.poll(()=>requests.includes('old')).toBe(true);
-  await field.fill('new');
-  await expect(page.getByRole('option',{name:'예시: new 담당자'})).toBeVisible();
-  release();
-  await expect(page.getByRole('option',{name:'예시: old 담당자'})).toHaveCount(0);
-  await field.press('ArrowDown');
-  await field.press('Enter');
-  await expect(field).toHaveValue('new-id');
-  await field.fill('mouse');
-  await page.getByRole('option',{name:'예시: mouse 담당자'}).click();
-  await expect(field).toHaveValue('mouse-id');
-  await field.fill('fail');
-  await expect.poll(()=>requests.includes('fail')).toBe(true);
-  await expect(page.getByRole('option')).toHaveCount(0);
-  await expect(field).toHaveValue('fail');
-  // A late candidate must not reopen a popup over the next control after field exit.
-  await field.fill('blur');
-  await expect.poll(()=>requests.includes('blur')).toBe(true);
-  await page.getByRole('button',{name:'후보 사용'}).click();
-  const blurredResponse = page.waitForResponse(response => response.url().endsWith('/api/plugins') && response.request().postDataJSON()?.input?.query === 'blur');
-  releaseBlur();
-  await (await blurredResponse).finished();
-  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  await expect(page.getByRole('option')).toHaveCount(0);
-  await expect(field).toHaveValue('blur');
-  // Composition events deliberately model an IME; ordinary fill cannot start composition.
-  await page.clock.install();
-  await field.dispatchEvent('compositionstart');
-  await field.fill('ㅎ');
-  await page.clock.runFor(500);
-  expect(requests.includes('ㅎ')).toBe(false);
-  await field.fill('한글');
-  await field.dispatchEvent('compositionend',{data:'한글'});
-  await page.clock.runFor(300);
-  await expect(page.getByRole('option',{name:'예시: 한글 담당자'})).toBeVisible();
-  expect(requests.filter(query=>query==='한글')).toHaveLength(1);
-  if (screenshots) for (const width of [1440,640]) {
-    await page.setViewportSize({width,height:1000});
-    await page.evaluate(dark=>document.documentElement.setAttribute('data-theme',dark?'dark':'light'),width===640);
-    await field.click();
-    await page.screenshot({path:`tmp/input-suggestions/after-${width}.png`});
-  }
-
-  await page.clock.resume();
-  await field.press('Escape');
-  const more = page.getByRole('button',{name:/Additional conditions/});
-  const summary = page.locator('.view-query-summary');
-  await expect(summary).toContainText('Zero: 0');
-  await expect(summary).toContainText('Flag: false');
-  await expect(summary).toContainText('Nullable: No value');
-  await expect(summary).toContainText('Empty: ""');
-  await expect(page.getByLabel('Note',{exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Check hidden error'}).click();
-  await expect(more).toHaveAttribute('aria-expanded','true');
-  await expect(page.getByLabel('Note',{exact:true})).toBeFocused();
-  await page.getByLabel('Note',{exact:true}).fill('Retained condition');
-  await more.click();
-  await expect(summary).toContainText('Retained condition');
-  await more.press('Space');
-  await expect(page.getByLabel('Note',{exact:true})).toHaveValue('Retained condition');
 
 }

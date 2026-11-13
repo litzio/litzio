@@ -1,4 +1,3 @@
-import type { ComparisonTarget } from "../review/GeneratedComparison.tsx";
 import { ContextMenu } from "@/components/ui/context-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
@@ -28,7 +27,6 @@ type SidebarProps = {
   createdDocumentFocus?(): HTMLElement | null;
   documentHostId?: string;
   onHostDirty?(hostId: string, path: string): boolean;
-  onCompare?(hostId: string, target: ComparisonTarget): void;
   onHostOpen?(hostId: string, path: string): Promise<void>;
   onHostFileAction?(hostId: string, ...args: Parameters<FileActionHandler>): Promise<string>;
   contributions?: { icon?: ReactNode; id: string; label: string; run(returnFocus: HTMLElement): void }[];
@@ -75,7 +73,7 @@ type SidebarProps = {
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onCompare, onCopyPath, documentHostId = "local", registerFolderOpener, onHostCreate, createdDocumentFocus, onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  onCopyPath, documentHostId = "local", registerFolderOpener, onHostCreate, createdDocumentFocus, onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "light", onThemeChange, contributions = [], onAddToChat,
 }: SidebarProps) {
@@ -133,7 +131,7 @@ export function Sidebar({
         <section className="sidebar-host" data-host-id="local" hidden={!!hostFilter && hostFilter !== "local"} aria-label={hosts.find(host => host.hostId === "local")?.label ?? "Local"}>
         {hosts.length > 1 ? <HostHeading hostId="local" /> : null}
         {folders.length > 0 ? folders.map(tree => {
-          return <FolderTree onCompare={target => onCompare?.(tree.hostId, target)} onCopyPath={onCopyPath}
+          return <FolderTree onCopyPath={onCopyPath}
             key={locatorKey({ hostId: tree.hostId, path: tree.root })}
             onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: tree.hostId, path }, focus) : undefined}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
@@ -180,7 +178,7 @@ export function Sidebar({
           </section>
         )}
         </section>
-        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer registerFolderOpener={registerFolderOpener} onCompare={target => onCompare?.(host.hostId, target)} onCopyPath={onCopyPath} onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: host.hostId, path }, focus) : undefined} onCreate={(client, path, root) => onHostCreate?.(host.hostId, client, path, root) ?? Promise.resolve("Host creation unavailable")} createdDocumentFocus={createdDocumentFocus} documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
+        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer registerFolderOpener={registerFolderOpener} onCopyPath={onCopyPath} onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: host.hostId, path }, focus) : undefined} onCreate={(client, path, root) => onHostCreate?.(host.hostId, client, path, root) ?? Promise.resolve("Host creation unavailable")} createdDocumentFocus={createdDocumentFocus} documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
       {onSettings || onThemeChange || contributions.length ? (

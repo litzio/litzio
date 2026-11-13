@@ -20,15 +20,13 @@ export function assistantToolFailure(error: any, call: HostToolCall) {
 }
 function readOnly(call: HostToolCall) {
   return /^(read_|inspect_|list_|find_|estimate_)/.test(call.tool) || call.tool === "invoke_plugin_operation" ||
-    call.tool === "manage_plugins" && ["list", "validate"].includes(call.arguments?.action) ||
-    call.tool === "plugin_jobs" && ["job-status", "job-result", "job-list"].includes(call.arguments?.action);
+    call.tool === "manage_plugins" && ["list", "validate"].includes(call.arguments?.action);
 }
 export function assistantToolValue(value: any, call: HostToolCall): any {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const screenAction = ["close_tabs","open_folder","close_folders"].includes(call.tool);
   if (screenAction && kinds.includes(value.outcome)) value = {...value,errorKind:value.outcome};
   const receipt = value.receipt ?? value.result?.receipt;
-  if (value.state === "unknown" && call.tool === "read_review_request_status") value = {...value,errorKind:"uncertain"};
   if (!value.error && !value.errorKind && !["failure", "uncertain"].includes(receipt?.outcome)) return value;
   const legacy = value.errorKind ?? value.result?.errorKind;
   const errorKind = receipt?.outcome === "uncertain" ? "uncertain" : kinds.includes(legacy) ? legacy
@@ -38,23 +36,18 @@ export function assistantToolValue(value: any, call: HostToolCall): any {
   let recovery: any;
   if (errorKind === "invalid_input") recovery = {action:"correct_input", instruction:"Correct the reported input using the tool schema and current data, then submit a new request."};
   if (errorKind === "invalid_input" && (call.tool === "save_template" || call.tool === "create_document" && args.template !== undefined) && typeof (args.from ?? args.path) === "string" && !path.isAbsolute(args.from ?? args.path)) recovery = {action:"correct_input",instruction:"Resolve the relative path against the current opened folder, then submit a new request with an absolute path inside that opened folder. Read screen context if the current folders are needed; no permission change is required."};
-  if (value.candidates?.length) recovery = {action:"narrow_candidates", tool:"find_review_workspaces", arguments:{path:args.path}, instruction:"Inspect candidates and narrow by the user's target without asking unless intent remains ambiguous."};
-  if (errorKind === "conflict") recovery = {action:"reread", tool:call.tool.includes("review") ? "read_review_document" : "read_document",
+  if (errorKind === "conflict") recovery = {action:"reread", tool:"read_document",
     arguments:{path:args.path}, instruction:"Read current state, reanalyse intended changes and submit a new request with the new revision. Do not resend stale input."};
   if (errorKind === "conflict" && call.tool === "manage_plugins") recovery = {action:"reread",tool:"manage_plugins",arguments:{action:"list"},instruction:"Read current registrationId/digest, reanalyse and issue a new request."};
   if (errorKind === "conflict" && ["save_template","create_document"].includes(call.tool)) recovery = {action:"reread",tool:call.tool === "save_template" ? "list_templates" : "read_document",arguments:call.tool === "save_template" ? {} : {path:args.path},instruction:"Inspect the existing target and choose a new unused name/path for the requested creation. Never overwrite."};
   if (errorKind === "forbidden") recovery = {action:"request_permission", instruction:call.tool === "invoke_plugin_operation"
     ? "Inspect manage_plugins list: use a declared assistant:true read or health operation. Private/write operations require their dedicated authorized workflow; broader turn permission cannot enable them. For service auth/permission errors ask the user to configure credentials or service access."
-    : "Ask the user for Opened folders or Full access and an allowed target folder if required. Keep review approval boundaries; never change permissions yourself."};
-  if (errorKind === "unavailable") recovery = {action:"recheck", tool:call.tool.includes("template") ? "list_templates" : call.tool.includes("review") ? "find_review_workspaces" : call.tool.includes("plugin") ? "manage_plugins" : call.tool === "read_screen_context" ? "read_screen_context" : "list_documents",
+    : "Ask the user for Opened folders or Full access and an allowed target folder if required. never change permissions yourself."};
+  if (errorKind === "unavailable") recovery = {action:"recheck", tool:call.tool.includes("template") ? "list_templates" : call.tool.includes("plugin") ? "manage_plugins" : call.tool === "read_screen_context" ? "read_screen_context" : "list_documents",
     ...(call.tool.includes("plugin") ? {arguments:{action:"list"}} : call.tool === "read_document" && typeof args.path === "string" ? {arguments:{path:path.dirname(args.path)}} : {}), instruction:"Safely recheck current availability/targets and choose an available path. A screen query requires the originating window. Ask only when user action is required."};
   if (errorKind === "uncertain") recovery = {action:"observe", ...(requestId ? {requestId} : {}),
-    ...(call.tool.includes("review") && requestId ? {tool:"read_review_request_status",arguments:{path:args.path,requestId}} : call.tool === "plugin_jobs" && requestId ? {tool:"plugin_jobs",arguments:{action:"job-status",requestId}} : call.tool === "manage_plugins" ? {tool:"manage_plugins",arguments:{action:"list"}} : call.tool === "create_document" ? {tool:"read_document",arguments:{path:args.path}} : {}),
+    ...(call.tool === "manage_plugins" ? {tool:"manage_plugins",arguments:{action:"list"}} : call.tool === "create_document" ? {tool:"read_document",arguments:{path:args.path}} : {}),
     instruction:"Do not replay the write. Query the existing requestId first when available; otherwise inspect the current target/result and reconcile it before proposing any new write. Missing status is not proof that nothing was written."};
-  if (errorKind === "uncertain" && call.tool === "plugin_jobs" && args.action === "job-start-many") recovery = {
-    action:"observe",
-    queries:(value.files ?? []).filter((file:any)=>file.job?.state === "uncertain" && typeof file.requestId === "string").map((file:any)=>({file:file.file,tool:"plugin_jobs",arguments:{action:"job-status",requestId:file.requestId}})),
-    instruction:"Query each uncertain file's existing requestId. The batch receipt ID is not a job ID. Never replay the batch or restart an uncertain file; missing status is not proof of no write."};
   if (screenAction && ["conflict","unavailable","uncertain"].includes(errorKind)) recovery = {action:errorKind === "uncertain" ? "observe" : "reread",tool:"read_screen_context",arguments:{},instruction:"Read the originating window's current state and reconcile completed/remaining targets. Never replay an uncertain action or dismiss unsaved-edit confirmation. Ask the user only for the remaining human decision."};
   if (screenAction && errorKind === "forbidden") recovery = {action:"request_permission",tool:"read_screen_context",arguments:{},instruction:"Inspect remaining reasons and request the required window confirmation or Host/path access. Do not bypass unsaved-edit confirmation or change assistant permissions yourself."};
   return {...value, errorKind, receipt:{...receipt,outcome:errorKind === "uncertain" ? "uncertain" : "failure"}, recovery};

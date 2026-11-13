@@ -185,3 +185,5 @@ D1이 공통 schema를 먼저 병합하고 V7은 Chart type·Panel direction과 
 ## 결정 항목
 
 추가 소유자 결정 요청은 없다. 확정된 제품 방향을 재질문하지 않는다. 추천 세부안은 1 MiB/10,000행·64출처, query 단일 결과 집합, 기존 v2 확장, 기존 열린 Root 참조 경계, plugin 화면별 namespace와 문서 탭별 보기 수명이다. **그래서 무엇이 안 되는가:** 무제한 자료, 여러 실시간 source 자동 join, Root 밖 자동 자료 수집, 자동 재계산, 플러그인 임의 화면 코드, 이전 저장 파일 migration은 제공하지 않는다. 더 큰 자료가 실제로 막히면 측정 근거로 한도를 별도 개정한다.
+
+2026-11-13: 해당 선언형·Docling·검수 기능은 삭제했다. 현재 계획이 아니며 보관 브랜치 `archive/plugins-declarative-2026-11-13`, 태그 `archive/2026-11-13-plugins-declarative`에서 당시 소스를 확인한다.

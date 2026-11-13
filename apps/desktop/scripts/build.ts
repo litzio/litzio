@@ -1,4 +1,3 @@
-import { assertDesignatedPluginPayload } from "../../editor/server/plugins/designated-plugins.ts";
 // Stage main/preload/sample in build/app and the shared CLI/Editor distribution in build/cli.
 // Neither needs node_modules or Vite at runtime.
 // LITZIO_REQUIRE_SIGNED_UPDATES=1 (release builds) makes the app refuse updates it cannot verify.
@@ -37,7 +36,6 @@ export async function buildDesktop(): Promise<string> {
   const editorBuild = path.join(cliBuild, "editor");
   if (!existsSync(path.join(cliBuild, "plugin-sdk.mjs"))) throw new Error("The CLI build has no Host SDK runtime");
   if (!existsSync(path.join(editorBuild, "index.html"))) throw new Error("The Editor build has no index.html");
-  assertDesignatedPluginPayload(cliBuild);
   // Independent app-owned UI; the CLI still serves its own browser copy.
   cpSync(editorBuild, path.join(stage, "ui"), { recursive: true });
   const stagedCli = path.join(desktop, "build", "cli");

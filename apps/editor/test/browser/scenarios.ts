@@ -3,7 +3,6 @@
  * from CI run 41946600342 (descending duration, least-loaded shard).
  */
 export const STABLE_SCENARIOS = [
-  "plugin-columns",
   "vite-plugins",
   "recovery",
   "document-tabs",
@@ -95,7 +94,6 @@ export const STABLE_SCENARIOS = [
   "save-during-edit",
   "citations",
   "ui-gallery",
-  "review-v5",
   "reveal-folder",
   "document-session",
   "app-reset",
@@ -141,7 +139,7 @@ export const NOTIFICATION_SCENARIOS = [
 ];
 
 /** Production HTTP has a different startup and filesystem policy; run it against its own Host. */
-export const HTTP_SCENARIOS = ["plugin-screen-code","http-host", "http-plugins", "workspace-review", "plugin-jobs", "plugin-views"];
+export const HTTP_SCENARIOS = ["plugin-screen-code","http-host", "http-plugins"];
 
 /** Select before starting a server probe or browser; an invalid/empty shard must fail. */
 export function selectBrowserScenarios(args: readonly string[]): {
@@ -171,7 +169,7 @@ export function selectBrowserScenarios(args: readonly string[]): {
       shard: `${index}/${count}`,
     };
   }
-  if (screenshots && (requested.length !== 1 || !["plugin-columns", "vite-plugins", "provider-session-log", "multi-host", "host-settings", "save-session", "numbering-mode", "document-scroll", "heading-levels", "brand-config", "assistant", "assistant-question", "assistant-result", "read-view", "text-mode", "draft-notice-layout", "color-mode", "selection-toolbar", "ui-prose-wrap", "short-field-errors", "notification-center", "reference-preview", "image-link-preview", "document-title", "list-format", "link-authoring", "panel-lists", "pre-save-diff", "external-change", "reveal-folder", "save-error", "mermaid-authoring", "image-assets", "inline-math-authoring", "empty-elements", "inline-document-settings", "file-actions", "table-caption", "table-authoring", "figure-authoring", "source-view", "cross-reference", "command-center", "file-preview", "ui-language", "quiet-document", "folder-navigation", "desktop-updates", "open-files", "document-tabs", "editor-groups", "recovery", "recovery-structure", "footnotes", "citations", "bibliography", "bibliography-connection", "review-v5", "ui-gallery", ...HTTP_SCENARIOS].includes(requested[0]!))) {
+  if (screenshots && (requested.length !== 1 || !["vite-plugins", "provider-session-log", "multi-host", "host-settings", "save-session", "numbering-mode", "document-scroll", "heading-levels", "brand-config", "assistant", "assistant-question", "assistant-result", "read-view", "text-mode", "draft-notice-layout", "color-mode", "selection-toolbar", "ui-prose-wrap", "short-field-errors", "notification-center", "reference-preview", "image-link-preview", "document-title", "list-format", "link-authoring", "panel-lists", "pre-save-diff", "external-change", "reveal-folder", "save-error", "mermaid-authoring", "image-assets", "inline-math-authoring", "empty-elements", "inline-document-settings", "file-actions", "table-caption", "table-authoring", "figure-authoring", "source-view", "cross-reference", "command-center", "file-preview", "ui-language", "quiet-document", "folder-navigation", "desktop-updates", "open-files", "document-tabs", "editor-groups", "recovery", "recovery-structure", "footnotes", "citations", "bibliography", "bibliography-connection", "ui-gallery", ...HTTP_SCENARIOS].includes(requested[0]!))) {
     throw new Error("Use: pnpm browser:test reference-preview|image-link-preview|document-title|list-format|panel-lists|mermaid-authoring|image-assets|figure-authoring|source-view|quiet-document|folder-navigation|desktop-updates|open-files|document-tabs|footnotes|citations|bibliography|bibliography-connection|http-host --screenshots");
   }
   return { scenarios: requested.length ? requested : [...STABLE_SCENARIOS], screenshots };

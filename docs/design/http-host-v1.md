@@ -1,5 +1,7 @@
 # HTTP Host v1
 
+> 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
+
 > 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
 
 #1285: [앱 초기화](app-reset-v1.md)의 local apply는 실행 중인 Host를 강제 종료하거나 원격 삭제 API로 노출하지 않는다. HTTP/Vite Host와 CLI가 계정 공용 process gate에 참여해 데이터 삭제와 새 writer 시작을 배타 제어한다. `GET /api/app-reset/paths`는 runtime이 고정한 절대 templates·assistant cwd·설정 파일 경로만 반환하며 Desktop은 자신의 해석과 대조한다. Host close는 listener/socket 종료뿐 아니라 이미 수락한 비동기 request handler의 완료도 기다린 뒤 writer lease를 해제하고, 반복 close는 같은 종료 promise를 반환한다. Vite는 문서·asset middleware의 SSR module loading부터 promise를 추적하며 종료 중 새 Host 서비스 생성을 거부한다. `server.close()`는 그 정리도 기다리고 내부 restart의 listener 종료 이벤트 역시 같은 drain 후에만 lease를 해제한다. socket 종료를 파일 변경 취소로 간주하지 않는다. 종료 실패는 marker로 남아 확인 없이 초기화하지 못하게 한다. 일반 클라이언트 단절이 Host/AI 수명을 끝내는 것으로 취급하지 않는다.

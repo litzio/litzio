@@ -1,8 +1,5 @@
 import type { HostClient } from "./host-client.ts";
-import { useGeneratedConnections } from "./review/generated-connections.ts";
-import type { ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { Button } from "./components/ui/button.tsx";
-import { GENERATED_DOCUMENT_LABEL, GENERATED_DOCUMENT_WARNING } from "../shared/generated-document.ts";
 import { Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { HostContext, HostClientContext } from "./host-context.tsx";
@@ -41,8 +38,6 @@ type TabProps = {
   onAssetChange(documentPath: string, assetPath: string, hostId?: string): void;
   renameImage: ImageRenamer;
   onCompare(session: EditorSession): void;
-  comparisonRoot?: string;
-  onOpenComparison?(hostId: string, target: ComparisonTarget): void;
 };
 
 /** Reclassification on Reload starts the corresponding editor; Save never swaps editors. */
@@ -58,14 +53,11 @@ export const DocumentTab = memo(function DocumentTab(props: TabProps) {
   return <HostContext.Provider value={props.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={client}><NativeDocumentTab {...props} onAssetChange={onAssetChange} key={`native-${replacement?.generation ?? 0}`} file={file} restored={restored?.kind !== "text" ? restored : undefined} replaceFile={replaceFile} /></HostClientContext.Provider></HostContext.Provider>;
 });
 
-const NativeDocumentTab = memo(function NativeDocumentTab({ client, hostId = LOCAL_HOST_ID, comparisonRoot = "", onOpenComparison, settingsDisabled, id, file, restored, recoveryId, active, focused, groupIndex, onFocus, report, onAssetChange, renameImage, onReveal, replaceFile, onCompare }:
+const NativeDocumentTab = memo(function NativeDocumentTab({ client, hostId = LOCAL_HOST_ID, settingsDisabled, id, file, restored, recoveryId, active, focused, groupIndex, onFocus, report, onAssetChange, renameImage, onReveal, replaceFile, onCompare }:
   Omit<TabProps, "file" | "restored"> & { file: DocumentFileResponse; restored?: DocumentSessionSnapshot; replaceFile(file: EditorFileResponse): void }) {
   useTranslation();
   const [settingsExpanded, setSettingsExpanded] = useState(false);
   const session = useDocumentSession(file, restored, recoveryId, onAssetChange, renameImage, replaceFile);
-  const relative = session.openedPath.slice(comparisonRoot.replace(/[\\/]+$/, "").length).replace(/^[\\/]+/, "").replaceAll("\\", "/");
-  const comparisons = useGeneratedConnections(client, session.managedGenerated ? comparisonRoot : "", active, relative);
-  const comparison = comparisons.find(item => item.match === "document");
   useLayoutEffect(() => { if (!focused && session.noticeAction) session.setNotice(""); }, [focused]);
   useLayoutEffect(() => { report(id, session); });
   useLayoutEffect(() => () => report(id, null), [id, report]);
@@ -86,11 +78,6 @@ const NativeDocumentTab = memo(function NativeDocumentTab({ client, hostId = LOC
       style={{ "--editor-group-index": groupIndex } as CSSProperties}
       onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
       <div className="document-column">
-        {session.managedGenerated ? <Notice tone="warning" className="flex flex-wrap items-center justify-between gap-2" data-testid="generated-document-warning">
-          <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{i18n.t(GENERATED_DOCUMENT_LABEL)}</TooltipTrigger>
-            <TooltipContent>{i18n.t(GENERATED_DOCUMENT_WARNING)}</TooltipContent></Tooltip>
-          {comparison && onOpenComparison ? <Button variant="ghost" size="sm" onClick={() => onOpenComparison(hostId, comparison)}>{i18n.t("Compare source")}</Button> : null}
-        </Notice> : null}
         {session.view === "source" ? (
           <article className="document source-view" data-testid="source-view" aria-label={i18n.t("Markdown source")}>
             <pre className="source-view-text"><SourceLines markdown={session.sourceMarkdown} /></pre>

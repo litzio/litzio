@@ -1,5 +1,7 @@
 # 비서: 현재 동작 계약
 
+> 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
+
 - Status: Implemented
 - Last verified: 2026-11-13 — 제한 권한의 쓰기 CLI 실패 안내·본문 편집 지침을 코드와 대조. 실제 AI 수락 시험의 범위·결과는 해당 PR 기록을 따른다.
 - Authority: [ADR-0021](../adr/0021-general-agent-assistant.md), [ADR-0014](../adr/0014-main-agent-app-server.md), [ADR-0017](../adr/0017-bundled-client-and-official-ai.md).
@@ -90,9 +92,9 @@
 28. Docling 검수는 근거를 읽고 실제 검사한 부분만 기록하며, 근거가 부족하면 uncertain, 읽지 않은 부분은 미대조로 남긴다.
     읽지 않은 페이지까지 완료로 표시하지 않게 한다.
 29. Docling 이미지는 사전 승인 없이 읽고 근거가 충분한 교정은 즉시 적용한다. Undo·필수 확인·완료 표시는 사람이 처리하며, Undo 뒤 제안 수정은 supersedes를 쓴다.
-    교정 실행과 사람의 완료 판단을 구분한다([검수 계약](plugin-stage1-v1.md#review-작업)).
+    교정 실행과 사람의 완료 판단을 구분한다([검수 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#review-작업)).
 30. 플러그인 관리·조회·작업은 선언된 범위와 권한으로 수행하고 건별 승인 대신 활동을 남긴다. 불확실한 작업은 같은 requestId로 조회한다.
-    외부 쓰기와 중복 실행을 통제한다([플러그인 1단계 계약](plugin-stage1-v1.md#비서-제작-키트)).
+    외부 쓰기와 중복 실행을 통제한다([플러그인 1단계 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#비서-제작-키트)).
 31. 플러그인 비밀 값은 도구 입력·문서·대화·활동에 넣거나 읽지 않고 전용 secret 설정 경로로 전달하도록 안내한다.
     자격 증명이 공급자와 기록에 노출되지 않게 한다.
 

@@ -1,5 +1,7 @@
 # ADR-0012: Plugin runtime and UI contributions
 
+> 2026-11-13: ADR-0022가 화면 코드 경계를 대체했다. 기존 선언형·Docling·검수 대조 틀은 삭제했으며 당시 결정은 아래에 보존한다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
+
 - Status: Accepted
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Decision date: 2026-10-31
