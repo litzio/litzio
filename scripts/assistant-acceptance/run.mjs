@@ -64,7 +64,7 @@ try {
   await delay(500);
  }
 }catch(error){if(child.exitCode===null)child.kill();throw error;}
-const report=previous??{model,reasoningEffort,startedAt:new Date().toISOString(),pid:process.pid,root,url:host.url,aiCalls:0,results:[],limits:'One attempt per task/mode, 600 seconds, no approval answers; max 22 sends per full run; smoke max 1 send.'};
+const report=previous??{model,reasoningEffort,startedAt:new Date().toISOString(),pid:process.pid,root,url:host.url,aiCalls:0,results:[],limits:'One attempt per task/mode, 600 seconds, no approval answers; max 26 sends per full run; smoke max 1 send.'};
 if(previous){report.pid=process.pid;report.url=host.url;delete report.closedAt;delete report.error;}
 const scrub=s=>String(s).split(root).join('<run>').split(checkout).join('<checkout>').replaceAll(os.homedir(),'<home>');
 const api=async (method,suffix='',body)=>{const res=await fetch(host.url+'/api/assistant/conversations'+suffix,{method,headers:{Origin:host.url,Connection:'close','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30_000)});const value=await res.json(); if(!res.ok)throw new Error(JSON.stringify(value));return value;};
@@ -84,9 +84,9 @@ async function run(task,permissionMode){
  const r={id:task.id,name:task.name,permissionMode,folder:path.basename(folder),message:task.message,result:'판정 불가',counts:{host:0,edit:0,shell:0},fileChangeItems:0,writeEvidence:[],approval:false,approvalRequests:0,cause:'',stop:'',lastAnswer:'',byproducts:[],checks:[]};report.results.push(r);save();
  let conversation;const start=Date.now(),submissionId=crypto.randomUUID();
  try {
-  if(report.aiCalls>= (smoke?1:22))throw new Error('AI call budget exhausted');report.aiCalls++;save();
+  if(report.aiCalls>= (smoke?1:26))throw new Error('AI call budget exhausted');report.aiCalls++;save();
   // Submission receipt avoids an HTTP timeout hiding admission; never replay a send.
-  try { conversation=(await api('POST','',{action:'send',submissionId,provider:'codex',permissionMode,model,reasoningEffort,folders:[folder],message:task.message})).conversation; } catch(error) { r.transportError=scrub(JSON.stringify(errorDetail(error))); r.hostLogTail=hostLog.map(scrub); const receipt=await api('GET','?submissionId='+submissionId); conversation=receipt.conversation; if(receipt.submission?.status==='unknown'&&!conversation)throw error; }
+  try { conversation=(await api('POST','',{action:'send',submissionId,provider:'codex',permissionMode,model,reasoningEffort,folders:[folder],...(task.activeDocument?{document:{path:path.join(folder,task.activeDocument)}}:{}),message:`작업 폴더: ${folder}\n${task.message}`})).conversation; } catch(error) { r.transportError=scrub(JSON.stringify(errorDetail(error))); r.hostLogTail=hostLog.map(scrub); const receipt=await api('GET','?submissionId='+submissionId); conversation=receipt.conversation; if(receipt.submission?.status==='unknown'&&!conversation)throw error; }
   while(Date.now()-start<600_000){
    const submission=await api('GET','?submissionId='+submissionId);
    if(submission.submission?.status==='rejected')throw new Error(JSON.stringify(submission));
@@ -115,7 +115,7 @@ async function run(task,permissionMode){
   if(conversation?.turns.some(t=>t.status==='inProgress')){await api('POST','',{action:'interrupt',id:conversation.id});for(let n=0;n<30;n++){const c=await api('GET','?id='+encodeURIComponent(conversation.id));if(!c.turns.some(t=>t.status==='inProgress'))break;await delay(1000);if(n===29)throw new Error('Interrupt did not settle; stop measurement');}}
   const after=inventory(folder);r.byproducts=Object.keys(after).filter(f=>!(f in before)&&!(task.outputs??[task.output]).includes(f));r.changed=Object.keys(after).filter(f=>before[f]!==after[f]);r.deleted=Object.keys(before).filter(f=>!(f in after));
   r.checks=(task.outputs??[task.output]).map(f=>check(path.join(folder,f)));
-  try{r.predicate=task.judge(folder);r.result=!r.admitted?'판정 불가':r.checks.every(c=>c.passed)&&r.predicate?'완수':'미완수';}catch(e){r.result='판정 불가';r.stop+=' '+e.message;}
+  try{r.predicate=task.judge(folder,r);r.result=!r.admitted?'판정 불가':r.checks.every(c=>c.passed)&&r.predicate?'완수':'미완수';}catch(e){r.result='판정 불가';r.stop+=' '+e.message;}
   if(r.result!=='완수')r.cause=r.result==='판정 불가'?(r.admitted?'판정 기준 문제':'기타'):classify(JSON.stringify(r.tools.filter(t=>t.status==='failed'))+' '+r.lastAnswer+' '+r.stop,r.approval);
   if(r.result==='미완수'&&task.output&&!fs.existsSync(path.join(folder,task.output))){r.alternativeOutputs=walk(folder).filter(f=>path.basename(f)===task.output).map(f=>({file:path.relative(folder,f),check:check(f)}));if(r.alternativeOutputs.length){r.result='판정 불가';r.cause='판정 기준 문제';}}
   r.lastAnswer=scrub(r.lastAnswer);save();console.log(`${r.id} ${permissionMode}: ${r.result}, ${r.seconds}s, ${r.cause}`);
@@ -129,7 +129,7 @@ try {
    const task=tasks.find(t=>t.id===r.id);
    r.documentWriteMethods=documentWrites(r.tools);
    r.admitted=JSON.parse(r.conversation??'null')?.turns?.length>0;
-   r.predicate=task.judge(path.join(root,r.folder));
+   r.predicate=task.judge(path.join(root,r.folder),r);
    r.result=!r.admitted?'판정 불가':r.checks.every(c=>c.passed)&&r.predicate?'완수':'미완수';
    r.cause=r.result==='완수'?'':classify(JSON.stringify(r.tools.filter(t=>t.status==='failed'))+' '+r.lastAnswer+' '+r.stop,r.approval);
    if (r.result==='미완수'&&task.output&&!fs.existsSync(path.join(root,r.folder,task.output))) {
@@ -144,7 +144,7 @@ try {
     await run(task,'opened-folders');
   }
  } else {
-  for (const task of (smoke?tasks.slice(0,1):taskId?tasks.filter(t=>t.id===taskId):tasks)) await run(task,'opened-folders');
+  for (const task of (taskId?tasks.filter(t=>t.id===taskId):smoke?tasks.slice(0,1):tasks)) await run(task,'opened-folders');
  }
  if (!smoke && !openedOnly) {
   for (const r of [...report.results]) {

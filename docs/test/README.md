@@ -455,8 +455,8 @@ are separate from CI in `docs/design/assets/assistant-question-1443/`.
 pnpm install --frozen-lockfile
 pnpm --filter @litzio/cli build # CLI와 production Editor/HTTP Host 함께 빌드
 pnpm exec tsx scripts/assistant-acceptance/run.mjs --smoke # gpt-6-luna low, 1회
-pnpm exec tsx scripts/assistant-acceptance/run.mjs --opened-only # 열린 폴더만, 11회
-pnpm exec tsx scripts/assistant-acceptance/run.mjs         # gpt-6.1-terra high, 11과제 각 1회
+pnpm exec tsx scripts/assistant-acceptance/run.mjs --opened-only # 열린 폴더만, 13회
+pnpm exec tsx scripts/assistant-acceptance/run.mjs         # gpt-6.1-terra high, 13과제 각 1회
 ```
 
 실행기는 빌드된 `packages/cli/dist/cli.mjs daemon run`으로 Host를 시작한다. 기존 빌드 표식이 비서의 `litzio`도 같은 JS CLI로 선택하며 소스 변환 캐시는 사용하지 않는다. 빌드가 없거나 빌드 입력보다 오래되면 AI 호출 전에 중단한다. 소스를 바꾼 뒤 위 빌드를 다시 실행한다. 종료 시 완수·미완수·판정 불가 합계와 과제별 시간·쓰기 방식·승인 요청 수를 콘솔 표로 출력한다.
@@ -473,7 +473,7 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 
 각 과제는 최대 10분 관찰하며 승인 요청에는 답하지 않고 승인 대기로 기록·중단한다.
 열린 폴더에서 미완수이고 권한·샌드박스 원인으로 분류된 과제만 새 자료·대화의 전체 접근으로 1회 비교한다.
-전체 실행은 최대 22회(열린 폴더 11회와 비교 최대 11회), smoke는 1회다. 반복 실행도 실제 호출 예산에 포함하므로 한 작업에서 총 30턴을 넘기지 않는다.
+전체 실행은 최대 26회(열린 폴더 13회와 비교 최대 13회), smoke는 1회다. 반복 실행도 실제 호출 예산에 포함하므로 한 작업에서 총 30턴을 넘기지 않는다.
 사용량·모델 용량 오류에서는 측정을 중단한다. 다른 공급자로 바꾸지 않는다.
 
 호출 수는 대화 스냅샷의 고유 tool 항목을 Host·공급자 편집·셸로 센다. 변경 항목 수는 `fileChanges`가 있는 항목 수이며
@@ -497,3 +497,9 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 이 테스트 또는 `test/helpers/external-plugin.ts`가 바뀌면 `prWindowsPackaged` 경로 규칙이 기존 Windows HTTP host/plugins 두 job을 PR에서도 선택한다. 일반 PR의 Windows·Desktop 지연과 merge queue 검사는 유지하며 aggregate도 같은 선택식을 사용한다. 새 수동 workflow는 없다.
 
 포함 npm의 압축 배포 후 packaged 검사는 일반 Host 기동에서 npm cache가 생성되지 않고, 외부 라이브러리 설치 시에만 Host 데이터의 cache가 준비됨을 함께 확인한다. 배포물에는 npm 디렉터리 없이 npm.tar.gz가 있어야 한다. 단위 검사는 동시 게시·cache 재사용·부분 archive 실패·이전 staging 잔재 무시·archive 변경을 보호하며 실제 offline npm 설치/bundle 검사를 대체하지 않는다.
+
+### 비서 화면 도구 제거 (#1360)
+
+`provider-connections`와 `assistant-host`는 저장 경로·접수 식별·질문 수명·Copilot 턴별 권한·첨부·문서 변경 보호를 유지하며 삭제한 여섯 도구가 Codex/MCP 목록에 없음을 확인한다. `assistant` 브라우저 시나리오는 활성 경로 직접 전송, 미저장 본문 미전송, 닫힌 패널의 질문과 일반 설정을 검사한다. 화면 전용 ACK·timeout·표시 Undo 검사는 해당 기능과 함께 제거한다. 문서 변경·되돌리기와 외부 변경 검사는 유지한다.
+
+수락 과제 1~11은 유지하고 메시지에 사용자가 지정한 작업 폴더를 명시한다. 과제 12는 활성 문서 경로로 지정 문서만 고치고, 13은 열린 탭 닫기 요청에 미지원·직접 조작을 안내하는지 사람이 확인한다. 각 `--smoke --task 12 --opened-only`, `--smoke --task 13 --opened-only`는 Luna low로 한 번만 호출하며 재시도하지 않는다. 자동 predicate는 수동 답변·파일 대조를 대체하지 않는다.

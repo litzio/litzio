@@ -24,8 +24,6 @@ function readOnly(call: HostToolCall) {
 }
 export function assistantToolValue(value: any, call: HostToolCall): any {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const screenAction = ["close_tabs","open_folder","close_folders"].includes(call.tool);
-  if (screenAction && kinds.includes(value.outcome)) value = {...value,errorKind:value.outcome};
   const receipt = value.receipt ?? value.result?.receipt;
   if (!value.error && !value.errorKind && !["failure", "uncertain"].includes(receipt?.outcome)) return value;
   const legacy = value.errorKind ?? value.result?.errorKind;
@@ -35,7 +33,7 @@ export function assistantToolValue(value: any, call: HostToolCall): any {
   const requestId = receipt?.requestId ?? value.requestId ?? args.requestId;
   let recovery: any;
   if (errorKind === "invalid_input") recovery = {action:"correct_input", instruction:"Correct the reported input using the tool schema and current data, then submit a new request."};
-  if (errorKind === "invalid_input" && (call.tool === "save_template" || call.tool === "create_document" && args.template !== undefined) && typeof (args.from ?? args.path) === "string" && !path.isAbsolute(args.from ?? args.path)) recovery = {action:"correct_input",instruction:"Resolve the relative path against the current opened folder, then submit a new request with an absolute path inside that opened folder. Read screen context if the current folders are needed; no permission change is required."};
+  if (errorKind === "invalid_input" && (call.tool === "save_template" || call.tool === "create_document" && args.template !== undefined) && typeof (args.from ?? args.path) === "string" && !path.isAbsolute(args.from ?? args.path)) recovery = {action:"correct_input",instruction:"Resolve the relative path against the current opened folder, then submit a new request with an absolute path inside that opened folder. Ask the user to specify the target folder if it is missing; no permission change is required."};
   if (errorKind === "conflict") recovery = {action:"reread", tool:"read_document",
     arguments:{path:args.path}, instruction:"Read current state, reanalyse intended changes and submit a new request with the new revision. Do not resend stale input."};
   if (errorKind === "conflict" && call.tool === "manage_plugins") recovery = {action:"reread",tool:"manage_plugins",arguments:{action:"list"},instruction:"Read current registrationId/digest, reanalyse and issue a new request."};
@@ -43,13 +41,11 @@ export function assistantToolValue(value: any, call: HostToolCall): any {
   if (errorKind === "forbidden") recovery = {action:"request_permission", instruction:call.tool === "invoke_plugin_operation"
     ? "Inspect manage_plugins list: use a declared assistant:true read or health operation. Private/write operations require their dedicated authorized workflow; broader turn permission cannot enable them. For service auth/permission errors ask the user to configure credentials or service access."
     : "Ask the user for Opened folders or Full access and an allowed target folder if required. never change permissions yourself."};
-  if (errorKind === "unavailable") recovery = {action:"recheck", tool:call.tool.includes("template") ? "list_templates" : call.tool.includes("plugin") ? "manage_plugins" : call.tool === "read_screen_context" ? "read_screen_context" : "list_documents",
-    ...(call.tool.includes("plugin") ? {arguments:{action:"list"}} : call.tool === "read_document" && typeof args.path === "string" ? {arguments:{path:path.dirname(args.path)}} : {}), instruction:"Safely recheck current availability/targets and choose an available path. A screen query requires the originating window. Ask only when user action is required."};
+  if (errorKind === "unavailable") recovery = {action:"recheck", tool:call.tool.includes("template") ? "list_templates" : call.tool.includes("plugin") ? "manage_plugins" : "list_documents",
+    ...(call.tool.includes("plugin") ? {arguments:{action:"list"}} : call.tool === "read_document" && typeof args.path === "string" ? {arguments:{path:path.dirname(args.path)}} : {}), instruction:"Safely recheck current availability/targets and choose an available path. Ask only when user action is required."};
   if (errorKind === "uncertain") recovery = {action:"observe", ...(requestId ? {requestId} : {}),
     ...(call.tool === "manage_plugins" ? {tool:"manage_plugins",arguments:{action:"list"}} : call.tool === "create_document" ? {tool:"read_document",arguments:{path:args.path}} : {}),
     instruction:"Do not replay the write. Query the existing requestId first when available; otherwise inspect the current target/result and reconcile it before proposing any new write. Missing status is not proof that nothing was written."};
-  if (screenAction && ["conflict","unavailable","uncertain"].includes(errorKind)) recovery = {action:errorKind === "uncertain" ? "observe" : "reread",tool:"read_screen_context",arguments:{},instruction:"Read the originating window's current state and reconcile completed/remaining targets. Never replay an uncertain action or dismiss unsaved-edit confirmation. Ask the user only for the remaining human decision."};
-  if (screenAction && errorKind === "forbidden") recovery = {action:"request_permission",tool:"read_screen_context",arguments:{},instruction:"Inspect remaining reasons and request the required window confirmation or Host/path access. Do not bypass unsaved-edit confirmation or change assistant permissions yourself."};
   return {...value, errorKind, receipt:{...receipt,outcome:errorKind === "uncertain" ? "uncertain" : "failure"}, recovery};
 }
 export function assistantToolResult(result: HostToolResult, call: HostToolCall): HostToolResult {

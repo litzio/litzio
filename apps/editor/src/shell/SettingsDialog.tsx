@@ -133,11 +133,6 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
   const [accentProblem, setAccentProblem] = useState(false);
   const [page, setPage] = useState(() => PAGE_BACKGROUNDS.find(page => page === document.documentElement.dataset.page) ?? readPageBackground());
   const [pageProblem, setPageProblem] = useState(false);
-  useEffect(() => {
-    const update = () => setPage(document.documentElement.dataset.page === "flat" ? "flat" : "paper");
-    window.addEventListener("litzio-display-changed", update);
-    return () => window.removeEventListener("litzio-display-changed", update);
-  }, []);
   const tableWrapDefault = useTableWrapDefault();
   const [tableWrapProblem, setTableWrapProblem] = useState(false);
   const [logBusy, setLogBusy] = useState(false);

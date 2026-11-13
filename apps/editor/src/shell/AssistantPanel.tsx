@@ -1,11 +1,9 @@
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
-import type { ScreenAction, ScreenActionResult, ScreenActionSnapshot, ScreenInfo, ScreenSnapshot } from "../../shared/assistant-screen.ts";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { hostLabel } from "../host-client.ts";
 import { createAssistantRequest } from "../assistant-api.ts";
 import { useHostClient, HostContext } from "../host-context.tsx";
-import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
@@ -34,9 +32,6 @@ export type AssistantLocalSubmission = { hostId: string; provider: AssistantSett
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
-  onScreen(): ScreenInfo;
-  onScreenAction(action: ScreenAction): Promise<ScreenActionResult>;
-  onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onUndoChange(path: string, undo: () => Promise<unknown>): Promise<boolean>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
@@ -44,7 +39,7 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay, onScreen, onScreenAction }: Props) {
+export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -52,15 +47,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const request = createAssistantRequest(client);
   const changeFocus = useRef<HTMLElement | null>(null);
   const [changeComparison, setChangeComparison] = useState<{ path: string; load(signal: AbortSignal): Promise<Comparison> }>();
-  // Match existing editor identities: getRandomValues also works on non-localhost HTTP.
-  const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
-  const actionHandler = useRef(onScreenAction); actionHandler.current = onScreenAction;
-  const actionReplies = useRef(new Map<string, ScreenActionResult>());
-  const screenHandler = useRef(onScreen); screenHandler.current = onScreen;
-  const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
-  const displayReplies = useRef(new Map<string, DisplayReply>());
-  const [displayUndoBusy, setDisplayUndoBusy] = useState(false);
-  const [displayUndone, setDisplayUndone] = useState<string[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AssistantSettings>();
   const [models, setModels] = useState<AiModels>();
@@ -234,7 +220,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       return retained.length === previous.length ? previous : retained;
     });
   }, [conversation, hostId, setSubmissions]);
-  const snapshotPending = useRef(false), receiptsPending = useRef(false), windowWorkPending = useRef(false);
+  const snapshotPending = useRef(false), receiptsPending = useRef(false);
   useEffect(() => {
     if (!observe || !observationReady || !enabled || setup) return;
     let alive = true, timer: ReturnType<typeof setTimeout> | undefined;
@@ -268,44 +254,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       const id = current.current?.id;
       if (!id || !valid()) { schedule(); return; }
       snapshotPending.current = true;
-      const pollStartedAt = performance.now();
-      try { const next = await request<AssistantConversation & DisplaySnapshot & ScreenSnapshot & ScreenActionSnapshot>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}&displayClient=${encodeURIComponent(displayClient)}`);
-        if (valid()) {
-          setConversation(next);
-          if (!windowWorkPending.current) {
-            windowWorkPending.current = true;
-            void (async () => {
-              if (valid() && next.screenActionRequest && displayRequestCurrent(next.screenActionRequest, pollStartedAt)) {
-                const command = next.screenActionRequest;
-                await request(ASSISTANT.conversationsRoute, { action: "screen-action-ack", id, displayClient, requestId: command.id });
-                if (!valid()) return;
-                let reply = actionReplies.current.get(command.id);
-                if (!reply) {
-                  try { reply = await actionHandler.current(command.action); }
-                  catch { reply = { outcome: "uncertain", completed: [], remaining: [{ target: "request", reason: "Window action failed; query screen state before retrying." }] }; }
-                  actionReplies.current.set(command.id, reply);
-                }
-                if (!valid()) return;
-                await request(ASSISTANT.conversationsRoute, { action: "screen-action-result", id, displayClient, requestId: command.id, reply });
-              }
-              if (valid() && next.screenRequest && displayRequestCurrent(next.screenRequest, pollStartedAt)) {
-                await request(ASSISTANT.conversationsRoute, { action: "screen-ack", id, displayClient, requestId: next.screenRequest.id });
-                if (!valid()) return;
-                await request(ASSISTANT.conversationsRoute, { action: "screen-result", id, displayClient, requestId: next.screenRequest.id, reply: screenHandler.current() });
-              }
-              if (valid() && next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
-                const command = next.displayRequest;
-                await request(ASSISTANT.conversationsRoute, { action: "display-ack", id, displayClient, requestId: command.id });
-                if (!valid()) return;
-                // An ACK can be lost; retransmit the reply, never apply the request twice.
-                let reply = displayReplies.current.get(command.id);
-                if (!reply) { reply = await displayHandler.current(command, performance.now()); displayReplies.current.set(command.id, reply); }
-                if (!valid()) return;
-                await request(ASSISTANT.conversationsRoute, { action: "display-result", id, displayClient, requestId: command.id, reply });
-              }
-            })().catch(error => { if (valid()) setProblem(i18n.t(error.message, { defaultValue: error.message })); }).finally(() => { windowWorkPending.current = false; });
-          }
-        }
+      try { const next = await request<AssistantConversation>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}`);
+        if (valid()) setConversation(next);
       }
       catch (error) { if (valid()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); }
       snapshotPending.current = false;
@@ -313,7 +263,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     };
     schedule();
     return () => { alive = false; clearTimeout(timer); };
-  }, [observe, conversation?.id, observationReady, enabled, setup, settingsRevision, displayClient]);
+  }, [observe, conversation?.id, observationReady, enabled, setup, settingsRevision]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!pending && resultFocus.current) {
@@ -337,7 +287,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     jumpToBottom();
     try {
-      const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, displayClient, id: conversation?.id, message: value,
+      const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, id: conversation?.id, message: value,
         provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
       if (isCurrent()) applySubmission(result, current.current === conversation);
     } catch (error) {
@@ -417,7 +367,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   };
   const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
   const submitAnswer = (question: AssistantUserInput, answers: import("../../shared/assistant.ts").AssistantUserInputAnswers) => run(async isCurrent => {
-    const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers, displayClient });
+    const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers });
     if (isCurrent()) setConversation(next);
   });
   const retrySubmission = (value: AssistantLocalSubmission, sendAsNew = false) => run(async isCurrent => {
@@ -436,7 +386,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       ? { ...value, receipt: { id: submissionId, status: "pending", conversationId: value.conversationId } } : item));
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId,
-        displayClient, id: value.conversationId, message: value.text, provider: value.provider, permissionMode, model, reasoningEffort: effort,
+        id: value.conversationId, message: value.text, provider: value.provider, permissionMode, model, reasoningEffort: effort,
         ...(provider === "copilot" && mode ? { mode } : {}), references: value.references.filter(file => file.kind !== "skill").map(file => file.path),
         skills: value.references.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders,
         document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
@@ -565,22 +515,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
                 });
               }}>{i18n.t("Undo creation")}</Button></div>
               {!deleted ? <small>{i18n.t("Undo deletes the created file.")}</small> : null}
-            </div>;
-          })}
-          {turn.items.map(item => {
-            const receipt = displayReceipt(item); if (!receipt) return null;
-            const undone = displayUndone.includes(receipt.requestId);
-            return <div key={item.id} className="assistant-result" data-testid="assistant-display-result">
-              <strong>{i18n.t(undone ? "Display settings restored" : "Display settings changed")}</strong>
-              {receipt.changed.map(key => <span key={key}>{i18n.t(displayLabels[key])}: {displayValueLabel(receipt.before[key])} → {displayValueLabel(receipt.after[key])}</span>)}
-              {receipt.error ? <small role="alert">{receipt.error}</small> : null}
-              <div><Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || displayUndoBusy || undone || !ready || !settings || !!setup} />}
-                onClick={() => {
-                  setDisplayUndoBusy(true); setProblem("");
-                  void request(ASSISTANT.conversationsRoute, { action: "display-undo", id: conversation!.id, displayClient, requestId: receipt.requestId })
-                    .then(() => setDisplayUndone(previous => [...previous, receipt.requestId]))
-                    .catch(error => setProblem(error.message)).finally(() => setDisplayUndoBusy(false));
-                }}>{i18n.t("Undo display change")}</TooltipTrigger><TooltipContent>{i18n.t("Undo is available in the originating window and Host session while these values are unchanged.")}</TooltipContent></Tooltip></div>
             </div>;
           })}
           {conversation.userInput?.turnId === turn.id && !turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
@@ -787,27 +721,4 @@ function AssistantChoice({ label, value, help, disabled, visible, choiceOpen, on
       </DropdownMenuItem>)}
     </DropdownMenuContent>
   </DropdownMenu>;
-}
-
-const displayLabels = {
-  theme: "Theme", uiLanguage: "Display language", documentWidth: "Document width", pageBackground: "Page style",
-  light: "Light", dark: "Dark", standard: "Standard document width", wide: "Wide document", paper: "Paper", flat: "Flat",
-} as const;
-function displayReceipt(item: AssistantConversation["turns"][number]["items"][number]): DisplayReceipt | null {
-  if (item.kind !== "tool" || item.text !== "change_display_settings") return null;
-  for (const part of item.toolResult?.contentItems ?? []) {
-    if (part.type !== "inputText" || !part.text) continue;
-    try {
-      const value = JSON.parse(part.text);
-      displayValues(value.before, true); displayValues(value.after, true);
-      if (typeof value.requestId === "string" && Array.isArray(value.changed) && value.changed.length && value.changed.every((key: keyof DisplaySettings) => Object.hasOwn(displayLabels, key) && Object.hasOwn(value.before, key))) return value;
-    } catch { /* Not a display receipt. */ }
-  }
-  return null;
-}
-
-function displayValueLabel(value: DisplaySettings[keyof DisplaySettings]) {
-  if (value === "ko") return "한국어";
-  if (value === "en") return "English";
-  return i18n.t(displayLabels[value]);
 }

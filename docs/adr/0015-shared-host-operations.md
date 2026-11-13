@@ -3,7 +3,9 @@
 > 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래 원격 관련 결정은 당시 기록이며 현재 제공 기능이 아니다.
 
 - Status: Accepted
-- Partially superseded by: [ADR-0021](0021-general-agent-assistant.md) — 1절의 필요 시 비서 도구 생성 결정을 CLI·스킬 기본과 창 연동 전용 도구로 대체하며, Host 공용 작업·CLI 필수는 유지한다.
+- Partially superseded by: [ADR-0021](0021-general-agent-assistant.md) — 1절의 필요 시 비서 도구 생성 결정을 CLI·스킬 기본으로 대체하며, Host 공용 작업·CLI 필수는 유지한다.
+
+> 2026-11-13 #1360: 창 조회·탭/폴더 조작·표시 설정 도구와 화면↔Host 요청 통로를 제거했다. ADR-0021 보완 결정을 따른다. Host 공용 작업·CLI 필수, 문서 변경 보기와 되돌리기는 유지한다. 아래 당시 결정의 본문은 보존한다.
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-04
 - Last verified: 2026-11-05 — #1150·ADR-0017 전환과 ADR-0020의 재개 시 비서 관리 개정을 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.

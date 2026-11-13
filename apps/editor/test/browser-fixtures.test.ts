@@ -64,15 +64,16 @@ test("fault injection permits only its expected network failures", () => {
   const missingThread = "Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5173/api/assistant/conversations";
   const missingSkills = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/assistant/skills";
   const lostResponse = missingThread.replace("404 (Not Found)", "503 (Service Unavailable)");
-  const undoConflict = missingThread.replace("404 (Not Found)", "400 (Bad Request)");
   const failedSettings = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/assistant/settings";
   const failedUsage = failedSettings.replace("/settings", "/diagnostics");
-  const expected = [missingThread, missingSkills, undoConflict, failedSettings, lostResponse, failedUsage];
+  const expected = [missingThread, missingSkills, failedSettings, lostResponse, failedUsage];
   assert.deepEqual(classifyConsoleErrors("assistant", expected).unexpected, []);
   assert.deepEqual(classifyConsoleErrors("assistant", expected).missing, []);
   assert.equal(classifyConsoleErrors("assistant", []).missing.length, expected.length);
   const unexpectedThreadFailure = missingThread.replace("404 (Not Found)", "500 (Internal Server Error)");
   assert.deepEqual(classifyConsoleErrors("assistant", [unexpectedThreadFailure]).unexpected, [unexpectedThreadFailure]);
+  const unexpectedUndoConflict = missingThread.replace("404 (Not Found)", "400 (Bad Request)");
+  assert.deepEqual(classifyConsoleErrors("assistant", [unexpectedUndoConflict]).unexpected, [unexpectedUndoConflict]);
   const uncaught = "Uncaught page error: PLUGIN_UI_RENDER_FIXTURE";
 });
 
