@@ -29,8 +29,9 @@ createInterface({ input: process.stdin }).on("line", line => {
     send({ id: pending.id, result: message }); return;
   }
   if (method === "fixture/cli") {
-    const diagnostics = new CliDiagnostics([params.command, ...params.args]);
-    const result = spawnSync(params.command, params.args, { encoding: "utf8", shell: process.platform === "win32", windowsHide: true, timeout: 10000 });
+    const args = [...params.args, ...(params.hostFromEnvironment ? ["--host", process.env.LITZIO_HOST_ORIGIN ?? ""] : [])];
+    const diagnostics = new CliDiagnostics([params.command, ...args]);
+    const result = spawnSync(params.command, process.platform === "win32" ? args.map(arg => `"${arg.replaceAll('"', '""')}"`) : args, { encoding: "utf8", shell: process.platform === "win32", windowsHide: true, timeout: 10000 });
     let stderr = result.stderr;
     if (result.error || result.status !== 0) {
       diagnostics.mark("spawnSync returned", { pid: result.pid, status: result.status, signal: result.signal,
@@ -38,7 +39,7 @@ createInterface({ input: process.stdin }).on("line", line => {
         exitAndClose: "not observable separately with spawnSync" });
       stderr = `${stderr ?? ""}\n${diagnostics.format(result.stdout ?? "", stderr ?? "")}`;
     }
-    send({ id, result: { status: result.status, stdout: result.stdout, stderr, path: process.env.PATH } }); return;
+    send({ id, result: { status: result.status, stdout: result.stdout, stderr, path: process.env.PATH, hostOrigin: process.env.LITZIO_HOST_ORIGIN ?? null } }); return;
   }
   if (method === "fixture/tool") {
     const callId = randomUUID(), turn = threads[params.threadId].turns.at(-1);

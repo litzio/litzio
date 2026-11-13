@@ -20,6 +20,8 @@
 - 그 밖의 실행 권한은 공급자 승인 카드로 요청한다. 권한 변경 질문으로 대신하거나 조직 정책을 셸로 우회하지 않는다.
 
 ## 플러그인
+- Host 호출에는 이 비서를 소유한 listener의 LITZIO_HOST_ORIGIN을 명시한다. PowerShell: `litzio plugins list --host $env:LITZIO_HOST_ORIGIN --json`, POSIX: `litzio plugins list --host "$LITZIO_HOST_ORIGIN" --json`. 값이 없으면 대상 Host 주소가 없다고 알리고 중단한다. 주소 추측·포트 탐색·다른 daemon으로 전환하지 않는다.
+- 공개 operation은 `litzio operation invoke <plugin.operation> --input <json-file> --host <위 환경변수> --json`으로 호출한다. 사용자 승인과 셸·네트워크 및 CLI guard가 허용하는 권한에서 공개 쓰기도 가능하다. 전용 invoke_plugin_operation 도구는 읽기만 제공하며 그 거부를 권한 변경으로 우회하지 않는다. CLI 입력 JSON은 artifact 밖에 둔다.
 - 제작 전 열린 파일을 먼저 보고 빠진 조건만 쉬운 선택지의 질문 카드로 묻는다(카드가 없는 연결은 메시지). 여러 일을 묶었다면 파일로 잇는 작은 플러그인 안을 제시한다. 복잡한 일은 입력·출력·화면·단계·확인 방법을 리치오 계획 문서로 남기고 사용자 수정을 다시 읽는다. 충분한 조건에는 되묻지 않고 만들며 간단한 화면에 계획 문서를 강요하지 않는다. 세부는 제작 스킬을 따른다.
 - 새 코드 화면은 신분증·host.mjs·screen.jsx로 만든다. 파일 경로는 LITZIO_PLUGINS 환경변수와 ID로 계산하고, 생성·수정 뒤 plugins install <id> --host <origin> --json을 쓴다. 열린 폴더 권한에서 CLI guard가 막으면 manage_plugins {action:"install",id}로 같은 작업을 호출한다. guard를 우회하지 않는다.
 - manage_plugins로 대상 Host의 목록·스키마·등록 정보를 확인하고 관리한다. invoke_plugin_operation은 선언된 assistant:true 읽기와 health check에 쓴다. 비교 대상은 설정이 아닌 operation input에 넣는다.

@@ -40,7 +40,11 @@ Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한�
 
 ## 제작과 설치
 
-CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `validate`, `dependencies`, `bundle`, `install`, `list`, `register`, `trust`, `enable`, `disable`, `reload`, `unregister`, `settings`, secret 상태/삭제는 공용 Host 작업이다. 명시적 --host를 사용한다. query/file 제작 템플릿은 없다. 공개 읽기 호출은 `operation invoke <id> --input <json-file> --host <origin> --json`이다.
+CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `validate`, `dependencies`, `bundle`, `install`, `list`, `register`, `trust`, `enable`, `disable`, `reload`, `unregister`, `settings`, secret 상태/삭제는 공용 Host 작업이다. 명시적 --host를 사용한다. query/file 제작 템플릿은 없다. 공개 작업 호출은 `operation invoke <id> --input <json-file> --host <origin> --json`이다. 승인되고 셸·네트워크 및 CLI guard가 허용하는 비서는 공개 쓰기 작업도 CLI로 실행할 수 있다. 전용 `invoke_plugin_operation` 도구는 assistant:true 읽기·healthCheck만 제공하며 쓰기를 허용하지 않는다. scope:folder 작업은 아직 지원하지 않는다.
+
+loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정규화된 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 비서는 이를 `--host`에 명시한다. CLI의 필수 주소 검증·실패 시 재실행 금지는 유지한다. origin이 없는 환경에서는 부모의 값을 상속하지 않으며 주소가 없다고 보고하고 중단한다. 연결 수명은 [비서 계약](main-agent-v1.md)을 따른다.
+
+비서 CLI의 자동 주소 전달은 기존 HTTP 허용 목록을 바꾸지 않는다. non-loopback·wildcard·IPv4-mapped IPv6 bind에는 주소를 전달하지 않는다. 이 개발/검사용 구성에서는 자동 주소를 필요로 하는 비서의 Host 대상 CLI 호출만 주소 없음으로 분명히 실패하며, public-origin이나 다른 loopback 주소를 추측하지 않는다. 수동으로 명시한 CLI --host와 기존 HTTP 허용 판정은 유지한다.
 
 npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 제작 시 외부 라이브러리를 bundle하고 실행 시 네트워크 설치를 하지 않는다. 레지스트리·프록시는 기존 npm 설정을 사용한다.
 
@@ -49,3 +53,5 @@ npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 �
 SDK는 manifest·schema 경계를, Host 단위 검사는 process·drain·crash·timeout·설정·secret·스킬·신뢰·reload·출력 경계를 보호한다. HTTP/Vite는 같은 작업의 transport와 UI를, packaged 외부 SDK helper는 checkout 없는 SDK resolve·설치·npm·bundle·receipt를 검사한다. 화면의 공식 새 문서 저장은 [화면 계약](plugin-screens-v1.md)을 따른다. fixture/localhost 통과를 실제 원격 PC·사내 서비스·실제 계정 수락으로 표현하지 않는다.
 
 긴 처리는 plugin process에서 접수 후 진행하며 화면은 짧은 호출로 상태를 조회할 수 있다. 비서·CLI도 같은 상태를 알아야 하면 assistant:true 공개 읽기 operation으로 진행/결과를 선언한다. status()의 {available,message}와 작업 기록은 별개다. 10초 한계를 늘리는 변경이나 공용 K1 job store를 추가하지 않았다. 실제 제작의 초기 단일 호출 timeout과 후속 접수/조회 시험은 [3단계 기록](../reviews/plugin-screen-code-1592.md#3단계-협의-절차와-제작-시험)을 따른다.
+
+제작 안내는 상태 조회의 `{id,state,message,result?}` 관례를 제공한다. state는 queued/running/succeeded/failed/cancelled/not_found이며 not_found는 조회 기록이 없다는 뜻으로, 쓰기가 없었다는 증거가 아니다. 업무 id는 화면 invoke가 반환하는 result 안에 넣는다. 상태·취소·재시작 복구는 플러그인 소유이며 공용 상태 파일 형식이나 job 엔진을 만들지 않는다. 기존 문서의 지원 의미 부분 편집은 inspect → revision 조건의 한 작업짜리 apply-batch JSON → 다시 inspect로 결과 revision을 확인한다. 제한 권한의 쓰기 CLI guard는 그대로 적용한다.
