@@ -1,0 +1,16 @@
+{
+  "selfReview": "Reused FolderDialog tokens, focus ring, spacing, local scrolling and Use action. All controls visible with no horizontal overflow at 640.",
+  "fixture": "Synthetic scratch PDF, native document and output folder",
+  "scenario": "plugin-screen-code",
+  "widths": [
+    1440,
+    640
+  ],
+  "theme": "dark",
+  "unverified": [
+    "Installed Desktop",
+    "User visual approval",
+    "Actual plugin conversion workload"
+  ],
+  "privacy": "Host account, sidebar folder heading, path fields and result output masked during browser capture"
+}
