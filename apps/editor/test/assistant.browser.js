@@ -307,6 +307,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.press('Control+Shift+Y');
   const panel = page.getByTestId('assistant-panel');
   await expect(panel).toBeVisible();
+  await expect(panel.locator('.assistant-welcome')).toContainText('With edit access, documents are edited directly.');
   const message = panel.getByRole('textbox', { name: 'Message assistant' });
   await expect(message).toBeDisabled();
   releaseSettings(); settingsGate = undefined;
@@ -379,6 +380,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     await expect(permissionButton).toBeFocused();
     await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Opened folders allows folder edits and network access');
     await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Provider requests beyond these defaults ask for approval');
+    await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Document edits apply directly; supported changes can be viewed and undone.');
     await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Your organization does not allow Full access');
   } catch (error) {
     // Capture only on failure; keep the original assertion and its timeout.
