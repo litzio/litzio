@@ -14,7 +14,7 @@ export const ASSISTANT = {
 export type AssistantConversationInfo = { id: string; provider?: AiProvider; permissionMode?: AssistantSettings["permissionMode"]; permissionFallback?: boolean; title: string; folders: string[]; createdAt: number; updatedAt: number };
 export type AssistantSkill = { displayName?: string; name: string; path: string; description: string };
 export type AssistantSkills = { skills: AssistantSkill[]; errors: { path: string; message: string }[] };
-export type AssistantFileReference = { path: string; name: string; kind: string };
+export type AssistantFileReference = { path: string; name: string; kind: string; unavailable?: boolean };
 export type AssistantConversationItem = { id: string; submissionId?: string; userMessageSource?: "host" | "provider-live" | "provider-history"; kind: "user" | "assistant" | "reasoning" | "tool" | "plan" | "question"; text: string; fileChanges?: string[]; work?: { kind: string; detail?: string; truncated?: boolean }; question?: AssistantQuestionRecord; questionAnswer?: { requestId: string | number; turnId: string; answers: AssistantUserInputAnswers }; references?: AssistantFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
 export type AssistantUserInput = { requestId: string | number; turnId: string; questions: {
   id: string; header: string; question: string; isOther: boolean; isSecret: boolean;

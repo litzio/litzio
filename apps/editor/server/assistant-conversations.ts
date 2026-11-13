@@ -1,3 +1,4 @@
+import { AssistantAttachments } from "./assistant-attachments.ts";
 import { AssistantFileChanges } from "./assistant-file-changes.ts";
 import { codexApproval } from "./assistant-approvals.ts";
 import { assistantToolFailure, assistantToolResult } from "./assistant-tool-results.ts";
@@ -25,10 +26,11 @@ import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copi
 import { AgentDisplayRequests, displayTools } from "./assistant-display-tools.ts";
 import { questionTool } from "./assistant-question-tool.ts";
 
-type ConversationIndexEntry = AssistantConversationInfo & { copilotCliReasoningEffort?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
+type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import("./assistant-attachments.ts").AttachmentRecord[]; copilotCliReasoningEffort?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
 
 /** Providers own message content. Litzio's index also owns correlated question interactions. */
 export class AssistantConversations {
+  readonly attachments: AssistantAttachments;
   private readonly copilotRoot = copilotLogRoot();
   readonly screenActions = new AgentScreenActionRequests();
   readonly screen = new AgentScreenRequests();
@@ -83,6 +85,7 @@ export class AssistantConversations {
     return result;
   }
   private dispatch(input: AssistantConversationInput, conversation: AssistantConversation) {
+    this.attachments.claim(input.references ?? [], conversation.id);
     const entry = input.submissionId ? this.submissions.get(input.submissionId) : undefined;
     if (entry) { entry.dispatched = true; entry.receipt.conversationId = conversation.id; }
   }
@@ -95,6 +98,7 @@ export class AssistantConversations {
   private reviewUsageWrites = new Set<Promise<unknown>>();
   private loaded = new Set<string>();
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
+    this.attachments = new AssistantAttachments(connection.cwd);
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
@@ -206,10 +210,13 @@ export class AssistantConversations {
   private save(conversation: AssistantConversation) {
     const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback } = conversation;
     const questions = conversation.turns.flatMap(turn => turn.items.filter(item => item.question).map(item => ({ itemId: item.id, text: item.text, question: item.question! })));
-    const entries = this.list().filter(entry => entry.id !== id);
+    const previous = this.list();
+    const attachments = this.attachments.owned(id);
+    const entries = previous.filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
       writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}),
+        ...(attachments?.length ? { attachments } : {}),
         ...(questions.length ? { questions } : {}),
         ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
@@ -217,6 +224,7 @@ export class AssistantConversations {
   }
   remove(id: string) {
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Assistant response before deleting the conversation.");
+    this.attachments.remove(id);
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }
@@ -338,7 +346,7 @@ export class AssistantConversations {
       return resolved;
     }))];
     const referenceMode = existing?.turns.some(turn => turn.status === "inProgress") ? existing.permissionMode : settings.permissionMode;
-    let references = checkedReferences(input.references ?? [], folders, this.access, referenceMode);
+    let references = checkedReferences(input.references ?? [], folders, this.access, referenceMode, this.attachments, input.id);
     if (input.document) {
       if (typeof input.document.path !== "string") throw new Error("Invalid document context.");
       accessPath(input.document.path, this.access);
@@ -381,7 +389,7 @@ export class AssistantConversations {
         this.loaded.add(conversation.id);
         this.save(conversation);
       }
-      references = checkedReferences(input.references ?? [], folders, this.access, active ? conversation!.permissionMode : settings.permissionMode);
+      references = checkedReferences(input.references ?? [], folders, this.access, active ? conversation!.permissionMode : settings.permissionMode, this.attachments, conversation.id);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
       const context = { permissionMode: active ? conversation!.permissionMode : settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
@@ -400,7 +408,7 @@ export class AssistantConversations {
           if (directory) writableRoots.push(directory);
         }
         const start = () => {
-          checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode);
+          checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode, this.attachments, conversation?.id);
           context.permissionMode = settings.permissionMode;
           messages[1] = { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] };
           return this.connection.client.request("turn/start", { threadId: conversation!.id, input: messages,
@@ -457,6 +465,7 @@ export class AssistantConversations {
     this.closed = true;
     this.fileChanges.clear();
     for (const conversation of this.conversations.values()) this.expireQuestion(conversation);
+    this.attachments.discardDrafts();
     this.mcp.close();
     this.screen.cancel(); this.screenActions.cancel(); this.display.cancel();
     await Promise.allSettled(this.reviewUsageWrites);
@@ -589,7 +598,7 @@ export class AssistantConversations {
         conversation.copilot = copilotOptions(session);
         conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
       }
-      references = checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode);
+      references = checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode, this.attachments, conversation?.id);
       const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), screen: { queryTool: "read_screen_context", available: Boolean(displayClient) }, folders, document: input.document ? { path: input.document.path } : null, reviewWorkspace: input.reviewWorkspace ? {path:input.reviewWorkspace.path} : null, references };
       const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
       this.dispatch(input, conversation);
@@ -603,7 +612,7 @@ export class AssistantConversations {
         turn.status = "failed"; turn.error = message;
         // Turn completion failure does not revoke admission.
       };
-      void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUse request_litzio_user_input through the Litzio Host MCP server for structured questions. Native ACP question extensions are not supported.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] })).then(result => {
+      void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Pasted images are also supplied as ACP image inputs.") + "\nUse request_litzio_user_input through the Litzio Host MCP server for structured questions. Native ACP question extensions are not supported.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }, ...this.attachments.images(references)] })).then(result => {
         if (result.usage) {
           const { totalTokens, inputTokens, outputTokens, thoughtTokens, cachedReadTokens, cachedWriteTokens } = result.usage;
           conversation!.copilotUsage = { ...conversation!.copilotUsage, prompt: { totalTokens, inputTokens, outputTokens, thoughtTokens, cachedReadTokens, cachedWriteTokens } };
@@ -904,11 +913,13 @@ function pluginActivityText(item: any): string | null {
 function turnFrom(turn: any, userMessageSource: AssistantConversationItem["userMessageSource"] = "provider-live"): AssistantConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map((item: any) => itemFrom(item, userMessageSource, turn.id)).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }
 
 /** Restricted turns reuse Explorer visibility; full access still rejects links and respects Host Roots. */
-function checkedReferences(value: string[], folders: string[], access: FileAccess, permissionMode: string | undefined) {
+function checkedReferences(value: string[], folders: string[], access: FileAccess, permissionMode: string | undefined, attachments?: AssistantAttachments, owner?: string) {
   if (!Array.isArray(value)) throw new Error("Invalid file references.");
   const scope = folders.length ? new RootAccess(folders) : null;
   const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
   for (const requested of value) {
+    const attachment = attachments?.reference(requested, owner);
+    if (attachment) { if (!references.some(file => file.path === attachment.path)) references.push(attachment); continue; }
     if (permissionMode === "full-access") {
       if (typeof requested !== "string" || !path.isAbsolute(requested)) throw new Error("Invalid file reference path.");
       const resolved = accessPath(requested, access);
@@ -966,6 +977,10 @@ function displayToolResult(result:NonNullable<AssistantConversationItem["toolRes
 export function conversationForDisplay(conversation:AssistantConversation):AssistantConversation {
   let changed=false;
   const turns=conversation.turns.map(turn=>({...turn,items:turn.items.map(item=>{
+    if(item.references?.length) {
+      changed=true;
+      item={...item,references:item.references.map(file=>({...file,unavailable:!existsSync(file.path)}))};
+    }
     if(!item.toolResult)return item;
     const result=displayToolResult(item.toolResult);if(result===item.toolResult)return item;
     changed=true;return {...item,toolResult:result};

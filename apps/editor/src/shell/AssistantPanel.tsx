@@ -609,7 +609,23 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         {(skillProblem || skillCatalog?.errors.length) ? <p role="alert">{i18n.t("Could not load some skills.")} {skillProblem || skillCatalog?.errors.map(error => `${error.path}: ${error.message}`).join("; ")}</p> : null}
         {!matches.length && skillCatalog ? <p>{i18n.t("No matching skills.")}</p> : null}
       </div> : null}
-      <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
+      <textarea onPaste={event => {
+        const images = Array.from(event.clipboardData.items).filter(item => item.kind === "file" && item.type.startsWith("image/")).map(item => item.getAsFile()).filter((file): file is File => !!file);
+        if (!images.length) return;
+        event.preventDefault();
+        void run(async isCurrent => {
+          for (const image of images) {
+            const data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result).split(",")[1]);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(image);
+            });
+            const file = await request<AssistantFileReference>(ASSISTANT.conversationsRoute, { action: "upload-image", id: conversation?.id, mime: image.type, data });
+            if (isCurrent()) addReference(file);
+          }
+        });
+      }} ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
         setReferences(previous => {
           const remaining = previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name));
@@ -711,7 +727,7 @@ function samePath(a: string, b: string) {
 function ReferenceChips({ references, remove }: { references: AssistantFileReference[]; remove?(path: string): void }) {
   if (!references.length) return null;
   return <span className="assistant-references">{references.map(file => <span className="assistant-reference" key={file.path}>
-    <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{file.kind === "skill" ? `$${file.name}` : file.name}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
+    <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{file.kind === "skill" ? `$${file.name}` : file.name}{file.unavailable ? ` · ${i18n.t("Unavailable")}` : ""}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
     {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
   </span>)}</span>;
 }

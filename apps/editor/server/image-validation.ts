@@ -6,10 +6,10 @@ export class ImageValidationError extends Error {
 const UNSUPPORTED = `Only ${ASSET_FORMATS} images are supported.`;
 
 /** MIME plus the complete container of that format; no SVG, decoder, or image transformation. */
-export function validateImage(mime: string, bytes: Buffer): asserts mime is AssetMime {
+export function validateImage(mime: string, bytes: Buffer, maxBytes = MAX_ASSET_BYTES): asserts mime is AssetMime {
   if (!isAssetMime(mime)) throw new ImageValidationError(UNSUPPORTED);
   if (bytes.length === 0) throw new ImageValidationError("The image is empty.");
-  if (bytes.length > MAX_ASSET_BYTES) throw new ImageValidationError(`Image exceeds the ${MAX_ASSET_BYTES / 1024 / 1024} MiB limit.`, 413);
+  if (bytes.length > maxBytes) throw new ImageValidationError(`Image exceeds the ${maxBytes / 1024 / 1024} MiB limit.`, 413);
   const format = FORMATS[mime];
   if (!format.complete(bytes)) throw new ImageValidationError(`The image is not a complete ${format.name} file.`);
 }

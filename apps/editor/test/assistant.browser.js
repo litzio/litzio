@@ -198,6 +198,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.press('Shift+Enter');
   expect(await editor.evaluate(el => el.editor.getJSON().content.find(node => node.type === 'paragraph').content.at(-1).type)).toBe('hardBreak');
   const submittedAnswers = [];
+  let pasted = 0;
+  const pastedPaths = [];
   const sent = [], conversations = new Map(), receipts = new Map();
   let screenRequest, screenReply, screenReplyGate;
   let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
@@ -213,6 +215,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
+      if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image' } }); }
       if (body.action?.endsWith('-ack')) return route.fulfill({ json: { acknowledged: true } });
       if (body.action === 'screen-result') { screenReply = body.reply; await screenReplyGate; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
       if (body.action === 'display-result') {
@@ -471,6 +474,41 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await message.click(); await message.press('ControlOrMeta+A'); await message.press('Backspace');
   await page.keyboard.type('What changed in the current document?', { delay: 30 });
   await expect(draftChips).toHaveCount(1);
+  const pasteImages = async (count = 1) => message.evaluate((element, count) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', 'screenshot companion text');
+    for (let n = 0; n < count; n++) data.items.add(new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9S8AAAAASUVORK5CYII='), c => c.charCodeAt(0))], 'image.png', { type: 'image/png' }));
+    const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
+    element.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, count);
+  expect(await pasteImages()).toBe(true);
+  await expect(draftChips).toHaveCount(2);
+  await draftChips.filter({ hasText: 'clipboard-' }).getByRole('button').click();
+  await expect(draftChips).toHaveCount(1);
+  expect(await pasteImages(3)).toBe(true);
+  await expect(draftChips).toHaveCount(4);
+  await expect(message).toHaveValue('What changed in the current document?');
+  expect(await message.evaluate(element => {
+    const data = new DataTransfer(); data.setData('text/plain', 'plain text');
+    const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
+    element.dispatchEvent(event); return event.defaultPrevented;
+  })).toBe(false);
+  if (screenshots) {
+    for (const theme of ['light', 'dark']) {
+      await page.getByRole('button', { name: /^(Settings|설정)$/, exact: true }).click();
+      await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption(theme);
+      await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+      await panel.locator('textarea').focus();
+      await page.screenshot({ path: `tmp/1589-${theme}-1440-ko.png`, mask: [page.locator(".sidebar-host-account")] });
+    }
+    await page.setViewportSize({ width:640,height:900 });
+    await page.screenshot({ path:'tmp/1589-dark-640-ko.png' });
+    await page.setViewportSize({ width:1440,height:1000 });
+    await page.getByRole('button', { name:'설정',exact:true }).click();
+    await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  }
   sendGate = new Promise(resolve => { releaseSend = resolve; });
   sendReplyGate = new Promise(resolve => { releaseSendReply = resolve; });
   await panel.getByRole('button', { name: 'Send message', exact: true }).click();
@@ -518,8 +556,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await editor.focus(); await page.keyboard.press('ControlOrMeta+z');
   await message.focus();
   expect(sent[0].responseLanguage).toBeUndefined();
-  expect(sent[0].references).toEqual([assistantFixture.document]);
-  await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(1);
+  expect(sent[0].references).toEqual([assistantFixture.document, ...pastedPaths.slice(1)]);
+  await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(4);
   await expect(draftChips).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeDisabled();
   await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
