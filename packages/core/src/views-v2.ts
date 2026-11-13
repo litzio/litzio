@@ -1,7 +1,5 @@
 import { z } from "zod";
 import { Validator as InterpretedValidator } from "@cfworker/json-schema";
-import { Ajv } from "ajv";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import { VIEW_LIMITS as V1_LIMITS, viewSchema, validateQueryBindings, evaluateQueryRows, type ViewOperation, operationSourceSchema, queryLayoutSchema } from "./views.ts";
 export const VIEW_LIMITS = { ...V1_LIMITS, inputs: 8 } as const;
 export type { ViewOperation } from "./views.ts";
@@ -67,24 +65,9 @@ export function compilePortableViewInputSchema(schema: Record<string, unknown>):
   return check;
 }
 
-/** Compile without coercion/default insertion. The caller's original schema remains authoritative. */
-export function compileViewInputSchema(schema: Record<string, unknown>) {
-  const inspect = (v: unknown): void => {
-    if (!v || typeof v !== "object") return;
-    for (const [k, item] of Object.entries(v)) {
-      if (k === "$ref" && (typeof item !== "string" || !item.startsWith("#/"))) throw new Error("Only local JSON Schema references are supported");
-      inspect(item);
-    }
-  };
-  inspect(schema);
-  const Validator = schema.$schema === "https://json-schema.org/draft/2020-12/schema" ? Ajv2020 : Ajv;
-  const ajv = new Validator({ strict: true, allErrors: true });
-  ajv.addKeyword({ keyword: "secret", schemaType: "boolean", valid: true });
-  ajv.addFormat("date-time", v => z.iso.datetime({ precision: 3 }).safeParse(v).success);
-  ajv.addFormat("date", v => z.iso.date().safeParse(v).success);
-  ajv.addFormat("password", () => true);
-  return ajv.compile(schema);
-}
+import { compileOperationInputSchema as compileViewInputSchema } from "./operation-input.ts";
+export { compileOperationInputSchema as compileViewInputSchema } from "./operation-input.ts";
+
 function record(value: unknown): Record<string, any> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
 }
@@ -236,7 +219,8 @@ export function createCatalogV2(operations: readonly ViewOperation[] = []) {
     rowSchema: Object.fromEntries(Object.entries(op.rowSchema).filter(([, p]) => !p.secret)) })) };
 }
 // Snapshot-local Core read-model path; never a DOM node or ProseMirror position.
-export const documentTargetRefSchema = z.strictObject({ path: z.array(z.number().int().nonnegative()), documentRevision: opaque, documentHash: opaque });
+import { documentTargetRefSchema } from "./document-target.ts";
+export { documentTargetRefSchema } from "./document-target.ts";
 export const reviewBaselineSchema = z.strictObject({ documentRevision: opaque, proposalRevision: opaque, sourceRevision: opaque.optional(), mappingRevision: opaque.optional() });
 export const reviewBundleSchema = z.strictObject({ bundleRef: opaque, generation: opaque, documentRef: opaque,
   documentRevision: opaque, documentHash: opaque, sourceRevision: opaque.optional(), mappingRevision: opaque.optional() });
@@ -267,7 +251,7 @@ export const reviewProposalSchema = z.strictObject({ id: opaque, kind: id, targe
   if (new Set(p.actions.map(a => a.action)).size !== p.actions.length || p.actions.some(a => a.allowed && (a.action === "approve" || a.action === "reject") && p.state !== "pending" || a.allowed && a.action === "undo" && p.state !== "approved")) ctx.addIssue({ code: "custom", message: "Action incompatible with proposal state" });
 });
 export const REVIEW_LIMITS = { pageRegions: 2000, items: 2000, jsonBytes: 1048576, imageBytes: 16777216, imagePixels: 25000000 } as const;
-export type DocumentTargetRef = z.infer<typeof documentTargetRefSchema>;
+export type { DocumentTargetRef } from "./document-target.ts";
 export type ReviewBaseline = z.infer<typeof reviewBaselineSchema>;
 export type ReviewBundle = z.infer<typeof reviewBundleSchema>;
 export type ReviewPage = z.infer<typeof reviewPageSchema>;

@@ -1,4 +1,4 @@
-import type { ViewRow } from "@litzio/core/views";
+export type TableRow = Record<string, string | number | boolean | null>;
 export type TableField = {
   type: "string" | "number" | "boolean";
   date?: boolean;
@@ -7,20 +7,20 @@ export type TableField = {
 export type TableFilter = {
   mode: string;
   text: string;
-  values: ViewRow[string][];
+  values: TableRow[string][];
   min: string;
   max: string;
   empty: boolean;
 };
 const empty = (v: unknown) => v === null || v === "" || v === undefined;
 export function tableRows(
-  rows: ViewRow[],
+  rows: TableRow[],
   filters: Record<string, TableFilter>,
   sort: { column: string; descending: boolean } | undefined,
   fields: Record<string, TableField>,
   locale: string,
 ) {
-  const number = (v: ViewRow[string], field: TableField) =>
+  const number = (v: TableRow[string], field: TableField) =>
     field.date ? Date.parse(String(v)) : Number(v);
   return rows
     .map((row, index) => ({ row, index }))

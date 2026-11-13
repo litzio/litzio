@@ -9,7 +9,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip.tsx";
 import { Input } from "./ui/input.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
-import type { ViewRow } from "@litzio/core/views";
+import type { TableRow } from "./data-table-model.ts";
 import {
   tableRows,
   type TableField,
@@ -37,12 +37,12 @@ export function DataTable({
   heading,
   tools,
 }: {
-  rows: ViewRow[];
+  rows: TableRow[];
   columns: readonly string[];
   fields?: Record<string, TableField>;
   labels?: Record<string, string>;
   title: string;
-  label?(column: string, value: ViewRow[string]): string;
+  label?(column: string, value: TableRow[string]): string;
   loadedOnly?: boolean;
   coverage?: TableCoverage;
   heading?: ReactNode;
@@ -221,7 +221,7 @@ function ColumnFilter({
 }: {
   name: string;
   field: TableField;
-  rows: ViewRow[];
+  rows: TableRow[];
   column: string;
   value?: TableFilter;
   apply(value?: TableFilter): void;

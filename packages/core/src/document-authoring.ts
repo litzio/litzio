@@ -5,7 +5,7 @@ import { createDocument, parseNativeDocument, serializeNativeDocument } from "./
 import { updateDocumentTitle } from "./myst/title.ts";
 import * as operations from "./operations.ts";
 import { getEditableDocument } from "./editable.ts";
-import type { DocumentTargetRef } from "./views-v2.ts";
+import type { DocumentTargetRef } from "./document-target.ts";
 
 export const DOCUMENT_AUTHORING_LIMITS = { bytes: 4 * 1024 * 1024, inputs: 5000, blocks: 5000, string: 16384, tableRows: 100, tableColumns: 32 } as const;
 /** Canonical authoring/serialization semantics used by portable derived snapshots. */
