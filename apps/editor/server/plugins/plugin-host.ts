@@ -20,6 +20,38 @@ import { hostPaths } from "../host-paths.ts";
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
 
 import { PluginJobs } from "./jobs.ts";
+
+type ManifestIssue = { path: PropertyKey[]; code: string; message: string; issues?: ManifestIssue[] };
+type ValidationDiagnostic = { file: string; line: number | null; column: number | null; kind: string; path?: string; message?: string; code?: string };
+function validationDiagnostics(error: unknown, file: string): ValidationDiagnostic[] {
+  const value = error as { name?: string; message?: string; loc?: { line: number; column: number }; jsonLocation?: { line: number; column: number }; issues?: ManifestIssue[] };
+  if (value?.name === "ZodError" && value.issues) {
+    const expand = (issues: ManifestIssue[], prefix: PropertyKey[] = []): ValidationDiagnostic[] => issues.flatMap(issue => {
+      const parts = [...prefix, ...issue.path];
+      if (issue.code === "invalid_key" && issue.issues) return expand(issue.issues, parts);
+      return [{ file, line: null, column: null, kind: "Manifest schema violation", path: parts.reduce<string>((text, part) => typeof part === "number" ? `${text}[${part}]` : text ? `${text}.${String(part)}` : String(part), "") || "$", message: issue.message, code: issue.code }];
+    });
+    return expand(value.issues);
+  }
+  const location = /line (\d+) column (\d+)/.exec(value?.message ?? "");
+  return [{ file, line: value?.jsonLocation?.line ?? value?.loc?.line ?? (location ? Number(location[1]) : null), column: value?.jsonLocation?.column ?? (value?.loc ? value.loc.column + 1 : location ? Number(location[2]) : null), kind: error instanceof SyntaxError ? file === "host entry" ? "JavaScript syntax error" : "JSON syntax error" : "Artifact or SDK/schema validation failed", ...(error instanceof SyntaxError ? { path: "$", message: "Invalid syntax; correct the indicated location.", code: "invalid_syntax" } : {}) }];
+}
+function readArtifactJson(file: string): unknown {
+  const source = readFileSync(file, "utf8");
+  try { return JSON.parse(source); }
+  catch (error) {
+    if (error instanceof SyntaxError) {
+      const match = /position (\d+)/.exec(error.message);
+      const offset = match ? Number(match[1]) : /end of JSON/i.test(error.message) ? source.length : undefined;
+      if (offset !== undefined) {
+        const lines = source.slice(0, offset).split("\n");
+        Object.assign(error, { jsonLocation: { line: lines.length, column: lines.at(-1)!.length + 1 } });
+      }
+    }
+    throw error;
+  }
+}
+
 import { PluginReviews } from "./reviews.ts";
 import { GeneratedDocuments } from "./generated-documents.ts";
 
@@ -140,12 +172,12 @@ export class PluginHost {
     }
     this.artifacts.delete(directory);
     inspecting("litzio-plugin.json");
-    const manifest = validateManifest(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")));
+    const manifest = validateManifest(readArtifactJson(path.join(directory, "litzio-plugin.json")));
     if (manifest.contributes.skills.length) inspecting("assistant skill");
     validateAssistantSkills(directory, manifest);
     if (manifest.icon) { inspecting(manifest.icon); readPluginIcon(directory, manifest.icon); }
     inspecting("package.json");
-    if (JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8")).version !== manifest.version) throw new Error("Package and manifest versions differ");
+    if ((readArtifactJson(path.join(directory, "package.json")) as { version?: unknown }).version !== manifest.version) throw new Error("Package and manifest versions differ");
     inspecting("host entry");
     const entry = realpathSync(path.join(directory, manifest.entry));
     if (path.relative(directory, entry).startsWith("..") || !statSync(entry).isFile()) throw new Error("Invalid entry");
@@ -226,14 +258,15 @@ export class PluginHost {
   }
   async list() {
     return Promise.all(Object.entries(this.installed).map(async ([id, r]) => {
+      let file = "artifact";
       try {
-        const { manifest: m, digest } = this.artifact(r.directory), live = this.loaded.get(id);
+        const { manifest: m, digest } = this.artifact(r.directory, current => { file = current; }), live = this.loaded.get(id);
         if (m.id !== id) throw new Error("Artifact ID changed");
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
         return { id, registrationId: r.registrationId, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, bundled: !!r.bundled, official: this.official(m, digest), trusted: this.official(m, digest) || !!r.trusted, enabled: r.enabled, running: !!current,
           iconDigest: m.icon && (this.official(m, digest) || !!r.trusted) ? digest : undefined, folderSources: m.contributes.folderSources, healthCheck: m.contributes.healthCheck, jobs: m.contributes.jobs, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
-      } catch (e) { return { id, registrationId: r.registrationId, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
+      } catch (e) { return { id, registrationId: r.registrationId, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null, errors: validationDiagnostics(e, file) }; }
     }));
   }
   private async enable(id: string): Promise<void> {
@@ -435,7 +468,7 @@ export class PluginHost {
         return { ...scaffoldPlugin(directory, id, access, creationScope, args.template, expected), receipt: receipt("success") };
       }
       if (action === "validate") {
-        const errors: { file: string; line: number | null; column: number | null; kind: string }[] = []; let manifestId: string | undefined;
+        const errors: ValidationDiagnostic[] = []; let manifestId: string | undefined;
         let file = "artifact";
         try {
           const requested = path.resolve(args.directory!), expected = this.authoringPath();
@@ -445,12 +478,7 @@ export class PluginHost {
           const a = this.artifact(accessPath(directory, access), current => { file = current; }); manifestId = a.manifest.id;
           errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: "host entry", ...issue })));
         } catch (error) {
-          // Read only numeric location metadata. Parser/Ajv/Zod/fs messages may contain source or secret values.
-          const value = error as { loc?: { line?: number; column?: number }; message?: string; name?: string };
-          const location = typeof value?.message === "string" ? /line (\d+) column (\d+)/.exec(value.message) : null;
-          const line = Number.isInteger(value?.loc?.line) ? value.loc!.line! : location ? Number(location[1]) : null;
-          const column = Number.isInteger(value?.loc?.column) ? value.loc!.column! + 1 : location ? Number(location[2]) : null;
-          errors.push({ file, line, column, kind: error instanceof SyntaxError ? file === "host entry" ? "JavaScript syntax error" : "JSON syntax error" : value?.name === "ZodError" ? "Manifest schema violation" : "Artifact or SDK/schema validation failed" });
+          errors.push(...validationDiagnostics(error, file));
         }
         return { id: manifestId, valid: errors.length === 0, errors, limitations: "Static literal handlers only; computed output and activation behavior are checked at runtime.", receipt: receipt(errors.length ? "failure" : "success") };
       }
