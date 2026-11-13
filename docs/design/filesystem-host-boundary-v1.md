@@ -1,36 +1,18 @@
 # Filesystem Host Boundary v1
 
 - Status: Implemented
-- Folder Trash verification: 2026-11-10 (#1401: injected Host/HTTP/CLI regressions, bounded inspection, Windows persistent-Chrome file-actions/folder-navigation/recovery-storage/folder-memory and production HTTP Save/Reload/recovery; real Windows Trash and packaged Desktop remain merge-queue CI scope).
-- Template verification: 2026-11-04 (#936 Core/CLI and shared Host route tests; [template API](document-templates-v1.md)).
-- Non-overlapping roots verification: 2026-10-29 (#702: Editor 338 unit tests, typecheck/build; persistent Chrome folder-navigation/memory, layout-rules, quiet-document, document-tabs, editor-shell and reveal-folder; [behavior and captures](editor-ux-shell-v1.md#non-overlapping-opened-folders-702)).
-- Post-replacement cleanup verification: 2026-10-27 (PR #609 review P1: four regressions failed before the fix; Host/HTTP 26, Editor 313, shared file-commit 4 passed / 2 platform skips, dedicated-port file-actions browser passed; shared file-commit behavior unchanged).
-- Referenced image rename verification: 2026-10-27 (#504 PR B: Core/CLI/Host tests, file-actions browser dirty/draft protection and clean-tab reload, other-window Save conflict, production HTTP Save/Reload/recovery; rollback failures use real temporary files with injected I/O errors).
-- File operations verification: 2026-10-27 (#505 / #504 PR A: Editor/Host/Desktop unit tests, workspace typecheck, production Editor build and targeted persistent-Chrome browser checks; packaged Desktop is CI-only).
-- Folder refresh verification: 2026-10-26 (#494: loaded-list refresh and asset parent updates; [behavior and verification](editor-ux-shell-v1.md#folder-refresh-494)).
-- Last verified: 2026-10-25 (#425 owner persistence decision: Editor tests/typecheck/build, folder-memory/navigation/command-center/document-tabs/editor-shell/quiet-document; [restoration evidence](editor-ux-shell-v1.md#section-persistence-decision-and-verification-2026-10-25)).
-- Previous verification: 2026-10-24 (#367 cross-tab follow-up: explicit Open/Close remembers the current tab's list, tree-only updates leave preferences intact; folder-memory browser regression; Host handlers unchanged).
-- Previous verification: 2026-10-24 (#367 review follow-up: user Open/Close wins over same-path restoration, unchanged path preferences are not rewritten; folder-memory browser regression; Host handlers unchanged).
-- Previous verification: 2026-10-24 (#367: browser preference restoration/Open/Close race and Reload regression; tab Non-goal compared with [ADR-0007](../adr/0007-editing-session-lifetime.md) and the [editing-session contract](editing-session-save-v1.md#switching-and-recovery); Host handlers unchanged).
-- Previous verification: 2026-10-23 (#235 [ADR-0009](../adr/0009-multiple-opened-folders.md): several opened folders in the Sidebar, paths restored from browser preferences, outermost-folder context; Host handlers unchanged; Editor unit tests and stable browser suite).
-- Previous verification: 2026-10-22 (#217: all-file Sidebar listing, bounded read-only image preview; Host/Editor/Desktop protocol tests and actual Vite/production HTTP browser regressions).
-- Literal syntax verification: 2026-10-15 (#304: original-source warnings in check, single/batch writes and dry-run JSON; Core/CLI tests and source CLI).
-- CLI preview verification: 2026-10-15 (#292: shared file-commit preflight, dry-run no-write boundary, failure parity and result/check output; source CLI and Core/CLI/file-commit tests).
-- CLI insertion verification: 2026-10-15 (#280 single-write properties, unchanged-file refusal and per-step batch `end` resolution; Core/CLI tests).
-- Start-up/CLI path verification: 2026-10-15 (#287 unit tests for refusal before path I/O and valid Unicode names; Desktop tested without Electron).
-- Previous verification: 2026-10-17 (UX review: sidebar folder listing marks documents without the native marker through Core `hasNativeMarker`; Editor/Core unit tests and the stable browser suite. Write handlers unchanged).
-- Previous verification: 2026-10-16 (#204: Editor tab admission and navigation wording checked; Host persistence and write handlers unchanged).
-- Previous verification: 2026-10-14 (#215: CLI batch sequential-byte equivalence, original preservation, revision/output, batch-wide versus step errors, null option rejection and commit conflict regressions. #214: CLI inspect revision and edit precondition, real-file stale path/byte preservation and commit conflict regressions. #237: unsupported save edit fields rejected with unchanged file bytes in Host tests; actual Vite `save-session`, production HTTP and packaged Desktop Save/Reload/conflict regressions. #211 / PR #229: proxy-safe normal media separators and standalone dot-segment transport retain Host traversal checks; Editor/Host unit tests and actual Vite `image-assets` loading/Save/Reload; image choice listing, link/copy and HTTP root denial; shared handlers, root enforcement and full regressions on 2026-10-13).
+- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
 - Authority: shared file Host boundary for Vite, [ADR-0004 Desktop](../adr/0004-desktop-host-distribution.md) and [ADR-0005 HTTP](../adr/0005-http-host.md). [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) owns persistence semantics.
-- Encoding verification: 2026-10-15 (#271 malformed UTF-8/Unicode refusal, raw-byte revision checks, original preservation and temporary cleanup; Vite/production HTTP repeated Unicode Save → Reload and existing external-conflict regressions).
 - Date: 2026-09-23
-- Path verification: 2026-10-15 (#278 shared helper and real HTTP refusal before path I/O, no replacement files, valid Unicode names and pre-normalization checks; PR #284 strict percent-encoded query refusal for document/media reads, form decoding and valid Unicode URL regressions).
 - Scope: 실제 filesystem에 접근하는 주체와 Browser Editor, Host, Core 사이의 책임 경계.
 
 Bibliography reads reuse the shared stateless Host and existing Root checks through the dedicated
 `/api/bibliography` endpoint. Only declarations of an admitted, revision-matched document are read;
 resource errors do not block Markdown Save. The local per-document folder context, HTTP fixed Root
 union, limits and snapshot policy are specified in [Citations v1](citations-v1.md#bibliography-snapshots-and-limited-formatting-unit-b).
+
+검증 이력은 [별도 기록](../reviews/filesystem-host-boundary-history-2026-11.md)에 보존한다.
+
 
 ## Shared local daemon transition (#1142)
 

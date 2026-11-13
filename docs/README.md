@@ -54,7 +54,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [플러그인 1단계](design/plugin-stage1-v1.md) | Implemented | ADR-0020 명시 개시: V4 review Host·CLI/K1 완료 bundle과 최소 SDK·로컬 등록·신뢰·활성·공용 작업·CLI·하위 프로세스/reload·비서 활동 기록. OneDrive·Jira는 2026-11-13 삭제(보관 태그 `archive/2026-11-13-plugins-declarative`). Windows DPAPI secret 저장·설정 UI·상태/삭제 CLI·실행 전달. 비서 제작 키트 scaffold/validate·번들 스킬과 플러그인 비서 스킬 배포(Codex) 포함. 뷰 runtime 없음. |
 | [Plugin screens and queries](design/plugin-screens-v1.md) | Implemented | #1370 선택 입력 접기·동적 안내값. manifest 기본 화면·작업 패널 연결, 수동 Host 조회·입력·Table·링크, view run/validate와 review 경계. |
 | [HTTP Host](design/http-host-v1.md) | Implemented | 무인증 단계(#1145) daemon start/stop/status·실행 주체/상세 상태·stale 회수·Desktop pipe 수명·고정 origin·선택 Root·버전·OS 휴지통, CLI 배포와 HTTP·프록시 경계. |
-| [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | Windows Host, NSIS, Stable/Beta, signing 및 수동 workflow 실행 후 검증 성공 시 추가 승인 없는 게시 계약. 현재 소스·최신 공개 Beta Litzio 0.0.3-beta.1·최신 Stable/Latest Litzio 0.0.2·직전 Litzio 0.0.2-beta.10·이전 Litzio 0.0.2-beta.9·이전 Litzio 0.0.2-beta.8·이전 Litzio 0.0.2-beta.7·이전 Litzio 0.0.2-beta.6·이전 Litzio 0.0.2-beta.5·이전 IeumDoc 0.0.2-beta.4·이전 0.0.2-beta.3·이전 0.0.2-beta.2·0.0.2-beta.1과 기존 두 0.1.0 Beta 철회 근거·실제 GitHub 업데이트 미검증 범위 보존. |
+| [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | 현재 Windows Electron/NSIS·Stable/Beta·signing·게시 계약. 과거 실행과 공개 릴리스 근거는 별도 검증 이력 및 릴리스 기록을 따른다. |
 | [Desktop app icon](design/app-icon-v1.md) | Implemented | #905 승인된 E안 SVG 원본·Chromium 틈 검사·크기별 ICO, 브랜드 연결·출처·재생성과 Windows CI 검증 경계. |
 | [Folder picker](design/folder-picker-v1.md) | Implemented | 현재 계약. folder 선택, browser preference와 표시 folder에 New file·New folder. |
 | [Complete app reset](design/app-reset-v1.md) | Implemented | #1285 로컬 앱/Host 소유 데이터 전체 초기화·빈 폴더 옵션·공유 writer gate·종료 후 helper·CLI. 외부 브라우저·문서·공급자 계정은 제외하며 실제 packaged 실행은 Windows CI에서 검증. |
@@ -143,6 +143,15 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Inline math size verification](reviews/inline-math-size-2026-10-09.md) | Historical | 인라인 수식 크기 후보 비교, 실제 Before/After와 테스트 클릭 지점. 현재 규범은 Visual Language. |
 | [ProseMirror focus restore and caret keys](reviews/prosemirror-focus-caret-2026-10-09.md) | Historical | 포커스 직후 caret 키가 되돌려지던 원인, `prosemirror-view@1.42.4` 패치의 적용 버전·전후 검증·제거 조건. 현재 계약은 Continuous editing. |
 | [Persistent Figure Draft spike](reviews/persistent-figure-draft-spike-v1.md) | Historical | 콘텐츠 없는 Figure의 MyST 표현·공식 번호/참조·Core/Editor PoC 근거와 CONDITIONAL GO 권고. 현재 Figure 계약은 Document support와 Editing session. |
+
+| [editor-ux-shell-v1 검증 이력](reviews/editor-ux-shell-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
+| [editing-session-save-v1 검증 이력](reviews/editing-session-save-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
+| [document-editing-v1 검증 이력](reviews/document-editing-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
+| [desktop-distribution-v1 검증 이력](reviews/desktop-distribution-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
+| [filesystem-host-boundary-v1 검증 이력](reviews/filesystem-host-boundary-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
+| [citations-v1 검증 이력](reviews/citations-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
+| [figure-authoring-v1 검증 이력](reviews/figure-authoring-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
+| [README 검증 이력](reviews/verification-history-2026-11.md) | Historical | #1595에서 현재 계약과 분리한 과거 검증·측정·캡처 기록. |
 
 ## Spike log
 
