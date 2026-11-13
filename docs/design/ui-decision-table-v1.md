@@ -4,15 +4,15 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
-| Copilot 사용량 확인 (#1581) | 기존 컨텍스트 링 hover/focus | AssistantUsageTooltip·Base UI Tooltip·기존 토큰 | 컨텍스트와 세션 보고값 표시, 계정 한도 미제공 명시 | [Copilot 사용량](main-agent-v1.md#copilot-context-and-session-usage-1581) | 없음 |
+| Copilot 사용량 확인 (#1581) | 기존 컨텍스트 링 hover/focus | AssistantUsageTooltip·Base UI Tooltip·기존 토큰 | 컨텍스트와 세션 보고값 표시, 계정 한도 미제공 명시 | [Copilot 사용량](main-agent-v1.md#질문과-사용량) | 없음 |
 | 문제 목록에서 검수한다 (#1462 6-2) | 승인된 A 배치: 목록·가운데 제안/기존 대조·접힌 쪽 칸 | 기존 ReviewRenderer, Button sm/ghost/outline, Input, Checkbox(Base UI), Notice, Tooltip, native details/Lucide chevron·탐색기 행 선택 | 기존 evidence/그룹 판단/필수 확인 작업과 블록 제외 묶음, 비서 승인 권한 추가 없음 | [6-2 화면](docling-review-stage3.md#6단계-최소-검수-화면--6-2) | 배치는 소유자 승인. 새 공통 control/token 예외 없음. 큰 머리글·하단 반복 설명 없음 |
 | 파일 없는 검수 snapshot을 대조·중간 내보내기한다 (#1462 P1b) | 기존 comparison 작업 탭·명시 export Dialog | ReviewRenderer/DocumentEditor readOnly preview·Dialog/Input/Button/checkbox | 내부 source/이미지·effective 대응, 실제 파일 열기는 export 결과만, revision/overwrite·미저장 보호 | [P1b](docling-review-stage3.md#p1b-내부-대조이미지명시-export) | 기존 공통 구현, 새 token/control 예외 없음. 완료 승인/final export는 후속 |
 
 | 생성 문서에서 대조를 다시 연다 (#1465) | 기존 문서 안내·탐색기 | warning Notice + ghost sm Button, ContextMenu + PanelRightOpen, 여러 문서는 기존 Dialog/Button | Host 연결을 조회해 기존 대조 탭 열기·재생성 안내 | [생성 문서 진입점](plugin-stage1-v1.md#생성-문서-대조-진입점-1465) | 새 화면 종류 없음. 최근 검수 진행률 목록은 공용 schema/binding 부재로 미제공 |
 | Desktop 창을 숨기거나 완전 종료한다 (#1448) | Windows 트레이 | Electron Tray/Menu + 기존 brand icon·native dialog | 열기·종료, 최초 백그라운드 안내·설정 보존, 종료 시 작업 중단 안내와 기존 미저장 보호 | [Desktop 트레이 계약](desktop-distribution-v1.md#close-to-tray-1448) | 소유자가 승인한 OS 표면으로 renderer 공통 부품 밖이다. 창은 같은 편집 세션을 유지하며 실제 native 시각·패키지 수락은 미확인 |
-| 비서 질문에 답하고 기록을 확인한다 (#1443) | 기존 대화 본문, 과정 밖 | AssistantQuestion + native fieldset/radio + 공용 Input/Button | 선택·직접 입력, 렌더 확인 뒤 수락, 답변 후 같은 카드에 기록 | [질문 계약](main-agent-v1.md#async-questions-and-answer-history-1443) | 기존 대화·질문 소유권 유지. 현재 Copilot ACP 연결은 미지원 명시 |
-| 비서의 작업 과정과 새 내용을 읽는다 (#1436/#1440/#1492) | 기존 대화 패널 | native details/summary + outline sm Button + Lucide ArrowDown | 과정 기본 접힘·턴의 마지막 카드 뒤 현재 단계·hover/focus Tooltip, 위로 읽을 때 위치 유지·새 내용 알림·명시적 하단 이동 | [읽기·진행 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440) | 사용자 질문·선택·확인은 과정 밖에 표시. 화면 내부 interaction이며 Host 상태·CLI 작업 추가 없음 |
-| 닫힌 비서의 작업·완료·답변 필요를 확인한다 (#1424) | 기존 상단 비서 버튼 | ghost sm Button + Tooltip + agent-dot, 기존 text-muted/accent/warning 토큰 | 빈 원은 작업 중, 채운 원은 완료(읽지 않음), 사각형은 확인·답변 필요. 열면 완료를 확인 처리하며 열린 동안 표시는 숨김 | [비서 상태](main-agent-v1.md#assistant-button-status-1424) | 기존 대화·제출 관측을 재사용하며 새 작업 상태·OS 알림·소리 없음 |
+| 비서 질문에 답하고 기록을 확인한다 (#1443) | 기존 대화 본문, 과정 밖 | AssistantQuestion + native fieldset/radio + 공용 Input/Button | 선택·직접 입력, 렌더 확인 뒤 수락, 답변 후 같은 카드에 기록 | [질문 계약](main-agent-v1.md#질문과-사용량) | 기존 대화·질문 소유권 유지. 공용 Host 질문은 Copilot 지원, native ACP 질문 확장은 미지원 |
+| 비서의 작업 과정과 새 내용을 읽는다 (#1436/#1440/#1492) | 기존 대화 패널 | native details/summary + outline sm Button + Lucide ArrowDown | 과정 기본 접힘·턴의 마지막 카드 뒤 현재 단계·hover/focus Tooltip, 위로 읽을 때 위치 유지·새 내용 알림·명시적 하단 이동 | [읽기·진행 계약](main-agent-v1.md#대화와-표시) | 사용자 질문·선택·확인은 과정 밖에 표시. 화면 내부 interaction이며 Host 상태·CLI 작업 추가 없음 |
+| 닫힌 비서의 작업·완료·답변 필요를 확인한다 (#1424) | 기존 상단 비서 버튼 | ghost sm Button + Tooltip + agent-dot, 기존 text-muted/accent/warning 토큰 | 빈 원은 작업 중, 채운 원은 완료(읽지 않음), 사각형은 확인·답변 필요. 열면 완료를 확인 처리하며 열린 동안 표시는 숨김 | [비서 상태](main-agent-v1.md#대화와-표시) | 기존 대화·제출 관측을 재사용하며 새 작업 상태·OS 알림·소리 없음 |
 | 조회 폼의 드문 조건을 숨긴다 (#1370) | 기존 조회 폼 | QueryInputs + Button/Input/FieldError | 선택 advanced 입력만 접기·지정값 요약·오류 자동 펼침, 수동 조회 유지 | [추가 조건](ui-patterns-v1.md#공통-조회-폼의-추가-조건-1370) | 새로운 공통 접기 상호작용, JobPanel에는 자동 적용하지 않음 |
 | 플러그인 폴더를 장식한다 (#1366) | 기존 Explorer 폴더 행 | PluginIcon + 기존 16px 아이콘 칸 | 제공 플러그인의 manifest 이미지, 없으면 생략 | FolderTree·Sidebar; 설정·탭과 같은 PluginIcon | 없음 |
 | 플러그인 설정에 진입한다 (#1334) | Plugins 목록 행 오른쪽 끝 | ghost icon Button + Tooltip(설정/Settings), 그 뒤 settings-switch | 이름을 포함한 aria-label; 설정이 없어도 정보 열기; 화면 이동은 사이드바 | PluginSettings | 없음 |
@@ -24,9 +24,9 @@
 | 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | 직접 입력은 즉시 적용·Undo · 디스크는 Save · 미저장 닫기는 Save/Don't save/Cancel ([저장 계약](editing-session-save-v1.md#switching-and-recovery), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. [미적용 초안](editing-session-save-v1.md#applied-content-and-drafts)은 직접 본문 입력과 다르다. |
 | 대상의 작은 속성을 고치며 본문 문맥을 유지한다 | 대상에 붙는 작은 편집면 | 기존 속성 폼과 Popover | Metadata는 Edit로 진입 · Done/유효한 바깥 pointer 적용·Esc 취소 · 오류는 초안 유지 ([P03](ui-patterns-v1.md#p03-편집-진입), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx) | 바깥 적용은 클릭 위치 focus 유지. 링크·교차참조의 명시적 Apply/Cancel, [미주](footnotes-v1.md#editor), [인용 동결](../adr/0008-citations-and-bibliography.md)은 [P04](ui-patterns-v1.md#p04-적용취소완료)의 별도 경계다. |
 | 독립 작업을 열어 다른 문서와 오간다 | 작업 탭 | 기존 탭 / Plugin `TabKind` | Settings는 Sidebar·명령 센터, Plugin은 명령·sidebar/openTab으로 진입 · 오류는 탭/알림에 표시 · Plugin 탭에는 Save/복구 세션 없음 ([탭 수명](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#contributions-lifetime-and-failures)) | [Docling UI 등록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/ui-plugin.tsx) | 문서 탭은 별도 [편집 세션](editing-session-save-v1.md#editor-ownership)을 갖는다. 집계·작업 목록을 문서 본문처럼 꾸미지 않는다. |
-| 문서를 보며 보조 작업을 동시에 한다 | 도킹 패널 | 기존 shell 패널 · 답변 동작은 CopyButton icon-sm + Tooltip | 사용자 오른쪽 말풍선·AI 왼쪽 본문, turn 끝 복사 1개 ([역할 구분](main-agent-v1.md#message-roles-and-turn-actions-1048-1051)) · Assistant로 진입 · Esc는 열린 선택 팝업부터 닫음 · 좁은 창 Escape/Close는 이전 편집 focus 복귀 ([비서 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)) | [AssistantPanel](../../apps/editor/src/shell/AssistantPanel.tsx) | 좁은 창의 modal 전환은 [현재 패널 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)을 따른다. 파일 참조는 대상 Host의 Explorer ContextMenu에서 초안 칩으로 추가하며(`@` 검색 제거, #1253), `/` Codex 스킬은 기존 후보 UI·칩·경로 Tooltip을 사용한다([스킬 계약](main-agent-v1.md#codex-skill-selection-1047-pr-b)). Button·Tooltip을 재사용한다([#1047 계약](main-agent-v1.md#file-references-1047-pr-a-984-952)). 범용 Plugin 패널 API는 없다. |
+| 문서를 보며 보조 작업을 동시에 한다 | 도킹 패널 | 기존 shell 패널 · 답변 동작은 CopyButton icon-sm + Tooltip | 사용자 오른쪽 말풍선·AI 왼쪽 본문, turn 끝 복사 1개 ([역할 구분](main-agent-v1.md#대화와-표시)) · Assistant로 진입 · Esc는 열린 선택 팝업부터 닫음 · 좁은 창 Escape/Close는 이전 편집 focus 복귀 ([비서 계약](main-agent-v1.md#대화와-표시)) | [AssistantPanel](../../apps/editor/src/shell/AssistantPanel.tsx) | 좁은 창의 modal 전환은 [현재 패널 계약](main-agent-v1.md#대화와-표시)을 따른다. 파일 참조는 대상 Host의 Explorer ContextMenu에서 초안 칩으로 추가하며(`@` 검색 제거, #1253), `/` Codex 스킬은 기존 후보 UI·칩·경로 Tooltip을 사용한다([스킬 계약](main-agent-v1.md#현재-한계)). Button·Tooltip을 재사용한다([#1047 계약](main-agent-v1.md#대화와-표시)). 범용 Plugin 패널 API는 없다. |
 | 현재 작업에서 확인이나 별도 입력 경계가 필요하다 | 모달 | Dialog / DangerConfirmation / 기존 파일 picker | 제목→대상→명시적 동작 · 안전한 취소·focus 복귀 · busy 중복 실행 방지 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위)) | [FolderDialog](../../apps/editor/src/shell/FolderDialog.tsx) | 확인·파일 선택만으로 제한하는 새 규칙은 없다. 파일·복구에 metadata의 바깥 적용을 이식하지 않는다([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위)). |
-| 앱 전체 설정을 바꾼다 | 작업 탭 | Host Settings / Plugin settings contribution | 앱 설정은 즉시 반영 · 문서 Save와 분리 · 선택값 저장 오류는 입력 피드백 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터)) | [SettingsDialog](../../apps/editor/src/shell/SettingsDialog.tsx) | [AI 설정의 순차 자동 저장](main-agent-v1.md#settings-and-read-routes), [Docling field exit 저장](ui-patterns-v1.md#p12-모달파일복구설정-범위)의 저장 시점은 각 계약을 따른다. [#1032 탭 수명·키보드·캡처](editor-ux-shell-v1.md#settings-task-tab-1032)를 따른다. |
+| 앱 전체 설정을 바꾼다 | 작업 탭 | Host Settings / Plugin settings contribution | 앱 설정은 즉시 반영 · 문서 Save와 분리 · 선택값 저장 오류는 입력 피드백 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터)) | [SettingsDialog](../../apps/editor/src/shell/SettingsDialog.tsx) | [AI 설정의 순차 자동 저장](main-agent-v1.md#연결과-설정), [Docling field exit 저장](ui-patterns-v1.md#p12-모달파일복구설정-범위)의 저장 시점은 각 계약을 따른다. [#1032 탭 수명·키보드·캡처](editor-ux-shell-v1.md#settings-task-tab-1032)를 따른다. |
 
 - Status: Implemented
 - Last verified: 2026-11-06 — #1298 왼쪽 탐색·native option 역할, ui-gallery 회귀·타입·문서·토큰 검사·Editor build 및 1440px Light/640px Korean Dark 캡처 확인.
@@ -144,14 +144,14 @@ hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확�
 #1110/#1124: 비서 대화 선택은 기존 outline Button·Tooltip·DropdownMenu와 DropdownMenuItem을 재사용한다.
 단추에서 목록이 바로 열리며 현재 값은 기존 Check 아이콘·aria-current로 표시한다.
 경계는 border-control, 목록은 surface/text 토큰을 따른다. radio wrapper를 추가하지 않는다. 새 공통 상호작용 예외는 없다.
-프로바이더 고정·다음 turn 권한·기록 복원은 [비서 계약](main-agent-v1.md#conversation-choices-1110--1124)을 따른다.
+프로바이더 고정·다음 turn 권한·기록 복원은 [비서 계약](main-agent-v1.md#현재-한계)을 따른다.
 
 ## AI provider settings (#1109)
 
 공식 Settings → AI agent에서 SettingsSelect, ghost Button과 모델 Dialog를 재사용한다.
 #1150 ③에서 enable Switch와 플러그인 영역을 제거했다. 프로바이더 행은 이름·실제 상태와
 진단을 표시하며 기존 설정 화면 geometry와 자동 저장을 유지한다. 새 공통 상호작용 예외는 없다.
-타입과 자동 저장 계약, 1440/640px 캡처는 [Main agent settings](main-agent-v1.md)에 기록한다.
+타입은 코드가, 자동 저장 동작은 [비서 설정 계약](main-agent-v1.md#연결과-설정)이 근거다. 과거 캡처는 해당 문서의 고정 커밋 이력에 보존한다.
 
 ## Desktop daemon (#1142 PR3)
 

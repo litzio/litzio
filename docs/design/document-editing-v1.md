@@ -32,7 +32,7 @@
 Core removes paragraph blank-line tails on Save
 ([#1107 contract](document-support-v1.md#paragraph-blank-line-tails-1107)).
 For example, Shift+Enter at the end of a non-empty paragraph no longer blocks Save.
-[Assistant sending uses only the active path](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)
+[Assistant sending uses only the active path](main-agent-v1.md#대화와-표시)
 and excludes unsaved body content (#1106). Interior hard breaks remain content. Save retains
 the live Editor state, selection and history; reopening shows the normalized file.
 
