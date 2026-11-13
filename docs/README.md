@@ -113,7 +113,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [저장소 종합 정리 기록 2026-11-13~14](reviews/2026-11-14-repository-cleanup.md) | Historical | 삭제·보강·측정과 남은 확인 과제의 소유자 검토용 기록. 현재 계약이 아님. |
+| [저장소 종합 정리 기록 2026-11-13~14](reviews/2026-11-14-repository-cleanup.md) | Historical | 삭제·보강·측정과 남은 확인 과제의 기록. 현재 계약이 아님. |
 | [#1462 원문 증거 대응 spike ①](reviews/1462-spike-evidence-match.md) | Historical | PDF 텍스트↔문서 양방향 후보 탐지. 주입 오류 탐지와 holdout 오경보 기준 미달을 보존한 오프라인 실험. |
 | [#1462 블록 정체성 spike ②](reviews/1462-spike-block-identity.md) | Historical | 경로 갱신 A와 MyST target B 비교. 시험한 연산의 대응·저장 근거와 Core 단독 B의 실패 경계. |
 | [Generated views v1](design/generated-views-v1.md) | Historical | #1341에서 종료한 비서 생성·저장·통계·Chart 계약과 당시 검증 기록. 현재 계약은 Plugin screens and queries. |
