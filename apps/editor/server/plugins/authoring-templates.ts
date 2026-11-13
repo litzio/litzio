@@ -7,13 +7,32 @@ const operation = (id: string, effect: "read" | "write", inputSchema: unknown, o
 export function authoringTemplate(id: string, template: "query" | "file" | "screen" | "chart") {
   if (template === "screen" || template === "chart") return {
     manifest: { name: "측정값", contributes: {
-      operations: [operation("measurements", "read", object({}), { type: "array", items: { type: "number" } })],
+      operations: [],
       screens: [{ id: "measurements", title: "측정값", icon: "ChartColumn", entry: "screen.jsx", primary: true }],
     } },
-    source: `export function activate() { return { operations: { measurements: () => [10, 18, 12, 24] }, status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} }; }\n`,
+    source: `export function activate(context) {
+  return {
+    operations: {
+      measurements: () => [10, 18, 12, 24],
+    },
+    status: () => ({
+      available: true,
+      message: "Ready",
+      folders: [], decorations: [], accounts: [],
+    }),
+    dispose() {},
+  };
+}\n`,
     screen: template === "screen" ? `export default function Screen({React, ui, invoke}) {
   const [result,setResult] = React.useState(null), [error,setError] = React.useState("");
-  return <section style={{display:"grid",gap:"var(--space-4)"}}><ui.Button onClick={() => invoke("measurements").then(setResult).catch(e=>setError(e.message))}>불러오기</ui.Button>{error && <ui.Notice tone="error">{error}</ui.Notice>}<pre>{JSON.stringify(result)}</pre></section>;
+  const load = () => invoke("measurements").then(setResult).catch(e=>setError(e.message));
+  return (
+    <section style={{display:"grid",gap:"var(--space-4)"}}>
+      <ui.Button onClick={load}>불러오기</ui.Button>
+      {error && <ui.Notice tone="error">{error}</ui.Notice>}
+      <pre>{JSON.stringify(result)}</pre>
+    </section>
+  );
 }\n` : `export default function Screen({React, ui, invoke}) {
   const [values,setValues] = React.useState([]), [limit,setLimit] = React.useState(15), [error,setError] = React.useState("");
   const points = values.map((y,i)=>[20+i*100,180-y*5]);

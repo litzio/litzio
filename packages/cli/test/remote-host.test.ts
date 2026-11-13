@@ -216,6 +216,11 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   const count = bodies.length;
   await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", "unknown", "--host", "http://127.0.0.1:5180", "--json"]);
   assert.equal(bodies.length, count, "Unknown template must not reach the Host");
+  await runCliAsync(["plugins", "install", "local.example", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.deepEqual(bodies.at(-1), {action:"install",id:"local.example"});
+  await runCliAsync(["plugins", "install", "C:/host/example", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.deepEqual(bodies.at(-1), {action:"install",directory:"C:/host/example"});
+  bodies.splice(count);
   const registrationId = "62fbf782-043e-4c03-8b20-60aaaf34b6da";
   for (const args of [["trust", "local.greeting", "--registration", registrationId], ["enable", "local.greeting", "--trust", "--registration", registrationId]]) {
     assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);

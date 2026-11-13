@@ -2217,7 +2217,7 @@ test("screen code is active-only, reloads local JSX, reports compiler failures a
     await host.invoke("enable", { id: "fixture.screen" });
     const first = host.viewScreens()[0]!; assert.match(first.code!, /First/);
     assert.equal(host.viewScreens(false)[0]!.code, undefined); assert.equal(host.viewScreens(false)[0]!.codeRevision, first.codeRevision);
-    assert.deepEqual((await host.invokeOperation("fixture.screen.measurements", {})).result, [10,18,12,24]);
+    assert.deepEqual((await host.invoke("screen-invoke", {plugin:"fixture.screen",operation:"fixture.screen.measurements",input:{}}) as any).result, [10,18,12,24]);
     writeFileSync(path.join(directory, "part.jsx"), 'export const label = "Second";');
     await host.invoke("reload", { id: "fixture.screen" });
     assert.match(host.viewScreens()[0]!.code!, /Second/); assert.notEqual(host.viewScreens()[0]!.codeRevision, first.codeRevision);
@@ -2246,4 +2246,35 @@ test("screen dependency bundle stays offline and shares the app React instance",
   const code=compileScreen(root,"screen.jsx");
   const module=await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
   assert.equal(renderToString(React.createElement(module.default(React))),"<output>24</output>");
+});
+
+
+test("install uses authoring ID in opened folders, repeats edits and refuses private CLI calls", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-install-"));
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins"), officialPlugins: [], designatedPlugins: [] });
+  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
+  const id = "local.install";
+  try {
+    const created: any = await executePluginTool(host, {action:"scaffold",id,template:"screen"},()=>{},scope);
+    assert.equal(created.error, undefined);
+    const directory = created.result.directory;
+    const installed: any = await executePluginTool(host,{action:"install",id},()=>{},scope);
+    assert.equal(installed.error, undefined, JSON.stringify(installed));
+    assert.equal((await host.list())[0]!.running, true);
+    const first = host.viewScreens()[0]!.codeRevision;
+    await assert.rejects(host.invokeOperation(`${id}.measurements`,{}), /unavailable/);
+    await assert.rejects(host.invokeAssistantOperation(`${id}.measurements`,{}));
+    assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[10,18,12,24]);
+    await assert.rejects(host.invoke("screen-invoke",{plugin:"other",operation:`${id}.measurements`,input:{}}));
+    const entry = path.join(directory,"host.mjs");
+    writeFileSync(entry,readFileSync(entry,"utf8").replace("10, 18, 12, 24","20, 30"));
+    assert.equal((await host.invoke("install",{id}) as any).receipt.outcome,"success");
+    assert.notEqual(host.viewScreens()[0]!.codeRevision,first);
+    assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[20,30]);
+    writeFileSync(path.join(directory,"screen.jsx"),"export default function Screen(){return <div>}");
+    const failed: any = await host.invoke("install",{id});
+    assert.equal(failed.receipt.outcome,"failure");assert.equal(failed.errors[0].file,"screen.jsx");assert.ok(failed.errors[0].line);
+    const refused = await executePluginTool(host,{action:"install",id},()=>{},{...scope,permissionMode:"read-only"});
+    assert.equal(refused.errorKind,"forbidden");
+  } finally {await host.close();}
 });

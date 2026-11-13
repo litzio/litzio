@@ -4,7 +4,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath}) => {
   await page.route('**/api/views', route => route.fulfill({json:{catalog:{operations:[]},views:[],screens:enabled ? [{plugin:'fixture.code',id:'main',entry:'screen.jsx',title:'Measurements',icon:'ChartColumn',primary:true,defaultViewIds:[],code:code(),codeRevision:String(revision)}] : [],receipt:{outcome:'success'}}}));
   await page.route('**/api/plugins', route => {
     if(route.request().method()!=='POST')return route.continue();
-    const body=route.request().postDataJSON(); expect(body.operation).toBe('fixture.code.measurements');calls++;
+    const body=route.request().postDataJSON(); expect(body.action).toBe('screen-invoke');expect(body.plugin).toBe('fixture.code');expect(body.operation).toBe('fixture.code.measurements');calls++;
     return route.fulfill({json:{result:{points:[10,18,24]},receipt:{outcome:'success'}}});
   });
   await page.reload();await page.setViewportSize({width:1440,height:1000});

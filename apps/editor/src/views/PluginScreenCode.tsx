@@ -35,7 +35,7 @@ export function PluginScreenCode({ code, owner, client }: { code: string; owner:
   const invoke = React.useCallback(async (operation: string, input: unknown = {}) => {
     const signal = lifetime.current?.signal;
     signal?.throwIfAborted(); client.assertCurrent();
-    const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, signal, body: JSON.stringify({ action: "invoke", operation: `${owner}.${operation}`, input }) });
+    const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, signal, body: JSON.stringify({ action: "screen-invoke", plugin: owner, operation: `${owner}.${operation}`, input }) });
     const reply = await response.json();
     if (!response.ok || reply.error || reply.receipt?.outcome !== "success") throw new Error(reply.error ?? `HTTP ${response.status}`);
     return reply.result;

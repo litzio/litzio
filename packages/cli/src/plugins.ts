@@ -54,6 +54,7 @@ export async function pluginCli(args: string[]): Promise<number> {
         body = { action: `job-${action}`, requestId: id };
       }
     } else if (command === "plugins" && action === "list" && tokens.length === 2) body = { action };
+    else if (command === "plugins" && action === "install" && tokens.length === 3) body = id && !id.includes("/") && !id.includes("\\") && !id.includes(":") ? { action, id } : { action, directory: id };
     else if (command === "plugins" && ["register", "validate", "bundle", "dependencies"].includes(action!) && tokens.length === 3) body = { action, directory: id };
     else if (command === "plugins" && action === "scaffold") {
       const offset = tokens[2] === "--id" ? 2 : 3;

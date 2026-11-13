@@ -60,8 +60,18 @@ export const manifestSchema = z.strictObject({
 });
 export type PluginManifest = z.infer<typeof manifestSchema>;
 export type OperationDefinition = z.infer<typeof operation>;
+// Code screens use a small identity card; normalize once at the SDK boundary.
+const codeManifestSchema = z.strictObject({ id, name: z.string().min(1), icon: z.enum(SCREEN_ICONS).default("LayoutDashboard"),
+  entry: z.string().min(1), screen: z.string().min(1), operations: z.array(operation.extend({ outputSchema: schema.default({}) })).default([]) });
 export function validateManifest(input: unknown): PluginManifest {
+  if (input && typeof input === "object" && "screen" in input) {
+    const card = codeManifestSchema.parse(input);
+    input = { schemaVersion: 1, id: card.id, name: card.name, tier: "community", publisher: { id: "local", name: "Local author" },
+      version: "0.1.0", requiresSdk: `^${SDK_VERSION}`, entry: card.entry,
+      contributes: { operations: card.operations, screens: [{ id: "main", title: card.name, icon: card.icon, entry: card.screen, primary: true }] } };
+  }
   const m = manifestSchema.parse(input);
+  if (m.contributes.screens.some(screen => screen.entry) && (m.contributes.views.length || m.contributes.reviews.length || m.contributes.jobs.length || m.contributes.screens.some(screen => !screen.entry || screen.defaultViewIds.length || screen.jobs.length))) throw new Error("Code and declarative screens cannot be mixed");
   if (!supportedSdkVersions.some(version => semver.satisfies(version, m.requiresSdk))) throw new Error("Unsupported SDK range");
   if (m.contributes.skills.length && !supportedSdkVersions.some(version => semver.gte(version, "0.5.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Assistant skills require SDK 0.5.0 or later in requiresSdk");
   if (/^(?:[a-z]+:|[/\\])/i.test(m.entry) || m.entry.split(/[/\\]/).includes("..")) throw new Error("Entry must stay inside package");
@@ -166,6 +176,7 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("secret-status"), id }),
   z.strictObject({ action: z.literal("secret-delete"), id, name: id }),
   z.strictObject({ action: z.literal("list") }),
+  z.strictObject({ action: z.literal("install"), id: id.optional(), directory: z.string().min(1).optional() }).refine(value => !!value.id !== !!value.directory, "Supply id or directory"),
   z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1).optional(), id, template: z.enum(["greet", "query", "file", "screen", "chart"]).optional() }),
   z.strictObject({ action: z.literal("dependencies"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("bundle"), directory: z.string().min(1) }),

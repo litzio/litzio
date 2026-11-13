@@ -201,4 +201,4 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 - [ADR-0022: 플러그인 화면 코드](adr/0022-plugin-screen-code.md) — Accepted. 원격 Host 화면 코드의 클라이언트 실행과 기존 선언 경계 대체.
 
-- [플러그인 화면 코드 1단계 측정](reviews/plugin-screen-code-1592.md) — Historical. 실제 AI 6턴의 실패·성공, 도구 크기·속도와 화면 확인 경계.
+- [플러그인 화면 코드 단계별 측정](reviews/plugin-screen-code-1592.md) — Historical. 1단계 실제 AI 6턴과 2단계 제작·설치 시험, 도구 크기·속도와 화면 확인 경계.
