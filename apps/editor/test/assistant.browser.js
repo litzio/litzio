@@ -199,7 +199,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(await editor.evaluate(el => el.editor.getJSON().content.find(node => node.type === 'paragraph').content.at(-1).type)).toBe('hardBreak');
   const submittedAnswers = [];
   let pasted = 0;
-  const pastedPaths = [];
+  const pastedPaths = [], pastedData = [];
+  const uploadGates = new Map();
   const sent = [], conversations = new Map(), receipts = new Map();
   let screenRequest, screenReply, screenReplyGate;
   let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
@@ -215,7 +216,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
-      if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } }); }
+      if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); pastedData.push(body.data); await uploadGates.get(pasted); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } }); }
       if (body.action?.endsWith('-ack')) return route.fulfill({ json: { acknowledged: true } });
       if (body.action === 'screen-result') { screenReply = body.reply; await screenReplyGate; screenRequest = undefined; return route.fulfill({ json: { acknowledged: true } }); }
       if (body.action === 'display-result') {
@@ -474,29 +475,52 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await message.click(); await message.press('ControlOrMeta+A'); await message.press('Backspace');
   await page.keyboard.type('What changed in the current document?', { delay: 30 });
   await expect(draftChips).toHaveCount(1);
-  const pasteImages = async (count = 1) => message.evaluate((element, count) => {
+  const pasteImages = async (count = 1, start = 0) => message.evaluate((element, { count, start }) => {
     const data = new DataTransfer();
     data.setData('text/plain', 'screenshot companion text');
     for (let n = 0; n < count; n++) {
       const canvas = document.createElement('canvas'); canvas.width = 120; canvas.height = 80;
       const context = canvas.getContext('2d');
-      context.fillStyle = ['#315fd4', '#875717', '#315f38'][n % 3]; context.fillRect(0, 0, 120, 80);
-      context.fillStyle = '#ffffff'; context.font = 'bold 48px sans-serif'; context.fillText(String(n + 1), 45, 58);
+      context.fillStyle = ['#315fd4', '#875717', '#315f38'][(n + start) % 3]; context.fillRect(0, 0, 120, 80);
+      context.fillStyle = '#ffffff'; context.font = 'bold 48px sans-serif'; context.fillText(String(n + start + 1), 45, 58);
       const bytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), c => c.charCodeAt(0));
       data.items.add(new File([bytes], 'image.png', { type: 'image/png' }));
     }
     const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
     element.dispatchEvent(event);
     return event.defaultPrevented;
-  }, count);
+  }, { count, start });
   expect(await pasteImages()).toBe(true);
   await expect(draftChips).toHaveCount(2);
   await draftChips.filter({ hasText: 'Image 1' }).getByRole('button').click();
   await expect(draftChips).toHaveCount(1);
-  expect(await pasteImages(3)).toBe(true);
+  // Hold each response explicitly: typing spaces the pastes like ordinary human input,
+  // while response gates (rather than a fixed sleep) guarantee overlapping uploads.
+  const beforeUploads = pasted;
+  let releaseFirstUpload, releaseNextUpload;
+  uploadGates.set(beforeUploads + 1, new Promise(resolve => { releaseFirstUpload = resolve; }));
+  uploadGates.set(beforeUploads + 2, new Promise(resolve => { releaseNextUpload = resolve; }));
+  expect(await pasteImages()).toBe(true);
+  await expect.poll(() => pasted).toBe(beforeUploads + 1);
+  await message.press('End'); await page.keyboard.type(' note', { delay: 160 });
+  expect(await pasteImages(2, 1)).toBe(true);
+  const sendDuringUpload = panel.getByRole('button', { name: 'Send message', exact: true });
+  await expect(sendDuringUpload).toBeDisabled();
+  await message.press('Enter');
+  expect(sent).toHaveLength(0);
+  releaseFirstUpload();
+  await expect.poll(() => pasted, 'the later paste must be uploaded after the held first response').toBe(beforeUploads + 2);
+  await expect(draftChips).toHaveCount(2);
+  await expect(sendDuringUpload).toBeDisabled();
+  await message.press('Enter');
+  expect(sent).toHaveLength(0);
+  await message.fill('What changed in the current document?');
+  releaseNextUpload();
   await expect(draftChips).toHaveCount(4);
+  await expect(sendDuringUpload).toBeEnabled();
   await expect(draftChips).toHaveText(['document.md', 'Image 1', 'Image 2', 'Image 3']);
   await expect(draftChips.locator('img')).toHaveCount(3);
+  expect(await draftChips.locator('img').evaluateAll(images => images.map(image => image.getAttribute('src')))).toEqual(pastedData.slice(1).map(data => `data:image/png;base64,${data}`));
   await expect.poll(() => draftChips.locator('img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
   const assertChipFlow = async () => {
     const geometry = await panel.locator('.assistant-composer .assistant-references').evaluate(list => ({

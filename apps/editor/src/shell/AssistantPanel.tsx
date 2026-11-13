@@ -81,7 +81,11 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [problem, setProblem] = useState("");
   const [setup, setSetup] = useState("");
   const [ready, setReady] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [actionPending, setPending] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const pending = actionPending || uploadingImages;
+  const imageUploads = useRef(Promise.resolve());
+  const pendingImageUploads = useRef(0);
   const busy = useRef(false);
   const submissionScope = useRef(0);
   const leaveSubmissionScope = () => { submissionScope.current++; };
@@ -212,6 +216,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   // Hiding the panel is not a provider/scope change: a late send reply still belongs here.
   useEffect(() => () => {
     providerVersion.current++; busy.current = false; setPending(false);
+    imageUploads.current = Promise.resolve(); pendingImageUploads.current = 0; setUploadingImages(false);
     setSubmissions(previous => previous.map(value => value.hostId === hostId && value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
   }, [settingsRevision]);
   useLayoutEffect(() => {
@@ -324,7 +329,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); } finally { if (isCurrent()) { busy.current = false; setPending(false); } }
   };
   const send = () => run(async isCurrent => {
-    if (!ready || active && provider === "copilot") return;
+    if (pendingImageUploads.current || !ready || active && provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
@@ -614,8 +619,13 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         const images = Array.from(event.clipboardData.items).filter(item => item.kind === "file" && item.type.startsWith("image/")).map(item => item.getAsFile()).filter((file): file is File => !!file);
         if (!images.length) return;
         event.preventDefault();
-        void run(async isCurrent => {
+        const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
+        pendingImageUploads.current++;
+        setUploadingImages(true); setProblem("");
+        // Chain paste batches separately from other actions; never discard an accepted paste.
+        imageUploads.current = imageUploads.current.then(async () => {
           for (const image of images) {
+            if (!isCurrent()) return;
             const data = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onload = () => resolve(String(reader.result).split(",")[1]);
@@ -628,6 +638,10 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
               addReference(file);
             }
           }
+        }).catch(error => {
+          if (isCurrent()) setProblem(i18n.t(error.message, { defaultValue: error.message }));
+        }).finally(() => {
+          if (isCurrent() && --pendingImageUploads.current === 0) setUploadingImages(false);
         });
       }} ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
