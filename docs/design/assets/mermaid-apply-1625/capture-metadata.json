@@ -1,0 +1,410 @@
+{
+  "issue": 1625,
+  "baselineCommit": "4861533a9c62a0cc5e9febc5f18c01e7cfc58a9f",
+  "comparison": "Same source and viewport; after uses the source-preview fixed extent change on the baseline.",
+  "identity": "Synthetic Host capability identity; no pixel edits.",
+  "review": "Implementation self-review; not owner visual approval.",
+  "geometryNote": "Captures show completed previews. The browser regression separately asserts identical Apply and caption rectangles across pending-to-rendered completion during a held mouse click.",
+  "captures": [
+    {
+      "stage": "before",
+      "file": "before/1440-light-small.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "light",
+      "size": "small",
+      "preview": {
+        "x": 344,
+        "y": 522.671875,
+        "width": 736,
+        "height": 130.84375
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 821.515625,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "20b1cd5d87d62143f70c3dd2403eea0016ba62ef7c06f54487e17efeb58c0ece",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "before",
+      "file": "before/1440-light-large.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "light",
+      "size": "large",
+      "preview": {
+        "x": 344,
+        "y": 552.671875,
+        "width": 736,
+        "height": 5677.703125
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 6398.375,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "3be4d302a699abe5c157afd125d7d70b4e6913906ac9569b9612313b2226b8ed",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "before",
+      "file": "before/1440-dark-small.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "dark",
+      "size": "small",
+      "preview": {
+        "x": 344,
+        "y": 522.671875,
+        "width": 736,
+        "height": 130.84375
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 821.515625,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "ebb0433eb3ff2b185d6bb44df7aa6e177476a124426de2790b6f3497ccae8055",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "before",
+      "file": "before/1440-dark-large.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "dark",
+      "size": "large",
+      "preview": {
+        "x": 344,
+        "y": 552.671875,
+        "width": 736,
+        "height": 5677.703125
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 6398.375,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "55b5b7cc1be6a33627075e538467497150b5ba4935bd222c2d1aa80567622aa3",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "before",
+      "file": "before/640-light-small.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "light",
+      "size": "small",
+      "preview": {
+        "x": 144,
+        "y": 506.671875,
+        "width": 464,
+        "height": 82.484375
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 757.15625,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "b1c5f1a698efafdf2f15c75b3760fe19ffdde70e05b763edfdfd393d97514b4e",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    },
+    {
+      "stage": "before",
+      "file": "before/640-light-large.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "light",
+      "size": "large",
+      "preview": {
+        "x": 144,
+        "y": 578.671875,
+        "width": 464,
+        "height": 3579.421875
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 4326.09375,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "390c5d6027de11d53560f8f8659a90f10aa76e684b53f080d6f13bfc34e57502",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    },
+    {
+      "stage": "before",
+      "file": "before/640-dark-small.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "dark",
+      "size": "small",
+      "preview": {
+        "x": 144,
+        "y": 506.671875,
+        "width": 464,
+        "height": 82.484375
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 757.15625,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "0fc712b7f1e012c4bd808243af29ef4342a06f8adceabd65867527c3b2552ac1",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    },
+    {
+      "stage": "before",
+      "file": "before/640-dark-large.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "dark",
+      "size": "large",
+      "preview": {
+        "x": 144,
+        "y": 578.671875,
+        "width": 464,
+        "height": 3579.421875
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 4326.09375,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "c0c496cffb4e62ea6e6b876168180ffccd660dbbaf3879714da6c40bff3df0ec",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/1440-light-small.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "light",
+      "size": "small",
+      "preview": {
+        "x": 344,
+        "y": 522.671875,
+        "width": 736,
+        "height": 240
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 930.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "0298511e4c55c7290764f046fcf7cc767ba1fd5b8356dee030657f80adef91d9",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/1440-light-large.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "light",
+      "size": "large",
+      "preview": {
+        "x": 344,
+        "y": 552.671875,
+        "width": 736,
+        "height": 240
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 960.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "af71fa585de0f00b50977bc843fc8925c880557fd835f7f429e4c0f4f8ca3ab3",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/1440-dark-small.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "dark",
+      "size": "small",
+      "preview": {
+        "x": 344,
+        "y": 522.671875,
+        "width": 736,
+        "height": 240
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 930.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "edbdc680fb4dcaa399b5dd11b9ed85b3059f7df5d034e51fa87fbfb014411101",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/1440-dark-large.png",
+      "width": 1440,
+      "height": 1200,
+      "theme": "dark",
+      "size": "large",
+      "preview": {
+        "x": 344,
+        "y": 552.671875,
+        "width": 736,
+        "height": 240
+      },
+      "apply": {
+        "x": 1017.328125,
+        "y": 960.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "89e0b7276310fb2ffb3f097e9a6a7cdd12b6021918893d6e27778f55ffcc9e63",
+      "pngDimensions": [
+        1440,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/640-light-small.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "light",
+      "size": "small",
+      "preview": {
+        "x": 144,
+        "y": 506.671875,
+        "width": 464,
+        "height": 240
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 914.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "efdaee3c0b807dd430c5b33335831ac55ac871ee7ec6e3cfe03a4df7b5052625",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/640-light-large.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "light",
+      "size": "large",
+      "preview": {
+        "x": 144,
+        "y": 578.671875,
+        "width": 464,
+        "height": 240
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 986.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "1ba5f5d029862f4b787da1783204c7e59045324b2683b522447c486c5161d6d2",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/640-dark-small.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "dark",
+      "size": "small",
+      "preview": {
+        "x": 144,
+        "y": 506.671875,
+        "width": 464,
+        "height": 240
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 914.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "e64cbbe706705e57ad053f79c5e5f3540247c2774be593a35d6ea663e550dc49",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    },
+    {
+      "stage": "after",
+      "file": "after/640-dark-large.png",
+      "width": 640,
+      "height": 1200,
+      "theme": "dark",
+      "size": "large",
+      "preview": {
+        "x": 144,
+        "y": 578.671875,
+        "width": 464,
+        "height": 240
+      },
+      "apply": {
+        "x": 545.328125,
+        "y": 986.671875,
+        "width": 62.671875,
+        "height": 28
+      },
+      "sha256": "71264248d2d1820f82830087875d514dce6ec15466319e90ac827a5ec91f0113",
+      "pngDimensions": [
+        640,
+        1200
+      ]
+    }
+  ]
+}

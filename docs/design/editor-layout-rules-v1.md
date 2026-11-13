@@ -241,6 +241,13 @@ their compact action. Expanded Advanced retains the collapsed label-line clearan
 Above placement also clears the absolute metadata line.
 See [Figure properties](figure-authoring-v1.md#anchored-figure-properties-757).
 
+Mermaid source editing (#1625) keeps its existing full-column `PropertyForm` layout.
+Only the source draft preview reserves `--layout-mermaid-source-preview-height` (15rem)
+and scrolls overflow inside a focusable native region. Pending, failed and tall renders
+cannot change the action row or following caption position. This is a fixed extent,
+not a minimum height that a large SVG can exceed. Metadata thumbnails retain the
+intrinsic-ratio/no-letterbox rule above; block/inline Equation rendering is synchronous.
+
 ## Controls and spacing
 
 Document scrolling belongs to the active tab's viewport below the measured tab row
