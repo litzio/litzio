@@ -31,7 +31,7 @@ export function bundleScreens(directory: string) {
   const manifest = JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8"));
   const started = Date.now();
   const files = [];
-  for (const screen of manifest.contributes?.screens ?? []) if (screen.entry) {
+  for (const screen of manifest.screen ? [{entry: manifest.screen}] : manifest.contributes?.screens ?? []) if (screen.entry) {
     const source = compileScreen(directory, screen.entry, true);
     const file = screen.entry.replace(/\.[^.]+$/, ".bundle.js");
     writeFileSync(path.join(directory, file), source);

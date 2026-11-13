@@ -36,7 +36,7 @@ export function validatePluginSource(source: string, manifest: PluginManifest): 
     handlers.set(key, fn);
     if (!["ObjectMethod", "ArrowFunctionExpression", "FunctionExpression"].includes(fn.type)) report("Handler must be a literal function", property);
   }
-  for (const key of handlers.keys()) if (!manifest.contributes.operations.some(op => op.id === key)) report("Undeclared operation handler", handlers.get(key));
+  for (const key of handlers.keys()) if (!manifest.contributes.screens.some(screen => screen.entry) && !manifest.contributes.operations.some(op => op.id === key)) report("Undeclared operation handler", handlers.get(key));
   for (const op of manifest.contributes.operations) {
     const fn = handlers.get(op.id);
     if (!fn) { report("Missing handler", candidates[0]); continue; }

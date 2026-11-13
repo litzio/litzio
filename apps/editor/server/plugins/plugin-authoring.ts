@@ -53,6 +53,11 @@ export function activate(context) {
 `,
   };
   if (example) { files["host.js"] = example.source; if ("screen" in example && example.screen) files["screen.jsx"] = example.screen; }
+  if (template === "screen" || template === "chart") {
+    files["litzio-plugin.json"] = JSON.stringify({ id, name: "측정값", icon: "ChartColumn", entry: "host.mjs", screen: "screen.jsx" }, null, 2) + "\n";
+    files["host.mjs"] = files["host.js"]!;
+    for (const name of ["host.js", "package.json", "jsconfig.json", "plugin-sdk.d.ts"]) delete files[name];
+  }
   for (const [name, content] of Object.entries(files)) {
     writeFileSync(path.join(directory, name), content, { flag: "wx" });
     checkDirectory();

@@ -57,7 +57,8 @@ process.on('message', async ({id, method, args}) => {
       if ((await import('@litzio/plugin-sdk')).SDK_VERSION !== args.sdkVersion) throw new Error('Unsupported SDK version');
       const module = await import(pathToFileURL(args.entry).href);
       instance = await module.activate({secrets: Object.freeze(args.secrets), settings: args.settings, platform: process.platform, env: {...process.env}, isDirectory(file) {try {return statSync(file).isDirectory()} catch {return false}}});
-      if (!instance || typeof instance.status !== 'function' || typeof instance.dispose !== 'function' || !instance.operations || args.operations.some(key => typeof instance.operations[key] !== 'function' || !Object.hasOwn(instance.operations, key)) || Object.keys(instance.operations).some(key => !args.operations.includes(key))) throw new Error('Invalid handlers');
+      if (!instance || typeof instance.status !== 'function' || typeof instance.dispose !== 'function' || !instance.operations || args.operations.some(key => typeof instance.operations[key] !== 'function' || !Object.hasOwn(instance.operations, key)) || Object.keys(instance.operations).some(key => typeof instance.operations[key] !== 'function' || !args.codeScreen && !args.operations.includes(key))) throw new Error('Invalid handlers');
+      result = Object.keys(instance.operations);
     } else if (method === 'status') result = await instance.status();
     else if (method === 'invoke') result = await instance.operations[args.operation](args.input);
     else if (method === 'dispose') await instance?.dispose?.();
@@ -104,10 +105,11 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
     child.send({ id, method, args }, error => { if (error) { fail(); child.kill(); } });
   });
   const stop = async () => { stopped = true; child.kill(); await exited; };
-  try { await request("activate", { entry, settings, secrets, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id) }); }
+  let operationNames: string[];
+  try { operationNames = await request("activate", { entry, settings, secrets, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id), codeScreen: manifest.contributes.screens?.some(screen => screen.entry) ?? false }); }
   catch (error) { await stop(); throw error; }
   return {
-    operations: Object.fromEntries(manifest.contributes.operations.map(op => [op.id, (input: unknown) => request("invoke", { operation: op.id, input })])),
+    operations: Object.fromEntries(operationNames.map(id => [id, (input: unknown) => request("invoke", { operation: id, input })])),
     status: () => request("status"),
     async dispose() { try { if (!dead) await request("dispose"); } finally { await stop(); } },
   };

@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
-const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullRemoval: true, fullLayout: true, smartquotes: true });
+const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullRemoval: true, fullLayout: true, smartquotes: true, prWindowsPackaged: false });
 // Consumers: root issue/docs commands and the always-run CI policy checks.
 // Product builds/tests do not load these files. Keep other scripts conservative.
 const policyFiles = new Set([
@@ -100,6 +100,8 @@ function selectPathJobs(eventName, paths) {
   const http = browser || paths.some(path => ['packages/cli', ].some(name => inPackage(path, name)));
   const update = full || paths.some(path => inPackage(path, 'apps/desktop') || editorUpdate(path));
   return {
+    // Exercise Windows packaging on PRs that change its regression or shared fixture.
+    prWindowsPackaged: paths.some(path => ['packages/cli/test/packaged.test.ts', 'test/helpers/external-plugin.ts'].includes(path)),
     quality: !paths.every(path => policyOnly(path) || isDocumentationOnly(eventName, [path])),
     browser, http,
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),

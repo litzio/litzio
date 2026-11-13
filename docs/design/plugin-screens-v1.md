@@ -14,7 +14,7 @@ Host는 검증·reload 시 기존 esbuild로 같은 artifact 안의 로컬 파�
 
 화면 전용 작업은 assistant:false이며 rowSchema 없이 임의 JSON을 반환할 수 있다. read/write 모두 기존 공용 invoke·receipt·검증을 사용한다. 문서 직접 쓰기 경로는 추가하지 않는다. reload·비활성·연결 해제·Host 교체 시 이전 화면을 내리고 새 코드를 받는다. 열린 코드 화면은 소스 없이 활성 revision을 2초 간격으로 관측해 비서·CLI의 명시적 reload·비활성화도 반영한다. 파일 감시·자동 reload는 하지 않는다. import/render/cleanup 오류는 화면 안에 메시지·stack으로 표시하고 변환 실패는 validate의 파일·위치와 플러그인 상태에서 확인한다. async/event 오류는 작성자가 catch해 Notice로 표시한다. 조회 성공과 실제 화면 확인은 별개다.
 
-기존 선언형 query·review·jobs는 이번 단계에서 유지한다. 아래 HTML/JS·Chart 제한은 기존 선언형 문법에만 적용한다. 선언 축소·설치 통합·문서 저장 버튼·기존 문법 삭제는 후속 단계다.
+기존 선언형 query·review·jobs는 이번 단계에서 유지한다. 아래 HTML/JS·Chart 제한은 기존 선언형 문법에만 적용한다. 선언 축소·설치 통합은 아래 2단계를 따른다. 문서 저장 버튼·기존 문법 삭제는 후속 단계다.
 
 ## 화면과 수명
 
@@ -127,3 +127,33 @@ native-document job의 선택 comparison 선언과 완료 result 참조에서 �
 ## 검수 즉시 교정 표시 (#1531, 2026-11-12)
 
 [즉시 교정 계약](docling-review-stage3.md#2026-11-12-즉시-교정-결정--1531)에 따라 비서 교정은 승인 대기 없이 저장된다. 기존 목록의 상태는 “적용됨”, 선택 상세는 “적용된 교정”과 변경 전/적용 후, 사람/비서 출처 이력 및 기존 되돌리기를 표시한다. 기존 compact Button/Input/Disclosure·토큰을 재사용하며 새 표면·공통 상호작용 예외는 없다. 쪽 제외 묶음의 사람 제안 검토/승인과 필수 확인은 유지한다. 대화에서 추가 수정을 지시하며 직접 편집 진입은 후속으로 분리한다.
+
+## 코드 화면 제작·설치 2단계 (#1592)
+
+최소 신분증은 다음과 같다. `screen`이 있으면 SDK가 기존 내부 manifest로 정규화한다.
+
+```json
+{
+  "id": "local.measurements",
+  "name": "측정값",
+  "icon": "ChartColumn",
+  "entry": "host.mjs",
+  "screen": "screen.jsx"
+}
+```
+
+`host.mjs`는 activate(context)에서 operations·status·dispose를 반환한다. 화면은 default React 컴포넌트이며 제공된 React·ui·invoke를 사용한다. ESM 확장자 덕분에 package.json이 필요 없다. 화면 전용 handler는 선언 없이 invoke로 호출한다. 공개할 작업만 신분증의 선택적 operations에 id·version·effect·scope·assistant·inputSchema를 선언한다(outputSchema 생략은 임의 JSON). 기존 공개 작업의 schema 검증과 receipt는 유지한다. 비공개 handler는 화면 전용 dispatcher가 자기 플러그인 안에서만 찾으며 CLI·비서 작업 목록에 노출하지 않는다. 비공개 handler는 효과를 분류하지 않으므로 실패 receipt는 uncertain이다. JSON 공개·secret redaction과 하위 프로세스 수명은 공통 경로를 쓴다.
+
+화면·조회·표·행 형식 선언과 플러그인별 타입 안내 파일은 필요 없다. 선언형 views/jobs/reviews와 코드 화면의 혼합은 거부한다. 기존 OneDrive·Docling·Jira의 선언형 문법과 수동 등록·신뢰·활성 UI는 유지한다.
+
+```sh
+litzio plugins scaffold --id local.measurements --template screen --host <origin> --json
+litzio plugins install local.measurements --host <origin> --json
+```
+
+파일은 Host가 공급한 LITZIO_PLUGINS 환경변수 아래 ID 폴더에 쓴다. PowerShell은 `Join-Path $env:LITZIO_PLUGINS "local.measurements"`로 계산한다. 반환된 긴 절대 경로를 다시 입력하지 않는다. install은 ID 또는 명시적 폴더를 받아 정적 검증·필요한 화면 bundle·등록·신뢰·활성·reload를 수행한다. 외부 패키지를 쓰면 기존 dependencies 작업으로 먼저 내려받고, install이 매번 bundle을 재생성한다. 같은 명령으로 수정을 반영하며 설정·등록 ID를 보존한다. 재설치는 새 프로세스의 활성화와 상태 응답을 먼저 확인한 후 기존 실행을 교체한다. 그 준비가 실패하면 기존 프로세스·활성 설정·화면 revision을 보존한다. 디스크 artifact 변경을 감지하는 기존 작업 호출 검사는 유지하므로, 소스를 수정한 상태의 호출에는 reload 안내가 나올 수 있다. 앱에 포함된 플러그인은 install로 교체하지 않는다. 검증 실패는 기존 file/line/column/kind/path/message 오류 형식과 failure receipt를 반환한다. 실행 단계 실패에는 정적으로 위치를 특정할 수 없는 경우도 있다.
+
+opened-folders에서 CLI reset guard가 막으면 같은 Host 작업인 `manage_plugins {action:"install",id:"local.measurements"}`를 사용한다. 읽기 전용에서는 거부하며 sandbox·guard를 완화하지 않는다. 자동 파일 감시는 없고 열린 화면은 기존 revision 관측으로 갱신한다.
+
+
+제작용 npm은 배포물의 단일 archive로 제공하며 외부 라이브러리 dependencies를 처음 사용할 때만 Host 데이터 아래에 준비한다. [포함 npm 지연 준비](plugin-stage1-v1.md#포함-npm의-지연-준비-1592)를 따른다. npm cache 준비는 라이브러리 bundle을 소비하는 화면에는 필요하지 않다. esbuild와 React 실행 경계는 그대로다.

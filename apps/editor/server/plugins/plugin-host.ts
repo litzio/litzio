@@ -26,8 +26,8 @@ import { PluginJobs } from "./jobs.ts";
 type ManifestIssue = { path: PropertyKey[]; code: string; message: string; issues?: ManifestIssue[] };
 type ValidationDiagnostic = { file: string; line: number | null; column: number | null; kind: string; path?: string; message?: string; code?: string };
 function validationDiagnostics(error: unknown, file: string): ValidationDiagnostic[] {
-  const value = error as { name?: string; message?: string; loc?: { line: number; column: number }; jsonLocation?: { line: number; column: number }; issues?: ManifestIssue[] };
-  if (value?.name === "ScreenCompileError") return [{ file, line: value.loc?.line ?? null, column: value.loc ? value.loc.column + 1 : null, kind: "Screen compilation failed", message: value.message }];
+  const value = error as { name?: string; message?: string; loc?: { file?: string; line: number; column: number }; jsonLocation?: { line: number; column: number }; issues?: ManifestIssue[] };
+  if (value?.name === "ScreenCompileError") return [{ file: value.loc?.file ?? file, line: value.loc?.line ?? null, column: value.loc ? value.loc.column + 1 : null, kind: "Screen compilation failed", message: value.message }];
   if (value?.name === "ZodError" && value.issues) {
     const expand = (issues: ManifestIssue[], prefix: PropertyKey[] = []): ValidationDiagnostic[] => issues.flatMap(issue => {
       const parts = [...prefix, ...issue.path];
@@ -181,7 +181,7 @@ export class PluginHost {
     if (manifest.icon) { inspecting(manifest.icon); readPluginIcon(directory, manifest.icon); }
     for (const screen of manifest.contributes.screens) if (screen.entry) { inspecting(screen.entry); compileScreen(directory, screen.entry); }
     inspecting("package.json");
-    if ((readArtifactJson(path.join(directory, "package.json")) as { version?: unknown }).version !== manifest.version) throw new Error("Package and manifest versions differ");
+    if ((existsSync(path.join(directory, "package.json")) || !manifest.contributes.screens.some(screen => screen.entry)) && (readArtifactJson(path.join(directory, "package.json")) as { version?: unknown }).version !== manifest.version) throw new Error("Package and manifest versions differ");
     inspecting("host entry");
     const entry = realpathSync(path.join(directory, manifest.entry));
     if (path.relative(directory, entry).startsWith("..") || !statSync(entry).isFile()) throw new Error("Invalid entry");
@@ -312,16 +312,16 @@ export class PluginHost {
       catch { return { ...s, configured: false, error: "Secret unavailable or damaged" }; }
     })) };
   }
-  private async runtimeSecrets(id: string, m: PluginManifest) {
+  private async runtimeSecrets(id: string, m: PluginManifest, remember = true) {
     if (!this.secrets.supported) {
       if (m.secrets.some(s => s.required)) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
       return Object.freeze({} as Record<string, string>);
     }
-    this.redactionSecrets.set(id, new Map());
+    if (remember) this.redactionSecrets.set(id, new Map());
     const secrets: Record<string, string> = {};
     for (const s of m.secrets) {
       const value = await this.secrets.read(id, s.id);
-      if (value !== undefined) { this.rememberSecret(id, s.id, value); secrets[s.id] = value; }
+      if (value !== undefined) { if (remember) this.rememberSecret(id, s.id, value); secrets[s.id] = value; }
       else if (s.required) throw new Error("Required plugin secret is not configured");
     }
     return Object.freeze(secrets);
@@ -420,9 +420,12 @@ export class PluginHost {
       return { ...publicOperationError(error, "read"), receipt: { ...reply.receipt, outcome: "failure" } };
     }
   }
-  async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false, version?: number) {
-    const live = [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
-    const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);
+  async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false, version?: number, screenOwner?: string) {
+    const live = screenOwner ? this.loaded.get(screenOwner) : [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
+    const local = screenOwner && name.startsWith(`${screenOwner}.`) ? name.slice(screenOwner.length + 1) : undefined;
+    const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name) ??
+      (local && live?.manifest.contributes.screens.some(screen => screen.entry) && Object.hasOwn(live.instance.operations, local) ?
+        { id: local, version: 1, effect: "write" as const, scope: "host", assistant: false, inputSchema: {}, outputSchema: {} } : undefined);
     if (!live || !op) throw new Error("Operation unavailable or plugin disabled");
     if (version !== undefined && op.version !== version) throw new Error("Review operation version unavailable");
     if (version === undefined && live.manifest.contributes.reviews.some(r => [r.read, r.propose, r.approve, r.reject, r.undo].some(b => b?.operation === name))) throw new Error("Use the common review dispatcher");
@@ -460,12 +463,66 @@ export class PluginHost {
       if (!op || op.effect !== "read" || args.version !== op.version) return Promise.reject(new Error("Suggestion operation unavailable"));
       return this.invokeOperation(args.operation!, args.input, undefined, false, op.version);
     }
+    if (action === "screen-invoke") return this.invokeOperation(args.operation!, args.input, undefined, false, undefined, args.plugin);
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));
     const run = this.serial.then(async () => {
       let id = args.id!;
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
+      if (action === "install") {
+        let file = "artifact";
+        let candidate: PluginInstance | undefined;
+        try {
+          const requested = args.directory ?? path.join(this.authoringAccess().roots[0]!, id);
+          const directory = accessPath(requested, inside(this.authoringDirectory, path.resolve(requested)) ? this.authoringAccess() : this.access);
+          accessPath(directory, creationScope);
+          file = "litzio-plugin.json";
+          const manifest = validateManifest(readArtifactJson(path.join(directory, file)));
+          const codeScreens = manifest.contributes.screens.filter(screen => screen.entry);
+          const hasDependencies = existsSync(path.join(directory, "package.json")) && Object.keys((readArtifactJson(path.join(directory, "package.json")) as { dependencies?: Record<string, string> }).dependencies ?? {}).length > 0;
+          const hasBundle = codeScreens.some(screen => existsSync(path.join(directory, screen.entry!.replace(/\.[^.]+$/, ".bundle.js"))));
+          if (codeScreens.length && (hasDependencies || hasBundle)) bundleScreens(directory);
+          const a = this.artifact(directory, current => { file = current; });
+          const errors = validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: a.manifest.entry, ...issue }));
+          if (errors.length) return { valid: false, errors, receipt: receipt("failure") };
+          id = a.manifest.id;
+          if (args.id && args.id !== id) throw new Error("Artifact ID changed");
+          if (this.supply.some(p => p.id === id) || this.installed[id]?.bundled) throw new Error("Bundled plugins update with the app only");
+          const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
+          this.assertOperationNamesAvailable(id, names);
+          const previous = Object.hasOwn(this.installed, id) ? this.installed[id] : undefined;
+          const settings = previous?.settings ?? {};
+          if (!compileSchema(a.manifest.settingsSchema)(settings)) throw new Error("Stored settings do not satisfy this artifact schema");
+          const screens = Object.fromEntries(codeScreens.map(screen => [screen.id, compileScreen(directory, screen.entry!)]));
+          const secrets = await this.runtimeSecrets(id, a.manifest, false);
+          file = a.manifest.entry;
+          // Prepare the replacement before touching the active registration or process.
+          candidate = await startPluginProcess(a.entry, a.manifest, structuredClone(settings), secrets, () => {
+            if (!candidate || this.processes.get(id) !== candidate) return;
+            this.loaded.delete(id); this.jobs.lost(id); this.errors.set(id, "Plugin process failed; reload to recover");
+            try { this.assistantSkills.clear(id); } catch { this.errors.set(id, "Plugin process failed; skill cleanup failed"); }
+          }, directory);
+          statusSchema.parse(await candidate.status());
+          await this.disable(id);
+          this.installed[id] = { registrationId: previous?.registrationId ?? randomUUID(), directory, digest: a.digest, trusted: true, enabled: true, enabledChoice: true, settings, operationNames: names };
+          this.redactionSecrets.set(id, new Map(Object.entries(secrets)));
+          this.processes.set(id, candidate);
+          this.loaded.set(id, { manifest: a.manifest, instance: candidate, pending: new Set(), screens });
+          this.disabling.delete(id); this.errors.delete(id);
+          this.save();
+          try { this.assistantSkills.install(directory, a.manifest); }
+          catch { this.errors.set(id, "Assistant skill installation failed; reload to recover"); }
+          return { id, plugins: await this.list(), receipt: receipt("success") };
+        } catch (error) {
+          const errors = validationDiagnostics(error, file);
+          if (candidate && this.processes.get(id) !== candidate) {
+            try { await candidate.dispose(); }
+            catch (cleanupError) { errors.push(...validationDiagnostics(cleanupError, file)); }
+          }
+          return { id, valid: false, errors, receipt: receipt("failure") };
+        }
+      }
       if (action === "scaffold") {
         const access = args.directory === undefined ? this.authoringAccess(true) : this.access;
         const expected = args.directory === undefined ? path.join(access!.roots[0]!, id) : undefined;

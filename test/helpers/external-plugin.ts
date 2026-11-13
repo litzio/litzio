@@ -4,13 +4,15 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync, renameSync, exists
 import { pathToFileURL } from "node:url";
 
 /** Exercise the shipped scaffold and SDK through a running Host, without a checkout dependency. */
-export async function verifyExternalPlugin(url: string, parent: string, hostBundleDirectory: string) {
+export async function verifyExternalPlugin(url: string, parent: string, hostBundleDirectory: string, timing: (stage: string) => void = () => {}) {
   const id = "fixture.external-sdk", directory = path.join(parent, "external plugin SDK");
   const manage = async (input: Record<string, unknown>) => {
     const response = await fetch(url + "/api/plugins", { method: "POST",
       headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify(input) });
     const result = await response.json();
     assert.equal(response.status, 200, JSON.stringify(result));
+    timing(`external-plugin-${input.action}`);
+    if (input.action === "dependencies" && result.npm) console.log(JSON.stringify({stage:"bundled-npm-preparation",...result.npm}));
     return result;
   };
   await manage({ action: "scaffold", directory, id });

@@ -54,14 +54,20 @@ const binaryPackage = `@esbuild/${process.platform}-${process.arch}/${process.pl
 cpSync(esbuildRequire.resolve(binaryPackage), path.join(destination, binaryName));
 // npm includes its pure-JS dependency tree; preserve its licenses and user's npmrc handling.
 const editorRequire = createRequire(path.join(repo, "apps/editor/package.json"));
-cpSync(path.dirname(editorRequire.resolve("npm/package.json")), path.join(destination, "npm"), { recursive: true, dereference: true });
+const npmStarted = performance.now();
+// Copy first: pnpm's NTFS hardlinks must not become tar hardlink entries.
+const npmStaging = path.join(destination, "npm");
+cpSync(path.dirname(editorRequire.resolve("npm/package.json")), npmStaging, { recursive: true, dereference: true });
+await editorRequire("tar").c({ cwd: npmStaging, file: path.join(destination, "npm.tar.gz"), gzip: true, portable: true }, ["."]);
+rmSync(npmStaging, { recursive: true, force: true });
+console.log(`Bundled npm archive: ${Math.round(performance.now() - npmStarted)}ms`);
 // Separate, self-contained SDK: no shared chunks and no parent-URL trust exception.
 const sdkResult = await buildSdkRuntime(path.join(destination, "plugin-sdk.mjs"));
 const executable = path.join(destination, "cli.mjs");
 writeFileSync(executable, `#!/usr/bin/env node\n${readFileSync(executable, "utf8")}`, { mode: 0o755 });
 writeFileSync(path.join(destination, "package.json"), JSON.stringify({ name: "@litzio/cli", version: manifest.version,
   description: `${brand.name.en} document CLI and HTTP Editor Host`, license: "MIT", type: "module", private: true,
-  bin: { [brand.cliCommand]: "cli.mjs" }, files: ["npm/", "esbuild", "esbuild.exe", "*.mjs", "*.txt", "*.md", "editor/", "official-plugins/", "community-plugins/", "LICENSE"], engines: { node: ">=24.22.1 <25" } }, null, 2) + "\n");
+  bin: { [brand.cliCommand]: "cli.mjs" }, files: ["npm.tar.gz", "esbuild", "esbuild.exe", "*.mjs", "*.txt", "*.md", "editor/", "official-plugins/", "community-plugins/", "LICENSE"], engines: { node: ">=24.22.1 <25" } }, null, 2) + "\n");
 cpSync(path.join(repo, "LICENSE"), path.join(destination, "LICENSE"));
 // Editor notices are generated inside its static boundary by Vite.
 const packages = collectPackages([...Object.keys(result.metafile.inputs), ...Object.keys(sdkResult.metafile.inputs)].map(input => path.resolve(repo, input)));

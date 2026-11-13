@@ -554,3 +554,11 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 `pnpm browser:test plugin-screen-code`는 production HTTP에서 blob 화면 렌더·공용 부품·작업 호출·오류 경계와 문서 탭의 생존을 확인한다. 플러그인 Host 단위 검사는 활성 코드 전달·로컬 JSX reload·변환 진단·임의 JSON·React 인스턴스 공유·의존성 없는 bundle 실행을 보호한다. 기존 CLI/Windows packaged 외부 SDK 회귀는 포함된 npm/네이티브 esbuild로 로컬 패키지를 설치·묶고, node_modules를 옮긴 뒤 실행하는 계약도 확인한다. Desktop 패키징은 CI에서만 실행한다.
 
 실제 비서 측정은 저장소 밖의 합성 CSV·빌드 복사본·격리 Host 프로필로 실행한다. Codex gpt-6.1-terra high·전체 접근, 초기 생성과 기준선 수정의 연속 두 턴 및 hover·확대 과제의 새 대화를 사용한다. 프롬프트에 방법·도구·라이브러리 이름을 넣지 않고 합계 16턴 이내로 제한한다. 각 턴 뒤 실제 브라우저 화면을 확인하며 UI·회사의 registry/프록시·설치본 수락을 별도로 기록한다.
+
+## Packaged CLI Windows timing diagnostics
+
+`packages/cli/test/packaged.test.ts`는 오프라인 npm 설치·설치된 shim·Node CLI·Host 기동·외부 플러그인 dependencies/bundle·두 Root 저장·종료·정리의 단계 시간을 JSON으로 출력한다. npm의 idealTree/unpack/install 시간도 출력하며 경로·설정값은 기록하지 않는다. 실제 npm tarball 설치와 shim 및 외부 라이브러리의 offline bundle 보호는 유지한다. 의존성을 테스트 프로젝트에 먼저 선언해 npm의 중복 tarball manifest 해석을 피한다. 로컬 측정에서 `LITZIO_PACKAGED_RETAIN=1`은 검증 자료 폴더만 보존하며 제품 검사를 생략하지 않는다.
+
+이 테스트 또는 `test/helpers/external-plugin.ts`가 바뀌면 `prWindowsPackaged` 경로 규칙이 기존 Windows HTTP host/plugins 두 job을 PR에서도 선택한다. 일반 PR의 Windows·Desktop 지연과 merge queue 검사는 유지하며 aggregate도 같은 선택식을 사용한다. 새 수동 workflow는 없다.
+
+포함 npm의 압축 배포 후 packaged 검사는 일반 Host 기동에서 npm cache가 생성되지 않고, 외부 라이브러리 설치 시에만 Host 데이터의 cache가 준비됨을 함께 확인한다. 배포물에는 npm 디렉터리 없이 npm.tar.gz가 있어야 한다. 단위 검사는 동시 게시·cache 재사용·부분 archive 실패·이전 staging 잔재 무시·archive 변경을 보호하며 실제 offline npm 설치/bundle 검사를 대체하지 않는다.

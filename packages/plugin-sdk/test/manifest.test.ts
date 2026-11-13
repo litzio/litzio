@@ -340,3 +340,16 @@ test("default-hidden row columns use the unreleased SDK 0.3 contract", () => {
   assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.2.0", contributes: { operations: [operation] } }), /Column visibility/);
   assert.equal(validateManifest({ ...manifest(), requiresSdk: "^0.3.0", contributes: { operations: [operation] } }).contributes.operations[0].rowSchema?.extra.hidden, true);
 });
+
+
+test("code identity card normalizes defaults and cannot mix declarative contributions", () => {
+  const card = {id:"local.screen",name:"Screen",entry:"host.mjs",screen:"screen.jsx"};
+  const m = validateManifest(card);
+  assert.equal(m.contributes.screens[0]!.entry,"screen.jsx");
+  assert.deepEqual(m.contributes.operations,[]);
+  assert.throws(()=>validateManifest({...card,contributes:{views:[]}}));
+  assert.throws(()=>validateManifest({...m,contributes:{...m.contributes,screens:[{...m.contributes.screens[0],defaultViewIds:["query"]}]}}),/cannot be mixed/);
+  const op={id:"load",version:1,effect:"read",scope:"host",assistant:true,inputSchema:{type:"object"}};
+  assert.deepEqual(validateManifest({...card,operations:[op]}).contributes.operations[0]!.outputSchema,{});
+  assert.throws(()=>validateManifest({...card,entry:"../host.mjs"}),/inside package/);
+});

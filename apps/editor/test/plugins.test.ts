@@ -2217,7 +2217,7 @@ test("screen code is active-only, reloads local JSX, reports compiler failures a
     await host.invoke("enable", { id: "fixture.screen" });
     const first = host.viewScreens()[0]!; assert.match(first.code!, /First/);
     assert.equal(host.viewScreens(false)[0]!.code, undefined); assert.equal(host.viewScreens(false)[0]!.codeRevision, first.codeRevision);
-    assert.deepEqual((await host.invokeOperation("fixture.screen.measurements", {})).result, [10,18,12,24]);
+    assert.deepEqual((await host.invoke("screen-invoke", {plugin:"fixture.screen",operation:"fixture.screen.measurements",input:{}}) as any).result, [10,18,12,24]);
     writeFileSync(path.join(directory, "part.jsx"), 'export const label = "Second";');
     await host.invoke("reload", { id: "fixture.screen" });
     assert.match(host.viewScreens()[0]!.code!, /Second/); assert.notEqual(host.viewScreens()[0]!.codeRevision, first.codeRevision);
@@ -2246,4 +2246,85 @@ test("screen dependency bundle stays offline and shares the app React instance",
   const code=compileScreen(root,"screen.jsx");
   const module=await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
   assert.equal(renderToString(React.createElement(module.default(React))),"<output>24</output>");
+});
+
+
+test("install uses authoring ID in opened folders, repeats edits and refuses private CLI calls", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-install-"));
+  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins"), officialPlugins: [], designatedPlugins: [] });
+  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
+  const id = "local.install";
+  try {
+    const created: any = await executePluginTool(host, {action:"scaffold",id,template:"screen"},()=>{},scope);
+    assert.equal(created.error, undefined);
+    const directory = created.result.directory;
+    const entry = path.join(directory,"host.mjs");
+    writeFileSync(entry,readFileSync(entry,"utf8").replace('message: "Ready"','message: String(process.pid)'));
+    const installed: any = await executePluginTool(host,{action:"install",id},()=>{},scope);
+    assert.equal(installed.error, undefined, JSON.stringify(installed));
+    assert.equal((await host.list())[0]!.running, true);
+    const first = host.viewScreens()[0]!.codeRevision;
+    await assert.rejects(host.invokeOperation(`${id}.measurements`,{}), /unavailable/);
+    await assert.rejects(host.invokeAssistantOperation(`${id}.measurements`,{}));
+    assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[10,18,12,24]);
+    await assert.rejects(host.invoke("screen-invoke",{plugin:"other",operation:`${id}.measurements`,input:{}}));
+    writeFileSync(entry,readFileSync(entry,"utf8").replace("10, 18, 12, 24","20, 30"));
+    assert.equal((await host.invoke("install",{id}) as any).receipt.outcome,"success");
+    assert.notEqual(host.viewScreens()[0]!.codeRevision,first);
+    assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[20,30]);
+    await host.invoke("scaffold",{id:"local.other",template:"screen"});
+    assert.equal((await host.invoke("install",{id:"local.other"}) as any).receipt.outcome,"success");
+    const workingSource = readFileSync(entry,"utf8");
+    const beforeInstall = await host.list();
+    const beforeScreens = host.viewScreens();
+    const beforeState = readFileSync(path.join(root,"state.json"),"utf8");
+    writeFileSync(entry,workingSource.replace("export function activate(context) {", "export function activate(context) { throw new Error('Activation failed');"));
+    assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
+    const activationFailed: any = await host.invoke("install",{id});
+    assert.equal(activationFailed.receipt.outcome,"failure");
+    assert.deepEqual((await host.list()).map(item=>[item.id,item.enabled,item.running,item.registrationId,item.status?.message]),beforeInstall.map(item=>[item.id,item.enabled,item.running,item.registrationId,item.status?.message]));
+    assert.deepEqual(host.viewScreens(),beforeScreens);
+    assert.equal(readFileSync(path.join(root,"state.json"),"utf8"),beforeState);
+    writeFileSync(entry,workingSource.replace("20, 30","40, 50"));
+    assert.equal((await host.invoke("install",{id}) as any).receipt.outcome,"success");
+    assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[40,50]);
+    assert.notEqual(host.viewScreens().find(screen=>screen.plugin===id)!.codeRevision,beforeScreens.find(screen=>screen.plugin===id)!.codeRevision);
+    assert.deepEqual(host.viewScreens().find(screen=>screen.plugin==="local.other"),beforeScreens.find(screen=>screen.plugin==="local.other"));
+    writeFileSync(path.join(directory,"screen.jsx"),"export default function Screen(){return <div>}");
+    const failed: any = await host.invoke("install",{id});
+    assert.equal(failed.receipt.outcome,"failure");assert.equal(failed.errors[0].file,"screen.jsx");assert.ok(failed.errors[0].line);
+    const refused = await executePluginTool(host,{action:"install",id},()=>{},{...scope,permissionMode:"read-only"});
+    assert.equal(refused.errorKind,"forbidden");
+  } finally {await host.close();}
+});
+
+
+test("bundled npm cache publishes complete archives, reuses them and retries interruption", async () => {
+  const { c } = await import("tar");
+  const { prepareScreenNpm } = await import("../server/plugins/screen-npm.ts");
+  const root = mkdtempSync(path.join(os.tmpdir(),"litzio-npm-cache-"));
+  const source = path.join(root,"source"), cache = path.join(root,"cache"), archive = path.join(root,"npm.tar.gz");
+  mkdirSync(path.join(source,"bin"),{recursive:true});
+  const entry = path.join(source,"bin/npm-cli.js");
+  writeFileSync(entry,"version one");
+  await c({cwd:source,file:archive,gzip:true},["."]);
+  const ready = await Promise.all([prepareScreenNpm(archive,cache),prepareScreenNpm(archive,cache)]);
+  assert.equal(ready[0].entry,ready[1].entry);
+  assert.equal(ready.filter(result=>result.extracted).length,1);
+  assert.equal(readFileSync(ready[0].entry,"utf8"),"version one");
+  assert.equal((await prepareScreenNpm(archive,cache)).extracted,false);
+  assert.equal(fs.readdirSync(cache).filter(name=>name.startsWith(".npm-")).length,0);
+  // An abandoned staging directory is never mistaken for a completed version.
+  mkdirSync(path.join(cache,".npm-interrupted","bin"),{recursive:true});
+  writeFileSync(path.join(cache,".npm-interrupted","bin/npm-cli.js"),"partial");
+  const bytes = readFileSync(archive);
+  writeFileSync(archive,bytes.subarray(0,Math.floor(bytes.length/2)));
+  await assert.rejects(prepareScreenNpm(archive,cache));
+  assert.equal(readFileSync(ready[0].entry,"utf8"),"version one");
+  writeFileSync(entry,"version two");
+  await c({cwd:source,file:archive,gzip:true},["."]);
+  const updated=await prepareScreenNpm(archive,cache);
+  assert.notEqual(updated.entry,ready[0].entry);
+  assert.equal(updated.extracted,true);
+  assert.equal(readFileSync(updated.entry,"utf8"),"version two");
 });

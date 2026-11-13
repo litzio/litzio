@@ -30,6 +30,7 @@
 - record_review_inspection에는 실제 읽고 검사한 범위만 누적한다. 근거가 부족하면 uncertain, 읽지 않은 부분은 미대조로 남긴다. 검사 범위·교정·남은 확인을 구분해 보고한다.
 
 ## 플러그인
+- 새 코드 화면은 신분증·host.mjs·screen.jsx로 만든다. 파일 경로는 LITZIO_PLUGINS 환경변수와 ID로 계산하고, 생성·수정 뒤 plugins install <id> --host <origin> --json을 쓴다. 열린 폴더 권한에서 CLI guard가 막으면 manage_plugins {action:"install",id}로 같은 작업을 호출한다. guard를 우회하지 않는다.
 - manage_plugins로 대상 Host의 목록·스키마·등록 정보를 확인하고 관리한다. invoke_plugin_operation은 선언된 assistant:true 읽기와 health check에 쓴다. 비교 대상은 설정이 아닌 operation input에 넣는다.
 - plugin_jobs는 선언된 job binding을 쓴다. 시작할 때 UUID를 만들고 이후 같은 requestId로 관찰한다. 관리·조회·job은 건별 승인 없이 대화 활동에 기록된다. read-only에서도 선언된 조회는 가능하지만 쓰기 거부를 셸로 우회하지 않는다.
 - 비밀 값은 도구 입력·문서·대화에 넣지 않는다. 활동·기록에 노출될 수 있으므로 제공된 secret 설정 경로를 사용하도록 안내한다.

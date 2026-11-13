@@ -27,6 +27,7 @@ jobs:
       quality: ${{ steps.policy.outputs.quality }}
       browser: ${{ steps.policy.outputs.browser }}
       http: ${{ steps.policy.outputs.http }}
+      prWindowsPackaged: ${{ steps.policy.outputs.prWindowsPackaged }}
       desktop: ${{ steps.policy.outputs.desktop }}
       update: ${{ steps.policy.outputs.update }}
       fullRemoval: ${{ steps.policy.outputs.fullRemoval }}
@@ -261,7 +262,7 @@ jobs:
   http-windows:
     name: HTTP Host package and browser (${{ matrix.os }}, ${{ matrix.group }})
     needs: changes
-    if: github.event_name != 'pull_request' && needs.changes.outputs.http == 'true'
+    if: (github.event_name != 'pull_request' || needs.changes.outputs.prWindowsPackaged == 'true') && needs.changes.outputs.http == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     strategy:
@@ -614,7 +615,7 @@ jobs:
           DESKTOP_BETA_RESULT: ${{ needs.desktop-beta.result }}
           DESKTOP_BETA_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true' }}
           HTTP_WINDOWS_RESULT: ${{ needs.http-windows.result }}
-          HTTP_WINDOWS_SELECTED: ${{ github.event_name != 'pull_request' && needs.changes.outputs.http == 'true' }}
+          HTTP_WINDOWS_SELECTED: ${{ (github.event_name != 'pull_request' || needs.changes.outputs.prWindowsPackaged == 'true') && needs.changes.outputs.http == 'true' }}
           QUALITY_UNIT_RESULT: ${{ needs.quality-unit.result }}
           QUALITY_UNIT_SELECTED: ${{ needs.changes.outputs.quality }}
           HTTP_RESULT: ${{ needs.http.result }}
