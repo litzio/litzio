@@ -1445,7 +1445,9 @@ test("scaffolded Node plugins use the Host CLI and fail clearly without a launch
     await verifyPluginCli(async args => (await host.invokeOperation("fixture.cli.run",{args})).result, root);
     await absent.invoke("install",{directory});
     assert.deepEqual((await absent.list())[0]!.status, {available:false,message:"This Host has no official CLI launcher"});
-    assert.equal((await absent.invokeOperation("fixture.cli.run",{args:["--version"]})).errorKind, "unavailable");
+    const unavailable = await absent.invokeOperation("fixture.cli.run",{args:["--version"]});
+    assert.ok("errorKind" in unavailable);
+    assert.equal(unavailable.errorKind, "unavailable");
     // Registration/enable and reload also transport the same optional descriptor.
     await host.invoke("disable",{id:"fixture.cli"}); await host.invoke("enable",{id:"fixture.cli"});
     assert.equal(((await host.invokeOperation("fixture.cli.run",{args:["--version"]})).result as any).status,0);
