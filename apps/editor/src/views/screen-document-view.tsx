@@ -9,6 +9,7 @@ import type { ReadingPosition } from "../document-reading.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 import "./screen-document-view.css";
+import { useDocumentViewNavigation } from "./screen-document-view-navigation.ts";
 
 /** App-owned binding, never a plugin-supplied Host or root override. */
 export const DocumentViewScope = createContext<{ client: HostClient; roots: readonly string[] } | undefined>(undefined);
@@ -33,13 +34,12 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
   const [problem, setProblem] = useState("");
   const [positions, setPositions] = useState<ReadingPosition>();
   const viewport = useRef<HTMLDivElement>(null);
-  const jumped = useRef("");
   const notify = useRef(onStateChange); notify.current = onStateChange;
   const request = useMemo(() => ({}), [path, reloadKey, scope?.client, scopeProblem]);
   const file = snapshot?.request === request ? snapshot.file : undefined;
   useEffect(() => {
     const controller = new AbortController();
-    setSnapshot(undefined); setProblem(""); setPositions(undefined); jumped.current = "";
+    setSnapshot(undefined); setProblem(""); setPositions(undefined);
     void (async () => {
       if (!scope) throw new Error("DocumentView requires a plugin screen's Host and opened folders.");
       assertDocumentViewPath(path, scope.roots);
@@ -64,13 +64,7 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
   const state: ScreenDocumentViewState["state"] = problem ? "error" : !file ? "loading" : stale ? "stale-target" : unsupported ? "target-not-found" : "ready";
   useEffect(() => { notify.current?.({ state, ...(file ? { revision: file.revision } : {}), ...(message ? { message } : {}) }); }, [state, file, message]);
   const selected = !stale && location;
-  useEffect(() => {
-    const key = JSON.stringify([file?.revision, targetKey, target?.revision, reloadKey]);
-    if (selected && viewport.current && jumped.current !== key) {
-      viewport.current.scrollTo({ top: Math.max(0, selected.top - 16) });
-      jumped.current = key;
-    }
-  }, [selected, file, targetKey, target?.revision, reloadKey]);
+  useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, reloadKey]), selected);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
   return <section className="screen-document-view" aria-label={label} data-state={state}>
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
