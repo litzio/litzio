@@ -1,3 +1,4 @@
+import { requestFolder, browseHostFolder, requestCreateFolder, folderPlaces } from "./shell/folder-requests.ts";
 import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
@@ -62,15 +63,9 @@ import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
 import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
 import type {
-  DocumentErrorResponse,
   EditorFileResponse,
   DocumentStartResponse,
-  FolderBrowseResponse,
-  FolderCreateRequest,
-  FolderCreateResponse,
   FolderEntry,
-  FolderPlace,
-  FolderPlacesResponse,
   FolderResponse,
 } from "../shared/document-protocol.ts";
 import type { DesktopInfo, RestartCheck } from "../shared/desktop-bridge.ts";
@@ -1636,41 +1631,4 @@ function EditorApp() {
   </>);
 }
 
-/** Asks the Host for one level of a folder inside the folder the user chose. */
-async function requestFolder(root: string, path?: string, background = false): Promise<FolderResponse> {
-  const query = new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) });
-  const response = await getHostClient().request(`/api/folder?${query}`);
-  const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);
-  return payload as FolderResponse;
-}
-
-/** Asks the Host for one level of any folder while choosing which folder to open, or an image. */
-async function browseHostFolder(path: string, files?: "image" | "pdf", client = getHostClient()): Promise<FolderBrowseResponse> {
-  const response = await client.request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
-  const payload = (await response.json()) as Partial<FolderBrowseResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || !Array.isArray(payload.entries) || !Array.isArray(payload.crumbs)) throw new Error(payload.error ?? `request failed (${response.status})`);
-  return payload as FolderBrowseResponse;
-}
-
 const browseHostPdfs = (path: string) => browseHostFolder(path, "pdf");
-
-/** Asks the Host to create one folder inside an existing one. */
-async function requestCreateFolder(parent: string, name: string, client = getHostClient()): Promise<FolderCreateResponse> {
-  const response = await client.request(`/api/folder`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ parent, name } satisfies FolderCreateRequest),
-  });
-  const payload = (await response.json()) as Partial<FolderCreateResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || typeof payload.path !== "string") throw new Error(payload.error ?? `request failed (${response.status})`);
-  return { path: payload.path };
-}
-
-/** Asks the Host where choosing a folder can start. */
-async function folderPlaces(client = getHostClient()): Promise<FolderPlace[]> {
-  const response = await client.request(`/api/folder-places`);
-  const payload = (await response.json()) as Partial<FolderPlacesResponse> & Partial<DocumentErrorResponse>;
-  if (!response.ok || !Array.isArray(payload.places)) throw new Error(payload.error ?? `request failed (${response.status})`);
-  return payload.places;
-}

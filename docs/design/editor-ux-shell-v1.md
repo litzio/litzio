@@ -17,6 +17,8 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 
 검증 이력은 [별도 기록](../reviews/editor-ux-shell-history-2026-11.md)에 보존한다.
 
+창의 탭·복구·파일 action·계속하기·닫기 보호와 effect 순서는 App이 소유한다. 상태 없는 폴더 조회·선택기 탐색·폴더 생성·시작 위치의 HTTP 요청과 응답 검증은 [folder requests](../../apps/editor/src/shell/folder-requests.ts)에 둔다. 요청할 때의 기본 client 조회와 명시적으로 받은 client는 기존 방식대로 유지한다.
+
 
 ## Read / Edit / Source (#849)
 
