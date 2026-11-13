@@ -363,6 +363,45 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
       expect((await recoveryRecords(other)).filter(record => record.path === file(name))).toHaveLength(0);
     } finally { await other.close(); }
   }
+  // Rename/delete invalidate a pending open before its delayed read can admit a tab.
+  for (const action of ['rename','delete']) {
+    const name=`pending-${action}.md`, target=file(name);
+    let release,arrived,finished;
+    const gate=new Promise(resolve=>{release=resolve;});
+    const started=new Promise(resolve=>{arrived=resolve;});
+    const done=new Promise(resolve=>{finished=resolve;});
+    const delayed=async route=>{
+      if(decodeURIComponent(route.request().url().split('?path=')[1]??'')!==target)return route.fallback();
+      const response=await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+      arrived();await gate;await route.fulfill({response});finished();
+    };
+    await page.route('**/api/document?**',delayed);
+    try {
+      await row(name).click();await started;
+      await context(name,action==='rename'?'Rename…':'Delete file…');
+      if(action==='rename')await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('pending-renamed');
+      await dialog.getByRole('button',{name:action==='rename'?'Rename':'Delete file',exact:true}).click();
+      await dialog.waitFor({state:'hidden'});release();await done;
+      await expect(row(name)).toHaveCount(0);
+      await expect(page.getByRole('tab',{name,exact:true})).toHaveCount(0);
+      expect((await recoveryRecords(page)).filter(record=>record.path===target)).toHaveLength(0);
+    } finally {release();await page.unroute('**/api/document?**',delayed);}
+  }
+  await row('pending-renamed.md').click();
+  await expect(page.getByRole('tab',{name:'pending-renamed.md',exact:true})).toHaveCount(1);
+  const recoveryBeforeFailure=await recoveryRecords(page);
+  let deletionAttempts=0;
+  await page.route('**/api/file',route=>{deletionAttempts++;return route.fulfill({status:500,json:{error:'Fixture deletion failure'}});});
+  try {
+    await context('pending-renamed.md','Delete file…');
+    await dialog.getByRole('button',{name:'Delete file',exact:true}).click();
+    await expect(dialog.getByRole('alert')).toContainText('Fixture deletion failure');
+    expect(deletionAttempts).toBe(1);
+    await expect(page.getByRole('tab',{name:'pending-renamed.md',exact:true})).toHaveCount(1);
+    await expect(row('pending-renamed.md')).toHaveCount(1);
+    expect(await recoveryRecords(page)).toEqual(recoveryBeforeFailure);
+    await cancel();
+  } finally {await page.unroute('**/api/file');}
   return {metadata,root,renamedWithoutRead:true,undoPreserved:true,recoveryMovedAndDeleted:true,otherWindowFirstWriteRevoked:true,
     dirtyReferenceRefused:true,draftReferenceRefused:true,cleanReferenceTabsReloaded:true,otherWindowSaveConflict:true};
 }

@@ -58,20 +58,11 @@ export type CliIntegrationState = {
 
 export type HostConnection = { url: string; productVersion: string; desktopVersion: string };
 
-export type HostWorkSummary = { hostId: string; openWork: number; recovery: number };
-export type RegisteredHost = { hostId: string; origin: string; label: string };
 export type DesktopBridge = {
   resetPlan?(): Promise<import("./app-reset.ts").AppResetPlan>;
   resetApp?(removeFolders: boolean, revision: string): Promise<RestartCheck>;
-  registeredHosts(): Promise<{ hosts: RegisteredHost[]; allowedHostIds: string[]; productVersion: string; cliRemovalProtectionWarning?: boolean }>;
-  checkHost(origin: string): Promise<Awaited<ReturnType<typeof import("../server/remote-host-registry.ts").checkRemoteHost>>>;
-  registerHost(origin: string, label: string): Promise<void>;
-  renameHost(hostId: string, label: string): Promise<void>;
-  removeHost(hostId: string): Promise<void>;
-  reportHostWork(summary: HostWorkSummary[] | null): Promise<void>;
   /** Synchronize all-tab close protection with the native Windows session-end query. No content. */
   reportPendingWork(pending: boolean): void;
-  restartForHosts(): Promise<RestartCheck>;
   hostConnection(): Promise<HostConnection>;
   startup(): Promise<{ document?: string; samples?: { ko: string; en: string }; sampleProblem?: "unavailable" }>;
   openInBrowser(): Promise<void>;

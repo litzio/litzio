@@ -258,17 +258,12 @@ button {
 }
 
 /* A single Host passes the sidebar's height constraint through its grouping wrapper. */
-.sidebar-content:not(.sidebar-content--multi-host) > .sidebar-host {
+.sidebar-content > .sidebar-host {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
 }
-
-/* Multiple Hosts scroll together; a filter only hides their mounted sections. */
-.sidebar-content--multi-host { overflow-y: auto; }
-.sidebar-content--multi-host > .sidebar-host,
-.sidebar-content--multi-host > .host-filter { flex: none; }
 
 /* The chosen folder takes the remaining sidebar height and scrolls by itself. */
 .sidebar-folder {
@@ -3464,15 +3459,9 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .notification-group-heading .notification-content > button { padding-inline: 0; }
 .notification-center .notification-group > div > ul { padding: var(--space-3) 0 0 var(--space-3); border: 0; border-radius: 0; box-shadow: none; }
 
-.host-heading { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); min-width: 0; }
 .document-tab-host { flex-shrink: 0; color: var(--id-color-text-subtle); font-size: var(--font-size-xs); }
 
-.host-filter .settings-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); padding: var(--space-2); }
-.host-filter .settings-heading { margin: 0; font-size: var(--font-size-xs); }
-.host-filter select { width: 100%; min-width: 0; }
 
-.host-choice-trigger { display: block; min-width: 0; }
-.host-choice-row[data-slot="button"] { width: 100%; justify-content: space-between; }
 .command-center-host { flex-shrink: 0; max-width: 25%; overflow: hidden; text-overflow: ellipsis; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
 /* Shared Host and provider connection indicators. */
 .agent-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--id-color-text-subtle); flex-shrink: 0; }

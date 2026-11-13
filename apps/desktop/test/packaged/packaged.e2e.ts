@@ -638,39 +638,6 @@ test("bundled screen survives absent daemon and reconnects explicitly", async ()
 });
 
 // Reported data traverses real IndexedDB, App, preload and Electron IPC.
-test("Host removal preserves and ignores unscoped recovery (#1196)", async () => {
-  const { app, page } = await launch(profile("host-removal"), [], { LITZIO_DATA_DIR: path.join(work, `host-removal-data-${Date.now()}`) });
-  try {
-    await page.evaluate(async database => {
-      await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open(database);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          const tx = db.transaction("records", "readwrite");
-          tx.objectStore("records").put({ id: "pre-host-record", version: 1, path: "/old.md", recordedAt: Date.now(), recoveryText: "unscoped work", snapshot: {} });
-          tx.oncomplete = () => { db.close(); resolve(); };
-          tx.onerror = () => { db.close(); reject(tx.error); };
-        };
-      });
-    }, `${brand.storagePrefix}-recovery`);
-    const before = await recoveryRecords(page);
-    await page.reload();
-    await ready(page);
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
-    await page.getByRole("button", { name: "Hosts", exact: true }).click();
-    await page.getByLabel("Host address", { exact: true }).fill("http://127.0.0.1:34999");
-    await page.getByLabel("Host label", { exact: true }).fill("Removal regression");
-    await page.getByRole("button", { name: "Register Host", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Removal regression", exact: true })).toBeVisible();
-    await answerClose(app, 1); // Native Remove confirmation.
-    await page.getByRole("button", { name: "Remove", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Removal regression", exact: true })).toHaveCount(0);
-    await expect(page.getByTestId("host-settings").getByText("No remote Hosts registered.", { exact: true })).toBeVisible();
-    assert.deepEqual(await recoveryRecords(page), before);
-  } finally { await answerClose(app, 0); await closeApp(app); }
-});
-
 // One representative packaged reset is needed: source mocks cannot prove that RunAsNode
 // can delete Chromium's profile AFTER the real Electron process releases its handles.
 test("complete reset closes the packaged app, deletes isolated owned data and restarts with clean samples and work", async () => {
@@ -691,7 +658,7 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
   const proof: Record<string, unknown> = { stage: "launched", originalPid, launcherPid: launcher.pid };
   let bodyFailure: unknown;
   let restarted: { pid: number; processStartedAt: string } | undefined;
-  const workOwners = path.join(data, "desktop", "remote-hosts.json.work");
+  const workOwners = environment.LITZIO_RESET_DIR;
   const readOwner = (file: string) => {
     try { return JSON.parse(readFileSync(file, "utf8")); }
     catch (error) {
@@ -703,9 +670,9 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
   };
   const currentOwner = () => {
     for (const name of existsSync(workOwners) ? readdirSync(workOwners) : []) {
-      if (!name.endsWith(".json")) continue;
+      if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
       const owner = readOwner(path.join(workOwners, name));
-      if (Number.isSafeInteger(owner?.pid) && (owner.pid !== originalPid || owner.processStartedAt !== originalStarted) && processStart(owner.pid) === owner.processStartedAt) return owner;
+      if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== originalPid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) return {pid:owner.pid,processStartedAt:owner.started};
     }
     return undefined;
   };
@@ -730,9 +697,9 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     await confirmation.getByRole("button", { name: "Delete data and restart", exact: true }).click();
     await expect.poll(() => processStart(originalPid), { timeout: 30_000 }).not.toBe(originalStarted);
     proof.stage = "parent-closed";
-    await expect.poll(() => { restarted = currentOwner(); return Array.isArray((restarted as any)?.summary); }, { timeout: 60_000 }).toBe(true);
+    await expect.poll(() => { restarted = currentOwner(); return !!restarted; }, { timeout: 60_000 }).toBe(true);
     proof.restartedPid = restarted!.pid;
-    // A process and renderer summary do not prove a visible interactive window.
+    // A process lease does not prove a visible interactive window.
     await expect.poll(() => Number(execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted!.pid} -ErrorAction Stop).MainWindowHandle.ToInt64()`], { windowsHide: true, encoding: "utf8" }).trim()), { timeout: 15_000 }).not.toBe(0);
     proof.stage = "visible-restart";
     assert.equal(existsSync(path.join(userData, "owned-canary")), false);
@@ -743,7 +710,8 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     assert.equal(existsSync(path.join(environment.LOCALAPPDATA, `${brand.appName}-updater`, "cached-update")), false);
     assert.equal(readFileSync(sample, "utf8"), pristineSample);
     assert.equal(readFileSync(external, "utf8"), "external document must remain");
-    assert.ok((restarted as any).summary.every((row: any) => row.openWork === 0 && row.recovery === 0));
+    // A fresh process, cleared profile and blank document title establish clean restart without remote owner summaries.
+    await expect.poll(() => execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted!.pid} -ErrorAction Stop).MainWindowTitle`], {windowsHide:true,encoding:"utf8"}).trim(), {timeout:15_000}).toBe(brand.name.en);
     proof.dataVerified = true;
   } catch (error) {
     bodyFailure = error; proof.bodyFailure = error instanceof Error ? error.message : String(error); throw error;
@@ -751,7 +719,7 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     try {
     if (processStart(originalPid) === originalStarted) { await answerClose(app, 0); await closeApp(app); }
     restarted ??= currentOwner();
-    // A startup failure before work-summary publication must not orphan our relaunch.
+    // A startup failure before actor publication must not orphan our relaunch.
     for (const name of !restarted && existsSync(environment.LITZIO_RESET_DIR) ? readdirSync(environment.LITZIO_RESET_DIR) : []) {
       if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
       const owner = readOwner(path.join(environment.LITZIO_RESET_DIR, name));

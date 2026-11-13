@@ -5,7 +5,6 @@ import { createHash } from "node:crypto";
 import { brand } from "../../../brand.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { daemonDirectory, processStart } from "./daemon-state.ts";
-import { remoteHostsFile } from "./remote-host-registry.ts";
 import { ResetGuard } from "./reset-guard.ts";
 import { resetStorageTargets, clearOfflineResetStorage, type ResetStorageLocations, type ResetStorageReceipt } from "./reset-storage.ts";
 
@@ -15,7 +14,7 @@ export function localResetLocations(userData?: string, updaterCache?: string, ru
   const host = { ...raw, templates: path.resolve(raw.templates), assistant: path.resolve(raw.assistant), settingsFile: (id: string) => path.resolve(raw.settingsFile(id)) };
   return { userData: userData ?? path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), brand.folders.desktopData),
     updaterCache: updaterCache ?? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), `${brand.appName}-updater`),
-    host, remoteHostsFile: path.resolve(remoteHostsFile()), daemonDirectories: ["stable", "beta", "development"].map(channel => path.resolve(daemonDirectory(channel as "stable" | "beta" | "development"))) };
+    host, daemonDirectories: ["stable", "beta", "development"].map(channel => path.resolve(daemonDirectory(channel as "stable" | "beta" | "development"))) };
 }
 
 export const resetHostPaths = (paths = hostPaths()) => ({ templates: path.resolve(paths.templates), assistant: path.resolve(paths.assistant),
@@ -32,11 +31,11 @@ export function inspectAppReset(locations: ResetStorageLocations) {
  * contents/identity refuses reset; an unresponsive process is never assumed to have exited.
  */
 function checkRecordedWriters(locations: ResetStorageLocations, identify: typeof processStart) {
-  const directories = [...locations.daemonDirectories, path.dirname(locations.remoteHostsFile), `${locations.remoteHostsFile}.work`];
+  const directories = locations.daemonDirectories;
   for (const directory of directories) {
     if (!fs.existsSync(directory)) continue;
     for (const name of fs.readdirSync(directory)) {
-      if (!(name.endsWith(".lock") || name === "instance.json" || directory.endsWith(".work") && name.endsWith(".json"))) continue;
+      if (!(name.endsWith(".lock") || name === "instance.json")) continue;
       let record;
       try { record = JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")); }
       catch { throw new Error("Cannot read a Desktop/daemon ownership record. Inspect it before resetting; no data was deleted."); }

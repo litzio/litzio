@@ -6,7 +6,6 @@ export type ResetStorageTarget = { path: string; kind: "file" | "directory"; con
 export type ResetStorageLocations = {
   userData: string;
   host: ReturnType<typeof hostPaths>;
-  remoteHostsFile: string;
   daemonDirectories: string[];
   updaterCache: string;
 };
@@ -24,12 +23,9 @@ export function resetStorageTargets(locations: ResetStorageLocations): ResetStor
     { path: locations.host.settingsFile("assistant"), kind: "file", contents: "Assistant settings" },
     { path: plugins, kind: "file", contents: "Plugin registrations, trust and settings" },
     { path: `${plugins}.secrets`, kind: "directory", contents: "Plugin secrets" },
-    { path: locations.remoteHostsFile, kind: "file", contents: "Desktop remote Host registrations" },
-    { path: `${locations.remoteHostsFile}.work`, kind: "directory", contents: "Desktop work summaries" },
     ...locations.daemonDirectories.map(directory => ({ path: directory, kind: "directory" as const, contents: "Stopped daemon discovery, locks and logs" })),
     { path: locations.updaterCache, kind: "directory", contents: "Downloaded update cache" },
     { path: path.dirname(locations.host.templates), kind: "directory", contents: "All Host-owned data, including interrupted settings writes" },
-    { path: path.dirname(locations.remoteHostsFile), kind: "directory", contents: "Desktop registration data and interrupted writes" },
     ...Array.from(new Set(locations.daemonDirectories.map(directory => path.dirname(directory)))).map(directory => ({ path: directory, kind: "directory" as const, contents: "All daemon channel data" })),
     ...[locations.host.settingsFile("assistant"), plugins].flatMap(file => {
       const parent = path.dirname(file);

@@ -74,21 +74,9 @@ Settings → About에서 버전·업데이트를 확인합니다. 업데이트 �
 <a id="install"></a>
 <a id="visual-editor"></a>
 
-## Desktop 원격 Host 등록 CLI
+## 로컬 Host 연결
 
-`litzio host list`, `host register <origin> <label>`, `host rename <hostId> <label>`,
-`host remove <hostId>`, `host connect <hostId>`와 `host status <hostId>`는 JSON 결과를 출력합니다.
-등록·라벨은 Desktop 로컬 목록에 저장되며 원격 daemon 설정을 바꾸지 않습니다.
-`LITZIO_DATA_DIR`로 저장 경로를 분리할 수 있습니다. 등록 후 현재 창의 CSP는 바뀌지 않으며
-미저장 작업을 보호한 앱 재시작이 필요합니다. connect/status는 health·프로토콜을 확인하는
-CLI 관측이며 앱의 지속 연결이나 재시작을 수행하지 않습니다. 프로토콜 차이는 거부하고 제품
-버전 차이는 경고합니다. 설정 → Host에서 등록·이름 변경·상태·다시 연결·제거를 제공합니다.
-등록된 Host는 시작 시 자동 연결하고 단절 후 다시 연결합니다. 쓰기는 재전송하지 않습니다.
-CLI remove는 모든 Desktop 프로필이 종료되어 있고 프로필별 요약 모두에 대상 Host의 열린
-작업·복구가 없을 때만 성공합니다. PID와 프로세스 생성 시각을 함께 확인하며 요약이 손상되거나
-읽을 수 없으면 거부합니다. 그 밖에는 설정에서 작업·복구를 정리하고 앱을 종료하도록 안내합니다.
-
-`litzio daemon status`는 실행 중인 daemon의 실행 계정(`Run as`)을 표시합니다. `--json`은 `identity.runAs`로 같은 값을 제공합니다. Windows는 `DOMAIN\user`, Linux는 사용자 이름이며 접속자 신원이 아닙니다. 연결되지 않은 daemon의 계정은 추측하지 않습니다.
+다른 PC의 Host 등록·접속과 여러 Host UI는 2026-11-13 삭제했습니다. 같은 PC의 공유 daemon과 CLI의 `--host <origin>` 작업 대상 지정, 개발·검사용 독립 HTTP 실행은 유지합니다. [현재 Host 계약](docs/design/http-host-v1.md)을 따릅니다.
 
 ## CLI·개발 실행·HTTP
 
@@ -116,7 +104,7 @@ pnpm cli assistant settings
 
 <a id="standalone-http-editor"></a>
 
-서버에서 실행하려면 [HTTP Host 빌드·실행](docs/design/http-host-v1.md#build-and-run)을 따릅니다. CI/local 배포물이며 공개 npm 패키지는 아닙니다. 서버의 허용 폴더에 접근하고 내장 인증이 없으므로 원격 사용에는 접근 제어된 프록시/사설망과 명시적 `--public-origin`이 필요합니다([접근 경계](docs/design/http-host-v1.md#http-and-remote-access)).
+서버에서 실행하려면 [HTTP Host 빌드·실행](docs/design/http-host-v1.md#build-and-run)을 따릅니다. CI/local 배포물이며 공개 npm 패키지는 아닙니다. 개발·검사용 독립 Host이며, 내장 인증은 제공하지 않습니다. 허용 폴더·bind·public-origin 경계는 변경하지 않습니다([접근 경계](docs/design/http-host-v1.md#http-and-remote-access)).
 
 <a id="architecture"></a>
 

@@ -1,6 +1,5 @@
 import { PluginSettings } from "../PluginSettings.tsx";
 import { ResetSettings } from "./ResetSettings.tsx";
-import { HostSettings } from "./HostSettings.tsx";
 import { AssistantSettings } from "../AssistantSettings.tsx";
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
 import { DaemonStatus } from "./DesktopDaemon.tsx";
@@ -58,7 +57,7 @@ export function updateStatusText(info: DesktopInfo): string {
   }
 }
 
-export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about" | "hosts";
+export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -102,8 +101,6 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 }
 
 type SettingsDialogProps = {
-  onCloseHostWork(hostId: string): void;
-  onPrepareHostRemoval(hostId: string): Promise<void>;
   onAssistantSaved(): void;
   theme: ThemePreference;
   themeProblem: boolean;
@@ -122,7 +119,7 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssistantSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
@@ -157,7 +154,7 @@ export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssist
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
     { id: "plugins", label: i18n.t("Plugins"), icon: Server },
     { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
-    ...(desktop ? [{ id: "hosts" as const, label: i18n.t("Hosts"), icon: Server }, { id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
+    ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 
   return (
@@ -175,7 +172,6 @@ export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssist
           <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
-              {category === "hosts" && desktop ? <HostSettings desktop={desktop} closeWork={onCloseHostWork} prepareRemoval={onPrepareHostRemoval} /> : null}
               {category === "plugins" ? <PluginSettings /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} /> : null}
               {category === "appearance" ? <>

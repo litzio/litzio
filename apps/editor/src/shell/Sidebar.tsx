@@ -3,9 +3,7 @@ import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
-import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
-import { hostRegistry, hostLabel, type HostClient } from "../host-client.ts";
-import { SettingsSelect } from "@/components/ui/settings.tsx";
+import { hostRegistry, hostLabel } from "../host-client.ts";
 import { locatorKey, type HostLocator } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
@@ -13,7 +11,7 @@ import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
 import type { FileActionHandler } from "./FileActionDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
-import { useSyncExternalStore, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useSyncExternalStore, useRef, type ReactNode, type RefObject } from "react";
 import { Sun, Moon, FileText, Files as FilesIcon, Folder, FolderOpen, PanelLeftClose, Plus, Settings } from "lucide-react";
 import { DesktopMenu } from "./DesktopDaemon.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -22,13 +20,7 @@ import type { FolderTreeState } from "./folder-tree.ts";
 
 type SidebarProps = {
   onCopyPath?(path: string): void;
-  registerFolderOpener?(hostId: string, open: (path: string) => Promise<string>, control: { roots: string[]; close(path: string): void }): () => void;
-  onHostCreate?(hostId: string, client: HostClient, path: string, root?: string): Promise<string>;
-  createdDocumentFocus?(): HTMLElement | null;
   documentHostId?: string;
-  onHostDirty?(hostId: string, path: string): boolean;
-  onHostOpen?(hostId: string, path: string): Promise<void>;
-  onHostFileAction?(hostId: string, ...args: Parameters<FileActionHandler>): Promise<string>;
   contributions?: { icon?: ReactNode; id: string; label: string; run(returnFocus: HTMLElement): void }[];
   onAddToChat?(locator: HostLocator, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
@@ -73,14 +65,12 @@ type SidebarProps = {
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onCopyPath, documentHostId = "local", registerFolderOpener, onHostCreate, createdDocumentFocus, onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  onCopyPath, documentHostId = "local", onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "light", onThemeChange, contributions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
-  const [hostFilter, setHostFilter] = useState("");
   useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
-  const hosts = hostRegistry.list();
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
@@ -120,16 +110,14 @@ export function Sidebar({
         </div>
       </div>
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
-      <div ref={content} id="sidebar-files" className={`sidebar-content${hosts.length > 1 ? " sidebar-content--multi-host" : ""}`} hidden={!open}
+      <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}
         onContextMenu={event => {
           if (!event.currentTarget.contains(event.target as Node) || (event.target as Element).closest(".sidebar-folder-header, .sidebar-tree-item")) return;
           event.preventDefault(); event.stopPropagation();
           // Keep this menu's provider beside the tree: file dialogs must not inherit a closed menu's focus scope.
           blankTrigger.current?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: event.clientX, clientY: event.clientY }));
         }}>
-        {hosts.length > 1 ? <div className="host-filter"><SettingsSelect label={i18n.t("Host")} value={hostFilter} options={[{ value: "", label: i18n.t("All Hosts") }, ...hosts.map(host => ({ value: host.hostId, label: host.label }))]} onChange={setHostFilter} /></div> : null}
-        <section className="sidebar-host" data-host-id="local" hidden={!!hostFilter && hostFilter !== "local"} aria-label={hosts.find(host => host.hostId === "local")?.label ?? "Local"}>
-        {hosts.length > 1 ? <HostHeading hostId="local" /> : null}
+        <section className="sidebar-host" data-host-id="local" aria-label="Local">
         {folders.length > 0 ? folders.map(tree => {
           return <FolderTree onCopyPath={onCopyPath}
             key={locatorKey({ hostId: tree.hostId, path: tree.root })}
@@ -178,7 +166,6 @@ export function Sidebar({
           </section>
         )}
         </section>
-        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer registerFolderOpener={registerFolderOpener} onCopyPath={onCopyPath} onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: host.hostId, path }, focus) : undefined} onCreate={(client, path, root) => onHostCreate?.(host.hostId, client, path, root) ?? Promise.resolve("Host creation unavailable")} createdDocumentFocus={createdDocumentFocus} documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
       {onSettings || onThemeChange || contributions.length ? (

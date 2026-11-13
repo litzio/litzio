@@ -52,16 +52,11 @@ for tool transport; shared question cards are supported, native ACP question ext
 
 ## Host별 클라이언트 경계 (#1174 PR2)
 
-로컬 재연결로 origin이 바뀌면 기존 세션·receipt의 후속 요청(저장·rollback·비서·템플릿)은 전송 전에 명시적으로 거부한다. 새 작업만 새 client를 얻으며 같은 origin으로 다시 연결한 경우에는 기존 세션을 유지한다. 이미 전송한 요청은 재전송하지 않는다.
-
-클라이언트는 hostId별 독립 HTTP 인스턴스·연결 관측·capability를 가진다. 알 수 없는 hostId는 거부하며 로컬 Host로 대체하지 않는다. 문서 세션의 open/save/source/bibliography/Figure 검증, 이미지 생성·선택·rollback과 상대 media URL은 시작한 Host의 client를 유지한다. 늦은 capability 응답은 새 관측을 덮지 않으며 다른 Host의 연결을 기다리지 않는다. 쓰기는 실패·응답 유실 시 자동 재전송하지 않는다.
-
-운영 목록은 로컬 Host와 Desktop에 등록한 원격 Host를 포함한다. 주입 가능한 registry와 두 독립 HTTP fixture로 같은 경로의 요청 격리·중단·늦은 응답을 검증한다. 원격 등록·자동 재연결·CSP는 PR3, 여러 Host의 화면 통합은 PR4에서 구현했다. Core·공식 저장 경로·상대 URI는 변경하지 않는다.
-
+운영 연결은 로컬 하나다. 내부 registry·hostId는 후속 정리까지 유지하고 알 수 없는 식별자를 로컬로 대체하지 않는다. 세션·receipt가 캡처한 client는 유지한다. origin이 바뀌면 기존 저장·rollback·비서·템플릿 요청을 전송 전에 거부하며 새 작업만 새 client를 얻는다. 같은 origin 재연결은 기존 세션을 유지하고 이미 전송한 쓰기는 재전송하지 않는다. 늦은 capability 관측의 세대 보호와 취소도 유지한다.
 
 ## 원격 Host (#1174 PR0~4 완료)
 
-[ADR-0018](../adr/0018-desktop-remote-hosts.md)의 PR0~4(#1175~#1180)는 완료했다. Desktop 원격 등록·자동 연결/재연결·Host별 탐색기·탭·필터·비서 선택을 제공한다. 실제 Windows Desktop → Linux 연결은 미검증이며, 템플릿 갤러리 진입은 [템플릿 계약](document-templates-v1.md)의 로컬 전용 경계를 따른다.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
 ## Editor Host client (#1150 ④)
 
@@ -71,19 +66,9 @@ Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮�
 
 ## Desktop remote registration (#1174 PR3a)
 
-PR3b verification (2026-11-05): Host runtime protocol/product policy and automatic reconnect,
-isolated CLI removal and main IPC protection tests, Settings and update-restart browser scenarios
-passed. The browser used a native bridge stand-in and the checkout-owned server at port 5187;
-packaged Windows to Linux connectivity remains unverified.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
-Desktop main reads the Desktop-local registry once at startup. Its CSP allows the local daemon
-and registered exact HTTP(S) origins for connect/img; script remains app-only. Registration never
-changes a running window policy. No main HTTP proxy is provided. Settings, automatic remote
-connections and protected restart are provided by PR3b as described in [Desktop distribution](desktop-distribution-v1.md#desktop-local-remote-registry-1174-pr3a).
-
-For the exact Desktop origin, OPTIONS `/daemon/health` (without query) allows only GET and
-`X-Litzio-Protocol`. Stop, unknown daemon routes, other methods/headers and foreign origins are
-refused. The existing protocol check, write Origin checks and SVG/HTML sandbox remain.
+Desktop CSP의 connect/img는 확인된 로컬 daemon의 정확한 origin만 추가하며 script는 앱 번들에 한정한다. main HTTP proxy를 만들지 않는다. 로컬 번들 UI를 위한 한정 health GET/protocol OPTIONS와 API/media의 Origin·JSON·sandbox 경계는 유지한다.
 
 ## Desktop bundled origin (#1150 ⑤)
 
@@ -101,7 +86,7 @@ Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 UI와 H
 허용 Origin의 CORS 응답만 CORP cross-origin이며 나머지는 same-origin이다. Origin 없는
 cross-site API/media, lookalike/foreign/null origin과 잘못된 TCP Host는 계속 거부한다.
 
-번들 CSP는 script/style/font를 앱에 한정하고 connect/img만 정확한 로컬 daemon 및 시작 시 등록된 원격 origin에
+번들 CSP는 script/style/font를 앱에 한정하고 connect/img만 정확한 로컬 daemon origin에
 추가 허용한다. daemon이 내보낸 JavaScript/HTML을 앱 코드로 로드하지 않는다. 문서
 SVG/HTML과 파일 미리보기의 sandbox·script-src none, frame 금지는 그대로다.
 브라우저 UI·같은 origin 요청·기존 Core write path는 유지한다. 인증은 #1145에 보류한다.
@@ -381,7 +366,7 @@ OS user permissions; plugin subprocesses are not an OS security sandbox.
 | --- | --- |
 | Desktop daemon launch: `apps/desktop/src/main.ts:620`, `daemon-client.ts:26`, `apps/editor/server/daemon-state.ts:27` | Newly launched daemon uses the Desktop executable with RunAsNode. An existing shared daemon retains its original runtime. Remote health preflight (`remote-host-registry.ts:196`) consumes the configured Host's response in that daemon. |
 | Desktop main daemon probes: `apps/desktop/src/daemon-client.ts:35`, `apps/editor/server/daemon-state.ts:149` | Electron's Node fetch in the main process; response control requires replacing/compromising the selected local loopback service (not an ordinary remote network peer). |
-| CLI daemon / commands: `packages/cli/src/daemon.ts:91`, `cli.ts:1963`, `plugins.ts:83`; Desktop shim: `apps/desktop/src/cli-integration.ts:19` | Standalone CLI/development use system Node; Desktop shim and assistant CLI use Electron RunAsNode when launched from Desktop. Selected local/remote Host responses affect the CLI process; daemon responses are handled by its own runtime. |
+| CLI daemon / commands: `packages/cli/src/daemon.ts:91`, `cli.ts:1963`, `plugins.ts:83`; Desktop shim: `apps/desktop/src/cli-integration.ts:19` | Standalone CLI/development use system Node; Desktop shim and assistant CLI use Electron RunAsNode when launched from Desktop. Selected local/development Host responses affect the CLI process; daemon responses are handled by its own runtime. |
 | Plugin process: `apps/editor/server/plugins/plugin-process.ts` | Child inherits the daemon runtime. Trusted external plugin code owns any service requests it makes; no conversion service is bundled. |
 | Updater: `apps/desktop/src/main.ts:637`; renderer: `main.ts:481` | electron-updater 6.8.9 uses ElectronHttpExecutor → electron.net.request (upstream `out/AppUpdater.js:206`, `out/electronHttpExecutor.js:54`). Electron net and sandboxed renderer fetch use Chromium networking, not this Node zlib decode path. |
 | Incoming daemon request body: `apps/editor/server/request-body.ts:8`, `document-api.ts:233`, `asset-api.ts:297` | Raw bounded bytes are collected and decoded/parsed; no Content-Encoding decompression. Sending a compressed request alone does not reach a Brotli decoder. |

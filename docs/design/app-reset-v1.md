@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Last verified: 2026-11-10 — #1448 queue run 42766806209의 초기화·재실행 성공/정리 실패와 종료 메시지 경로를 코드 대조. 정리 수정의 실제 packaged 검증은 다음 queue 대상이며 로컬 미실행. 기존 파일/CLI/helper/main·HTTP 및 UI 검증은 아래 기록을 따른다.
-- Scope: 로컬 Desktop profile과 Litzio 소유 Host 데이터 초기화. 원격 Host·외부 브라우저·공급자 계정은 삭제하지 않는다.
+- Scope: 로컬 Desktop profile과 Litzio 소유 Host 데이터 초기화. 외부 서비스·외부 브라우저·공급자 계정은 삭제하지 않는다.
 - Authority: [#1285](https://github.com/litzio/litzio/issues/1285)의 소유자 결정, [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0016](../adr/0016-shared-local-daemon-host.md), [ADR-0018](../adr/0018-desktop-remote-hosts.md). 관련 현재 계약은 [Desktop distribution](desktop-distribution-v1.md), [HTTP Host](http-host-v1.md), [Editing session and Save](editing-session-save-v1.md)다.
 
 ## 목표와 제거기의 경계
@@ -33,7 +33,7 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 
 ## 저장 소유권과 삭제 대상
 
-아래 기본값은 공식 Windows 설치본 기준이다. [hostPaths](../../apps/editor/server/host-paths.ts), [registry](../../apps/editor/server/remote-host-registry.ts), [daemon state](../../apps/editor/server/daemon-state.ts)의 실제 경로와 override를 사용한다. 상대 Host override도 소유 프로세스의 cwd에서 절대 경로로 해석하며 Desktop과 daemon의 cwd가 다른 경우 경로 대조로 거부한다.
+아래 기본값은 공식 Windows 설치본 기준이다. [hostPaths](../../apps/editor/server/host-paths.ts), [daemon state](../../apps/editor/server/daemon-state.ts)의 실제 경로와 override를 사용한다. 상대 Host override도 소유 프로세스의 cwd에서 절대 경로로 해석하며 Desktop과 daemon의 cwd가 다른 경우 경로 대조로 거부한다.
 
 | 데이터 | 실제 위치 | 처리 |
 | --- | --- | --- |

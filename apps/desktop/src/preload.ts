@@ -18,15 +18,8 @@ ipcRenderer.on("desktop:restart-check", (_event, id: number) => {
 const bridge: DesktopBridge = {
   resetPlan: () => ipcRenderer.invoke("desktop:reset-plan"),
   resetApp: (removeFolders, revision) => ipcRenderer.invoke("desktop:reset-app", removeFolders, revision),
-  registeredHosts: () => ipcRenderer.invoke("desktop:hosts"),
-  checkHost: origin => ipcRenderer.invoke("desktop:host-check", origin),
-  registerHost: (origin, label) => ipcRenderer.invoke("desktop:host-register", origin, label),
-  renameHost: (id, label) => ipcRenderer.invoke("desktop:host-rename", id, label),
-  removeHost: id => ipcRenderer.invoke("desktop:host-remove", id),
-  reportHostWork: summary => ipcRenderer.invoke("desktop:host-work", summary),
   // Only on protection-state transitions; main must have the value before Windows queries it.
   reportPendingWork: pending => { ipcRenderer.sendSync("desktop:pending-work", pending); },
-  restartForHosts: () => ipcRenderer.invoke("desktop:host-restart"),
   hostConnection: () => ipcRenderer.invoke("desktop:host-connection"),
   startup: () => ipcRenderer.invoke("desktop:startup"),
   openInBrowser: () => ipcRenderer.invoke("desktop:browser"),

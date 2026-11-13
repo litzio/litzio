@@ -1,3 +1,4 @@
+import { DAEMON_PROTOCOL } from "../../../apps/editor/server/daemon-protocol.ts";
 import { syncBuiltinESMExports } from "node:module";
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
@@ -718,7 +719,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["app-reset", "assistant", "daemon", "host", "operation", "plugins"],
+      "Serve": ["app-reset", "assistant", "daemon", "operation", "plugins"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];
@@ -3088,4 +3089,60 @@ test("compare returns shared JSON receipts without changing either file; rejects
   const failure = run(["compare", before, after, "--json"]);
   assert.notEqual(failure.status, 0); assert.equal(failure.stdout, "");
   assert.equal(readFileSync(after, "utf8"), "not native");
+});
+
+test("plugin CLI forwards authoring and registration consent without implicit approval", async t => {
+  const bodies: unknown[] = [];
+  t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
+    if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
+    bodies.push(JSON.parse(init!.body as string));
+    return new Response(JSON.stringify({ valid: false, errors: ["Missing handler: greet"], receipt: { outcome: "failure" } }));
+  });
+  assert.equal(await runCliAsync(["plugins", "scaffold", "C:/host/greeting", "--id", "local.greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.equal(await runCliAsync(["plugins", "validate", "C:/host/greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.deepEqual(bodies, [{ action: "scaffold", directory: "C:/host/greeting", id: "local.greeting" }, { action: "validate", directory: "C:/host/greeting" }]);
+  await runCliAsync(["plugins", "scaffold", "--id", "local.default", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.deepEqual(bodies.at(-1), { action: "scaffold", id: "local.default" });
+  for (const template of ["greet", "screen", "chart"]) {
+    await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", template, "--host", "http://127.0.0.1:5180", "--json"]);
+    assert.deepEqual(bodies.at(-1), { action: "scaffold", directory: "C:/host/example", id: "local.example", template });
+    await runCliAsync(["plugins", "scaffold", "--id", "local.example", "--template", template, "--host", "http://127.0.0.1:5180", "--json"]);
+    assert.deepEqual(bodies.at(-1), { action: "scaffold", id: "local.example", template });
+  }
+  const count = bodies.length;
+  await runCliAsync(["plugins", "scaffold", "C:/host/example", "--id", "local.example", "--template", "unknown", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.equal(bodies.length, count, "Unknown template must not reach the Host");
+  await runCliAsync(["plugins", "install", "local.example", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.deepEqual(bodies.at(-1), {action:"install",id:"local.example"});
+  await runCliAsync(["plugins", "install", "C:/host/example", "--host", "http://127.0.0.1:5180", "--json"]);
+  assert.deepEqual(bodies.at(-1), {action:"install",directory:"C:/host/example"});
+  bodies.splice(count);
+  const registrationId = "62fbf782-043e-4c03-8b20-60aaaf34b6da";
+  for (const args of [["trust", "local.greeting", "--registration", registrationId], ["enable", "local.greeting", "--trust", "--registration", registrationId]]) {
+    assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  }
+  assert.deepEqual(bodies.slice(count), [{ action: "trust", id: "local.greeting", registrationId }, { action: "enable", id: "local.greeting", trust: true, registrationId }]);
+  const sent = bodies.length;
+  for (const args of [["trust", "local.greeting"], ["enable", "local.greeting", "--trust"]]) assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.equal(bodies.length, sent, "missing registration cannot dispatch consent");
+
+});
+
+
+test("operation CLI preserves Host failure kind and read advice without replay", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-operation-cli-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const input = path.join(root, "input.json"); writeFileSync(input, "{}");
+  const { PLUGIN_ERROR_MESSAGES } = await import("@litzio/plugin-sdk");
+  const failure = { errorKind: "auth", error: PLUGIN_ERROR_MESSAGES.auth, receipt: { outcome: "failure" } };
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
+    if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
+    calls++; assert.deepEqual(JSON.parse(init!.body as string), { action: "invoke", operation: "local.example.read", input: {} });
+    return new Response(JSON.stringify(failure));
+  });
+  let output = ""; t.mock.method(process.stdout, "write", (chunk: string) => { output += chunk; return true; });
+  assert.equal(await runCliAsync(["operation", "invoke", "local.example.read", "--input", input, "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.deepEqual(JSON.parse(output), { target: "http://127.0.0.1:5180", ...failure });
+  assert.equal(calls, 1);
 });

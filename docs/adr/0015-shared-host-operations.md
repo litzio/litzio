@@ -1,5 +1,7 @@
 # ADR-0015: Shared Host operations for UI, HTTP, CLI and assistant tools
 
+> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래 원격 관련 결정은 당시 기록이며 현재 제공 기능이 아니다.
+
 - Status: Accepted
 - Partially superseded by: [ADR-0021](0021-general-agent-assistant.md) — 1절의 필요 시 비서 도구 생성 결정을 CLI·스킬 기본과 창 연동 전용 도구로 대체하며, Host 공용 작업·CLI 필수는 유지한다.
 - Amended by: [ADR-0020](0020-plugin-architecture.md)

@@ -1,5 +1,4 @@
 import { openProviderSessionLog } from "./provider-session-log.ts";
-import { RemoteHostRegistry, checkRemoteHost } from "../../editor/server/remote-host-registry.ts";
 import { brand } from "../../../brand.ts";
 // Litzio Desktop: one window with the bundled Editor, the shared daemon HTTP Host, preferences
 // and updates. Documents are read and written only through the existing Host handlers.
@@ -13,7 +12,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, sessi
 import electronUpdater from "electron-updater";
 import { getAppCacheDir } from "electron-updater/out/AppAdapter.js";
 import { load as loadYaml } from "js-yaml";
-import type { DesktopInfo, HostWorkSummary, RestartCheck } from "../../editor/shared/desktop-bridge.ts";
+import type { DesktopInfo, RestartCheck } from "../../editor/shared/desktop-bridge.ts";
 import { DesktopDaemon } from "./daemon-client.ts";
 import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { bundledUiResponse } from "./bundled-ui.ts";
@@ -82,7 +81,6 @@ let first: ReturnType<typeof firstDocument>;
 const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
 let installing = false;
-let restartingHosts = false;
 let resetting = false;
 // App-owned exit intent: ordinary window close must never destroy the editing session.
 let exiting = false;
@@ -91,10 +89,6 @@ let daemonConnected = false;
 let daemonShutdown: Promise<void> | undefined;
 // The native Windows query cannot await renderer IPC. Unknown/loading work is protected.
 let pendingWindowWork = true;
-const remoteHosts = new RemoteHostRegistry();
-let allowedHostIds: string[] = [];
-let hostWork: HostWorkSummary[] | null = null;
-let cliRemovalProtectionWarning = false;
 
 function openWindow(): void {
   if (!window || window.isDestroyed()) return;
@@ -125,7 +119,7 @@ function createTray(): void {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "열기", click: openWindow },
     { label: "종료", click: () => {
-      if (!window || installing || restartingHosts || resetting || restartAnswers.size) return;
+      if (!window || installing || resetting || restartAnswers.size) return;
       openWindow();
       if (dialog.showMessageBoxSync(window, { type: "warning", title: brand.name.ko,
         message: `${brand.name.ko}를 종료할까요?`,
@@ -346,35 +340,6 @@ function registerIpc(): void {
     for (const root of roots) { await daemonRpc(daemon.record, `/api/folder?${new URLSearchParams({ root })}`); explorerFolders.listedRoot(root); }
     if (request === folderRequest) explorerFolders.setOpened(roots);
   });
-  handle("desktop:hosts", () => ({ hosts: remoteHosts.list(), allowedHostIds, productVersion: app.getVersion(), cliRemovalProtectionWarning }));
-  const text = (value: unknown): string => { if (typeof value !== "string") throw new Error("Expected text."); return value; };
-  handle("desktop:host-check", origin => checkRemoteHost(text(origin), app.getVersion()));
-  handle("desktop:host-register", (origin, label) => { remoteHosts.register(text(origin), text(label)); });
-  handle("desktop:host-rename", (id, label) => { remoteHosts.rename(text(id), text(label)); });
-  handle("desktop:host-work", summary => {
-    if (summary !== null && (!Array.isArray(summary) || !summary.every(row => row && typeof row.hostId === "string" && Number.isSafeInteger(row.openWork) && row.openWork >= 0 && Number.isSafeInteger(row.recovery) && row.recovery >= 0))) throw new Error("Invalid Host work summary.");
-    hostWork = null;
-    try { remoteHosts.desktopWork(app.getPath("userData"), summary as HostWorkSummary[] | null, log); }
-    catch (error) { log(`Desktop work summary update failed: ${String(error)}`); throw error; }
-    hostWork = summary as HostWorkSummary[] | null;
-  });
-  handle("desktop:host-remove", id => {
-    if (!window || !hostWork) throw new Error("Host work/recovery is not ready. Close Host tabs and resolve recovery first.");
-    const host = remoteHosts.get(text(id));
-    if (hostWork.some(row => row.hostId === host.hostId && (row.openWork || row.recovery))) throw new Error("Close Host tabs and resolve recovery before removing this Host.");
-    if (dialog.showMessageBoxSync(window, { type: "warning", message: `Remove ${host.label}?`, detail: "Remote files and daemon will remain unchanged.", buttons: ["Cancel", "Remove"], defaultId: 0, cancelId: 0, noLink: true }) !== 1) throw new Error("Removal cancelled.");
-    remoteHosts.remove(host.hostId, () => ({ ...remoteHosts.desktopRemovalProof(host.hostId, app.getPath("userData")), confirmed: true }));
-  });
-  handle("desktop:host-restart", async () => {
-    if (!window) return { ok: false, reason: "Editor unavailable." };
-    if (restartAnswers.size) return { ok: false, reason: "Already checking restart." };
-    const target = window;
-    target.setEnabled(false);
-    const check = await askEditorToRestart(target);
-    if (check.ok && !target.isDestroyed()) { restartingHosts = true; target.close(); }
-    else if (!target.isDestroyed()) target.setEnabled(true);
-    return check;
-  });
   handle("desktop:startup", () => first);
   handle("desktop:reset-plan", () => resetPlan());
   handle("desktop:reset-app", (removeFolders, revision) => resetApp(removeFolders, revision));
@@ -484,7 +449,7 @@ function createWindow(): void {
   });
   window = created;
   created.on("close", event => {
-    if (exiting || installing || restartingHosts || resetting) {
+    if (exiting || installing || resetting) {
       // A native unsaved-work dialog must be visible even when removal starts in the tray.
       openWindow();
       return;
@@ -548,11 +513,6 @@ function createWindow(): void {
     if (resetting) {
       // The reset caller persists cancellation and confirms its helper has stopped
       // before enabling the window again.
-      return;
-    }
-    if (restartingHosts) {
-      restartingHosts = false;
-      created.setEnabled(true);
       return;
     }
     if (installing) {
@@ -619,18 +579,7 @@ if (!app.requestSingleInstanceLock()) {
     first = firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log, app.getVersion());
     daemon = new DesktopDaemon(app.getVersion(), process.execPath, path.join(cliRoot, "cli.mjs"));
     const target = `http://127.0.0.1:${daemonPort(daemon.channel)}`;
-    // Snapshot once per app start. Registry changes never expand a running window CSP.
-    try { remoteHosts.desktopWork(app.getPath("userData"), null, log); }
-    catch (error) {
-      cliRemovalProtectionWarning = true;
-      log(`Could not record CLI removal protection; continuing startup: ${String(error)}`);
-    }
-    let registered: ReturnType<RemoteHostRegistry["list"]> = [];
-    try { registered = remoteHosts.list(); }
-    catch (error) { log(`Remote Host registry unavailable; continuing with local Host: ${String(error)}`); }
-    allowedHostIds = registered.map(host => host.hostId);
-    const remoteOrigins = registered.map(host => host.origin);
-    protocol.handle("litzio", request => bundledUiResponse(path.join(appRoot, "ui"), request, target, remoteOrigins));
+    protocol.handle("litzio", request => bundledUiResponse(path.join(appRoot, "ui"), request, target));
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
     }
@@ -679,7 +628,6 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
   app.on("window-all-closed", async () => {
-    if (restartingHosts) app.relaunch();
     try { await closeDaemon(); } catch (error) {
       if (resetting) new ResetGuard().blockAfterFailedShutdown();
       log(`daemon shutdown failed: ${String(error)}`);

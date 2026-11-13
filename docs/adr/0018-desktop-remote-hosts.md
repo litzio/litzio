@@ -1,11 +1,15 @@
 # ADR-0018: Desktop의 원격 Host 등록과 여러 Host 보기
 
-- Status: Accepted
+- Status: Superseded
 - Decision date: 2026-11-04
 - Last verified: 2026-11-05 — #1174 소유자 결정 ①~⑨, 사전 조사와 관련 ADR·구현 계약을 문서 대조. 제품·원격 연결 실행 검증 없음.
 - Authority: [#1174의 소유자 승인 결정](https://github.com/litzio/litzio/issues/1174), under [AGENTS.md](../../AGENTS.md).
 - Scope: Desktop 로컬 등록 목록과 로컬·원격 Host의 한 화면 표시. PR0은 결정 문서만 작성한다. Accepted는 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0016](0016-shared-local-daemon-host.md)의 Desktop 연결 대상·재연결 범위와 [ADR-0017](0017-bundled-client-and-official-ai.md)의 원격 Host 보류. 로컬 daemon 수명·Core 의미·공식 write path는 유지한다.
+
+## 대체 결정 (2026-11-13)
+
+[리치오의 목적](../purpose.md)과 [#1595 소유자 결정](https://github.com/litzio/litzio/issues/1595)에 따라 ADR-0018의 원격 등록·접속·여러 Host 보기를 폐기한다. 사용자 UI·CLI·IPC·CSP 목록을 먼저 삭제하며 내부 연결/탭/복구 형식 정리는 후속 PR에서 한다. 같은 PC daemon(ADR-0016)과 개발·검사용 독립 HTTP Host(ADR-0005), 작업 대상 CLI --host는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래는 당시 결정 원문이다.
 
 ## 배경과 근거
 

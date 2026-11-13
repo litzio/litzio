@@ -2258,119 +2258,29 @@ along with workspace typecheck and documentation checks.
 
 ## Multiple Host shell (#1174 PR4)
 
-Under [ADR-0018](../adr/0018-desktop-remote-hosts.md), the shell consumes the injectable
-Host registry. Explorer retains a section for each Host, including unreachable Hosts.
-The shared SettingsSelect offers All Hosts or one Host; it filters Explorer visibility only.
-Mounted trees, document sessions and assistant conversations retain their original Host.
-Connection state uses the shared [HostStatus](../../apps/editor/src/components/HostStatus.tsx)
-component with a token-colored dot and a localized state name; Unreachable does not claim
-that the remote machine is powered off. The state tooltip carries the observed error/origin.
+2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
-With one Host, one folder keeps its heading while its tree scrolls within the sidebar height;
-several folders scroll together. The Host grouping wrapper preserves that height constraint.
-Multiple Host sections scroll together inside Explorer, keeping the footer outside the list.
+탐색기는 로컬 폴더만 표시하며 Host 필터/선택기는 없다. 비서는 로컬 대화로 바로 들어가고 템플릿·플러그인 화면에도 Host 드롭다운이 없다. 단일 Host의 탭/경로·활성 대상과 caption·Local 라벨은 이번 PR에서 유지한다. 기존 Sidebar·Settings·AssistantPanel 배치와 공통 control을 재사용하며 새로운 표면이나 예외 스타일은 없다.
 
-Each Host section offers Open folder only while it has no opened folders. With folders open,
-the existing folder menus offer the same action on both local and remote Hosts.
+1440px 라이트 전후(브라우저 fixture, 실제 원격/AI 수락 아님):
 
-Remote folders expose the same New document (+), New folder menu entry and contextual creation,
-child-folder creation, Refresh and Close folder actions as local folders (#1190).
-Both use FolderTree, NewDialog and the same destination-list calculation. A folder heading
-starts at the active document's directory only when that document belongs to this Host and
-is inside the root; a child-folder menu selects that exact folder. Location lists contain only
-this Host's known folders. The folder picker also supports creating a folder on that Host. Its browse/places callbacks
-remain stable through Explorer refreshes so successful creation keeps the picker inside
-the created folder; conflict/unavailable responses retain the location and entered name.
-The dialog retains its originating client through submission; creation never follows the
-active tab or the Explorer filter to another Host. Document creation uses the shared Host
-write path and tab-admission with `(hostId, path)`, then opens and focuses the created document.
-Folder creation refreshes/reveals its location without switching the document. Errors retain
-the dialog and input. File rename/delete continue using the same FileActionDialog as local.
-The template gallery reuses the Explorer Host select control (#1185). Catalog and preview are mounted per selected Host; folder selection, creation and the resulting document tab retain that Host. See the [template contract](document-templates-v1.md#host-요청-경계-1174-pr2).
+| 화면 | 이전 | 이후 |
+| --- | --- | --- |
+| 설정 | [이전](assets/remote-host-removal/before-settings.png) | [이후](assets/remote-host-removal/after-settings.png) |
+| 탐색기 | [이전](assets/remote-host-removal/before-explorer.png) | [이후](assets/remote-host-removal/after-explorer.png) |
+| 비서 | [이전](assets/remote-host-removal/before-assistant.png) | [이후](assets/remote-host-removal/after-assistant.png) |
 
-The title-strip search also displays the active tab's Host beside its document context. Its short
-Host label remains visible when the folder context yields at 640px; filter changes do not retarget it.
+검증: `pnpm browser:test local-host`의 연결 중→단절→연결 회복, document-tabs의 부분 복원/기억 보존·늦은 열기 취소·다른 탭 저장, HTTP recovery의 daemon 재시작·Save/Reload/409, 기존 file-actions·assistant·template-gallery 검사. 원격의 같은 경로 구분/등록/제거/교차 Host 복원 순서는 기능과 함께 제거했다. 로컬 직렬 초기 복원을 원격 병렬 복원과 같은 보호라고 주장하지 않는다.
 
-Document tabs show the Host label. When multiple Hosts are registered, accessible
-names, full-path tooltips and the hidden-tabs menu also include it. Same-path tabs on different Hosts remain separate. Folder
-suffixes disambiguate paths within a Host. Tab tooltips include Host and full path.
-Navigation and folder preferences are read/written for each Host. A failed startup read does
-not overwrite that Host's navigation memory; recovery records remain available for review.
-Remote startup reads run concurrently per Host, but clean tabs are admitted in the saved order
-after that Host's reads settle. The saved active path is selected (or the first admitted tab if
-that path cannot be restored). A Host with no saved active path does not replace another Host's
-selection. Explicit navigation during startup takes precedence over delayed restoration selection.
-Recovery records still require the existing review flow; they are never silently opened from disk.
-That startup protection is separate from explicit navigation: selecting, opening, moving,
-restoring, renaming or closing a tab on the affected Host resumes saving its current tab list.
-Navigation on another Host alone does not release the failed Host's startup protection.
-A delayed startup read cannot replace an existing same-Host/path tab or reopen a location
-explicitly opened or closed during restoration; it creates navigation only for a newly admitted tab.
-Requests and recovery barriers for open, rename and delete retain `(hostId, path)`.
-
-Remote Explorer never receives the Desktop Explorer callback. Log-folder and daemon controls
-remain local Desktop actions. Remote deletion requires the target Host's trash capability;
-unavailable/failed trash reports failure and never retries as permanent deletion.
-Registration, settings, removal protection and connection-management menus belong to PR3b.
-No migration or Core document/write-format change is introduced.
-
-Common UI: existing FolderTree, Button, SettingsSelect, Dialog, Tooltip, context menus and
-product state tokens. The compact Explorer filter stacks the shared label/select to fit the
-supported 640px window. No new common interaction or UI framework is introduced.
-
-Verification: persistent Chrome `pnpm browser:test multi-host` exercises independent local/remote
-fixture clients, same-path Explorer opening, distinct saves, page-restart navigation and unsaved remote recovery restoration,
-unreachable Host startup, remote Explorer omission and assistant target isolation. This is a
-browser fixture check, not Windows packaged Desktop/Linux remote execution. Optional
-`pnpm browser:test multi-host --screenshots` is manual review only: `tmp/pr4-1440.png`,
-`tmp/pr4-640.png`, `tmp/pr4-choose-1440.png`, `tmp/pr4-choose-640.png`,
-`tmp/pr4-assistant-1440.png`, `tmp/pr4-assistant-640.png`.
-Remote trash failure is injected and must keep both tabs without a second/permanent-delete request.
-The #1190 extension creates a remote document and folder, creates a document through the
-child-folder menu, checks Host-specific tabs/listings and absence of local writes, and closes
-only the remote folder. The picker extension checks creation below a navigated subfolder,
-position retention after the Explorer refresh, and 409/503 input preservation. It extends the existing two-Host browser fixture because the defect
-is missing UI wiring and request routing, rather than Core creation semantics.
-Manual `--screenshots` also records the remote + control and menu at 1440px and 640px:
-`tmp/1190-plus-1440.png`, `tmp/1190-menu-1440.png`, `tmp/1190-plus-640.png`,
-`tmp/1190-menu-640.png`. Base comparison uses the same names prefixed with
-`1190-before-` (instead of `1190-`) against `35ad01eb`. These screenshots are not CI assertions.
 ## Remote Host settings (#1174 PR3b)
 
-Desktop Settings has a Hosts category using the shared settings content, Input, Button and Notice
-patterns. It lists registrations, editable labels, connection/reconnect state and health warnings.
-Registration is saved before a protected restart; the current window never dynamically expands CSP.
-Close Host work reuses tab close protection. Removal checks current Host tabs and recovery,
-then asks for native confirmation; any recovery blocks removal. App-global appearance and local
-daemon controls retain their existing scopes. See the [Desktop registration contract](desktop-distribution-v1.md#desktop-local-remote-registry-1174-pr3a).
-
-The Hosts category uses the bundled Server icon. A Host summary groups its label, origin and
-localized status with the existing agent status dot and semantic color tokens: Connecting,
-Connected, Unreachable, Protocol mismatch and Version warning. Protocol failures have an explicit
-runtime category; UI does not infer them from error wording. Detailed health messages live in
-the shared tooltip. The access warning stays on one short line with full help in a tooltip.
-Actions share compact Button geometry; narrow windows show accessible icon buttons with tooltips,
-keeping Remove on the same row with the destructive variant. The local Host is not duplicated
-here: the existing Desktop status menu and daemon details remain its single surface.
-
-Settings uses the shared `HostStatus` component in `apps/editor/src/components/HostStatus.tsx`.
-It receives a read-only runtime observation, optional restart requirement and optional detail help;
-it does not access the registry, connect or change the target. PR4 can reuse the same localized
-names, status dot and semantic colors without reproducing their mapping. Dot geometry is shared
-with provider status in the global stylesheet.
-
-After PR3b/PR4 integration, HostStatus is the only status presenter for Settings, Explorer
-headings and assistant Host selection. Compact surfaces use the same labels/colors with the
-existing small typography. Registry metadata and runtime observations publish through the same
-subscription; registered Host labels/removal update shell surfaces, and startup tab restoration
-waits for the corresponding Host to connect. Subsequent shell connection checks retain the
-registered Host's protocol/product policy.
+2026-11-13 삭제했다. 설정에는 원격 Hosts 카테고리가 없다. 공통 HostStatus는 탐색기 아래 로컬 연결 관측과 공급자 상태 표시에 유지한다. 당시 등록·제거·재시작 계약은 `archive/2026-11-13-plugins-declarative`의 이 문서에 보관한다.
 
 ## 활성 Host 실행 계정 (#1199)
 
-사이드바 맨 아래 한 줄은 현재 활성 문서 탭의 Host 라벨과 실행 계정을 함께 표시한다(예: `workstation · DOMAIN\user`). 문서 탭이 없으면 로컬 Host를 기준으로 한다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. 탐색기의 Host 필터는 이 실행 대상을 바꾸지 않는다.
+사이드바 맨 아래 한 줄은 현재 활성 문서 탭의 Host 라벨과 실행 계정을 함께 표시한다(예: `workstation · DOMAIN\user`). 문서 탭이 없으면 로컬 Host를 기준으로 한다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. Host 선택기는 제공하지 않는다.
 
-Desktop의 로컬 Host 상태도 원격 등록 유무와 무관하게 관측 완료 5초 뒤 읽기 전용 health/capability 검사를 반복한다(#1487). 시작 시 한 번 실패한 관측이 계속 남지 않으며, 다음 성공에서 상태·실행 계정을 복원한다. 첫 실패의 닿지 않음/이유 표시는 유지한다. daemon 탐색·spawn·수동 다시 연결과 별개의 상태 관측이며 상세 계약은 [Desktop distribution](desktop-distribution-v1.md)을 따른다.
+Desktop의 로컬 Host 상태도  관측 완료 5초 뒤 읽기 전용 health/capability 검사를 반복한다(#1487). 시작 시 한 번 실패한 관측이 계속 남지 않으며, 다음 성공에서 상태·실행 계정을 복원한다. 첫 실패의 닿지 않음/이유 표시는 유지한다. daemon 탐색·spawn·수동 다시 연결과 별개의 상태 관측이며 상세 계약은 [Desktop distribution](desktop-distribution-v1.md)을 따른다.
 
 공통 HostStatus 상태 점·Tooltip과 기존 control 높이·간격·문자색 토큰을 사용한다. 연결된 Host의 `identity.runAs`만 표시하며 연결되지 않거나 계정이 없는 Host는 상태만 표시한다. 축소된 사이드바에서는 상태 점과 툴팁을 사용한다. 전체 Host 라벨·실행 계정과 설명은 툴팁으로 제공한다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 접속자 신원은 제공하지 않는다.
 
@@ -2381,7 +2291,7 @@ Desktop의 로컬 Host 상태도 원격 등록 유무와 무관하게 관측 완
 ## Document read lifetime and Host isolation (#1243)
 
 Explicit Open is owned by App per destination group with its captured HostClient and path.
-It does not acquire the window operation lock or disable other Hosts' tab navigation, Open or Save.
+It does not acquire the window operation lock or disable other tabs' navigation, Open or Save.
 The destination group's status reports Opening until the read finishes or is cancelled, instead of
 leaving the previous document's Ready status visible. An in-flight session Save/Source/asset operation
 retains its own status priority. This presentation does not acquire a group navigation or Save lock.
@@ -2390,7 +2300,7 @@ announcement too; a completed or cancelled Open leaves no obsolete progress anno
 Selecting a tab, opening another document in that group, closing its tab, or choosing Cancel
 in the existing notification cancels the pending Open. A superseded response cannot admit a tab.
 File rename/delete invalidates pending Open on the same Host and path before any asynchronous work,
-including descendant paths for a folder target. Other Hosts remain independent, even at the same path.
+including descendant paths for a folder target. Different tabs retain their independent sessions.
 A failed or uncertain mutation does not revive an invalidated read; opening again is explicit.
 Document GET and its bibliography read share a 15-second timeout and AbortSignal.
 Mounted native/text sessions cancel their reads on disposal; startup restoration cancels on effect cleanup.

@@ -1,5 +1,7 @@
 # ADR-0022: 플러그인 화면 코드
 
+> 2026-11-13 #1595: 다른 PC Host 접속은 삭제했다. 현재 화면 코드는 같은 PC/개발 Host의 플러그인만 제공한다. 아래 원격 코드 실행 결정은 당시 기록이며 접속 기능의 재도입 승인이 아니다. 보관: `archive/2026-11-13-plugins-declarative`.
+
 - Status: Accepted
 - Decision date: 2026-11-13
 - Authority: 소유자 승인 [#1592](https://github.com/litzio/litzio/issues/1592), under [AGENTS.md](../../AGENTS.md).

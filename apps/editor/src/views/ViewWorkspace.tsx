@@ -47,7 +47,6 @@ export function ViewWorkspace({ roots = [], id, hostId, root, owner, screen, onH
   const active = connected && !!contribution;
   return <div className="view-workspace" data-testid="view-workspace">
     <h1>{screen.title}</h1>
-    {hostRegistry.list().length > 1 && onHost ? <div className="view-controls"><label>{i18n.t("Host")}<select className="form-select settings-select" value={hostId} onChange={event => onHost(event.target.value)}>{hostRegistry.list().map(h => <option value={h.hostId} key={h.hostId}>{hostLabel(h.hostId)}</option>)}</select></label></div> : null}
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`${hostId}:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} onOpen={path => onOpenDocument?.(path, hostId)} /> : null}</ScreenBoundary>

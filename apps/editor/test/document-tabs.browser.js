@@ -1,5 +1,5 @@
 // Real independent sessions, explicit per-file Save/Reload, and optional visual/memory review.
-async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect, removeTabFixture, screenshots = false }) => {
+async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect, removeTabFixture, showNotifications, screenshots = false }) => {
   const check = (value, message) => { if (!value) throw new Error(message); };
   const origin = page.url().split('/').slice(0, 3).join('/');
   const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
@@ -230,6 +230,49 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await flush();
   check(JSON.stringify(await memory()) === JSON.stringify(saved) && await page.evaluate(() => window.tabMemoryWrites) === 0, 'Exclusion alone rewrote remembered paths');
 
+  // A partial restore stays remembered until explicit navigation; close resumes persistence.
+  await page.getByRole('button',{name:'Close technical-1.md',exact:true}).click();
+  await expect.poll(async () => (await memory()).paths).toEqual([nonnative,b]);
+  await activate('technical-2.md');
+  let releaseOpen, openArrived, finishOpen;
+  const openFinished = new Promise(resolve => { finishOpen=resolve; });
+  const pendingOpen = new Promise(resolve => { openArrived=resolve; });
+  const openGate = new Promise(resolve => { releaseOpen=resolve; });
+  const delayedOpen = async route => {
+    const target=decodeURIComponent(route.request().url().split('?path=')[1]??'');
+    if(target!==a)return route.fallback();
+    const response=await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+    openArrived();await openGate;await route.fulfill({response});finishOpen();
+  };
+  await page.route('**/api/document?**',delayedOpen);
+  try {
+    await page.locator(`[role="treeitem"][data-path=${JSON.stringify(a)}]`).click();
+    await pendingOpen;
+    await editor().locator('p').first().click();await page.keyboard.press('Home');await page.keyboard.type('Saved while another read was pending. ');
+    await page.getByTestId('save').click();await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
+    const kept=await editor().evaluate(node=>JSON.stringify(node.editor.getJSON()));
+    // Explicitly selecting this tab invalidates its group's pending navigation.
+    await activate('technical-2.md');releaseOpen();await openFinished;await flush();
+    await expect(page.getByRole('tab',{name:'technical-1.md',exact:true})).toHaveCount(0);
+    await expect.poll(()=>editor().evaluate(node=>JSON.stringify(node.editor.getJSON()))).toBe(kept);
+  } finally {releaseOpen();await page.unroute('**/api/document?**',delayedOpen);}
+  // The same read without navigation is bounded by the production timeout.
+  let releaseTimeout;
+  const timeoutGate=new Promise(resolve=>{releaseTimeout=resolve;});
+  const timeoutRead=async route=>{
+    if(decodeURIComponent(route.request().url().split('?path=')[1]??'')!==a)return route.fallback();
+    const response=await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+    await timeoutGate;await route.fulfill({response});
+  };
+  await page.route('**/api/document?**',timeoutRead);
+  try {
+    await page.locator(`[role="treeitem"][data-path=${JSON.stringify(a)}]`).click();
+    await showNotifications(page);await expect(page.getByTestId('error')).toBeVisible({timeout:20000});
+    releaseTimeout();await flush();
+    await expect(page.getByRole('tab',{name:'technical-1.md',exact:true})).toHaveCount(0);
+    await page.getByRole('button',{name:'Dismiss error',exact:true}).click();
+  } finally {releaseTimeout();await page.unroute('**/api/document?**',timeoutRead);}
+
   // An explicit URL request wins and still does not rewrite memory merely by starting.
   await page.goto(`${origin}/?path=${encodeURIComponent(b)}`); await ready();
   check(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1 && await page.getByRole('tab',{name:'technical-2.md',exact:true}).count() === 1, 'Explicit URL did not take precedence over remembered tabs');
@@ -245,8 +288,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   try {
     await desktopPage.addInitScript(() => {
       window.litzioDesktop = {
-      registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: "test" }),
-      reportPendingWork: () => {}, reportHostWork: async () => {},
+      reportPendingWork: () => {},
         hostConnection: async () => ({url:location.origin, productVersion:"test", desktopVersion:"test"}),
         checkDaemon: async () => {},
         setTheme: async theme => theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches),

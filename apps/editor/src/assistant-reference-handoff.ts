@@ -1,6 +1,5 @@
 import { useState, type MutableRefObject } from "react";
-import { brand } from "../../../brand.ts";
-import { hostRegistry } from "./host-client.ts";
+import { LOCAL_HOST_ID } from "./host-locator.ts";
 import type { HostLocator } from "./host-locator.ts";
 import type { UiMessage } from "./ui-message.ts";
 
@@ -11,7 +10,7 @@ export function useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen
   setError: (message: UiMessage) => void;
 }) {
   const [referenceRequest, setReferenceRequest] = useState<HostLocator>();
-  const [assistantHost, setAssistantHost] = useState<string | undefined>();
+  const [assistantHost, setAssistantHost] = useState<string | undefined>(LOCAL_HOST_ID);
 
   function addToChat(locator: HostLocator, returnFocus: HTMLElement | null): void {
     if (assistantHost && assistantHost !== locator.hostId) {
@@ -29,18 +28,5 @@ export function useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen
     setReferenceRequest(previous => previous === request ? undefined : previous);
   }
 
-  function newConversation(): void {
-    setReferenceRequest(undefined);
-    setAssistantHost(undefined);
-  }
-
-  function chooseHost(hostId: string): void {
-    if (hostRegistry.get(hostId).state !== "connected") return;
-    if (hostRegistry.list().length > 1) {
-      try { localStorage.removeItem(`${brand.storagePrefix}.assistantConversation:${hostId}`); } catch { /* Page state remains usable. */ }
-    }
-    setAssistantHost(hostId);
-  }
-
-  return { assistantHost, referenceRequest, addToChat, consumeReference, newConversation, chooseHost };
+  return { assistantHost, referenceRequest, addToChat, consumeReference };
 }
