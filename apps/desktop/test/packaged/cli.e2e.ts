@@ -74,8 +74,6 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
       assert.equal(readFileSync(path.join(environment.cwd, ".agents/skills/litzio-guide/SKILL.md"), "utf8"), readFileSync(new URL("../../../editor/server/assistant/litzio-guide/SKILL.md", import.meta.url), "utf8"));
       const plugins = (await (await fetch(`http://127.0.0.1:${address.port}` + "/api/plugins")).json()).plugins;
       assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
-      const onedrive = plugins.find((p: any) => p.id === "litzio.onedrive");
-      assert.equal(onedrive.official, true); assert.equal(onedrive.enabled, false);
 
       assert.match(await response.text(), /<html/);
       assert.equal(errors, "");

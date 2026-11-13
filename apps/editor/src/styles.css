@@ -342,7 +342,6 @@ button {
 .sidebar-tree-item--actions > button { position: absolute; top: 0; right: 0; }
 .sidebar-folder-name { flex: 1; min-width: 0; margin: 0; padding-right: 0; }
 
-.sidebar-folder-name--decorated { grid-template-columns: var(--size-icon-slot) var(--size-icon-slot) minmax(0, 1fr); }
 
 .sidebar-folder-name svg,
 .sidebar-tree-item svg {

@@ -1,5 +1,3 @@
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -20,12 +18,10 @@ test("Vite development HTTP Host activates an external artifact with the Host SD
   let server: Awaited<ReturnType<typeof createServer>> | undefined;
   try {
     const directory = path.join(root, "artifact"); mkdirSync(directory);
-    writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-    writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.vite", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Vite fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [] } }));
-    writeFileSync(path.join(directory, "host.js"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
+    writeFileSync(path.join(directory, "screen.jsx"), "export default function Screen(){return null}");
+    writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ id: "fixture.vite", name: "Vite fixture", entry: "host.mjs", screen: "screen.jsx" }));
+    writeFileSync(path.join(directory, "host.mjs"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
 export function activate(){return {operations:{},status:()=>({available:true,message:SDK_VERSION,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
-    // Programmatic Vite startup bypasses the dev script's official artifact build.
-    execFileSync(process.execPath, [fileURLToPath(new URL("../../../plugins/onedrive/build.mjs", import.meta.url))], { stdio: "inherit", windowsHide: true });
     const editor = path.resolve(import.meta.dirname, "..");
     server = await createServer({ root: editor, configFile: path.join(editor, "vite.config.ts"), customLogger: logger, server: { port: 0, open: false } });
     await server.listen();
@@ -38,13 +34,6 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       assert.equal(response.status, 200, JSON.stringify(result));
       return result;
     };
-    const initial = await (await fetch(endpoint)).json();
-    const official = initial.plugins.find((p: any) => p.id === "litzio.onedrive");
-    assert.equal(official.official, true); assert.equal(official.trusted, true);
-    assert.equal(official.enabled, false); assert.equal(official.error, undefined);
-    const officialEnabled = await manage({ action: "enable", id: official.id });
-    assert.equal(officialEnabled.plugins.find((p: any) => p.id === official.id).running, true);
-    await manage({ action: "disable", id: official.id });
     const registered = await manage({ action: "register", directory });
     await manage({ action: "trust", id: "fixture.vite", registrationId: registered.plugins.find((p: any) => p.id === "fixture.vite").registrationId });
     const enabled = await manage({ action: "enable", id: "fixture.vite" });

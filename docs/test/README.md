@@ -1,5 +1,7 @@
 # Verification
 
+> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
+
 변경 유형별 로컬 최소 검증과 CI에 맡길 범위는 [CONTRIBUTING](../../CONTRIBUTING.md#verification-matrix)을 따른다. 관련 패키지 테스트·browser 시나리오 지정 실행을 우선하며, 영향 범위가 여러 계층에 걸치는 경우가 아니면 전체 `pnpm test`·전체 `pnpm browser:test`는 로컬 필수가 아니다. PR의 필수 CI 통과와 실제 Save → Reload·Visual Before/After 등 고유 위험 검증은 유지한다.
 
 Last verified: 2026-10-29 (CI execution-policy/quality/scripts tests, browser fixture/shard unit checks, targeted Core parser/quote/patch tests and docs checks; no browser or Desktop execution).
@@ -29,7 +31,7 @@ CI quality는 문서 전용 PR과 merge group에서 문서·checker tests, diff/
 
 ## Browser regression
 
-CI 경로 정책은 `packages/plugin-sdk/**`, `plugins/onedrive/**`, `community-plugins/**`를 알려진 패키지로 분류한다. Markdown 단독 변경은 제품 quality만 유지하며, 그 외 변경은 품질·Editor browser·HTTP와 queue의 Desktop package·대표 제거를 유지한다. `vite-plugins`가 실제 OneDrive를 켜고 끄며 공통 scenario 준비 코드가 Docling fixture를 읽으므로 browser도 실행 소비자다. HTTP에서는 실제 Docling·Jira와 공통 플러그인 화면을 검사한다. 세 경로의 전용 변경은 `package.json`을 포함해 업데이트·제거 전수·레이아웃 전수를 선택하지 않는다. 설치 구성 파일의 기존 전체 제거, 혼합 변경의 합집합, unknown·판정 실패의 전체 실행은 유지한다. 이 범위는 PR/group 단독·혼합 정책 테스트와 실제 workflow 집계 선택식 대조로 보호한다.
+CI 경로 정책은 `packages/plugin-sdk/**`, `community-plugins/**`를 알려진 패키지로 분류한다. Markdown 단독 변경은 제품 quality만 유지하며, 그 외 변경은 품질·Editor browser·HTTP와 queue의 Desktop package·대표 제거를 유지한다. `vite-plugins`가 코드 화면 fixture를 켜고 끄며 공통 scenario 준비 코드가 Docling fixture를 읽으므로 browser도 실행 소비자다. HTTP에서는 Docling artifact와 공통 플러그인 화면을 검사한다. 두 경로의 전용 변경은 `package.json`을 포함해 업데이트·제거 전수·레이아웃 전수를 선택하지 않는다. 설치 구성 파일의 기존 전체 제거, 혼합 변경의 합집합, unknown·판정 실패의 전체 실행은 유지한다. 이 범위는 PR/group 단독·혼합 정책 테스트와 실제 workflow 집계 선택식 대조로 보호한다.
 
 ```bash
 pnpm editor                          # 별도 터미널, 개발 서버

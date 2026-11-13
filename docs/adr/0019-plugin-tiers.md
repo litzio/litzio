@@ -1,5 +1,7 @@
 # ADR-0019: 공식 플러그인과 커뮤니티 플러그인
 
+> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
+
 - Status: Accepted
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
@@ -21,7 +23,7 @@
 
 ## 2026-11-10 지정 커뮤니티 기본 포함 개정 (#1391)
 
-[소유자 결정 #1391](https://github.com/litzio/litzio/issues/1391)은 아래 Docling 기본 포함 금지와 #1321·#1328의 번들 제외 중 **제품에 고정한 지정 커뮤니티 공급**에 한해 개정한다. 초기 지정은 community.docling·community.jira다. 공식 계층·공식 공급 목록·기본 활성 제외와 공개 SDK·workspace 제외는 유지한다. 처음에는 꺼짐·미신뢰이며 등록 단위 신뢰 확인을 거친다. 지정 복사본은 제거하지 않고 끄며, 같은 ID의 외부 폴더 등록은 우선하고 제거 후 다음 시작에 지정 복사본을 다시 표시한다. 현재 동작은 [플러그인 1단계](../design/plugin-stage1-v1.md#지정-커뮤니티-공급-1391)를 따른다. 개정 전 결정은 경위를 위해 보존한다.
+[소유자 결정 #1391](https://github.com/litzio/litzio/issues/1391)은 아래 Docling 기본 포함 금지와 #1321·#1328의 번들 제외 중 **제품에 고정한 지정 커뮤니티 공급**에 한해 개정한다. 초기 지정은 community.docling·community.jira였다. 2026-11-13 삭제 후 현재 지정 공급은 community.docling만 남는다. 공식 계층·공식 공급 목록·기본 활성 제외와 공개 SDK·workspace 제외는 유지한다. 처음에는 꺼짐·미신뢰이며 등록 단위 신뢰 확인을 거친다. 지정 복사본은 제거하지 않고 끄며, 같은 ID의 외부 폴더 등록은 우선하고 제거 후 다음 시작에 지정 복사본을 다시 표시한다. 현재 동작은 [플러그인 1단계](../design/plugin-stage1-v1.md#지정-커뮤니티-공급-1391)를 따른다. 개정 전 결정은 경위를 위해 보존한다.
 
 ## 배경과 근거
 

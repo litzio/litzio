@@ -61,9 +61,7 @@ export function PluginSettings() {
       </div>
       <div className="plugin-states">
         {plugin.error || plugin.enabled && !plugin.running ? <PluginState tone={plugin.error ? "danger" : "muted"} label={i18n.t(plugin.error ? "Plugin error" : "Plugin unavailable")} detail={plugin.error} /> : null}
-        {plugin.folderSources?.length && plugin.status ? <PluginState tone={plugin.status.available ? "connected" : "warning"} label={i18n.t(!plugin.status.available ? "Detection unsupported" : plugin.status.folders.length ? "Folder detected" : "No folder detected")} detail={plugin.status.message} /> : null}
       </div>
-      {plugin.status?.accounts.map(account => <p key={account.id} className="settings-description plugin-account">{i18n.t("Account: {{label}} ({{source}})", { label: account.label, source: account.source })}</p>)}
     </section>)}
     <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, registrationId: trust.registrationId, trust: true }); setTrust(undefined); } catch (e) { if (e instanceof Error && e.message === PLUGIN_REGISTRATION_CHANGED) { setTrust(undefined); setProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED)); } else setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="secondary" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{trust && problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
     <Dialog open={!!current} onOpenChange={open => { if (!open && !busy) setSelected(undefined); }}>
@@ -94,12 +92,6 @@ export function PluginSettings() {
 function PluginState({ tone, label, detail }: { tone: string; label: string; detail?: string }) {
   return <span className="host-status" data-tone={tone} role="status"><span className="agent-dot" aria-hidden="true" />{label}{detail ? <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin status details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip> : null}</span>;
 }
-export function defaultFolderCandidate(plugins: Plugin[], existing: { folders: number; recent: number; documentPath?: string | null }) {
-  if (existing.folders || existing.recent || existing.documentPath) return undefined;
-  const candidates = plugins.flatMap(p => p.running ? p.status?.folders.filter(f => f.defaultCandidate) ?? [] : []);
-  return candidates.length === 1 ? candidates[0] : undefined;
-}
-
 /** Dialog-owned drafts; Host remains the owner of saved settings. */
 function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; change: (action: string, args: Record<string, unknown>) => Promise<void>; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {
   const prefix = useId();

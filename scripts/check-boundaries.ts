@@ -38,7 +38,7 @@ for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared
 if (obsoletePublicName.test(fs.readFileSync(path.join(root, "README.md"), "utf8"))) throw new Error("Obsolete assistant public name: README.md");
 
 // SDK remains UI-neutral; plugins depend on the SDK, never application internals.
-for (const base of ["packages/plugin-sdk/src", "plugins/onedrive/src"]) {
+for (const base of ["packages/plugin-sdk/src"]) {
   for (const file of fs.readdirSync(path.join(root, base), { recursive: true }).filter(name => /\.tsx?$/.test(name))) {
     const source = fs.readFileSync(path.join(root, base, file), "utf8");
     if (/from\s*["'](?:react|@tiptap|prosemirror|[^"']*apps\/)/.test(source)) throw new Error(`Plugin SDK UI dependency: ${base}/${file}`);

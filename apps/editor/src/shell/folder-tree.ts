@@ -1,4 +1,3 @@
-import { usePlugins } from "../plugin-state.ts";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { getHostClient } from "../host-client.ts";
 import { useEffect, useReducer, useRef, useState } from "react";
@@ -214,16 +213,10 @@ export function useFolderTrees(request: (root: string, path?: string, background
     reduce(action);
   };
   const requests = useRef(0);
-  const { plugins } = usePlugins(hostId === LOCAL_HOST_ID);
-  const pluginFolderPaths = JSON.stringify(hostId === LOCAL_HOST_ID ? plugins.flatMap(plugin =>
-    plugin.enabled && plugin.running ? plugin.status?.folders.map(folder => folder.path) ?? [] : []) : []);
-  // Only automatically opened roots belong to the plugin; never persist them as ordinary roots.
-  const pluginRoots = useRef(new Map<string, { root: string; manual: FolderTreeState[] }>());
-
   const roots = trees.map(tree => tree.root);
   // Compare path values in the effect dependencies, independently of tree listing/expansion state.
   const serializedRoots = JSON.stringify(roots);
-  const manualTrees = trees.flatMap(tree => [...pluginRoots.current.values()].find(automatic => automatic.root === tree.root)?.manual ?? [tree]);
+  const manualTrees = trees;
   const serializedRememberedRoots = JSON.stringify(manualTrees.map(tree => tree.root));
   const serializedCollapsed = JSON.stringify(manualTrees.filter(tree => !tree.sectionExpanded).map(tree => tree.root));
   const [restored, setRestored] = useState(false);
@@ -253,31 +246,6 @@ export function useFolderTrees(request: (root: string, path?: string, background
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    if (!restored) return;
-    let cancelled = false;
-    const paths = JSON.parse(pluginFolderPaths) as string[];
-    for (const [path, automatic] of pluginRoots.current) if (!paths.includes(path)) {
-      pluginRoots.current.delete(path);
-      dispatch({ type: "closeRoot", root: automatic.root });
-      for (const tree of automatic.manual) dispatch({ type: "openRoot", listing: tree.nodes.get(tree.root)!, initialState: tree });
-    }
-    void (async () => {
-      for (const path of paths) {
-        if (pluginRoots.current.has(path)) continue;
-        try {
-          const listing = await request(path);
-          if (cancelled) return;
-          if (latest.current.some(tree => containsFolder(tree.root, listing.root))) continue;
-          const manual = latest.current.filter(tree => containsFolder(listing.root, tree.root))
-            .flatMap(tree => [...pluginRoots.current.values()].find(automatic => automatic.root === tree.root)?.manual ?? [tree]);
-          pluginRoots.current.set(path, { root: listing.root, manual });
-          dispatch({ type: "openRoot", listing });
-        } catch { /* Unavailable detected folders do not replace existing navigation. */ }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [pluginFolderPaths, restored]);
 
   // Every explicit Open/Close remembers the current list, even after another browser tab wrote it.
   // Tree-only changes do not write. During restoration, user changes wait for all remembered paths.

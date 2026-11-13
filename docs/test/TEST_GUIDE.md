@@ -1,5 +1,7 @@
 # Litzio Test Guide
 
+> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
+
 [검증 진입점](README.md) · [준비](#준비) · [자동 검증](#자동-검증) · [Browser regression](#browser-regression) · [CI](#ci) · [사람이 직접 볼 것](#사람이-직접-볼-것)
 
 동작의 판정은 자동 테스트가 한다. 이 문서는 자동 검증을 실행하는 방법과, 자동화가 판정하지 않아 사람이 직접 봐야 하는 항목만 둔다.
@@ -58,7 +60,7 @@ pnpm browser:prepare                       # 수동 검토용 scratch 사본만 
 
 ### CI
 
-`packages/plugin-sdk/**`, `plugins/onedrive/**`, `community-plugins/**`는 품질·browser·HTTP와 queue의 Desktop package·대표 제거를 선택한다. `vite-plugins`의 실제 OneDrive 활성화와 공통 scenario 준비 코드의 Docling fixture 읽기가 browser 유지 근거다. Markdown 단독 변경은 제품 quality만 유지한다. 세 경로의 전용 변경(`package.json` 포함)은 업데이트·제거 전수·레이아웃 전수를 생략한다. 설치 구성 파일의 기존 전체 제거·unknown fallback·혼합 합집합은 유지한다. 자세한 소비자는 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)에 기록한다.
+`packages/plugin-sdk/**`, `community-plugins/**`는 품질·browser·HTTP와 queue의 Desktop package·대표 제거를 선택한다. `vite-plugins`의 화면 코드 fixture 활성화와 공통 scenario 준비 코드의 Docling fixture 읽기가 browser 유지 근거다. Markdown 단독 변경은 제품 quality만 유지한다. 두 경로의 전용 변경(`package.json` 포함)은 업데이트·제거 전수·레이아웃 전수를 생략한다. 설치 구성 파일의 기존 전체 제거·unknown fallback·혼합 합집합은 유지한다. 자세한 소비자는 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)에 기록한다.
 
 queue의 Windows Desktop package·Stable/Beta 및 릴리스의 published 검사는 runner 임시 경로의 Electron·electron-builder 다운로드 캐시를 OS/arch/lockfile 키로 재사용한다. 설치·업데이트·제거 작업 전체를 재시도하지 않는다. 공개 릴리스 fixture GET만 HTTP 504에 최대 2회(1초·2초 대기) 재시도하며 URL·상태·시도 횟수를 기록한다. 다른 HTTP/전송 오류와 크기·해시 불일치는 기존 단언으로 실패한다. builder 다운로드 URL은 `@electron/get` debug 로그에 남긴다.
 

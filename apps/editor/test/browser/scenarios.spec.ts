@@ -182,12 +182,12 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
 
 for (const name of scenarios) {
   test(name, async ({ page }) => {
-    // One existing scenario now includes Docling conversion plus Jira's two real
+    // One existing scenario includes Docling conversion and its
     // 8s deadline probes and settings health checks. Keep per-action/product limits.
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { reviewArchive?: boolean; directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; benchmark?: boolean; benchmarkVariant?: string; benchmarkDocument?: string; comparisonCapture?: boolean; entryCaptureOnly?: boolean; restartWorkspaceHost():Promise<string>; comparisonBefore?: boolean; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean, output?: string): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; review(action: string, data: unknown): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { document: string; reviewArchive?: boolean; directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; docling?: { directory: string; input: string; settings: string; realFile?: string; beforeFile?: string; benchmark?: boolean; benchmarkVariant?: string; benchmarkDocument?: string; comparisonCapture?: boolean; entryCaptureOnly?: boolean; restartWorkspaceHost():Promise<string>; comparisonBefore?: boolean; setRealInput(): void; repeatReal(): Promise<void>; setFailure(value: boolean): void; setDocumentInput(invalid: boolean, output?: string): void; setPdfOutcome(mode: string): void; conversionRequests(): number; submissions(): number; jobInput: string; fileJobInput: string; queuedJobInput: string; verifyFile(path: string, sourceName?: string): Promise<void>; report(requestId: string): Promise<any>; review(action: string, data: unknown): Promise<any>; cli(args: string[]): Promise<any> }; corruptSecret(): void; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -205,19 +205,17 @@ for (const name of scenarios) {
     if (name === "vite-plugins") {
       if (screenshots && process.env.LITZIO_DOCLING_REAL_ARCHIVE) cpSync(process.env.LITZIO_DOCLING_REAL_ARCHIVE, path.join(pluginFolder,"real.docling"));
       mkdirSync(pluginDirectory, { recursive: true });
-      writeFileSync(path.join(pluginDirectory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.vite", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Vite fixture", description: "Connection settings fixture", version: "0.1.0", requiresSdk: ">=0.3.0 <1.0.0", entry: "host.js", secrets: [{ id: "api-key", title: "Access token", scope: "connection", required: false }], settingsSchema: { type: "object", properties: { serverUrl: { type: "string", title: "docling-serve URL", minLength: 1, description: "HTTP(S) service URL" }, failure: { type: "boolean", title: "Simulate failure", description: "Simulates service availability" } }, additionalProperties: false }, contributes: { healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", additionalProperties: false }, outputSchema: { type: "object" } }] } }));
-      writeFileSync(path.join(pluginDirectory, "host.js"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
+      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.vite", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Vite fixture", description: "Connection settings fixture", version: "0.1.0", requiresSdk: ">=0.3.0 <1.0.0", entry: "host.mjs", secrets: [{ id: "api-key", title: "Access token", scope: "connection", required: false }], settingsSchema: { type: "object", properties: { serverUrl: { type: "string", title: "docling-serve URL", minLength: 1, description: "HTTP(S) service URL" }, failure: { type: "boolean", title: "Simulate failure", description: "Simulates service availability" } }, additionalProperties: false }, contributes: { screens: [{ id: "main", title: "Vite fixture", icon: "ChartColumn", entry: "screen.jsx", primary: true }], healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", additionalProperties: false }, outputSchema: { type: "object" } }] } }));
+      writeFileSync(path.join(pluginDirectory, "host.mjs"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
 export function activate(context){return {operations:{connection:()=>({ok:context.settings.failure !== true,message:context.settings.failure !== true ? "Fixture connected" : "연결하지 못했습니다. 저장된 서버 주소와 자격 증명을 확인한 뒤 다시 시도하세요."})},status:()=>({available:true,message:SDK_VERSION,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
     }
     if (name === "http-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
-      writeFileSync(path.join(pluginDirectory, "icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#a855f7"/></svg>');
       writeFileSync(otherJobInput, JSON.stringify({ label: "CLI connection" }));
-      writeFileSync(path.join(pluginDirectory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.drive", secrets: [{ id: "pat", title: "Access token", scope: "connection", required: false }], tier: "community", publisher: { id: "fixture", name: "Fixture" }, settingsSchema: { type: "object", properties: { label: { type: "string", title: "Connection label" } }, additionalProperties: false }, name: "Drive fixture", description: "Isolated folder fixture", version: "0.1.0", requiresSdk: ">=0.4.0 <1.0.0", icon: "icon.svg", entry: "host.js", contributes: { folderSources: ["folders"], folderDecorations: ["folders"], accounts: ["folders"] } }));
-      writeFileSync(path.join(pluginDirectory, "host.js"), `export function activate(c){return {operations:{},dispose(){},status(){return {...${JSON.stringify({ available: true, message: "Folder detected (fixture)", folders: [{ id: "folder", path: otherPluginFolder, label: "Drive fixture", defaultCandidate: true }], decorations: [{ id: "folder", path: otherPluginFolder, icon: "plugin" }], accounts: [{ id: "folder", label: "Fixture account", source: "Isolated fixture" }] })},message:c.settings.label ?? "Folder detected (fixture)",accounts:[{id:"folder",label:c.secrets.pat ? "Secret applied" : "Fixture account",source:"Isolated fixture"}]}}}}`);
+      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.drive", secrets: [{ id: "pat", title: "Access token", scope: "connection", required: false }], tier: "community", publisher: { id: "fixture", name: "Fixture" }, settingsSchema: { type: "object", properties: { label: { type: "string", title: "Connection label" } }, additionalProperties: false }, name: "Drive fixture", description: "Isolated folder fixture", version: "0.1.0", requiresSdk: ">=0.4.0 <1.0.0", entry: "host.mjs", contributes: { screens: [{ id: "main", title: "Drive fixture", icon: "ChartColumn", entry: "screen.jsx", primary: true }] } }));
+      writeFileSync(path.join(pluginDirectory, "host.mjs"), `export function activate(c){return {operations:{},dispose(){},status:()=>({available:true,message:c.secrets.pat ? "Secret applied" : c.settings.label ?? "Fixture ready",folders:[],decorations:[],accounts:[]})}}`);
     }
+    if (["http-plugins", "vite-plugins"].includes(name)) writeFileSync(path.join(pluginDirectory, "screen.jsx"), "export default function Screen(){return <p>Runtime fixture</p>}");
     if (name === "plugin-views") {
       mkdirSync(pluginDirectory, { recursive: true });
       writeFileSync(path.join(pluginDirectory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
@@ -267,57 +265,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     syntheticDocument.texts[1].prov = [{page_no:1,charspan:[0,syntheticDocument.texts[1].text.length],bbox:{l:50,t:40,r:400,b:80,coord_origin:"TOPLEFT"}}];
     const rawResult = JSON.stringify({ status: "success", errors: [], document: { json_content: syntheticDocument } }).replace('"UNSAFE_INTEGER"', "18446744073709551615");
     let doclingFailure = false, conversionRequests = 0, submissions = 0, conversionState = "success", taskId = "", receivedFields: Record<string, FormDataEntryValue[]> = {};
-    let jiraFault = 0, jiraRedirects = 0, jiraLarge = false;
-    const jiraSearches: { jql: string; startAt: number }[] = [];
     const doclingServer = ["http-plugins","workspace-review"].includes(name) ? createServer(async (request, response) => {
-      if (request.url === "/jira/rest/api/2/myself") {
-        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
-        response.writeHead(status, { "Content-Type": "application/json" });
-        response.end(JSON.stringify(status === 200 ? { name: "mock-user", displayName: "Fixture PAT user" } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return;
-      }
-      if (request.url?.startsWith("/jira/rest/api/2/user/picker?") || request.url === "/jira/rest/api/2/project") {
-        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
-        response.writeHead(status, { "Content-Type": "application/json" });
-        response.end(JSON.stringify(status !== 200 ? {} : request.url.includes("/user/picker?") ? { users: [{ name: "mock-user", displayName: "Fixture PAT user" }] } : [{ key: "MOCK", name: "Fixture project" }])); return;
-      }
-      if (request.url === "/redirect-target") {
-        jiraRedirects++;
-        response.writeHead(200, { "Content-Type": "application/json" });
-        response.end(JSON.stringify({ fields: { summary: "Unexpected redirect" } })); return;
-      }
-      if (request.url?.startsWith("/jira/rest/api/2/search?")) {
-        const url = new URL(request.url, "http://fixture");
-        const jql = url.searchParams.get("jql")!;
-        const startAt = Number(url.searchParams.get("startAt"));
-        jiraSearches.push({ jql, startAt });
-        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
-        if (jiraFault === 408) { const timer = setTimeout(() => response.end("{}"), 8500); response.once("close", () => clearTimeout(timer)); return; }
-        response.writeHead(status, { "Content-Type": "application/json", ...(jiraFault === 302 ? { Location: "/redirect-target" } : {}) });
-        if (status !== 200) { response.end(JSON.stringify({ errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return; }
-        const keys = jql.startsWith("key in (") ? ["MOCK-1", "MOCK-2"] : jiraLarge ? Array.from({ length: 501 }, (_, i) => `MOCK-${i + 1}`) : jql.includes("IS NOT EMPTY") ? ["MOCK-2"] : jql.includes("Unresolved") ? ["MOCK-1", "MOCK-8"] : ["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"];
-        // Server may return fewer rows than requested; advance using the actual count.
-        const issues = keys.slice(startAt, startAt + (jiraLarge ? 100 : 2)).map(key => ({ key, fields: { summary: "검토할 이슈 " + key, status: { name: "Open" }, assignee: null, reporter: { displayName: "Fixture reporter" }, created: "2026-11-01", priority: { name: "High" }, updated: "2026-11-09" } }));
-        response.end(JSON.stringify({ startAt, total: keys.length, issues })); return;
-      }
-      if (request.url?.includes("/comment?")) {
-        const url = new URL(request.url, "http://fixture");
-        expect(url.searchParams.get("orderBy")).toBe("-created");
-        expect(url.searchParams.get("maxResults")).toBe("10");
-        response.writeHead(jiraFault || 200, { "Content-Type": "application/json" });
-        response.end(JSON.stringify(jiraFault ? { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] } : { startAt: 0, total: 12, comments: Array.from({ length: 10 }, (_, i) => ({ id: String(12 - i), author: { displayName: "Fixture reporter" }, created: "2026-11-09", updated: "2026-11-09", body: i === 0 ? "Release approved. " + "x".repeat(4100) : "Review completed." })) })); return;
-      }
-      if (request.url?.startsWith("/jira/rest/api/2/issue/")) {
-        const key = request.url.split("/").at(-1);
-        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || (key === "MOCK-404" ? 404 : 200);
-        if (jiraFault === 408) {
-          const timer = setTimeout(() => response.end("{}"), 8500);
-          response.once("close", () => clearTimeout(timer)); return;
-        }
-        response.writeHead(status, { "Content-Type": "application/json", ...(jiraFault === 302 ? { Location: "/redirect-target" } : {}) });
-        if (jiraFault === 302) { response.end(); return; }
-        response.end(JSON.stringify(status === 200 ? { key, fields: { description: "Weekly report: search completed. <script>text only</script>" + "d".repeat(16000), reporter: { displayName: "Fixture reporter" }, created: "2026-11-01", summary: "검토할 이슈 " + key, status: { name: "Open" }, assignee: null, priority: { name: "High" }, updated: "2026-11-09" } } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] }));
-        return;
-      }
       if (request.url !== "/health") conversionRequests++;
       const reply = (body: unknown, status = 200) => { response.writeHead(status, { "Content-Type": "application/json" }); response.end(JSON.stringify(body)); };
       try {
@@ -473,53 +421,12 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       writeFileSync(docling.input, "{}");
       writeFileSync(docling.settings, JSON.stringify({ serverUrl: `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}` }));
     }
-    const jira = docling ? {
-      directory: path.join(REPOSITORY_ROOT, "tmp/http-host-a/jira-artifact"),
-      input: path.join(REPOSITORY_ROOT, "tmp/jira-input.json"),
-      settings: path.join(REPOSITORY_ROOT, "tmp/jira-settings.json"),
-      healthInput: path.join(REPOSITORY_ROOT, "tmp/jira-health-input.json"),
-      setFault(value: number) { jiraFault = value; },
-      redirects() { return jiraRedirects; },
-      async cli(args: string[]) {
-        try { return await docling.cli(args); }
-        catch (error: any) { if (error.stdout) return JSON.parse(error.stdout); throw error; }
-      },
-      setInput(keys: string) { writeFileSync(this.input, JSON.stringify({ keys })); },
-      setQuery(value: Record<string, string>) { jiraSearches.length = 0; writeFileSync(this.input, JSON.stringify(value)); },
-      searches() { return jiraSearches; },
-      setLarge(value: boolean) { jiraLarge = value; },
-      setSettings(value: Record<string, string>) { writeFileSync(this.settings, JSON.stringify(value)); },
-      baseUrl: `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}/jira`,
-      mock: process.env.LITZIO_JIRA_MOCK === "1",
-    } : undefined;
-    if (jira) {
-      cpSync(path.join(REPOSITORY_ROOT, "community-plugins/jira"), jira.directory, { recursive: true });
-      writeFileSync(jira.healthInput, "{}");
-      jira.setInput("MOCK-1, MOCK-2, MOCK-404");
-      jira.setSettings({ baseUrl: jira.baseUrl });
-    }
-    const pluginFixture = { reviewArchive: screenshots && !!process.env.LITZIO_DOCLING_REAL_ARCHIVE, directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput, fileJobInput, corruptSecret() {
+    const pluginFixture = { document: path.join(pluginFolder, "a.md"), reviewArchive: screenshots && !!process.env.LITZIO_DOCLING_REAL_ARCHIVE, directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput, fileJobInput, corruptSecret() {
       const owned = process.env.LITZIO_BROWSER_DAEMON_DIR;
       if (!owned) throw new Error("Secret corruption requires a runner-owned isolated Host");
       const hash = (value: string) => createHash("sha256").update(value).digest("hex");
       writeFileSync(path.join(owned, "browser-plugins.json.secrets", hash("fixture.drive"), hash("pat")), "invalid DPAPI ciphertext");
     }, cli: (args: string[]) => JSON.parse(execFileSync(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), ...args, "--host", url, "--json"], { encoding: "utf8", windowsHide: true })) };
-    const realCapture = screenshots && process.env.LITZIO_CAPTURE_ONEDRIVE === "1" && process.platform === "win32";
-    const realSnapshot = realCapture && name === "http-plugins" ? () => {
-      pluginFixture.cli(["plugins", "enable", "litzio.onedrive"]);
-      const state = pluginFixture.cli(["plugins", "list"]);
-      const plugin = state.plugins.find((p: any) => p.id === "litzio.onedrive");
-      if (!plugin?.official || !plugin.running) throw new Error("Real OneDrive artifact is not running as official");
-      pluginFixture.cli(["plugins", "disable", "litzio.onedrive"]);
-      const masked = "C:\\Users\\Example\\OneDrive";
-      if (plugin.status) {
-        plugin.status.accounts = plugin.status.accounts.map((a: any) => ({ ...a, label: "Masked account", source: "HKCU Accounts (masked)" }));
-        plugin.status.folders = plugin.status.folders.map((f: any) => ({ ...f, path: masked, label: "OneDrive" }));
-        plugin.status.decorations = plugin.status.decorations.map((d: any) => ({ ...d, path: masked }));
-      }
-      writeFileSync(path.join(REPOSITORY_ROOT, "tmp/plugin-stage1/real-capture-metadata.json"), JSON.stringify({ plugin: plugin.id, official: true, detection: "actual Windows Host", folderCount: plugin.status?.folders.length, masking: "account labels, sources, paths and Host identity replaced before browser capture", runtimeDisabledAfterRead: true }, null, 2));
-      return { plugins: [plugin] };
-    } : undefined;
     let result;
     const folderAliasRoot = path.join(FILE_ACTIONS_ROOT, "trash-alias");
     const enableFolderTrash = async () => {
@@ -538,7 +445,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       await page.reload();
       await page.getByTestId("folder").filter({ has: page.getByRole("treeitem", { name: "trash-target", exact: true }) }).waitFor();
     };
-    try { result = await scenario(page, { folderAliasRoot, changeFolderContents: () => appendFileSync(path.join(FILE_ACTIONS_ROOT, "trash-target", "inside.md"), "\nExternal folder change.\n"), enableFolderTrash, pluginFixture: { ...pluginFixture, docling, jira, realSnapshot, reviewDocument: name === "plugin-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, waitForExplorerLayout, withBlockHover, bibliographyFixture,
+    try { result = await scenario(page, { folderAliasRoot, changeFolderContents: () => appendFileSync(path.join(FILE_ACTIONS_ROOT, "trash-target", "inside.md"), "\nExternal folder change.\n"), enableFolderTrash, pluginFixture: { ...pluginFixture, docling, reviewDocument: name === "plugin-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, waitForExplorerLayout, withBlockHover, bibliographyFixture,
       folderFixture: {
         change: (mode: string) => {
           const dir = path.join(REPOSITORY_ROOT, "tmp/folder-navigation/guides");
