@@ -8,12 +8,17 @@
 > 2026-11-13 #1360: 창 조회·탭/폴더 조작·표시 설정 도구와 화면↔Host 요청 통로를 제거했다. ADR-0021 보완 결정을 따른다. Host 공용 작업·CLI 필수, 문서 변경 보기와 되돌리기는 유지한다. 아래 당시 결정의 본문은 보존한다.
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-04
-- Last verified: 2026-11-05 — #1150·ADR-0017 전환과 ADR-0020의 재개 시 비서 관리 개정을 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-05 — #1150·ADR-0017 전환과 ADR-0020의 재개 시 비서 관리 개정을 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Previous verification: 2026-11-04 — #1132 승인·Discussion 기록과 관련 ADR/Implemented 계약의 문서 대조. 제품 실행이나 기능 이행 검증은 포함하지 않는다.
 - Authority: [#1132 소유자 승인](https://github.com/litzio/litzio/issues/1132#issuecomment-6618888405), [종합과 결정 제안](https://github.com/litzio/litzio/issues/1132#issuecomment-6618863609), [Discussion #767 결정 기록](https://github.com/litzio/litzio/discussions/767#discussioncomment-19386313), under [AGENTS.md](../../AGENTS.md).
 - Scope: 새 사용자 기능의 공용 작업·CLI·비서 도구 계약. 기존 기능은 아래 순서로 이행한다. 로컬 daemon 연결·수명은 ADR-0016에서 결정하며 편집 상태 공유는 계속 보류한다.
 
 - Amendment date: 2026-11-05 — [ADR-0020 비서 제작 로드맵](0020-plugin-architecture.md#비서-플러그인-제작-로드맵2026-11-05-개정)에 따라 플러그인 관리의 건별 명시 승인을 제거하고 사용자에게 보이는 활동 기록으로 대체한다. secret 비노출·제품 고정 공식 목록·digest 신뢰 기록은 유지한다. AI 권한·공급자·모델 변경 금지와 문서 교정 승인은 그대로다. 현재 구현 변경 완료를 뜻하지 않는다.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+Host 공용 작업·CLI 의무와 실패 시 로컬 재실행 금지는 유지한다. 현재 비서는 [ADR-0021](0021-general-agent-assistant.md)과 #1360 보완에 따라 CLI·스킬을 기본으로 쓰며 창 연동 도구·요청 통로는 없다. 탭·기억·복구의 Host ID 제거와 새 namespace 전환은 완료됐다([저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 아래 첫 사례의 전용 도구 우선·제안→허락→적용 지침은 당시 기록이다. `create_document`·템플릿 도구와 생성 receipt/되돌리기 연결은 현재도 남아 있으며 화면 조회·조작 통로 제거와 구별한다. 현재 문서 직접 수정·변경 보기·되돌리기는 [비서 계약](../design/main-agent-v1.md), 템플릿 공용 작업·CLI는 [템플릿 계약](../design/document-templates-v1.md)을 따른다. 단계별 PR1~4·원격 개정은 완료·폐기 전 이력이며, **4절의 미래 동시 편집 대비 결정은 이번 사실 갱신에서 변경하지 않는다.**
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 

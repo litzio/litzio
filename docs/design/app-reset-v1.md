@@ -1,9 +1,14 @@
 # Complete app reset (#1285)
 
 - Status: Implemented
-- Last verified: 2026-11-10 — #1448 queue run 42766806209의 초기화·재실행 성공/정리 실패와 종료 메시지 경로를 코드 대조. 정리 수정의 실제 packaged 검증은 다음 queue 대상이며 로컬 미실행. 기존 파일/CLI/helper/main·HTTP 및 UI 검증은 아래 기록을 따른다.
+- Last verified: 2026-11-14 — 현재 코드·계약의 상태와 연결을 정적으로 대조했다. 제품·브라우저·초기화·공급자 실행 재검증 없음.
+- Previous verification: 2026-11-10 — #1448 queue run 42766806209의 초기화·재실행 성공/정리 실패와 종료 메시지 경로를 코드 대조. 정리 수정의 실제 packaged 검증은 다음 queue 대상이며 로컬 미실행. 기존 파일/CLI/helper/main·HTTP 및 UI 검증은 아래 기록을 따른다.
 - Scope: 로컬 Desktop profile과 Litzio 소유 Host 데이터 초기화. 외부 서비스·외부 브라우저·공급자 계정은 삭제하지 않는다.
-- Authority: [#1285](https://github.com/litzio/litzio/issues/1285)의 소유자 결정, [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0016](../adr/0016-shared-local-daemon-host.md), [ADR-0018](../adr/0018-desktop-remote-hosts.md). 관련 현재 계약은 [Desktop distribution](desktop-distribution-v1.md), [HTTP Host](http-host-v1.md), [Editing session and Save](editing-session-save-v1.md)다.
+- Authority: [#1285](https://github.com/litzio/litzio/issues/1285)의 소유자 결정, [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0016](../adr/0016-shared-local-daemon-host.md). 관련 현재 계약은 [Desktop distribution](desktop-distribution-v1.md), [HTTP Host](http-host-v1.md), [Editing session and Save](editing-session-save-v1.md)다.
+
+## 현재 권위와 삭제 전 이력
+
+원격 등록·여러 Host를 다루던 [ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Superseded다. 현재 초기화는 위 로컬 공용 작업·종료·저장 보호 계약을 따른다. 아래 원격 등록 저장소 행은 삭제 전 저장소의 이력이다. Host base 전체를 제거하는 기존 초기화 범위를 바꾸거나 옛 기록을 자동 이전·정리하는 새 경로를 추가하지 않는다.
 
 ## 목표와 제거기의 경계
 
@@ -44,7 +49,7 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 | 플러그인 등록·신뢰·설정 | `<Host base>/plugins.json` 또는 `LITZIO_PLUGINS_SETTINGS_FILE` | 파일과 UUID 임시 sibling 제거 |
 | secret | 실제 plugins 설정 파일 경로 + `.secrets` | DPAPI 암호문 전체 제거; 복호화/값 출력 없음 |
 | 비서 cwd | 기본 `%APPDATA%/litzio/assistant`, `LITZIO_ASSISTANT_CWD` 우선 | 로컬 대화 목록·파일·instructions·사용자 스킬 전체 제거; 기본 가이드는 정상 환경 생성 시 다시 제공 |
-| 원격 등록·작업 요약 | `<LITZIO_DATA_DIR 또는 ~/.litzio>/desktop` | 로컬 등록·요약·중단된 쓰기 제거. 원격 서비스·파일은 그대로 유지 |
+| 삭제 전 원격 등록·작업 요약(이력) | `<LITZIO_DATA_DIR 또는 ~/.litzio>/desktop` | 로컬 등록·요약·중단된 쓰기 제거. 원격 서비스·파일은 그대로 유지 |
 | daemon 데이터 | `<LITZIO_DAEMON_DIR 또는 ~/.litzio/daemon>` | 모든 채널의 discovery·lock·log 포함 전체 내용; 살아 있는 owner가 있으면 삭제 전에 거부 |
 | updater cache | `%LOCALAPPDATA%/litzio-updater` | 내려받은 업데이트·cache 제거. Desktop은 잠긴 electron-updater의 cache base resolver를 재사용 |
 

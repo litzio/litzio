@@ -5,7 +5,8 @@
 - Status: Accepted
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Decision date: 2026-10-31
-- Last verified: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Previous verification: 2026-10-31 (#853 Host worker and #857 UI manifest/assets/contributions, React compatibility, disposal/re-registration and failure-isolation verification; real Docling remains manual).
 - Authority: owner approval in [Discussion #767](https://github.com/litzio/litzio/discussions/767#discussioncomment-19307920), under [AGENTS.md](../../AGENTS.md). Related: [ADR-0011](0011-code-module-boundary.md), [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0007](0007-editing-session-lifetime.md), [staged Host decision #834](https://github.com/litzio/litzio/discussions/834#discussioncomment-19307667).
 - Supersedes: the static/no-registration/no-dynamic-loading boundary and process-local-only conversion task state in ADR-0011; its Core, package, external-data and thin-interface boundaries remain Accepted.
@@ -19,6 +20,12 @@ implementation. Current behavior remains described by the Implemented
 [Filesystem Host](../design/filesystem-host-boundary-v1.md) and
 [HTTP Host](../design/http-host-v1.md) contracts until implementation PRs satisfy
 the adoption conditions below and update the affected contracts.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+Core 의미·공식 쓰기·원본 보존과 실행/화면 수명 분리의 경계는 남는다. 옛 worker·공유 설치 요청 기록·Docling 채택 조건·UI 기여 계약은 ADR-0017·0019·0020·0022로 제거 또는 대체된 이력이다. 현재 제공 계약은 [실행·제작](../design/plugin-stage1-v1.md)과 [화면 코드](../design/plugin-screens-v1.md)다. 아래 archived Implemented 문서의 “현재 동작”·채택 조건은 그 당시 시점을 뜻하며 현행 플러그인 제공 계약이 아니다.
+
+이 아래 본문은 당시 결정·개정·구현·검증의 이력이다. 남는 결정은 위 요약을 따르며 삭제된 기능의 재도입 요구가 아니다. 당시 날짜·측정·검증 범위는 그대로 보존한다.
 
 ## Amendment: 플러그인 계층 개념 (2026-11-05)
 

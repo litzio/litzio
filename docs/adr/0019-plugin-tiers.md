@@ -7,10 +7,17 @@
 - Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-05
-- Last verified: 2026-11-05 — 소유자 결정 ①~⑧과 관련 ADR·용어·문서 경계 및 ADR-0020 비서 신뢰 실행 개정을 대조. 제품 실행·플러그인 구현 검증 없음.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-05 — 소유자 결정 ①~⑧과 관련 ADR·용어·문서 경계 및 ADR-0020 비서 신뢰 실행 개정을 대조. 제품 실행·플러그인 구현 검증 없음.
 - Authority: 2026-11-05 소유자 승인 결정, under [AGENTS.md](../../AGENTS.md). 관련 보류 이슈: [#1075](https://github.com/litzio/litzio/issues/1075).
 - Scope: 플러그인 계층·책임·Host·UI·공용 작업의 개념 결정만 기록한다. Accepted는 구현 착수나 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)의 재개 시 플러그인 분류·신뢰·UI 경계. [ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 결정할 개념을 보완하며 기능 제거·보관·명시적 재개 조건은 유지한다.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+공식/커뮤니티의 공급·유지 책임 구분, 공통 공개 API·Host 실행은 남는다. 현재 최소 manifest에는 tier가 없고 공식·지정 공급은 모두 삭제됐다. 아래 “현재 지정 공급은 community.docling만”은 전체 삭제 전 단계의 이력이다. 신뢰는 #1379의 등록 단위이며 digest 계산과 별개다. 원격 대상 선택을 ADR-0018에서 가져오는 서술과 앱 번들 script 한정은 당시 결정으로, 현재 단일 연결은 [HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), 화면 코드는 ADR-0022와 [화면 계약](../design/plugin-screens-v1.md), 설치·신뢰는 [실행 계약](../design/plugin-stage1-v1.md)을 따른다.
+
+이 아래 본문은 당시 결정·개정·구현·검증의 이력이다. 남는 결정은 위 요약을 따르며 삭제된 기능의 재도입 요구가 아니다. 당시 날짜·측정·검증 범위는 그대로 보존한다.
 
 ## Amendment: 비서의 신뢰 실행과 활동 기록 (2026-11-05)
 

@@ -2,7 +2,8 @@
 
 - Status: Accepted
 - Decision date: 2026-10-30
-- Last verified: 2026-11-01 (#869 independently built plugin folder and complete Docling Host/UI contribution boundary; #853/#857 worker/crash and command/tab/sidebar contracts remain).
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-01 (#869 independently built plugin folder and complete Docling Host/UI contribution boundary; #853/#857 worker/crash and command/tab/sidebar contracts remain).
 - Previous verification: 2026-10-30 (Docling module/CLI, comparison tab/reading surface and shared Host; package boundary and browser tests).
 - Authority: owner decisions in [Discussion #766](https://github.com/litzio/litzio/discussions/766) and [Discussion #767](https://github.com/litzio/litzio/discussions/767), under [AGENTS.md](../../AGENTS.md).
 - Superseded in part: [ADR-0012](0012-plugin-runtime-and-ui-contributions.md) replaces the static/no-registration/no-dynamic-loading boundary and extends process-local-only conversion state with shared request records. The remaining boundaries stay Accepted.
@@ -15,6 +16,12 @@ connections with the [UI contribution contract](https://github.com/litzio/litzio
 through those contracts; the static descriptions below remain the original decision record. For the approved runtime
 plugin direction, the superseding parts of ADR-0012 take precedence; adoption
 requires its conditions and corresponding contract updates.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+남는 결정은 외부 형식 해석·모듈 소유 자료와 Core 문서 의미를 분리하고 공개 Core API·얇은 CLI를 쓰는 경계다. 삭제된 Docling 패키지·sidecar·비교 API·정적 연결은 아래 당시 구현 이력이다. 현재 플러그인은 [실행·제작 계약](../design/plugin-stage1-v1.md)과 [화면 코드 계약](../design/plugin-screens-v1.md)을 따른다. 옛 모듈이나 대응 저장소의 복원을 요구하지 않는다.
+
+이 아래 본문은 당시 결정·개정·구현·검증의 이력이다. 남는 결정은 위 요약을 따르며 삭제된 기능의 재도입 요구가 아니다. 당시 날짜·측정·검증 범위는 그대로 보존한다.
 
 ## Decision
 

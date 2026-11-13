@@ -4,11 +4,16 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-10 — #1448 소유자 종료 정책·미저장 Windows query 보류 결정과 main 회귀 검사 대조. 실제 로그아웃·패키지 수락은 미확인.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-10 — #1448 소유자 종료 정책·미저장 Windows query 보류 결정과 main 회귀 검사 대조. 실제 로그아웃·패키지 수락은 미확인.
 - Previous verification: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
 - Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 수동 원격 접근은 ③의 추가 승인을 따른다. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0015](0015-shared-host-operations.md)의 아래 명시한 경계. 나머지 결정은 유지한다.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+같은 PC 공유 daemon·주체별 종료·트레이 유지·명시적 종료·수동 다시 연결은 유지한다. 원격 등록·여러 Host UI는 삭제됐고 탭·기억·복구도 path와 새 namespace로 전환 완료했다([HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), [저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 서두의 “PR 3까지 그대로”는 전환 중간 단계의 기록이다. ADR-0018 원격 개정은 폐기됐으며 현재 연결의 권위가 아니다. 아래 PR1~4·일시 제외·복구는 완료된 이력이다. 현재 실행·설치 수명은 [HTTP Host](../design/http-host-v1.md)·[Desktop 배포](../design/desktop-distribution-v1.md), 플러그인은 [현행 실행 계약](../design/plugin-stage1-v1.md)을 따른다.
 
 ## Amendment: Desktop 번들 UI와 Docling 전환 (2026-11-04, #1150)
 

@@ -1,8 +1,10 @@
 # Generated views v1
 
-> #1341(2026-11-09)에서 비서 생성·즐겨찾기·snapshot·통계·차트 기능을 제거했다. 아래는 당시 구현/제안과 검증 기록이며 현재 요구사항이 아니다. 남는 플러그인 화면·조회·표는 [현재 계약](plugin-screens-v1.md), review는 [플러그인 1단계](plugin-stage1-v1.md)를 따른다. 상태·후속 링크를 확인했으며 과거 실험을 다시 실행했다는 뜻이 아니다.
+> #1341(2026-11-09)에서 비서 생성·즐겨찾기·snapshot·통계·차트 기능을 제거했다. 아래는 당시 구현/제안과 검증 기록이며 현재 요구사항이 아니다. 당시 남겼던 플러그인 화면·조회·표와 현재의 차이는 [현재 계약](plugin-screens-v1.md), review는 [플러그인 1단계](plugin-stage1-v1.md)를 따른다. 상태·후속 링크를 확인했으며 과거 실험을 다시 실행했다는 뜻이 아니다.
 
 > 후속 설계: [동적 뷰 재정의 v1](dynamic-views-v1.md)은 Draft다. 두 데이터 종류·우측 보기·플러그인 화면·V7 선행 구현을 제안하며, 아래 현재 구현/기존 로드맵의 완료 주장과 구분한다. 수락 시 변경되는 범위는 새 설계와 ADR-0020 개정안을 따른다.
+
+> 2026-11-14 정적 상태 확인: 아래 “현재”·“유지된”·“후속”은 당시 시점을 뜻한다. 2026-11-13 선언형·조회/자동 form·공용 검수 틀은 삭제됐다. 현행 계약은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)이며 아래 계획·검증을 재도입 요구로 쓰지 않는다. 제품 재실행 없음.
 
 - Status: Historical
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Request paths, lazy plugin start, receipts and stored formats are unchanged.

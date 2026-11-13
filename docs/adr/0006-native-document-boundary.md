@@ -1,11 +1,16 @@
 # ADR-0006: Litzio 네이티브 문서 지원 경계
 
 - Status: Accepted
-- Last verified: 2026-10-14 (post-#234 implementation status and current design contract/supersession links checked).
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-10-14 (post-#234 implementation status and current design contract/supersession links checked).
 - Authority: product and architectural decision under [AGENTS.md](../../AGENTS.md). Related: [#232](https://github.com/litzio/litzio/issues/232) · [ADR-0001](0001-single-document-editor-architecture.md) · [ADR-0002](0002-document-persistence-semantic-ownership.md) · [ADR-0004](0004-desktop-host-distribution.md)
 - Decision date: 2026-10-14
 
 이 문서는 승인된 지원 경계를 기록한다. 네이티브 문서 경계는 [#234](https://github.com/litzio/litzio/pull/234)에서 구현되었으며, 현재 동작은 [Native document support](../design/document-support-v1.md)의 Implemented 계약을 따른다. [Block source editing](../design/block-source-editing-v1.md)은 Superseded 상태로 당시 계약을 보존한다. 아래 Context와 Evidence는 결정 당시의 계약과 관찰 기록이다.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+표식·전체 의미 검증·Core 공식 쓰기 경계는 유지한다. 별도 텍스트 종류의 `.md`에는 #939에서 Read/Text 전환과 제한된 Markdown 보기를 추가했다. 따라서 아래 #817 당시의 “미리보기 없음”은 현재 표시 기능을 설명하지 않는다. 이는 네이티브 수용·저장 규칙의 완화나 자동 변환이 아니다. 현재는 [문서 지원 계약](../design/document-support-v1.md#text-files-in-the-editor-817)을 따른다.
 
 ## Amendment: separate text editing (#817, 2026-10-31)
 

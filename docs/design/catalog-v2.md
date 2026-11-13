@@ -1,17 +1,19 @@
 # 카탈로그 v2
 
+> 2026-11-14 정적 상태 확인: 아래 “현재”·“유지된”·“후속”은 당시 시점을 뜻한다. 2026-11-13 선언형·조회/자동 form·공용 검수 틀은 삭제됐다. 현행 계약은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)이며 아래 계획·검증을 재도입 요구로 쓰지 않는다. 제품 재실행 없음.
+
 - Status: Historical
 - Last verified: 2026-11-09 — #1341 제거 결정과 남은 구현 경계 대조. 과거 외부 서비스 수락 시험 재실행은 아님.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [#1341](https://github.com/litzio/litzio/issues/1341).
-- Scope: 카탈로그 v2 설계 중 유지된 query/InputForm/Table·K2/K3/K4·V5의 경계와 후속 수락. 현재 실행 계약은 [플러그인 화면](plugin-screens-v1.md)과 [플러그인 1단계](plugin-stage1-v1.md)가 소유한다.
+- Scope: 카탈로그 v2 설계 중 당시 유지된 query/InputForm/Table·K2/K3/K4·V5의 경계와 후속 수락. 현재 실행 계약은 [플러그인 화면](plugin-screens-v1.md)과 [플러그인 1단계](plugin-stage1-v1.md)가 소유한다.
 
 ## 범위 정리
 
 2026-11-09 소유자 결정으로 비서 뷰 생성·교정·출처/assistant source·snapshot·즐겨찾기·문서 통계·Chart·가로 Panel을 제거했다. 기존 설계의 이 기능들과 저장/제안 단계는 후속 요구사항이 아니다. 일반 비서 대화·문서 도구·requestUserInput과 플러그인 기본 화면·연결 확인·작업 패널은 유지한다.
 
-유지한 v2 요소는 다음과 같다.
+2026-11-09 당시 유지한 v2 요소는 다음과 같다.
 
-| 영역 | 현재 계약 | 검증 경계 |
+| 영역 | 당시 계약 | 검증 경계 |
 | --- | --- | --- |
 | 조회 | 등록 Host read operation/version/owner, schema 기반 입력, 수동 실행, 안전한 오류/receipt | [plugin screens](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-screens-v1.md#core-명세와-조회) |
 | 입력·표 | 공개 scalar InputForm, 세로 Panel/Table, 정렬·필터·링크 | [공통 Table](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-screens-v1.md#공통-table과-링크) |

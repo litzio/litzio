@@ -3,11 +3,18 @@
 > 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래 원격 관련 결정은 당시 기록이며 현재 제공 기능이 아니다.
 
 - Status: Accepted
-- Last verified: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
 - Previous verification: 2026-10-31 (documentation-only ADR-0012 exception for plugin registration state and request records; no new runtime verification).
 - Previous verification: 2026-10-13 (Node-only package, shared Host and real browser Save/Reload verification; Windows/Linux CI required).
 - Authority: architectural decision under [AGENTS.md](../../AGENTS.md). Related: [ADR-0002](0002-document-persistence-semantic-ownership.md), [ADR-0004](0004-desktop-host-distribution.md), [HTTP Host contract](../design/http-host-v1.md).
 - Decision date: 2026-10-13
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+현재는 같은 PC의 공유 daemon, 개발·검사용 독립 HTTP Host, 명시적 CLI `--host`를 유지한다. 공용 파일 handler·Core 의미·파일 교체를 재사용하며 Root는 ADR-0016의 선택 옵션이다. 다른 PC 등록·여러 Host UI는 삭제됐다. 탭·기억·복구의 Host ID 제거와 새 namespace 전환도 완료했다([HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), [저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). Docling 설정·변환 task·옛 플러그인 요청 기록은 아래 당시 Host 책임의 이력이며 현행 영속 책임이 아니다.
+
+이 아래 본문은 당시 결정·개정·구현·검증의 이력이다. 남는 결정은 위 요약을 따르며 삭제된 기능의 재도입 요구가 아니다. 당시 날짜·측정·검증 범위는 그대로 보존한다.
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 

@@ -5,13 +5,18 @@
 - Status: Accepted
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-04
-- Last verified: 2026-11-05 — #1174·ADR-0018 결정 및 ADR-0020의 재개 시 비서 관리 개정과 문서 대조. 제품 실행 검증 없음.
+- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-05 — #1174·ADR-0018 결정 및 ADR-0020의 재개 시 비서 관리 개정과 문서 대조. 제품 실행 검증 없음.
 - Previous verification: 2026-11-04 — #1150·#1142, 관련 ADR 및 Paseo `bfbd4d5` 사전 정적 조사 대조. 제품 실행 검증 없음.
 - Authority: 2026-11-04 소유자 승인 결정, [#1150](https://github.com/litzio/litzio/issues/1150), under [AGENTS.md](../../AGENTS.md). AI 가용성과 플러그인·Docling 기능 제거·보관은 소유자 최종 결정이다. 플러그인 컨셉 재개발은 소유자가 명시적으로 개시할 때 다룬다.
 - Scope: 같은 PC의 로컬 daemon, 공식 AI 이전과 플러그인·Docling 기능 제거·보관, 소유자 개시 후 컨셉 재개발, Desktop 번들 UI 전환. Accepted는 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0013](0013-ai-agent-task-service.md), [ADR-0015](0015-shared-host-operations.md), [ADR-0016](0016-shared-local-daemon-host.md)의 아래 명시한 경계.
 
 - Amendment date: 2026-11-05 — [ADR-0020 비서 제작 로드맵](0020-plugin-architecture.md#비서-플러그인-제작-로드맵2026-11-05-개정)에 따라 플러그인 관리의 건별 명시 승인을 제거하고 사용자에게 보이는 활동 기록으로 대체한다. secret 비노출·제품 고정 공식 목록·digest 신뢰 기록은 유지한다. AI 권한·공급자·모델 변경 금지와 문서 교정 승인은 그대로다. 현재 구현 변경 완료를 뜻하지 않는다.
+
+## 현재 적용 범위 (2026-11-14 정적 확인)
+
+현재 Desktop 번들 UI·daemon 공식 AI와 고정 client·실패 시 로컬 재실행 금지는 유지한다. 원격 등록·여러 Host는 삭제됐고 탭·기억·복구의 path·새 namespace 전환도 완료했다([HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), [저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 아래 #1150 제거·PR 단계·ADR-0018 개정은 당시 이력이다. 이후 재개된 플러그인의 현재 실행·화면은 [실행 계약](../design/plugin-stage1-v1.md)·[화면 코드 계약](../design/plugin-screens-v1.md)이 정한다. **아래 `aiTasks` 복원 의무·최소 서비스 계약·재개 조건의 뜻과 문장은 이번 사실 갱신에서 변경하지 않는다.**
 
 ## Amendment: 플러그인 계층 개념 (2026-11-05)
 
