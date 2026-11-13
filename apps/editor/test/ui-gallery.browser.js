@@ -55,6 +55,11 @@ async (page, { expect, screenshots }) => {
   const ticks = page.getByRole('figure',{name:'Long time labels',exact:true}).locator('text').filter({hasText:'2026-11-13T00:'});
   await expect(ticks.first()).toContainText('2026-11-13T00:00:00Z');
   await expect(ticks.last()).toContainText('2026-11-13T00:59:00Z');
+  await expect.poll(async () => {
+    const box = await page.getByRole('figure',{name:'Long time labels',exact:true}).boundingBox();
+    const last = await ticks.last().boundingBox();
+    return last.x + last.width <= box.x + box.width;
+  }).toBe(true);
   const bounds = await ticks.evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().toJSON()));
   for(let i=1;i<bounds.length;i++) expect(bounds[i].left).toBeGreaterThanOrEqual(bounds[i-1].right);
   const frame = await page.getByRole('figure',{name:'Long time labels',exact:true}).boundingBox();
