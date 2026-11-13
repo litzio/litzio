@@ -44,11 +44,15 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     assistantEnvironment: () => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).environment(),
     assistantConversations: (args: any) => {
       if (args.submissionId) return history().submission(args.submissionId);
-      if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args));
+      if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args)).map(({ attachments: _attachments, ...info }) => info);
       const conversation = history().current(args.id);
       return { ...conversation, screenActionRequest: history().screenActions.snapshot(args.id, args.displayClient), screenRequest: history().screen.snapshot(args.id, args.displayClient), displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
     assistantConversation: async (args: any): Promise<any> => {
+      if (args.action === "upload-image") {
+        if (args.id) history().current(args.id);
+        return history().attachments.upload(args);
+      }
       if (args.action === "delete") {
         history().remove(args.id);
         return { id: args.id, outcome: "deleted" };

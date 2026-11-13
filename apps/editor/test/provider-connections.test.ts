@@ -1503,3 +1503,66 @@ test("Copilot ACP usage stays on its conversation and survives in-memory resume 
   assert.equal(absent.tokenUsage, undefined);
   assert.equal(absent.copilotUsage, undefined);
 });
+
+test("pasted images are Host-owned across permissions, restart, and deletion; crafted paths gain no exception", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-paste-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  t.after(async () => { await conversations.close(); await connection.close(); });
+  const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9S8AAAAASUVORK5CYII=";
+  const upload = () => conversations.attachments.upload({ mime: "image/png", data });
+  assert.throws(() => conversations.attachments.upload({ mime: "image/svg+xml", data }), /Only/);
+  assert.throws(() => conversations.attachments.upload({ mime: "image/png", data: Buffer.from("not an image").toString("base64") }), /complete/);
+  assert.throws(() => conversations.attachments.upload({ mime: "image/png", data, path: root } as any), /Invalid/);
+  const settings = { provider: "codex" as const, model: "gpt-6.1-sol", reasoningEffort: "medium", permissionMode: "read-only" as const };
+  const input = { message: "Read the image", folders: [], model: settings.model, reasoningEffort: "medium" };
+  for (const permissionMode of ["read-only", "opened-folders", "full-access"] as const) {
+    const image = upload();
+    const result = await conversations.send({ ...input, permissionMode, references: [image.path] }, settings);
+    const calls = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert(calls.some(row => row.method === "turn/start" && row.params.input.some((part: any) => part.type === "localImage" && part.path === image.path)));
+    await connection.client.request("fixture/finish", { threadId: result.id });
+    for (let n = 0; n < 100 && result.turns.some(turn => turn.status === "inProgress"); n++) await new Promise(resolve => setTimeout(resolve, 10));
+    const other = path.join(cwd, "other.png"); writeFileSync(other, Buffer.from(data, "base64"));
+    for (const file of [other, image.path.replace("clipboard-", "../attachments/clipboard-"), image.path.toUpperCase()]) {
+      await assert.rejects(conversations.send({ ...input, permissionMode: "read-only", references: [file] }, settings), /outside|unavailable/);
+    }
+    const linked = path.join(cwd, "link");
+    if (!existsSync(linked)) symlinkSync(path.dirname(image.path), linked, "junction");
+    await assert.rejects(conversations.send({ ...input, references: [path.join(linked, path.basename(image.path))] }, settings), /outside|unavailable/);
+    await assert.rejects(conversations.send({ ...input, references: [image.path] }, settings), /another conversation/);
+    conversations.remove(result.id);
+    assert.equal(existsSync(image.path), false);
+  }
+  const draft = upload();
+  writeFileSync(draft.path, "replacement secret");
+  assert.throws(() => conversations.attachments.reference(draft.path), /unavailable/);
+  writeFileSync(draft.path, Buffer.from(data, "base64"));
+  const { AssistantAttachments } = await import("../server/assistant-attachments.ts");
+  new AssistantAttachments(cwd); // A fresh Host drops unclaimed drafts after an unclean stop.
+  assert.equal(existsSync(draft.path), false);
+  await conversations.close();
+  assert.equal(existsSync(draft.path), false);
+});
+
+test("pasted images use ACP image bytes and retained Host attachments survive restart", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-paste-acp-")), log = path.join(root, "rpc.jsonl"), cwd = path.join(root, "assistant");
+  const connection = new ProviderConnections(cwd, undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  t.after(async () => { await conversations.close(); await connection.close(); });
+  const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9S8AAAAASUVORK5CYII=";
+  const image = conversations.attachments.upload({ mime: "image/png", data });
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "high" };
+  const result = await conversations.send({ message: "COMPLETE THIS TURN", folders: [], model: "auto", reasoningEffort: "high", references: [image.path] }, settings);
+  for (let n = 0; n < 100 && result.turns.at(-1)?.status === "inProgress"; n++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(result.turns.at(-1)?.status, "completed");
+  const prompt = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(row => row.method === "session/prompt");
+  assert.deepEqual(prompt.params.prompt[1], { type: "image", mimeType: "image/png", data });
+  await conversations.close(); await connection.close();
+  const { AssistantAttachments } = await import("../server/assistant-attachments.ts");
+  const restored = new AssistantAttachments(cwd);
+  assert.equal(restored.reference(image.path, result.id)?.kind, "image");
+  assert.equal(restored.reference(image.path, result.id)?.pastedImage, true, "restored references retain the presentation marker");
+  restored.remove(result.id);
+  assert.equal(existsSync(image.path), false);
+});

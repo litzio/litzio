@@ -71,6 +71,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
   const [mode, setMode] = useState("");
+  const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [references, setReferences] = useState<AssistantFileReference[]>([]);
   const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(null);
   const [skillCatalog, setSkillCatalog] = useState<AssistantSkills>();
@@ -80,7 +81,11 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [problem, setProblem] = useState("");
   const [setup, setSetup] = useState("");
   const [ready, setReady] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [actionPending, setPending] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const pending = actionPending || uploadingImages;
+  const imageUploads = useRef(Promise.resolve());
+  const pendingImageUploads = useRef(0);
   const busy = useRef(false);
   const submissionScope = useRef(0);
   const leaveSubmissionScope = () => { submissionScope.current++; };
@@ -211,6 +216,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   // Hiding the panel is not a provider/scope change: a late send reply still belongs here.
   useEffect(() => () => {
     providerVersion.current++; busy.current = false; setPending(false);
+    imageUploads.current = Promise.resolve(); pendingImageUploads.current = 0; setUploadingImages(false);
     setSubmissions(previous => previous.map(value => value.hostId === hostId && value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
   }, [settingsRevision]);
   useLayoutEffect(() => {
@@ -323,7 +329,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); } finally { if (isCurrent()) { busy.current = false; setPending(false); } }
   };
   const send = () => run(async isCurrent => {
-    if (!ready || active && provider === "copilot") return;
+    if (pendingImageUploads.current || !ready || active && provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
@@ -524,7 +530,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
-            <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>
+            <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips previews={imagePreviews} previewScope={hostId} references={item.references ?? []} /></p>
           </div>)}
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} actions={item.fileChanges?.map(path => <div className="flex flex-wrap items-center gap-2" data-testid="assistant-file-change" data-path={path} key={path}>
@@ -588,7 +594,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         </section>)}
       {!history && visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))).map(value =>
         <div key={value.receipt.id} className="assistant-submission">
-          <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips references={value.references} /></p>
+          <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips previews={imagePreviews} previewScope={hostId} references={value.references} /></p>
           {submissionActions(value)}
         </div>)}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Requested edits wait for your review.")}</p></div> : null}
@@ -602,14 +608,42 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
-      <ReferenceChips references={references} remove={removeReference} />
+      <ReferenceChips composer uploading={uploadingImages} previews={imagePreviews} previewScope={hostId} references={references} remove={removeReference} />
       {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t("Codex skills")}>
         {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.displayName ?? file.name}<small>{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
         {!skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
         {(skillProblem || skillCatalog?.errors.length) ? <p role="alert">{i18n.t("Could not load some skills.")} {skillProblem || skillCatalog?.errors.map(error => `${error.path}: ${error.message}`).join("; ")}</p> : null}
         {!matches.length && skillCatalog ? <p>{i18n.t("No matching skills.")}</p> : null}
       </div> : null}
-      <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
+      <textarea onPaste={event => {
+        const images = Array.from(event.clipboardData.items).filter(item => item.kind === "file" && item.type.startsWith("image/")).map(item => item.getAsFile()).filter((file): file is File => !!file);
+        if (!images.length) return;
+        event.preventDefault();
+        const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
+        pendingImageUploads.current++;
+        setUploadingImages(true); setProblem("");
+        // Chain paste batches separately from other actions; never discard an accepted paste.
+        imageUploads.current = imageUploads.current.then(async () => {
+          for (const image of images) {
+            if (!isCurrent()) return;
+            const data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result).split(",")[1]);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(image);
+            });
+            const file = await request<AssistantFileReference>(ASSISTANT.conversationsRoute, { action: "upload-image", id: conversation?.id, mime: image.type, data });
+            if (isCurrent()) {
+              setImagePreviews(previous => ({ ...previous, [`${hostId}:${file.path}`]: `data:${image.type};base64,${data}` }));
+              addReference(file);
+            }
+          }
+        }).catch(error => {
+          if (isCurrent()) setProblem(i18n.t(error.message, { defaultValue: error.message }));
+        }).finally(() => {
+          if (isCurrent() && --pendingImageUploads.current === 0) setUploadingImages(false);
+        });
+      }} ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
         setReferences(previous => {
           const remaining = previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name));
@@ -708,12 +742,31 @@ function samePath(a: string, b: string) {
   return normalize(a) === normalize(b);
 }
 
-function ReferenceChips({ references, remove }: { references: AssistantFileReference[]; remove?(path: string): void }) {
-  if (!references.length) return null;
-  return <span className="assistant-references">{references.map(file => <span className="assistant-reference" key={file.path}>
-    <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{file.kind === "skill" ? `$${file.name}` : file.name}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
-    {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
-  </span>)}</span>;
+function ReferenceChips({ references, remove, previews, previewScope, composer = false, uploading = false }: { references: AssistantFileReference[]; remove?(path: string): void; previews: Record<string, string>; previewScope: string; composer?: boolean; uploading?: boolean }) {
+  let imageNumber = 0;
+  const files = references.map(file => {
+    const number = file.pastedImage ? ++imageNumber : 0;
+    return { file, number, name: number ? i18n.t("Image {{number}}", { number }) : file.kind === "skill" ? `$${file.name}` : file.name,
+      preview: file.pastedImage ? previews[`${previewScope}:${file.path}`] : undefined };
+  });
+  const thumbnails = composer ? files.filter(({ preview }) => preview) : [];
+  const chips = composer ? files.filter(({ preview }) => !preview) : files;
+  return <>
+    {chips.length ? <span className="assistant-references">{chips.map(({ file, name, preview }) => <span className="assistant-reference" key={file.path}>
+      <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{preview ? <img className="assistant-reference-preview" src={preview} alt="" /> : null}{name}{file.unavailable ? ` · ${i18n.t("Unavailable")}` : ""}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
+      {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.pastedImage ? name : file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
+    </span>)}</span> : null}
+    {thumbnails.length || uploading ? <div className="assistant-image-previews">
+      {thumbnails.map(({ file, name, number, preview }) => <Tooltip key={file.path}>
+        <TooltipTrigger render={<span className="assistant-image-preview" tabIndex={0} />}>
+          <img src={preview} alt={name} />
+          <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Remove image {{number}}", { number })} onClick={() => remove?.(file.path)}><X /></Button>
+        </TooltipTrigger>
+        <TooltipContent>{name}</TooltipContent>
+      </Tooltip>)}
+      {uploading ? <span className="assistant-image-upload" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><span aria-hidden="true">{i18n.t("In progress")}</span><span className="sr-only">{i18n.t("Uploading images…")}</span></span> : null}
+    </div> : null}
+  </>;
 }
 
 function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }
