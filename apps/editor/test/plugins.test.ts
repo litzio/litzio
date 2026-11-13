@@ -2198,6 +2198,17 @@ test("screen code is active-only, reloads local JSX, reports compiler failures a
   try {
     const { scaffoldPlugin } = await import("../server/plugins/plugin-authoring.ts");
     const directory = path.join(root, "plugin"); scaffoldPlugin(directory, "fixture.screen", undefined, undefined, "screen");
+    const otherDrive = process.platform === "win32" ? ["C:", "D:"].map(drive => drive + path.sep).find(drive => drive.toLowerCase() !== path.parse(root).root.toLowerCase() && existsSync(drive)) : undefined;
+    if (otherDrive) {
+      const { compileScreen } = await import("../server/plugins/screen-code.ts");
+      const outside = mkdtempSync(path.join(otherDrive, "litzio-screen-boundary-"));
+      const external = path.join(outside, "outside.jsx");
+      writeFileSync(external, 'export default function Screen(){return "outside-drive-marker"}');
+      assert.throws(() => compileScreen(directory, external), /inside plugin folder/);
+      writeFileSync(path.join(directory, "screen.jsx"), `export {default} from ${JSON.stringify(external.replaceAll("\\", "/"))};`);
+      assert.throws(() => compileScreen(directory, "screen.jsx"), /local plugin files/);
+    }
+
     writeFileSync(path.join(directory, "part.jsx"), 'export const label = "First";');
     writeFileSync(path.join(directory, "screen.jsx"), 'import {label} from "./part.jsx"; export default function Screen(){return <div>{label}</div>}');
     await host.start(); await host.invoke("register", { directory });

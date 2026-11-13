@@ -1,3 +1,4 @@
+import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
 import type { ScreenAction, ScreenActionResult, ScreenInfo, ScreenTab } from "../shared/assistant-screen.ts";
 import { GeneratedComparison, comparisonPath, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
@@ -1532,7 +1533,8 @@ function EditorApp() {
               comparisonRoot={(tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)).find(root => folderChain(root, tab.file.path).length > 0) ?? splitDocumentPath(tab.file.path).directory}
               onOpenComparison={openGeneratedComparison} onCompare={compareExternal} />;
           })}
-          {viewTabs.map(tab => {
+          {/* Keep a boundary outside removable work tabs; document sessions remain siblings. */}
+          <ScreenBoundary closing={!viewTabs.some(tab => tab.id === activeId)} resetKey={activeId ?? undefined}>{viewTabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
             const group = navigation.groups[groupIndex];
             return <div key={tab.id} className="shell-tab" role="tabpanel" tabIndex={-1} id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`}
@@ -1543,6 +1545,7 @@ function EditorApp() {
 
             </div>;
           })}
+          </ScreenBoundary>
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
             hidden={!galleryOpen} inert={!galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
