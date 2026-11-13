@@ -9,7 +9,7 @@ export function bundledUiResponse(directory: string, request: Request, hostUrl: 
   const sources = [hostUrl, ...remoteOrigins].map(remoteHostOrigin).join(" ");
   const url = new URL(request.url);
   const response = serveEditorFile(directory, url.pathname);
-  // Scripts/styles stay in the app; only data requests and document images reach the daemon.
+  // App scripts and blob plugin modules run locally; fetches/images target registered Hosts.
   response.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY
     .replace("connect-src 'self'", `connect-src 'self' ${sources}`)
     .replace("img-src 'self' data: blob:", `img-src 'self' data: blob: ${sources}`));

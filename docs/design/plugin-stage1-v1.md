@@ -20,6 +20,17 @@
 
 2026-11-05 소유자 제작 로드맵 결정 2·5에 따라 아래 하위 프로세스·reload·관리별 승인 제거를 구현한다. 같은 결정은 ADR-0020의 비서 제작 로드맵 개정에 기록되어 있다.
 
+
+## 화면 코드 1단계 (#1592)
+
+[ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 screens[].entry는 플러그인 폴더의 React JS/JSX 진입점을 지정한다. default export 컴포넌트는 React·ui(Button/Input/DataTable/Notice)·invoke(자기 작업 ID, JSON 입력)를 받는다. React는 앱 인스턴스이며 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다. 기본 scaffold는 screen, SVG 선 그래프 예제는 chart다. 새 차트 라이브러리는 제공하지 않는다.
+
+Host는 검증·reload 시 기존 esbuild로 같은 artifact 안의 로컬 파일을 번들로 변환한다. 실행 시 npm·원격 import 해석은 하지 않는다. 외부 라이브러리는 제작 시 아래 dependencies·bundle 작업으로 포함한다. 빌드 플랫폼의 esbuild 실행 파일을 CLI 배포물에 포함하고 Desktop은 그 배포물을 복사한다. 별도 npm 설치·네트워크가 필요하지 않다. 활성 플러그인만 catalog에 코드와 digest revision을 전달한다. 클라이언트는 CSP script-src의 blob: 모듈로 실행하며 eval은 열지 않는다. Desktop의 기존 connect-src 대상 Host 목록을 유지하고 invoke는 해당 화면 HostClient에 고정된다.
+
+화면 전용 작업은 assistant:false이며 rowSchema 없이 임의 JSON을 반환할 수 있다. read/write 모두 기존 공용 invoke·receipt·검증을 사용한다. 문서 직접 쓰기 경로는 추가하지 않는다. reload·비활성·연결 해제·Host 교체 시 이전 화면을 내리고 새 코드를 받는다. 열린 코드 화면은 소스 없이 활성 revision을 2초 간격으로 관측해 비서·CLI의 명시적 reload·비활성화도 반영한다. 파일 감시·자동 reload는 하지 않는다. import/render 오류는 화면 안에 메시지·stack으로 표시하고 변환 실패는 validate의 파일·위치와 플러그인 상태에서 확인한다. async/event 오류는 작성자가 catch해 Notice로 표시한다. 조회 성공과 실제 화면 확인은 별개다.
+
+기존 선언형 query·review·jobs는 이번 단계에서 유지한다. 아래 HTML/JS·Chart 제한은 기존 선언형 문법에만 적용한다. 선언 축소·설치 통합·문서 저장 버튼·기존 문법 삭제는 후속 단계다.
+
 ## 경계와 manifest
 
 `packages/plugin-sdk`는 React·Editor·Core AST 의존 없이 manifest, JSON Schema 검증과 공용 작업·폴더·계정 타입을 공급한다. `litzio-plugin.json`이 실행 선언이며 패키지 버전은 package.json과 일치해야 한다. ID, tier, publisher, SemVer SDK 범위, 패키지 안 entry, contributes와 settingsSchema를 import 전에 검증한다. JSON Schema는 Ajv, manifest는 Zod, 버전은 SemVer를 재사용한다. 외부 `$ref`와 알 수 없는 필드·중복 기여를 거부한다.
@@ -1062,3 +1073,10 @@ Codex 비서는 `read_review_document`, `read_review_material`(렌즈·원문 �
 ### 검수 정본 직접 저장 (#1533)
 
 검수 작업공간 대조의 문서 쪽은 기존 DocumentEditor에서 Edit로 전환해 Save/Ctrl+S로 `.docling` 정본에 저장한다. 공용 `workspace-save`는 baseline/requestId와 source 또는 edits를 받아 기존 Core 검증·후보 검증·원자적 commit·receipt/status를 재사용한다. CLI는 `review workspace-save --input <json-file> --host <origin> --json`이다. 사람 직접 수정은 비서 교정과 같은 ledger의 human 출처·inverseOperations에 남으며, 저장 전 editor Undo/Redo와 저장 후 revision 확인 Undo를 제공한다. Host가 edits에서 순수 문단/제목 글자 수정과 원래 순서만 확인할 때 경로 대응을 유지한다. 삭제·삽입·순서·분할/병합·기타 변경이나 이력 없는 전체 source 입력은 최종 개수·내용이 같아도 전체 대응을 비운다. 비워진 대응은 기존 inspection의 uncertain과 대조 기록의 not-compared로 이어져 검수 범위 보고에 반영된다. 편집 중 비교 새로고침·교정·내보내기·닫기는 pending 보호로 막고 실패 시 초안을 유지한다. [상세 입력·대응·Undo·캡처](docling-review-stage3.md#검수-정본-직접-편집--1533).
+
+
+## 화면 외부 라이브러리 제작 (#1592)
+
+제작자는 package.json에 정확한 dependencies 버전을 적고 `plugins dependencies <directory> --host <origin> --json`, `plugins bundle <directory> --host <origin> --json`을 순서대로 실행한다. 비서의 manage_plugins도 동일한 dependencies·bundle 작업을 제공한다. 다운로드는 앱에 포함한 npm JS 진입점을 Host의 Node/Electron(`ELECTRON_RUN_AS_NODE=1`)으로 실행한다. 시스템 Node·npm은 필요하지 않다. 기존 npmrc의 registry·proxy 설정을 사용하고 scripts/audit/fund는 실행하지 않는다. 네이티브 빌드·postinstall 의존 패키지는 지원하지 않는다. 다운로드 실패는 오류 코드와 registry·proxy 설정 확인 안내를 반환한다.
+
+bundle은 기존 esbuild로 원본 entry와 외부 의존성을 묶어 같은 이름의 `.bundle.js`를 만든다. 원본은 유지하고 companion이 있으면 그 파일을 실행한다. 수정 후 다시 bundle·validate·reload한다. React·react/jsx-runtime·react-dom은 외부 참조로 남기고 앱의 인스턴스로 연결한다. 배포 artifact에는 node_modules를 넣을 필요가 없다. 외부 라이브러리가 없으면 다운로드·bundle 단계 없이 JSX 원본을 바로 사용한다. 두 작업의 scope는 host이며 기존 receipt를 반환한다. 다운로드는 registry 접속이 필요하지만 소비자는 도구·네트워크가 필요 없다.

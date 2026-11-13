@@ -5,7 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { bundledUiResponse } from "../src/bundled-ui.ts";
 
-test("bundled origin serves only app files; CSP permits Host data but never Host code", async t => {
+test("bundled origin serves only app files; CSP permits Host data and blob plugin modules", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-bundle-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const ui = path.join(root, "ui"); mkdirSync(ui);
@@ -21,7 +21,7 @@ test("bundled origin serves only app files; CSP permits Host data but never Host
   assert.match(csp, /img-src[^;]* https:\/\/remote\.example:8443;/);
   assert.doesNotMatch(csp, /https:\/\/unregistered/);
   assert.throws(() => bundledUiResponse(ui, new Request("litzio://app/"), "http://127.0.0.1:23456", ["https://*.example"]));
-  assert.match(csp, /script-src 'self';/);
+  assert.match(csp, /script-src 'self' blob:;/);
   assert.match(csp, /frame-src 'none'/);
   assert.equal(respond("litzio://foreign/index.html").status, 403);
   assert.equal(respond("litzio://app/index.html", "POST").status, 405);

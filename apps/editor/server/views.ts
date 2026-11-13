@@ -10,7 +10,7 @@ import { runViewQuery } from "./view-query.ts";
 
 const owner = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 export const viewRequestSchema = z.union([
-  z.strictObject({ action: z.literal("catalog") }),
+  z.strictObject({ action: z.literal("catalog"), screenCode: z.boolean().optional() }),
   z.strictObject({ action: z.literal("validate"), view: z.unknown(), plugin: owner.optional() }),
   z.strictObject({ action: z.literal("run"), view: z.unknown(), input: z.record(z.string(), z.unknown()).optional() }),
 ]);
@@ -39,7 +39,7 @@ async function execute(value: unknown, scope: ViewExecutionScope) {
         try { return createCatalogV2([operation]).operations.map(op => ({ ...op, plugin: scope.plugins?.viewOperationOwner(op.operation) })); }
         catch { return []; }
       });
-      return { catalog: { ...catalog, operations: available }, views: scope.plugins?.viewContributions() ?? [], screens: scope.plugins?.viewScreens() ?? [], receipt: success };
+      return { catalog: { ...catalog, operations: available }, views: scope.plugins?.viewContributions() ?? [], screens: scope.plugins?.viewScreens(input.screenCode !== false) ?? [], receipt: success };
     }
     if (input.action === "validate") {
       const parsed = catalogViewSchema.parse(input.view);

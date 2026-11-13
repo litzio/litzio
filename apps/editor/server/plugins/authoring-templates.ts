@@ -4,7 +4,31 @@ import { HEALTH_CHECK_OUTPUT_SCHEMA } from "@litzio/plugin-sdk";
 const object = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, ...(required.length ? { required } : {}), additionalProperties: false });
 const operation = (id: string, effect: "read" | "write", inputSchema: unknown, outputSchema: unknown) => ({ id, version: 1, effect, scope: "host", assistant: false, inputSchema, outputSchema });
 
-export function authoringTemplate(id: string, template: "query" | "file") {
+export function authoringTemplate(id: string, template: "query" | "file" | "screen" | "chart") {
+  if (template === "screen" || template === "chart") return {
+    manifest: { name: "측정값", contributes: {
+      operations: [operation("measurements", "read", object({}), { type: "array", items: { type: "number" } })],
+      screens: [{ id: "measurements", title: "측정값", icon: "ChartColumn", entry: "screen.jsx", primary: true }],
+    } },
+    source: `export function activate() { return { operations: { measurements: () => [10, 18, 12, 24] }, status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} }; }\n`,
+    screen: template === "screen" ? `export default function Screen({React, ui, invoke}) {
+  const [result,setResult] = React.useState(null), [error,setError] = React.useState("");
+  return <section style={{display:"grid",gap:"var(--space-4)"}}><ui.Button onClick={() => invoke("measurements").then(setResult).catch(e=>setError(e.message))}>불러오기</ui.Button>{error && <ui.Notice tone="error">{error}</ui.Notice>}<pre>{JSON.stringify(result)}</pre></section>;
+}\n` : `export default function Screen({React, ui, invoke}) {
+  const [values,setValues] = React.useState([]), [limit,setLimit] = React.useState(15), [error,setError] = React.useState("");
+  const points = values.map((y,i)=>[20+i*100,180-y*5]);
+  return <section style={{display:"grid",gap:"var(--space-4)"}}>
+    <label>기준선<ui.Input type="number" value={limit} onChange={e=>setLimit(Number(e.target.value))}/></label>
+    <ui.Button onClick={()=>invoke("measurements").then(setValues).catch(e=>setError(e.message))}>불러오기</ui.Button>
+    {error && <ui.Notice tone="error">{error}</ui.Notice>}
+    <svg viewBox="0 0 360 200" role="img" aria-label="시간에 따른 측정값" style={{width:"100%",maxHeight:400}}>
+      <line x1="0" x2="360" y1={180-limit*5} y2={180-limit*5} stroke="var(--id-color-text-muted)" strokeDasharray="4 4"/>
+      <polyline points={points.map(p=>p.join(",")).join(" ")} fill="none" stroke="var(--id-color-accent)"/>
+      {points.map(([x,y],i)=><circle key={i} cx={x} cy={y} r="4" fill={values[i]>limit?"var(--id-color-danger)":"var(--id-color-accent)"}/>)}
+    </svg>
+  </section>;
+}\n`,
+  };
   if (template === "query") {
     const row = object({ title: { type: "string" }, status: { type: "string" } }, ["title", "status"]);
     return {

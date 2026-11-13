@@ -58,7 +58,7 @@
 
 ## 공통 구현
 
-아래 import는 `apps/editor` 내부용이다. 플러그인은 화면 코드를 넣지 않고 카탈로그 v2 명세만 낸다. 앱 번들 renderer가 제품 공통 부품으로 그린다([ADR-0020](../adr/0020-plugin-architecture.md), [catalog-v2](catalog-v2.md), [ui-patterns](ui-patterns-v1.md)). 아래 Plugin Host 열은 보관된 API의 역사적 참조다. 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
+아래 import는 `apps/editor` 내부용이다. [ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 플러그인 화면 코드는 제공받은 ui.Button/Input/DataTable/Notice와 상속 토큰을 기본으로 사용한다. 기존 카탈로그 v2 명세도 유지한다. 앱 번들 renderer가 제품 공통 부품으로 그린다([ADR-0020](../adr/0020-plugin-architecture.md), [catalog-v2](catalog-v2.md), [ui-patterns](ui-patterns-v1.md)). 아래 Plugin Host 열은 보관된 API의 역사적 참조다. 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
 
 | 구현 / 실행 예제 함수 | 용도 / 비사용 | Editor import | Plugin Host | 대표 사용처 / 권한 문서 |
 | --- | --- | --- | --- | --- |

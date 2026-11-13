@@ -1,6 +1,7 @@
 # ADR-0019: 공식 플러그인과 커뮤니티 플러그인
 
 - Status: Accepted
+- Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-05
 - Last verified: 2026-11-05 — 소유자 결정 ①~⑧과 관련 ADR·용어·문서 경계 및 ADR-0020 비서 신뢰 실행 개정을 대조. 제품 실행·플러그인 구현 검증 없음.

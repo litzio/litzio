@@ -12,11 +12,11 @@ const TYPES: Record<string, string> = {
 };
 
 /**
- * Only this origin's scripts and styles run. Inline styles are the editor engine's and KaTeX's;
+ * App scripts and Host-supplied plugin blob modules run. Inline styles are the editor engine's and KaTeX's;
  * document images can be data/blob URLs while pasted. Nothing frames, embeds or submits elsewhere.
  */
 export const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
+  "default-src 'self'", "script-src 'self' blob:", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
   "font-src 'self' data:", "connect-src 'self'", "object-src 'none'", "frame-src 'none'", "base-uri 'none'", "form-action 'none'",
 ].join("; ");
 

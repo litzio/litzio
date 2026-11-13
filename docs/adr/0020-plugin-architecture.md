@@ -1,6 +1,7 @@
 # ADR-0020: 플러그인 구조와 기본 화면
 
 - Status: Accepted
+- Amended by: [ADR-0022](0022-plugin-screen-code.md) — 플러그인 화면 선언·원격 script 한정 경계를 대체한다.
 - Decision date: 2026-11-05
 - Last verified: 2026-11-06 — 소유자 정정으로 카탈로그 v2의 K2~K4를 공용 요소에 한정하고 4단계는 비서 제작 수락 시험임을 명시. 코드·2단계 수락 보고서·외부 공식 문서 대조는 2026-11-05 `d2b87e97` 기준. 제품 실행·설치·인증 재검증 없음.
 - Authority: 2026-11-05 소유자 결정, under [AGENTS.md](../../AGENTS.md). 관련 보류 이슈: [#1075](https://github.com/litzio/litzio/issues/1075).
