@@ -33,8 +33,8 @@ there is no native ACP interactive-question extension in the current SDK.
 Full access document/review Host tools can address paths outside opened folders
 but still obey this Host's fixed --root policy. Restricted Host tools retain their
 folder boundary and explain how the user can open the folder or select Full access.
-Staged-copy revision checks, plugin secret/private-write restrictions and explicit
-Host selection are unchanged. See [Main agent](main-agent-v1.md#provider-approvals-1536).
+File revision checks, plugin secret/private-write restrictions and explicit
+Host selection are unchanged. See [Main agent](main-agent-v1.md#권한-모드).
 
 ## Copilot MCP transport (#1500)
 
@@ -44,8 +44,8 @@ MCP session store or second listener). ACP receives the Host socket's local addr
 not a client-supplied origin. ACP receives an explicit Origin header for that endpoint; MCP POSTs pass the existing Host/Origin gate with no policy exception. A regression uses real startHttpHost, an active fake-ACP turn and the official SDK client with those supplied headers to discover tools and read a document; missing/foreign Origins remain refused. Each token selects only one Host-owned conversation and its current turn
 state; tool inputs cannot grant folders or permissions. Tool discovery is available
 during session setup, while execution requires the matching active turn. Completion, failure and cancellation clear turn authority; the endpoint remains idle until another admitted turn supplies its own scope. Tokens are revoked on session creation/load failure, deletion, disconnect and shutdown. A session loads once per CLI process and gets a new endpoint after restart (#1521). Existing HTTP Host/Origin checks remain;
-this capability is not daemon authentication. See [Main agent](main-agent-v1.md#copilot-host-tools-over-http-mcp-1500)
-for provider approval flags and unsupported question cards.
+this capability is not daemon authentication. See [Main agent](main-agent-v1.md#문서-도구와-이미지)
+for tool transport; shared question cards are supported, native ACP question extensions are not.
 
 ## Host별 클라이언트 경계 (#1174 PR2)
 

@@ -22,8 +22,8 @@
 | [ADR-0010: Supported viewport and input](adr/0010-supported-viewport-and-input.md) | Accepted | 2026-10-27 소유자 결정. 지원 최소 폭 640px의 데스크톱급 창과 키보드·포인터 입력. 휴대폰·터치 전용 지원은 실제 사용자 확인 후 별도 결정. 정리 작업은 #602. |
 | [ADR-0011: Code module boundary](adr/0011-code-module-boundary.md) | Accepted | 첫 모듈의 패키지 위치, 모듈 → Core 공개 API 의존, 문서 밖 데이터와 얇은 CLI. 정적 연결·등록/동적 로딩 금지와 process-local 전용 작업 상태는 ADR-0012로 일부 Superseded. |
 | [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | 2026-10-31 소유자 승인. 실행 중 Host 연결 없는 공용 설치 폴더, 별도 worker, 같은 origin의 검증된 ESM/CSS와 좁은 UI API, 동적 기여·drain·비활성 탭, UUID·uncertain·완료 결과 공개. ADR-0017로 해당 플러그인·Docling 기능과 공개 API를 제거하고 archive/plugins-docling-2026-11에 보관했다. 기존 승인 기록이며 현재 플러그인 제공 계약이 아니다. |
-| [ADR-0013: AI agent task service](adr/0013-ai-agent-task-service.md) | Accepted | 2026-11-02 소유자 승인. #880 AI 작업 서비스, Host 중개 작업 메시지. 기본 포함 AI 플러그인 결정은 ADR-0017의 공식 기능으로 개정. 기능·추론 역할 분리와 자료 스냅샷. 전용 Codex 홈 격리의 유예와 도입 조건 포함. |
-| [ADR-0014: Main agent app-server](adr/0014-main-agent-app-server.md) | Accepted | #931 Host 소유 stdio 연결, 사용자 Codex 환경 재사용, 앱 데이터 cwd, provider 이름만 전제한 구조와 ADR-0013 조건 2 변경. 연결·설정·대화의 소유권과 후속 문서 작성 기능의 경계. |
+| [ADR-0013: AI 실행 환경](adr/0013-ai-agent-task-service.md) | Accepted | 남아 있는 의미 소유권과 ADR-0014·0017·0021의 대체 관계. 제거된 작업 서비스와 격리 조건은 고정 커밋 이력으로 연결한다. |
+| [ADR-0014: Host 소유 비서 연결](adr/0014-main-agent-app-server.md) | Accepted | 기존 Codex 환경 재사용·앱 데이터 작업 폴더·Host 프로세스 소유·최소 버전·Copilot 선택. 직접 편집·권한·전용 도구 기준은 ADR-0021로 대체. |
 | [ADR-0015: Shared Host operations](adr/0015-shared-host-operations.md) | Accepted | 2026-11-04 #1132 소유자 승인. 새 사용자 기능의 입력·결과·범위·receipt 공용 정의와 CLI 필수. 비서 도구 생성 기준은 ADR-0021로 대체. #1128 첫 사례와 동시 편집 대비 경계. 로컬 daemon 자동 탐색·연결·수명은 ADR-0016으로 개정하고 편집 상태 공유는 보류. |
 | [ADR-0016: 공유 로컬 daemon Host](adr/0016-shared-local-daemon-host.md) | Accepted | 2026-11-04 #1142 소유자 결정 ①~⑥; #1448에서 ①을 창 닫기=트레이 유지·명시적 종료로 개정(2026-11-10). 인증 보류(#1145)·단일 인스턴스·버전·수명·Root·휴지통·샘플·origin, PR1~PR4. PR4에서 플러그인·AI daemon 수명과 테스트 복구로 기간 한정 예외 종료; 필수 CI 전체 통과로 1단계 완료·해당 릴리스 중단 해제. 구현 계약은 HTTP Host/Desktop distribution과 공식 AI Main agent. Plugin runtime은 ADR-0017로 제거·보관했다. 공유 편집은 보류. |
 | [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·프로바이더 가용성·설정 CLI, 플러그인·Docling 기능 제거·직전 master 원격 보관, Host 클라이언트·번들 UI 전환. 소유자 개시 시 컨셉 재개발. 1단계·코어 전환 전 릴리스 금지, 이후 플러그인 없는 제품 릴리스는 소유자 결정. ③a·③b 구현: 공식 AI·설정 CLI와 플러그인/Docling 삭제. ④ Host 클라이언트·⑤ 앱 번들 UI와 정확한 Desktop origin 허용 구현. |
@@ -40,7 +40,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | --- | --- | --- |
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
 | [Document templates](design/document-templates-v1.md) | Implemented | #936 1–3단계. Core template 메타데이터·생성, 공용 CLI/Host, ko/en 기본 2종, Editor 카드 갤러리·사용자 저장. #1128 공용 작업·Codex 템플릿 도구·생성 receipt/Undo와 child CLI PATH. |
-| [Assistant connection, settings and conversations](design/main-agent-v1.md) | Implemented | #931 연결·설정·대화: Codex app-server / Copilot ACP, 모델·진단·공통 환경, 파일·스킬 참조, 패널·thread 기록·스티어링·중단·컨텍스트 사용량. #1443·#1530 질문 보관·턴 이후 답변 전달·기록, Host/CLI와 공급자별 범위. #1462 5단계 Codex 검수 읽기·국소 제안·이미지 직접 읽기·검사 범위 누적. |
+| [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 유지 규칙 34개와 이유, 공급자별 권한 매핑, 창 연동의 최소 경계, 현재 한계 16개. Docling·플러그인 세부와 수락 시험을 연결하고 과거 기록은 고정 커밋으로 보존한다. |
 | [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse/참조 진단 도달성, URL·inline HTML backport와 patch 제거 조건. |
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 Host별 위치 식별·로컬 복구(#1174 PR1). |

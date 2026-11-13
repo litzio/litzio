@@ -141,7 +141,7 @@ single-line contract and continue to reject line breaks; headings do too.
 Editor Save uses the same Core operations as CLI writes and reflects this Core cleanup in the live editor under the [Save selection/history contract](editing-session-save-v1.md#save-acknowledgement) (#1127). Existing CLI commands
 expose the rule; no new operation or command is needed. Assistant sending supplies
 only the active document path and excludes unsaved body content under the
-[#1106 context contract](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2); it does not
+[#1106 context contract](main-agent-v1.md#대화와-표시); it does not
 serialize the editor's unsaved content or depend on Save normalization.
 
 ## Empty structural elements (#574)

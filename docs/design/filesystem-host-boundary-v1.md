@@ -577,7 +577,7 @@ that identity from the exclusive creation descriptor; same-byte replacements are
 Existing callers without these fields are unchanged. The assistant confirms changed disk
 content, unsaved tabs or retained recovery records, then rechecks before deleting. Its
 recovery cleanup also refuses to discard records changed during the Host request;
-see [result-card rules](main-agent-v1.md#created-document-results-and-undo-931-implementation-2-pr-2).
+see [result-card rules](main-agent-v1.md#생성과-되돌리기).
 
 Deletion/rename recovery barriers match path strings. Until [#372](https://github.com/litzio/litzio/issues/372)
 decides Windows locator identity, case-only aliases (for example, a different spelling in URL
@@ -709,4 +709,4 @@ Host app data holds canonical-path connections for generated documents; the docu
 
 ## Assistant image import (#1554)
 
-The shared `importDocumentImageAsset(document,source,access)` operation validates a local absolute image file and adds it through the existing Editor image publisher. It returns the document-relative asset path and success receipt, never overwrites and leaves source bytes unchanged. The assistant tool and local CLI share this operation; folder/turn restrictions and immediate asset lifetime are specified in [Main agent](main-agent-v1.md#image-assets-1554-1555). No new storage format or document semantic operation is introduced.
+The shared `importDocumentImageAsset(document,source,access)` operation validates a local absolute image file and adds it through the existing Editor image publisher. It returns the document-relative asset path and success receipt, never overwrites and leaves source bytes unchanged. The assistant tool and local CLI share this operation; folder/turn restrictions and immediate asset lifetime are specified in [Main agent](main-agent-v1.md#문서-도구와-이미지). No new storage format or document semantic operation is introduced.

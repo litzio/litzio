@@ -87,7 +87,7 @@ Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 �
 
 
 #1053의 Copilot 선택도 #1033의 Host SettingsSelect·모델 Dialog를 사용하며 Codex 전용
-skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강도·쓰기 범위를 표시하고 기존 비서 DropdownMenu에서 Agent/Plan을 고른다([비서 계약](main-agent-v1.md#copilot-conversations-1053)).
+skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강도·쓰기 범위를 표시하고 기존 비서 DropdownMenu에서 Agent/Plan을 고른다([비서 계약](main-agent-v1.md#권한-모드)).
 
 #1150 ③의 공식 [AI 설정](main-agent-v1.md)은 Appearance/Recovery와 같은 Settings
 콘텐츠·control 폭과 공용 Input/select/Button을 사용한다. 프로바이더의 이름·상태는
@@ -117,12 +117,12 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 `Notice tone="error"`와 지역화 문구를 사용한다. 원본 보존·빈 이력 시작을 알리며
 새 알림 표면·control·토큰 예외는 없다([K1 보존 계약](plugin-stage1-v1.md#host-작업-이력-보존-1439)).
 
-#1424의 [비서 상단 상태](main-agent-v1.md#assistant-button-status-1424)는 기존 Button·Tooltip과
+#1424의 [비서 상단 상태](main-agent-v1.md#대화와-표시)는 기존 Button·Tooltip과
 상태 토큰을 사용한다. 닫힌 패널의 작업·읽지 않은 완료·확인/답변 필요를 작은 모양과
 접근성 이름으로 구별한다. 완료는 패널을 열어 확인하며, 질문과 실패의 실제 복구 동작은
 비서 패널에 남는다. 알림 센터·OS 알림·소리로 복제하지 않는다.
 
-#1522·#1523의 [비서 접수·출력](main-agent-v1.md#smooth-assistant-output-1522-1523)은
+#1522·#1523의 [비서 접수·출력](main-agent-v1.md#대화와-표시)은
 정상 접수를 일반 사용자 행으로 표시하고 실패·실제 불확실 상태에만 기존 Button·Tooltip
 복구 행동을 둔다. 같은 패널의 질문·실패 표시와 진행 details를 재사용하며 새 알림 표면은 없다.
 합성 1440px 전후·한국어 Dark 캡처와 기존 640px 검사는 연결된 계약의 근거를 따른다.
@@ -320,12 +320,12 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 danger 항목을 공유한다. 휴지통 미지원 항목은 실행을 막고 hover·focus Tooltip으로 이유를
 설명한다. 트리의 단일 Tab 정지점을 유지하며 키보드는 기존 Shift+F10/Menu 경로를 쓴다.
 U23 폴더 메뉴와 U24 파일 삭제를 함께 대조했고, 다른 메뉴를 위한 새 registry나 interaction은
-추가하지 않았다. [현재 계약·검증](editor-ux-shell-v1.md#child-folder-trash-1401).
+추가하지 않았다. [현재 계약](editor-ux-shell-v1.md#child-folder-trash-1401).
 
 비서 입력창의 `@` 파일 후보와 `/` Codex 스킬 후보는 같은 inline listbox,
 Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시하고 선택하면
 `$name`과 경로 칩을 추가한다. 설치·활성화 메뉴는 없다.
-[계약·1440 Light/640 Dark 한국어 검증](main-agent-v1.md#codex-skill-selection-1047-pr-b).
+[현재 계약](main-agent-v1.md#현재-한계).
 
 
 - **목적·사용/비사용:** 동작·값 선택·검색을 구별한다. combobox·tree·toolbar를 모양 때문에 하나의 menu로 합치지 않는다.
@@ -377,12 +377,12 @@ P04의 primary 제외·secondary 해제, P07의 폼 문맥 오류를 사용한�
 Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채팅에 추가**도
 같은 제거 가능한 초안 칩에 추가한다. 칩에는 파일 이름, 공용 Tooltip에는 전체
 경로를 표시한다. `assistant` 시나리오가 선택·중복·제거·참조만 보내기와 복원을
-검증한다([현재 계약·전후 캡처](main-agent-v1.md#file-references-1047-pr-a-984-952)).
+검증한다([현재 계약](main-agent-v1.md#대화와-표시)).
 
 #974의 비서 대화 기록은 제목을 semibold 주 문구로, 현지화한 시각과 폴더 이름을
 별도 보조 줄로 표시한다. 전체 경로는 tooltip으로 유지하며 항목은 공용 subtle
 구분선과 목록 여백을 쓴다. 마지막 대화 선택은 origin별 UI 환경설정이며 새 대화는
-기존 버튼으로 시작한다([계약·전후 캡처](main-agent-v1.md#last-conversation-and-history-list-974)).
+기존 버튼으로 시작한다([현재 계약](main-agent-v1.md#대화와-표시)).
 
 템플릿 갤러리(#1185)는 탐색기와 같은 SettingsSelect/host-filter로 대상 Host를 표시·선택한다. 선택은 갤러리 탭의 일시 상태이며 문서·기기 설정과 분리한다. 목록·미리보기는 선택한 Host에 mount하고 생성 picker·이름 Dialog·생성 탭은 시작 당시 Host를 유지한다. 탐색기·플러그인 화면의 Host 선택과 공통 control을 대조했으며 새 상호작용 예외는 없다. 검증과 전후 화면은 [템플릿 계약](document-templates-v1.md#remote-gallery-verification-1185)을 따른다.
 
@@ -400,7 +400,7 @@ focus를 초기화하지 않는다. App의 이미지 picker와 같은 Host별 �
 저장된 탭·복구 정리는 성공 receipt 뒤에만 수행하고 실패·불확실 결과는 보존한다.
 한국어 다크 1440/640px 캡처를 수동 검토했고, `file-actions`·`recovery-storage`에서
 취소·미저장 거부·저장 후 닫기와 Host/폴더 경계의 복구 정리를 확인했다.
-[현재 계약·캡처](editor-ux-shell-v1.md#child-folder-trash-1401).
+[현재 계약](editor-ux-shell-v1.md#child-folder-trash-1401).
 
 - **#1285 현재 구현·검증:** 설정 → 저장·복구의 [앱 초기화](app-reset-v1.md)는 기존 Settings·`DangerConfirmation`을 재사용한다. U16의 복구 삭제 및 Host 제거와 같은 Cancel 초기 focus·복귀를 유지하며, 삭제/유지 범위와 실제 경로·빈 폴더 옵션은 확인 모달 안에 둔다. 기존 일반 파일 삭제/복구의 의미는 바꾸지 않는다. 로컬 browser의 native bridge stand-in으로 확인/취소·실제 Editor pending-work 거부 연결을 검사하고 1440px Light·640px 한국어 Dark 캡처를 검토했다. 실제 파일 삭제/종료는 별도 fixture/helper 계층, 실제 Electron 경로는 Windows CI에 둔다.
 
@@ -423,8 +423,8 @@ hover/keyboard focus 툴팁으로 확인한다. `multi-host`의 탭 전환·640p
 - **사용처:** U22 앱 설정, U23 파일/폴더 picker·새 이름, U24 미저장·삭제·저장/복구 비교, U25 미리보기·단축키·참고문헌 연결.
 - **키보드 경계 (#831):** 공용 Dialog는 native Undo/Redo가 modal 밖 입력·초안으로 이동하거나 수정하는 것을 차단한다. modal 안 입력의 자체 Undo/Redo는 유지하고, Escape는 활성 modal만 닫아 바깥 미적용 초안을 보존한다. 명령 센터도 같은 경계를 쓴다. #1032의 Settings 작업 탭도 같은 beforeinput 경계를 재사용하여 두 그룹에서 Settings 입력의 Undo/Redo가 다른 그룹의 문서 초안으로 이동하지 않게 하며, Settings 입력 자체의 native history는 유지한다. 비모달 알림 센터의 문서 history는 유지한다. [현재 Undo 계약](document-editing-v1.md#shared-history-and-editing-boundaries).
 - **추가 사용처:** #797 Docling 서버 Settings는 Host 기기 설정·field exit 저장, PDF 선택은 기존 FolderDialog, 실행은 작은 명시적 변환 확인 dialog다. 진행·대기 중단은 대시보드에, 완료는 이름 있는 동작 알림에 둔다(#942). 연결 확인 실패 뒤에도 서버 구성 안내 링크를 유지한다. 같은 Settings/파일 dialog 패턴을 재사용한다.
-- **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 단일 결과 표와 상태 칩을 쓴다. #1027은 집계를 작은 필터 칩으로 줄이고, 상태별 우선 대응도 이 칩으로 같은 표를 거르며 별도 중복 필터 줄을 두지 않는다. Needs attention 범위 설명은 해당 칩 hover·focus에서 확인한다. 파일 이름·짧은 상태·진행 단계·경과 시간·대기 중단은 해당 표 행에 모아 작업을 중복 나열하지 않는다. 실패 상세·불확실 작업의 주의사항·대기 중단의 서버 취소 한계·우선 대응 설명은 hover와 keyboard focus에서 펼치며 aria-describedby로 연결한다([계약·전후 캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#dashboard-density-review-1027)). 완료 행의 주 동작은 대조 열기, 실패·불확실 행은 Actions 열의 다시 시도·다시 시작이며 보조 동작만 Host 선언형 Menu에 둔다(#1033). 진행 중 행의 대기 중단은 640px에서 가로 스크롤 없이 접근하도록 진행 상태 옆에 유지한다. 기능 선택은 Settings 기여에서 Host SettingsSwitch 행을 쓴다(#1033). 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Convert 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
-- **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `assistant`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약·캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#verification)).
+- **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 단일 결과 표와 상태 칩을 쓴다. #1027은 집계를 작은 필터 칩으로 줄이고, 상태별 우선 대응도 이 칩으로 같은 표를 거르며 별도 중복 필터 줄을 두지 않는다. Needs attention 범위 설명은 해당 칩 hover·focus에서 확인한다. 파일 이름·짧은 상태·진행 단계·경과 시간·대기 중단은 해당 표 행에 모아 작업을 중복 나열하지 않는다. 실패 상세·불확실 작업의 주의사항·대기 중단의 서버 취소 한계·우선 대응 설명은 hover와 keyboard focus에서 펼치며 aria-describedby로 연결한다([현재 계약](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#dashboard-density-review-1027)). 완료 행의 주 동작은 대조 열기, 실패·불확실 행은 Actions 열의 다시 시도·다시 시작이며 보조 동작만 Host 선언형 Menu에 둔다(#1033). 진행 중 행의 대기 중단은 640px에서 가로 스크롤 없이 접근하도록 진행 상태 옆에 유지한다. 기능 선택은 Settings 기여에서 Host SettingsSwitch 행을 쓴다(#1033). 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Convert 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
+- **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `assistant`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#verification)).
 - **추가 사용처:** [Docling 대조](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md)는 기존 FolderDialog로 변환 폴더를 명시적으로 연다. 문서 쓰기·미저장 확인과 연결하지 않는다. bbox·연결선·변환 메모 띠는 비교 전용 새 표현이며 기존 편집 패턴을 바꾸지 않는다.
 - **추가 사용처 (#817):** 별도 텍스트 문서도 U24의 미저장 확인·복구·삭제·비교 경계를 재사용한다. 텍스트 편집 화면은 Source 읽기 화면과 분리하며, 소유자가 요구한 짧은 종류 표시는 오류/알림 대신 입력 위 문맥 정보로 유지한다. 고정폭 입력은 Source의 기존 서체·색/간격 토큰을 공유하고 탭·Save 줄은 이동하지 않는다. `text-mode`에서 닫기 취소/Save/버리기·지연 응답·종류별 복구/충돌, 1440/640px·한국어·다크를 검증했다. [현재 계약](editing-session-save-v1.md#text-editing-sessions-817).
 - **결정·불일치:** [소유자 결정 P12][decision], [현재 저장·복구 계약](editing-session-save-v1.md#switching-and-recovery). 이 작업·확정 경계의 알려진 불일치 없음. 메시지 표시는 P07/D07에서 별도 추적한다.
@@ -433,7 +433,7 @@ hover/keyboard focus 툴팁으로 확인한다. `multi-host`의 탭 전환·640p
 이전 편집 focus 복귀를 유지한다. 넓은 창에서는 비모달 오른쪽 패널이며 문서 상태를
 유지한다. 처음 사용 안내는 U22의 기존 AI 설정·진단으로 연결한다. `assistant`가
 미저장 문서 보존·focus 복귀와 640px 한국어 Dark의 가림/잘림을 검증한다
-([현재 계약·캡처](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)).
+([현재 계약](main-agent-v1.md#대화와-표시)).
 
 ## 알려진 불일치
 
@@ -503,14 +503,14 @@ The archived contract is [Plugin UI rejection handling](https://github.com/litzi
 #1106: 비서의 활성 문서에 미저장 변경이 있으면 기존 맥락 행에 짧게 저장된 버전 사용을
 표시한다. 설명·경로는 공용 Tooltip의 hover·keyboard focus로 확인한다. 같은 패널의
 context-usage·참조 경로 안내를 재사용하며 새 표면·공통 상호작용 예외는 없다.
-[현재 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)을 따른다.
+[현재 계약](main-agent-v1.md#대화와-표시)을 따른다.
 
 
 #1120: 비서 표시 설정 변경은 기존 assistant-result 카드와 공용 outline Button을
 재사용한다. 변경 전후 값과 되돌리기를 카드에 두고, 창·세션 수명 제한은 버튼의
 hover/focus 안내에 둔다. 이후 수동 변경과 충돌하면 덮어쓰지 않고 패널에 이유를
 표시한다. 문서 Undo와 분리된 기기 설정 동작이다.
-[현재 계약·검증](main-agent-v1.md#assistant-display-settings-1120)을 따른다.
+[현재 계약](main-agent-v1.md#창-연동과-질문)을 따른다.
 
 ## Template gallery application (#936 phase 2)
 
@@ -524,7 +524,7 @@ delay, keyboard-scroll region and Escape focus return. Cards expose creation
 outside the preview. Descriptions stay on hover/focus; only the Built-in badge is
 persistent. Existing tokens and Button variants apply; no public Plugin API is added.
 
-#1159: U22 Settings와 비서 패널의 사용자 표시 이름은 비서(Assistant)로 통일한다. 기존 Settings·Dialog·Input을 유지하며 U23 새 문서와 이름 변경의 `.md` 중복 방지를 확인했다. [현재 비서 계약과 캡처](main-agent-v1.md), [Root picker 계약](http-host-v1.md#allowed-roots-and-open-folder).
+#1159: U22 Settings와 비서 패널의 사용자 표시 이름은 비서(Assistant)로 통일한다. 기존 Settings·Dialog·Input을 유지하며 U23 새 문서와 이름 변경의 `.md` 중복 방지를 확인했다. [현재 계약](main-agent-v1.md), [Root picker 계약](http-host-v1.md#allowed-roots-and-open-folder).
 
 ## Multi-Host shell usage (#1174 PR4, P07 / P10 / P12)
 
@@ -541,9 +541,9 @@ only in empty Host sections; populated sections use the existing folder menu. Ex
 Settings selects, FolderDialog, document-tab overflow and AssistantPanel were compared for the
 same patterns. No new shared interaction or pattern exception is introduced.
 
-Current behavior and browser/1440px/640px fixture evidence are recorded in
+Current behavior is described in
 [Editor UX Shell](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4) and
-[Assistant](main-agent-v1.md#conversation-host-selection-1174-pr4). Registration and connection
+[Assistant](main-agent-v1.md#공급자와-실행-소유권). Registration and connection
 management remain the separate PR3b scope; this section does not claim them as implemented.
 
 #1190 extends the same P12 file-creation Dialog and P10 folder menus to remote Explorer.
@@ -734,7 +734,7 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 기존 비서 패널에서 공통 Button ghost/icon-sm·Tooltip과 Lucide ExternalLink/FolderOpen을
 재사용한다. 현재 대화의 메모장 열기·파일 위치 표시만 제공하며 새 열람 표면이나 공통 UI 예외는 없다.
 브라우저·원격 Host·대화 부재는 tooltip과 disabled로 설명한다.
-검증·지원 경계는 [비서 계약](main-agent-v1.md#공급자-원본-로그-외부-열기-1304)을 따른다.
+현재 지원 경계는 [비서 계약](main-agent-v1.md#현재-한계)을 따른다.
 
 
 ## 플러그인·동적 뷰의 내용 우선 표시 (#1329)
@@ -819,23 +819,22 @@ description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장�
 상단 비서 버튼(#1424)의 답변 필요 우선순위와 기존 AssistantQuestion을 함께 확인한다.
 
 같은 UI 선택은 기존 U22 설정의 Button/Tooltip 및 패널의 native details와 대조했다.
-공통 palette·spacing·control 치수 예외는 없다. 제품 동작·시각 근거 및 별도 서버 문제인
-#1443의 진단 범위는 [비서 계약](main-agent-v1.md#assistant-reading-and-progress-1436-1440)을 따른다.
-캡처는 localhost 합성이며 소유자 시각 승인을 대신하지 않는다.
+공통 palette·spacing·control 치수 예외는 없다. 현재 동작은 [비서 계약](main-agent-v1.md#대화와-표시)을 따른다.
+당시 진단·합성 캡처는 [축소 전 기록](https://github.com/litzio/litzio/blob/422e0c1e5499678623a7f5d2be0ad28e4f90a132/docs/design/main-agent-v1.md#assistant-reading-and-progress-1436-1440)에 있으며 소유자 시각 승인을 대신하지 않는다.
 
 ## 비서 질문·답변 기록 (#1443)
 
 기존 AssistantQuestion의 native fieldset/radio·공용 Input/Button을 재사용한다.
 작업 중 질문과 선택지·직접 입력은 과정 밖에 보이며, 답변 후에는 같은 카드에 질문과
 답변 전달 상태를 읽기 전용으로 남긴다. 접기를 통해 필수 입력을 숨기지 않는다.
-질문이 속한 응답의 완료·중지·실패 또는 공급자 전환으로 닫힌 질문에는 답변 입력을
-보이지 않고 `응답 종료됨`을 표시한다. 기록을 다시 열어도 입력을 복원하지 않는다.
+일반 비동기 질문은 턴 종료 뒤에도 답할 수 있고 후속 메시지로 전달한다. 공급자 차단 질문·승인은
+원래 RPC가 끝나면 입력을 닫고 기록만 남긴다. 끝난 RPC의 콜백은 기록에서 복원하지 않는다.
 상단 #1424 표시는 같은 대화의 pending/unknown 질문에서 계산한다.
 카드 렌더링 확인은 사용자에게 별도 버튼을 요구하지 않고, 실제 카드가 mount된 창에서만
 보낸다. 숨김 패널·기록 목록은 확인하지 않는다. 같은 대화를 연 다른 창도 확인할 수 있다.
 U22의 기존 비서 질문 및 #1370 공용 조회 입력의 오류·필수 입력 노출과 비교했으며
-새 공통 컨트롤·모달·시각 토큰 예외는 없다. Copilot 연결의 미지원은 입력창 가까이에
-명시한다. [현재 계약·검증·캡처](main-agent-v1.md#async-questions-and-answer-history-1443).
+새 공통 컨트롤·모달·시각 토큰 예외는 없다. 공용 Host 질문은 Copilot에도 제공하며
+native ACP 질문 확장은 지원하지 않는다. [현재 계약](main-agent-v1.md#질문과-사용량).
 
 ## Assistant Context account and usage (#1446, P07 / P12)
 
@@ -848,11 +847,11 @@ reset wording (today: time only; otherwise numeric month/day and time; no year o
 seconds). Login method labels are localized. Quota rows stay on one line in the
 standard max-w-md Tooltip. Failure stays as a short
 Unavailable in this tooltip and does not enter chat errors or disable sending.
-Copilot keeps context only because its current ACP integration has no account
+Copilot shows reported context and session usage; its current ACP integration has no account
 quota diagnostic. No common interaction exception was introduced.
 
-The [current contract and four same-state Before/After pairs](main-agent-v1.md#context-account-and-usage-1446)
-record Host cache/notification ownership and fixture-only verification limits.
+The [current contract](main-agent-v1.md#질문과-사용량) summarizes usage display.
+Cache ownership and fixture evidence remain in the [earlier record](https://github.com/litzio/litzio/blob/422e0c1e5499678623a7f5d2be0ad28e4f90a132/docs/design/main-agent-v1.md#context-account-and-usage-1446).
 Captures are manual review evidence, not owner visual approval.
 
 ## Business usage details (#1453, P07 / P12)
@@ -862,8 +861,8 @@ Tooltip. Individual quota/remaining credit states and spending warnings use shor
 localized text and the existing compact reset format; period rows still use the
 same component. Empty successful snapshots explicitly say No usage information.
 The warning uses bold text within the existing contrasting surface, without a new
-color or control. The [contract and fixture Before/After pairs](main-agent-v1.md#business-account-usage-1453)
-record the Business shape, rounding and unchanged target-Host cache ownership.
+color or control. The [current contract](main-agent-v1.md#질문과-사용량) summarizes usage display.
+Business response details and fixture evidence remain in the [earlier record](https://github.com/litzio/litzio/blob/422e0c1e5499678623a7f5d2be0ad28e4f90a132/docs/design/main-agent-v1.md#business-account-usage-1453).
 No common interaction exception or new persistent chrome was introduced.
 
 
