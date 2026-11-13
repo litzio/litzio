@@ -7,7 +7,7 @@ import { nativeSource } from "./helpers/document.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createServer, request } from "node:http";
-import { tmpdir, userInfo } from "node:os";
+import { tmpdir, userInfo, networkInterfaces } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { after, type TestContext } from "node:test";
@@ -100,6 +100,15 @@ test("reset inspection pins Host paths and its lifetime gate refuses offline del
   assert.throws(() => new ResetGuard().exclusive(), /Close host/);
   assert.equal((await send("/api/app-reset/paths", "POST", {})).status, 405);
   assert.equal((await send("/api/app-reset/paths?unexpected=1")).status, 405);
+});
+
+test("a concrete listener address accepts assistant CLI traffic independently of its public proxy", async t => {
+  const address = Object.values(networkInterfaces()).flat().find(entry => entry?.family === "IPv4" && !entry.internal)?.address;
+  if (!address) { t.skip("No concrete non-loopback IPv4 interface available"); return; }
+  const { a, send } = await fixture(t, "https://proxy.invalid", true, address);
+  const result = await send("/api/document", "PUT", { path: path.join(a, "listener.md"), authoring: { inputs: [{ key: "test", blocks: [{ kind: "paragraph", text: "Listener" }] }] } });
+  assert.equal(result.status, 201, await result.clone().text());
+  assert.equal((await send("/api/document", "GET", undefined, { Origin: "https://foreign.invalid" })).status, 403);
 });
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
@@ -278,7 +287,7 @@ test("folder image preview is read-only, root bounded and isolated for GET, HEAD
   assert.equal((await send(route(a, path.join(a, "bad.png")), "HEAD")).status, 413);
 });
 
-async function fixture(t: TestContext, external?: string, controlled: boolean | "desktop" = false) {
+async function fixture(t: TestContext, external?: string, controlled: boolean | "desktop" = false, bind = "127.0.0.1") {
   const base = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-"));
   const a = path.join(base, "문서 A"), b = path.join(base, "documents-B");
   const outside = path.join(base, "문서 A-other"), editorDir = path.join(base, "editor");
@@ -292,12 +301,12 @@ async function fixture(t: TestContext, external?: string, controlled: boolean | 
   const trashed: string[] = [];
   const health = { processStartedAt: "test", daemonHome: "test", executable: process.execPath, roots: [], nonLoopback: false, launcher: controlled === "desktop" ? "desktop" as const : "cli-run" as const, pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
   let stopped = false;
-  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, publicOrigin: external,
+  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, host: bind, publicOrigin: external,
     ...(controlled ? { daemon: { health, stop: () => { stopped = true; } } } : {}),
     removeFile: file => { trashed.push(file); fs.renameSync(file, path.join(base, "trashed-" + path.basename(file))); } }));
   const address = host.server.address();
   assert.ok(address && typeof address !== "string");
-  const url = `http://127.0.0.1:${address.port}`;
+  const url = `http://${bind}:${address.port}`;
   t.after(async () => { await host.close(); fs.rmSync(base, { recursive: true, force: true }); });
   const send = (route: string, method = "GET", body?: unknown, headers?: Record<string, string>) => fetch(url + route, {
     method, headers: { Origin: url, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },

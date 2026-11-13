@@ -164,6 +164,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   // The assistant runs beside this listener, not behind its advertised proxy.
   const assistantAddress = host === "0.0.0.0" ? "127.0.0.1" : host === "::" ? "::1" : host;
   origin = `http://${authority(assistantAddress, address.port)}`;
+  origins.add(origin);
   if (loopback(host)) {
     origins.add(new URL(`http://${authority(host, address.port)}`).origin);
     origins.add(new URL(`http://localhost:${address.port}`).origin);
