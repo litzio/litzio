@@ -61,6 +61,8 @@ pnpm browser:prepare                       # 수동 검토용 scratch 사본만 
 - 기본 URL의 서버가 없으면 Playwright `webServer`가 시작/종료한다. 로컬의 기존 서버와 `LITZIO_BROWSER_URL` 서버는 그대로 유지한다.
 - `@playwright/cli`는 직접 디버깅용으로 유지하며 `open --persistent`를 사용한다. 정식 runner는 CLI 출력 형식을 파싱하지 않는다.
 
+`figure-draft-race`의 property 밖 첫 클릭 검사는 native caret의 정확한 노드·offset·focus를 즉시 확인하고, 같은 selection이 Editor 엔진에 반영된 뒤 입력한다. #416의 sub-event-loop click→key 제외 기준을 endnote뿐 아니라 image·Mermaid·equation·table에도 적용한다. 조사한 CI table 사례에서는 native selectionchange와 엔진 반영 사이가 7.8ms였다. 정확한 첫 클릭 위치·focus와 최종 입력 위치·Undo·Save/Reload 단언은 유지하며 임의의 시간 대기는 추가하지 않는다. 이전의 다른 네 케이스 즉시 engine 검사 기록은 당시 이력으로 보존한다.
+
 ### CI
 
 `packages/plugin-sdk/**`는 품질·browser·HTTP와 queue의 Desktop package·대표 제거를 선택한다. `vite-plugins`의 화면 코드 fixture 활성화와 화면 코드 fixture가 browser 유지 근거다. Markdown 단독 변경은 제품 quality만 유지한다. SDK 경로의 전용 변경(`package.json` 포함)은 업데이트·제거 전수·레이아웃 전수를 생략한다. 설치 구성 파일의 기존 전체 제거·unknown fallback·혼합 합집합은 유지한다. 자세한 소비자는 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)에 기록한다.
@@ -78,7 +80,7 @@ Playwright가 browser job의 dev server와 browser 수명을 관리하며 실패
 `scenarios.spec.ts`는 재사용 persistent context에서 시나리오마다 tracing을 시작하고, 실패 시에만 `tmp/browser-results/scenarios-<이름>/trace.zip`으로 보존한다. 성공 시 trace는 버린다. 성공 실행의 비용을 줄이기 위해 trace는 action·API 로그·console·source를 기록한다. 매 action의 DOM/network snapshot과 연속 스크린샷 filmstrip은 기록하지 않는다. 실패 시점의 접근성 snapshot·PNG·focus/selection은 아래 파일로 별도 보존한다. timeout·재시도·판정 기준은 바꾸지 않는다. Playwright 기본 context/page fixture가 아닌 이 fixture가 페이지를 닫기 전에 아래 파일을 직접 저장한다.
 
 - `browser-state.json`: 브라우저 페이지 URL, 문서 탭과 활성 탭, focus 요소, DOM/ProseMirror selection, 메뉴·dialog·status. 닫힌 페이지 등 수집 실패도 기록한다.
-- `input-events.json`: 실패 직전 현재 페이지의 최근 400개 이벤트(고정 크기 링 버퍼). 각 항목의 `timestamp`(UTC), `elapsedMs`(페이지 시작 이후), `sequence` 순으로 키 입력 당시 상태와 이후 변화를 대조한다. `keydown`/`keyup`에는 대상 tag/testId/role/label, 원래 key/code, modifier·repeat·composing을, `focusin`/`focusout`에는 previous/next 요소를 기록한다. 모든 항목은 당시 activeElement, DOM selection의 anchor/focus 노드·offset·텍스트 길이와 활성 Editor의 selection(from/to/type), focus, undoDepth/redoDepth를 포함한다. `transaction`에는 발생시킨 Editor와 docChanged 및 해당 transaction selection도 있다. `editor-attached`와 Editor별 id/tab/active로 여러 문서 탭과 재생성된 인스턴스를 구분한다. 활성 탭 외 Editor의 transaction도 구독한다.
+- `input-events.json`: 실패 직전 현재 페이지의 최근 400개 이벤트(고정 크기 링 버퍼). 각 항목의 `timestamp`(UTC), `elapsedMs`(페이지 시작 이후), `sequence` 순으로 키 입력 당시 상태와 이후 변화를 대조한다. `keydown`/`keyup`에는 대상 tag/testId/role/label, 원래 key/code, modifier·repeat·composing을, `focusin`/`focusout`에는 previous/next 요소를 기록한다. 모든 항목은 당시 activeElement, DOM selection의 anchor/focus 노드·offset·텍스트 길이와 활성 Editor의 selection(from/to/type), focus, undoDepth/redoDepth를 포함한다. `transaction`에는 발생시킨 Editor와 docChanged 및 해당 transaction selection도 있다. `pointerdown`/`pointerup`/`click`에는 실제 대상·좌표·control/form 경계와 disabled 상태를, `submit`/`submit-handled`에는 submitter와 기본 동작 취소 여부를 기록한다. 비동기 preview로 Apply가 이동했는지, 클릭이 실제 제출로 이어졌는지 구분하며 입력 값은 기록하지 않는다. `editor-attached`와 Editor별 id/tab/active로 여러 문서 탭과 재생성된 인스턴스를 구분한다. 활성 탭 외 Editor의 transaction도 구독한다.
 - `error-context.md`, `test-failed.png`: 실패 메시지와 접근성 snapshot, 실패 시점 viewport. 캡처 중 실패는 `diagnostic-errors.json`에 기록하며 최초 테스트 오류를 대체하지 않는다.
 - `console-errors.json`: console/pageerror 원문과 예상·예상 밖·누락 분류. console 검사만 실패한 경우에도 위 진단을 저장한다.
 - `saved-source-<번호>-expected.md`, `saved-source-<번호>-actual.md`: 공통 `assertSavedSource(actual, expected, message)`를 사용하는 저장 비교가 실패했을 때의 정확한 문자열. assertion 메시지에도 diff가 표시된다. 현재 `citations`의 원문/반복 Save/Merge 비교에 적용한다.
@@ -90,6 +92,8 @@ artifact를 내려받아 `trace.zip`을 찾은 뒤 `pnpm exec playwright show-tr
 키 입력 조사에서는 `input-events.json`의 `events`에서 `type === "keydown"`과 `key === "Backspace"`(또는 Undo/Redo의 `z`)를 찾는다. `activeElement`/`target`과 당시 `activeEditor`를 먼저 보고, 뒤따르는 transaction의 selection·history 깊이 및 Save 쪽 focusout/focusin과 비교한다. capture 단계의 keydown은 Editor가 키를 처리하기 **전**, keyup은 처리 **후**의 상태다. 브라우저의 selectionchange는 비동기 통지이므로 키·transaction 항목에 함께 찍힌 selection을 우선한다. `dropped`는 버퍼에서 밀려난 개수다. 전체 navigation/Reload 시 버퍼는 초기화된다. timestamp와 elapsedMs는 페이지의 Date/performance 시계이므로 Playwright clock을 쓰는 시나리오(같은 persistent context에서 앞서 clock을 설치한 경우 포함)의 가상 시각·진행·초기값을 반영할 수 있다. 실제 CI 벽시계와 같다고 가정하지 않고 `sequence`로 순서를 확정한다. renderer crash나 닫힌 페이지에서는 이력을 읽지 못하고 파일에 diagnosticError가 남는다. 브라우저 탭은 시나리오 page 범위이며 문서 탭마다 별도 파일을 만들지 않는다.
 
 수집은 테스트 fixture의 `addInitScript`와 DOM listener/MutationObserver, 기존 `element.editor` 및 Tiptap 공개 transaction 이벤트만 사용한다. 공개 `@tiptap/pm/history`의 undoDepth/redoDepth를 포함한 테스트 전용 스크립트를 worker마다 한 번 메모리에서 bundle하여 개발 서버와 production HTTP Host에 동일하게 주입한다. 제품 build에 진단 코드를 넣거나 event마다 Node로 전송하지 않으며, 성공 시 파일·attachment를 추가하지 않는다. 이력에는 문서 본문/선택 텍스트/입력 값/clipboard/transaction steps를 저장하지 않는다. DOM 텍스트는 길이만, label·testId·tab 식별자는 최대 80자로 제한하고 key 값은 원래대로 둔다. 따라서 짧은 입력은 key 시퀀스로 드러날 수 있으며 완전한 익명화는 아니다. 기존 trace·browser-state·saved-source의 별도 수집 범위는 이 제한으로 바뀌지 않는다.
+
+Copilot ACP 단위 검사의 종료 확인이 실패하면 가짜 child의 시작·exit 시각과 Windows의 현재 PID 소유자(이름·부모 PID·생성 시각)를 실패 진단으로 남긴다. 과거 PID 재사용과 실제 child 잔존을 구분하기 위한 관측이며 기존 종료 단언은 유지한다. `AbortError` 로그만으로 종료 실패의 원인을 판단하지 않는다.
 
 ## 사람이 직접 볼 것
 

@@ -303,7 +303,9 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
     await page.route('**/api/document', async route => {
       if (route.request().method() !== 'POST') return route.continue();
       await gate;
-      await route.fulfill({json:{revision:loaded.revision}});
+      // No file is written by this progress-only mock. Keep this document's
+      // acknowledged revision consistent with disk, or the real folder watcher reloads it.
+      await route.fulfill({json:{revision:route.request().postDataJSON().revision}});
     });
     try {
       await page.getByTestId('save').click();

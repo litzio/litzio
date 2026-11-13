@@ -251,7 +251,22 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   });
   assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 표·목록·그림·캡션·수식도 공급자 패치로 본문을 고치고"));
   await connection.close();
-  for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
+  const lifecycle = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line))
+    .filter(message => message.pid || message.exitedPid)
+    .map(({ pid, startedAt, exitedPid, exitedAt }) => ({ pid, startedAt, exitedPid, exitedAt }));
+  for (const { pid } of lifecycle.filter(message => message.pid)) {
+    try { assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped"); }
+    catch (error) {
+      // A historical PID can be reused on Windows. Diagnose its current owner;
+      // keep the original exit assertion rather than treating reuse as success.
+      const current = process.platform === "win32" ? spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+        `Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}' | Select-Object ProcessId,ParentProcessId,Name,CreationDate | ConvertTo-Json -Compress`],
+      { encoding: "utf8", windowsHide: true, timeout: 3000 }) : undefined;
+      t.diagnostic(JSON.stringify({ checkedAt: Date.now(), ownerPid: process.pid, reachablePid: pid, lifecycle,
+        currentProcess: current?.stdout, censusError: current?.error?.message }));
+      throw error;
+    }
+  }
 });
 
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {

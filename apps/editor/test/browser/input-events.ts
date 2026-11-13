@@ -92,6 +92,27 @@ for (const type of ["focusin", "focusout"] as const) {
       next: describe(type === "focusin" ? event.target : event.relatedTarget) });
   }, true);
 }
+// Responsive previews can move Apply between pointerdown and pointerup. Record
+// real targets, geometry and submission, without recording field values.
+for (const type of ["pointerdown", "pointerup", "click"] as const) {
+  document.addEventListener(type, event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const form = target?.closest("form");
+    const control = target?.closest("button, input, textarea");
+    record(type, { target: describe(target), x: event.clientX, y: event.clientY,
+      button: event.button, detail: event.detail,
+      controlBounds: control?.getBoundingClientRect().toJSON() ?? null,
+      disabled: control?.hasAttribute("disabled") ?? false,
+      form: describe(form ?? null), formBounds: form?.getBoundingClientRect().toJSON() ?? null });
+  }, true);
+}
+document.addEventListener("submit", event => {
+  const form = event.target;
+  record("submit", { target: describe(form), submitter: describe(event.submitter) });
+  // A microtask in a native capture listener can run before React's bubble
+  // listener. Observe after the whole dispatch task instead.
+  setTimeout(() => record("submit-handled", { target: describe(form), defaultPrevented: event.defaultPrevented }), 0);
+}, true);
 document.addEventListener("selectionchange", () => record("selectionchange"));
 new MutationObserver(records => {
   // Ignore routine text/NodeView mutations. Scan only when an editor/tab mounts or switches.
