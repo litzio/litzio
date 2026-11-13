@@ -1383,7 +1383,7 @@ if (import.meta.main) {
   try {
     if (args.length && args[0] !== "app-reset" && args[0] !== "help" && !findCommand(args[0])?.readOnly && !isCommandHelpRequest(args) && !isCommandHelpRequest(args.slice(1)) && !args.includes("--version")) {
       try { releaseResetGuard = new (await import("../../../apps/editor/server/reset-guard.ts")).ResetGuard().actor("cli"); }
-      catch (error) { throw new Error(`Cannot acquire the app-reset writer guard: ${(error as Error).message}. With restricted permissions, edit the document directly using the file editing tool or request execution approval.`); }
+      catch (error) { throw new Error(`Cannot acquire the app-reset writer guard: ${(error as Error).message}. This write command cannot run with restricted permissions. Edit the document file directly with the editing tool, then run litzio check.`); }
     }
     if (args[0] === "daemon" && ["run", "start", "stop", "status"].includes(args[1]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
       const { daemonCli } = await import("./daemon.ts");
