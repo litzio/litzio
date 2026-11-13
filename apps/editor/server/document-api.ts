@@ -1,6 +1,6 @@
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 // Use the published ESM entry: its UMD factory leaves dynamic relative require calls in CLI bundles.
-import { parseTree } from "jsonc-parser/lib/esm/main.js";
+
 import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
 export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
@@ -18,11 +18,11 @@ import { readBibliographySources } from "./bibliography.ts";
 import type { HostServices } from "./host-services.ts";
 import { MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
 import { ImageValidationError, validateImage } from "./image-validation.ts";
-import fs, { readFileSync, statSync, writeFileSync } from "node:fs";
+import fs, { readFileSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { createDocument, parse, hasNativeMarker, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
+import { createDocument, hasNativeMarker, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
 import { assertUnicode, commitFile, decodeUtf8, FileChangedError } from "@litzio/file-commit";
 import { rootIdentity, accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { readRequestBody, RequestBodyError } from "./request-body.ts";

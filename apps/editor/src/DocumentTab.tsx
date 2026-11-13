@@ -1,7 +1,5 @@
 import type { HostClient } from "./host-client.ts";
-import { Button } from "./components/ui/button.tsx";
-import { Notice } from "./ui/primitives.tsx";
-import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
+
 import { HostClientContext } from "./host-context.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";

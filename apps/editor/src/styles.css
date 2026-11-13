@@ -45,7 +45,7 @@ button {
 
 /* Standalone file/path displays keep their existing wrapping (including Korean paths). */
 :where(.document-path, .document-start-folder-path, .sidebar-folder-name, .sidebar-tree-name,
-  .document-tab, .settings-document-name, .bibliography-files, .recovery-records,
+  .document-tab, .bibliography-files, .recovery-records,
   [data-testid="recovery-prompt"] [data-slot="dialog-description"] > p:first-child,
   [data-testid="save-comparison"] [data-slot="dialog-description"] > p:first-child) {
   word-break: normal;
@@ -668,7 +668,7 @@ button {
   container-type: inline-size;
 }
 .app-header { background: var(--id-color-surface-subtle); }
-:is(.app-titlebar, .document-tab-row, .sidebar-header, .document-panel-header, .settings-topbar) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
+:is(.app-titlebar, .document-tab-row, .sidebar-header, .document-panel-header) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
   app-region: no-drag;
 }
 
@@ -962,7 +962,7 @@ button {
 
 /* Menus allow a single click/right-click to reach another trigger. While open, disable
  * underlying header drag directly instead of intercepting that input with a full-screen backdrop. */
-body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar, .settings-topbar) {
+body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
   app-region: no-drag;
 }
 
@@ -2801,13 +2801,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .figure-properties details[open] { padding-bottom: var(--space-1); }
 .figure-properties .ui-notice { margin: 0; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
 
-.block-popover-note {
-  margin: var(--space-2) 0 0;
-  color: var(--id-color-text-subtle);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-meta);
-}
-
 .draft-status {
   margin: var(--space-1) 0 0;
   color: var(--id-color-warning);
@@ -3323,7 +3316,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .file-preview-image[hidden] { display: none; }
 
 /* Bibliography actions reuse compact controls and document metadata spacing. */
-.bibliography-connect { margin-top: var(--space-6); }
 .bibliography-files { list-style: none; padding: 0; margin: var(--space-2) 0; }
 .bibliography-files > li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); }
 .bibliography-files > li > span { min-width: 0; overflow-wrap: anywhere; }
@@ -3401,7 +3393,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .shell-tab { position: fixed; top: var(--app-header-height, var(--layout-header-row)); bottom: 0; left: var(--shell-sidebar); right: var(--shell-panel); min-height: 0; min-width: 0; overflow: hidden; }
 .app-shell--split .shell-tab { --editor-group-width: calc((100vw - var(--shell-sidebar) - var(--shell-panel) - var(--border-width)) / 2); left: calc(var(--shell-sidebar) + var(--editor-group-index) * (var(--editor-group-width) + var(--border-width))); right: auto; width: var(--editor-group-width); }
 .shell-tab[hidden] { display: none; }
-.shell-tab-message { margin: var(--space-4); }
 .notification-center { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); bottom: var(--space-4); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--sidebar-effective-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8)); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }

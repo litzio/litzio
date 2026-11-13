@@ -3,7 +3,7 @@ import { SaveContentError } from "../shared/save-error.ts";
 import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
 import { defaultHeadingNumbering, referenceTemplatesError, NUMBERED_KINDS, type ReferenceTemplates } from "@litzio/core/numbering";
 import { figureCaptionContent, figureContentError } from "@litzio/core/figure";
-import { fromTiptapContent, toTiptapContent, type TiptapJSON } from "./tiptap-inline.ts";
+import { fromTiptapContent, type TiptapJSON } from "./tiptap-inline.ts";
 import {
   isNewBlockPath,
   pathKey,
@@ -609,7 +609,7 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
     }
     // An editable admonition may change to another standard kind.
     if (!isAdmonitionVariant(String(afterAttrs.variant ?? ""))) throw new Error("admonition kind is not a standard MyST kind");
-    const content = paragraphInline(after);
+    paragraphInline(after);
     return;
   }
   if (beforeType === "quote") {

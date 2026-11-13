@@ -1,4 +1,4 @@
-import type { EditableBlock, InlineContent, ReferenceRole } from "@litzio/core";
+import type { InlineContent, ReferenceRole } from "@litzio/core";
 import { citationContentError, type CitationContent, type CitationRole } from "@litzio/core/citation";
 
 export type TiptapMark = {

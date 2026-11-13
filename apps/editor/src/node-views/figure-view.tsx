@@ -46,8 +46,6 @@ export function isUnappliedFigureDraft(editing: boolean, draft: FigureContent, a
 }
 
 export const DocumentPathContext = createContext<string | undefined>(undefined);
-/** Transient, Host-verified media for a fileless read-only snapshot. */
-export const ReviewImageSourcesContext = createContext<Readonly<Record<string,string>> | undefined>(undefined);
 
 export function createFigureNodeView(documentPath?: string | (() => string), onDraftChange?: DraftListener, validateFigure?: FigureValidator, chooseImage?: ImageChooser) {
   return function FigureAssetNodeView(props: ReactNodeViewProps) {
@@ -89,8 +87,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
   const [choosing, setChoosing] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const applied = figureAttrs(node);
-  const reviewImages = useContext(ReviewImageSourcesContext);
-  const src = reviewImages ? reviewImages[applied.imageUrl] ?? "" : resolveFigureSource(applied.imageUrl, documentPath, client);
+  const src = resolveFigureSource(applied.imageUrl, documentPath, client);
   const [failedSource, setFailedSource] = useState<string>();
   const imageFailed = !!src && failedSource === src;
   const label = String(node.attrs.label ?? "");

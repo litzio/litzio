@@ -1,16 +1,16 @@
 import { nativeSource } from "./helpers/document.ts";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
+
+
+
 import test from "node:test";
 import { getSchema } from "@tiptap/core";
 import { EditorState } from "@tiptap/pm/state";
-import type { InlineContent } from "@litzio/core";
+
 import { changeAdmonitionVariant } from "../src/block-commands.ts";
 import { editorExtensions, structureGuardPlugin } from "../src/editor-schema.tsx";
 import { collectSupportedEdits, toTiptapDocument, type TiptapJSON } from "../src/tiptap-document.ts";
-import { documentRevision, saveDocumentFile } from "../server/document-api.ts";
+
 import { loadEditableDocument } from "./helpers/document.ts";
 import { saveEdits } from "../server/document-replay.ts";
 

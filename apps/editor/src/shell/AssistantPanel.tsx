@@ -7,7 +7,7 @@ import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
-import { useContext, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle, TriangleAlert } from "lucide-react";
 import { ASSISTANT, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
@@ -330,7 +330,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     if (skill) setMessage(value => value.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join(""));
     setReferences(previous => {
       const remaining = previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name));
-      const text = skill ? message.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join("") : message;
+
       return remaining;
     });
   };

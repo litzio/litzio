@@ -4,7 +4,7 @@ import {writeCodePluginManifest} from "../../../test/helpers/code-plugin.ts";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { canonicalFilePath } from "../server/file-access.ts";
-import { publicOperationResult } from "../server/plugins/operation-result.ts";
+
 import { compileSchema, validateManifest } from "@litzio/plugin-sdk";
 import { PLUGIN_AUTHORING_SKILL } from "../server/plugins/authoring-skill.ts";
 import test from "node:test";
@@ -12,11 +12,11 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
+
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
-import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse, serialize, updateNodeTextAtPath, insertParagraph } from "@litzio/core";
-import { createHash, randomUUID } from "node:crypto";
+
+
 import { PluginAssistantSkills } from "../server/plugins/assistant-skills.ts";
 
 // Host lifecycle and public-operation tests stay in-process.

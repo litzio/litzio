@@ -63,7 +63,7 @@ import { appliedDocument, freshBlockPath, toTiptapDocument, type TiptapJSON } fr
 import { MARKDOWN_INPUT_RULES } from "./markdown-input-rules.ts";
 import { currentOutlineItem, documentOutline, documentTargets, sameOutline, type DocumentOutline, type NavigationList, type OutlineItem } from "./outline.ts";
 import { documentEnd, runHistoryShortcut } from "./document-interaction.ts";
-import { EditorState, NodeSelection, Plugin, Selection, TextSelection } from "@tiptap/pm/state";
+import { EditorState, NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import type { SaveErrorLocation } from "./save-error.ts";
 
 type BlockMenu = { kind: "insert" | "block" | "list-format"; index: number; top: number; left?: number; context?: boolean };

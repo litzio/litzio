@@ -14,7 +14,7 @@ import { useSyncExternalStore, useRef, type ReactNode, type RefObject } from "re
 import { Sun, Moon, FileText, Files as FilesIcon, Folder, FolderOpen, PanelLeftClose, Plus, Settings } from "lucide-react";
 import { DesktopMenu } from "./DesktopDaemon.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
+
 import type { FolderTreeState } from "./folder-tree.ts";
 
 type SidebarProps = {

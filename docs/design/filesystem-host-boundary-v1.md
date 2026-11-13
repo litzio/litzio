@@ -44,31 +44,12 @@ OS action, with no document write, Core semantic operation or CLI parity command
 
 ## Docling execution (#797)
 
-The shared handler exposes the Docling device setting, connection check and one
-current conversion snapshot in Vite, Desktop and HTTP Host. Module REST calls
-execute in a separate worker under [Host worker plugins](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md).
-The shared [UI contribution route](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md) (#857) serves only enabled,
-hash-checked installed ESM/CSS outside document Roots. Registration source files
-still obey all applicable Root/real-path checks; arbitrary file serving is not added.
-Registration and request receipts in the common user installation are the only
-additional durable Host state allowed by ADR-0012. Private staging and marked
-incomplete output are refused on every ordinary file surface, including aliases.
-PDF input and new sibling output use existing Root/real-path
-checks, repeated before publication. The settings file is selected by the Host,
-never a browser-supplied filesystem path. See the
-[conversion contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#app-pdf-conversion-797) for routes,
-configuration ownership, publication, cancellation and notification behavior.
-This does not add a document session, persistence service or semantic write path.
+Docling execution and comparison were removed on 2026-11-13 (#1592). The former
+contract is preserved in [the archive](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/filesystem-host-boundary-v1.md#docling-execution-797).
+Current plugin execution follows [Plugin stage 1](plugin-stage1-v1.md) and
+[screen code](plugin-screens-v1.md); no Docling-specific route remains.
 
 ## Purpose
-
-The read-only `GET /api/docling-compare?path=…` route uses the same handler and
-Root/media real-path checks in Vite, Desktop and HTTP Host. It admits the native
-Markdown through Core and delegates correspondence interpretation/hash checking
-through the installed Docling Host operation (no direct implementation import). Page images use the ordinary document-relative media route;
-remote/data image URIs and paths escaping the conversion folder are refused.
-No large source document.json is sent to the UI: correspondence v1 already carries
-the needed page/item data. See [Docling comparison](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md).
 
 Recovery source review and pre-save comparison (#655 stages 1/2) use a read-only mode of the existing endpoint:
 `POST /api/document-source?recovery=1` accepts `{ path, save? }`, where `save`, when present,

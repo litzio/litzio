@@ -10,22 +10,14 @@
 | 플러그인 화면 안에서 저장본을 읽고 위치를 확인한다 (#1592) | 화면 소유의 내부 스크롤 영역 | ui.DocumentView + 기존 DocumentEditor readOnly/preview, paper·accent·Notice | 같은 Host/열린 폴더, 명시 다시 읽기, revision이 같은 블록·표 셀(표 전체) 이동/강조 | UI gallery → Document view; [화면 계약](plugin-screens-v1.md#읽기-전용-문서-보기) | 새 editor/세션/검수 틀 없음. 폭·원문 배치는 플러그인 소유 |
 | 플러그인 코드 화면의 그래프·구간·요약 (#1592 2-3) | 기존 플러그인 작업 탭 | Chart(Recharts), Slider(Base UI), Toolbar, SummaryCard, ScreenLayout, 기존 Button/Input/DataTable/Notice | 토큰 색·전체 폭 그래프·hover/키보드 값·단일/구간 선택 | UI gallery → Screen parts; [화면 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-screens-v1.md#화면-부품과-디자인-안내-2-3-1592) | 자체 화면 코드 허용, 디자인 강제 없음. 기존 부품이 없어 그래프·슬라이더 wrapper와 작은 배치 부품 추가 |
 | Copilot 사용량 확인 (#1581) | 기존 컨텍스트 링 hover/focus | AssistantUsageTooltip·Base UI Tooltip·기존 토큰 | 컨텍스트와 세션 보고값 표시, 계정 한도 미제공 명시 | [Copilot 사용량](main-agent-v1.md#질문과-사용량) | 없음 |
-| 문제 목록에서 검수한다 (#1462 6-2) | 승인된 A 배치: 목록·가운데 제안/기존 대조·접힌 쪽 칸 | 기존 ReviewRenderer, Button sm/ghost/outline, Input, Checkbox(Base UI), Notice, Tooltip, native details/Lucide chevron·탐색기 행 선택 | 기존 evidence/그룹 판단/필수 확인 작업과 블록 제외 묶음, 비서 승인 권한 추가 없음 | [6-2 화면](docling-review-stage3.md#6단계-최소-검수-화면--6-2) | 배치는 소유자 승인. 새 공통 control/token 예외 없음. 큰 머리글·하단 반복 설명 없음 |
-| 파일 없는 검수 snapshot을 대조·중간 내보내기한다 (#1462 P1b) | 기존 comparison 작업 탭·명시 export Dialog | ReviewRenderer/DocumentEditor readOnly preview·Dialog/Input/Button/checkbox | 내부 source/이미지·effective 대응, 실제 파일 열기는 export 결과만, revision/overwrite·미저장 보호 | [P1b](docling-review-stage3.md#p1b-내부-대조이미지명시-export) | 기존 공통 구현, 새 token/control 예외 없음. 완료 승인/final export는 후속 |
 
-| 생성 문서에서 대조를 다시 연다 (#1465) | 기존 문서 안내·탐색기 | warning Notice + ghost sm Button, ContextMenu + PanelRightOpen, 여러 문서는 기존 Dialog/Button | Host 연결을 조회해 기존 대조 탭 열기·재생성 안내 | [생성 문서 진입점](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#생성-문서-대조-진입점-1465) | 새 화면 종류 없음. 최근 검수 진행률 목록은 공용 schema/binding 부재로 미제공 |
 | Desktop 창을 숨기거나 완전 종료한다 (#1448) | Windows 트레이 | Electron Tray/Menu + 기존 brand icon·native dialog | 열기·종료, 최초 백그라운드 안내·설정 보존, 종료 시 작업 중단 안내와 기존 미저장 보호 | [Desktop 트레이 계약](desktop-distribution-v1.md#close-to-tray-1448) | 소유자가 승인한 OS 표면으로 renderer 공통 부품 밖이다. 창은 같은 편집 세션을 유지하며 실제 native 시각·패키지 수락은 미확인 |
 | 비서 질문에 답하고 기록을 확인한다 (#1443) | 기존 대화 본문, 과정 밖 | AssistantQuestion + native fieldset/radio + 공용 Input/Button | 선택·직접 입력, 렌더 확인 뒤 수락, 답변 후 같은 카드에 기록 | [질문 계약](main-agent-v1.md#질문과-사용량) | 기존 대화·질문 소유권 유지. 공용 Host 질문은 Copilot 지원, native ACP 질문 확장은 미지원 |
 | 비서의 작업 과정과 새 내용을 읽는다 (#1436/#1440/#1492) | 기존 대화 패널 | native details/summary + outline sm Button + Lucide ArrowDown | 과정 기본 접힘·턴의 마지막 카드 뒤 현재 단계·hover/focus Tooltip, 위로 읽을 때 위치 유지·새 내용 알림·명시적 하단 이동 | [읽기·진행 계약](main-agent-v1.md#대화와-표시) | 사용자 질문·선택·확인은 과정 밖에 표시. 화면 내부 interaction이며 Host 상태·CLI 작업 추가 없음 |
 | 닫힌 비서의 작업·완료·답변 필요를 확인한다 (#1424) | 기존 상단 비서 버튼 | ghost sm Button + Tooltip + agent-dot, 기존 text-muted/accent/warning 토큰 | 빈 원은 작업 중, 채운 원은 완료(읽지 않음), 사각형은 확인·답변 필요. 열면 완료를 확인 처리하며 열린 동안 표시는 숨김 | [비서 상태](main-agent-v1.md#대화와-표시) | 기존 대화·제출 관측을 재사용하며 새 작업 상태·OS 알림·소리 없음 |
-| 조회 폼의 드문 조건을 숨긴다 (#1370) | 기존 조회 폼 | QueryInputs + Button/Input/FieldError | 선택 advanced 입력만 접기·지정값 요약·오류 자동 펼침, 수동 조회 유지 | [추가 조건](ui-patterns-v1.md#공통-조회-폼의-추가-조건-1370) | 새로운 공통 접기 상호작용, JobPanel에는 자동 적용하지 않음 |
-| 플러그인 폴더를 장식한다 (#1366) | 기존 Explorer 폴더 행 | PluginIcon + 기존 16px 아이콘 칸 | 제공 플러그인의 manifest 이미지, 없으면 생략 | FolderTree·Sidebar; 설정·탭과 같은 PluginIcon | 없음 |
 | 플러그인 설정에 진입한다 (#1334) | Plugins 목록 행 오른쪽 끝 | ghost icon Button + Tooltip(설정/Settings), 그 뒤 settings-switch | 이름을 포함한 aria-label; 설정이 없어도 정보 열기; 화면 이동은 사이드바 | PluginSettings | 없음 |
 | 문서 스크롤 위치를 표시·조작한다 (#1183/#1182) | 기존 문서 viewport의 trailing inset | DocumentScroll + 설치된 Base UI 1.8.0 ScrollArea, 기존 border-strong/text-muted 토큰 | 네이티브 scrollTop·키보드·선택·ProseMirror 유지, overflow일 때 항상 표시 | Native/Source/일반 Markdown 읽기/시작 화면 | 문서 영역 한정. 다른 스크롤 표면은 유지하며 Monaco 엔진·휠 모델을 이식하지 않는다. [geometry·승인된 시각과 합성 식별 표시 캡처](editor-layout-rules-v1.md#alignment-and-ownership). |
-| 원본과 Read를 대조하고 변경 제안을 검토한다 | 별도 review 작업 탭 (#1408 완료 작업 진입) | [ReviewRenderer](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/apps/editor/src/review/ReviewRenderer.tsx), Button·Notice·Lucide·DocumentEditor readOnly preview | [공용 대조·승인 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안) | K2/K3/K4 fixture·생성 문서 원본 대조 | bbox·강조 overlay는 원본 좌표 대응에 필요하다. 생성 문서 대조는 640px 이상 내부 스크롤, 기존 K4는 1024px 안내를 유지한다. |
 | 플러그인 화면에서 여러 파일 작업을 시작한다 (#1340) | 기존 플러그인 화면, 조회 뷰 위 | PluginJobPanel + 기존 SettingsSelect/Button/체크박스, K1 상태·행동·파일 탐색, view-table-scroll | 파일별 독립 시작·플러그인 작업만 최신순·활성 화면의 진행 작업 polling | [화면 K1 패널](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#플러그인-화면-작업-패널-1340) | 공통 상호작용 예외 없음. 작업만 있는 화면 허용; 비서 생성·즐겨찾기 의존 없음. |
-| 플러그인 파일 작업의 진행·결과를 확인한다 | 기존 작업 탭 | SettingsSelect/SettingsInput/Button/Notice + 공용 Progress + HostStatus 점·톤 | 진행 화면 한정 polling · uncertain에서만 다시 확인 · Host 목록으로 재진입 · 완료 결과만 열기 | [K1](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#k1-파일-작업) | 범용 작업 UI 엔진은 만들지 않는다. Progress는 재사용할 기존 공용 막대가 없어 작은 ARIA·토큰 컴포넌트로 추가한다. |
-| 내장 통계와 생성·즐겨찾기 뷰를 연다 | 기존 작업 탭 | DocumentTabs + Views/ViewRenderer, Button/Input/Dialog/Notice, native table/meter와 제품 토큰 | 기본 표 유지 · 제안은 새 탭 · 새 이름 저장 · 목록 열기는 명세만 · 수동 새로고침 | [Plugin views](generated-views-v1.md) | 읽기 전용 뷰는 문서 Save/복구 세션이 없다. SDK 기여 확장은 하지 않는다. |
 | 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | 직접 입력은 즉시 적용·Undo · 디스크는 Save · 미저장 닫기는 Save/Don't save/Cancel ([저장 계약](editing-session-save-v1.md#switching-and-recovery), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. [미적용 초안](editing-session-save-v1.md#applied-content-and-drafts)은 직접 본문 입력과 다르다. |
 | 대상의 작은 속성을 고치며 본문 문맥을 유지한다 | 대상에 붙는 작은 편집면 | 기존 속성 폼과 Popover | Metadata는 Edit로 진입 · Done/유효한 바깥 pointer 적용·Esc 취소 · 오류는 초안 유지 ([P03](ui-patterns-v1.md#p03-편집-진입), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx) | 바깥 적용은 클릭 위치 focus 유지. 링크·교차참조의 명시적 Apply/Cancel, [미주](footnotes-v1.md#editor), [인용 동결](../adr/0008-citations-and-bibliography.md)은 [P04](ui-patterns-v1.md#p04-적용취소완료)의 별도 경계다. |
 | 독립 작업을 열어 다른 문서와 오간다 | 작업 탭 | 기존 탭 / Plugin `TabKind` | Settings는 Sidebar·명령 센터, Plugin은 명령·sidebar/openTab으로 진입 · 오류는 탭/알림에 표시 · Plugin 탭에는 Save/복구 세션 없음 ([탭 수명](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#contributions-lifetime-and-failures)) | [Docling UI 등록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/ui-plugin.tsx) | 문서 탭은 별도 [편집 세션](editing-session-save-v1.md#editor-ownership)을 갖는다. 집계·작업 목록을 문서 본문처럼 꾸미지 않는다. |
@@ -63,7 +55,7 @@
 
 ## 공통 구현
 
-아래 import는 `apps/editor` 내부용이다. [ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 플러그인 화면 코드는 제공받은 ui.Button/Input/DataTable/Notice와 상속 토큰을 기본으로 사용한다. 기존 카탈로그 v2 명세도 유지한다. 앱 번들 renderer가 제품 공통 부품으로 그린다([ADR-0020](../adr/0020-plugin-architecture.md), [catalog-v2](catalog-v2.md), [ui-patterns](ui-patterns-v1.md)). 아래 Plugin Host 열은 보관된 API의 역사적 참조다. 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
+아래 import는 `apps/editor` 내부용이다. [ADR-0022](../adr/0022-plugin-screen-code.md)에 따라 플러그인 화면 코드는 제공받은 ui.Button/Input/DataTable/Notice와 상속 토큰을 기본으로 사용한다. 화면 코드와 제공 부품의 현재 계약은 [플러그인 화면 계약](plugin-screens-v1.md)과 [UI 패턴](ui-patterns-v1.md)을 따른다. 아래 Plugin Host 열은 보관된 API의 역사적 참조다. 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
 
 | 구현 / 실행 예제 함수 | 용도 / 비사용 | Editor import | Plugin Host | 대표 사용처 / 권한 문서 |
 | --- | --- | --- | --- | --- |
@@ -72,7 +64,7 @@
 | Input / `ControlExamples` | 한 줄 입력과 연결된 label·오류문 / multiline editor·select·checkbox 대체 아님 | `import { Input } from "@/components/ui/input"` | `host.Input` | [ServerSettings](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ServerSettings.tsx), [P05](ui-patterns-v1.md#p05-입력칸placeholder위계), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
 | Dialog / `SurfaceExamples` | 독립 입력·focus 경계 / 단순 속성마다 새 모달을 만들지 않음 | `import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"` | `host.Dialog`: open/onClose/title/description/returnFocus/children/footer; primitive API와 다름 | [ConversionDialog](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ConversionDialog.tsx), [P12](ui-patterns-v1.md#p12-모달파일복구설정-범위) |
 | Popover / `SurfaceExamples` | anchor 옆의 작은 표면 / 초안·적용 의미를 제공하는 engine 아님 | `import { Popover, PopoverContent } from "@/components/ui/popover"`; 예제 trigger는 `@base-ui/react/popover` | 미제공 | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx), [P01](ui-patterns-v1.md#p01-속성-편집-표면과-위치), [가용 영역](editor-layout-rules-v1.md#form-content-viewport-782) |
-| 설정 화면 레시피 | Host 콘텐츠 열 안에 SettingsRow/Switch/Select/Input/Action 조합; 값·저장 시점은 호출자 소유 | `import { SettingsRow, SettingsSwitch, SettingsSelect, SettingsInput, SettingsAction } from "@/components/ui/settings"` | `host.SettingsRow/Switch/Select/Input/Action` | [본체 Settings](../../apps/editor/src/shell/SettingsDialog.tsx), AI·Docling Settings; [API 필드](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033) |
+| 설정 화면 레시피 | 설정 콘텐츠 열의 SettingsRow/Switch/Select; 자유 입력·동작은 Input/Button으로 조합하며 값·저장 시점은 호출자 소유 | `import { SettingsRow, SettingsSwitch, SettingsSelect } from "@/components/ui/settings"` | 보관 API(링크 참조) | [본체 Settings](../../apps/editor/src/shell/SettingsDialog.tsx), 비서 설정; [이전 API 필드](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033) |
 | DropdownMenu / `MenuExamples` | trigger에서 작업 선택 / 값 선택·자유 입력 폼 대체 아님 | `import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"` | `host.Menu({ label, items })`: id/label/run(returnFocus), optional disabled/danger/description; Host가 기존 DropdownMenu로 그림 | [Sidebar](../../apps/editor/src/shell/Sidebar.tsx), [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) |
 | ContextMenu / `MenuExamples` | 대상의 우클릭·Shift+F10 작업 / 주 동작의 유일한 진입점으로 사용하지 않음 | `import { ContextMenu } from "@/components/ui/context-menu"` | 미제공 | [DocumentTabs](../../apps/editor/src/shell/DocumentTabs.tsx), [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) |
 | Tooltip / `ControlExamples`, `MenuExamples` | hover·keyboard focus 도움말 / label·필수 안내·오류문 대체 아님 | `import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"` | 미제공 | [main의 TooltipProvider](../../apps/editor/src/main.tsx), [상태 규칙](editor-visual-language-v1.md#state-rules) |
@@ -84,7 +76,7 @@
 
 ## 갤러리 열기와 검토
 
-Plugin views 범주는 query(InputForm, Table, Chart, Panel)와 review(PageSurface, SourceDocumentCompare, ReviewList, ReviewDetail)의 실제 제품 renderer를 사용한다. 메모리 fixture와 adapter만 사용하며 Host 호출·저장은 없다. query/review와 개별 상태를 ChoiceGroup으로 선택한다. review의 refreshing은 Refresh data를 눌러 이전 자료 유지 상태를 확인하고, Changes에서 항목을 선택하면 Details와 메모리 적용·Undo를 확인한다. 외부 서비스나 실제 저장 성공을 증명하는 fixture는 아니다.
+갤러리의 Tables·Screen parts는 현재 공용 부품의 합성 자료 예제이며 외부 서비스나 저장 성공의 증거가 아니다.
 
 수동 검토(2026-11-06, Windows persistent Chrome, 1440×1100, English, Plum): query [Light](assets/generated-views-1241/query-1440-light.png) / [Dark](assets/generated-views-1241/query-1440-dark.png), [인증 오류](assets/generated-views-1241/error-1440-dark.png), 원본 대조 [Light](assets/generated-views-1241/review-1440-light.png) / [Dark](assets/generated-views-1241/review-1440-dark.png), 상세·동작 [Light](assets/generated-views-1241/details-1440-light.png) / [Dark](assets/generated-views-1241/details-1440-dark.png). 입력 간격·테마 대비·12열 overflow와 검토 전후 표시를 확인했다. 원본 이미지는 없는 fixture로 영역 표시를 확인했다. #1278 검토 후 안내를 영역 좌표계 밖으로 이동하고 [단독 PageSurface Light](assets/generated-views-1241/page-1440-light.png) / [Dark](assets/generated-views-1241/page-1440-dark.png)를 추가했다. query·오류·대조·상세 캡처도 갱신했다. Search 배치 차이는 갤러리 wrapper가 제품의 `.form-actions.view-query-actions`를 누락한 것이며 같은 마지막 행·오른쪽 정렬로 수정했다. 상태 선택 label은 읽기 쉬운 표시명으로 바꿨다. `pnpm browser:test ui-gallery --screenshots`의 임시 촬영 body를 실행한 뒤 자동 검사 body를 복원했다. 자동 검사에는 범주 진입·이전 자료 유지·필드 오류·재실행 금지 안내의 대표 연결만 추가하며 픽셀 판정은 없다.
 
@@ -216,32 +208,15 @@ Not now controls and plaintext copy retain their behavior. See the
 
 ## Catalog query renderer V3 (#1241 A안)
 
-공통 구현: `views/QueryViewPage.tsx`의 조회 상태 조합과 `views/source-state.ts`의 고정 오류 adapter,
-`views/QueryInputs.tsx`의 scalar binding. 별도 동적 UI 부품군 없이 Input/Button/Notice/
-FieldError, SettingsSelect의 `form-select settings-select` 레시피와 기존 Lucide 아이콘을 쓴다.
-사용처는 플러그인 기본 화면이다. 폴더 선택 자체 CSS 제거, 첫 조회/loading·이전 결과
-표시, 원문 오류/중복 오류 제거, source별 단일 빈 상태, 문자 별 아이콘 제거를 함께 적용한다.
-SettingsSelect wrapper는 설정 행 배치이므로 조회 form은 같은 control 레시피를 직접 조합한다.
-Plugin jobs는 기존 Notice/Button/공통 progress, Settings는 SettingsSelect/SettingsInput을
-유지하며 조회 입력을 저장 설정으로 취급하지 않는다. 동작 규칙은 [조회 패턴](ui-patterns-v1.md#query-renderer-v3)이 소유한다.
-
-#1263 보완: 값 지우기는 Input 안의 ghost/icon-sm + Lucide X/Tooltip, optional boolean은
-SettingsSelect 레시피의 Any/Yes/No, 날짜는 공통 Input의 ISO 텍스트/형식 tooltip을 사용한다.
-폼 행동은 기존 `.form-actions`, 가로 스크롤 발견성은 문서 표의 thin scrollbar recipe를 재사용한다.
-`view-label.ts`는 label이 없는 식별자의 표시 fallback만 맡으며 schema/바인딩을 확장하지 않는다.
-
-#1263 차단 결함 보완: 공통 Views는 CatalogView를 query/review로 분기해 각각 QueryViewPage와
-V5 ReviewRenderer를 mount한다. Core ViewInputError의 field diagnostics를 기존 FieldError에
-연결한다. JSON Schema 의미를 UI에 복제하지 않으며 Core의 CSP-safe 해석 compiler를 사용한다.
+선언형 조회 렌더러·입력 form은 2026-11-13 삭제했다. 당시 결정은 [보관본](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-decision-table-v1.md#catalog-query-renderer-v3-1241-a안)에 남긴다. 현재 화면 부품과 입력은 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
 
 ## 동적 뷰 D3 공통 구현
 
-#1341에서 비서 생성·즐겨찾기·출처·Chart 예제를 제거했다. InputForm·세로 Panel·DataTable·review 예제는 `Plugin views`, 조회 교체/가용성 예제는 `Query lifetime`으로 유지한다. 현재 조합은 [플러그인 화면 계약](plugin-screens-v1.md)을 따른다. 새 공통 표면·interaction 예외는 없다.
+선언형·검수·조회 수명 예제는 삭제했다. 공용 DataTable과 코드 화면 부품은 갤러리의 Tables·Screen parts에서 확인한다. 현재 조합은 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
 
 ## 갤러리 탐색과 네이티브 목록 (#1298)
 
-갤러리는 왼쪽 탐색에서 Controls / Surfaces / Menus / Notifications / Plugin views /
-Tables / Query lifetime 묶음을 선택한다. 기본 묶음은 Controls다. Button ghost/sm과
+갤러리는 왼쪽 탐색에서 Controls / Surfaces / Menus / Notifications / Tables / Screen parts 묶음을 선택한다. 기본 묶음은 Controls다. Button ghost/sm과
 Settings의 `settings-navigation` 현재 항목(`aria-current="page"`) 패턴을 재사용한다.
 Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내는 키보드로도 열 수
 있는 Example guidance disclosure에 둔다. 선택한 묶음의 예제 상태는 전환 시 초기화하고
@@ -250,7 +225,7 @@ Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내
 필터는 제품 공통 DataTable/Popover와 native `.form-select`를 유지한다. Windows Chrome에서
 `color-scheme: dark`만으로 펼침 목록의 흰 배경과 상속한 밝은 글자가 함께 나타나는 것을
 수정 전 캡처로 재현했다. 공통 `.form-select option`에 기존 surface/text 역할을 함께 지정한다.
-같은 레시피를 사용하는 SettingsSelect·조회 입력도 이 규칙을 공유하며, 문서 의미·저장·CLI는 바뀌지 않는다.
+같은 레시피를 사용하는 SettingsSelect·DataTable 고정 선택도 이 규칙을 공유하며, 문서 의미·저장·CLI는 바뀌지 않는다.
 
 수동 검토: Windows persistent Chrome, 100% zoom, 1000px 높이. 1440px English Light
 [변경 전](assets/gallery-navigation-1298/before-1440.png) /
@@ -274,7 +249,7 @@ Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내
 
 ### 플러그인 화면 간소화 (#1329)
 
-플러그인 작업 탭의 ViewWorkspace/QueryViewPage와 Button·Notice·기존 간격·글자 토큰을 유지한다. 단일 Host·단일 기본 조회의 선택 장치는 숨기며 조회는 Host 범위다. #1341에서 문서 우측 Views·생성·즐겨찾기를 제거했다. 현재 기준은 [플러그인 화면 계약](plugin-screens-v1.md)이다. 새 표면·공통 interaction 예외는 없다.
+선언형 QueryViewPage와 기본 조회 선택은 삭제했다. 플러그인 화면은 ViewWorkspace의 고정 client·작업 탭 수명과 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
 
 ## PDF reading choice (#1337)
 
@@ -283,9 +258,4 @@ Explorer PDF activation uses the existing task tab rather than the transient ima
 
 ## 플러그인 입력 후보 (#1352)
 
-자유 입력 + 서버 후보는 Base UI Autocomplete를 사용한다. QueryInputs의 기존 Input
-render와 label·FieldError·지우기 버튼을 재사용한다. popup은 Popover와 같은 token·portal·
-경계 충돌 배치를 사용하며 목록과 키보드 동작은 Base UI가 소유한다. 자체 키보드 처리는 없다.
-상태 안내나 설명 표면을 추가하지 않으며 후보 실패는 입력을 막지 않는다. 기존 Settings의
-고정 선택과 조회 Select는 유지한다. 새 공통 상호작용의 예외는 없고 소유자 승인 범위의
-Autocomplete adapter만 추가한다. 동작은 [입력 후보 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#입력-후보-1352-sdk-030)을 따른다.
+선언형 입력 후보·QueryInputs는 2026-11-13 삭제했다. 당시 UI 결정은 [보관본](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-decision-table-v1.md#플러그인-입력-후보-1352)에 남긴다. 현재 입력 UI는 플러그인의 화면 코드가 제공한다.

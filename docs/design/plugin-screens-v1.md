@@ -35,6 +35,8 @@ Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다.
 
 SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편집 세션·검수 상태·대응 저장소·동기 스크롤·연결선·PDF·탭 조작은 넣지 않는다. 화면 상호작용이므로 별도 CLI 명령은 만들지 않으며 읽기는 기존 inspect를 사용한다. UI gallery의 Document view는 합성 snapshot을 사용하는 같은 부품의 예제다. 새 색/대화/일반 상호작용 없이 기존 paper·간격·accent·warning Notice를 사용한다.
 
+각 DocumentView는 저장본을 따로 읽고 읽기 전용 DocumentEditor/Tiptap 인스턴스를 만든다. 한 화면에 여러 개를 동시에 mount하면 읽기·렌더링·레이아웃과 메모리 비용도 각각 든다. 현재 필요한 보기만 mount하도록 구성하는 것을 권장한다. 큰 문서나 여러 보기 동시 표시의 초기 표시 시간·메모리·응답성은 측정하지 않았고, packaged Desktop에서 여러 보기를 동시에 표시하는 동작도 검증하지 않았다.
+
 ## 파일·폴더 선택과 문서 열기
 
 화면은 `pickPath({kind:"pdf"|"folder"|"document",initialPath?})`와 `openDocument({path})`를 받는다. Host/창 식별자나 임의 확장자 필터는 없다. 화면 상호작용이므로 별도 CLI 명령은 추가하지 않는다.

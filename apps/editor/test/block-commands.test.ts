@@ -1,9 +1,8 @@
 import { nativeSource } from "./helpers/document.ts";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
+
+
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 import { getSchema } from "@tiptap/core";
 import { history, redo, undo } from "@tiptap/pm/history";
 import { deleteSelection } from "@tiptap/pm/commands";
@@ -37,7 +36,6 @@ import { endnoteCommandItems } from "../src/endnotes.ts";
 import { referenceCommandItems } from "../src/cross-reference.tsx";
 import { i18n } from "../src/i18n.ts";
 
-const editorRoot = fileURLToPath(new URL("..", import.meta.url));
 const schema = getSchema(editorExtensions());
 const DELETE_COMMAND = BLOCK_COMMANDS.find(command => command.id === "delete")!;
 const noop = () => {};

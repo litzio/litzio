@@ -10,8 +10,6 @@
 .ui-gallery-icons { display: inline-flex; gap: var(--space-3); }
 .ui-gallery-icons svg { width: var(--size-icon-slot); height: var(--size-icon-slot); }
 .ui-gallery footer { padding-bottom: var(--space-12); color: var(--id-color-text-muted); }
-.ui-gallery [aria-label="Generated view state"] { flex-wrap: wrap; height: auto; }
-.ui-gallery .views-page { height: auto; overflow: visible; }
 .ui-gallery-body { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: var(--space-5); align-items: start; }
 .ui-gallery-navigation { position: sticky; top: 0; padding: var(--space-4) var(--space-2) var(--space-4) 0; }
 .ui-gallery-navigation nav button { white-space: normal; height: auto; min-height: var(--size-control-compact); text-align: left; }
@@ -26,12 +24,10 @@
   .ui-gallery-body { grid-template-columns: 8rem minmax(0, 1fr); gap: var(--space-3); }
 }
 
-.gallery-table-examples { display: flex; flex-direction: column; gap: var(--space-4); }
 .gallery-table-example { min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .gallery-table-example table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
 .gallery-table-example th, .gallery-table-example td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: 1px solid var(--id-color-border-subtle); white-space: nowrap; }
 .gallery-table-example th { background: var(--id-color-surface-subtle); font-weight: 500; }
-.gallery-table-examples, .view-table-scroll { min-width: 0; max-width: 100%; }
+.view-table-scroll { min-width: 0; max-width: 100%; }
 .gallery-table-example th, .gallery-table-example td { min-width: calc(var(--space-4) * 8); max-width: calc(var(--space-4) * 24); white-space: normal; overflow-wrap: anywhere; }
-.gallery-table-example-container { min-width: 0; width: 100%; }
 .gallery-table-example .data-table th, .gallery-table-example .data-table td { min-width: 0; max-width: none; }

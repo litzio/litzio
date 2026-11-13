@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sectionBoundaries, sectionMarker, sectionRange, type SectionMarker } from "../src/section.ts";
-import { getEditableDocument, insertParagraph, insertTarget, moveBlock, moveSection, parse, removeBlock, removeSection, serialize } from "./core-internal.ts";
+import { getEditableDocument, insertParagraph, moveBlock, moveSection, parse, removeSection, serialize } from "./core-internal.ts";
 
 // 0 Preamble · 1 # One · 2 Intro · 3 (sec-a)= · 4 ## A · 5 Body A · 6 ### A.1 · 7 Deep · 8 ## B · 9 Body B · 10 # Two · 11 End
 const source = "Preamble.\n\n# One\n\nIntro.\n\n(sec-a)=\n## A\n\nBody A.\n\n### A.1\n\nDeep *x*.\n\n## B\n\nBody B.\n\n# Two\n\nEnd.\n";
