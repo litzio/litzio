@@ -45,7 +45,9 @@ export type HealthCheckResult=z.infer<typeof healthCheckResultSchema>;
 export const HEALTH_CHECK_OUTPUT_SCHEMA={type:"object",properties:{ok:{type:"boolean"},message:{type:"string",minLength:1,maxLength:300}},required:["ok","message"],additionalProperties:false} as const;
 export type PluginStatus={available:boolean;message:string};
 export const statusSchema=z.strictObject({available:z.boolean(),message:z.string()});
-export type PluginContext={secrets?:Readonly<Record<string,string>>;settings:Readonly<Record<string,unknown>>;platform:string;env:Readonly<Record<string,string|undefined>>;isDirectory(path:string):boolean};
+/** Shell-free launch descriptor for this Host's official CLI. Append command arguments. */
+export type PluginCli = Readonly<{ bin: string; args: readonly string[] }>;
+export type PluginContext={cli?:PluginCli;secrets?:Readonly<Record<string,string>>;settings:Readonly<Record<string,unknown>>;platform:string;env:Readonly<Record<string,string|undefined>>;isDirectory(path:string):boolean};
 export type PluginInstance={operations:Record<string,(input:unknown)=>unknown|Promise<unknown>>;status():PluginStatus|Promise<PluginStatus>;dispose():void|Promise<void>};
 export type PluginModule={activate(context:PluginContext):PluginInstance|Promise<PluginInstance>};
 export type OperationReceipt={requestId:string;operation:string;version:number;scope:string;outcome:"success"|"refused"|"failure"|"uncertain"};

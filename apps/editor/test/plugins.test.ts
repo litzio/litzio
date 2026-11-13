@@ -1,3 +1,5 @@
+import { PLUGIN_CLI_SOURCE, PLUGIN_CLI_OPERATION, verifyPluginCli } from "../../../test/helpers/external-plugin.ts";
+import { availableHostCli, hostCli } from "../server/host-cli.ts";
 import {writeCodePluginManifest} from "../../../test/helpers/code-plugin.ts";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
@@ -975,7 +977,7 @@ test("authoring refuses deterministic junction replacements between checking and
   });
 });
 
-test("authoring accepts aliases above the data folder and validates canonical and configured paths", async t => {
+test("authoring aliases share canonical validation/install paths and retain write scope", async t => {
   const root = canonicalFilePath(mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-parent-")));
   const data = path.join(root, "real-data"), alias = path.join(root, "data-alias"), documents = path.join(root, "documents");
   mkdirSync(data); mkdirSync(documents);
@@ -991,6 +993,7 @@ test("authoring accepts aliases above the data folder and validates canonical an
       rmdirSync(artifact);
     }
     if (existsSync(expected)) rmdirSync(expected);
+    if (existsSync(path.join(root, "state.json"))) rmSync(path.join(root, "state.json"));
     for (const folder of [documents, data, root]) rmdirSync(folder);
   });
   assert.equal(host.authoringPath(), expected);
@@ -1000,6 +1003,13 @@ test("authoring accepts aliases above the data folder and validates canonical an
   assert.equal((created.result as any).directory, artifact);
   for (const directory of [artifact, path.join(configured, id)]) {
     assert.equal((await host.invoke("validate", { directory }) as any).valid, true);
+    const denied: any = await host.invoke("install", { directory }, access);
+    assert.equal(denied.receipt.outcome, "failure");
+    assert.equal(denied.errors[0].path, "directory");
+    assert.equal(denied.errors[0].code, "outside_plugin_scope");
+    const installed: any = await host.invoke("install", { directory });
+    assert.equal(installed.receipt.outcome, "success", JSON.stringify(installed));
+    assert.equal((await host.list())[0]!.running, true);
   }
 });
 
@@ -1015,6 +1025,9 @@ test("read-only validation never creates a missing plugins directory or its data
   });
   const result = await executePluginTool(host, { action: "validate", directory: path.join(directory, "missing") }, () => {}, { access: null, folders: null, permissionMode: "read-only" });
   assert.equal(result.activity.outcome, "failure");
+  assert.ok("result" in result);
+  assert.equal((result.result as any).errors[0].path, "directory");
+  assert.match((result.result as any).errors[0].message, /existing plugin directory/);
   assert.equal(existsSync(directory), false);
   assert.equal(existsSync(data), false);
   mkdirSync(data);
@@ -1438,4 +1451,40 @@ test("bundled npm cache publishes complete archives, reuses them and retries int
   assert.notEqual(updated.entry,ready[0].entry);
   assert.equal(updated.extracted,true);
   assert.equal(readFileSync(updated.entry,"utf8"),"version two");
+});
+
+test("scaffolded Node plugins use the Host CLI and fail clearly without a launcher", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-cli-"));
+  const host = new PluginHost(path.join(root, "state.json"), {authoringDirectory:path.join(root,"plugins")});
+  const absent = new PluginHost(path.join(root, "absent.json"), {cli:null});
+  try {
+    assert.deepEqual(availableHostCli(), hostCli());
+    assert.equal(availableHostCli({packaged:true}), undefined);
+    assert.equal(availableHostCli({checkoutRoot:path.join(root,"missing")}), undefined);
+    await host.invoke("scaffold", {id:"fixture.cli"});
+    const directory = path.join(root,"plugins/fixture.cli");
+    const file = path.join(directory,"litzio-plugin.json");
+    const manifest = JSON.parse(readFileSync(file,"utf8")); manifest.operations=[PLUGIN_CLI_OPERATION];
+    writeFileSync(file,JSON.stringify(manifest));writeFileSync(path.join(directory,"host.mjs"),PLUGIN_CLI_SOURCE);
+    const installed: any = await host.invoke("install",{directory});
+    assert.equal(installed.receipt.outcome, "success", JSON.stringify(installed));
+    assert.equal((await host.list())[0]!.running, true);
+    await verifyPluginCli(async args => {
+      const reply = await host.invokeOperation("fixture.cli.run",{args});
+      assert.equal(reply.receipt.outcome, "success", JSON.stringify(reply));
+      assert.ok("result" in reply);
+      return reply.result;
+    }, root);
+    const installedWithoutCli: any = await absent.invoke("install",{directory});
+    assert.equal(installedWithoutCli.receipt.outcome, "success", JSON.stringify(installedWithoutCli));
+    assert.deepEqual((await absent.list())[0]!.status, {available:false,message:"This Host has no official CLI launcher"});
+    const unavailable = await absent.invokeOperation("fixture.cli.run",{args:["--version"]});
+    assert.ok("errorKind" in unavailable);
+    assert.equal(unavailable.errorKind, "unavailable");
+    // Registration/enable and reload also transport the same optional descriptor.
+    await host.invoke("disable",{id:"fixture.cli"}); await host.invoke("enable",{id:"fixture.cli"});
+    assert.equal(((await host.invokeOperation("fixture.cli.run",{args:["--version"]})).result as any).status,0);
+    await host.invoke("reload",{id:"fixture.cli"});
+    assert.equal((await host.list())[0]!.status!.available,true);
+  } finally { await Promise.all([host.close(),absent.close()]);rmSync(root,{recursive:true,force:true}); }
 });
