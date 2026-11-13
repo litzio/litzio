@@ -604,13 +604,13 @@ export function machineNodes(document: EditableDocument): MachineNode[] {
 function machineBlock(block: EditableBlock): MachineNode[] {
   const base = { path: [...block.path], type: block.block };
   if (block.block === "heading") {
-    return [{ ...base, level: block.level, editable: block.editable, text: block.text }];
+    return [{ ...base, level: block.level, editable: block.editable, text: block.text, content: block.content }];
   }
   if (block.block === "paragraph") {
-    return [{ ...base, editable: block.editable, text: block.text }];
+    return [{ ...base, editable: block.editable, text: block.text, content: block.content }];
   }
   if (block.block === "admonition") {
-    return [{ ...base, variant: block.variant, text: block.text }];
+    return [{ ...base, variant: block.variant, text: block.text, content: block.content }];
   }
   if (block.block === "figure") {
     return [
@@ -628,6 +628,7 @@ function machineBlock(block: EditableBlock): MachineNode[] {
         type: "caption",
         editable: block.caption.editable,
         text: block.caption.text,
+        content: block.caption.content,
       },
     ];
   }
@@ -644,15 +645,16 @@ function machineBlock(block: EditableBlock): MachineNode[] {
           header: cell.header,
           editable: cell.editable,
           text: cell.text,
+          content: cell.content,
         })),
       ),
     ];
   }
   if (block.block === "quote") {
-    return [{ ...base, editable: block.editable, text: block.text }];
+    return [{ ...base, editable: block.editable, text: block.text, content: block.content }];
   }
   if (block.block === "footnote") {
-    return [{ ...base, label: block.label, editable: block.editable, text: block.text }];
+    return [{ ...base, label: block.label, editable: block.editable, text: block.text, content: block.content }];
   }
   if (block.block === "divider") {
     return [base];

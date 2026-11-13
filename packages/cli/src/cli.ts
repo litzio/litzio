@@ -281,7 +281,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} inspect <file> [--format <text|json>]`,
     details: [
       "Inspect semantic blocks and editable targets.",
-      "JSON includes revision: the SHA-256 of the original UTF-8 text read for this inspect.",
+      "JSON nodes expose Core InlineContent as content (table caption as caption; list items as items). text is a readable summary. JSON includes revision: the SHA-256 of the original UTF-8 text read for this inspect.",
       ...REVISION_NOTE,
       "",
       "Editability fields describe the current semantic projection.",

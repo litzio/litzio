@@ -3146,3 +3146,42 @@ test("operation CLI preserves Host failure kind and read advice without replay",
   assert.deepEqual(JSON.parse(output), { target: "http://127.0.0.1:5180", ...failure });
   assert.equal(calls, 1);
 });
+
+test("inspect preserves Core inline content at every native location", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-inline-read-"));
+  const file = path.join(dir, "sample.md");
+  const rich = "**bold** *italic* {sup}`2` {sub}`n` $x$ `code` [link](https://example.com) {ref}`section`";
+  const source = nativeSource(`(section)=\n# ${rich}\n\n${rich}[^n]\n\n> ${rich}\n\n:::{note}\n${rich}\n:::\n\n- ${rich}\n  - Nested $y$\n\n:::{table} ${rich}\n:label: tbl\n\n| Value |\n| --- |\n| ${rich}[^n] |\n:::\n\n:::{figure} ./image.png\n${rich}\n:::\n\n[^n]: ${rich}\n`);
+  try {
+    writeFileSync(file, source);
+    const model = getEditableDocument(parse(source));
+    const result = run(["inspect", file, "--format", "json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const nodes = JSON.parse(result.stdout).nodes;
+    for (const block of model.blocks) {
+      const node = nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(block.path));
+      if ("content" in block) assert.deepEqual(node.content, block.content);
+      if (block.block === "list") assert.deepEqual(node.items, block.items);
+      if (block.block === "table") {
+        assert.deepEqual(node.caption, block.caption);
+        for (const row of block.rows) for (const cell of row.cells)
+          assert.deepEqual(nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(cell.path)).content, cell.content);
+      }
+      if (block.block === "figure") assert.deepEqual(nodes.find((n: any) => n.type === "caption" && JSON.stringify(n.path) === JSON.stringify(block.caption.path)).content, block.caption.content);
+    }
+    const blocks = model.blocks.map(block => {
+      const node = nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(block.path));
+      if (block.block === "table") return { kind: "table", label: node.label, caption: node.caption,
+        rows: block.rows.map(row => row.cells.map(cell => nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(cell.path)).content)) };
+      if (block.block === "figure") return { kind: "figure", imageUrl: node.imageUrl, imageAlt: node.imageAlt,
+        caption: nodes.find((n: any) => JSON.stringify(n.path) === JSON.stringify(block.caption.path)).content };
+      const { type: kind, path, text, editable, section, numbers, headingNumber, referenceText, captionNumberText, ...fields } = node;
+      return { kind, ...fields };
+    });
+    const input = path.join(dir, "input.json"), rebuilt = path.join(dir, "rebuilt.md");
+    writeFileSync(input, JSON.stringify({ authoring: { inputs: [{ key: "read", blocks }] } }));
+    const created = runProcess(["create", rebuilt, "--input", input, "--format", "json"]);
+    assert.equal(created.status, 0, created.stderr);
+    assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
