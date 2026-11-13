@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [AGENTS.md](../../AGENTS.md).
-- Last verified: 2026-11-13 — #1592 1-2 코드·대상 검사 대조. 실제 외부 서비스·원격 PC 수락은 포함하지 않는다.
+- Last verified: 2026-11-13 — #1592 1-2 코드·대상 검사 대조. Node context CLI는 소스·배포 Host의 실행 정보와 그림 포함 create/batch/check 경계를 검사한다. 실제 외부 서비스·원격 PC 수락은 포함하지 않는다.
 
 ## 현재 범위
 
@@ -21,6 +21,62 @@ OneDrive·Jira·Docling, 선언형 화면·조회·자동 form·검수·원본 �
 선택 선언은 `description`, `operations`, `settingsSchema`, `secrets`, `skills`, `healthCheck`다. 공개 작업은 id·version·effect(read/write)·scope·assistant·inputSchema·outputSchema를 선언한다. 생략 기본값은 version 1, read, host, assistant false, 빈 schema다. 화면 전용 handler는 공개 작업 선언 없이 자기 화면의 invoke로 호출한다. 비서는 assistant:true 읽기와 healthCheck만 호출한다. 외부 CLI의 공개 invoke와 같은 입력·출력 검증 및 receipt를 사용한다.
 
 아이콘은 제공된 이름 또는 artifact 내부 SVG/PNG다(확장자 대소문자 무관, 최대 64 KiB·가로/세로 1–256px). WebP 등 다른 형식은 거부한다. SDK의 공통 형식 정의를 manifest 검증과 Host 로더가 함께 사용한다. host/screen/icon의 절대 경로·URL·상위 탈출을 거부하며 파일은 artifact 안에서 해석한다. 화면 소스와 SDK handler 검증은 설치 시 실행 전에 수행한다. 스키마의 외부 참조·중복 작업/secret/skill ID를 거부한다. SDK는 Editor/React 엔진에 의존하지 않는다.
+
+## Node 처리 코드의 공식 CLI
+
+`PluginContext.cli?: Readonly<{bin:string;args:readonly string[]}>`는 이 Host와 같은 배포물/소스 버전의 공식 CLI 실행 정보다. `bin`을 실행 파일로 쓰고 고정 `args` 뒤에 명령 인자를 붙여 Node child_process의 execFile/spawn으로 실행한다. shell·PATH 검색이나 설치 경로 추측은 필요 없다. 플러그인 child의 환경을 상속한다(Desktop의 Electron Node 모드 포함). 실행 파일·CLI entry가 없거나 Host 구성을 식별할 수 없으면 cli는 없다. 이때 플러그인은 status에 원인을 알리고 필요한 작업을 unavailable로 실패시킨다. 다른 설치나 사용자 설정으로 조용히 fallback하지 않는다.
+
+소스 Host는 현재 checkout의 CLI와 tsx loader, 패키징된 Desktop daemon과 독립 HTTP Host는 자기 CLI 배포물의 entry를 사용한다. 비서의 CLI shim도 같은 Host resolver를 사용한다. 이 값은 Host 주소·인증·문서 API가 아니며 `--host`를 자동 추가하지 않는다. `create`, `check`, `apply-batch`의 파일 경로는 이 PC에서 해석된다. SDK/Core나 Host에 명령별 wrapper·문서 의미를 새로 구현하지 않는다. CLI 파일 쓰기는 미저장 Editor 상태를 알지 못하므로 저장된 파일에만 사용한다.
+
+아래 예는 필요한 플러그인의 처리 코드에만 넣는다. scaffold 기본 골격에는 추가하지 않는다. 입력 folder는 존재하는 출력 폴더, imagePath는 실제 PNG 파일이다. CLI에 줄 JSON은 artifact 밖 임시 폴더에 두고 완료·실패 모두 정리한다. 예는 짧은 작업이며 긴 처리는 기존 plugin 소유 작업·진행 조회 방식으로 나눈다.
+
+```js
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { PluginOperationError } from "@litzio/plugin-sdk";
+const exec = promisify(execFile);
+export function activate(context) {
+  return {
+    status: () => ({ available: !!context.cli,
+      message: context.cli ? "Ready" : "This Host has no official CLI launcher" }),
+    operations: { build: async ({ folder, imagePath }) => {
+      const cli = context.cli;
+      if (!cli) throw new PluginOperationError("unavailable");
+      const temporary = await mkdtemp(path.join(os.tmpdir(), "plugin-authoring-"));
+      try {
+        const input = path.join(temporary, "authoring.json");
+        const operations = path.join(temporary, "operations.json");
+        const target = path.join(folder, "report.md");
+        await writeFile(input, JSON.stringify({
+          authoring: { inputs: [{ key: "result", blocks: [
+            { kind: "paragraph", text: "Before" },
+            { kind: "figure", imageAsset: "picture", imageAlt: "Result", caption: "Result" }
+          ] }] },
+          images: [{ key: "picture", mime: "image/png",
+            base64: (await readFile(imagePath)).toString("base64") }]
+        }));
+        const created = await exec(cli.bin, [...cli.args, "create", target,
+          "--input", input, "--format", "json"], { windowsHide: true });
+        // One operation; existing CLI/Core batch semantics and write checks apply.
+        await writeFile(operations, JSON.stringify([
+          { command: "replace-text", from: "Before", to: "After" }
+        ]));
+        await exec(cli.bin, [...cli.args, "apply-batch", target, "--operations", operations],
+          { windowsHide: true });
+        const checked = await exec(cli.bin, [...cli.args, "check", target,
+          "--format", "json"], { windowsHide: true });
+        return { created: JSON.parse(created.stdout), checked: JSON.parse(checked.stdout) };
+      } finally { await rm(temporary, { recursive: true, force: true }); }
+    } },
+    dispose() {}
+  };
+}
+```
+
+기존 이름은 create가 거부한다. subprocess 오류 뒤 쓰기를 자동 재실행하지 않는다. create의 receipt는 batch 전 revision이므로 이후 수정의 최신 상태는 check 결과와 저장 파일로 확인한다. raw stderr에는 파일 내용·경로가 포함될 수 있으므로 사용자에게 필요한 원인만 표시하고 secret을 공개 작업 결과로 반환하지 않는다.
 
 ## 설정·비밀값·비서 지침
 
@@ -45,6 +101,8 @@ CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `val
 loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정규화된 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 비서는 이를 `--host`에 명시한다. CLI의 필수 주소 검증·실패 시 재실행 금지는 유지한다. origin이 없는 환경에서는 부모의 값을 상속하지 않으며 주소가 없다고 보고하고 중단한다. 연결 수명은 [비서 계약](main-agent-v1.md)을 따른다.
 
 비서 CLI의 자동 주소 전달은 기존 HTTP 허용 목록을 바꾸지 않는다. non-loopback·wildcard·IPv4-mapped IPv6 bind에는 주소를 전달하지 않는다. 이 개발/검사용 구성에서는 자동 주소를 필요로 하는 비서의 Host 대상 CLI 호출만 주소 없음으로 분명히 실패하며, public-origin이나 다른 loopback 주소를 추측하지 않는다. 수동으로 명시한 CLI --host와 기존 HTTP 허용 판정은 유지한다.
+
+제작 폴더 안의 artifact는 설정된 경로와 scaffold가 반환한 canonical 경로 모두로 validate/install/dependencies/bundle할 수 있다. 경로가 허용된 제작 폴더 아래인지 확인한 뒤 Windows 8.3 이름·부모 alias를 canonical 경로로 해석하고, 고정 root 및 요청 쓰기 범위를 다시 검사한다. alias가 범위 밖을 가리키거나 root가 바뀌면 거부한다. validate/install의 디렉터리 단계 거부는 `file:"artifact directory"`, `path:"directory"`와 접근 범위·존재·권한·root/link 조건을 설명하는 안전한 진단을 반환하며 OS 오류의 절대 경로를 노출하지 않는다.
 
 npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 제작 시 외부 라이브러리를 bundle하고 실행 시 네트워크 설치를 하지 않는다. 레지스트리·프록시는 기존 npm 설정을 사용한다.
 
