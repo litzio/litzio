@@ -16,10 +16,8 @@ import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse, serial
 import { createHash, randomUUID } from "node:crypto";
 import { PluginAssistantSkills } from "../server/plugins/assistant-skills.ts";
 
-// Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
-// SDK runtime admission, official K1 storage and the browser result boundary.
-
-const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
+// Host lifecycle and public-operation tests stay in-process.
+// HTTP plugin scenarios cover browser registration/settings/secret integration.
 
 
 

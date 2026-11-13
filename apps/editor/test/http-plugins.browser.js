@@ -1,21 +1,4 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocument, reloadDocument, waitForExplorerLayout }) => {
-  const captureEntries = screenshots;
-  if (pluginFixture.docling?.entryCaptureOnly) screenshots = false;
-  // Manual visual review only; automatic assertions do not depend on these images.
-  const captureEntry = async (name, widths = [1440]) => {
-    if (!captureEntries) return;
-    const viewport = page.viewportSize();
-    const originalTheme = await page.evaluate(() => document.documentElement.dataset.theme);
-    for (const width of widths) for (const theme of ["light", "dark"]) {
-      await page.setViewportSize({width,height:1000});
-      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-      await page.mouse.move(0,0);
-      await page.screenshot({path:`docs/design/assets/compare-entry-1465/${name}-${width}-${theme}.png`, mask:[page.locator(".sidebar-host-account"),page.locator(".sidebar-folder-header"),page.locator(".document-location"),page.getByLabel("Opened folder",{exact:true})],maskColor:"#a1a1aa"});
-    }
-    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, originalTheme);
-    await page.setViewportSize(viewport);
-  };
-
   const secretSaves = [];
   const saveSecret = async () => {
     const start = Date.now();
@@ -40,9 +23,6 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await showExplorer();
     await page.locator('.sidebar').getByRole('button',{name,exact:true}).click();
   };
-  // Manual comparison evidence exercises only comparison; automatic HTTP still runs
-  // the entire registration/settings/secret contract below.
-  if (!(screenshots && pluginFixture.docling?.realFile && pluginFixture.docling?.comparisonCapture)) {
   await openSettings();
   pluginFixture.cli(["plugins", "register", pluginFixture.directory]);
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
@@ -222,6 +202,4 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(page.getByRole("alert").filter({ hasText: "The selected plugin is no longer available." })).toBeVisible();
   expect(await page.evaluate(() => { window.pluginNoticeObserver.disconnect(); return window.pluginNoticeMaximum; }), "A closing dialog must not duplicate the selected-plugin notice").toBe(1);
   await page.keyboard.press("Escape");
-  }
-
 }

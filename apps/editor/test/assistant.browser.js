@@ -9,7 +9,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const models = [{ id: 'sol', model: 'gpt-6.1-sol', displayName: 'GPT Sol', description: 'General model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['medium', 'high'].map(reasoningEffort => ({ reasoningEffort })) },
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
   let skillsFail = false, longSkills = false, skillLookups = 0;
-  const skill = { displayName: 'Docling · 검수', name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
+  const skill = { displayName: 'Fixture · 문서 안내', name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
   await page.route('**/api/assistant/skills*', route => { skillLookups++; return route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: longSkills ? Array.from({ length: 24 }, (_, index) => ({ ...skill, name: `scroll-skill-${index}`, path: skill.path + index })) : [skill], errors: [] } }); });
   const copilotOptions = { reasoningEffortSource: 'cli', currentMode: 'agent', modes: [{ id: 'agent', name: 'Agent', description: '' }, { id: 'plan', name: 'Plan', description: '' }] };
   const copilotModels = ['auto', 'copilot-model'].map(id => ({ id, model: id, displayName: id === 'auto' ? 'Auto' : 'Copilot fixture model', description: '', supportedReasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort })), defaultReasoningEffort: 'medium' }));
@@ -463,7 +463,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.press('Control+Shift+Y');
   await expect(message).toBeEnabled();
 
-  await message.click(); await page.keyboard.type('/검수', { delay: 60 });
+  await message.click(); await page.keyboard.type('/문서', { delay: 60 });
   const skillOptions = panel.getByRole('listbox', { name: 'Codex skills' });
   await expect(skillOptions.getByRole('option')).toContainText(skill.description);
   await expect(skillOptions.getByRole('option')).toContainText(skill.displayName);

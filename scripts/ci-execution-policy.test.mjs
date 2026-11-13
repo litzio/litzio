@@ -23,7 +23,6 @@ test('plugin packages retain their consumers without full lifecycle or layout co
       .flatMap(root => [`${root}/package.json`, `${root}/new-input.js`])];
   const inputs = ['apps/editor/src/App.tsx', 'apps/desktop/src/updates.ts',
     'packages/cli/src/cli.ts', 'packages/cli/scripts/plugin-sdk.ts',
-    'apps/editor/server/plugins/designated-plugins.ts',
     'apps/editor/server/plugins/artifact-digest.mjs', 'pnpm-lock.yaml', 'unknown/config.json'];
   for (const eventName of ['pull_request', 'merge_group']) {
     const payload = eventName === 'merge_group' ? event : { pull_request: { base: { sha: base }, head: { sha } } };
@@ -457,7 +456,6 @@ test('removal combinations default to full and all remain mandatory in release v
   // Direct build tooling and copied sample payload are installation inputs even without update selection.
   for (const event of ['pull_request', 'merge_group']) {
     for (const input of ['packages/cli/scripts/plugin-sdk.ts',
-      'apps/editor/server/plugins/designated-plugins.ts',
       'apps/editor/server/plugins/artifact-digest.mjs', 'apps/editor/samples/en/converter-control.md']) {
       for (const paths of [[input], [input, 'apps/desktop/src/host-protocol.ts']]) {
         const jobs = selectJobs(event, paths);

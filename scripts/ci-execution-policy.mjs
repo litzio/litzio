@@ -56,7 +56,6 @@ const desktopBuildInput = path => desktopBuildInputs.has(path) || path.startsWit
 // Removal must cover them without changing Stable/Beta or layout selection.
 const removalBuildInputs = new Set([
   'packages/cli/scripts/plugin-sdk.ts',
-  'apps/editor/server/plugins/designated-plugins.ts',
   'apps/editor/server/plugins/artifact-digest.mjs',
 ]);
 const removalBuildInput = path => removalBuildInputs.has(path) || path.startsWith('apps/editor/samples/');

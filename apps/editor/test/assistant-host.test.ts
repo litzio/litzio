@@ -16,13 +16,13 @@ test("Codex skill discovery waits for plugin startup; Copilot retains tool-only 
   let started = false, discovered = false, release!: () => void;
   const ready = new Promise<void>(resolve => { release = () => { started = true; resolve(); }; });
   const agent = { async skills() { assert.equal(started, true); discovered = true; return { skills: [{ name: "internal", path: "/plugin/SKILL.md", description: "Review" }, { name: "user", path: "/user/SKILL.md", description: "User" }], errors: [] }; }, async close() {} } as unknown as ProviderConnections;
-  const plugins = { start: () => ready, host: { skillDisplayName: (file: string) => file === "/plugin/SKILL.md" ? "Docling · review" : undefined } } as import("../server/plugin-service.ts").PluginService;
+  const plugins = { start: () => ready, host: { skillDisplayName: (file: string) => file === "/plugin/SKILL.md" ? "Fixture · documents" : undefined } } as import("../server/plugin-service.ts").PluginService;
   const host = createAssistantHost(null, path.join(root, "settings.json"), { agent, plugins });
   try {
     const listing = host.invoke("assistantSkills", { provider: "codex" });
     await Promise.resolve(); assert.equal(discovered, false);
     await assert.rejects(host.invoke("assistantSkills", { provider: "copilot" }), /only with Codex/);
-    release(); assert.deepEqual((await listing).skills, [{ name: "internal", path: "/plugin/SKILL.md", description: "Review", displayName: "Docling · review" }, { name: "user", path: "/user/SKILL.md", description: "User" }]);
+    release(); assert.deepEqual((await listing).skills, [{ name: "internal", path: "/plugin/SKILL.md", description: "Review", displayName: "Fixture · documents" }, { name: "user", path: "/user/SKILL.md", description: "User" }]);
   } finally { release(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

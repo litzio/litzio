@@ -33,8 +33,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
-  const serviceUrl = dialog.getByRole("textbox", { name: "docling-serve URL", exact: true });
-  await serviceUrl.fill("https://docling.example.test/service");
+  const serviceUrl = dialog.getByRole("textbox", { name: "Service URL", exact: true });
+  await serviceUrl.fill("https://fixture.example.test/service");
   const check = dialog.getByRole("button", { name: "Check connection", exact: true });
   let invokes = 0;
   page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST" && request.postDataJSON()?.action === "invoke") invokes++; });
@@ -45,7 +45,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   });
   await serviceUrl.press("Tab");
   await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
-  await expect(serviceUrl).toHaveValue("https://docling.example.test/service");
+  await expect(serviceUrl).toHaveValue("https://fixture.example.test/service");
   await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("Could not save settings. Check the values and try again.");
   await check.click();
   expect(invokes).toBe(0);
@@ -79,16 +79,16 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(serviceUrl).toHaveValue("");
   await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("This value is too short. Enter a longer value.");
   if (screenshots) await page.screenshot({ path: "tmp/plugin-settings-1407/error-1440.png", mask: [page.locator(".sidebar-host-account")] });
-  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.fill("https://fixture.example.test/service");
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByText("Simulate failure", { exact: true }).hover();
   await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText("Simulates service availability");
-  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://docling.example.test/updated" } } });
+  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://fixture.example.test/updated" } } });
   expect(externalSave.ok()).toBe(true);
   await check.click();
-  await expect(serviceUrl).toHaveValue("https://docling.example.test/updated");
-  await serviceUrl.fill("https://docling.example.test/service");
+  await expect(serviceUrl).toHaveValue("https://fixture.example.test/updated");
+  await serviceUrl.fill("https://fixture.example.test/service");
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByRole("switch", { name: "Simulate failure", exact: true }).click();
@@ -119,11 +119,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.getByRole("button", { name: width === 640 ? "연결 확인" : "Check connection", exact: true }).click();
       await expect(page.getByRole("dialog").getByText("연결하지 못했습니다. 저장된 서버 주소와 자격 증명을 확인한 뒤 다시 시도하세요.", { exact: true })).toBeVisible();
       expect(await page.getByRole("dialog").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-      await expect(page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true })).toHaveValue("https://docling.example.test/service");
+      await expect(page.getByRole("dialog").getByRole("textbox", { name: "Service URL", exact: true })).toHaveValue("https://fixture.example.test/service");
       await expect(page.getByRole("dialog").locator('input[type="password"]')).toBeVisible();
       await page.screenshot({ path: `tmp/plugin-settings-1334/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
       if (width === 640) {
-        const url = page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true });
+        const url = page.getByRole("dialog").getByRole("textbox", { name: "Service URL", exact: true });
         await url.fill(""); await url.press("Tab");
         await expect(page.getByText("저장 실패: 입력한 값이 너무 짧습니다. 더 길게 입력하세요.", { exact: true })).toBeVisible();
         await page.screenshot({ path: "tmp/plugin-settings-1407/error-640-ko.png", mask: [page.locator(".sidebar-host-account")] });

@@ -2,7 +2,6 @@
 
 > 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
 
-> 2026-11-13 (#1592): OneDrive·Jira 실험 플러그인을 삭제했다. 현재 공식 공급은 없고 지정 커뮤니티 공급은 Docling만 남는다. 보관: `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그. 아래 두 플러그인의 구현·검증·화면 기록은 삭제 전의 역사이며 현재 제공 기능이 아니다. 설정·Windows secret·하위 프로세스·reload·공용 작업·화면 코드·npm·번들러는 유지한다. Docling과 선언형 문법의 제거는 별도 단계다.
 
 #1285: [앱 초기화](app-reset-v1.md)의 local apply는 실행 중인 Host를 강제 종료하거나 원격 삭제 API로 노출하지 않는다. HTTP/Vite Host와 CLI가 계정 공용 process gate에 참여해 데이터 삭제와 새 writer 시작을 배타 제어한다. `GET /api/app-reset/paths`는 runtime이 고정한 절대 templates·assistant cwd·설정 파일 경로만 반환하며 Desktop은 자신의 해석과 대조한다. Host close는 listener/socket 종료뿐 아니라 이미 수락한 비동기 request handler의 완료도 기다린 뒤 writer lease를 해제하고, 반복 close는 같은 종료 promise를 반환한다. Vite는 문서·asset middleware의 SSR module loading부터 promise를 추적하며 종료 중 새 Host 서비스 생성을 거부한다. `server.close()`는 그 정리도 기다리고 내부 restart의 listener 종료 이벤트 역시 같은 drain 후에만 lease를 해제한다. socket 종료를 파일 변경 취소로 간주하지 않는다. 종료 실패는 marker로 남아 확인 없이 초기화하지 못하게 한다. 일반 클라이언트 단절이 Host/AI 수명을 끝내는 것으로 취급하지 않는다.
 
@@ -195,17 +194,7 @@ Bibliography reads reuse the shared stateless Host and existing Root checks thro
 resource errors do not block Markdown Save. The local per-document folder context, HTTP fixed Root
 union, limits and snapshot policy are specified in [Citations v1](citations-v1.md#bibliography-snapshots-and-limited-formatting-unit-b).
 
-Docling configuration and PDF conversion run on this Host under its fixed Root
-policy. HTTP clients share the Host user's server address; they do not call a
-Docling service on the browser device. See the
-[app conversion contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#app-pdf-conversion-797) and
-[Korean administrator guide](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/guides/docling-server.md). Worker admission,
-shared installation/request receipts and uncertain/no-replay
-recovery follow [Host worker plugins](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md), under ADR-0012.
-The same Host also serves enabled, revision/hash-checked installed UI ESM/CSS
-through [Plugin UI contributions](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md) (#857), retaining its CSP and
-document Root policy. Registration checks every supplied source asset against Roots.
-The process-local current snapshot is not a persistent queue or document backend.
+Enabled plugins run in Host-owned Node children. Code screens are served by the target Host; registration, trust, settings, secrets and reload follow [the plugin runtime contract](plugin-stage1-v1.md) and [screen code contract](plugin-screens-v1.md).
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
@@ -236,10 +225,9 @@ Source development can use `pnpm cli daemon run --root <folder>`. Source executi
 uses checkout-local `.litzio-dev/` for plugins, settings and agent cwd. In contrast,
 `node packages/cli/dist/cli.mjs daemon run` is a distributed build and uses the same
 user defaults as installed Desktop. To intentionally share a source HTTP Host with
-Desktop, explicitly set `LITZIO_PLUGINS_DIR`, the required individual
-`LITZIO_<ID>_SETTINGS_FILE` variables and `LITZIO_ASSISTANT_CWD` to the desired
+Desktop, explicitly set `LITZIO_PLUGINS_DIR`, `LITZIO_ASSISTANT_CWD` to the desired
 locations. These overrides take precedence in both execution forms; see
-[runtime paths](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md#installation-and-api). No existing store is
+[current runtime contract](plugin-stage1-v1.md). No existing store is
 migrated or cleaned automatically.
 
 `litzio --version` alone prints `litzio <CLI package version> (<build commit>)` and exits 0. The build injects the version and 12-character Git commit; a Git-free build reports `unknown`. Combining `--version` with any other argument is an argument error. This reads no manifest at runtime. Desktop-specific identity is documented in the [Desktop contract](desktop-distribution-v1.md#optional-command-line-tools-604).
@@ -332,7 +320,7 @@ pnpm browser:test http-host
 
 The package test installs the archive offline outside the checkout and runs existing CLI commands plus daemon run using Node alone. HTTP tests exercise both roots, outside sentinels, links/root replacement, request boundaries, body limits and an access-controlled test reverse proxy covering HTML, API and media. The production browser scenario verifies two-root navigation, actual Save → Reload, New file/folder, image persistence, draft/dirty protection, 409 preservation and SVG script blocking. It is separate from Vite scenarios because startup differs. `--screenshots` adds wide/narrow captures for manual layout review, not a substitute for assertions.
 
-Windows/Linux CI runs package and production browser checks; Windows splits host (`http-host http-plugins`) and plugins (`plugin-jobs plugin-views`) onto independent runners with separate checkout, daemon, port and fixtures, each retaining archive and crash recovery checks; Linux keeps the full group; the two Windows Desktop unit partitions (foundation and editor, together the full `pnpm test`) run the filesystem/HTTP suite, and Linux's quality job runs it with all Editor tests. The path policy always selects Desktop when HTTP is selected; the HTTP job retains archive and production browser checks without repeating unit/integration tests. CI does not upload the generated `.tgz`. Optional `tmp/http-host-capture/` screen evidence belongs to manual `--screenshots` runs. CI retains failed jobs' `tmp/browser-results/` diagnostics for 7 days in artifacts named by OS and group. Existing Vite browser and Windows packaged Desktop regressions remain required. This does not establish arbitrary NAS compatibility, measured startup speed improvements, public Internet hardening or OS-native clipboard/IME correctness.
+Windows/Linux CI runs package and production browser checks; Windows splits host (`http-host http-plugins`) and plugins (`plugin-screen-code`) onto independent runners with separate checkout, daemon, port and fixtures, each retaining archive and crash recovery checks; Linux keeps the full group; the two Windows Desktop unit partitions (foundation and editor, together the full `pnpm test`) run the filesystem/HTTP suite, and Linux's quality job runs it with all Editor tests. The path policy always selects Desktop when HTTP is selected; the HTTP job retains archive and production browser checks without repeating unit/integration tests. CI does not upload the generated `.tgz`. Optional `tmp/http-host-capture/` screen evidence belongs to manual `--screenshots` runs. CI retains failed jobs' `tmp/browser-results/` diagnostics for 7 days in artifacts named by OS and group. Existing Vite browser and Windows packaged Desktop regressions remain required. This does not establish arbitrary NAS compatibility, measured startup speed improvements, public Internet hardening or OS-native clipboard/IME correctness.
 
 `pnpm browser:test http-host` also runs `http-recovery.spec.ts` against its own production CLI daemon.
 It kills only its launched browser PID (and its children on Windows), checks exit and a new PID,
@@ -393,8 +381,8 @@ OS user permissions; plugin subprocesses are not an OS security sandbox.
 | --- | --- |
 | Desktop daemon launch: `apps/desktop/src/main.ts:620`, `daemon-client.ts:26`, `apps/editor/server/daemon-state.ts:27` | Newly launched daemon uses the Desktop executable with RunAsNode. An existing shared daemon retains its original runtime. Remote health preflight (`remote-host-registry.ts:196`) consumes the configured Host's response in that daemon. |
 | Desktop main daemon probes: `apps/desktop/src/daemon-client.ts:35`, `apps/editor/server/daemon-state.ts:149` | Electron's Node fetch in the main process; response control requires replacing/compromising the selected local loopback service (not an ordinary remote network peer). |
-| CLI daemon / commands: `packages/cli/src/daemon.ts:91`, `cli.ts:1963`, `plugins.ts:83`, `views.ts:33`; Desktop shim: `apps/desktop/src/cli-integration.ts:19` | Standalone CLI/development use system Node; Desktop shim and assistant CLI use Electron RunAsNode when launched from Desktop. Selected local/remote Host responses affect the CLI process; daemon responses are handled by its own runtime. |
-| Plugin process: `apps/editor/server/plugins/plugin-process.ts:78`; Docling `community-plugins/docling/conversion.js:22`, `host.js:24` | Child inherits daemon executable with RunAsNode. Selected Docling server responses affect the plugin child; plain HTTP (including LAN Docling) additionally permits network modification. |
+| CLI daemon / commands: `packages/cli/src/daemon.ts:91`, `cli.ts:1963`, `plugins.ts:83`; Desktop shim: `apps/desktop/src/cli-integration.ts:19` | Standalone CLI/development use system Node; Desktop shim and assistant CLI use Electron RunAsNode when launched from Desktop. Selected local/remote Host responses affect the CLI process; daemon responses are handled by its own runtime. |
+| Plugin process: `apps/editor/server/plugins/plugin-process.ts` | Child inherits the daemon runtime. Trusted external plugin code owns any service requests it makes; no conversion service is bundled. |
 | Updater: `apps/desktop/src/main.ts:637`; renderer: `main.ts:481` | electron-updater 6.8.9 uses ElectronHttpExecutor → electron.net.request (upstream `out/AppUpdater.js:206`, `out/electronHttpExecutor.js:54`). Electron net and sandboxed renderer fetch use Chromium networking, not this Node zlib decode path. |
 | Incoming daemon request body: `apps/editor/server/request-body.ts:8`, `document-api.ts:233`, `asset-api.ts:297` | Raw bounded bytes are collected and decoded/parsed; no Content-Encoding decompression. Sending a compressed request alone does not reach a Brotli decoder. |
 
