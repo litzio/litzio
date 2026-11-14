@@ -6,7 +6,7 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { useEditorState, type ReactNodeViewProps } from "@tiptap/react";
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { MoreHorizontal, MoreVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
@@ -70,6 +70,7 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
 }) {
   useTranslation();
   const visible = useEditorVisible();
+  const appendAnchor = `--table-append-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const geometry = useTableToolGeometry(grid, node, visible);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [focused, setFocused] = useState<Menu | null>(null);
@@ -168,10 +169,11 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
         onFocus={() => focus("column", { row: current?.row ?? 0, column: i })} onBlur={blur}
         style={{ left: cell.left, top: geometry.top }}
         onClick={event => open(event.currentTarget, "column", { row: current?.row ?? 0, column: i })}><MoreHorizontal size={16} aria-hidden="true" /></Button>)}
+      <span className="table-column-append-anchor" style={{ anchorName: appendAnchor, left: geometry.right, top: geometry.top, height: geometry.bottom - geometry.top }} />
       <Button variant="table-handle" size="sm" type="button" className="table-extend table-extend-column" aria-label={i18n.t("Append column")} title={i18n.t("Append column")}
         data-show={active && !menu && geometry.columnSpace ? "true" : "false"} tabIndex={geometry.columnSpace && !menu ? 0 : -1}
         onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur}
-        style={{ left: geometry.viewportRight, top: geometry.viewportTop, width: geometry.appendWidth, height: geometry.bottom - geometry.top }}
+        style={{ display: geometry.columnSpace ? undefined : "none", positionAnchor: appendAnchor, width: geometry.appendWidth }}
         onClick={() => run("table-column", { row: current?.row ?? 0, column: node.child(0).childCount - 1 })}><Plus size={16} /></Button>
       {geometry.rows.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-row-handle"
         data-show={active && row === i ? "true" : "false"} data-scrolled={geometry.scrolled ? "true" : "false"}

@@ -4,7 +4,7 @@ import type { Node } from "@tiptap/pm/model";
 type Geometry = {
   columns: { left: number; width: number; visible: boolean }[];
   rows: { top: number; height: number }[];
-  viewportRight: number; viewportTop: number; left: number; right: number; top: number; bottom: number; appendTop: number; appendHeight: number; appendWidth: number;
+  left: number; right: number; top: number; bottom: number; appendTop: number; appendHeight: number; appendWidth: number;
   rowSpace: boolean; columnSpace: boolean; scrolled: boolean; targetSize: number; clearance: number;
 };
 
@@ -45,16 +45,15 @@ export function useTableToolGeometry(grid: RefObject<HTMLDivElement | null>, nod
       const owner = viewportOwner?.getBoundingClientRect();
       const available = Math.min(owner?.right ?? window.innerWidth, window.innerWidth) - viewport.right;
       const appendWidth = Math.max(0, Math.min(target, available - gap));
-      const next = { columns, rows, viewportRight: viewport.right, viewportTop: bounds.top, left: viewport.left - origin.left, right: viewport.right - origin.left,
+      const next = { columns, rows, left: viewport.left - origin.left, right: viewport.right - origin.left,
         targetSize: target, clearance: gap, top: bounds.top - origin.top, bottom, appendTop, appendHeight, appendWidth, scrolled: scroll.scrollLeft > 0,
         rowSpace: appendHeight >= bar, columnSpace: available >= Math.max(face, bar + gap) };
       setGeometry(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     };
     const observer = new ResizeObserver(measure);
     observer.observe(table); observer.observe(scroll); observer.observe(block);
-    // A docked panel/sidebar changes the viewport's padding/content box while a
-    // Standard-width paper and every table keep their size. Observe the layout
-    // owner as well: size-only observers on the table miss that position shift.
+    // The viewport content box controls available append space. Tool positions
+    // are block-relative: moving the whole table requires no measurement.
     if (viewportOwner) observer.observe(viewportOwner);
     const editor = block.closest(".document-editor"); if (editor) observer.observe(editor);
     measure();

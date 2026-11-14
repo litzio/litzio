@@ -27,6 +27,8 @@ export async function assertTableToolGeometry(block: Locator) {
       }
       if (addColumn) {
         const r = addColumn.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        if (!hit || !addColumn.contains(hit)) errors.push("Append column center must receive pointer input");
         near("append column edge", r.left, viewport.right + gap);
         near("append column top", r.top, bounds.top);
         near("append column bottom", r.bottom, table.rows[table.rows.length - 1].getBoundingClientRect().bottom);

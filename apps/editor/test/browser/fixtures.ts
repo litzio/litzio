@@ -101,7 +101,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       ":::{figure}\n:name: fig-pending\n\nPending caption zeta\n:::\n\nAfter pending.\n\n```text\nCode alpha\n```\n\nAfter code.[^note-a][^note-b]\n\n[^note-a]: First endnote alpha.\n\n[^note-b]: Second endnote beta.\n") },
     document("diagram.svg"),
   ], scenarios: ["caption-selection"] },
-  "table-tool-placement": { files: [fixture("table-tool-placement.md")], scenarios: ["table-tool-placement"] },
+  "table-tool-placement": { files: [fixture("table-tool-placement.md"), { name: "short.md", create: () => nativeSource("# Short settings\n\n## Section\n\nFirst paragraph.\n\n| Name | Value |\n| --- | --- |\n| A | 1 |\n") }], scenarios: ["table-tool-placement"] },
   "caption-placeholder": { files: [
     { name: "captions.md", create: () => nativeSource("# Captions\n\nBefore.\n\n:::{table}\n\n| Header |\n| --- |\n| Cell |\n:::\n\n:::{figure} ./diagram.svg\n:::\n\n:::{figure}\n:::\n\n:::{figure}\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n:::\n\nAfter.\n") },
     document("diagram.svg"),
