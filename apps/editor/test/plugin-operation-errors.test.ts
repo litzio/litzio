@@ -33,6 +33,16 @@ test('public failure bounds, secret masking and value-free schema diagnostics', 
   const referenced = {type:'object',definitions:{fields:{type:'object',properties:{groupId:{type:'string'}},required:['groupId']}},allOf:[{$ref:'#/definitions/fields'}]};
   const referenceValidator=compileSchema(referenced);referenceValidator({groupId:123});
   assert.equal(publicInputIssues(referenceValidator.errors,referenced,[])[0].path,'/groupId');
+  for (const conditional of [
+    {type:'object',properties:{kind:{type:'string'}},if:{properties:{kind:{const:'group'}}},then:{properties:{groupId:{type:'string'}},required:['groupId']}},
+    {type:'object',properties:{kind:{type:'string'}},dependencies:{kind:{properties:{groupId:{type:'string'}},required:['groupId']}}}
+  ]) {
+    const check=compileSchema(conditional);assert.equal(check({kind:'group',groupId:123}),false);
+    assert.ok(publicInputIssues(check.errors,conditional,[]).some(issue=>issue.path==='/groupId'));
+  }
+  const format=compileSchema({type:'object',properties:{date:{type:'string',format:'date'}}},'2020-12');
+  assert.equal(format({date:'invalid-private-value'}),false);
+  assert.match(publicInputIssues(format.errors,{},[])[0].reason,/format/);
   const fields=Array.from({length:12},(_,i)=>'field'+i);
   const many = compileSchema({type:'object',properties:Object.fromEntries(fields.map(k=>[k,{}])),required:fields}); many({});
   assert.equal(publicInputIssues(many.errors,{},[]).length,8);

@@ -116,7 +116,7 @@ HTTP·CLI JSON·비서 도구는 기존 `{errorKind,error,receipt}`를 유지하
 
 ADR-0020의 secret 절은 argv·로그·비서 결과·뷰에 PAT를 남기지 않고 외부 API 오류 응답을 Host에서 정리하도록 한다. 변경 전 child catch는 자격 증명 유출을 막기 위해 예외 문구·스택을 버리고 허용된 kind만 IPC로 보냈다. Host publicOperationError가 kind를 고정 문구로 바꿨고 HTTP는 결과를 그대로 전달했다. CLI는 두 모드 모두 JSON, 화면 invoke는 error 문자열만 가진 Error, 비서 도구는 공통 실패 결과를 받았다. 입력 schema 거부는 상세 없이 `Invalid operation input` 예외였고 HTTP 400으로 전달됐다. 비서는 이 예외를 다시 일반 실패로 가렸다.
 
-이제 명시적 공개 오류만 위 예외 경로를 추가한다. 표식 없는 예외와 출력 schema 불일치는 계속 `Plugin operation failed. Check plugin settings and the target.`다. 프로세스 종료도 같은 일반 실패이며 RPC timeout은 `Operation timed out. Check the service connection.`다. write는 기존처럼 `Check the target before retrying a write.` 안내가 붙는다. 기존 PluginOperationError(kind)의 auth/forbidden/not_found/unavailable 등 Host 고정 문구는 유지한다. 비활성·미등록은 `Operation unavailable or plugin disabled`, artifact 변경·미신뢰는 `Artifact changed; reload the plugin`으로 거부하며 전용 비서 도구의 admission 거부는 기존 unavailable/forbidden 안내를 유지한다. timeout·crash·출력 실패의 receipt와 종료 코드는 바꾸지 않는다.
+이제 명시적 공개 오류만 위 예외 경로를 추가한다. 표식 없는 예외와 출력 schema 불일치는 계속 `Plugin operation failed. Check plugin settings and the target.`다. 프로세스 종료도 같은 일반 실패이며 RPC timeout은 `Operation timed out. Check the service connection.`다. write는 기존처럼 `Check the target before retrying a write.` 안내가 붙는다. 기존 PluginOperationError(kind)의 auth/forbidden/not_found/unavailable 등 Host 고정 문구는 유지한다. 비활성·미등록은 `Operation unavailable or plugin disabled`, artifact 변경·미신뢰는 `Artifact changed; reload the plugin`으로 거부하며 전용 비서 도구의 admission 거부는 기존 unavailable/forbidden 안내를 유지한다. timeout·crash·출력 실패의 receipt와 종료 코드는 바꾸지 않는다. 비서의 최종 publication adapter는 기존대로 failed를 unavailable, refused outcome을 failure로 정규화하고 code/message/inputIssues는 보존한다.
 
 ## 제작과 설치
 

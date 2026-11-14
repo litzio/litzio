@@ -37,7 +37,7 @@ export function publicInputIssues(errors: NonNullable<ReturnType<typeof compileS
       seen.add(node);
       const ref = typeof node.$ref === "string" && node.$ref.startsWith("#/")
         ? node.$ref.slice(2).split("/").reduce((value: any, part: string) => value?.[part.replaceAll("~1", "/").replaceAll("~0", "~")], schema) : undefined;
-      return [node, ...expand([ref, ...(node.allOf ?? []), ...(node.anyOf ?? []), ...(node.oneOf ?? [])], seen)];
+      return [node, ...expand([ref, node.if, node.then, node.else, ...Object.values(node.dependencies ?? {}), ...Object.values(node.dependentSchemas ?? {}), ...(node.allOf ?? []), ...(node.anyOf ?? []), ...(node.oneOf ?? [])], seen)];
     });
     let nodes: any[] = [schema];
     const segments = error.instancePath.split("/").slice(1).map(segment => {
@@ -50,6 +50,6 @@ export function publicInputIssues(errors: NonNullable<ReturnType<typeof compileS
       nodes = []; return "*";
     });
     if (error.keyword === "required") segments.push(escape(String(error.params.missingProperty)));
-    return { path: publicErrorText(safePluginValue("/" + segments.join("/"), secrets)), reason: messages[error.keyword] ?? "Must satisfy the operation input schema." };
+    return { path: safePluginValue(publicErrorText(safePluginValue("/" + segments.join("/"), secrets)), secrets), reason: messages[error.keyword] ?? "Must satisfy the operation input schema." };
   });
 }
