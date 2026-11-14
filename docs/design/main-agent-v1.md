@@ -3,7 +3,8 @@
 > 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
 
 - Status: Implemented
-- Last verified: 2026-11-13 — #1360 화면 도구·요청 통로 제거와 활성 경로·문서 보호를 코드·대상 검사와 대조. 실제 AI 수락 시험의 범위·결과는 해당 PR 기록을 따른다.
+- Last verified: 2026-11-14 — Windows 제한 언어 모드의 대체 편집 안내 추가. 공급자 제한 실행 비교와 기존 master의 실제 AI 수락 범위는 [조사 기록](../reviews/2026-11-14-assistant-completion.md)을 따른다. 이 안내 추가 뒤의 실제 AI 재측정은 하지 않았다.
+- Previous verification: 2026-11-13 — #1360 화면 도구·요청 통로 제거와 활성 경로·문서 보호를 코드·대상 검사와 대조. 실제 AI 수락 시험의 범위·결과는 해당 PR 기록을 따른다.
 - Authority: [ADR-0021](../adr/0021-general-agent-assistant.md), [ADR-0014](../adr/0014-main-agent-app-server.md), [ADR-0017](../adr/0017-bundled-client-and-official-ai.md).
 > 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
@@ -33,6 +34,7 @@
 
 4. 기존 문서는 원본을 바로 고치고 `litzio check <file> --format json`으로 검사한다.
    잘못된 문서 저장을 발견하고 수정하기 위해서다([ADR-0021](../adr/0021-general-agent-assistant.md)).
+   Windows 제한 실행에서 PowerShell의 .NET 메서드가 ConstrainedLanguage로 거절되면 공급자 패치 또는 허용된 폴더의 UTF-8 cmdlet·Node 쓰기로 계속하도록 안내한다. 읽기 전용·접근 거절은 유지하고 PC 정책은 변경하지 않는다.
 5. 대화에는 활성 문서의 저장된 경로만 전달하고 미저장 본문은 보내지 않으며, 저장본을 사용한다고 알린다.
    화면의 편집본과 디스크 내용을 혼동하지 않게 한다.
 6. 임시 산출물은 앱 데이터의 비서 작업 폴더에 두고, 열린 폴더에서 일하기 전에 그 폴더의 지시 파일을 읽는다.
