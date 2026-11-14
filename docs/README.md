@@ -218,3 +218,4 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [비서 플러그인 제작 예행연습](reviews/plugin-authoring-rehearsal-2026-11.md) | Historical | Windows 실제 Codex Luna low·Sol 기본 low 비교, 최초 시험 구성 실패와 재시험·스킬 보강 근거. |
 
 - [플러그인 화면 코드 단계별 측정](reviews/plugin-screen-code-1592.md) — Historical. 1단계 실제 AI 6턴과 2단계 제작·설치 시험, 도구 크기·속도와 화면 확인 경계.
+- [v0.0.3-beta.2 릴리스 준비 초안](releases/v0.0.3-beta.2.md) — Draft. 게시 전 검증·제거 기능·한국어 본문·남은 수락 항목.
