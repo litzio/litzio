@@ -7,7 +7,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { after, describe } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const dist = fileURLToPath(new URL("../dist/", import.meta.url));
@@ -27,7 +27,9 @@ async function stop(child: ChildProcess) {
   try { await exited; } finally { clearTimeout(timeout); }
 }
 
-test("the packed CLI installs offline outside the checkout and serves both roots using Node alone", { timeout: 60_000 }, async () => {
+// Installation and Host integration keep separate 60s budgets but share one install and Host.
+// Queue measurements and the preserved contract: docs/reviews/windows-packed-cli-budget-2026-11.md.
+describe("the packed CLI outside the checkout using Node alone", { concurrency: false }, () => {
   const started = performance.now(); let previous = started;
   const timing = (stage: string) => { const now = performance.now(); console.log(JSON.stringify({ stage, milliseconds: Math.round(now - previous), totalMilliseconds: Math.round(now - started) })); previous = now; };
   const archive = readdirSync(dist).find(name => name.endsWith(".tgz"));
@@ -36,12 +38,21 @@ test("the packed CLI installs offline outside the checkout and serves both roots
   const install = path.join(scratch, "install"), cwd = path.join(scratch, "unrelated cwd");
   const a = path.join(scratch, "문서 A"), b = path.join(scratch, "documents B");
   for (const folder of [install, cwd, a, b]) mkdirSync(folder);
-  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DATA_DIR: path.join(scratch, "data"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(scratch, "plugins.json"), LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_ASSISTANT_CWD: path.join(scratch, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(scratch, "assistant.json") };
+  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DATA_DIR: path.join(scratch, "data"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(scratch, "plugins.json"), LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_ASSISTANT_CWD: path.join(scratch, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(scratch, "assistant.json"), LITZIO_RESET_DIR: path.join(scratch, "reset-guard") };
   writeFileSync(path.join(scratch, "plugins.json"), JSON.stringify({ "fixture.isolated": { directory: path.join(scratch, "absent-plugin"), enabled: false, settings: {}, operationNames: [] } }));
   delete env.NODE_PATH; delete env.NODE_OPTIONS;
   env.npm_config_logs_dir = path.join(scratch, "npm-logs");
+  const entry = path.join(install, "node_modules/@litzio/cli/cli.mjs");
+  let installedReady = false;
   let child: ChildProcess | undefined;
-  try {
+  after(async () => {
+    if (child) await stop(child);
+    timing("host-stop");
+    if (process.env.LITZIO_PACKAGED_RETAIN !== "1") rmSync(scratch, { recursive: true, force: true });
+    timing("cleanup");
+  }, { timeout: 15_000 });
+
+  test("installs offline and runs the installed shim and Node document commands", { timeout: 60_000 }, () => {
     // Declare the dependency up front to avoid resolving the same tarball twice during idealTree.
     // Anchor npm here even when an ancestor of the OS temp directory is another npm project.
     writeFileSync(path.join(install, "package.json"), JSON.stringify({ name: "litzio-package-test", private: true, dependencies: { "@litzio/cli": "file:./artifact.tgz" } }));
@@ -57,7 +68,6 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     const bin = process.platform === "win32" ? ".\\node_modules\\.bin\\litzio.cmd" : "./node_modules/.bin/litzio";
     assert.match(execSync(`${bin} help daemon`, { cwd: install, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), /--root/);
     timing("installed-command-shim");
-    const entry = path.join(install, "node_modules/@litzio/cli/cli.mjs");
     const installed = JSON.parse(readFileSync(path.join(install, "node_modules/@litzio/cli/package.json"), "utf8"));
     assert.equal(installed.dependencies, undefined, "No runtime install should fetch dependencies");
     const version = spawnSync(process.execPath, [entry, "--version"], { cwd, env, encoding: "utf8" });
@@ -70,6 +80,11 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     const formatted = spawnSync(process.execPath, [entry, "format", path.join(a, "document.md")], { cwd, env, encoding: "utf8" });
     assert.equal(formatted.status, 0, formatted.stderr);
     timing("node-version-check-format");
+    installedReady = true;
+  });
+
+  test("serves both roots with the shipped plugin SDK, screen tools and Save", { timeout: 60_000 }, async () => {
+    assert.ok(installedReady, "The offline installation and command contract must pass before starting the Host");
     const port = await freePort(), url = `http://127.0.0.1:${port}`;
     child = spawn(process.execPath, [entry, "daemon", "run", "--channel", "development", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let output = "", errors = "";
@@ -118,10 +133,5 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     timing("daemon-lock-conflict");
     await stop(child);
     await assert.rejects(fetch(url), /fetch failed/);
-  } finally {
-    if (child) await stop(child);
-    timing("host-stop");
-    if (process.env.LITZIO_PACKAGED_RETAIN !== "1") rmSync(scratch, { recursive: true, force: true });
-    timing("cleanup");
-  }
+  });
 });
