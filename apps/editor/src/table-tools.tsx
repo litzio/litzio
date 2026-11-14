@@ -114,6 +114,17 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
     return () => { block.style.removeProperty("--table-action-left"); block.style.removeProperty("--table-action-clearance"); };
   }, [actionLayer, grid, geometry, emphasizedColumn]);
 
+  useLayoutEffect(() => {
+    const element = document.activeElement;
+    if (!geometry || !element || !rowLayer.current?.contains(element)) return;
+    if ((element.matches(".table-extend-column") && !geometry.columnSpace) ||
+        (element.matches(".table-extend-row") && !geometry.rowSpace)) {
+      // A resize can remove an append bar's gap while it has keyboard focus.
+      // Keep focus on an available equivalent entry point, without moving caret.
+      actionLayer.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    }
+  }, [geometry, actionLayer, rowLayer]);
+
   if (!visible || !editor.isEditable || hidden || !geometry || !rowLayer.current || !actionLayer.current) return null;
   const position = getPos();
   if (typeof position !== "number") return null;
@@ -160,7 +171,7 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
       <Button variant="table-handle" size="sm" type="button" className="table-extend table-extend-column" aria-label={i18n.t("Append column")} title={i18n.t("Append column")}
         data-show={active && !menu && geometry.columnSpace ? "true" : "false"} tabIndex={geometry.columnSpace && !menu ? 0 : -1}
         onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur}
-        style={{ left: geometry.right, top: geometry.top, width: geometry.appendWidth, height: geometry.bottom - geometry.top }}
+        style={{ left: geometry.viewportRight, top: geometry.viewportTop, width: geometry.appendWidth, height: geometry.bottom - geometry.top }}
         onClick={() => run("table-column", { row: current?.row ?? 0, column: node.child(0).childCount - 1 })}><Plus size={16} /></Button>
       {geometry.rows.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-row-handle"
         data-show={active && row === i ? "true" : "false"} data-scrolled={geometry.scrolled ? "true" : "false"}

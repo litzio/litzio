@@ -1711,7 +1711,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .table-row-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 .table-tools { visibility: visible; }
 .table-tools button { position: absolute; width: var(--size-control-compact); height: var(--size-control-compact); padding: 0; border: 0; background: transparent; color: var(--id-color-text-muted); cursor: pointer; font-family: var(--font-family-sans); font-size: var(--font-size-sm); line-height: var(--line-height-label); font-weight: 400; border-radius: var(--id-radius-md); opacity: 0; pointer-events: none; }
-.table-tools button[data-show="true"], .table-tools button:focus-visible { opacity: 1; pointer-events: auto; }
+.table-tools button[data-show="true"], .table-tools :is(.table-row-handle, .table-column-handle):focus-visible { opacity: 1; pointer-events: auto; }
 .table-tools button::before { content: ""; position: absolute; inset: 0; border: var(--border-width) solid var(--id-color-border-strong); border-radius: var(--id-radius-md); background: var(--id-color-surface); pointer-events: none; }
 .table-tools button:hover::before { background: var(--id-color-surface-hover); }
 .table-tools button[aria-expanded="true"]::before { background: var(--id-color-surface-pressed); }
@@ -1725,7 +1725,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .table-tools .table-row-handle::before { left: auto; width: var(--size-table-tool-face); }
 .table-row-handle svg { position: absolute !important; right: calc((var(--size-table-tool-face) - var(--size-icon-slot)) / 2); }
 .table-tools .table-row-handle[data-scrolled="true"] { transform: translate(calc(-1 * var(--size-control-compact) - var(--space-table-tool-edge)), -50%); }
-.table-tools .table-extend-column { margin-left: var(--space-table-tool-edge); }
+.table-tools .table-extend-column { position: fixed; margin-left: var(--space-table-tool-edge); }
 .table-tools .table-extend-column::before { right: auto; width: var(--size-table-tool-bar); }
 .table-extend-column svg { position: absolute !important; left: calc((var(--size-table-tool-bar) - var(--size-icon-slot)) / 2); }
 .table-tools .table-extend-row { min-height: 0; }

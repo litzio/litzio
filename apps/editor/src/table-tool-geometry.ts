@@ -4,7 +4,7 @@ import type { Node } from "@tiptap/pm/model";
 type Geometry = {
   columns: { left: number; width: number; visible: boolean }[];
   rows: { top: number; height: number }[];
-  left: number; right: number; top: number; bottom: number; appendTop: number; appendHeight: number; appendWidth: number;
+  viewportRight: number; viewportTop: number; left: number; right: number; top: number; bottom: number; appendTop: number; appendHeight: number; appendWidth: number;
   rowSpace: boolean; columnSpace: boolean; scrolled: boolean; targetSize: number; clearance: number;
 };
 
@@ -44,7 +44,7 @@ export function useTableToolGeometry(grid: RefObject<HTMLDivElement | null>, nod
       const owner = block.closest<HTMLElement>(".document-scroll")?.getBoundingClientRect();
       const available = Math.min(owner?.right ?? window.innerWidth, window.innerWidth) - viewport.right;
       const appendWidth = Math.max(0, Math.min(target, available - gap));
-      const next = { columns, rows, left: viewport.left - origin.left, right: viewport.right - origin.left,
+      const next = { columns, rows, viewportRight: viewport.right, viewportTop: bounds.top, left: viewport.left - origin.left, right: viewport.right - origin.left,
         targetSize: target, clearance: gap, top: bounds.top - origin.top, bottom, appendTop, appendHeight, appendWidth, scrolled: scroll.scrollLeft > 0,
         rowSpace: appendHeight >= bar, columnSpace: available >= Math.max(face, bar + gap) };
       setGeometry(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
