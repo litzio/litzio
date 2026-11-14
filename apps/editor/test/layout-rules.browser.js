@@ -99,7 +99,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
       const value=getComputedStyle(probe)[property];probe.remove();return value;
     };
     const geometry=[['[data-testid="save"]',32],['.folder-picker-field',32],['.code-language',28],
-      ['.table-row-handle',28],['.table-column-handle',28],['.table-extend',28],
+      ['.table-row-handle',28],['.table-column-handle',28],
       ['.table-action-bar button',28],['.sidebar-collapse',28]].map(([selector,height])=>{
         const n=required(selector),s=getComputedStyle(n);
         return {selector,height:n.getBoundingClientRect().height,expected:height,radius:s.borderRadius,expectedRadius:resolve('borderRadius','--id-radius-md')};

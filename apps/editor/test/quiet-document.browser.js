@@ -950,7 +950,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     // A table wider than the column keeps its table actions reachable before it is scrolled.
     const wide=page.locator('[data-document-tab][data-active=true] .table-block');
     await wide.locator('.table-scroll').evaluate(n=>n.scrollLeft=0);
-    await wide.hover({position:{x:8,y:8}});
+    await wide.locator('td').first().click();
     const actions=await wide.evaluate(block=>{
       const view=block.querySelector('.table-scroll').getBoundingClientRect();
       return ['Edit table','Table actions'].map(name=>{

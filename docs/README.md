@@ -218,4 +218,6 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [비서 플러그인 제작 예행연습](reviews/plugin-authoring-rehearsal-2026-11.md) | Historical | Windows 실제 Codex Luna low·Sol 기본 low 비교, 최초 시험 구성 실패와 재시험·스킬 보강 근거. |
 
 - [플러그인 화면 코드 단계별 측정](reviews/plugin-screen-code-1592.md) — Historical. 1단계 실제 AI 6턴과 2단계 제작·설치 시험, 도구 크기·속도와 화면 확인 경계.
+
+- [표 커서 도구 배치 스파이크](spikes/2026-11-14-1481-table-cursor-tools.md) — Historical, 채택(배치 방향), #1481.
 - [Windows packed CLI 검사 예산 측정](reviews/windows-packed-cli-budget-2026-11.md) — Historical. #1645의 성공·실패 queue 단계 시간과 cold npm 준비 비용, 검사 구간 분리 근거.
