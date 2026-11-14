@@ -11,6 +11,10 @@
 
 화면 목록과 진입 대상은 단일 연결이다. 화면을 열 때 client를 캡처하며 다른 연결로 자동 전환하지 않는다. 연결 주소가 바뀐 뒤 기존 invoke·saveDocument는 전송 전에 거절한다. 화면/tab의 기존 id/key는 유지하고 다시 그리는 것만으로 다른 client를 선택하지 않는다. 열린 폴더 범위와 새 문서 저장의 안전 조건은 유지한다.
 
+다른 클라이언트에서 플러그인을 설치·활성화·비활성화·제거·reload한 뒤 창에 다시 focus하거나 창이 다시 보이게 되면 기존 화면 목록을 다시 읽어 사이드바를 갱신한다(#1490). 같은 창의 변경은 기존 plugins-changed 통로로 갱신한다. 새 주기 조회는 추가하지 않는다. 열린 화면의 기존 2초 revision 확인과 비활성화·제거 시 Unavailable 표시는 유지한다.
+
+지금 하지 않는 것: Host push 통로와 focus 전환 없이 나란히 열린 모든 창의 즉시 동기화. 다시 볼 조건: 여러 클라이언트 동시 사용이 실제 불편으로 보고될 때.
+
 ## 화면 실행
 
 플러그인의 유일한 화면 형식은 React JS/JSX 코드다. manifest의 screen은 artifact 내부 진입 파일이고 default export 컴포넌트는 `React`, `ui`, `invoke`, `saveDocument`, `pickPath`, `openDocument`를 받는다. React는 앱 인스턴스를 공유하고 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다.
