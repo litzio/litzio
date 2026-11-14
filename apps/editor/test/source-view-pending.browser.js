@@ -57,7 +57,7 @@ async (page, { openFolderPicker, openPath }) => {
     result.openBlockedWhilePending = await currentFile() === documentA;
     await page.getByRole('button', {name:'New document…', exact:true}).click();
     await page.getByTestId('error').getByText('Wait for the current operation to finish.', {exact:true}).waitFor();
-    result.newBlockedWhilePending = await currentFile() === documentA && await page.getByRole('dialog').count() === 0;
+    result.newBlockedWhilePending = await currentFile() === documentA && await page.getByRole('dialog', {name:'New document', exact:true}).count() === 0;
     result.newFileNotCreated = !await exists(created, 'created-during-preview.md');
   } finally {
     release();

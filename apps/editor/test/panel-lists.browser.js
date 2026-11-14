@@ -1,5 +1,5 @@
 // Document navigation integration: Core-backed captions, shared current/reveal lifecycle and tabs.
-async (page, { openDocument, expect, screenshots }) => {
+async (page, { openDocument, expect, screenshots, brand }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
@@ -247,6 +247,8 @@ async (page, { openDocument, expect, screenshots }) => {
     await expect(panel).toBeVisible();
     await explorer.click();
     // Stacking needs only the Assistant shell, without a real account/model connection.
+    // Do not resume a synthetic thread left by another scenario in the persistent profile.
+    await page.evaluate(prefix => localStorage.removeItem(prefix + '.assistantConversation.v2'), brand.storagePrefix);
     await page.route('**/api/assistant/settings*',route=>route.fulfill({json:{provider:'codex',permissionMode:'opened-folders',model:'gpt-6-luna',reasoningEffort:'low'}}));
     await page.route('**/api/assistant/models*',route=>route.fulfill({json:{provider:'codex',models:[],updatedAt:0}}));
     await page.route('**/api/assistant/diagnostics*',route=>route.fulfill({json:{provider:'codex',connected:false,checkedAt:0}}));

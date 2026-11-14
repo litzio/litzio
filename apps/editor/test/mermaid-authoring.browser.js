@@ -582,6 +582,21 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
       await page.waitForFunction(() => window.__applyPreviewHeld);
       const apply = active.getByTestId('mermaid-apply');
       await apply.scrollIntoViewIfNeeded();
+      // #1644: expose the action at the document viewport's lower edge, where
+      // the floating bell used to intercept the narrow/tall source form.
+      const bell = page.locator('.notification-center > button');
+      if (await bell.getAttribute('aria-expanded') === 'true') await bell.click();
+      await apply.evaluate(el => {
+        const viewport = el.closest('.document-scroll');
+        viewport.scrollTop += el.getBoundingClientRect().bottom - viewport.getBoundingClientRect().bottom + 4;
+      });
+      await expect.poll(() => apply.evaluate(el => {
+        const rect = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      })).toBe(true);
+      const documentTop = await active.evaluate(el => el.getBoundingClientRect().top);
+      const bellRect = await bell.boundingBox();
+      expect(bellRect.y + bellRect.height).toBeLessThanOrEqual(documentTop);
       const before = await apply.boundingBox();
       const captionBefore = await figure.getByTestId('figure-caption-content').boundingBox();
       await page.mouse.move(before.x+before.width/2,before.y+before.height/2);

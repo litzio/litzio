@@ -838,6 +838,15 @@ The shell has three responsibilities: the Sidebar on the left browses opened fol
 | Document panel | Outline, Tables and Figures navigation (#613), with 600 semibold, themed surface and segment shadow for the selected tab, muted inactive labels and reserved semibold label width (#620), titled Outline, with no internal close button (#590). The tab-row Outline toggle opens and closes it. The outline is derived from the editor document, indents 12px per level below H1 up to three levels and wraps labels to two lines, marks the section being read with selected background/text and 600 semibold (no left marker, #515); a hidden semibold copy reserves its two-line text extent to prevent selection height jumps. The current item stays inside the list's visible area. The list scrolls by itself and is never written to the document. Table/Figure items reuse the body caption prefix and Core reference template (for example `Table 1. Caption`), including in Korean UI; a missing caption shows only the number. At 1424px and wider the panel is docked and starts open; below 1424px it starts closed and, opened, overlays the document below the sticky header instead of narrowing it, so Save, File actions and the Outline toggle stay usable; Escape closes it and returns focus to the tab-row Outline toggle. The docking width is independent of the 1024px narrow sidebar. Entering the overlay layout always closes it. Returning to docked restores the user's last explicit docked open/closed choice, or opens by default if none exists. Overlay interactions do not overwrite that choice. Open/closed is page memory only and resets on reload; no persistent preference is added. |
 | TopBar | Shared single-row brand/search/caption strip; document actions and compact status belong to their owning tab row. See [#695](#title-strip-and-tab-row-actions-695) for responsive search, menu guards and status. Save, Source, Compare, Reload/discard, Copy path and layout preferences retain their existing operations and shortcuts. |
 | Document tabs | Fixed second row below the title strip, with a flat current accent marker (#581). Filename, dirty dot, close button and full-path tooltip; same-named files show the distinguishing parent folder. Only the tablist scrolls; its active-document actions remain fixed to its right (#695). Accessible tablist/tab/tabpanel relationships, Left/Right/Home/End switching and Delete to close remain. Closing selects the right neighbour, else left; an inactive close keeps the current tab. |
+#1644: the window NotificationCenter button is in the title strip beside Assistant
+on document, plugin and Settings tabs. Its manual popover opens below the bell;
+automatic cards retain the master bottom-right appearance and toolbar access.
+Both are temporary overlays;
+closed-button/document rectangles do not overlap and document viewport/minimum
+heights are unchanged. The notification DOM remains outside the shell history
+boundary. [Current geometry and interaction](editor-layout-rules-v1.md#title-strip-notifications-1644)
+and P07 supersede the earlier bottom-right/overlap descriptions below.
+
 | MessageArea | Registers load/save errors, conflict and temporary notices with the window NotificationCenter; renders no row below tabs. Same-source/context/severity/type notifications form a collapsible counted group when there are multiple items; singleton rows retain existing actions. Dismissing the last item collapses the center and returns focus to its button; manually opening the empty center still shows its empty state (#1005, #986; grouping and lifecycle details in P07). Table deletion retains its existing five-second notice and Undo lifecycle. Unapplied draft context instead appears as a separate short status immediately left of Save in the owning tab row (#839): text at 1440px, icon at 640px/compact, full Save/Source explanation on hover/focus and in the accessible name. It stays available in Read, Edit and Source, takes no document height, and has no jump-to-draft action. [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) owns the message classification. |
 | Document | Continuous white writing surface with a subtle edge on a muted canvas, extending at least to the bottom of the viewport minus its outer gap. Block tools occupy its gutter. Empty editable documents expose a first-line hint and `+`. No fixed formatting toolbar. |
 
@@ -1612,9 +1621,11 @@ history behavior. `read-view` verifies pointer/keyboard entry, handle-menu parit
 native boundaries, selection/focus return and conversion Undo/Redo. It also exercises
 contextmenu before secondary mouseup (Linux ordering): the engine's later pointer
 handling must not take focus from the menu or prevent Escape from closing it.
-The 640px Dark/Korean case also clicks Delete where its row overlaps the notification
+The original 640px Dark/Korean case clicked Delete where its row overlapped the notification
 button, checks that the menu owns that hit and Undo restores the paragraph, and retains
-the notification button's geometry and collapsed state.
+the notification button's geometry and collapsed state. #1644 now asserts that the
+closed title-strip bell does not intersect the menu row, then hit-tests and clicks
+the row center with the same deletion result.
 
 Manual same-state evidence: [1440px Before](assets/body-context-223/before-1440.png) /
 [After](assets/body-context-223/after-1440.png), [640px Dark/Korean Before](assets/body-context-223/before-640.png) /

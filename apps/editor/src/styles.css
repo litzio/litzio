@@ -3412,10 +3412,17 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .shell-tab { position: fixed; top: var(--app-header-height, var(--layout-header-row)); bottom: 0; left: var(--shell-sidebar); right: var(--shell-panel); min-height: 0; min-width: 0; overflow: hidden; }
 .app-shell--split .shell-tab { --editor-group-width: calc((100vw - var(--shell-sidebar) - var(--shell-panel) - var(--border-width)) / 2); left: calc(var(--shell-sidebar) + var(--editor-group-index) * (var(--editor-group-width) + var(--border-width))); right: auto; width: var(--editor-group-width); }
 .shell-tab[hidden] { display: none; }
-.notification-center { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); bottom: var(--space-4); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--sidebar-effective-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8)); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); }
+.notification-center { position: fixed; z-index: 40; top: calc((var(--layout-header-row) - var(--size-control-compact)) / 2); right: calc(var(--window-controls-width) + var(--layout-ui-inset)); display: flex; width: var(--size-control-compact); height: var(--size-control-compact); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); app-region: no-drag; }
+.notification-center > button { position: relative; color: inherit; }
+.notification-count { position: absolute; top: calc(-1 * var(--space-1)); right: calc(-1 * var(--space-1)); padding-inline: var(--space-1); border-radius: var(--id-radius-xl); background: var(--id-color-surface-subtle); font-size: var(--font-size-xs); line-height: var(--line-height-meta); }
+.notification-popover[data-slot="popover-content"] { width: min(28rem, calc(100vw - var(--space-8))); padding: 0; gap: 0; border: 0; color: inherit; overflow: hidden; }
+.notification-popover > ul { max-height: var(--available-height); }
+@media print { .notification-center { display: none; } }
+.notification-auto { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); bottom: calc(var(--space-4) + var(--size-control-compact) + var(--space-2)); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--sidebar-effective-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8) - var(--size-control-compact) - var(--space-2)); color: inherit; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
+body:has(.app-shell--collapsed) .notification-auto { --notification-sidebar-width: var(--layout-sidebar-rail-width); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }
-.notification-center > button { pointer-events: auto; flex-shrink: 0; border-radius: var(--id-radius-xl); color: inherit; }
+
 .notification-center ul { pointer-events: auto; min-height: 0; width: 100%; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: var(--space-3); background: var(--id-color-surface); border: var(--border-width) solid currentColor; border-radius: var(--id-radius-md); box-shadow: var(--shadow-overlay); }
 .notification-center li { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--id-color-text); overflow-wrap: anywhere; word-break: keep-all; }
 .notification-center li + li { margin-top: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) solid var(--id-color-border-subtle); }
@@ -3428,8 +3435,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .notification-center .notification-context { color: var(--id-color-text-muted); font-size: var(--font-size-xs); line-height: var(--line-height-meta); }
 
 .notification-center .notification-reveal { padding-inline: 0; border-width: 0; }
-@media (width <= 64rem) { .notification-center { --notification-sidebar-width: var(--sidebar-effective-width); } }
-body:has(.app-shell--collapsed) .notification-center { --notification-sidebar-width: var(--layout-sidebar-rail-width); }
+
 
 /* Read and text editing share the native page; wrapping never changes stored text. */
 .text-document { height: auto; }

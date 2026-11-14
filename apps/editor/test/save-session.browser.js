@@ -21,7 +21,7 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
     await openDocument(page, path);
     await waitForActivePath(page, path);
     await reloadDocument(page);
-    await page.getByRole('dialog').waitFor({state:'detached'});
+    await page.locator('[data-slot="dialog-content"]').waitFor({state:'detached'});
     await ready();
   };
   const paragraph = () => page.locator('[data-document-tab][data-active=true] .document-editor > p[data-block="paragraph"]').first();
@@ -243,7 +243,7 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   const rejected = await rejectedSave;
   check('invalidContentRejectedByHost', rejected.status() === 400 && await rejected.finished() === null);
   await page.getByText('Save failed', {exact:true}).filter({visible:true}).waitFor();
-  await page.getByRole('dialog').waitFor({state:'detached'});
+  await page.locator('[data-slot="dialog-content"]').waitFor({state:'detached'});
   check('invalidContentStopsClose', await page.getByTestId('current-file').getAttribute('title') === file && await page.getByTestId('new-file-name').count() === 0);
   await page.getByTestId('error').getByText('Technical details', {exact:true}).click();
   const invalid = { error: await page.getByTestId('error').innerText(), diskKept: (await read(file)).source === beforeInvalid,
@@ -366,7 +366,7 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   check('reloadUsesDisk', (await paragraph().innerText()) === 'External.');
 
   const blockCount = (await read(file)).document.blocks.length;
-  await page.getByRole('dialog').waitFor({state:'detached'});
+  await page.locator('[data-slot="dialog-content"]').waitFor({state:'detached'});
   await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(element => {
     const e = element.editor; e.commands.setTextSelection(e.state.doc.firstChild.nodeSize + 1); e.view.focus();
   });
