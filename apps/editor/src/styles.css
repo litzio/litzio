@@ -1709,7 +1709,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
  * row is content; tools live in the block overlay outside horizontal scrolling. */
 .table-grid { position: relative; width: 100%; padding: var(--size-control-compact) 0 0; box-sizing: border-box; }
 .table-row-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
-.table-column-append-anchor { position: absolute; width: 0; pointer-events: none; }
 .table-tools { visibility: visible; }
 .table-tools button { position: absolute; width: var(--size-control-compact); height: var(--size-control-compact); padding: 0; border: 0; background: transparent; color: var(--id-color-text-muted); cursor: pointer; font-family: var(--font-family-sans); font-size: var(--font-size-sm); line-height: var(--line-height-label); font-weight: 400; border-radius: var(--id-radius-md); opacity: 0; pointer-events: none; }
 .table-tools button[data-show="true"], .table-tools :is(.table-row-handle, .table-column-handle):focus-visible { opacity: 1; pointer-events: auto; }
@@ -1728,9 +1727,9 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .table-tools .table-row-handle[data-scrolled="true"] { transform: translate(calc(-1 * var(--size-control-compact) - var(--space-table-tool-edge)), -50%); }
 /* The browser follows the block-relative anchor even after position-only layout
  * changes. Fixed paint avoids adding overflow to the document text column. */
-.table-tools .table-extend-column { display: none; margin-left: var(--space-table-tool-edge); }
-@supports (position-anchor: --table-append) and (left: anchor(right)) and (height: anchor-size(height)) {
-  .table-tools .table-extend-column { display: inline-flex; position: fixed; left: anchor(right); top: anchor(top); height: anchor-size(height); }
+.table-tools .table-extend-column { display: none; margin-left: var(--space-table-tool-edge); margin-top: var(--size-control-compact); }
+@supports (position-anchor: --table-append) and (left: anchor(right)) {
+  .table-tools .table-extend-column { display: inline-flex; position: fixed; left: anchor(right); top: anchor(top); }
 }
 .table-tools .table-extend-column::before { right: auto; width: var(--size-table-tool-bar); }
 .table-extend-column svg { position: absolute !important; left: calc((var(--size-table-tool-bar) - var(--size-icon-slot)) / 2); }
