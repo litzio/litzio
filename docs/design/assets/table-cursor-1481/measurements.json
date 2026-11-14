@@ -136,14 +136,14 @@
       {
         "label": "Append column",
         "rect": {
-          "x": 1084,
+          "x": 1212,
           "y": 467.78125,
           "width": 28,
           "height": 78.5,
           "top": 467.78125,
-          "right": 1112,
+          "right": 1240,
           "bottom": 546.28125,
-          "left": 1084
+          "left": 1212
         }
       },
       {
@@ -429,14 +429,14 @@
       {
         "label": "Append column",
         "rect": {
-          "x": 1084,
+          "x": 1212,
           "y": 618.78125,
           "width": 28,
           "height": 100.5,
           "top": 618.78125,
-          "right": 1112,
+          "right": 1240,
           "bottom": 719.28125,
-          "left": 1084
+          "left": 1212
         }
       },
       {
