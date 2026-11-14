@@ -120,12 +120,18 @@ action menu, including Edit label and danger-styled Delete table. There is no st
 Delete button. The existing #791 target-wide `MetadataProperties` popover, draft lifecycle,
 selection, deletion command and one-step Undo remain unchanged; no Core/CLI operation is added.
 
-A compact-control-height row is always reserved inside the table block above the column
+In editable displays, a compact-control-height row is always reserved inside the table block above the column
 handles. This avoids overlap with preceding prose, column tools and captions; showing or
 hiding controls never changes document height. The number/label shares its vertical center,
 with ellipsis for long metadata. Row/column/Append tools remain on the grid; Append row
 stays after the caption. #721's shared figure/table caption gap is unchanged. Both upper
 buttons remain reachable before and after scrolling a wide table horizontally.
+
+Read-only displays (Read mode, DocumentView, comparisons and previews) retain the
+visible number/label row but reserve no column-handle gutter or append-row space
+(#1481). This uses the same editor editability as table tools; transient hiding
+while editing properties does not collapse editable spacing. Caption gaps and
+ordinary block margins remain unchanged.
 
 The `table-authoring` upper-row assertion failed before product edits at baseline
 `b9b2b8e9a4b9fc959177b1755369ff3caf1013ba`: Edit/More were below the grid, inside the

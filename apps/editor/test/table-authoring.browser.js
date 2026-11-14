@@ -78,6 +78,20 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     if (wrapping.length !== 2 || wrapping.some(t => t.overflow > 1 || t.lines < 2 || t.cellOverflow > 1))
       throw Error(`Table prose and identifiers must wrap at ${width}px: ${JSON.stringify(wrapping)}`);
   }
+  // #1481: read-only removes tool space; editable reveal never moves content.
+  await page.getByTestId('view-visual').click();
+  await page.mouse.move(0, 0);
+  const editableHeight = (await tables.first().boundingBox()).height;
+  await tables.first().hover();
+  expect((await tables.first().boundingBox()).height).toBe(editableHeight);
+  await page.getByTestId('view-read').click();
+  expect((await tables.first().boundingBox()).height).toBeLessThan(editableHeight);
+  await tables.first().hover();
+  await expect(tables.first().locator('.block-metadata')).toBeVisible();
+  expect(await tables.first().locator('.table-grid').evaluate(el => {
+    const css = getComputedStyle(el);
+    return parseFloat(css.paddingBottom) === 0 && parseFloat(css.paddingRight) === 0;
+  })).toBe(true);
   // #902: view preferences never touch the editor history or document source.
   const wrapLabel = 'This document’s tables: wrap long text';
   const paper = () => page.locator('[data-document-tab][data-active=true] [data-testid=document-editor]');

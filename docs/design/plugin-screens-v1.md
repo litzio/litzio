@@ -26,7 +26,7 @@ Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다.
 
 ## 읽기 전용 문서 보기
 
-`ui.DocumentView({path,target?,reloadKey?,height?,label?,onStateChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
+`ui.DocumentView({path,target?,reloadKey?,height?,label?,onStateChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
 
 - `target?: {revision:string,path:NodePath}`: CLI `inspect --format json` 또는 Host 읽기 출력의 Core NodePath 배열을 그대로 받는다. 저장본 revision과 같을 때만 해당 블록 또는 표 셀로 내부 스크롤을 이동하고 강조한다. 셀 경로는 그 셀의 실제 렌더링 영역을 강조한다. 미주 정의 경로는 뒤로 배치된 정의를, 호출이 들어 있는 문단 경로는 그 문단을 가리킨다. 인라인 호출 자체의 별도 경로·글자 범위·중첩 목록 항목 단위 탐색은 제공하지 않는다. 지원하지 않거나 없는 경로는 target-not-found로 알리고 강조하지 않는다.
 - `reloadKey?: string|number`: 값을 바꾸면 저장본을 다시 읽는다. target 변경이나 현재 문서를 여전히 포함하는 무관한 폴더 목록 변경은 다시 읽지 않는다. 현재 문서가 열린 폴더 범위에서 빠지면 요청을 취소하고 표시를 지운다. polling·자동 변경 추적·오래된 경로 자동 재대응은 없다. 새 저장본의 revision이 target과 다르면 stale-target으로 알리고 이동·강조하지 않는다.
