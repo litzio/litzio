@@ -513,6 +513,9 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
         `Hover did not outline the top-level block: ${JSON.stringify({actual,expected})}`);
     }
     await hoverParagraph.hover();
+    // Returning from the lower table can legitimately scroll the shorter viewport.
+    // Measure immediately before gutter hover so the zero-motion assertion isolates it.
+    const textBeforeGutter = await textGeometry();
     const paragraphBox = await hoverParagraph.boundingBox();
     const rowExtent = await extent.boundingBox();
     const controls = page.locator('.block-controls').filter({has:page.getByRole('button', {name:/^Move paragraph block \d+$/})}).first();
@@ -526,7 +529,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
         return hit === n || n.contains(hit);
       }), 'Expanded extent covers a gutter control');
     }
-    check(JSON.stringify(await textGeometry()) === JSON.stringify(textBeforeHover), 'Gutter hover moved text (expected 0px)');
+    check(JSON.stringify(await textGeometry()) === JSON.stringify(textBeforeGutter), 'Gutter hover moved text (expected 0px)');
     const adjacentGaps = await hoverParagraph.evaluate(n => {
       const r = n.getBoundingClientRect();
       return [r.top - n.previousElementSibling.getBoundingClientRect().bottom,

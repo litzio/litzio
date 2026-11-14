@@ -197,7 +197,7 @@ Under the [owner decision #1455](https://github.com/litzio/litzio/issues/1455), 
 - Document settings sits above the title, outside ProseMirror (#580); TopBar has no document-settings button. View controls (Visual/Source, Wide document, Outline) and file action groups keep their order, separated by 12px between groups and 4px within groups. Visual/Source is one segmented control: a 28px track with 2px padding holding two 24px segments. Visual/Source raised faces and shadows do not affect layout; document tabs instead use a flat surface with a bottom accent marker (#581). Both retain independent inset focus rings; tab text stays at 0px movement. Current Explorer/Outline/+·slash rows intentionally use 600 semibold as a non-color cue, so glyph widths may change. Explorer retains ellipsis; Outline reserves its semibold text extent with a hidden copy and keeps single-line ellipsis to avoid row-height jumps. Hover/focus preserve the current weight and existing insets.
 - The document column centers in the area remaining between the sidebar and the Document panel. Its maximum width is `--layout-content-width` (928px), or `--layout-content-width-wide` (1280px) with the Wide document preference, with 16px outer insets; it never exceeds the available area. Both values are [adjustable values](editor-visual-language-v1.md#adjustable-values-and-preferences). Wide changes only the column width: the content axis, 80px gutter and block rules stay the same.
 - Document owns the 80px starting gutter: 8px edge + 28px control + 4px gap + 28px control + 12px safety. Trailing inset is 80px, becoming 16px at ≤1024px.
-- The white document surface fills at least the viewport below the measured sticky header, less two outer insets. The column's 16px canvas gap surrounds it; an inset 1px edge changes no width. Long documents grow naturally and end with the adjustable writing end space (`--layout-document-end-space`) as bottom padding. The blank paper below the actual editor content remains clickable to continue writing.
+- The white document surface fills at least the document viewport below the measured sticky header and above the notification strip, less two outer insets. Short document and text-input minima use that same reduced height, avoiding a scrollbar caused only by the reservation. The column's 16px canvas gap surrounds it; an inset 1px edge changes no width. Long documents grow naturally and end with the adjustable writing end space (`--layout-document-end-space`) as bottom padding. The blank paper below the actual editor content remains clickable to continue writing.
 - All top-level block wrappers share the content axis. Block-internal content may inset or center. Controls overlay the gutter and never shift text. The pointer-hover extent starts from the drag-source rectangle (content axis, block top/height, trailing document inset), expanded by `--space-block-hover-inline` (8px left/right) and `--space-block-hover-block` (4px above/below). This uses 8px of the 12px gutter safety, leaving 4px before the handle, and keeps neighboring extents separate within the existing block gaps. The hover corner radius is `--id-radius-block-hover` (small radius plus space-1 and the shared border width, currently 9px). Figure/Equation/table/endnote selected/editing overlays use the same expanded rectangle, radius and inset stroke width; their accent stroke paints above hover when both coincide. The inset strokes share the overlay outer radius. No content border/padding is added: text moves 0px. Hover uses the original vertical block range anywhere inside the document host, including its gutter controls; expansion does not activate the gaps. Gutter, hover and drag geometry observe both the paper and editor content, so content resizing inside a minimum-height paper still updates the handles and overlays. The hover extent is recomputed under the pointer on layout/scroll/transactions, independently of selection; geometry updates do not switch its controls to the selection.
 - #990: Outline/Tables/Figures content starts `--space-4` below its tab boundary,
   aligning its first row with Explorer and the paper top at default docked widths
@@ -380,10 +380,29 @@ select row; the table block menu separates its View checkbox from mutation group
 
 ## Notification placement beside right panels (#970)
 
-The floating notification center may overlap document content or other controls;
-users can collapse it or work around it. Non-overlap is not guaranteed (#1003).
-Browser scenarios that do not inspect notifications hide the center through the
-shared test harness. Product placement remains unchanged.
+The collapsed notification button has a reserved bottom strip outside every document
+scroll viewport (compact control height plus two space-4 insets). Source and split
+groups share this boundary, so body controls can scroll above the button and property
+forms reuse the existing content-viewport collision bounds. The expanded notification
+list remains a dismissible overlay; collapse it to access covered content. This replaces
+the earlier blanket overlap allowance (#1003). Browser scenarios that do not inspect
+notifications may still hide the center through the shared test harness.
+
+Visual review for #1644 (2026-11-14): Windows persistent Chrome, DPR 1,
+1200px viewport height, synthetic Mermaid source, default document width. The
+source preview is deliberately held pending as in #1625. The action is scrolled
+to the owning viewport's bottom; Sidebar is masked to exclude local identity.
+At 640px, master product CSS fails the Apply-center hit test; the fixed version
+passes that test and the unchanged pointerdown/render/pointerup submission check.
+The before probe prioritizes the narrow case (its synthetic stage labels use case 0;
+the ordinary after matrix uses case 2). This is geometry evidence, not a pixel test.
+
+| State | Capture |
+| --- | --- |
+| 640 Dark, master CSS | [Before](assets/notification-clearance-1644/notification-1644-before-640-dark.png) |
+| 1440 Light, fixed | [After](assets/notification-clearance-1644/notification-1644-1440-light.png) |
+| 640 Light, fixed | [After](assets/notification-clearance-1644/notification-1644-640-light.png) |
+| 640 Dark, fixed | [After](assets/notification-clearance-1644/notification-1644-640-dark.png) |
 
 The window notification center uses the right panel’s left edge as its trailing
 boundary while Outline (docked or overlay) or the nonmodal assistant is open.

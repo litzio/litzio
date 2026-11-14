@@ -72,18 +72,19 @@ async (page, { openPath, expect, screenshots, waitForExplorerLayout }) => {
     const selection = getSelection();
     return selection?.isCollapsed && node.contains(selection.anchorNode);
   })).toBe(true);
+  const viewportBottom = (await viewport.boundingBox()).y + (await viewport.boundingBox()).height;
   const selectionStart = await viewport.locator('.document-editor > p').first().boundingBox();
   await page.mouse.move(selectionStart.x+8, selectionStart.y+12);
   await page.mouse.down();
   try {
-    await page.mouse.move(selectionStart.x+120,896,{steps:12});
-    await page.mouse.move(selectionStart.x+121,896);
+    await page.mouse.move(selectionStart.x+120,viewportBottom-4,{steps:12});
+    await page.mouse.move(selectionStart.x+121,viewportBottom-4);
     await expect.poll(() => viewport.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
     await expect.poll(() => page.evaluate(() => getSelection().toString().length)).toBeGreaterThan(0);
     expect((await state()).window).toBe(0);
   } finally { await page.mouse.up(); }
 
-  // A native drag near the window edge must scroll this document, with the shell stationary.
+  // A native drag near the document viewport edge must scroll this document, with the shell stationary.
   await viewport.evaluate(node => node.scrollTop = 0);
   const paragraph = viewport.locator('.document-editor > p').first();
   await paragraph.hover();
@@ -92,8 +93,8 @@ async (page, { openPath, expect, screenshots, waitForExplorerLayout }) => {
   await page.mouse.move(box.x + box.width/2, box.y + box.height/2);
   await page.mouse.down();
   try {
-    await page.mouse.move(900, 896, {steps:10});
-    await page.mouse.move(901, 896);
+    await page.mouse.move(900, viewportBottom-4, {steps:10});
+    await page.mouse.move(901, viewportBottom-4);
     await expect(viewport.getByTestId('block-drag-source')).toBeVisible();
     await page.waitForFunction(() => document.querySelector('.document-scroll[data-active="true"]').scrollTop > 0);
     expect((await state()).window).toBe(0);
@@ -169,10 +170,10 @@ async (page, { openPath, expect, screenshots, waitForExplorerLayout }) => {
               return {top:box.top, bottom:box.bottom, right:box.right, headerBottom:header.bottom,
                 titleRight:titleBox.right, titleBorder:parseFloat(getComputedStyle(title).borderBottomWidth),
                 rootScroll:window.scrollY, rootHeight:document.documentElement.scrollHeight,
-                width:innerWidth, height:innerHeight, scrollbar:node.offsetWidth-node.clientWidth};
+                width:innerWidth, height:innerHeight, clearance:parseFloat(getComputedStyle(node).bottom), scrollbar:node.offsetWidth-node.clientWidth};
             });
             expect(measured.top, 'Scrollbar must start below tabs/messages').toBe(measured.headerBottom);
-            expect(measured.bottom).toBe(measured.height);
+            expect(measured.bottom).toBe(measured.height - measured.clearance);
             expect(measured.right).toBe(measured.width);
             expect(measured.titleRight, 'Title-strip boundary must reach the window controls edge').toBe(measured.width);
             expect(measured.titleBorder).toBeGreaterThan(0);
