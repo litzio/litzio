@@ -45,6 +45,6 @@ export async function pluginCli(args: string[]): Promise<number> {
     if (!health.ok || (await health.json()).protocolVersion !== DAEMON_PROTOCOL) throw new Error("Host protocol check failed");
     dispatched = true;
     const response = await fetch(new URL("/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(30000) });
-    const value = await response.json(); process.stdout.write(JSON.stringify({ target: origin.origin, ...value }) + "\n"); return response.ok && (!value.receipt || value.receipt.outcome === "success") ? 0 : 1;
+    const value = await response.json(); process.stdout.write((args.includes("--json") || command !== "operation" || !value.error ? JSON.stringify({ target: origin.origin, ...value }) : `${value.code ? value.code + ": " : ""}${value.message ?? value.error}`) + "\n"); return response.ok && (!value.receipt || value.receipt.outcome === "success") ? 0 : 1;
   } catch (error) { process.stdout.write(JSON.stringify({ outcome: dispatched ? "uncertain" : "failure", reason: String(error) }) + "\n"); return 1; }
 }

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PLUGIN_ERROR_KINDS, SDK_VERSION, PluginOperationError, pluginErrorKind, type PluginCli, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
+import { PLUGIN_ERROR_KINDS, SDK_VERSION, PluginPublicError, PluginOperationError, pluginErrorKind, type PluginCli, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
 
 let sdkUrl: Promise<string> | undefined;
 declare const __LITZIO_CLI_BUILD__: { desktop: boolean };
@@ -26,7 +26,7 @@ import { statSync, realpathSync } from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { registerHooks } from 'node:module';
-let instance;
+let instance, PublicError;
 process.on('disconnect', () => process.exit(0));
 process.on('message', async ({id, method, args}) => {
   try {
@@ -55,6 +55,7 @@ process.on('message', async ({id, method, args}) => {
         return resolved;
       }});
       if ((await import('@litzio/plugin-sdk')).SDK_VERSION !== args.sdkVersion) throw new Error('Unsupported SDK version');
+      PublicError = (await import('@litzio/plugin-sdk')).PluginPublicError;
       const module = await import(pathToFileURL(args.entry).href);
       instance = await module.activate({...(args.cli ? {cli: Object.freeze({bin: args.cli.bin, args: Object.freeze(args.cli.args)})} : {}), secrets: Object.freeze(args.secrets), settings: args.settings, platform: process.platform, env: {...process.env}, isDirectory(file) {try {return statSync(file).isDirectory()} catch {return false}}});
       if (!instance || typeof instance.status !== 'function' || typeof instance.dispose !== 'function' || !instance.operations || args.operations.some(key => typeof instance.operations[key] !== 'function' || !Object.hasOwn(instance.operations, key)) || Object.keys(instance.operations).some(key => typeof instance.operations[key] !== 'function' || !args.codeScreen && !args.operations.includes(key))) throw new Error('Invalid handlers');
@@ -68,7 +69,9 @@ process.on('message', async ({id, method, args}) => {
     // Artifact errors can contain credentials. Do not forward arbitrary error text.
     let kind = "failed";
     try { const requested = error?.kind; if (${JSON.stringify(PLUGIN_ERROR_KINDS)}.includes(requested)) kind = requested; } catch {}
-    process.send({id, ok: false, kind});
+    let publicError;
+    try { if (method === "invoke" && PublicError && error instanceof PublicError && typeof error.code === "string" && typeof error.message === "string") publicError = {code: error.code, message: error.message}; } catch {}
+    process.send({id, ok: false, kind, publicError});
   }
 });
 `;
@@ -93,7 +96,7 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
     const call = pending.get(message?.id);
     if (!call) return;
     pending.delete(message.id); clearTimeout(call.timer);
-    if (message.ok === true) call.resolve(message.result); else call.reject(new PluginOperationError(pluginErrorKind(message.kind)));
+    if (message.ok === true) call.resolve(message.result); else call.reject(message.publicError && typeof message.publicError.code === "string" && typeof message.publicError.message === "string" ? new PluginPublicError(message.publicError.code, message.publicError.message) : new PluginOperationError(pluginErrorKind(message.kind)));
   });
   const request = (method: string, args?: unknown) => new Promise<any>((resolve, reject) => {
     if (dead) { reject(new Error("Plugin process unavailable")); return; }

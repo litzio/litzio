@@ -2,7 +2,8 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [AGENTS.md](../../AGENTS.md).
-- Last verified: 2026-11-13 — #1592 1-2 코드·대상 검사 대조. Node context CLI는 소스·배포 Host의 실행 정보와 그림 포함 create/batch/check 경계를 검사한다. 실제 외부 서비스·원격 PC 수락은 포함하지 않는다.
+- Last verified: 2026-11-14 — #1634 공개 오류·입력 진단 계약 추가. 검증 범위는 PR 실행 기록 참조.
+- Previous verification: 2026-11-13 — #1592 1-2 코드·대상 검사 대조. Node context CLI는 소스·배포 Host의 실행 정보와 그림 포함 create/batch/check 경계를 검사한다. 실제 외부 서비스·원격 PC 수락은 포함하지 않는다.
 
 ## 현재 범위
 
@@ -93,6 +94,29 @@ export function activate(context) {
 Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한다. 새 요청을 차단한 뒤 이미 접수한 호출과 status 관찰을 drain하고 dispose한다. reload는 새 artifact와 설정·secret을 읽는다. 종료는 모든 child를 닫으며 하나의 실패로 다른 child 정리를 건너뛰지 않는다. 화면/daemon/문서의 수명을 섞지 않는다.
 
 일반 호출 RPC는 기존 10초 한계를 유지한다. K1 장기 작업·staging·job history·결과 게시 경로는 삭제했다. 실행 핵심이 선언형 binding과 검수/생성 문서 게시 callback에 결합돼 있어 독립 계약으로 깨끗이 남지 않았기 때문이다. 새 장기 작업 API나 화면 연결은 만들지 않았다.
+
+## 호출자에게 전달하는 실패 (#1634)
+
+처리 코드가 호출자가 고칠 수 있는 잘못을 발견하면 공개 SDK의 명시적 오류를 쓴다. 안정된 code는 영문자로 시작하는 영숫자·밑줄·점·하이픈 1–64자다.
+
+```js
+import { PluginPublicError } from "@litzio/plugin-sdk";
+throw new PluginPublicError("invalid_group", "Use a group ID from list-groups, not a page number.");
+```
+
+message는 무엇이 잘못됐는지, 무엇을 넣어야 하는지, 유효한 값은 어디서 얻는지 설명한다. secret·내부 경로·스택·원본 외부 오류 응답은 넣지 않는다. 제작 안내에 이 예를 제공하며, 정상 인사말 scaffold에 오류 예제를 추가하지 않는다.
+
+child는 invoke에서 이 클래스의 인스턴스만 code/message로 직렬화한다. Host는 code 형식을 확인하고 등록된 해당 plugin의 secret literal을 code에서 발견하면 일반 실패로 되돌린다. message는 기존 secret 마스킹을 먼저 적용한 뒤 Unicode Cc/Cf/Cs/Zl/Zp를 제거하고 앞뒤 공백을 정리한다. 정리 후에도 secret을 가리고 최대 1024 Unicode code point로 자른다. 빈 문구·잘못된 code는 일반 실패로 되돌린다. 인코딩·분할된 secret의 모든 변형을 탐지한다는 보장은 없다. 명시적 공개 오류에도 내부 정보가 없도록 작성자가 책임진다.
+
+HTTP·CLI JSON·비서 도구는 기존 `{errorKind,error,receipt}`를 유지하며 `{code,message}`를 덧붙인다. error에도 같은 안전한 message를 넣는다. 화면 invoke는 Error.message와 code, errorKind, inputIssues, receipt를 제공한다. 문구는 HTML로 해석하지 않고 텍스트로 표시한다. CLI 사람용 실패는 `code: message`를 출력하며 실패 종료 코드 1을 유지한다. 공개 write 실패의 receipt outcome은 여전히 uncertain이므로 자동 재실행하지 않는다.
+
+입력 schema 거부는 handler 실행 전에 `{errorKind:"invalid_input",error,inputIssues:[{path,reason}],receipt}`를 반환한다. receipt는 요청 ID·operation·version·scope와 outcome refused를 담는다. 진단은 처음 8개이며 JSON Pointer 경로와 필수 누락·타입·허용 값·형식 등 이유를 제공한다. 입력 값·Ajv params·schema literal은 반환하지 않는다. 유효한 타입·값·형식은 공개 operation schema에서 확인한다. 동적 객체 키는 `*`로 가리고 경로도 secret 마스킹·문자 정리를 적용한다.
+
+### 변경 전 경로와 유지되는 보호
+
+ADR-0020의 secret 절은 argv·로그·비서 결과·뷰에 PAT를 남기지 않고 외부 API 오류 응답을 Host에서 정리하도록 한다. 변경 전 child catch는 자격 증명 유출을 막기 위해 예외 문구·스택을 버리고 허용된 kind만 IPC로 보냈다. Host publicOperationError가 kind를 고정 문구로 바꿨고 HTTP는 결과를 그대로 전달했다. CLI는 두 모드 모두 JSON, 화면 invoke는 error 문자열만 가진 Error, 비서 도구는 공통 실패 결과를 받았다. 입력 schema 거부는 상세 없이 `Invalid operation input` 예외였고 HTTP 400으로 전달됐다. 비서는 이 예외를 다시 일반 실패로 가렸다.
+
+이제 명시적 공개 오류만 위 예외 경로를 추가한다. 표식 없는 예외와 출력 schema 불일치는 계속 `Plugin operation failed. Check plugin settings and the target.`다. 프로세스 종료도 같은 일반 실패이며 RPC timeout은 `Operation timed out. Check the service connection.`다. write는 기존처럼 `Check the target before retrying a write.` 안내가 붙는다. 기존 PluginOperationError(kind)의 auth/forbidden/not_found/unavailable 등 Host 고정 문구는 유지한다. 비활성·미등록은 `Operation unavailable or plugin disabled`, artifact 변경·미신뢰는 `Artifact changed; reload the plugin`으로 거부하며 전용 비서 도구의 admission 거부는 기존 unavailable/forbidden 안내를 유지한다. timeout·crash·출력 실패의 receipt와 종료 코드는 바꾸지 않는다. 비서의 최종 publication adapter는 기존대로 failed를 unavailable, refused outcome을 failure로 정규화하고 code/message/inputIssues는 보존한다.
 
 ## 제작과 설치
 
