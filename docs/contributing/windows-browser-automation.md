@@ -20,6 +20,7 @@ runner가 서버를 시작할 때는 실행마다 OS 임시 폴더 아래 Host �
 `LITZIO_DATA_DIR`(플러그인 작업 이력 등), daemon 기록, 플러그인 설정·secret과 비서 작업·설정
 경로를 그 안으로 전달하여 Vite·production HTTP 모두 실행 간 데이터를 공유하지 않는다.
 사용자가 지정한 `LITZIO_DATA_DIR`는 그대로 사용하고 삭제하지 않는다.
+Host 데이터·비서 작업·비서 설정·daemon·플러그인 설정과 별도로 초기화 보호 경로인 `LITZIO_RESET_DIR`도 실행별로 격리한다. 브라우저 runner와 수동 비서 수락 실행기는 `test/helpers/isolated-host-environment.ts`의 같은 경로 목록을 사용한다. 공급자 로그인은 이 목록에 포함하지 않는다. 외부 서버에 붙을 때는 caller가 서버의 모든 경로와 수명을 소유한다.
 Playwright의 서버 종료 후 runner 종료 시 생성 당시 디렉터리의 실제 경로·파일 식별자를 확인하여
 자신이 만든 디렉터리만 정리한다. 대체·symlink/junction 등으로 소유권 확인에 실패하면 남기고
 오류를 보고한다. `LITZIO_BROWSER_URL`로 붙는 외부 서버의 데이터 경로·수명은 caller 소유다.
