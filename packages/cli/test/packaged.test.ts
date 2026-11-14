@@ -11,6 +11,7 @@ import test, { after, describe } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const dist = fileURLToPath(new URL("../dist/", import.meta.url));
+const phaseTimeout = 60_000;
 
 async function freePort(): Promise<number> {
   const server = createServer();
@@ -52,7 +53,8 @@ describe("the packed CLI outside the checkout using Node alone", { concurrency: 
     timing("cleanup");
   }, { timeout: 15_000 });
 
-  test("installs offline and runs the installed shim and Node document commands", { timeout: 60_000 }, () => {
+  test("installs offline and runs the installed shim and Node document commands", { timeout: phaseTimeout }, () => {
+    const installStarted = performance.now();
     // Declare the dependency up front to avoid resolving the same tarball twice during idealTree.
     // Anchor npm here even when an ancestor of the OS temp directory is another npm project.
     writeFileSync(path.join(install, "package.json"), JSON.stringify({ name: "litzio-package-test", private: true, dependencies: { "@litzio/cli": "file:./artifact.tgz" } }));
@@ -80,10 +82,12 @@ describe("the packed CLI outside the checkout using Node alone", { concurrency: 
     const formatted = spawnSync(process.execPath, [entry, "format", path.join(a, "document.md")], { cwd, env, encoding: "utf8" });
     assert.equal(formatted.status, 0, formatted.stderr);
     timing("node-version-check-format");
+    // Synchronous npm/CLI work can keep the watchdog timer from running before this test returns.
+    assert.ok(performance.now() - installStarted < phaseTimeout, "Offline installation and CLI commands exceeded their 60s test budget");
     installedReady = true;
   });
 
-  test("serves both roots with the shipped plugin SDK, screen tools and Save", { timeout: 60_000 }, async () => {
+  test("serves both roots with the shipped plugin SDK, screen tools and Save", { timeout: phaseTimeout }, async () => {
     assert.ok(installedReady, "The offline installation and command contract must pass before starting the Host");
     const port = await freePort(), url = `http://127.0.0.1:${port}`;
     child = spawn(process.execPath, [entry, "daemon", "run", "--channel", "development", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });

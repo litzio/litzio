@@ -38,6 +38,6 @@
 
 설치 한 번과 같은 파일·단일 Host를 공유하는 순차 suite로 나눴다. offline tarball 설치·shim·Node 문서 명령과, 실행 Host의 SDK/화면/자산/비서 환경/두 Root Save·lock·종료 계약은 각각 60초다. 기존 단언을 모두 유지하고 설치가 실패하면 Host를 시작하지 않는다. 기존 Host 시작 15초·lock 명령 10초·정지 fallback 7초는 바꾸지 않는다. suite의 최종 정리는 별도 15초 hook으로 제한한다(기존 정지 fallback 7초와 측정된 1초 미만 파일 정리 포함).
 
-관측된 실패를 새 구간으로 나누면 설치·CLI 54.282초 / Host와 정리 23.529초다. 가장 긴 성공은 18.898초 / 40.051초다. 이 때문에 각 의미 구간의 기존 60초를 유지할 수 있다. 합산 제한만 일괄 늘리거나 재시도하지 않으며, subprocess·설치·Host 횟수도 늘리지 않는다. Node 검사 timeout은 동기 npm 실행을 강제 선점하는 제품 성능 제한이 아니라 검사 watchdog이라는 한계는 그대로다.
+관측된 실패를 새 구간으로 나누면 설치·CLI 54.282초 / Host와 정리 23.529초다. 가장 긴 성공은 18.898초 / 40.051초다. 이 때문에 각 의미 구간의 기존 60초를 유지할 수 있다. 합산 제한만 일괄 늘리거나 재시도하지 않으며, subprocess·설치·Host 횟수도 늘리지 않는다. 동기 npm/CLI가 event loop를 막으면 Node watchdog은 반환 전에 실행되지 못하므로 설치 구간 끝에서도 같은 60초 예산을 직접 검사한다. 이는 제품 성능 기준이 아니며 동기 subprocess를 강제 선점하는 정책까지 추가하지 않는다.
 
 로컬 Windows에서 공식 CLI package 후 분리한 packaged 검사 두 개가 통과했다(설치·CLI 약 5.7초, Host 약 15.8초, stage 총합 22.137초). 전체 typecheck 통과. 로컬 한 번의 통과는 CI 변동성 해소의 최종 증거가 아니며 PR의 Windows/Linux packaged 및 merge queue 결과가 필요하다. 제품 코드는 변경하지 않았다.
