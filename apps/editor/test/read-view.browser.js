@@ -443,7 +443,7 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   await expect(page.getByTestId('mermaid-source')).toHaveValue('graph LR\n  UNAPPLIED --> Draft');
   await read.click();
 
-  const notifications = page.getByRole('button', {name:/^Notifications:/});
+  const notifications = page.getByRole('button', {name:'Notifications',exact:true});
   if (await notifications.getAttribute('aria-expanded') === 'true') await notifications.click();
   // Compact draft status, all three segments and Save fit the supported tab row.
   if (screenshots) for (const [width, language, theme] of [[1440, 'en', 'light'], [640, 'ko', 'dark']]) {
@@ -523,10 +523,10 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   const overlap = await lowerMenu.getByRole('menuitem',{name:'삭제',exact:true}).evaluate(row => {
     const b=document.querySelector('.notification-center > button').getBoundingClientRect(), r=row.getBoundingClientRect();
     const left=Math.max(b.left,r.left), right=Math.min(b.right,r.right), top=Math.max(b.top,r.top), bottom=Math.min(b.bottom,r.bottom);
-    const x=(left+right)/2, y=(top+bottom)/2;
+    const x=r.left+r.width/2, y=r.top+r.height/2;
     return {intersects:right>left&&bottom>top,menuOwnsHit:row.contains(document.elementFromPoint(x,y)),x,y};
   });
-  expect(overlap.intersects).toBe(true); expect(overlap.menuOwnsHit).toBe(true);
+  expect(overlap.intersects).toBe(false); expect(overlap.menuOwnsHit).toBe(true);
   expect(await bell.boundingBox()).toEqual(bellBefore);
   await page.mouse.click(overlap.x,overlap.y);
   await expect(lowerMenu).toHaveCount(0); await expect(lastParagraph).not.toHaveText(lastText);

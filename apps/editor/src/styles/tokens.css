@@ -8,6 +8,8 @@
    * no rule or script repeats these numbers. See Visual Language "Adjustable values". */
   /* Initial assistant dock width; an explicit 340–560px user resize overrides it. */
   --layout-assistant-width: 24.5rem;
+  /* Title-strip width below which Assistant keeps only its icon beside Notifications. */
+  --layout-assistant-label-breakpoint: 30rem;
   /* Composer clipboard image preview; large enough to recognize before sending. */
   --size-assistant-image-thumbnail: 4rem;
   /* Paper and canvas are independent of floating surfaces (surface). #593 can flatten the

@@ -132,6 +132,8 @@ async (page, { openPath, expect, screenshots }) => {
 
     await active.getByRole('heading', {name: 'Section one', exact: true}).hover();
     await active.getByTestId('label-target-edit').click();
+    // The label entry owns initial focus. Let that opening handoff finish before Tab.
+    await expect(page.getByTestId('label-target-input')).toBeFocused();
     await checkSurface('label-target-input');
     await page.getByTestId('label-target-input').fill(' bad-label');
     await page.getByTestId('label-target-apply').click();

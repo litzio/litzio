@@ -18,15 +18,16 @@ function PopoverContent({
   sticky,
   keepMounted,
   positionerClassName,
+  portalContainer,
   collisionAvoidance,
   ...props
-}: PopoverPrimitive.Popup.Props & { keepMounted?: boolean; positionerClassName?: string } &
+}: PopoverPrimitive.Popup.Props & { keepMounted?: boolean; portalContainer?: HTMLElement | null; positionerClassName?: string } &
   Pick<
     PopoverPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "anchor" | "collisionBoundary" | "sticky" | "collisionAvoidance"
   >) {
   return (
-    <PopoverPrimitive.Portal className="ui-portal" keepMounted={keepMounted}>
+    <PopoverPrimitive.Portal className="ui-portal" keepMounted={keepMounted} container={portalContainer ?? undefined}>
       <PopoverPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}

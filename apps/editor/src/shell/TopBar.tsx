@@ -34,8 +34,15 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
     const button = commandButton.current;
     if (!button) return;
     let active = true;
+    const header = button.parentElement!;
+    // Resolve the adjustable CSS length through layout (including rem and root-font changes).
+    const labelBreakpoint = document.createElement("span");
+    labelBreakpoint.setAttribute("aria-hidden", "true");
+    labelBreakpoint.style.cssText = "position:fixed;left:calc(-1 * var(--layout-assistant-label-breakpoint));top:0;visibility:hidden;pointer-events:none;height:0;width:var(--layout-assistant-label-breakpoint)";
+    header.append(labelBreakpoint);
     const measure = () => {
       if (!active) return;
+      header.dataset.assistantCompact = String(header.clientWidth < labelBreakpoint.getBoundingClientRect().width);
       const style = getComputedStyle(button);
       const gap = parseFloat(style.columnGap);
       const available = button.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -50,11 +57,13 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
     };
     const observer = new ResizeObserver(measure);
     observer.observe(button);
+    observer.observe(header);
+    observer.observe(labelBreakpoint);
     const assistant = button.parentElement?.querySelector(".assistant-trigger");
     if (assistant) observer.observe(assistant);
     measure();
     void document.fonts.ready.then(measure);
-    return () => { active = false; observer.disconnect(); };
+    return () => { active = false; observer.disconnect(); labelBreakpoint.remove(); };
   }, [documentPath, name, location.join("/"), i18n.resolvedLanguage, Boolean(onAssistant)]);
   return (
     <header className="top-bar">
@@ -80,6 +89,7 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
         <MessageSquare /><span className="assistant-trigger-label">{i18n.t("Assistant")}</span>
         {assistantStatus ? <span className="assistant-status agent-dot" aria-hidden="true" /> : null}
       </TooltipTrigger><TooltipContent>{assistantLabel} ({ASSISTANT_SHORTCUT.label})</TooltipContent></Tooltip> : null}
+      <span className="notification-slot" aria-hidden="true" />
     </header>
   );
 }

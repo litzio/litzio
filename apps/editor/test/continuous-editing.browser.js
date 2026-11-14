@@ -81,7 +81,7 @@ async (page, { expect, showNotifications, openDocument }) => {
   }
   await page.keyboard.press('Control+z'); // Formatting edit.
   await page.keyboard.press('Control+z'); // Numbering warning.
-  await page.getByRole('button', {name:'Notifications: none',exact:true}).waitFor();
+  await page.getByRole('button', {name:'Notifications',exact:true}).waitFor();
   assert(await notificationToggle.isVisible(), 'Resolved warnings must leave the empty notification button visible');
   assert(await page.getByTestId('numbering-warning').count() === 0, 'Undo must remove the numbering warning');
   await openDocument(page, file);
