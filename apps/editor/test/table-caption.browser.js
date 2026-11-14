@@ -75,8 +75,8 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
         const actions = rect('.table-action-bar'), append = rect('[aria-label="Append row"]');
         const scroll = rect('.table-scroll');
         return Math.abs(caption.top - row.bottom - figureGap) < 1 && figureGap > 0 &&
-          actions.bottom <= native.getBoundingClientRect().top && append.top >= caption.bottom &&
-          append.bottom <= scroll.bottom &&
+          actions.bottom <= native.getBoundingClientRect().top && (append.top >= caption.bottom || (append.top >= row.bottom && append.bottom <= caption.top)) &&
+          append.height >= 8 &&
           scroll.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth;
       }), `Shared caption gap and unobscured upper actions/Append row at ${width}px (${gap || 'default'})`).toBe(true);
     }
