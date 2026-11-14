@@ -358,6 +358,9 @@ async (page, { openPath, expect, screenshots }) => {
   await page.reload();
   await page.getByRole('dialog', {name:'Restore unsaved work?',exact:true}).getByRole('button', {name:'Not now',exact:true}).click();
   await expect(page.getByRole('dialog', {name:'Restore unsaved work?',exact:true})).toHaveCount(0);
+  // Closing recovery is an outside click for the notification popover.
+  await expect(toggle()).toHaveAccessibleDescription('Notifications: Warning, 2');
+  if (await toggle().getAttribute('aria-expanded') === 'false') await toggle().click();
   await expect(group).toHaveAttribute('aria-expanded','false');
   await center.getByRole('button', {name:'Dismiss group: Numbering warnings · 2',exact:true}).click();
   await expect(toggle()).toHaveAttribute('aria-expanded','false');

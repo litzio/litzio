@@ -56,6 +56,7 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   await page.setViewportSize({width:1440,height:900});
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.getByTestId('settings-dialog')).toBeVisible();
+  await page.getByTestId('theme').selectOption('dark');
   await shot('settings-1440-dark');
   await page.getByRole('button',{name:'Plugins',exact:true}).click();
   await page.getByRole('button',{name:'Add plugin…',exact:true}).click();
@@ -73,4 +74,3 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   await shot('plugin-screen-1440-dark');
   return {manualReview:true};
 }
-
