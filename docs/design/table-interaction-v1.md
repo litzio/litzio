@@ -501,3 +501,20 @@ A second Linux run showed the same 2px overflow despite the smaller minimum: the
 remaining bound is the sum of intact word widths and padding. Narrow scrollers
 (at most 30rem) therefore use 8px inline cell padding; wide tables retain 12px.
 The empty-cell minimum stays 28px and ordinary words remain intact.
+
+### Cursor tools verification (#1481)
+
+The existing table-authoring scenario retains native Tab order, menu target restrictions, Undo/Redo, last-cell Tab, Save/Reload and deletion notice coverage. It also checks that the neighboring paragraph and caption remain clickable while the row bar is active, and that menu emphasis leaves the engine selection unchanged. The horizontal-scroll fixture grows until it actually overflows; removing the old gutter allows more columns to fit, so a fixed old column count no longer exercises that risk.
+
+The [manual capture body](assets/table-cursor-1481/capture.browser.js) uses the [synthetic fixture](assets/table-cursor-1481/sample.txt), copied to the runner scratch folder as sample.md. Temporarily replace quiet-document's body with it, run `pnpm browser:test quiet-document --screenshots`, then restore the original scenario. The [measurements](assets/table-cursor-1481/measurements.json) compare block height, width and document-relative offsets before/after tool entry and menus, and test pointer-target intersections against visible cell text ranges clipped to the scroll viewport. The wide screenshot deliberately forces a 1200px presentation width; that fixture change is excluded from the unchanged-layout comparison. A real overflow fixture remains in table-authoring.
+
+| 1440px state | Light | Dark |
+| --- | --- | --- |
+| Caret outside, hover alone hidden | [PNG](assets/table-cursor-1481/light-outside.png) | [PNG](assets/table-cursor-1481/dark-outside.png) |
+| Caret inside | [PNG](assets/table-cursor-1481/light-inside.png) | [PNG](assets/table-cursor-1481/dark-inside.png) |
+| Row target menu | [PNG](assets/table-cursor-1481/light-row-menu.png) | [PNG](assets/table-cursor-1481/dark-row-menu.png) |
+| Column target menu | [PNG](assets/table-cursor-1481/light-column-menu.png) | [PNG](assets/table-cursor-1481/dark-column-menu.png) |
+| Packed narrow headers | [PNG](assets/table-cursor-1481/light-dense-header.png) | [PNG](assets/table-cursor-1481/dark-dense-header.png) |
+| Horizontally scrolled wide table | [PNG](assets/table-cursor-1481/light-wide-scroll.png) | [PNG](assets/table-cursor-1481/dark-wide-scroll.png) |
+
+Self-review found no cell-text intersections or document size/offset changes from tool entry/menu display in these synthetic states. Native Edit/More click remains usable beside the first narrow column handle. Target emphasis is visible without native row/column selection. Menus retain their existing intentional overlap with neighboring document content. Tool opacity has no visibility animation; captures do not prove absence of flicker on every device. First/last blocks and empty caption surfaces are included. Merged cells and nested tables are outside the current schema/admission contract and were not added. This evidence is browser fixture verification, not installed Desktop acceptance.
