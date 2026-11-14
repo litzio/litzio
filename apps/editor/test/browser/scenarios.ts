@@ -10,6 +10,7 @@ export const STABLE_SCENARIOS = [
   "command-center",
   "figure-authoring",
   "table-authoring",
+  "table-tool-placement",
   "caption-selection",
   "image-assets",
   "equation-save-during-edit",

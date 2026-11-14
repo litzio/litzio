@@ -1,4 +1,4 @@
-async (page,{openPath,expect})=>{
+async (page,{openPath,expect,assertTableToolGeometry})=>{
  const initial=await(await page.request.get(page.url().split('/').slice(0,3).join('/')+'/api/document',{headers:{Connection:'close'}})).json();
  const sep=initial.path.includes('\\')?'\\':'/';const root=initial.path.split(sep).slice(0,-4).join(sep);
  await openPath(page,[root,'tmp','table-cursor-product','sample.md'].join(sep));
@@ -25,6 +25,7 @@ async (page,{openPath,expect})=>{
  }
  }
  await page.mouse.move(1400,10);await page.evaluate(()=>document.fonts.ready);
+ if(state==='inside'||state==='dense-header'||state==='wide-scroll')await assertTableToolGeometry(target);
  const after=await geometry();if(state!=='wide-scroll')expect(after).toEqual(before);
  const details=await target.evaluate(b=>{
  const viewport=b.querySelector('.table-scroll').getBoundingClientRect();
