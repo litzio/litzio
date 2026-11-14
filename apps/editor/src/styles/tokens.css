@@ -40,6 +40,10 @@
   --layout-reading-heading-gutter: var(--space-12);
   --space-heading-level-reading-gap: calc(var(--space-block-hover-inline) + var(--space-3));
   /* Minimum clickable cell measure; short columns shrink to their words. */
+  /* Table tool visible faces; pointer targets retain compact-control dimensions. */
+  --size-table-tool-face: 0.75rem;
+  --size-table-tool-bar: 0.5rem;
+  --space-table-tool-edge: 0.25rem;
   --size-table-cell-min-width: var(--size-control-compact);
   /* Limit a long identifier's intrinsic claim; cqi resolves against the table scroller. */
   --size-table-cell-intrinsic-max: 50cqi;
@@ -291,8 +295,6 @@
   --size-control: 2rem;
   --size-control-compact: 1.75rem;
   --size-icon-slot: 1rem;
-  /* The 28px table row and column handles with their 4px clearance from the table. */
-  --size-table-handle-gutter: calc(var(--size-control-compact) + var(--space-1));
   /* How far a wide table or formula fades out at an edge that has more content to scroll to. */
   --size-overflow-fade: var(--space-8);
   /* A segment inside its 2px track keeps the track at the compact control height. */

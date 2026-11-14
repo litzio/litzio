@@ -6,6 +6,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 표의 행·열을 조작한다 (#1481) | 표 테두리의 현재 행·열 손잡이, 바깥 추가 막대 | 기존 Button·Popover·CommandMenu·명시 대상 명령 | caret/도구 키보드 focus 때 표시, hover만은 숨김. 메뉴 중 추가 막대 숨김. 표시용 대상 강조는 선택이 아님 | [표 상호작용](table-interaction-v1.md) | 내용 크기 불변, 긴 추가 막대만 동등 경로의 짧은 축 예외, caption 틈 우선·부족하면 아래 틈, 우측 공간 부족 시 기존 열 메뉴 |
 | 짧은 속성 팝오버의 preview가 늦게 완성된다 (#1626) | 기존 대상 부착 metadata | MetadataProperties·Base UI·기존 compact Button/토큰 | 대상 가까운 동작 행에 매체 동작+Done, 반대쪽 intrinsic preview; 최대 크기로 방향 선택, 렌더만으로 flip하지 않음 | 그림·Mermaid·표·수식·절 label, [공통 계약](figure-authoring-v1.md#stable-metadata-actions-1626) | DOM/Tab은 시각 순서. 고정 preview 틀·pointerdown 제출 없음. 긴 원문은 기존 별도 폼 |
 | Mermaid 원문 preview가 비동기로 완성된다 (#1625) | 기존 본문 폭 원문 폼 | PropertyForm·MermaidPreview·기존 토큰, native overflow/keyboard scroll | preview 높이를 예약해 표준 Apply 클릭과 뒤 caption 위치 유지 | [Mermaid Editor](figure-authoring-v1.md#mermaid-editor) | 작은 metadata 썸네일은 기존 intrinsic-ratio/no-letterbox 유지. 새 표면·클릭 우회 없음 |
 | 플러그인 화면 안에서 저장본을 읽고 위치를 확인한다 (#1592) | 화면 소유의 내부 스크롤 영역 | ui.DocumentView + 기존 DocumentEditor readOnly/preview, paper·accent·Notice | 같은 Host/열린 폴더, 명시 다시 읽기, revision이 같은 블록·개별 표 셀 이동/강조. 배치·폭 변화를 따라가되 사용자 스크롤 뒤에는 멈춤 | UI gallery → Document view; [화면 계약](plugin-screens-v1.md#읽기-전용-문서-보기) | 새 editor/세션/검수 틀 없음. 폭·원문 배치는 플러그인 소유 |

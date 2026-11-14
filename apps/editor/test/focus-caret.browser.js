@@ -190,6 +190,78 @@ async (page, { openPath }) => {
   }
   assert(!failures.length, `Control+End must leave final blocks after focus: ${failures.join('; ')}`);
 
+  // #1481: tools on first/final tables must not become native selection endpoints.
+  const boundaryResults = [];
+  for (const kind of ['first', 'last']) {
+    await openPath(page, file.replace('focus.md', `${kind}-table.md`));
+    const original = await editor.evaluate(el => el.editor.state.doc.toJSON());
+    const table = editor.locator('.table-block');
+    const text = kind === 'first' ? 'First cell.' : 'Last cell.';
+    const cellCaret = async offset => {
+      const position = await editor.evaluate((el, [text, offset]) => {
+        let position;
+        el.editor.state.doc.descendants((node, pos) => { if (node.type.name === 'tableCell' && node.textContent === text) position = pos + 1 + offset; });
+        if (position === undefined) throw Error(`Missing boundary cell: ${text}`);
+        el.editor.commands.setTextSelection(position); el.editor.view.focus(); return position;
+      }, [text, offset]);
+      await table.locator('.table-row-handle[data-show=true]').waitFor();
+      await table.locator('.table-column-handle[data-show=true]').waitFor();
+      return position;
+    };
+    const selectionIs = (from, to) => page.waitForFunction(([from, to]) => {
+      const s = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
+      return s.from === from && s.to === to;
+    }, [from, to]);
+    const limits = await editor.evaluate(el => {
+      let first, last;
+      el.editor.state.doc.descendants((node, pos) => { if (node.isTextblock) { first ??= pos + 1; last = pos + 1 + node.content.size; } });
+      return {first, last, size: el.editor.state.doc.content.size};
+    });
+    const point = await cellCaret(2);
+    await page.keyboard.press('Shift+ArrowRight'); await selectionIs(point, point + 1);
+    await page.keyboard.press('Shift+ArrowLeft'); await selectionIs(point, point);
+    await page.keyboard.press(kind === 'first' ? 'Control+Shift+End' : 'Control+Shift+Home');
+    await selectionIs(kind === 'first' ? point : limits.first, kind === 'first' ? limits.last : point);
+    await cellCaret(2);
+    await page.keyboard.press('Control+a'); await page.keyboard.press('Control+a');
+    await selectionIs(0, limits.size);
+    await cellCaret(2);
+    if (kind === 'first') {
+      await page.keyboard.press('Control+Home'); await selectionIs(limits.first, limits.first);
+      await page.keyboard.press('ArrowUp'); await selectionIs(0, 0);
+      assert(await editor.evaluate(el => el.editor.state.selection.toJSON().type === 'gapcursor' && el.editor.view.hasFocus()), 'ArrowUp reaches the native gap before the first table');
+      await page.keyboard.press('ArrowDown'); await selectionIs(limits.first, limits.first);
+      await caret('After first table.', 0);
+      await page.keyboard.press('ArrowUp');
+      await page.waitForFunction(() => {
+        const s = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
+        return s.$from.depth > 1 && s.$from.node(1).type.name === 'table';
+      });
+      await page.keyboard.press('ArrowDown');
+      await page.waitForFunction(() => {
+        const s = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
+        return s.$from.depth === 1 && s.$from.parent.textContent === 'After first table.';
+      });
+    } else {
+      const inFinalProse = () => editor.evaluate(el => {
+        const {doc, selection:s} = el.editor.state;
+        return s.empty && s.$from.depth === 1 && s.to === doc.content.size - 1 && s.$from.parent.type.name === 'paragraph' && el.editor.view.hasFocus();
+      });
+      await page.keyboard.press('Control+End');
+      assert(await inFinalProse(), 'Control+End leaves the final table with tools active');
+      await page.keyboard.press('Control+z');
+      await cellCaret(text.length);
+      await page.keyboard.press('ArrowDown');
+      await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.type.name === 'tableCaption');
+      await page.keyboard.press('End'); await page.keyboard.press('ArrowDown');
+      assert(await inFinalProse(), 'ArrowDown leaves the final caption for prose with focus in the editor');
+      await page.keyboard.press('Control+z');
+    }
+    assert(JSON.stringify(await editor.evaluate(el => el.editor.state.doc.toJSON())) === JSON.stringify(original), 'Boundary selection/navigation preserves original blocks and undoable trailing prose');
+    boundaryResults.push({kind, toolsVisibleAtKey: true, rangeExtension: true, shiftArrows: true, selectAll: true, blockNavigation: true});
+    await page.getByRole('button', {name:`Close ${kind}-table.md`,exact:true}).click();
+  }
+
   // Exercise the Apple keymap in the same persistent browser. This is platform
   // emulation on Chromium, not a native macOS keyboard/OS verification.
   await page.addInitScript(() => Object.defineProperty(navigator, 'platform', {configurable:true, get:() => 'MacIntel'}));
@@ -214,5 +286,5 @@ async (page, { openPath }) => {
       assert(reached, `${key} reaches prose after the final ${kind} on the Apple keymap`);
     }
   }
-  return {controlEndAfterFocusCheck: true, controlHomeAfterFocus: true, tabFocusRestores: true, modifierKeepsRestore: true, focusCheckRestores: true, finalBlockDocumentEnd: true, nativeShiftEnd: true, appleDocumentEndKeymap: true};
+  return {controlEndAfterFocusCheck: true, controlHomeAfterFocus: true, tabFocusRestores: true, modifierKeepsRestore: true, focusCheckRestores: true, finalBlockDocumentEnd: true, nativeShiftEnd: true, appleDocumentEndKeymap: true, boundaryResults};
 }

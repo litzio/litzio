@@ -1705,44 +1705,45 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
       #000 calc(100% - var(--overflow-fade-end)), transparent);
   }
 }
-/* The table starts on the text axis. Rows never scroll sideways, so their handles and Append row
- * live in a layer outside the scroller, left of the axis; column handles scroll with the columns. */
-.table-grid { position: relative; width: 100%; padding: calc(var(--size-control-compact) + var(--size-table-handle-gutter)) var(--size-table-handle-gutter) calc(var(--size-control-compact) + 2 * var(--space-2)) 0; box-sizing: border-box; }
-.table-block[data-editable="false"] .table-grid { padding: var(--size-control-compact) 0 0; }
-.table-row-layer {
-  position: absolute;
-  top: 0;
-  left: calc(-1 * var(--size-table-handle-gutter));
-  width: var(--size-table-handle-gutter);
-  /* The handles cross the hovered block's outline; they sit on it rather than under it. */
-  z-index: 1;
-  pointer-events: none;
+/* Content geometry is identical in editable and read-only displays. The metadata
+ * row is content; tools live in the block overlay outside horizontal scrolling. */
+.table-grid { position: relative; width: 100%; padding: var(--size-control-compact) 0 0; box-sizing: border-box; }
+.table-row-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.table-tools { visibility: visible; }
+.table-tools button { position: absolute; width: var(--size-control-compact); height: var(--size-control-compact); padding: 0; border: 0; background: transparent; color: var(--id-color-text-muted); cursor: pointer; font-family: var(--font-family-sans); font-size: var(--font-size-sm); line-height: var(--line-height-label); font-weight: 400; border-radius: var(--id-radius-md); opacity: 0; pointer-events: none; }
+.table-tools button[data-show="true"], .table-tools :is(.table-row-handle, .table-column-handle):focus-visible { opacity: 1; pointer-events: auto; }
+.table-tools button::before { content: ""; position: absolute; inset: 0; border: var(--border-width) solid var(--id-color-border-strong); border-radius: var(--id-radius-md); background: var(--id-color-surface); pointer-events: none; }
+.table-tools button:hover::before { background: var(--id-color-surface-hover); }
+.table-tools button[aria-expanded="true"]::before { background: var(--id-color-surface-pressed); }
+.table-tools button svg { position: relative; pointer-events: none; }
+.table-tools button:focus-visible { outline: none; }
+.table-tools button:focus-visible::before { box-shadow: var(--focus-ring-inset); }
+.table-tools .table-column-handle { transform: translate(-50%, calc(-1 * var(--size-control-compact) + var(--size-table-tool-face) / 2)); }
+.table-tools .table-column-handle::before { top: auto; height: var(--size-table-tool-face); }
+.table-column-handle svg { position: absolute !important; bottom: calc((var(--size-table-tool-face) - var(--size-icon-slot)) / 2); }
+.table-tools .table-row-handle { transform: translate(calc(-1 * var(--size-control-compact) + var(--size-table-tool-face) / 2), -50%); }
+.table-tools .table-row-handle::before { left: auto; width: var(--size-table-tool-face); }
+.table-row-handle svg { position: absolute !important; right: calc((var(--size-table-tool-face) - var(--size-icon-slot)) / 2); }
+.table-tools .table-row-handle[data-scrolled="true"] { transform: translate(calc(-1 * var(--size-control-compact) - var(--space-table-tool-edge)), -50%); }
+/* The browser follows the block-relative anchor even after position-only layout
+ * changes. Fixed paint avoids adding overflow to the document text column. */
+.table-tools .table-extend-column { display: none; margin-left: var(--space-table-tool-edge); margin-top: var(--size-control-compact); }
+@supports (position-anchor: --table-append) and (left: anchor(right)) {
+  .table-tools .table-extend-column { display: inline-flex; position: fixed; left: anchor(right); top: anchor(top); }
 }
-.table-row-layer button { pointer-events: auto; }
-.table-tools { visibility: hidden; }
-.table-block:is(:hover, :focus-within, [data-selected="true"]) .table-tools,
-.table-tools[data-menu-open="true"], .table-tools[data-active="true"] { visibility: visible; }
-.table-tools button { height: var(--size-control-compact); padding: 0; border: 0; border-radius: var(--id-radius-md); background: var(--id-color-surface-subtle); color: var(--id-color-text-muted); font-family: var(--font-family-sans); font-size: var(--font-size-sm); line-height: var(--line-height-label); font-weight: 400; cursor: pointer; }
-/* Keep only the row/column entry points in native keyboard order at rest. Focus reveals
- * the tools; pointer input stays disabled until the same hover/focus/selection states. */
-.table-tools :is(.table-row-handle, .table-column-handle) { visibility: visible; opacity: 0; pointer-events: none; background: transparent; }
-.table-block:is(:hover, :focus-within, [data-selected="true"]) :is(.table-row-handle, .table-column-handle),
-.table-tools:is([data-menu-open="true"], [data-active="true"]) :is(.table-row-handle, .table-column-handle) { opacity: 1; pointer-events: auto; }
-.table-tools button:hover { background: var(--id-color-surface-hover); }
-.table-tools svg { pointer-events: none; }
-.table-tools button:is([aria-pressed="true"], [aria-expanded="true"]) { background: var(--id-color-surface-pressed); color: var(--id-color-text); box-shadow: inset 0 0 0 var(--border-width) var(--id-color-border-control); }
-/* An open table menu shares the menu trigger's open face, without a boundary box. */
-.table-tools button[aria-expanded="true"]:not(:focus-visible) { box-shadow: none; }
-.table-tools button:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
-.table-tools button:disabled { opacity: .5; cursor: default; }
-.table-column-handle { position: absolute; top: var(--size-control-compact); }
-.table-row-handle { position: absolute; left: 0; width: var(--size-control-compact); }
-.table-extend { position: absolute; width: var(--size-control-compact); }
+.table-tools .table-extend-column::before { right: auto; width: var(--size-table-tool-bar); }
+.table-extend-column svg { position: absolute !important; left: calc((var(--size-table-tool-bar) - var(--size-icon-slot)) / 2); }
+.table-tools .table-extend-row { min-height: 0; }
+.table-tools .table-extend-row::before { bottom: auto; height: var(--size-table-tool-bar); }
+.table-extend-row svg { position: absolute !important; top: calc((var(--size-table-tool-bar) - var(--size-icon-slot)) / 2); }
+.table [data-table-menu-target="true"] { background: var(--id-color-surface-selected); box-shadow: inset 0 0 0 var(--border-width) var(--id-color-interaction); }
+.table-block > .table-action-bar { opacity: 0; pointer-events: none; }
+.table-block:has(.table-tools[data-active="true"]) > .table-action-bar, .table-block > .table-action-bar:focus-within { opacity: 1; pointer-events: auto; }
 /* Reuse Figure's Edit reveal on the metadata row, outside the grid's scroller. */
 .table-block > .table-action-bar {
   font: 400 var(--font-size-sm)/var(--line-height-label) var(--font-family-sans);
   top: 0;
-  left: 0;
+  left: var(--table-action-left, 0px);
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -1751,17 +1752,14 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   top: 0;
   bottom: auto;
   z-index: 1;
-  max-width: calc(100% - 4 * var(--size-control-compact));
+  max-width: calc(100% - var(--table-action-clearance, 4 * var(--size-control-compact)));
   line-height: var(--size-control-compact);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .table-command-popover { padding: 0; width: auto; gap: 0; border: 0; box-shadow: none; }
 .table [data-current-cell="true"] { outline: 2px solid var(--id-color-interaction); outline-offset: -2px; }
-@media (hover: none) {
-  .table-tools { visibility: visible; }
-  .table-tools :is(.table-row-handle, .table-column-handle) { opacity: 1; pointer-events: auto; }
-}
+
 
 .table {
   width: 100%;

@@ -57,7 +57,7 @@ async (page, { openPath, screenshots, withBlockHover }) => {
       Math.abs((hover.top+hover.bottom)/2-(block.top+block.bottom)/2)>0.5) errors.push('Gutter/hover alignment: '+JSON.stringify(geometry));
     if(geometry.currentHeading!==geometry.expectedHeading) errors.push('Reading outline: '+JSON.stringify(geometry));
     if(geometry.rows.some(({row,control})=>Math.abs((row.top+row.bottom)/2-(control.top+control.bottom)/2)>0.5) ||
-      geometry.columns.some(({cell,control})=>Math.abs(cell.left-control.left)>0.5 || Math.abs(cell.right-control.right)>0.5)) errors.push('Table tools alignment: '+JSON.stringify(geometry));
+      geometry.columns.some(({cell,control})=>Math.abs((cell.left+cell.right)/2-(control.left+control.right)/2)>0.5 || control.right-control.left<28)) errors.push('Table tools alignment: '+JSON.stringify(geometry));
     if(Math.abs(geometry.paper.height-layout[0].paper.height)>0.5 || Math.abs(geometry.content.height-layout[0].content.height)>0.5 || geometry.transactions!==0) errors.push('Position-only fixture changed size or dispatched a transaction: '+JSON.stringify(geometry));
   }
   assert(layout[0].expectedHeading!==layout[1].expectedHeading,'The short fixture crosses the reading line on expansion');

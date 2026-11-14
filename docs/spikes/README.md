@@ -70,6 +70,7 @@
 
 | 날짜 | 제목 | 목적 | 결론 | 태그 | 브랜치 | 관련 이슈·PR·문서 |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-14 | [표 커서 도구 배치 (#1481)](2026-11-14-1481-table-cursor-tools.md) | caret 기반 도구 표시·공간 절약 배치 검토 | 채택(배치 방향) | `spike/2026-11-14-1481-table-cursor-tools` | `spike/1481-table-cursor-tools` | #1481 |
 | 2026-10-28 | [Draw.io 편집 연동 (.drawio.svg 그림)](2026-10-28-drawio-embed.md) | Draw.io 다이어그램을 Litzio 그림(Figure)으로 첨부하고 문서 안에서 편집할 수 있는지 확인한다(#646) | 보류 | [`spike/2026-10-28-drawio-embed`](https://github.com/litzio/litzio/tree/spike/2026-10-28-drawio-embed) | [`spike/drawio-embed-1028`](https://github.com/litzio/litzio/tree/spike/drawio-embed-1028) | [#646](https://github.com/litzio/litzio/issues/646) |
 | 2026-10-28 | [Codex app-server 기반 AI 질의응답과 변경 제안](2026-10-28-codex-ai.md) | Codex CLI(`codex app-server`)만으로 Litzio에 AI를 붙여, 열린 폴더 문서를 근거로 한 질의응답과 검토 후 반영하는 문서 수정 제… | 채택(일부) | [`spike/2026-10-28-codex-ai`](https://github.com/litzio/litzio/tree/spike/2026-10-28-codex-ai) | [`spike/codex-ai-1028`](https://github.com/litzio/litzio/tree/spike/codex-ai-1028) | [#657](https://github.com/litzio/litzio/issues/657) |
 | 2026-10-30 | [Docling 변환 대조 보기](2026-10-30-docling-compare.md) | Docling이 변환한 결과가 원본 PDF의 어느 영역에서 왔는지 한 화면에서 대조할 수 있는지 확인한다 | 미정 | [`spike/2026-10-30-docling-compare`](https://github.com/litzio/litzio/tree/spike/2026-10-30-docling-compare) | [`spike/docling-compare-1030`](https://github.com/litzio/litzio/tree/spike/docling-compare-1030) | - |

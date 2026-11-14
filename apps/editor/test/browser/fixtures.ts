@@ -101,6 +101,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       ":::{figure}\n:name: fig-pending\n\nPending caption zeta\n:::\n\nAfter pending.\n\n```text\nCode alpha\n```\n\nAfter code.[^note-a][^note-b]\n\n[^note-a]: First endnote alpha.\n\n[^note-b]: Second endnote beta.\n") },
     document("diagram.svg"),
   ], scenarios: ["caption-selection"] },
+  "table-tool-placement": { files: [fixture("table-tool-placement.md"), { name: "short.md", create: () => nativeSource("# Short settings\n\n## Section\n\nFirst paragraph.\n\n| Name | Value |\n| --- | --- |\n| A | 1 |\n") }], scenarios: ["table-tool-placement"] },
   "caption-placeholder": { files: [
     { name: "captions.md", create: () => nativeSource("# Captions\n\nBefore.\n\n:::{table}\n\n| Header |\n| --- |\n| Cell |\n:::\n\n:::{figure} ./diagram.svg\n:::\n\n:::{figure}\n:::\n\n:::{figure}\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n:::\n\nAfter.\n") },
     document("diagram.svg"),
@@ -357,7 +358,9 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   "focus-caret": {
     files: [{ name: "focus.md", create: () => nativeSource("# Focus\n\nFirst paragraph.\n\nLast paragraph.\n") },
       { name: "final-figure.md", create: () => nativeSource("# Figure end\n\nFirst paragraph.\n\n:::{figure}\n\nFinal caption.\n:::\n") },
-      { name: "final-table.md", create: () => nativeSource("# Table end\n\nFirst paragraph.\n\n| Head |\n| --- |\n| Final cell. |\n") }],
+      { name: "final-table.md", create: () => nativeSource("# Table end\n\nFirst paragraph.\n\n| Head |\n| --- |\n| Final cell. |\n") },
+      { name: "first-table.md", create: () => nativeSource("| First head |\n| --- |\n| First cell. |\n\nAfter first table.\n") },
+      { name: "last-table.md", create: () => nativeSource("Before last table.\n\n| Last head |\n| --- |\n| Last cell. |\n") }],
     scenarios: ["focus-caret"],
   },
   "desktop-updates": {
