@@ -1,0 +1,1436 @@
+[
+  {
+    "name": "light-current-outside",
+    "table": {
+      "x": 344,
+      "y": 575.78125,
+      "width": 704,
+      "height": 107,
+      "top": 575.78125,
+      "right": 1048,
+      "bottom": 682.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 515.78125,
+      "width": 736,
+      "height": 211,
+      "top": 515.78125,
+      "right": 1080,
+      "bottom": 726.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-current-inside",
+    "table": {
+      "x": 344,
+      "y": 575.78125,
+      "width": 704,
+      "height": 107,
+      "top": 575.78125,
+      "right": 1048,
+      "bottom": 682.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 515.78125,
+      "width": 736,
+      "height": 211,
+      "top": 515.78125,
+      "right": 1080,
+      "bottom": 726.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-current-row-menu",
+    "table": {
+      "x": 344,
+      "y": 575.78125,
+      "width": 704,
+      "height": 107,
+      "top": 575.78125,
+      "right": 1048,
+      "bottom": 682.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 515.78125,
+      "width": 736,
+      "height": 211,
+      "top": 515.78125,
+      "right": 1080,
+      "bottom": 726.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-current-dense-header",
+    "table": {
+      "x": 344,
+      "y": 802.78125,
+      "width": 704,
+      "height": 129,
+      "top": 802.78125,
+      "right": 1048,
+      "bottom": 931.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 742.78125,
+      "width": 736,
+      "height": 233,
+      "top": 742.78125,
+      "right": 1080,
+      "bottom": 975.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-current-full-width",
+    "table": {
+      "x": 344,
+      "y": 575.78125,
+      "width": 704,
+      "height": 107,
+      "top": 575.78125,
+      "right": 1048,
+      "bottom": 682.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 515.78125,
+      "width": 736,
+      "height": 211,
+      "top": 515.78125,
+      "right": 1080,
+      "bottom": 726.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-current-wide-scroll",
+    "table": {
+      "x": -152,
+      "y": 760.78125,
+      "width": 1200,
+      "height": 107,
+      "top": 760.78125,
+      "right": 1048,
+      "bottom": 867.78125,
+      "left": -152
+    },
+    "block": {
+      "x": 344,
+      "y": 700.78125,
+      "width": 736,
+      "height": 221,
+      "top": 700.78125,
+      "right": 1080,
+      "bottom": 921.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 496
+  },
+  {
+    "name": "light-prototype-outside",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-prototype-inside",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 183.78125,
+          "width": 12,
+          "height": 28,
+          "top": 183.78125,
+          "right": 350,
+          "bottom": 211.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 171.78125,
+          "width": 28,
+          "height": 12,
+          "top": 171.78125,
+          "right": 544.640625,
+          "bottom": 183.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 177.78125,
+          "width": 8,
+          "height": 107,
+          "top": 177.78125,
+          "right": 1092,
+          "bottom": 284.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 288.78125,
+          "width": 736,
+          "height": 8,
+          "top": 288.78125,
+          "right": 1080,
+          "bottom": 296.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-prototype-row-menu",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 183.78125,
+          "width": 12,
+          "height": 28,
+          "top": 183.78125,
+          "right": 350,
+          "bottom": 211.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 171.78125,
+          "width": 28,
+          "height": 12,
+          "top": 171.78125,
+          "right": 544.640625,
+          "bottom": 183.78125,
+          "left": 516.640625
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-prototype-dense-header",
+    "table": {
+      "x": 344,
+      "y": 328.78125,
+      "width": 736,
+      "height": 129,
+      "top": 328.78125,
+      "right": 1080,
+      "bottom": 457.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 300.78125,
+      "width": 736,
+      "height": 157,
+      "top": 300.78125,
+      "right": 1080,
+      "bottom": 457.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 345.78125,
+          "width": 12,
+          "height": 28,
+          "top": 345.78125,
+          "right": 350,
+          "bottom": 373.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 397.5,
+          "y": 322.78125,
+          "width": 28,
+          "height": 12,
+          "top": 322.78125,
+          "right": 425.5,
+          "bottom": 334.78125,
+          "left": 397.5
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 328.78125,
+          "width": 8,
+          "height": 129,
+          "top": 328.78125,
+          "right": 1092,
+          "bottom": 457.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 461.78125,
+          "width": 736,
+          "height": 8,
+          "top": 461.78125,
+          "right": 1080,
+          "bottom": 469.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-prototype-full-width",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 183.78125,
+          "width": 12,
+          "height": 28,
+          "top": 183.78125,
+          "right": 350,
+          "bottom": 211.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 171.78125,
+          "width": 28,
+          "height": 12,
+          "top": 171.78125,
+          "right": 544.640625,
+          "bottom": 183.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 177.78125,
+          "width": 8,
+          "height": 107,
+          "top": 177.78125,
+          "right": 1092,
+          "bottom": 284.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 288.78125,
+          "width": 736,
+          "height": 8,
+          "top": 288.78125,
+          "right": 1080,
+          "bottom": 296.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "light-prototype-wide-scroll",
+    "table": {
+      "x": -120,
+      "y": 501.78125,
+      "width": 1200,
+      "height": 107,
+      "top": 501.78125,
+      "right": 1080,
+      "bottom": 608.78125,
+      "left": -120
+    },
+    "block": {
+      "x": 344,
+      "y": 473.78125,
+      "width": 736,
+      "height": 145,
+      "top": 473.78125,
+      "right": 1080,
+      "bottom": 618.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 12,
+          "height": 28,
+          "top": 546.78125,
+          "right": 342,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 8,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1092,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [
+      {
+        "button": "Row 2 actions",
+        "text": "Long identifier 04",
+        "width": 0.78125,
+        "height": 18
+      }
+    ],
+    "scrollLeft": 464
+  },
+  {
+    "name": "dark-current-outside",
+    "table": {
+      "x": 344,
+      "y": 285.78125,
+      "width": 694,
+      "height": 107,
+      "top": 285.78125,
+      "right": 1038,
+      "bottom": 392.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 225.78125,
+      "width": 736,
+      "height": 221,
+      "top": 225.78125,
+      "right": 1080,
+      "bottom": 446.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 26,
+          "height": 28,
+          "top": 546.78125,
+          "right": 356,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 26,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1110,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-current-inside",
+    "table": {
+      "x": 344,
+      "y": 285.78125,
+      "width": 694,
+      "height": 107,
+      "top": 285.78125,
+      "right": 1038,
+      "bottom": 392.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 225.78125,
+      "width": 736,
+      "height": 221,
+      "top": 225.78125,
+      "right": 1080,
+      "bottom": 446.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 26,
+          "height": 28,
+          "top": 546.78125,
+          "right": 356,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 26,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1110,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-current-row-menu",
+    "table": {
+      "x": 344,
+      "y": 285.78125,
+      "width": 694,
+      "height": 107,
+      "top": 285.78125,
+      "right": 1038,
+      "bottom": 392.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 225.78125,
+      "width": 736,
+      "height": 221,
+      "top": 225.78125,
+      "right": 1080,
+      "bottom": 446.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 26,
+          "height": 28,
+          "top": 546.78125,
+          "right": 356,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 26,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1110,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-current-dense-header",
+    "table": {
+      "x": 344,
+      "y": 522.78125,
+      "width": 694,
+      "height": 129,
+      "top": 522.78125,
+      "right": 1038,
+      "bottom": 651.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 462.78125,
+      "width": 736,
+      "height": 233,
+      "top": 462.78125,
+      "right": 1080,
+      "bottom": 695.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 26,
+          "height": 28,
+          "top": 546.78125,
+          "right": 356,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 26,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1110,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-current-full-width",
+    "table": {
+      "x": 344,
+      "y": 285.78125,
+      "width": 694,
+      "height": 107,
+      "top": 285.78125,
+      "right": 1038,
+      "bottom": 392.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 225.78125,
+      "width": 736,
+      "height": 221,
+      "top": 225.78125,
+      "right": 1080,
+      "bottom": 446.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 26,
+          "height": 28,
+          "top": 546.78125,
+          "right": 356,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 26,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1110,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-current-wide-scroll",
+    "table": {
+      "x": -146,
+      "y": 760.78125,
+      "width": 1200,
+      "height": 107,
+      "top": 760.78125,
+      "right": 1054,
+      "bottom": 867.78125,
+      "left": -146
+    },
+    "block": {
+      "x": 344,
+      "y": 700.78125,
+      "width": 736,
+      "height": 221,
+      "top": 700.78125,
+      "right": 1080,
+      "bottom": 921.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 26,
+          "height": 28,
+          "top": 546.78125,
+          "right": 356,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 26,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1110,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 490
+  },
+  {
+    "name": "dark-prototype-outside",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-prototype-inside",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 183.78125,
+          "width": 12,
+          "height": 28,
+          "top": 183.78125,
+          "right": 350,
+          "bottom": 211.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 171.78125,
+          "width": 28,
+          "height": 12,
+          "top": 171.78125,
+          "right": 544.640625,
+          "bottom": 183.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 177.78125,
+          "width": 8,
+          "height": 107,
+          "top": 177.78125,
+          "right": 1092,
+          "bottom": 284.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 288.78125,
+          "width": 736,
+          "height": 8,
+          "top": 288.78125,
+          "right": 1080,
+          "bottom": 296.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-prototype-row-menu",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 183.78125,
+          "width": 12,
+          "height": 28,
+          "top": 183.78125,
+          "right": 350,
+          "bottom": 211.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 171.78125,
+          "width": 28,
+          "height": 12,
+          "top": 171.78125,
+          "right": 544.640625,
+          "bottom": 183.78125,
+          "left": 516.640625
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-prototype-dense-header",
+    "table": {
+      "x": 344,
+      "y": 328.78125,
+      "width": 736,
+      "height": 129,
+      "top": 328.78125,
+      "right": 1080,
+      "bottom": 457.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 300.78125,
+      "width": 736,
+      "height": 157,
+      "top": 300.78125,
+      "right": 1080,
+      "bottom": 457.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 345.78125,
+          "width": 12,
+          "height": 28,
+          "top": 345.78125,
+          "right": 350,
+          "bottom": 373.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 397.5,
+          "y": 322.78125,
+          "width": 28,
+          "height": 12,
+          "top": 322.78125,
+          "right": 425.5,
+          "bottom": 334.78125,
+          "left": 397.5
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 328.78125,
+          "width": 8,
+          "height": 129,
+          "top": 328.78125,
+          "right": 1092,
+          "bottom": 457.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 461.78125,
+          "width": 736,
+          "height": 8,
+          "top": 461.78125,
+          "right": 1080,
+          "bottom": 469.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-prototype-full-width",
+    "table": {
+      "x": 344,
+      "y": 177.78125,
+      "width": 736,
+      "height": 107,
+      "top": 177.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "block": {
+      "x": 344,
+      "y": 149.78125,
+      "width": 736,
+      "height": 135,
+      "top": 149.78125,
+      "right": 1080,
+      "bottom": 284.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 1 actions (header)",
+        "rect": {
+          "x": 338,
+          "y": 183.78125,
+          "width": 12,
+          "height": 28,
+          "top": 183.78125,
+          "right": 350,
+          "bottom": 211.78125,
+          "left": 338
+        }
+      },
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 171.78125,
+          "width": 28,
+          "height": 12,
+          "top": 171.78125,
+          "right": 544.640625,
+          "bottom": 183.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 177.78125,
+          "width": 8,
+          "height": 107,
+          "top": 177.78125,
+          "right": 1092,
+          "bottom": 284.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 288.78125,
+          "width": 736,
+          "height": 8,
+          "top": 288.78125,
+          "right": 1080,
+          "bottom": 296.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "scrollLeft": 0
+  },
+  {
+    "name": "dark-prototype-wide-scroll",
+    "table": {
+      "x": -120,
+      "y": 501.78125,
+      "width": 1200,
+      "height": 107,
+      "top": 501.78125,
+      "right": 1080,
+      "bottom": 608.78125,
+      "left": -120
+    },
+    "block": {
+      "x": 344,
+      "y": 473.78125,
+      "width": 736,
+      "height": 145,
+      "top": 473.78125,
+      "right": 1080,
+      "bottom": 618.78125,
+      "left": 344
+    },
+    "controls": [
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 330,
+          "y": 546.78125,
+          "width": 12,
+          "height": 28,
+          "top": 546.78125,
+          "right": 342,
+          "bottom": 574.78125,
+          "left": 330
+        }
+      },
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 495.78125,
+          "width": 28,
+          "height": 12,
+          "top": 495.78125,
+          "right": 1018.296875,
+          "bottom": 507.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 501.78125,
+          "width": 8,
+          "height": 107,
+          "top": 501.78125,
+          "right": 1092,
+          "bottom": 608.78125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 612.78125,
+          "width": 736,
+          "height": 8,
+          "top": 612.78125,
+          "right": 1080,
+          "bottom": 620.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [
+      {
+        "button": "Row 2 actions",
+        "text": "Long identifier 04",
+        "width": 0.78125,
+        "height": 18
+      }
+    ],
+    "scrollLeft": 464
+  }
+]
