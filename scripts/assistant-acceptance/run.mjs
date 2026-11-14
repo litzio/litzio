@@ -39,6 +39,9 @@ fs.mkdirSync(profile,{recursive:true}); fs.mkdirSync(cwd,{recursive:true});
 // Override every Host settings escape hatch; retain CODEX_HOME and provider login.
 for (const key of Object.keys(process.env)) if (/^LITZIO_.*_SETTINGS_FILE$/.test(key)) delete process.env[key];
 process.env.LITZIO_DATA_DIR=profile; process.env.LITZIO_ASSISTANT_CWD=cwd;
+process.env.LITZIO_ASSISTANT_SETTINGS_FILE=path.join(profile,'assistant.json');
+process.env.LITZIO_DAEMON_DIR=path.join(root,'daemon');
+process.env.LITZIO_PLUGINS_SETTINGS_FILE=path.join(profile,'plugins.json');
 const model=smoke?'gpt-6-luna':'gpt-6.1-terra', reasoningEffort=smoke?'low':'high';
 fs.writeFileSync(path.join(profile,'assistant.json'),JSON.stringify({provider:'codex',permissionMode:'opened-folders',model,reasoningEffort,responseLanguage:'ko'}));
 const hostLog=[];

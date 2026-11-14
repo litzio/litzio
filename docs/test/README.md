@@ -472,6 +472,7 @@ pnpm exec tsx scripts/assistant-acceptance/run.mjs         # gpt-6.1-terra high,
 [과제 데이터](../../scripts/assistant-acceptance/tasks.mjs)와 [실행기](../../scripts/assistant-acceptance/run.mjs)를 분리했다.
 실행마다 OS 임시 폴더에 합성 자료·독립 Host 프로필·비서 작업 폴더를 만들고, 기존 HTTP 대화 route로만 전송·조회·중단한다.
 기존 Codex 로그인과 CODEX_HOME을 유지한다. 브라우저·설치본·기존 daemon은 사용하지 않는다.
+실행기는 `LITZIO_DATA_DIR`, `LITZIO_ASSISTANT_CWD`, `LITZIO_ASSISTANT_SETTINGS_FILE`, `LITZIO_DAEMON_DIR`, `LITZIO_PLUGINS_SETTINGS_FILE`을 모두 실행 전용 임시 폴더 아래로 지정한다.
 중단 후 `--continue <results.json>`은 아직 시도하지 않은 과제만 이어서 실행한다.
 `--compare <results.json>`은 저장된 파일을 다시 판정하고 아직 비교하지 않은 권한 실패만 전체 접근으로 실행한다.
 `--task <id> --opened-only`는 지정 과제만 새 격리 환경에서 1회 실행한다. 전송 오류의 cause 체인과 당시 Host warn/error 로그 끝부분을 결과에 남긴다(로그가 없으면 빈 목록).
