@@ -218,7 +218,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       const owned = process.env.LITZIO_BROWSER_DAEMON_DIR;
       if (!owned) throw new Error("Secret corruption requires a runner-owned isolated Host");
       const hash = (value: string) => createHash("sha256").update(value).digest("hex");
-      writeFileSync(path.join(owned, "browser-plugins.json.secrets", hash("fixture.drive"), hash("pat")), "invalid DPAPI ciphertext");
+      writeFileSync(path.join(process.env.LITZIO_PLUGINS_SETTINGS_FILE! + ".secrets", hash("fixture.drive"), hash("pat")), "invalid DPAPI ciphertext");
     }, cli: (args: string[]) => JSON.parse(execFileSync(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), ...args, ...(args[0] === "inspect" ? ["--format", "json"] : ["--host", url, "--json"])], { encoding: "utf8", windowsHide: true })) };
     let result;
     const folderAliasRoot = path.join(FILE_ACTIONS_ROOT, "trash-alias");
