@@ -88,7 +88,7 @@ export async function waitForActivePath(page: Page, file: string): Promise<void>
 export async function showNotifications(page: Page): Promise<void> {
   const toggle = page.locator('.notification-center > button');
   await expect(toggle).toBeVisible();
-  await expect(toggle).toHaveAccessibleDescription(/, [1-9]\d*/);
+  await expect(toggle).toContainText(/[1-9]\d*/);
   const previousFocus = (await page.evaluateHandle(() => document.activeElement)).asElement();
   if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.press('Enter');
   await expect(page.locator('.notification-center #notification-list')).toBeVisible();

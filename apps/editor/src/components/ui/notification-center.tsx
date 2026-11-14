@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Bell, ChevronDown, ChevronRight, X } from "lucide-react";
 import { Button } from "./button.tsx";
@@ -36,9 +36,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   return <Registry value={register}><Items value={Object.values(sources).flat()}>{children}</Items></Registry>;
 }
 
-/** Title-strip geometry, with the nonediting DOM/history boundary outside the shell. */
-export function ShellNotificationCenter() {
-  return <div className="shell-notifications"><NotificationCenter items={useContext(Items)} /></div>;
+/** Keep the history boundary outside the shell; only automatic cards use panel geometry. */
+export function ShellNotificationCenter({ panelWidth, sidebarWidth, documentPanelWidth }: { panelWidth: string; sidebarWidth?: number; documentPanelWidth?: number }) {
+  return <div className="shell-notifications" style={{ "--notification-panel-width": panelWidth, "--sidebar-width": sidebarWidth ? `${sidebarWidth}px` : undefined, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
 }
 
 /** Callbacks read the latest source render, while registry updates follow observable content. */
@@ -77,7 +77,9 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
   const dismissed = useRef(false);
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [hidden, setHidden] = useState<string[]>([]);
-  const [expanded, setExpanded] = useState(() => items.some(item => (item.severity !== "info" || !!item.actionLabel)));
+  const [presentation, setPresentation] = useState<"closed" | "automatic" | "manual">(() =>
+    items.some(item => item.severity !== "info" || !!item.actionLabel) ? "automatic" : "closed");
+  const expanded = presentation !== "closed";
   const [announcement, setAnnouncement] = useState<{ sequence: number; text: string }>();
   const previous = useRef<string[]>([]);
   const visible = items.filter(item => !hidden.includes(item.id));
@@ -92,7 +94,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
   const visibleIds = JSON.stringify(visible.map(item => item.id));
   useLayoutEffect(() => {
     if (!visible.length && previousCount.current) {
-      setExpanded(false);
+      setPresentation("closed");
       if (dismissed.current || list.current?.contains(document.activeElement)) toggle.current?.focus();
     } else if (dismissed.current) {
       list.current?.querySelector<HTMLButtonElement>("button")?.focus();
@@ -113,7 +115,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
     if (!items.length) setAnnouncement(undefined);
     const ids = items.map(item => item.id);
     setHidden(value => value.filter(id => ids.includes(id)));
-    if (items.some(item => (item.severity !== "info" || !!item.actionLabel) && !previous.current.includes(item.id))) setExpanded(true);
+    if (items.some(item => (item.severity !== "info" || !!item.actionLabel) && !previous.current.includes(item.id))) setPresentation(value => value === "manual" ? value : "automatic");
     if (visible.some(item => !previous.current.includes(item.id))) {
       const text = items.filter(item => item.actionLabel && !previous.current.includes(item.id))
         .map(item => `${item.message} · ${item.actionLabel}`).join(". ") || accessibleLabel;
@@ -121,25 +123,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
     }
     previous.current = ids;
   }, [causes]);
-  return <>
-    <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="notification-announcement">
-      {announcement ? <span key={announcement.sequence}>{announcement.text}</span> : null}
-    </div>
-    <Popover open={expanded} onOpenChange={(next, details) => {
-      returnFocus.current = !next && details.reason === "escape-key" && !!list.current?.contains(document.activeElement);
-      setExpanded(next);
-    }} modal={false}>
-    <aside ref={setOutlet} className="notification-center" data-severity={visible.length ? severity : undefined} aria-label={i18n.t("Notifications")}>
-    <Tooltip><TooltipTrigger render={<PopoverPrimitive.Trigger render={<Button ref={toggle} size="icon-sm" variant="ghost"
-      aria-label={i18n.t("Notifications")} aria-description={accessibleLabel} />} />}>
-      <Bell />{visible.length ? <span className="notification-count" aria-hidden="true">{visible.length}</span> : null}
-    </TooltipTrigger><TooltipContent>{i18n.t("Notifications")}</TooltipContent></Tooltip>
-    <PopoverContent portalContainer={outlet} side="bottom" align="end" sideOffset={8}
-      initialFocus={false} finalFocus={() => {
-        const target = returnFocus.current ? toggle.current : false;
-        returnFocus.current = false;
-        return target;
-      }} className="notification-popover" aria-label={i18n.t("Notifications")}>
+  const contents = (
     <ul ref={list} hidden={!expanded} id="notification-list" aria-label={i18n.t("Notifications")}>{Array.from(groups, ([key, entries]) => {
       const rows = entries.map(item => <li key={item.id} data-severity={item.severity}>
       <div className="notification-content">
@@ -160,7 +144,36 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
         expanded={openGroups.includes(key)} onToggle={() => setOpenGroups(value => value.includes(key) ? value.filter(entry => entry !== key) : [...value, key])}
         onDismiss={() => dismiss(entries)}>{rows}</NotificationGroup>;
     })}{visible.length ? null : <li>{i18n.t("No notifications")}</li>}</ul>
-    </PopoverContent>
+  );
+  return <>
+    <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="notification-announcement">
+      {announcement ? <span key={announcement.sequence}>{announcement.text}</span> : null}
+    </div>
+    <Popover open={presentation === "manual"} onOpenChange={(next, details) => {
+      if (next && presentation === "automatic") { details.cancel(); setPresentation("closed"); return; }
+      // Notifications remain readable while a named action or keyboard returns to the document.
+      // Outside pointer dismissal, the bell and Escape still close the nonmodal list.
+      if (!next && details.reason === "focus-out") { details.cancel(); return; }
+      returnFocus.current = !next && details.reason === "escape-key" && !!list.current?.contains(document.activeElement);
+      setPresentation(next ? "manual" : "closed");
+    }} modal={false}>
+    <aside ref={setOutlet} className="notification-center" data-severity={visible.length ? severity : undefined} aria-label={i18n.t("Notifications")} data-presentation={presentation}>
+    <Tooltip><TooltipTrigger render={<PopoverPrimitive.Trigger
+      aria-expanded={expanded} aria-controls={expanded ? "notification-list" : undefined}
+      aria-haspopup={presentation === "automatic" ? false : "dialog"}
+      render={<Button ref={toggle} size="icon-sm" variant="ghost"
+        aria-label={i18n.t("Notifications")} aria-description={accessibleLabel} />} />}>
+      <Bell />{visible.length ? <span className="notification-count" aria-hidden="true">{visible.length}</span> : null}
+    </TooltipTrigger><TooltipContent>{i18n.t("Notifications")}</TooltipContent></Tooltip>
+    {presentation === "manual" ? <PopoverContent anchor={toggle} portalContainer={outlet} side="bottom" align="end" sideOffset={8}
+      initialFocus={false} finalFocus={() => {
+        const target = returnFocus.current ? toggle.current : false;
+        returnFocus.current = false;
+        return target;
+      }} className="notification-popover" aria-label={i18n.t("Notifications")}>
+    {contents}
+    </PopoverContent> : presentation === "automatic" ? <section className="notification-auto" aria-label={i18n.t("Notifications")}>{contents}</section> : contents}
+
   </aside></Popover></>;
 }
 

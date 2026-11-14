@@ -167,6 +167,17 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(page.getByTestId('notification-announcement')).toHaveText('Notifications: Warning, 1');
   await expect(toggle()).toHaveAttribute('aria-expanded', 'true');
   expect(await engine.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  await expect(center).toHaveAttribute('data-presentation','automatic');
+  await expect(center.locator('.notification-auto')).toBeVisible();
+  await expect(center.locator('.notification-popover')).toHaveCount(0);
+  const saveHit = await page.getByTestId('save').evaluate(button => {
+    const r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+  });
+  expect(saveHit,'Automatic cards must leave the original Save action clickable').toBe(true);
+  await toggle().click();
+  await expect(center).toHaveAttribute('data-presentation','closed');
+  await toggle().click();
+  await expect(center).toHaveAttribute('data-presentation','manual');
   expect(await engine.evaluate(el => JSON.stringify(el.editor.state.selection.toJSON()))).toBe(selection);
   await center.getByRole('button', {name:'Dismiss notification',exact:true}).focus();
   await page.keyboard.press('Escape');

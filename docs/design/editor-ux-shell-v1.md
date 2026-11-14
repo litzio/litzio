@@ -839,7 +839,9 @@ The shell has three responsibilities: the Sidebar on the left browses opened fol
 | TopBar | Shared single-row brand/search/caption strip; document actions and compact status belong to their owning tab row. See [#695](#title-strip-and-tab-row-actions-695) for responsive search, menu guards and status. Save, Source, Compare, Reload/discard, Copy path and layout preferences retain their existing operations and shortcuts. |
 | Document tabs | Fixed second row below the title strip, with a flat current accent marker (#581). Filename, dirty dot, close button and full-path tooltip; same-named files show the distinguishing parent folder. Only the tablist scrolls; its active-document actions remain fixed to its right (#695). Accessible tablist/tab/tabpanel relationships, Left/Right/Home/End switching and Delete to close remain. Closing selects the right neighbour, else left; an inactive close keeps the current tab. |
 #1644: the window NotificationCenter button is in the title strip beside Assistant
-on document, plugin and Settings tabs. Only its popover list overlays content;
+on document, plugin and Settings tabs. Its manual popover opens below the bell;
+automatic cards retain the master bottom-right appearance and toolbar access.
+Both are temporary overlays;
 closed-button/document rectangles do not overlap and document viewport/minimum
 heights are unchanged. The notification DOM remains outside the shell history
 boundary. [Current geometry and interaction](editor-layout-rules-v1.md#title-strip-notifications-1644)
@@ -1619,9 +1621,11 @@ history behavior. `read-view` verifies pointer/keyboard entry, handle-menu parit
 native boundaries, selection/focus return and conversion Undo/Redo. It also exercises
 contextmenu before secondary mouseup (Linux ordering): the engine's later pointer
 handling must not take focus from the menu or prevent Escape from closing it.
-The 640px Dark/Korean case also clicks Delete where its row overlaps the notification
+The original 640px Dark/Korean case clicked Delete where its row overlapped the notification
 button, checks that the menu owns that hit and Undo restores the paragraph, and retains
-the notification button's geometry and collapsed state.
+the notification button's geometry and collapsed state. #1644 now asserts that the
+closed title-strip bell does not intersect the menu row, then hit-tests and clicks
+the row center with the same deletion result.
 
 Manual same-state evidence: [1440px Before](assets/body-context-223/before-1440.png) /
 [After](assets/body-context-223/after-1440.png), [640px Dark/Korean Before](assets/body-context-223/before-640.png) /

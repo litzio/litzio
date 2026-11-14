@@ -38,7 +38,7 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
     // Resolve the adjustable CSS length through layout (including rem and root-font changes).
     const labelBreakpoint = document.createElement("span");
     labelBreakpoint.setAttribute("aria-hidden", "true");
-    labelBreakpoint.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;height:0;width:var(--layout-assistant-label-breakpoint)";
+    labelBreakpoint.style.cssText = "position:fixed;left:calc(-1 * var(--layout-assistant-label-breakpoint));top:0;visibility:hidden;pointer-events:none;height:0;width:var(--layout-assistant-label-breakpoint)";
     header.append(labelBreakpoint);
     const measure = () => {
       if (!active) return;

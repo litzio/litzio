@@ -1593,6 +1593,8 @@ function EditorApp() {
       <OpenRefusalDialog openRefusal={openRefusal} setOpenRefusal={setOpenRefusal} openRefusalReturnFocus={openRefusalReturnFocus} document={document} />
       <ReloadChangesDialog reloadDialog={reloadDialog} switching={switching} setReloadDialog={setReloadDialog} fileActionsToggle={fileActionsToggle} reloadFromDisk={reloadFromDisk} />
     </div>
-    <ShellNotificationCenter />
+    <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
+      ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
+      : documentPanelOpen ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
 }

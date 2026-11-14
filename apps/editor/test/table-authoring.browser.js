@@ -307,6 +307,10 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     if (Object.values(touchState).some(value => !value)) throw new Error(`No-hover probe must be pointer-away, unfocused and without a current table cell: ${JSON.stringify(touchState)}`);
     if (await touchTable.locator('.table-row-handle,.table-column-handle').evaluateAll(nodes=>nodes.some(n=>getComputedStyle(n).opacity!=='0'||getComputedStyle(n).pointerEvents!=='none'))) throw Error('Outside a table, no-hover must not reveal pointer tools');
     await touchTable.locator('td').first().click();
+    // A completed pointer click can precede native selectionchange and its React paint,
+    // as in the prose caret path below. Wait for the actual affordance, never inject selection.
+    await expect.poll(async () => (await touchTable.locator('.table-row-handle,.table-column-handle')
+      .evaluateAll(handleVisibility)).some(handle => handle.visible)).toBe(true);
     await assertVisibleHandles(touchTable, 'No-hover caret entry');
     result.touchHandlesVisible = true;
   } finally { await noHoverPage.close(); }

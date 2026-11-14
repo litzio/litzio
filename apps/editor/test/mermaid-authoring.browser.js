@@ -40,19 +40,12 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
     return {doc:e.getJSON(),undo:h.done.eventCount,redo:h.undone.eventCount};
   });
   const disk = async () => (await (await page.request.get(`${origin}/document/diagram.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).text()).replaceAll('\r\n','\n');
-  const closeNotifications = async () => {
-    const bell = page.locator('.notification-center > button');
-    if (await bell.getAttribute('aria-expanded') === 'true') await bell.click();
-  };
-  const reload = async () => { await closeNotifications(); await reloadDocument(page); };
   const save = async (status = 'saved') => {
-    await closeNotifications();
     const response=page.waitForResponse(r=>r.request().method()==='POST' && /\/api\/document(?:\?|$)/.test(r.url()));
     await page.getByTestId('save').click(); expect((await response).status()).toBe(200);
     await page.locator(`[data-testid="status"][data-operation="${status}"]`).waitFor();
   };
   const edit = async () => {
-    await closeNotifications();
     await figure.hover({position:{x:4,y:4}}); await figure.getByRole('button',{name:'Edit figure'}).click();
     await page.getByTestId('mermaid-edit-source').click();
     await expect(field()).toBeFocused();
@@ -491,7 +484,7 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
   await save();expect(await disk()).toContain('graph TD\n  Applied --> Next');expect(await disk()).toContain('{numref}`fig-new`');
   expect(await disk()).toContain('Signal flow live');
   await editor.evaluate(el=>el.editor.commands.undo());await rendered(figure.getByTestId('mermaid-preview'),'>A<');
-  await editor.evaluate(el=>el.editor.commands.redo());await reload();
+  await editor.evaluate(el=>el.editor.commands.redo());await reloadDocument(page);
   await rendered(figure.getByTestId('mermaid-preview'),'Applied');await edit();expect(await field().inputValue()).toBe('graph TD\n  Applied --> Next');
   await page.evaluate(()=>{window.__holdMermaid=true;window.__mermaidHeld=false;});await field().fill('graph LR\n  Delayed --> Old');
   await page.waitForFunction(()=>window.__mermaidHeld);await field().fill('graph LR\n  Latest --> Result');await rendered(preview(),'Latest');
@@ -506,14 +499,14 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
   await active.getByTestId('mermaid-apply').click();await expect(field()).toHaveCount(0);await expect(page.locator('.notification-center').getByTestId('mermaid-error')).toBeVisible();
   await active.getByText('Before.', {exact:true}).click();await page.mouse.move(0,0);
   await expect(badge).toBeVisible();
-  await save();expect(await disk()).toContain('this is not Mermaid');await reload();await expect(page.locator('.notification-center').getByTestId('mermaid-error')).toBeVisible();
+  await save();expect(await disk()).toContain('this is not Mermaid');await reloadDocument(page);await expect(page.locator('.notification-center').getByTestId('mermaid-error')).toBeVisible();
   await edit();await field().fill('graph LR\n  Safe["<img src=x onerror=alert(1)>"] --> B\n  click B "javascript:alert(1)"');await rendered(preview(),'Safe');
   expect(await figure.locator('script,svg,foreignObject').count()).toBe(0);await active.getByTestId('mermaid-cancel').click();
   await active.getByText('After.',{exact:true}).click();await page.keyboard.press('End');await page.keyboard.press('Enter');await page.keyboard.type('/mermaid');
   const menu=page.getByRole('menu',{name:'Insert block'});await expect(menu.getByRole('menuitem',{name:'Diagram',exact:true})).toBeVisible();
   await menu.getByRole('menuitem',{name:'Diagram',exact:true}).click();await expect(field()).toBeFocused();expect(await field().inputValue()).toBe('graph LR\n  A --> B');
   await active.getByTestId('mermaid-cancel').click();await save();expect((await disk()).match(/\{mermaid\}/g).length).toBe(2);
-  await reload();const diagrams=active.locator('[data-content-kind="mermaid"]');await expect(diagrams).toHaveCount(2);await rendered(diagrams.last().getByTestId('mermaid-preview'),'>A<');
+  await reloadDocument(page);const diagrams=active.locator('[data-content-kind="mermaid"]');await expect(diagrams).toHaveCount(2);await rendered(diagrams.last().getByTestId('mermaid-preview'),'>A<');
   await edit();await field().fill('graph LR\n  A --> B');await active.getByTestId('mermaid-apply').click();await expect(field()).toHaveCount(0);
   await rendered(diagrams.first().getByTestId('mermaid-preview'),'>A<');
   const urls=await diagrams.locator('[data-testid="mermaid-preview"] img').evaluateAll(imgs=>imgs.map(img=>decodeURIComponent(img.src)));
@@ -661,7 +654,7 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
   await edit();await field().fill(padded);
   await field().press('ControlOrMeta+Enter');await expect(field()).toHaveCount(0);
   await save();expect(await disk()).toContain('```{mermaid}\n'+normalized+'\n```');
-  await reload();await edit();expect(await field().inputValue()).toBe(normalized);
+  await reloadDocument(page);await edit();expect(await field().inputValue()).toBe(normalized);
   await active.getByTestId('mermaid-cancel').click();
   expect(await page.locator('body > div[style*="-100000px"]').count()).toBe(0);
   return {sourceSaved:true,draftsPreserved:true,realDrag:true,themeAndStaleRender:true};

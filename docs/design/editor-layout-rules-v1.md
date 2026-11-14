@@ -396,20 +396,41 @@ The nonediting notification DOM/history boundary remains outside `.app-shell`;
 its fixed title-strip coordinates match the reserved chrome slot. Native no-drag
 and the narrow modal assistant's hidden/inert boundary remain in effect.
 
-The existing Base UI Popover anchors the list below the bell and fits it within the
-viewport. Only the expanded list overlays document controls. Opening automatically
-does not move editor focus; Escape from a focused list action returns to the bell.
-Closed popovers unmount, leaving Settings Escape and other overlay owners intact.
-Browser regressions check closed-bell/document rectangles, pointer hit/Apply at the
-640px dark document bottom, history dispatch and panel/modal lifetimes. Manual
-captures use `pnpm browser:test notification-center --screenshots` and
-synthetic documents/plugin data; Sidebar local information is masked.
+NotificationCenter owns one presentation state: closed, automatic or manual. One
+registry, contents tree, announcement, grouping/dismissal state and focus owner are
+shared; the two presentations never render duplicate notification rows.
+
+New errors, warnings and named progress/actions use the master's panel-aware
+bottom-right card appearance and list rectangle. The former bottom bell/gap area
+is left clear; the persistent bell itself exists only in the title strip. Automatic
+cards are named regions, not dialogs, and keep the master's temporary, dismissible
+body overlap without covering the Save/Reload/view toolbar. They do not move focus
+or dismiss on document focus changes. If the user is already reading a manual list,
+new causes update it without moving its location or focus. Bell activation collapses
+an expanded presentation; activation while closed opens the manual list.
+
+The existing Base UI Popover anchors only the manual list below the bell and fits
+it within the viewport. It is a named nonmodal Notifications dialog, distinct from
+Save/New/Reload modal dialogs. Focus-only document navigation keeps it open; outside
+pointer dismissal and Escape close it. Escape from a focused notification action
+returns to the bell. Closed contents remain a hidden native list for the existing
+producer lifecycle, with no mounted popup to block Settings Escape. The narrow
+modal assistant hides/inerts both presentations through the shared external outlet.
+
+Browser regressions check closed-bell/document rectangles, automatic-card Save hit
+access, pointer hit/Apply at the 640px dark document bottom, history dispatch and
+panel/modal lifetimes. Manual captures use `pnpm browser:test notification-center
+--screenshots` and synthetic document/plugin data; Sidebar local information is masked.
+Only the two changed automatic-error captures are refreshed after the owner's
+bottom-card decision; the unchanged manual/chrome captures retain their earlier evidence.
 
 Visual self-check (Windows persistent Chrome, DPR 1, 900px height, synthetic
 scratch documents and a trusted test plugin): the button is centered in the 40px
 strip, aligned with Assistant, with the existing 8px action gap. Closed bell and
 search/Assistant rectangles do not overlap; the document keeps its full height.
-The list fits the viewport in both themes; only the open list covers tab/body actions.
+The manual list fits the viewport in both themes; it can cover tab/body actions
+when explicitly opened. Automatic cards retain the master bottom-right appearance
+and do not cover the title/tab toolbar.
 At 640px + 138px native-caption reservation, Assistant becomes an icon, the command
 button is at least 160px and all three rectangles are disjoint and left of caption
 controls. At 1440px Assistant keeps its label. The adjustable transition is
@@ -460,6 +481,6 @@ not weakened; the new panel geometry and captures complete before that branch.
 CI follow-up: the first head failed the existing `continuous-editing` assertion
 that notification history starts outside `.app-shell`. The center remains a
 shell sibling; that implementation passed its current right-panel width to the
-notification outlet. #1644 removes that obsolete geometry input. The original history assertion is unchanged.
+notification outlet. #1644 retains that geometry input for automatic bottom cards; the header trigger and manual popover do not use it. The original history assertion is unchanged.
 
 K1 플러그인 작업 폼은 SettingsSelect/SettingsInput의 공용 라벨·control 행을 재사용한다. 진행 막대는 공용 Progress의 `--space-2` 높이와 surface/accent를 사용하고, 진행량과의 간격은 `--space-3`, 상태·진행·결과 동작의 세로 간격은 기존 view-panel의 `--space-3`을 따른다. 고유한 크기·색·라벨 규칙을 추가하지 않는다.
