@@ -18,7 +18,7 @@ test("owned browser Hosts isolate persisted settings and app paths between runs"
     writeFileSync(paths[0].settingsFile("plugins"), "previous run");
     assert.notEqual(paths[0].settingsFile("plugins"), paths[1].settingsFile("plugins"));
     assert.equal(existsSync(paths[1].settingsFile("plugins")), false);
-    for (const key of ["LITZIO_DAEMON_DIR", "LITZIO_PLUGINS_SETTINGS_FILE", "LITZIO_ASSISTANT_CWD", "LITZIO_ASSISTANT_SETTINGS_FILE"] as const) {
+    for (const key of ["LITZIO_DAEMON_DIR", "LITZIO_PLUGINS_SETTINGS_FILE", "LITZIO_ASSISTANT_CWD", "LITZIO_ASSISTANT_SETTINGS_FILE", "LITZIO_RESET_DIR"] as const) {
       assert.notEqual(first.env[key], second.env[key]);
       assert.ok(path.relative(first.env.LITZIO_BROWSER_DAEMON_DIR!, first.env[key]!).startsWith("..") === false);
     }

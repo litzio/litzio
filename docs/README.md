@@ -219,3 +219,6 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 - [플러그인 화면 코드 단계별 측정](reviews/plugin-screen-code-1592.md) — Historical. 1단계 실제 AI 6턴과 2단계 제작·설치 시험, 도구 크기·속도와 화면 확인 경계.
 - [v0.0.3-beta.2 릴리스 준비 초안](releases/v0.0.3-beta.2.md) — Draft. 게시 전 검증·제거 기능·한국어 본문·남은 수락 항목.
+
+- [표 커서 도구 배치 스파이크](spikes/2026-11-14-1481-table-cursor-tools.md) — Historical, 채택(배치 방향), #1481.
+- [Windows packed CLI 검사 예산 측정](reviews/windows-packed-cli-budget-2026-11.md) — Historical. #1645의 성공·실패 queue 단계 시간과 cold npm 준비 비용, 검사 구간 분리 근거.

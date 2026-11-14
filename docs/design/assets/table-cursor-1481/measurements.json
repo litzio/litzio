@@ -1,0 +1,1172 @@
+[
+  {
+    "theme": "light",
+    "state": "outside",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [],
+    "collisions": [],
+    "menuTargets": 0
+  },
+  {
+    "theme": "light",
+    "state": "inside",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 445.78125,
+          "width": 28,
+          "height": 28,
+          "top": 445.78125,
+          "right": 544.640625,
+          "bottom": 473.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 467.78125,
+          "width": 28,
+          "height": 78.5,
+          "top": 467.78125,
+          "right": 1112,
+          "bottom": 546.28125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 512.78125,
+          "width": 28,
+          "height": 28,
+          "top": 512.78125,
+          "right": 350,
+          "bottom": 540.78125,
+          "left": 322
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 578.78125,
+          "width": 736,
+          "height": 8,
+          "top": 578.78125,
+          "right": 1080,
+          "bottom": 586.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 0
+  },
+  {
+    "theme": "light",
+    "state": "row-menu",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 445.78125,
+          "width": 28,
+          "height": 28,
+          "top": 445.78125,
+          "right": 544.640625,
+          "bottom": 473.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 512.78125,
+          "width": 28,
+          "height": 28,
+          "top": 512.78125,
+          "right": 350,
+          "bottom": 540.78125,
+          "left": 322
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 2
+  },
+  {
+    "theme": "light",
+    "state": "column-menu",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 445.78125,
+          "width": 28,
+          "height": 28,
+          "top": 445.78125,
+          "right": 544.640625,
+          "bottom": 473.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 512.78125,
+          "width": 28,
+          "height": 28,
+          "top": 512.78125,
+          "right": 350,
+          "bottom": 540.78125,
+          "left": 322
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 2
+  },
+  {
+    "theme": "light",
+    "state": "dense-header",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 590.78125,
+      "width": 736,
+      "height": 157,
+      "top": 590.78125,
+      "right": 1080,
+      "bottom": 747.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 397.5,
+          "y": 596.78125,
+          "width": 28,
+          "height": 28,
+          "top": 596.78125,
+          "right": 425.5,
+          "bottom": 624.78125,
+          "left": 397.5
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 618.78125,
+          "width": 28,
+          "height": 100.5,
+          "top": 618.78125,
+          "right": 1112,
+          "bottom": 719.28125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 685.78125,
+          "width": 28,
+          "height": 28,
+          "top": 685.78125,
+          "right": 350,
+          "bottom": 713.78125,
+          "left": 322
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 751.78125,
+          "width": 736,
+          "height": 8,
+          "top": 751.78125,
+          "right": 1080,
+          "bottom": 759.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 0
+  },
+  {
+    "theme": "light",
+    "state": "wide-scroll",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 145,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 763.78125,
+      "width": 736,
+      "height": 145,
+      "top": 763.78125,
+      "right": 1080,
+      "bottom": 908.78125,
+      "left": 344
+    },
+    "scrollLeft": 464,
+    "buttons": [
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 769.78125,
+          "width": 28,
+          "height": 28,
+          "top": 769.78125,
+          "right": 1018.296875,
+          "bottom": 797.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 791.78125,
+          "width": 28,
+          "height": 78.5,
+          "top": 791.78125,
+          "right": 1112,
+          "bottom": 870.28125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 312,
+          "y": 836.78125,
+          "width": 28,
+          "height": 28,
+          "top": 836.78125,
+          "right": 340,
+          "bottom": 864.78125,
+          "left": 312
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 902.78125,
+          "width": 736,
+          "height": 28,
+          "top": 902.78125,
+          "right": 1080,
+          "bottom": 930.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 0
+  },
+  {
+    "theme": "dark",
+    "state": "outside",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [],
+    "collisions": [],
+    "menuTargets": 0
+  },
+  {
+    "theme": "dark",
+    "state": "inside",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 445.78125,
+          "width": 28,
+          "height": 28,
+          "top": 445.78125,
+          "right": 544.640625,
+          "bottom": 473.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 467.78125,
+          "width": 28,
+          "height": 78.5,
+          "top": 467.78125,
+          "right": 1112,
+          "bottom": 546.28125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 512.78125,
+          "width": 28,
+          "height": 28,
+          "top": 512.78125,
+          "right": 350,
+          "bottom": 540.78125,
+          "left": 322
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 578.78125,
+          "width": 736,
+          "height": 8,
+          "top": 578.78125,
+          "right": 1080,
+          "bottom": 586.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 0
+  },
+  {
+    "theme": "dark",
+    "state": "row-menu",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 445.78125,
+          "width": 28,
+          "height": 28,
+          "top": 445.78125,
+          "right": 544.640625,
+          "bottom": 473.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 512.78125,
+          "width": 28,
+          "height": 28,
+          "top": 512.78125,
+          "right": 350,
+          "bottom": 540.78125,
+          "left": 322
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 2
+  },
+  {
+    "theme": "dark",
+    "state": "column-menu",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 439.78125,
+      "width": 736,
+      "height": 135,
+      "top": 439.78125,
+      "right": 1080,
+      "bottom": 574.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 516.640625,
+          "y": 445.78125,
+          "width": 28,
+          "height": 28,
+          "top": 445.78125,
+          "right": 544.640625,
+          "bottom": 473.78125,
+          "left": 516.640625
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 512.78125,
+          "width": 28,
+          "height": 28,
+          "top": 512.78125,
+          "right": 350,
+          "bottom": 540.78125,
+          "left": 322
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 2
+  },
+  {
+    "theme": "dark",
+    "state": "dense-header",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 590.78125,
+      "width": 736,
+      "height": 157,
+      "top": 590.78125,
+      "right": 1080,
+      "bottom": 747.78125,
+      "left": 344
+    },
+    "scrollLeft": 0,
+    "buttons": [
+      {
+        "label": "Column A actions",
+        "rect": {
+          "x": 397.5,
+          "y": 596.78125,
+          "width": 28,
+          "height": 28,
+          "top": 596.78125,
+          "right": 425.5,
+          "bottom": 624.78125,
+          "left": 397.5
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 618.78125,
+          "width": 28,
+          "height": 100.5,
+          "top": 618.78125,
+          "right": 1112,
+          "bottom": 719.28125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 322,
+          "y": 685.78125,
+          "width": 28,
+          "height": 28,
+          "top": 685.78125,
+          "right": 350,
+          "bottom": 713.78125,
+          "left": 322
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 751.78125,
+          "width": 736,
+          "height": 8,
+          "top": 751.78125,
+          "right": 1080,
+          "bottom": 759.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 0
+  },
+  {
+    "theme": "dark",
+    "state": "wide-scroll",
+    "before": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 223,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "after": [
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 0
+      },
+      {
+        "height": 135,
+        "width": 736,
+        "offset": 195.890625
+      },
+      {
+        "height": 157,
+        "width": 736,
+        "offset": 346.890625
+      },
+      {
+        "height": 145,
+        "width": 736,
+        "offset": 519.890625
+      }
+    ],
+    "viewport": {
+      "x": 344,
+      "y": 763.78125,
+      "width": 736,
+      "height": 145,
+      "top": 763.78125,
+      "right": 1080,
+      "bottom": 908.78125,
+      "left": 344
+    },
+    "scrollLeft": 464,
+    "buttons": [
+      {
+        "label": "Column H actions",
+        "rect": {
+          "x": 990.296875,
+          "y": 769.78125,
+          "width": 28,
+          "height": 28,
+          "top": 769.78125,
+          "right": 1018.296875,
+          "bottom": 797.78125,
+          "left": 990.296875
+        }
+      },
+      {
+        "label": "Append column",
+        "rect": {
+          "x": 1084,
+          "y": 791.78125,
+          "width": 28,
+          "height": 78.5,
+          "top": 791.78125,
+          "right": 1112,
+          "bottom": 870.28125,
+          "left": 1084
+        }
+      },
+      {
+        "label": "Row 2 actions",
+        "rect": {
+          "x": 312,
+          "y": 836.78125,
+          "width": 28,
+          "height": 28,
+          "top": 836.78125,
+          "right": 340,
+          "bottom": 864.78125,
+          "left": 312
+        }
+      },
+      {
+        "label": "Append row",
+        "rect": {
+          "x": 344,
+          "y": 902.78125,
+          "width": 736,
+          "height": 28,
+          "top": 902.78125,
+          "right": 1080,
+          "bottom": 930.78125,
+          "left": 344
+        }
+      }
+    ],
+    "collisions": [],
+    "menuTargets": 0
+  }
+]

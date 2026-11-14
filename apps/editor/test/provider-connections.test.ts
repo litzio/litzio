@@ -1,5 +1,6 @@
 import { PluginHost } from "../server/plugins/plugin-host.ts";
-import { spawnSync } from "node:child_process";
+import childProcess, { spawnSync, type ChildProcess } from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { assistantCliEnvironment, hostCli } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
 import assert from "node:assert/strict";
@@ -49,6 +50,17 @@ test("Copilot session creation errors retain a readable message across the Host 
 
 test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-connection-")), log = path.join(root, "acp.jsonl");
+  // Keep the exact owned processes: Windows may reuse a historical PID before
+  // this test's final assertion. Include diagnostic and replacement connections.
+  const children: ChildProcess[] = [];
+  const spawn = childProcess.spawn;
+  const spawned = t.mock.method(childProcess, "spawn", (...args: Parameters<typeof spawn>) => {
+    const child = spawn(...args);
+    if (args[1]?.includes(log)) children.push(child);
+    return child;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { spawned.mock.restore(); syncBuiltinESMExports(); });
   const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
   const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
@@ -191,11 +203,11 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await assert.rejects(conversations.resume(restricted.id, settings), /Stop the Copilot response/);
     assert.equal(conversations.current(low.id).turns.at(-1)!.status, "inProgress");
     await conversations.interrupt(low.id); await barrier();
-    const lowPid = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid).at(-1).pid;
+    const lowChild = children.at(-1)!;
     const resumed = await conversations.resume(restricted.id, settings);
     assert.equal(resumed.reasoningEffort, "high");
     assert.equal(connection.copilot.reasoningEffort, "high");
-    assert.throws(() => process.kill(lowPid, 0), "replaced low-effort child must have exited");
+    assert.ok(lowChild.exitCode !== null || lowChild.signalCode !== null, "replaced low-effort child must have exited");
     await conversations.send({ ...input, id: resumed.id }, settings);
     await conversations.interrupt(resumed.id); await barrier();
     await connection.close();
@@ -251,21 +263,11 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   });
   assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 표·목록·그림·캡션·수식도 공급자 패치로 본문을 고치고"));
   await connection.close();
-  const lifecycle = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line))
-    .filter(message => message.pid || message.exitedPid)
-    .map(({ pid, startedAt, exitedPid, exitedAt }) => ({ pid, startedAt, exitedPid, exitedAt }));
-  for (const { pid } of lifecycle.filter(message => message.pid)) {
-    try { assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped"); }
-    catch (error) {
-      // A historical PID can be reused on Windows. Diagnose its current owner;
-      // keep the original exit assertion rather than treating reuse as success.
-      const current = process.platform === "win32" ? spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-        `Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}' | Select-Object ProcessId,ParentProcessId,Name,CreationDate | ConvertTo-Json -Compress`],
-      { encoding: "utf8", windowsHide: true, timeout: 3000 }) : undefined;
-      t.diagnostic(JSON.stringify({ checkedAt: Date.now(), ownerPid: process.pid, reachablePid: pid, lifecycle,
-        currentProcess: current?.stdout, censusError: current?.error?.message }));
-      throw error;
-    }
+  const launches = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid);
+  assert.ok(children.length > 0);
+  assert.deepEqual(children.map(child => child.pid).sort(), launches.map(message => message.pid).sort(), "observe every owned fake child");
+  for (const child of children) {
+    assert.ok(child.exitCode !== null || child.signalCode !== null, "every owned fake child must be stopped");
   }
 });
 

@@ -1,9 +1,10 @@
 import { lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { isolatedHostEnvironment } from "../../../../test/helpers/isolated-host-environment.ts";
 
 /** Only the runner-created directory is eligible for cleanup, never an env-supplied path. */
-export function browserHostEnvironment(env: NodeJS.ProcessEnv) {
+export function browserHostEnvironment(env: NodeJS.ProcessEnv): { env: NodeJS.ProcessEnv; cleanup(): void } {
   if (env.LITZIO_BROWSER_URL) return { env: {}, cleanup() {} };
   const parent = realpathSync(tmpdir());
   const directory = mkdtempSync(path.join(parent, "litzio-browser-host-"));
@@ -11,11 +12,8 @@ export function browserHostEnvironment(env: NodeJS.ProcessEnv) {
   return {
     env: {
       LITZIO_BROWSER_DAEMON_DIR: directory,
-      LITZIO_DAEMON_DIR: directory,
+      ...isolatedHostEnvironment(directory),
       LITZIO_DATA_DIR: env.LITZIO_DATA_DIR ?? path.join(directory, "data"),
-      LITZIO_PLUGINS_SETTINGS_FILE: path.join(directory, "browser-plugins.json"),
-      LITZIO_ASSISTANT_CWD: path.join(directory, "assistant"),
-      LITZIO_ASSISTANT_SETTINGS_FILE: path.join(directory, "assistant-settings.json"),
     },
     cleanup() {
       // Refuse replacement directories, symlinks/junctions and changed ancestors.

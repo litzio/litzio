@@ -19,8 +19,15 @@ export function useViewScreens() {
       const next = hostConnection.get().state;
       if (next !== previous) { previous = next; refresh(); }
     });
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
     refresh(); window.addEventListener("plugins-changed", refresh);
-    return () => { controller.abort(); unsubscribe(); window.removeEventListener("plugins-changed", refresh); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      controller.abort(); unsubscribe(); window.removeEventListener("plugins-changed", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
   return entries;
 }

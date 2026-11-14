@@ -23,6 +23,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await showExplorer();
     await page.locator('.sidebar').getByRole('button',{name,exact:true}).click();
   };
+  const observer = await page.context().newPage();
+  // Headless Chromium reports every tab focused; explicitly deliver the window
+  // lifecycle event after activating the peer, without injecting application state.
+  const returnToObserver = async () => {
+    await observer.bringToFront();
+    await observer.evaluate(() => window.dispatchEvent(new Event('focus')));
+  };
+  try {
+  await observer.goto(page.url());
+  await expect(observer.locator('.sidebar')).toBeVisible();
+  await page.bringToFront();
   await openSettings();
   pluginFixture.cli(["plugins", "register", pluginFixture.directory]);
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
@@ -121,6 +132,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(toggle).toBeChecked();
   await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toHaveCount(0);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(true);
+  await returnToObserver();
+  await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toBeVisible();
+  await observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
+  await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
+  await page.bringToFront();
   const reloaded = pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
   expect(reloaded.receipt.operation).toBe("plugins.reload");
   expect(reloaded.plugins.find(p => p.id === "fixture.drive").running).toBe(true);
@@ -178,6 +194,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   const delivered = page.waitForResponse(r => r.url().endsWith("/api/plugins") && r.request().method() === "GET");
   release(); await (await delivered).finished();
   await page.unrouteAll({ behavior: "wait" });
+  // The existing open-screen revision observer unmounts disabled code.
+  await expect(observer.getByText('Runtime fixture', { exact: true })).not.toBeVisible();
+  await returnToObserver();
+  await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
+  await page.bringToFront();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
   await page.keyboard.press("Escape");
@@ -195,11 +216,21 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     });
     window.pluginNoticeObserver.observe(document.body, { childList: true, characterData: true, subtree: true });
   });
+  pluginFixture.cli(["plugins", "enable", "fixture.drive"]);
+  await returnToObserver();
+  await observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
+  await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
+  await page.bringToFront();
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
+  await expect(observer.getByText('Runtime fixture', { exact: true })).not.toBeVisible();
+  await returnToObserver();
+  await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
+  await page.bringToFront();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
   await expect(page.getByRole("dialog", { name: "Drive fixture", exact: true })).not.toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "The selected plugin is no longer available." })).toBeVisible();
   expect(await page.evaluate(() => { window.pluginNoticeObserver.disconnect(); return window.pluginNoticeMaximum; }), "A closing dialog must not duplicate the selected-plugin notice").toBe(1);
   await page.keyboard.press("Escape");
+  } finally { await observer.close(); }
 }
