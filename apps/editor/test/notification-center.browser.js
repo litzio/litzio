@@ -16,7 +16,8 @@ async (page, { openPath, expect, screenshots }) => {
   const toggle = () => center.locator(':scope > button');
   const expectEmpty = async (target = center, name = 'Notifications: none') => {
     await expect(target).toBeVisible();
-    await expect(target.locator(':scope > button')).toHaveAccessibleName(name);
+    await expect(target.locator(':scope > button')).toHaveAccessibleName(name.startsWith("알림") ? "알림" : "Notifications");
+    await expect(target.locator(':scope > button')).toHaveAccessibleDescription(name);
     await expect(target.locator(':scope > button')).toHaveText('');
     expect(await target.getAttribute('data-severity')).toBeNull();
     expect(await target.evaluate(el => {
@@ -30,13 +31,15 @@ async (page, { openPath, expect, screenshots }) => {
     await expect(target.locator('li[data-severity]')).toHaveCount(0);
   };
   // Opening/closing Outline preserves notification controls; overlap is allowed.
-  for (const width of [1440, 1024]) {
+  for (const {width, reserved} of [{width:1440,reserved:0},{width:1024,reserved:0},{width:640,reserved:0},{width:640,reserved:138}]) {
+    await page.evaluate(value => document.documentElement.style.setProperty("--window-controls-width", `${value}px`), reserved);
     await page.setViewportSize({ width, height: 900 });
     // Resizing crosses the docked/overlay boundary. Wait for that state transition
     // before deciding whether the user's Outline toggle needs to be clicked.
     if (width === 1440) await expect(page.locator('.document-panel')).toBeVisible();
     else await expect(page.locator('.document-panel')).toBeHidden();
     for (const open of [true, false]) {
+      if (await toggle().getAttribute('aria-expanded') === 'true') await toggle().click();
       const panel = page.locator('.document-panel');
       if (await panel.isVisible() !== open) await page.getByRole('button', { name: 'Outline', exact: true }).click();
       for (const expanded of [false, true]) {
@@ -44,6 +47,25 @@ async (page, { openPath, expect, screenshots }) => {
         await expect(center).toBeVisible();
         await expect(toggle()).toHaveAttribute('aria-expanded', String(expanded));
         await expect(center.locator('ul')).toBeVisible({ visible: expanded });
+        const documentRect = await page.locator('.document-scroll[data-active=true]').boundingBox();
+        const bellRect = await toggle().boundingBox();
+        const chrome = await page.locator('.top-bar').evaluate(header => {
+          const boxes = ['.command-center-trigger','.assistant-trigger','.notification-center > button'].map(selector=>{
+            const r=document.querySelector(selector).getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width};
+          });
+          return {boxes,overlap:boxes.some((a,i)=>boxes.slice(i+1).some(b=>Math.min(a.right,b.right)>Math.max(a.x,b.x)&&Math.min(a.bottom,b.bottom)>Math.max(a.y,b.y)))};
+        });
+        expect(chrome.overlap,JSON.stringify(chrome)).toBe(false);
+        for (const box of chrome.boxes) expect(box.right).toBeLessThanOrEqual(width-reserved);
+        if (reserved) expect(chrome.boxes[0].width).toBeGreaterThanOrEqual(160);
+        if (width === 1440) await expect(page.locator('.assistant-trigger-label')).toBeVisible();
+        expect(bellRect.y + bellRect.height, 'Closed bell must remain entirely above document content').toBeLessThanOrEqual(documentRect.y);
+        if (expanded) {
+          const popup = await center.locator('.notification-popover').boundingBox();
+          expect(popup.x).toBeGreaterThanOrEqual(0);
+          expect(popup.x + popup.width).toBeLessThanOrEqual(width);
+          expect(popup.y + popup.height).toBeLessThanOrEqual(900);
+        }
         const bounds = await center.boundingBox();
         expect(bounds.x).toBeGreaterThanOrEqual(0);
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
@@ -54,6 +76,7 @@ async (page, { openPath, expect, screenshots }) => {
     }
   }
   await toggle().click();
+  await page.evaluate(() => document.documentElement.style.removeProperty('--window-controls-width'));
   await page.setViewportSize({ width: 1440, height: 900 });
   await expectEmpty();
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
@@ -140,11 +163,16 @@ async (page, { openPath, expect, screenshots }) => {
   await change(null);
   await expect(center).toContainText('Applied document');
   await expect(center).toHaveAttribute('data-severity', 'warning');
-  await expect(toggle()).toHaveAccessibleName('Notifications: Warning, 1');
+  await expect(toggle()).toHaveAccessibleDescription('Notifications: Warning, 1');
   await expect(page.getByTestId('notification-announcement')).toHaveText('Notifications: Warning, 1');
   await expect(toggle()).toHaveAttribute('aria-expanded', 'true');
   expect(await engine.evaluate(el => el.contains(document.activeElement))).toBe(true);
   expect(await engine.evaluate(el => JSON.stringify(el.editor.state.selection.toJSON()))).toBe(selection);
+  await center.getByRole('button', {name:'Dismiss notification',exact:true}).focus();
+  await page.keyboard.press('Escape');
+  await expect(toggle()).toHaveAttribute('aria-expanded','false');
+  await expect(toggle()).toBeFocused();
+  await toggle().click();
   if (screenshots) {
     await engine.locator('[data-testid=mermaid-preview] img').first().waitFor();
     for (const language of ['en', 'ko']) {
@@ -194,7 +222,7 @@ async (page, { openPath, expect, screenshots }) => {
   await diagram('this is not Mermaid');
   await expect(center.getByTestId('mermaid-error')).toBeVisible();
   await expect(center).toHaveAttribute('data-severity', 'error');
-  await expect(toggle()).toContainText('Error · 2');
+  await expect(toggle()).toContainText('2');
   await toggle().click();
   await diagram('graph LR\n  A --> B');
   await expect(center.getByTestId('mermaid-error')).toHaveCount(0);
@@ -212,6 +240,8 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(center.locator('ul')).toBeVisible();
   // Hidden tabs keep their unresolved causes and navigation returns to the owning document.
   await openPath(page, initial.path);
+  // Opening a document dismisses the nonmodal popover; causes remain in the registry.
+  if (await toggle().getAttribute('aria-expanded') === 'false') await toggle().click();
   await expect(center.getByTestId('numbering-warning')).toHaveCount(1);
   await center.getByRole('button', {name:'Go to problem',exact:true}).click();
   await expect(page.locator(`[data-document-tab="${ownerId}"]`)).toHaveAttribute('data-active','true');
@@ -238,7 +268,7 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(center).toHaveAttribute('data-severity','info');
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
   await expect(center.getByTestId('notice')).toBeHidden();
-  await expect(toggle()).toHaveAccessibleName('Notifications: Information, 1');
+  await expect(toggle()).toHaveAccessibleDescription('Notifications: Information, 1');
   await expect(page.getByTestId('notification-announcement')).toHaveText('Notifications: Information, 1');
   await toggle().click();
   await expect(center.getByTestId('notice')).toContainText('Copied the file path.');
@@ -323,7 +353,7 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
   await expect(toggle()).toBeFocused();
   await toggle().click();
-  await expect(center.locator(':scope > ul')).toHaveText('No notifications');
+  await expect(center.locator('#notification-list')).toHaveText('No notifications');
   // Reload clears window memory; dismiss the earlier fixture's unsaved-work prompt.
   await page.reload();
   await page.getByRole('dialog', {name:'Restore unsaved work?',exact:true}).getByRole('button', {name:'Not now',exact:true}).click();

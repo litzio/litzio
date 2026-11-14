@@ -443,7 +443,7 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   await expect(page.getByTestId('mermaid-source')).toHaveValue('graph LR\n  UNAPPLIED --> Draft');
   await read.click();
 
-  const notifications = page.getByRole('button', {name:/^Notifications:/});
+  const notifications = page.getByRole('button', {name:'Notifications',exact:true});
   if (await notifications.getAttribute('aria-expanded') === 'true') await notifications.click();
   // Compact draft status, all three segments and Save fit the supported tab row.
   if (screenshots) for (const [width, language, theme] of [[1440, 'en', 'light'], [640, 'ko', 'dark']]) {

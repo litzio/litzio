@@ -784,19 +784,18 @@ test("window center reports severity and count, with optional location navigatio
     { id: "host", severity: "error", message: "Host failed" },
   ]} />);
   assert.match(html, /data-severity="error"/);
-  assert.match(html, /Error · 2/);
-  assert.match(html, /Missing number/);
-  assert.equal((html.match(/>Go to problem</g) ?? []).length, 1);
+  assert.match(html, /notification-count[^>]*>2</);
   const info = renderToStaticMarkup(<NotificationCenter items={[{ id: "copy", severity: "info", message: "Path copied" }]} />);
   assert.match(info, /aria-expanded="false"/);
-  assert.match(info, /<ul[^>]*hidden/);
   const empty = renderToStaticMarkup(<NotificationCenter items={[]} />);
   assert.match(empty, /<aside/);
-  assert.match(empty, /aria-label="Notifications: none"/);
+  assert.match(empty, /aria-label="Notifications"/);
+  assert.match(empty, /aria-description="Notifications: none"/);
   assert.match(empty, /aria-expanded="false"/);
-  assert.match(empty, />No notifications</);
   assert.doesNotMatch(empty, /data-severity=| · 0/);
-  assert.match(html, /aria-label="Notifications: Error, 2"/);
+  assert.match(html, /aria-description="Notifications: Error, 2"/);
+  // The portaled list is exercised by notification-center browser tests, not SSR.
+
 });
 
 test("save failures expose a list of navigation targets and collapsed unchanged technical details", async () => {

@@ -111,7 +111,7 @@ export function MenuExamples({ state }: { state: ExampleState }) {
 export function NotificationExample({ state }: { state: ExampleState }) {
   return <section className="ui-gallery-section" aria-labelledby="gallery-notifications">
     <h2 id="gallery-notifications">NotificationCenter</h2>
-    <p>The real floating center is at the window corner. Production features register notifications with the App provider; they do not mount another center.</p>
+    <p>The notification button occupies the title strip; its list opens below it. Production features register notifications with the App provider; they do not mount another center.</p>
     <NotificationCenter key={state} items={state === "error" ? [{ id: "gallery-error", severity: "error", message: "Example operation failed. No file was changed.", context: "Gallery" }]
       : [{ id: "gallery-info", severity: "info", message: "Example information; this is local gallery state.", context: "Gallery" }]} />
   </section>;

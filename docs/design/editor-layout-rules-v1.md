@@ -379,21 +379,60 @@ uses nowrap, with the existing local scroller, edge fades and measured handles.
 It introduces no new document gutters or control sizes. Settings uses the existing
 select row; the table block menu separates its View checkbox from mutation groups.
 
-## Notification placement beside right panels (#970)
+## Title-strip notifications (#1644)
 
-The floating notification center may overlap document content or other controls;
-users can collapse it or work around it. Non-overlap is not guaranteed (#1003).
-Browser scenarios that do not inspect notifications hide the center through the
-shared test harness. Product placement remains unchanged.
+The owner approved the compact Bell beside Assistant in the existing title strip.
+The closed button is entirely above every document viewport; no document bottom
+strip, scroll-height reservation or minimum-height change is introduced. The same
+window-scoped button remains available for documents, plugin screens and Settings.
+It reserves an icon slot beside Assistant and the native caption-control reservation.
+The command action keeps its existing detail-reduction order and remains available.
 
-The window notification center uses the right panel’s left edge as its trailing
-boundary while Outline (docked or overlay) or the nonmodal assistant is open.
-Its existing 32px trailing inset and bottom inset remain; the expanded list is
-limited to the space between the sidebar and that boundary. Closing the panel
-restores the window-right placement. The narrow assistant remains modal, with
-the notification center hidden and inert. The composer needs no notification
-clearance. Existing `notification-center` and `assistant` browser scenarios cover
-panel toggling, list visibility and the modal boundary at 1440px/1024px/640px.
+The button uses the shared compact icon Button and Tooltip, neutral/severity colors
+and a count badge. Its name/tooltip is Notifications; the accessible description
+retains the localized severity/count or empty state. Registry, polite announcement,
+grouping, dismissals, progress/actions and error auto-expansion keep their owners.
+The nonediting notification DOM/history boundary remains outside `.app-shell`;
+its fixed title-strip coordinates match the reserved chrome slot. Native no-drag
+and the narrow modal assistant's hidden/inert boundary remain in effect.
+
+The existing Base UI Popover anchors the list below the bell and fits it within the
+viewport. Only the expanded list overlays document controls. Opening automatically
+does not move editor focus; Escape from a focused list action returns to the bell.
+Closed popovers unmount, leaving Settings Escape and other overlay owners intact.
+Browser regressions check closed-bell/document rectangles, pointer hit/Apply at the
+640px dark document bottom, history dispatch and panel/modal lifetimes. Manual
+captures use `pnpm browser:test notification-center --screenshots` and
+synthetic documents/plugin data; Sidebar local information is masked.
+
+Visual self-check (Windows persistent Chrome, DPR 1, 900px height, synthetic
+scratch documents and a trusted test plugin): the button is centered in the 40px
+strip, aligned with Assistant, with the existing 8px action gap. Closed bell and
+search/Assistant rectangles do not overlap; the document keeps its full height.
+The list fits the viewport in both themes; only the open list covers tab/body actions.
+At 640px + 138px native-caption reservation, Assistant becomes an icon, the command
+button is at least 160px and all three rectangles are disjoint and left of caption
+controls. At 1440px Assistant keeps its label. The adjustable transition is
+`--layout-assistant-label-breakpoint` (30rem), resolved by the existing TopBar
+ResizeObserver rather than a repeated container-query literal.
+
+| Surface | Light | Dark |
+| --- | --- | --- |
+| 1440 closed | [Capture](assets/notification-titlebar-1644/1440-light-closed.png) | [Capture](assets/notification-titlebar-1644/1440-dark-closed.png) |
+| 1440 open | [Capture](assets/notification-titlebar-1644/1440-light-open.png) | [Capture](assets/notification-titlebar-1644/1440-dark-open.png) |
+| 1440 automatic error | [Capture](assets/notification-titlebar-1644/1440-light-error-auto.png) | [Capture](assets/notification-titlebar-1644/1440-dark-error-auto.png) |
+| 640 closed | [Capture](assets/notification-titlebar-1644/640-light-closed.png) | [Capture](assets/notification-titlebar-1644/640-dark-closed.png) |
+| 640 open | [Capture](assets/notification-titlebar-1644/640-light-open.png) | [Capture](assets/notification-titlebar-1644/640-dark-open.png) |
+| 640 native-caption reservation | — | [Capture](assets/notification-titlebar-1644/640-dark-caption-138.png) |
+| Plugin screen | — | [Capture](assets/notification-titlebar-1644/plugin-screen-1440-dark.png) |
+| Settings | — | [Capture](assets/notification-titlebar-1644/settings-1440-dark.png) |
+
+### Historical panel placement (#970)
+
+The earlier bottom-right panel-aware placement and blanket overlap allowance
+(#1003) were replaced by #1644. The following captures and execution notes describe
+the previous implementation, not the current geometry. The earlier proposal to
+reserve a permanent 60px bottom strip was rejected by the owner and reverted.
 
 Visual review (2026-11-03): shared notification colors, radius and control sizes
 follow Visual Language; only placement and obsolete composer clearance change.
@@ -420,7 +459,7 @@ not weakened; the new panel geometry and captures complete before that branch.
 
 CI follow-up: the first head failed the existing `continuous-editing` assertion
 that notification history starts outside `.app-shell`. The center remains a
-shell sibling; the shell now passes only its current right-panel width to the
-notification outlet. The original history assertion is unchanged.
+shell sibling; that implementation passed its current right-panel width to the
+notification outlet. #1644 removes that obsolete geometry input. The original history assertion is unchanged.
 
 K1 플러그인 작업 폼은 SettingsSelect/SettingsInput의 공용 라벨·control 행을 재사용한다. 진행 막대는 공용 Progress의 `--space-2` 높이와 surface/accent를 사용하고, 진행량과의 간격은 `--space-3`, 상태·진행·결과 동작의 세로 간격은 기존 view-panel의 `--space-3`을 따른다. 고유한 크기·색·라벨 규칙을 추가하지 않는다.

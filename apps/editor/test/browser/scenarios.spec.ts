@@ -186,7 +186,11 @@ for (const name of scenarios) {
     // 8s deadline probes and settings health checks. Keep per-action/product limits.
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
-    const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
+    // Visual review is a separate manual traversal, never another stable CI scenario.
+    const notificationCapture = name === "notification-center" && screenshots;
+    const source = readFileSync(notificationCapture
+      ? path.join(REPOSITORY_ROOT, "docs/design/assets/notification-titlebar-1644/capture.browser.js")
+      : path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
     const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { document: string; directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; corruptSecret(): void; }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; assertTableToolGeometry: typeof assertTableToolGeometry; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
@@ -201,7 +205,7 @@ for (const name of scenarios) {
     const pluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "fixture");
     const otherPluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-b", "fixture");
     const otherJobInput = path.join(REPOSITORY_ROOT, "tmp", "k1-other-root-request.json");
-    if (name === "vite-plugins") {
+    if ((name === "vite-plugins" || notificationCapture)) {
       mkdirSync(pluginDirectory, { recursive: true });
       writeCodePluginManifest(pluginDirectory,{id: "fixture.vite",name: "Vite fixture",entry: "host.mjs",description: "Connection settings fixture",settingsSchema: { type: "object", properties: { serverUrl: { type: "string", title: "Service URL", minLength: 1, description: "HTTP(S) service URL" }, failure: { type: "boolean", title: "Simulate failure", description: "Simulates service availability" } }, additionalProperties: false },secrets: [{ id: "api-key", title: "Access token", scope: "connection", required: false }],operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", additionalProperties: false }, outputSchema: { type: "object" } }],healthCheck: "connection",screen:"screen.jsx"});
       writeFileSync(path.join(pluginDirectory, "host.mjs"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
@@ -213,7 +217,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       writeCodePluginManifest(pluginDirectory,{id: "fixture.drive",name: "Drive fixture",entry: "host.mjs",description: "Isolated folder fixture",settingsSchema: { type: "object", properties: { label: { type: "string", title: "Connection label" } }, additionalProperties: false },secrets: [{ id: "pat", title: "Access token", scope: "connection", required: false }],screen:"screen.jsx"});
       writeFileSync(path.join(pluginDirectory, "host.mjs"), `export function activate(c){return {operations:{},dispose(){},status:()=>({available:true,message:c.secrets.pat ? "Secret applied" : c.settings.label ?? "Fixture ready"})}}`);
     }
-    if (["http-plugins", "vite-plugins"].includes(name)) writeFileSync(path.join(pluginDirectory, "screen.jsx"), "export default function Screen(){return <p>Runtime fixture</p>}");
+    if ((["http-plugins", "vite-plugins"].includes(name) || notificationCapture)) writeFileSync(path.join(pluginDirectory, "screen.jsx"), "export default function Screen(){return <p>Runtime fixture</p>}");
     const pluginFixture = { document: path.join(pluginFolder, "a.md"), directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput, corruptSecret() {
       const owned = process.env.LITZIO_BROWSER_DAEMON_DIR;
       if (!owned) throw new Error("Secret corruption requires a runner-owned isolated Host");
