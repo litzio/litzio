@@ -44,7 +44,7 @@ export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code:
     signal?.throwIfAborted(); client.assertCurrent();
     const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, signal, body: JSON.stringify({ action: "screen-invoke", plugin: owner, operation: `${owner}.${operation}`, input }) });
     const reply = await response.json();
-    if (!response.ok || reply.error || reply.receipt?.outcome !== "success") throw new Error(reply.error ?? `HTTP ${response.status}`);
+    if (!response.ok || reply.error || reply.receipt?.outcome !== "success") throw Object.assign(new Error(reply.message ?? reply.error ?? `HTTP ${response.status}`), { code: reply.code, errorKind: reply.errorKind, inputIssues: reply.inputIssues, receipt: reply.receipt });
     return reply.result;
   }, [client, owner]);
   const openDocument = React.useCallback(async ({path}: {path: string}): Promise<ScreenOpenDocumentResult> => {

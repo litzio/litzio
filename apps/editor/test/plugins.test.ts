@@ -174,7 +174,7 @@ test("Codex plugin tools share Host reads, enforce turn permission and restore m
     }
     for (const input of [{ mode: "invalid" }, { mode: 1 }]) {
       const invalid = await invoke("fixture.lookup.read", input);
-      assert.equal(invalid.success, false); assert.equal(invalid.errorKind, "unavailable"); assert.ok(!("result" in invalid));
+      assert.equal(invalid.success, false); assert.equal(invalid.errorKind, typeof input.mode === "number" ? "invalid_input" : "unavailable"); assert.ok(!("result" in invalid));
     }
     for (const action of ["list", "scaffold", "reload"]) {
       const response: any = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: action === "list" ? { action } : action === "scaffold" ? { action, directory: path.join(root, "scaffolded"), id: "local.fixture" } : { action, id: "missing.plugin" } });
@@ -644,7 +644,7 @@ test("a stalled write times out as uncertain; failed disposal can recover on the
     const result = await host.invokeOperation('fixture.timeout.write', {});
     assert.equal(result.receipt.outcome, 'uncertain');
     assert.equal('errorKind' in result && result.errorKind, 'timeout');
-    assert.match('error' in result ? result.error : '', /Check the target before retrying a write/);
+    assert.match('error' in result ? result.error ?? '' : '', /Check the target before retrying a write/);
     assert.equal((await host.list())[0]!.running, false);
     assert.match((await host.list())[0]!.error!, /process failed/);
   } finally {await host.close(); rmSync(root, {recursive:true, force:true});}

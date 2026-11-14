@@ -4,7 +4,8 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-14 — #1592 DocumentView 셀·지연 배치·폭 변경·미주 탐색을 격리 HTTP Host의 브라우저 시나리오로 확인.
+- Last verified: 2026-11-14 — #1634 invoke 오류의 code/message·진단·receipt 전달 추가.
+- Previous verification: 2026-11-14 — #1592 DocumentView 셀·지연 배치·폭 변경·미주 탐색을 격리 HTTP Host의 브라우저 시나리오로 확인.
 
 ## 연결 수명
 
@@ -17,6 +18,8 @@
 Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다. 실행 시 npm 설치나 원격 import 해석을 하지 않는다. 활성 plugin만 화면 코드와 artifact digest revision을 제공한다. 대상 Host의 `/api/plugin-screens`는 화면 목록/코드만 반환하고 선언형 catalog·validate·query 실행 API는 없다. 클라이언트는 CSP script-src의 blob 모듈로 실행한다. 샌드박스·iframe·권한 모델·서명·버전 협상은 만들지 않는다.
 
 `invoke(localOperationId,input)`는 자기 plugin과 해당 화면의 HostClient에 고정한다. 공개 작업은 schema·effect·receipt를 공유하고 화면 전용 handler는 JSON을 전달한다. Core 문서 의미나 공식 저장을 화면에서 우회하지 않는다. disable·reload·Host 교체·연결 해제 시 이전 화면을 내리고 새 revision을 받는다. 열린 화면은 2초마다 코드 없이 revision을 확인하며 변경 시 새 코드를 받는다. 파일 감시·자동 reload는 아니다. import/render/cleanup 오류는 해당 화면에서 격리한다. async/event 오류는 작성자가 catch해 Notice로 표시한다.
+
+invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명시적 PluginPublicError일 때), errorKind, inputIssues, receipt를 덧붙인다. 예: `invoke("lookup", input).catch(e => setError(e.code ? e.code + ": " + e.message : e.message))`. Notice의 자식 텍스트로 표시하고 innerHTML로 삽입하지 않는다. 입력 진단의 필드 경로·이유와 공개 오류의 code/message 제한은 [실행 계약](plugin-stage1-v1.md#호출자에게-전달하는-실패-1634)을 따른다. 성공 반환값은 계속 result이며 receipt를 씌우지 않는다. 실패 receipt가 uncertain이면 대상을 확인한 뒤 재시도 여부를 결정한다.
 
 ## 화면 부품
 

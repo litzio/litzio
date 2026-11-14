@@ -7,7 +7,7 @@ import { AssistantSkillValidationError, PluginAssistantSkills, validateAssistant
 import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
-import { publicOperationError, publicOperationResult, safePluginValue } from "./operation-result.ts";
+import { publicOperationError, publicOperationResult, publicInputIssues, safePluginValue } from "./operation-result.ts";
 import { assertNoPluginSecrets } from "./secret-redaction.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync, lstatSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
@@ -353,15 +353,20 @@ export class PluginHost {
     const record = this.record(live.manifest.id), current = this.artifact(record.directory);
     if (current.digest !== record.digest || !record.trusted) throw new Error("Artifact changed; reload the plugin");
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
-    if (!compileSchema(op.inputSchema)(input)) throw new Error("Invalid operation input");
     const requestId = randomUUID();
+    const validate = compileSchema(op.inputSchema);
+    if (!validate(input)) {
+      const inputIssues = publicInputIssues(validate.errors, op.inputSchema, this.secretValues(live.manifest.id));
+      const message = "Invalid operation input: " + inputIssues.map(issue => `${issue.path}: ${issue.reason}`).join(" ");
+      return { errorKind: "invalid_input", error: message, inputIssues, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "refused" } };
+    }
     const run = Promise.resolve().then(() => live.instance.operations[op.id]!(input)); live.pending.add(run);
     try {
       const result = publicOperationResult(op, await run, this.secretValues(live.manifest.id));
       if (live.manifest.contributes.healthCheck === op.id) healthCheckResultSchema.parse(result);
       return { result, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "success" } };
     } catch (error) {
-      return { ...publicOperationError(error, op.effect), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
+      return { ...publicOperationError(error, op.effect, this.secretValues(live.manifest.id)), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
   invoke(action: string, args: { template?: "greet" | "screen" | "chart"; id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {

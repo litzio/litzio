@@ -84,6 +84,10 @@ export type PluginErrorKind = typeof PLUGIN_ERROR_KINDS[number];
 export function pluginErrorKind(value: unknown): PluginErrorKind {
   return PLUGIN_ERROR_KINDS.includes(value as PluginErrorKind) ? value as PluginErrorKind : "failed";
 }
+/** Explicit opt-in to publishing a caller-correctable failure. Never include secrets or internal paths. */
+export class PluginPublicError extends Error {
+  constructor(public readonly code: string, message: string) { super(message); this.name = "PluginPublicError"; }
+}
 export class PluginOperationError extends Error {
   constructor(public readonly kind: PluginErrorKind) { super("Plugin request failed"); }
 }
