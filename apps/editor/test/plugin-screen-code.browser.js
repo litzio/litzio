@@ -114,6 +114,10 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
   await expect(workspace.getByTestId('document-view-highlight')).toBeVisible();
   await expect(highlight).toHaveAttribute('data-target-kind','cell');
   await expect.poll(()=>highlight.evaluate(node=>{const a=node.getBoundingClientRect(),b=node.closest('.screen-document-view').querySelector('table').rows[1].cells[11].getBoundingClientRect();return Math.max(...['top','left','width','height'].map(key=>Math.abs(a[key]-b[key])));})).toBeLessThan(2);
+  // Read-only DocumentView uses the same table spacing policy as Read mode.
+  expect(await preview.locator('.table-grid').evaluate(el=>{
+    const css=getComputedStyle(el);return parseFloat(css.paddingBottom)===0&&parseFloat(css.paddingRight)===0;
+  })).toBe(true);
   const tableScroll=preview.locator('.table-scroll');
   const cellIsVisible=()=>highlight.evaluate(node=>{const c=node.getBoundingClientRect(),s=node.closest('.screen-document-view').querySelector('.table-scroll').getBoundingClientRect();return c.left>=s.left&&c.right<=s.right;});
   await expect.poll(()=>tableScroll.evaluate(node=>node.scrollLeft)).toBeGreaterThan(0);await expect.poll(cellIsVisible).toBe(true);
