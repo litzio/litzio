@@ -190,6 +190,8 @@ PR의 Linux 및 queue/전체 master의 Windows/Linux CI는 이 세 검사를 수
 
 개발용 빌드는 게시하지 않으며 (`publish: never`), `CSC_LINK`가 없으면 서명하지 않는다. `package`는 생성된 release 폴더를 비운 뒤 빌드한다. 산출물 `apps/desktop/build/`와 `apps/desktop/release/`는 Git에 포함하지 않는다.
 
+Windows에서 Electron 압축 해제 출력의 rename 또는 정리가 `EPERM`으로 실패하면 무작정 반복하지 말고 Restart Manager로 출력 파일의 잠금 주체를 확인한다. 작업 폴더를 감시하는 다른 프로그램이 `default_app.asar`를 열어 실패한 사례는 감시 대상 밖의 동일 commit checkout에서 frozen install과 원본 `package`를 실행해 해결했다. 다른 프로그램이나 보호 기능을 강제로 끄지 않는다. 격리 리허설은 다섯 Host 경로 변수에 더해 `LITZIO_RESET_DIR`, Electron `--user-data-dir`, 캐시와 `TEMP`/`TMP`도 격리해야 한다([beta.2 검증 기록](docs/releases/v0.0.3-beta.2.md#검증과-게시-판단)).
+
 **설치 없이 실행만 볼 때.** `pnpm --filter @litzio/desktop build`를 실행한 뒤 `pnpm --filter @litzio/desktop start`로 staging app을 실행한다.
 
 **선택: 결과물 검증.** `v<version>`에는 `apps/desktop/package.json`의 `version`을 넣는다.
