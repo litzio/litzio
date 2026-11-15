@@ -64,8 +64,10 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 `--font-size-md`가 기본 본문 역할을 맡는다. 시작·작업 화면 제목에는 `--font-size-start-title`이 있다.
 크기를 키워 매번 새 위계를 만들지 않는다.
 
-위계는 글씨 크기가 아니라 굵기와 색으로 만든다. 굵은 글씨는 화면·묶음·항목의 이름에만 쓴다.
+위계는 글씨 크기가 아니라 굵기와 색으로 만든다. 굵은 글씨는 화면·묶음·항목의 이름에 쓴다.
 선택지와 설명과 내용은 보통 굵기다. `--font-weight-semibold`과 `--font-weight-bold`를 강조에 남용하지 않는다.
+예외는 선택 묶음(ChoiceGroup)에서 현재 선택된 값의 semibold 표시 하나다. 이는 위계가 아닌 상태 표시이며,
+목록의 선택지나 라디오 항목의 글씨를 굵게 하는 근거가 아니다.
 이름과 상태를 한 줄에 섞지 않는다. 대상과 지금의 상태를 따로 읽게 하기 위해서다.
 
 문서 본문과 앱 화면의 타이포그래피는 따로다. 문서는 `--font-family-document`,
@@ -83,9 +85,11 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 `--layout-document-inline-padding`, `--layout-document-block-padding`을 따른다.
 도구를 위한 여백과 본문 축을 화면별로 다시 계산하지 않는다.
 
-작업 탭인 설정·템플릿 갤러리·플러그인 화면은 같은 바탕과 같은 여백을 쓴다.
-바탕과 여백은 화면 틀이 소유하고 화면 내용이나 플러그인이 정하지 않는다.
-설정 열의 폭은 `--layout-settings-content-width`처럼 역할을 가진 토큰으로 정한다.
+작업 탭인 설정·템플릿 갤러리·플러그인 화면은 같은 바탕(`--id-color-surface`)을 쓴다.
+화면의 바깥 여백은 `--space-6`이며 화면 제목의 위치도 같다.
+바탕·바깥 여백·제목 위치는 화면 틀이 소유하고 화면 내용이나 플러그인이 정하지 않는다.
+설정처럼 목록+상세 구조인 화면은 그 안에서 탐색 열과 자체 여백을 가진 내용 열을 나눈다.
+내용 열의 최대 폭은 `--layout-settings-content-width`를 따른다.
 내용이 바뀌어도 같은 종류의 화면이라는 감각을 유지하기 위해서다.
 
 한 줄의 컨트롤은 입력칸의 선에 맞춘다. 이름표가 붙은 입력칸 옆 버튼도 입력칸에 맞춘다.
@@ -174,7 +178,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 - 채운 주 버튼을 여러 개 두지 않는다. 하나만 남기고 보조 동작은 테두리로 쓴다.
 - 위험 버튼을 빨강으로 채우지 않는다. 빨간 테두리와 취소 focus의 확인 대화상자를 쓴다.
-- 설명·선택지를 굵게 강조하지 않는다. 이름에만 굵기를 쓰고 내용은 보통 굵기로 둔다.
+- 설명·선택지를 굵게 강조하지 않는다. 이름과 ChoiceGroup의 현재 값 상태 표시에만 굵기를 쓰고 나머지는 보통 굵기로 둔다.
 - 이름과 상태를 한 줄에 섞지 않는다. 이름과 상태를 별도로 배치한다.
 - 화면 내용을 띄울 때 본문이나 주변 도구를 밀지 않는다. 공통 겹침 표면과 기존 여백을 쓴다.
 - 작업 탭의 바탕·여백을 콘텐츠나 플러그인이 정하지 않는다. 화면 틀에 맡긴다.
@@ -202,7 +206,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 | 만들 화면·패턴 | 본보기 파일 | 확인할 부분 |
 | --- | --- | --- |
-| 설정 화면·설정 행 | [SettingsDialog.tsx](apps/editor/src/shell/SettingsDialog.tsx) | 범주 탐색과 설정 열, 공통 설정 행 |
+| 설정 화면·설정 행 | [SettingsDialog.tsx](apps/editor/src/shell/SettingsDialog.tsx) | 목록+상세 구조의 탐색 열과 내용 열, 공통 설정 행 |
 | 카드 목록 작업 탭 | [TemplateGallery.tsx](apps/editor/src/shell/TemplateGallery.tsx) | 목록과 미리보기·생성의 분리 |
 | 파일·폴더 선택 대화상자 | [FolderDialog.tsx](apps/editor/src/shell/FolderDialog.tsx) | 경로 입력과 탐색 목록 |
 | 위험 확인 | [danger-confirmation.tsx](apps/editor/src/components/ui/danger-confirmation.tsx) | 취소 초기 focus와 pending 중 실행 방지 |
