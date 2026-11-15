@@ -165,6 +165,8 @@ Copilot의 native ACP 질문 확장은 현재 지원하지 않는다.
 Codex 계정·컨텍스트 사용량은 공급자가 준 값을 구분해 표시한다.
 Copilot은 보고된 컨텍스트·세션 사용량만 표시하며 계정 한도를 추정하지 않는다.
 
+질문 카드 캡처: [답변 대기](assets/assistant-question-1443/pending-1440-light.png), [대화 재열기](assets/assistant-question-1443/reopened-1440-light.png).
+
 ### 문서 도구와 이미지
 
 Codex dynamic tools와 Copilot HTTP MCP는 같은 Host 도구 정의와 실행을 사용한다.
@@ -200,6 +202,8 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 10. 실제 AI 수락 검증은 일상·핵심 업무·플러그인 제작별 기준이 다르다. 이는 [검증 절차](../test/README.md#비서-수락-시험-수동-측정)와 [저장소 검증 기준](../../AGENTS.md#verification)의 현재 운영이며 제품 권한 제약이 아니다.
 
 11. Codex `/` 선택기는 비서 작업 폴더에서 활성화된 목록을 쓰고 전송 때 `$name` 토큰이 남은 선택만 보낸다. 이는 명시 선택 처리이며 범용 에이전트의 모든 스킬 접근을 제한한다는 뜻이 아니다.
+
+   스킬 선택기 캡처: [목록](assets/assistant-skills-1047/list-1440-light-en.png), [선택 토큰](assets/assistant-skills-1047/chip-1440-light-en.png).
 
 12. 파일 변경 전후 내용은 대화 소유 Host 메모리에만 있어 Host 재시작 뒤 행동을 복원하지 않는다. 로그 존재가 대화 재개나 모든 입력·결과의 무손실 보존을 보장하지 않는다.
 

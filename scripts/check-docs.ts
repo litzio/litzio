@@ -236,6 +236,23 @@ export function checkDocs(root: string): { failures: Failure[]; files: number; l
       }
     }
   }
+  // Reuse resolved local links/images; metadata inside a capture folder cannot
+  // keep that folder alive by referring to its own files.
+  for (const base of ["docs/design/assets", "docs/reviews/assets"]) {
+    if (exactPath(root, base)) continue;
+    for (const entry of readdirSync(path.join(root, base), { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const folder = path.posix.join(base, entry.name);
+      const prefix = `${folder}/`;
+      const referenced = [...connections].some(([source, targets]) =>
+        !source.startsWith(prefix) && [...targets].some(target =>
+          target.startsWith(prefix) && statSync(path.join(root, target)).isFile()));
+      if (!referenced) failures.push({
+        source: folder, line: 1, original: "(unreferenced asset folder)", target: folder, resolved: folder,
+        reason: "asset folder has no document reference; reference a file from a document outside the folder or delete the folder",
+      });
+    }
+  }
   const requireLink = (source: string, target: string, reason: string) => {
     if (!connections.get(source)?.has(target)) failures.push({ source, line: 1, original: "(required direct link)", target, resolved: target, reason });
   };

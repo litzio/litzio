@@ -141,3 +141,36 @@ test("index requires a direct link to each maintained doc and roots must stay co
     assert.ok(failures.every(failure => failure.line === 1 && failure.original === "(required direct link)"));
   });
 });
+
+for (const base of ["docs/design/assets", "docs/reviews/assets"]) {
+  test(`${base} folders need a file reference from a document outside the folder`, () => {
+    repository((root, write) => {
+      const folder = `${base}/capture example`;
+      write(`${folder}/nested/screen.png`, "fixture");
+      write(`${base}/standalone.gif`, "not subject to the folder check");
+      const expected = {
+        source: folder, line: 1, original: "(unreferenced asset folder)", target: folder, resolved: folder,
+        reason: "asset folder has no document reference; reference a file from a document outside the folder or delete the folder",
+      };
+      assert.deepEqual(checkDocs(root).failures, [expected]);
+      // Directory links and code examples do not count as file references.
+      write("AGENTS.md", `[Folder](<${folder}>)\n\`![Example](<${folder}/nested/screen.png>)\`\n`);
+      assert.deepEqual(checkDocs(root).failures, [expected]);
+      // Self-referencing metadata also has an independent missing-index failure.
+      write(`${folder}/README.md`, "![Self](nested/screen.png)\n");
+      const failures = checkDocs(root).failures;
+      assert.equal(failures.length, 2);
+      assert.deepEqual(failures[0], expected);
+      assert.equal(failures[1].target, `${folder}/README.md`);
+      assert.equal(failures[1].reason, "maintained document is missing from the index");
+      rmSync(path.join(root, folder, "README.md"));
+      for (const reference of [
+        `![Image](/${base}/capture%20example/nested/screen.png)`,
+        `[Download][capture]\n[capture]: <${folder}/nested/screen.png>`,
+      ]) {
+        write("AGENTS.md", reference);
+        assert.deepEqual(checkDocs(root).failures, []);
+      }
+    });
+  });
+}

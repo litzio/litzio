@@ -84,6 +84,7 @@
 
 - 적용 순서는 이 문서의 repository-wide 제약 → Accepted ADR → Implemented design contract → 코드·테스트의 실행 근거 → historical review/spike → README 개요다. 충돌 시 실제 동작과 Accepted decision을 대조해 버그인지 문서 drift인지 판정한다. 코드를 무조건 정답으로 삼지 않는다.
 - 변경 전에 [docs index](docs/README.md)에서 관련 Accepted ADR과 Implemented design contract를 확인하고, current behavior를 변경하면 관련 design document도 같은 PR에서 갱신한다.
+- current behavior를 삭제·대체하면 같은 PR에서 그 서술·캡처·색인 설명을 지운다. 현재 규칙 문서에 구현 경과·완료된 계획·삭제된 기능의 기록을 남기지 않으며 이력은 git·PR·보관 태그에 둔다.
 - review/spike를 current contract처럼 사용하지 않는다. 당시 근거는 보존하고 현재 authority로 연결한다.
 - stale link와 conflicting contract를 발견하면 숨기지 않고 수정한다.
 - 모든 유지되는 `docs/**/*.md` 문서는 [docs index](docs/README.md)에 직접 연결되어야 한다.

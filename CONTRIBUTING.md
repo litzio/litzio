@@ -44,7 +44,7 @@ pnpm --filter @litzio/editor build
 - 하나의 문제에 하나의 응집된 PR을 만든다. 관련 issue가 있으면 연결한다.
 - `master`는 repository ruleset `Protect master` (ID `24910269`)로 보호한다. 2026-10-26에 읽기 전용 API로 확인한 설정은 active, bypass 대상 없음, GitHub required approval count 0, `required_review_thread_resolution=true`다. 직접 push, force push, 삭제는 거부되고 PR은 아래 merge queue 절차로 병합한다. Queue와 필수 검사 설정은 [Enqueue](#enqueue)를 따른다. 규칙을 바꿀 때는 API로 확인하고 이 설정 기록도 함께 갱신한다.
 - 가장 작고 단순한 변경을 우선하고, 확인되지 않은 필요를 위한 abstraction이나 infrastructure를 추가하지 않는다.
-- current behavior를 바꾸면 관련 design document도 같은 PR에서 갱신한다. 새 문서는 [docs index](docs/README.md)에 직접 연결한다.
+- current behavior를 바꾸면 관련 design document도 같은 PR에서 갱신한다. 삭제·대체하면 그 서술·캡처·색인 설명을 같은 PR에서 지우고 이력은 git·PR·보관 태그에 둔다. 새 문서는 [docs index](docs/README.md)에 직접 연결한다.
 - historical review의 당시 결과를 현재 계약처럼 고쳐 쓰지 않는다. 상태와 현재 authority를 링크한다.
 - 실패 원인을 숨기거나 테스트 기준을 약화해 통과시키지 않는다.
 

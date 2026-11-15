@@ -31,7 +31,7 @@ Status 값은 위 단어를 사용한다. `Scope`나 `Authority`로 개발 Host�
 ADR/design/review 상단에는 상태와 권위를 판단하는 데 필요한 최소 metadata를 둔다.
 
 - `Status`
-- `Last verified`: 확인 날짜와 범위. 문서·코드 대조와 실제 실행을 구분한다.
+- `Last verified`: 확인 날짜와 범위. 문서·코드 대조와 실제 실행을 구분한다. 최신 확인 한 줄만 두고 `Previous verification` 같은 이전 기록은 쌓지 않는다. 이전 확인은 git 이력에 둔다.
 - `Scope` 또는 `Authority`: 적용 경계나 현재 authority 링크.
 - 관련 issue/ADR/document: 관계가 있을 때 연결한다. 빈 template field는 만들지 않는다.
 
@@ -42,13 +42,16 @@ Decision date와 historical measurement의 날짜는 Last verified로 덮어쓰�
 - current behavior contract를 바꾸는 구현은 같은 PR에서 관련 design document를 갱신한다.
 - [UI 패턴](../design/ui-patterns-v1.md#사용과-갱신)의 구현 PR은 해당 패턴 절의 현재 기준·관련 계약·검증 근거를 갱신한다. 공유 불일치 목록은 ID·패턴·사용처·목표·후속 이슈 연결만 유지하며, 진행 상태는 GitHub 이슈의 열림·닫힘으로 관리한다. 구현 진행에 따른 표 수정·행 삭제는 하지 않는다. 새 불일치나 목표·범위·이슈 연결 변경은 목록에 반영한다.
 - 새로운 주요 architecture decision은 ADR로 남긴다. 단순 구현 상세마다 ADR을 만들지 않는다.
-- historical review를 현재 계약으로 계속 덧붙이지 않는다. 오래된 기록은 Historical/Superseded 상태와 현재 authority를 연결하고 당시 측정값·commit·결과를 보존한다.
-- 현재 계약과 구현 연대기가 함께 있으면 현재 계약을 앞에, history/evidence를 뒤에 둔다.
-- 삭제보다 연결과 상태 표시를 우선한다. 경로 변경 시 들어오는 링크와 자동 검사도 함께 갱신한다.
+- 현재 규칙 문서(Accepted·Implemented·Draft)는 현재만 쓴다. 구현 연대기·완료된 계획·삭제된 기능의 서술이나 "아래는 현재 기능이 아니다" 종류의 머리말을 두지 않는다.
+- 기능을 삭제·대체하는 PR은 같은 PR에서 그 서술·그 서술만 참조하던 캡처 폴더·색인 설명을 지운다. 전체가 삭제된 기능에 관한 문서는 보관 태그나 git 이력에 남아 있음을 확인하고 삭제한다.
+- Accepted ADR의 결정 문장과 이유는 다시 쓰지 않는다. 뒤의 결정으로 바뀐 부분은 `Amended by`·`Superseded by`와 해당 절의 한 문장으로 표시한다.
+- 한 동작의 규칙은 한 계약 문서의 한 절이 소유한다. 다른 문서는 규칙을 다시 쓰지 않고 그 절을 링크한다.
+- Historical·Superseded 문서(리뷰·스파이크·릴리스 기록)는 당시 기록이므로 내용을 고치지 않고 상태 표시와 현재 authority 링크만 유지한다. 당시 측정값·commit·결과를 보존하며, 삭제보다 연결과 상태 표시를 우선한다.
+- 경로 변경 시 들어오는 링크와 자동 검사도 함께 갱신한다.
 - 모든 유지되는 `docs/**/*.md`는 [중앙 색인](../README.md)에 직접 링크한다. 색인 자체만 제외하며, 추가 예외가 필요하면 검사 코드의 명시적인 exclusion 목록에 이유를 적는다.
 
 ## Automated checks
 
-`pnpm docs:check`는 루트 진입 문서, `docs/**/*.md`, `.github/**/*.md`의 local link/image 경로, Markdown heading anchor, docs index 직접 색인과 루트 연결성을 검사한다. 외부 URL의 HTTP 상태는 검사하지 않는다. 경로의 대소문자는 Windows에서도 정확히 일치해야 한다.
+`pnpm docs:check`는 루트 진입 문서, `docs/**/*.md`, `.github/**/*.md`의 local link/image 경로, Markdown heading anchor, docs index 직접 색인과 루트 연결성을 검사한다. `docs/design/assets/`와 `docs/reviews/assets/` 바로 아래 폴더는 검사 대상 Markdown 문서가 그 안의 파일을 링크·이미지로 참조하지 않으면 실패하며, 폴더 내부의 자기 참조는 세지 않는다. 외부 URL의 HTTP 상태는 검사하지 않는다. 경로의 대소문자는 Windows에서도 정확히 일치해야 한다.
 
 지원하는 Markdown 범위와 제한은 [checker](../../scripts/check-docs.ts)의 주석에 둔다. checker 회귀 검증은 `pnpm exec tsx --test scripts/check-docs.test.ts`이며 같은 CI quality step에서 실행한다. 자동 검사가 current/historical 판정, 기능 주장, 이미지의 적합성이나 Mermaid 렌더링까지 보증하지는 않는다.
