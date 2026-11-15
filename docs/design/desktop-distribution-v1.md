@@ -672,4 +672,4 @@ Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.
 
 설정 Hosts 화면과 등록·검사·제거·적용 재시작 IPC 및 원격 작업 요약은 없다. 로컬 daemon bootstrap·프로토콜/제품 버전 검사·수명과 native close/update/reset의 pending-work 보호는 그대로다. 탐색기 아래 로컬 연결 관측은 5초 간격 읽기만 사용하며 단절 후에도 회복한다.
 
-현재 UI는 [단일 Host 화면](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4)을 따른다. 삭제 전 등록·제거의 교차 profile 보호와 캡처는 보관 태그의 이 문서에 있다.
+현재 UI는 [단일 Host 화면](editor-ux-shell-v1.md#활성-host-실행-계정-1199)을 따른다. 삭제 전 등록·제거의 교차 profile 보호와 캡처는 보관 태그의 이 문서에 있다.

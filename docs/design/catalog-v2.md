@@ -19,7 +19,7 @@
 | 입력·표 | 공개 scalar InputForm, 세로 Panel/Table, 정렬·필터·링크 | [공통 Table](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-screens-v1.md#공통-table과-링크) |
 | K2/K3 | 완료 bundle의 Host 참조, 페이지·영역·mapping, 기존 문서 Read와 원본의 대응 | [review Host](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#v4-공용-review-hostcli) |
 | K4 | pending 제안, 사용자 approve/reject/undo, baseline/stale·uncertain 관찰, Core 공식 write path | [변경 관찰](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#화면의-변경-결과-관찰과-페이지-없는-k4) |
-| V5 | PageSurface·SourceDocumentCompare·ReviewList·ReviewDetail, 읽기 전용 대조 | [공용 대조](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안) |
+| V5 | PageSurface·SourceDocumentCompare·ReviewList·ReviewDetail, 읽기 전용 대조 | [공용 대조](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안) |
 
 뷰 명세의 검증과 문서 변경 제안은 다르다. `view validate`는 문서를 변경하지 않으며 review의 propose/approve/undo는 별도 Host 공용 작업이다. 임의 client 코드·query write 버튼·문서 의미의 UI 전용 구현·새 workflow engine은 도입하지 않는다.
 

@@ -11,7 +11,7 @@ the approved scrollbar design.
 Role: current visual rules for tokens, palette, typography, surfaces, themes and states; [Layout Rules](editor-layout-rules-v1.md) owns placement/control dimensions and [UI patterns](ui-patterns-v1.md) owns repeated interaction targets.
 
 - Status: Implemented
-- Last verified: 2026-10-31 (#833: shared UI eojeol wrapping; persistent Chrome at 640px Dark/Korean and 1440px Light/English, with [capture metadata](assets/ui-wrap-833/capture-metadata.json)).
+- Last verified: 2026-11-16 — #1650 문서 전체와 현재 코드·계약을 정적으로 대조했다. 제품·브라우저 실행 재검증 없음.
 - Scope: Editor presentation. Core semantics, source format, Host persistence and editing state follow [ADR-0001](../adr/0001-single-document-editor-architecture.md) and [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md).
 - Authority: [AGENTS.md](../../AGENTS.md), Accepted ADRs and [documentation governance](../contributing/documentation-governance.md). [ADR-0010](../adr/0010-supported-viewport-and-input.md) sets a minimum 640px with keyboard and pointer input.
 - History: [Original rules, issue verification and captures through 2026-10-30](../reviews/editor-visual-language-history-2026-10-30.md) are Historical evidence. The v1 filename remains stable.
@@ -80,12 +80,6 @@ The encoded native-select chevron is a deliberate literal exception: data-URL SV
 
 Document and UI share `Pretendard Variable → Pretendard → Noto Sans KR → Apple SD Gothic Neo → Malgun Gothic → Segoe UI → sans-serif`. The document stack aliases UI but has independent size/spacing tokens. Embedded controls retain UI typography. English and Korean use the same tokens.
 
-The shared comparison at content widths up to 640px uses compact reading type: the existing
-14px body token with the 1.5 body line height, and existing 18/16/15/14px tokens for H1–H6.
-This is a comparison-only reading role; ordinary document typography stays unchanged. It
-reserves more width for prose, preserves ordinary word boundaries and uses emergency wrapping
-only for overlong single tokens ([comparison contract](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#연속-원본-대조-1435)).
-
 Pretendard `1.3.9` is bundled through its official variable dynamic-subset CSS; Vite serves WOFF2 assets. All upstream ranges remain available, with upstream `font-display: swap` and weight range; fallback may appear during load or for unsupported glyphs. `--font-feature-sans: "cv08"` gives capital I its serifs in document/UI. KaTeX and code fonts are unaffected. Refresh the [OFL notice](../../apps/editor/public/licenses/Pretendard-OFL.txt) from the same version when updating.
 
 | Role | Size / line height / treatment |
@@ -126,7 +120,7 @@ References read like links without box/fill: content-link color, underline on ho
 
 Settings → Appearance & language, the footer toggle beside Settings, and two Command Center choices share Light / Dark (#1042). With no saved choice, startup resolves the OS theme once and stores that explicit choice. Later OS changes do not change it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles. Images retain original pixels; KaTeX inherits text.
 
-User and assistant theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
+User theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
 
 External blocking [theme-init.js](../../apps/editor/public/theme-init.js) resolves theme/page before styles/app bundle; it temporarily sets native `color-scheme` without duplicating colors. Runtime applies theme/accent before React UI. [Desktop appearance](desktop-distribution-v1.md#appearance-595) owns native resolution/bridge and first-window background; no Host theme persistence is added.
 
@@ -157,7 +151,7 @@ These are independent axes. Visual interactions never write document attributes.
 | --- | --- |
 | Rest | No paragraph input box or block extent outline. Gutter/Edit/authoring metadata are hidden, without invisible pointer targets. Captions, references, errors and restrictions remain visible. Endnotes explicitly retain always-visible Edit under the [Endnotes contract](footnotes-v1.md#editor). |
 | Mermaid kind | Editable Visual Editor retains a padded `Mermaid` badge at rest, including failures and pending source drafts; shared metadata typography, normal text contrast, muted surface, structural border, small radius and spacing tokens. Selected blocks add interaction-soft fill and interaction border (#846). Decorative chrome only; [Figure authoring](figure-authoring-v1.md#mermaid-editor) owns scope. |
-| Heading depth (#887/#886) | Edit and the Docling comparison's fixed Read surface retain small, subdued `H1`–`H6` cues in the left gutter. Shared metadata size/line height, monospace as for section labels, and the theme's subtle text role; no badge fill. Center on the first heading line, including numbered/wrapped headings. Hide only while that row's block handles are visible. Decorative `aria-hidden` chrome with localized `Heading 2` / `제목 2` hover text; absent from ordinary Read, Source, text files, copying and saved documents. No setting, Outline or heading-size change. |
+| Heading depth (#887/#886) | Edit retains small, subdued `H1`–`H6` cues in the left gutter. Shared metadata size/line height, monospace as for section labels, and the theme's subtle text role; no badge fill. Center on the first heading line, including numbered/wrapped headings. Hide only while that row's block handles are visible. Decorative `aria-hidden` chrome with localized `Heading 2` / `제목 2` hover text; absent from ordinary Read, Source, text files, copying and saved documents. No setting, Outline or heading-size change. |
 | Hover | Gutter, typed-block Edit and metadata appear without moving text; the route to buttons remains inside the hover area. One top-level block gets a neutral input-transparent extent overlay. Nested lists/cells indicate the whole top-level block. Geometry/clearance belongs to [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership). |
 | Keyboard focus | Caret/selection plus a thin, pale chosen-accent gutter bar identify the cursor’s top-level flow block (paragraph, heading, bullet/ordered list; nested lists use the outer list). Only this one flow-block set receives the bar: blocks with their own boundary do not, including quotes with their existing left rule. The bar is absent without document focus and in Read; no frame or kind icon. `:focus-within` reveals tools; controls draw focus only on `:focus-visible`, never after a pointer click. |
 | Current lists | Files, Outline and +/slash use selected surface/text and 600 semibold, no left marker. Hover uses selected-hover while current. Focus never changes current/ARIA state. Command Center retains Base UI highlighting and existing disabled/foreign-text exceptions. |
@@ -184,17 +178,11 @@ Clean available Save is ghost, unsaved is accent, unavailable muted without hove
 
 Heading depth #887/#886 was checked with numbered H1–H6, wrapped headings, gutter
 handles/menu, native clipboard, Save/Reload and ordinary Read/Source exclusion in
-`heading-levels`; `docling-compare` checks opt-in fixed Read and narrow hover clearance.
-The comparison reserves a 48px inspection gutter. The unfilled cue clears the ordinary
-block outline by 12px; heading connectors enter above the gutter and end at the measured
-block edge without crossing the cue. Existing correspondence and scroll assertions remain
-unchanged. Editor captures are retained from the approved head; comparison captures were
-replaced after this clearance correction. Windows Chrome captures are manual evidence:
+`heading-levels`. Windows Chrome captures are manual evidence:
 
 | Surface | 1440px Light / English | 640px Dark / Korean |
 | --- | --- | --- |
 | Editor | [Before](assets/heading-levels-887/before-editor-1440.png) / [After](assets/heading-levels-887/after-editor-1440.png) | [Before](assets/heading-levels-887/before-editor-640.png) / [After](assets/heading-levels-887/after-editor-640.png) |
-| Comparison (heading hover) | [Before](assets/heading-levels-887/before-comparison-1440.png) / [After](assets/heading-levels-887/after-comparison-1440.png) | [Before](assets/heading-levels-887/before-comparison-640.png) / [After](assets/heading-levels-887/after-comparison-640.png) |
 
 [Capture conditions, source/image hashes and reproduction commands](assets/heading-levels-887/capture-metadata.json)
 record the clean base and working implementation separately. Core and CLI are unchanged:
@@ -233,20 +221,6 @@ Bibliography, citation chips, shortcut labels and notices reuse existing type/sp
 ## Product mark (#864)
 
 The product mark uses the owner-approved E soft-knot [SVG originals](app-icon-v1.md): #A50034 on light surfaces and #E0244F on dark surfaces, without a background tile or added shadow. Existing header/start-screen geometry remains in force. Marks resolve `brand.icons.svg` / `darkSvg` according to the Editor theme; the adaptive favicon uses `smallSvg` / `smallDarkSvg` according to system color scheme, with ICO fallback. Plum remains the interaction accent. About explains the Litz wire/I/O name origin. Decorative artwork is separate from control/state contrast.
-
-## Plugin color inspection (#1035)
-
-The existing Editor `visual-tokens` unit check also scans TSX and CSS in
-`plugins/docling/src` and `plugins/assistant/src` with the same literal-color
-judgment. Plugin layout dimensions and native controls are deliberately excluded:
-the Host API does not replace every plugin interaction owner. No plugin color
-exceptions are currently needed. Existing Editor mask-alpha and transparent-ring
-exceptions remain limited to their original CSS mechanisms.
-
-Control heights in `styles.css` already consume `--size-control` or
-`--size-control-compact`. The remaining `2rem` equation-display minimum and
-`8rem` recovery-text minimum are content geometry, not control heights.
-This inspection changes no rendered appearance.
 
 ## Editing block bar verification (#1022)
 
@@ -290,19 +264,3 @@ checks automated/reduced-motion bypasses; it passed in about 23 seconds locally.
 ## PDF source paper (#1337)
 
 `--id-color-pdf-paper` is fixed white in every theme because PDF pages preserve source colors. It is independent of the theme-aware document editor paper. The surrounding viewer uses existing theme surfaces; page-number input geometry uses existing spacing tokens. This is the source-art exception approved in the [PDF shell contract](editor-ux-shell-v1.md#read-only-pdf-tabs-1337).
-
-
-## Comparison category colors (#1435)
-
-The shared review comparison uses existing named palette colors to distinguish heading, text, list, table,
-formula, picture, footnote and code regions and their visible correspondence lines. Unmapped, excluded,
-unsupported and decorative regions use gray. Provider category/status names remain in region hover/focus
-labels and titles; color is not the only cue. Selection adds a thicker line and the existing target highlight.
-All visible correspondences are drawn, not just the selected pair.
-
-Adjustable `--id-color-review-*` roles follow the UI theme. The matching `--id-color-review-source-*`
-roles reuse fixed paper versions of the existing light accents because source PNGs retain white paper in
-Dark. Existing accent values are unchanged; light accent roles now reference those paper palette values.
-A wire switches roles at the visible PNG edge, keeping its PNG segment readable on white and its UI
-segment readable in Dark. No conversion success/error status is encoded by these category colors.
-[Contract and captures](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#연속-원본-대조-1435) include source/UI contrast measurements.
