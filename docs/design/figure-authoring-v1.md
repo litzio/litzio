@@ -2,7 +2,6 @@
 
 - Status: Implemented
 - Last verified: 2026-11-16 — #1658: 번호 경고 위치를 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
-- Previous verification: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
 - Pointer and popover correction: 2026-10-29 (#760; first prose click, quiet fields, aligned controls and metadata clearance).
 - Property popover: 2026-10-29 (#757; owner decisions in #740 and implementation handoff).
 - Fixed numbering: 2026-10-29 (#720 Core/CLI and Editor property controls/warnings); [shared number contract](heading-numbering-v1.md#fixed-numbers-720).

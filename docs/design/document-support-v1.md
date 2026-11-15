@@ -12,7 +12,6 @@
 - Documentation verification: 2026-10-26 (Open protection and implemented Editor label rename compared with the session/reference contracts and current code; no new browser execution).
 - CLI insertion verification: 2026-10-15 (#280 Core body-end and CLI single/batch insertion tests; one-write and unchanged-file refusal).
 - Last verified: 2026-11-16 — #1658: 샘플 수명·표 번호 숨김·Read/Text를 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
-- Previous verification: 2026-10-29 (#734 all ten ordered formats, adjacency/nesting and stable reopen; Core/CLI/Editor suites, Python MyST cross-check and browser menu/Undo/clipboard/Save→Reload).
 - Previous verification: 2026-10-29 (#730 adjacent-list canonical boundaries, numbering/content preservation and stable reopen; Core regressions and Editor paragraph deletion through Host Save).
 - Previous verification: 2026-10-24 (#366 citation-only and footnote-only list admission, update and canonical reopen; Core list regressions).
 - Previous verification: 2026-10-22 (#332 citation roles and bibliography declarations; Core/CLI/Editor tests and browser Save → Reload, detailed in [Citations](citations-v1.md)).

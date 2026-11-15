@@ -3,7 +3,6 @@
 - Status: Accepted
 - Amended by: [#939 소유자 결정 (2026-11-02)](https://github.com/litzio/litzio/issues/939#issuecomment-6571054811) — 별도 텍스트 종류 `.md`의 기본 읽기 화면과 Read/Text 전환.
 - Last verified: 2026-11-16 — #1658: #817·#939 소유자 결정, Read/Text 구현·기존 테스트와 개정 관계를 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
-- Previous verification: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-14 (post-#234 implementation status and current design contract/supersession links checked).
 - Authority: product and architectural decision under [AGENTS.md](../../AGENTS.md). Related: [#232](https://github.com/litzio/litzio/issues/232) · [ADR-0001](0001-single-document-editor-architecture.md) · [ADR-0002](0002-document-persistence-semantic-ownership.md) · [ADR-0004](0004-desktop-host-distribution.md)
 - Decision date: 2026-10-14
