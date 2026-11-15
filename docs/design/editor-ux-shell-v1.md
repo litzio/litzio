@@ -200,8 +200,9 @@ A fixed 16px status slot next to Save shows a small filled dot for unsaved work,
 a check for saved, a progress glyph during operations, or a warning glyph on failure.
 The complete localized status stays in the polite live region and native tooltip.
 A clean Ready state leaves the slot blank; status transitions move no action.
-MessageArea can add notification height below these two fixed rows. It does not
-change the title-strip or tab-row height. Document semantics and CLI are unaffected.
+MessageArea registration follows [Structure](#structure); notification presentation
+follows [Title-strip notifications](editor-layout-rules-v1.md#title-strip-notifications-1644).
+Document semantics and CLI are unaffected.
 
 The native overlay height and actual Windows overlay pixels remain #694's scope;
 #695 preserves env(titlebar-area-*) reservation and drag/no-drag boundaries. Both
@@ -607,7 +608,7 @@ Verification and implementation scope are recorded in the [#256 plan](ui-languag
 
 ## Local accent color (#559)
 
-Settings offers six named presets: Blue, Violet, Plum (default), Teal, Green and Graphite.
+Settings offers the named presets in [Visual Language](editor-visual-language-v1.md#tokens-and-palette).
 The accent control (#617) is one named radio group (Accent color / 포인트 색): six
 small circles form one row, without option boxes, check marks or individual visible
 names. Each radio retains its translated accessible name and title tooltip. Only the
@@ -623,8 +624,8 @@ requirements belong to [Visual Language](editor-visual-language-v1.md#tokens-and
 The existing browser/origin preference path stores only a preset ID in
 `litzio.accentColor`, independent of documents and the Host. Vite, HTTP and Desktop
 profiles/origins do not share it. Startup applies a valid stored choice before mounting
-the first UI. Missing, unknown or unreadable preferences use Blue. A storage failure
-keeps the live choice and Settings explains that it lasts for the current page.
+the first UI. Fallback and storage-failure behavior follow
+[Visual Language — Adjustable values and preferences](editor-visual-language-v1.md#adjustable-values-and-preferences).
 Changes preserve the mounted editor, tabs, content, selection, history and property drafts.
 This display preference needs no Core operation or CLI command.
 
