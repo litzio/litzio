@@ -12,7 +12,7 @@
 제품이 향하는 곳은 [리치오의 목적](docs/purpose.md)에 있습니다. 아래 설명은 현재 제공하는 범위입니다.
 
 Litzio is a visual editor for structured technical documents, backed by a shared headless Core and Git-friendly plain text.
-Currently available as a Windows Beta. The primary documentation is in Korean.
+Available for Windows x64 on Stable and Beta channels. The primary documentation is in Korean.
 
 The name Litzio means connecting input/output (I/O) with Litz wire.
 Litzio(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.
@@ -24,12 +24,12 @@ Litzio(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.
 
 <a id="windows-desktop"></a>
 
-소스 빌드의 제품 이름·CLI·설치 식별자는 [brand.ts](brand.ts)에서 정하며 공식 기본값은 Litzio다. [패키저 안내](docs/guides/branding.md)를 따른다. 아래 공개 Beta 기록은 #859 이전 이름을 유지하며 새 식별자로의 이전을 제공하지 않는다.
+소스 빌드의 제품 이름·CLI·설치 식별자는 [brand.ts](brand.ts)에서 정하며 공식 기본값은 Litzio다. [패키저 안내](docs/guides/branding.md)를 따른다.
 
 ## 설치하고 시작하기
 
-1. [Releases 목록](https://github.com/litzio/litzio/releases)에서 사용할 Beta의 **Assets**를 열고 `Litzio-Setup-<버전>.exe`를 내려받아 실행합니다. 현재 사용자에게 설치하며 관리자 권한이나 별도 Node.js·pnpm이 필요하지 않습니다.
-2. **서명 없는 Stable**이므로 알 수 없는 게시자 또는 SmartScreen 경고가 나타날 수 있습니다. 공식 저장소의 다운로드인지 확인하고 PC의 보안 정책을 따르세요.
+1. [Releases 목록](https://github.com/litzio/litzio/releases)에서 사용할 Stable 또는 Beta의 **Assets**를 열고 `Litzio-Setup-<버전>.exe`를 내려받아 실행합니다. 현재 사용자에게 설치하며 관리자 권한이나 별도 Node.js·pnpm이 필요하지 않습니다.
+2. **서명 없는 설치본**이므로 알 수 없는 게시자 또는 SmartScreen 경고가 나타날 수 있습니다. 공식 저장소의 다운로드인지 확인하고 PC의 보안 정책을 따르세요.
 3. 시작 화면에서 sample을 선택하거나 **Open folder**로 폴더를 연 뒤 Sidebar의 `.md` 또는 `.txt` 파일을 선택합니다. **New file**로 새 문서를 만들고, 편집 후 **Save**로 저장할 수 있습니다.
 
 Desktop 시작 화면이나 Command center의 **샘플 문서 열기**에서 현재 UI 언어에 맞는
@@ -38,9 +38,7 @@ Desktop 시작 화면이나 Command center의 **샘플 문서 열기**에서 현
 바뀔 때 앱이 소유를 확인한 경우에만 교체됩니다. 개발 Editor에서도 같은 샘플을 제공하며 HTTP Host는 제외합니다.
 [샘플 배포 계약](docs/design/desktop-distribution-v1.md#native-sample)을 따릅니다.
 
-Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 최신 공개 설치본은 [Releases](https://github.com/litzio/litzio/releases)에서 내려받으세요. 최신 공개 결과는 [최신 배포·검증 기록](docs/releases/v0.0.2.md)을 확인하세요. 이전 배포 기록도 릴리스 기록에 보존합니다.
-
-**제품 이름 변경(IeumDoc → Litzio)으로 앱 ID·설치·데이터 경로가 바뀌어, IeumDoc beta.4 설치본은 Litzio로 자동 업데이트되지 않습니다. 새로 설치해야 하며 IeumDoc 데이터·설정·복구 기록은 이전되지 않습니다.**
+Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 최신 공개 설치본은 [Releases](https://github.com/litzio/litzio/releases)에서 내려받으세요. 이전 배포 기록도 릴리스 기록에 보존합니다.
 
 지원 대상은 최소 **640px**의 데스크톱급 창과 키보드·포인터 입력입니다([ADR-0010](docs/adr/0010-supported-viewport-and-input.md)).
 
@@ -76,7 +74,7 @@ Settings → About에서 버전·업데이트를 확인합니다. 업데이트 �
 
 ## 로컬 Host 연결
 
-다른 PC의 Host 등록·접속과 여러 Host UI는 2026-11-13 삭제했습니다. 같은 PC의 공유 daemon과 CLI의 `--host <origin>` 작업 대상 지정, 개발·검사용 독립 HTTP 실행은 유지합니다. [현재 Host 계약](docs/design/http-host-v1.md)을 따릅니다.
+같은 PC의 공유 daemon과 CLI의 `--host <origin>` 작업 대상 지정, 개발·검사용 독립 HTTP 실행을 제공합니다. [현재 Host 계약](docs/design/http-host-v1.md)을 따릅니다.
 
 ## CLI·개발 실행·HTTP
 
@@ -134,4 +132,4 @@ Editor와 CLI는 Core를 연결하며, 공식 AI 비서는 Host 공용 작업을
 [MIT License](LICENSE)에 따라 사용·수정·재배포할 수 있습니다.
 
 
-기존 Docling·선언형 화면과 원본 대조 틀은 2026-11-13 삭제했습니다. 플러그인은 자기 화면 코드를 제공합니다([현재 계약](docs/design/plugin-screens-v1.md)). 과거 구현은 `archive/2026-11-13-plugins-declarative`에 보관합니다.
+플러그인은 자기 화면 코드를 제공합니다([현재 계약](docs/design/plugin-screens-v1.md)).

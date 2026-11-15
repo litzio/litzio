@@ -35,7 +35,7 @@ ADR/design/review 상단에는 상태와 권위를 판단하는 데 필요한 �
 - `Scope` 또는 `Authority`: 적용 경계나 현재 authority 링크.
 - 관련 issue/ADR/document: 관계가 있을 때 연결한다. 빈 template field는 만들지 않는다.
 
-Decision date와 historical measurement의 날짜는 Last verified로 덮어쓰지 않는다. Historical 문서의 Last verified는 상태·후속 링크를 점검한 날짜일 수 있으며, 당시 실험을 다시 실행했다는 뜻이 아니다. 이번 상태 정리의 코드 대조 기준은 master `8fee65e` (2026-10-08)다. 이후 동작이 바뀌면 해당 문서의 검증 범위를 갱신한다.
+Decision date와 historical measurement의 날짜는 Last verified로 덮어쓰지 않는다. Historical 문서의 Last verified는 상태·후속 링크를 점검한 날짜일 수 있으며, 당시 실험을 다시 실행했다는 뜻이 아니다. 이후 동작이 바뀌면 해당 문서의 검증 범위를 갱신한다.
 
 ## Update rules
 

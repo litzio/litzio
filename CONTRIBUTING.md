@@ -4,7 +4,7 @@
 
 Litzio는 **초기 검증** 단계다. 현재 소스와 최신 공개 Beta는 `0.0.3-beta.2`이며 [배포 기록](docs/releases/v0.0.3-beta.2.md)을 따른다. 최신 공개 Stable/Latest는 `0.0.2`이며 직전 Beta는 `0.0.3-beta.1`이다. 소스 버전은 [Desktop package.json](apps/desktop/package.json), 최신 공개 결과는 [Stable 배포 기록](docs/releases/v0.0.2.md)을 참고한다. 일반 사용자 설치는 [README](README.md#windows-desktop), 개발자 빌드와 릴리즈는 아래 절차를 따른다. Visual Editor의 Vite 개발 실행도 유지한다. 공개 API와 문서 지원 범위는 바뀔 수 있다.
 
-제품 브랜드·아이콘·배포 식별자는 [패키저용 안내](docs/guides/branding.md)와 `brand.ts`를 따른다. 공식 기본값은 Litzio이며 이전 공개 Beta의 데이터/업데이트 경로를 이전하지 않는다.
+제품 브랜드·아이콘·배포 식별자는 [패키저용 안내](docs/guides/branding.md)와 `brand.ts`를 따른다. 공식 기본값은 Litzio다.
 
 ## Development requirements
 
@@ -213,7 +213,7 @@ Windows Desktop unit 두 묶음은 합쳐서 release build와 동일한 전체 �
 
 merge-group/전체 master push CI는 unsigned package 생성·release 자산 검증·packaged 회귀와 경로 정책이 선택한 설치/업데이트·제거 검사를 유지하되 개발용 installer를 업로드하지 않는다. 브랜드 설정으로 선택한 사용자 제거 로그는 Windows의 다른 드라이브 root와 섞이지 않게 `desktop-uninstall-logs` artifact로 분리한다. 실패 진단은 packaged profile의 `logs/desktop.log*`, `recovery-proof.json`, `reset-proof.json`, 업데이트 시험 버전의 `latest.yml`·`beta.yml`, 제거 검사의 `*-dialogs.txt`·`*-cleanup.txt`와 실제 `%LOCALAPPDATA%\litzio\uninstall-logs\*.tmp` 진단만 7일 보관한다. 실행 로그와 직접 시작 측정치는 Actions 로그에서 확인한다. 실행 파일·blockmap·설치 트리·브라우저 profile·cache 전체는 진단에 포함하지 않는다. 작은 native caption 화면 근거는 성공·실패 모두 7일 보관한다. 게시 권한이나 release job은 없다.
 
-첫 beta.1은 당시 CI 자산을 별도로 검증하여 수동 공개했다. 다음 Beta부터는 [Desktop release workflow](.github/workflows/desktop-release.yml)를 master에서 수동 실행한다. 이 workflow의 `desktop-release` Artifact는 installer·blockmap·채널 manifest와 게시 재검증 입력인 `win-unpacked/`를 14일 유지한다. Release 자산·전역 retention·queue 동시성과 CI 실행/성공 기준은 이 업로드 정책의 변경 대상이 아니다.
+[Desktop release workflow](.github/workflows/desktop-release.yml)를 master에서 수동 실행한다. 이 workflow의 `desktop-release` Artifact는 installer·blockmap·채널 manifest와 게시 재검증 입력인 `win-unpacked/`를 14일 유지한다. Release 자산·전역 retention·queue 동시성과 CI 실행/성공 기준은 이 업로드 정책의 변경 대상이 아니다.
 
 | Mode | 동작 |
 | --- | --- |
@@ -225,17 +225,9 @@ merge-group/전체 master push CI는 unsigned package 생성·release 자산 검
 
 모든 release 모드는 기존 CI 결과를 재사용하지 않고 검증한 tag commit에서 Editor browser 회귀 전체를 Linux 8개 shard(`pnpm browser:test --shard=N/8`)로 다시 실행한다. CI와 같은 Playwright 컨테이너·고정 Chromium 설치·브라우저 캐시·한글 폰트 확인을 사용하며 shard별 제한은 35분이다. `fail-fast: false`로 나머지 shard도 끝까지 실행하고, 실패 시 Vite 로그와 browser diagnostics를 shard별 artifact에 보존한다. 게시 job의 `needs: [preflight, browser, build]`와 기본 성공 조건으로 모든 shard와 Windows build가 성공해야 게시할 수 있다. 하나라도 실패·취소되면 게시하지 않는다.
 
-게시 job만 `contents: write`를 가지며 `desktop-release` environment를 사용한다. 2026-10-28 소유자 결정으로 별도 게시 승인을 없애고 실제 GitHub environment의 required reviewer를 제거했다. API로 required reviewer·wait timer가 없고 custom deployment branch policy가 `master` branch 한 개만 허용함을 확인했다. 릴리스 요청의 명시적 승인과 master에서의 수동 workflow 실행은 유지하며, 검증 성공 후 게시 job은 추가 승인 없이 진행한다. 다음 게시 전에도 실제 환경 규칙을 확인한다. Signed 모드는 이 환경에 `WINDOWS_CSC_LINK`(PFX/인증서 참조), `WINDOWS_CSC_KEY_PASSWORD`도 필요하다. 인증서/키/토큰은 source에 넣지 않는다. 환경·secret 설정과 workflow 실행은 명시적 승인 범위에서 수행한다. 이전 beta.2 게시는 이 변경 전에 소유자 요청에 따른 agent의 reviewer 승인으로 진행했다([기록](docs/releases/v0.1.0-beta.2.md)).
+게시 job만 `contents: write`를 가지며 `desktop-release` environment를 사용한다. 2026-10-28 소유자 결정으로 별도 게시 승인을 없애고 실제 GitHub environment의 required reviewer를 제거했다. API로 required reviewer·wait timer가 없고 custom deployment branch policy가 `master` branch 한 개만 허용함을 확인했다. 릴리스 요청의 명시적 승인과 master에서의 수동 workflow 실행은 유지하며, 검증 성공 후 게시 job은 추가 승인 없이 진행한다. 다음 게시 전에도 실제 환경 규칙을 확인한다. Signed 모드는 이 환경에 `WINDOWS_CSC_LINK`(PFX/인증서 참조), `WINDOWS_CSC_KEY_PASSWORD`도 필요하다. 인증서/키/토큰은 source에 넣지 않는다. 환경·secret 설정과 workflow 실행은 명시적 승인 범위에서 수행한다.
 
 인증된 paginated Release 목록에서 기존 공개 Release와 Draft를 모두 거부한다. 생성 응답의 ID로 새 Draft에 세 자산을 올리고 서버의 정확한 자산 집합·uploaded 상태·size·SHA-256·tag/channel을 확인한 뒤 마지막 요청으로 공개한다. 업로드/검증 실패는 Draft로 남기고 자동 삭제·덮어쓰기·재시도하지 않는다. 마지막 공개 요청의 응답이 소실되면 공개 여부를 확인해야 하므로 `Publication confirmation required`와 ID를 보고한다.
-
-공개 `0.0.2-beta.2`의 실제 GitHub `0.0.2-beta.1 → 0.0.2-beta.2` 설치·업데이트는 소유자 결정으로 미실행·미검증이다. 공식 배포 첫 시도 성공과 공개 자산 대조 결과는 [#659 배포 기록](docs/releases/v0.0.2-beta.2.md)에 보존한다.
-
-공개 `0.0.2-beta.3`의 실제 GitHub `0.0.2-beta.2 → 0.0.2-beta.3` 설치·업데이트는 이 PC의 설치 상태를 바꾸지 않는다는 제약으로 **미실행·미검증**으로 남긴다. 공식 배포 첫 시도 성공과 공개 자산 대조 결과는 [#690 배포 기록](docs/releases/v0.0.2-beta.3.md)에 보존한다.
-
-공개 `0.0.2-beta.4`의 실제 GitHub `0.0.2-beta.3 → 0.0.2-beta.4` 설치·업데이트는 이 PC의 설치 상태 보존 제약으로 **미실행·미검증**으로 남긴다. 공식 배포 첫 시도 성공과 공개 자산 대조 결과는 [#758 배포 기록](docs/releases/v0.0.2-beta.4.md)에 보존한다.
-
-**제품 이름 변경(IeumDoc → Litzio)으로 앱 ID·설치·데이터 경로가 바뀌어, IeumDoc beta.4 설치본은 Litzio로 자동 업데이트되지 않습니다. 새로 설치해야 하며 IeumDoc 데이터·설정·복구 기록은 이전되지 않습니다.**
 
 실제 GitHub harness의 대상은 같은 Litzio 브랜드의 `0.0.3-beta.1 → 0.0.3-beta.2`이다. 두 Beta는 공개됐으며 opt-in harness는 실행하지 않았고 업데이트 검증 결과가 아니다([배포 기록](docs/releases/v0.0.3-beta.2.md)). 이 PC의 설치 상태 보존 제약으로 실제 GitHub 설치·업데이트는 **미실행·미검증**이다.
 
