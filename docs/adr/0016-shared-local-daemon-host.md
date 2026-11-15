@@ -1,27 +1,12 @@
 # ADR-0016: 공유 로컬 daemon Host
 
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지하며, 저장·복구의 hostId·키·레코드는 PR 3까지 local 형식 그대로 둔다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래 원격 관련 결정은 당시 기록이며 현재 제공 기능이 아니다.
-
 - Status: Accepted
+- Amended by: [ADR-0017](0017-bundled-client-and-official-ai.md) — 공식 AI·Desktop 번들 UI. [ADR-0020](0020-plugin-architecture.md)·[ADR-0022](0022-plugin-screen-code.md) — 플러그인 실행·화면.
 - Decision date: 2026-11-04
-- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
-- Previous verification: 2026-11-10 — #1448 소유자 종료 정책·미저장 Windows query 보류 결정과 main 회귀 검사 대조. 실제 로그아웃·패키지 수락은 미확인.
-- Previous verification: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
-- Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 수동 원격 접근은 ③의 추가 승인을 따른다. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
+- Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 독립 HTTP Host의 접근 범위는 ③을 따른다.
 - Amends: [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0015](0015-shared-host-operations.md)의 아래 명시한 경계. 나머지 결정은 유지한다.
-
-## 현재 적용 범위 (2026-11-14 정적 확인)
-
-같은 PC 공유 daemon·주체별 종료·트레이 유지·명시적 종료·수동 다시 연결은 유지한다. 원격 등록·여러 Host UI는 삭제됐고 탭·기억·복구도 path와 새 namespace로 전환 완료했다([HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), [저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 서두의 “PR 3까지 그대로”는 전환 중간 단계의 기록이다. ADR-0018 원격 개정은 폐기됐으며 현재 연결의 권위가 아니다. 아래 PR1~4·일시 제외·복구는 완료된 이력이다. 현재 실행·설치 수명은 [HTTP Host](../design/http-host-v1.md)·[Desktop 배포](../design/desktop-distribution-v1.md), 플러그인은 [현행 실행 계약](../design/plugin-stage1-v1.md)을 따른다.
-
-## Amendment: Desktop 번들 UI와 Docling 전환 (2026-11-04, #1150)
-
-[ADR-0017](0017-bundled-client-and-official-ai.md)은 PR4 이후 AI를 플러그인 경로 없는 daemon 공식 기능으로 먼저 이전하고 플러그인·Docling 기능을 제거하도록 결정한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이어 Host 클라이언트와 Desktop 앱 번들 UI로 전환하며 daemon의 브라우저 UI·고정 HTTP origin·수명 정책은 유지한다. 이는 구현 완료 선언이 아니며 아래 PR1~PR4의 기록을 보존한다.
-
-## Amendment: Desktop 원격 Host와 여러 Host 보기 (2026-11-04, #1174)
-
-[ADR-0018](0018-desktop-remote-hosts.md)은 소유자 결정 ①~⑨에 따라 Desktop 로컬 등록 목록·불변 hostId, 등록한 원격 Host의 자동 연결·재연결, Host별 탐색기·필터·탭·비서 대상과 공용 등록 작업·CLI를 결정한다. 기존의 원격 Host 보류를 이 범위에서 해제한다. 로컬 daemon의 자동 탐색·spawn·수동 다시 연결·종료 정책은 유지하며 원격 daemon 제어는 제공하지 않는다. 구현은 #1174 PR1~4에서 진행하고 아래 단일 로컬 Host 구현·당시 조사 기록은 보존한다. Accepted는 구현 완료 선언이 아니다.
 
 ## Context
 
@@ -33,9 +18,6 @@ Desktop은 custom protocol의 in-process Host 대신 **같은 PC의 공유 daemo
 
 **소유자 최종 승인 (2026-11-04): 현재 단계는 별도 인증 없음.** 인증 방식과 도입 시점은
 [#1145 (결정, 향후 검토)](https://github.com/litzio/litzio/issues/1145)에서 나중에 정한다.
-이 결정은 앞서 같은 날 승인·구현한 토큰 필수 및 무인증 로컬 포트 전환 금지 결정을 대체한다.
-토큰 파일·로그인 링크/bootstrap·인증 쿠키·Bearer 검사·비밀 링크 출력을 PR2에서 제거하며
-비활성 구현이나 과거 토큰/쿠키의 정리·호환 경로는 남기지 않는다. 구현 기록은 PR 커밋에 보존한다.
 Desktop daemon은 loopback 전용이고 자동 탐색·연결도 같은 PC 범위다. 수동 원격 daemon은 ③을 따른다.
 
 제품 버전과 프로토콜 버전을 분리한다. 프로토콜 불일치는 연결을 거부하고 CLI로 daemon을 다시 시작하라고 안내한다. 제품 버전만 다르면 경고하고 연결은 유지하며 같은 CLI 안내를 제공한다. Desktop은 버전을 자동 교체하지 않으며 재시작 버튼을 제공하지 않는다.
@@ -48,7 +30,7 @@ Desktop daemon은 loopback 전용이고 자동 탐색·연결도 같은 PC 범�
 
 Windows `query-session-end`에서는 미저장 편집·미적용 초안 등 기존 전체 탭 보호 대상 작업이 있으면 OS 이벤트를 동기적으로 취소해 종료를 보류한다. 숨긴 창은 복원·포커스하고 기존 미저장 확인을 보여 준다. **Keep editing**은 창과 소유 daemon을 유지하며, 작업을 저장·정리한 뒤 다음 종료 요청에서는 보류하지 않는다. Windows의 차단 앱 안내와 사용자 강제 종료는 허용한다. 작업이 없으면 query를 취소하지 않고 기존 정리로 종료하며, 실제 `session-end`는 취소하지 않고 정상 정리만 시도한다.
 
-Desktop이 직접 띄운 인스턴스는 Desktop의 실제 종료와 함께 종료한다. spawn 시 연결한 IPC pipe가 끊기면 daemon도 종료하므로 Desktop 비정상 종료에도 고아로 남지 않는다. Desktop은 자기가 spawn한 인스턴스 ID만 소유하며 다른 클라이언트 수나 진행 작업을 추적·판별하지 않는다. CLI `daemon start` 또는 `daemon run`으로 띄운 daemon은 Desktop 종료 뒤에도 유지한다. 원격 Host는 Desktop 종료로 중단하지 않는다. 항상 유지 설정·유휴 자동 종료·로그인 자동 시작·다중 창은 제공하지 않는다. Desktop 완전 종료 뒤에도 로컬 작업을 계속 실행하려면 CLI로 시작한다.
+Desktop이 직접 띄운 인스턴스는 Desktop의 실제 종료와 함께 종료한다. spawn 시 연결한 IPC pipe가 끊기면 daemon도 종료하므로 Desktop 비정상 종료에도 고아로 남지 않는다. Desktop은 자기가 spawn한 인스턴스 ID만 소유하며 다른 클라이언트 수나 진행 작업을 추적·판별하지 않는다. CLI `daemon start` 또는 `daemon run`으로 띄운 daemon은 Desktop 종료 뒤에도 유지한다. 항상 유지 설정·유휴 자동 종료·로그인 자동 시작·다중 창은 제공하지 않는다. Desktop 완전 종료 뒤에도 로컬 작업을 계속 실행하려면 CLI로 시작한다.
 
 Desktop 메뉴에는 **daemon 종료**를 제공한다. 명시적으로 선택하면 띄운 주체와 무관하게 종료하되 연결된 탭·진행 작업이 끊긴다는 확인 창을 항상 표시한다. 종료 후에는 **연결이 끊겼습니다 / 다시 연결**을 제공한다. 다시 연결은 시작과 같은 로컬 탐색·없으면 spawn 경로이며 자동 재시작은 하지 않는다. **브라우저에서 열기**는 일반 daemon URL을 기본 브라우저로 연다.
 
@@ -68,7 +50,7 @@ daemon이 OS 휴지통을 직접 쓴다. 같은 PC의 모든 클라이언트가 
 접근하며, non-loopback 바인딩(`--host` + `--public-origin`)에서도 이 모드를 허용한다.
 `--root`를 지정하면 기존처럼 지정한 폴더만 접근한다. Host/Origin 검사, 고정 포트와
 탐색 기록 규칙은 유지하며 non-loopback은 명시적 `--public-origin`을 요구한다.
-Desktop의 로컬 daemon 자동 탐색 대상은 loopback·Root 제한 없음의 로컬 모드뿐이며 수동 원격 daemon을 이 탐색 기록에 등록하지 않는다. Desktop의 별도 원격 연결 목록은 ADR-0018에서 결정하며 로컬 탐색 기록과 구분한다.
+Desktop의 로컬 daemon 자동 탐색 대상은 loopback·Root 제한 없음의 로컬 모드뿐이며 수동 원격 daemon을 이 탐색 기록에 등록하지 않는다.
 
 **소유자 최종 승인 (2026-11-04):** 인증 없이 같은 PC의 다른 Windows 사용자도 daemon에
 접근할 수 있다. non-loopback 바인딩에서는 같은 네트워크에서 해당 포트에 닿는 누구나 접근한다.
@@ -76,42 +58,23 @@ Desktop의 로컬 daemon 자동 탐색 대상은 loopback·Root 제한 없음의
 경고를 출력한다. 경고로 알리며 실행을 막지는 않는다. Host/Origin 검사는 사용자 인증이 아니다.
 인증 방식·시점, 로컬 인증 여부, HTTPS·계정/권한 체계는 #1145에서 정한다.
 
-PR2는 선택 Root, 로컬 `start/stop/status`, 단일 인스턴스·버전 확인과 OS 휴지통을 구현한다. 사용자/채널별 고정 origin과 로컬 모드만의 탐색 기록, 인증 보류·실패 경계는 [HTTP Host 구현 계약](../design/http-host-v1.md#shared-local-daemon-1142-pr2)을 따른다. Desktop 전환과 플러그인/AI 수명은 계속 PR3/PR4다.
-
 ### ④ 샘플 문서 수명
 
 샘플은 사용자 데이터에 한 번 복사하고 앱 버전이 바뀔 때만 새 폴더를 만든다. 매 Desktop 재시작에 샘플 폴더를 교체하던 수명을 공유 daemon과 맞춘다.
 
 ### ⑤ Origin과 하위 호환
 
-daemon은 고정 HTTP origin을 쓴다. PR3에서 daemon UI를 로드하던 Desktop은 ADR-0017 ⑤에서 `litzio://app` 번들 UI로 전환했다. daemon HTTP origin은 Host API와 브라우저 UI에 유지한다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
+daemon은 고정 HTTP origin을 쓴다. Desktop은 ADR-0017에 따라 `litzio://app` 번들 UI로 전환했다. daemon HTTP origin은 Host API와 브라우저 UI에 유지한다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
 
 ### ⑥ 플러그인 기능 제거와 보관
 
-**과거 PR3/PR4 승인 이력:** 아래는 기존 예외와 복구 조건의 기록이다. #1150에서 예외를 연장하거나 새 예외를 두지 않는다. 현재 후속 결정은 이 절 마지막의 기능 제거·보관이다.
-
-현재 상태: **종료됨 — PR4(#1151) 병합과 필수 CI 전체 통과로 1단계 완료**.
-
-소유자는 1단계 동안 **느리고 in-process 수명에 묶인 플러그인 테스트만** 일시 제외하도록 승인했다. 제외 전에 CI 시간을 측정한다. 이는 AGENTS.md의 테스트 기준 약화 금지에 대한 기간 한정 예외이며 다른 테스트·문서 유효성·데이터 보존 기준을 완화하지 않는다. PR3의 제외 전 CI 측정·제외 목록과 PR4 복구 대상은 [Desktop 전환 검증](../design/desktop-distribution-v1.md#pr3-plugin-test-exception)에 기록한다.
-
-PR3의 packaged in-process Docling smoke 1개는 PR4에서 공유 daemon 소유 worker·native comparison 검사로 복구했다. 기간 한정 예외는 **종료됨**이며 제외 전 측정 기록을 보존한다. PR4 필수 CI 전체 통과로 1단계를 완료했고 이 예외에 따른 릴리스 중단 조건은 해제했다. 후속 #1150 코어 전환의 릴리스 조건은 아래 기능 제거·보관 결정을 따른다. 업데이트·제거의 daemon 통합은 계속 2단계다.
-
-**#1150 기능 제거·보관 결정:** 위 PR3 예외는 PR4의 테스트 복구 이력으로 남기며 연장하지 않는다. ADR-0017 ③a에서 AI를 공식 기능으로 먼저 이전하고 ③b에서 삭제 직전 master를 원격 `archive/plugins-docling-2026-11`에 보관한 뒤 플러그인 런타임·UI·관리 CLI/설정·Docling과 관련 테스트·문서, 공식 AI가 쓰지 않는 plugin-api 부분을 삭제한다. 이는 테스트 기준 약화 예외가 아니라 기능 제거다. 다른 기능의 검증·문서 유효성·데이터 보존 기준은 유지한다. 재개는 소유자가 명시적으로 개시할 때 보관 코드를 참고한 컨셉 재개발로 진행한다. **1단계와 #1150 코어 전환 완료 전에는 릴리스하지 않는다.** 이후 플러그인 없는 제품의 릴리스 여부는 소유자가 정한다.
+이 절의 결정은 [ADR-0020](0020-plugin-architecture.md)·[ADR-0022](0022-plugin-screen-code.md)로 대체됐다. 테스트 기준의 기간 한정 예외는 없다.
 
 ## Boundaries retained
 
 plain-text SSOT, Core의 editor-neutral 문서 의미·valid write와 File commit은 유지한다. Host 공용 작업·CLI 제공은 ADR-0015를 따른다. 기존 handler와 플러그인·AI 실행 경계를 재사용하며 별도 문서 backend나 범용 infrastructure를 만들지 않는다.
 
-화면과 분리된 daemon 수명은 미저장 편집·Undo·selection을 공유 세션으로 옮긴다는 결정이 아니다. 클라이언트 복구와 명시적 Save는 계속 ADR-0007을 따른다. 플러그인 UUID·uncertain·자동 재실행 금지·완료 결과 공개 보호는 유지한다. 플러그인 worker와 AI provider 연결·대화는 daemon이 소유한다. CLI daemon이 살아 있으면 Desktop 창이 닫히거나 브라우저가 다시 붙어도 진행 중 작업·대화를 읽을 수 있다. daemon 종료 시 owned worker/provider를 정리하며, 결과가 불명확한 영속 요청은 uncertain으로 남고 자동 재실행하지 않는다.
-
-## 이행 순서와 완료 조건
-
-| PR | 범위 | 완료 조건 |
-| --- | --- | --- |
-| PR1 | 이 ADR, ADR-0004·0005·0012·0015와 AGENTS.md 개정·색인 | 승인 결정과 보류 범위를 연결하고 Implemented 문서에는 후속 연결만 둔다. `pnpm docs:check` 통과. 코드 변경 없음. |
-| PR2 | daemon `start/stop/status`, `run --root` 선택 옵션, 단일 인스턴스 lock, 인증 보류(#1145), 버전, OS 휴지통 | 위 시작·Host/Origin·무인증 경고·단일 인스턴스·버전 정책과 같은 PC 휴지통 동작을 구현·검증하고 관련 계약을 갱신한다. |
-| PR3 | Desktop 전환, custom protocol 제거, OS 기능, 샘플 수명, 고정 origin, 종료 정책·메뉴, 한정 테스트 제외 | Desktop이 공유 daemon만 사용하고 ①~⑤를 충족한다. ⑥의 제외 전 CI 시간과 제외 범위를 기록하고 해당 계약을 갱신한다. |
-| PR4 | 플러그인·AI 수명, 테스트 복구 | 새 수명 계약으로 일시 제외한 플러그인 테스트를 복구하고 필수 CI 전체 통과. 관련 계약 갱신과 함께 1단계를 완료한다. |
+화면과 분리된 daemon 수명은 미저장 편집·Undo·selection을 공유 세션으로 옮긴다는 결정이 아니다. 클라이언트 복구와 명시적 Save는 계속 ADR-0007을 따른다. 플러그인·AI 수명은 현재 [실행 계약](../design/plugin-stage1-v1.md)과 [비서 계약](../design/main-agent-v1.md)을 따른다.
 
 ## 2단계: 업데이트·제거 (#1164)
 
@@ -132,7 +95,7 @@ NSIS는 image-name 강제 종료 대신 정확한 설치 경로·OS 생성 ident
 - ADR-0004의 custom protocol·in-process Host·TCP 없음 경계를 대체한다. Electron shell과 배포·사용자 승인·미저장 작업 보호는 유지한다. 업데이트·제거의 daemon 통합은 위 #1164의 2단계 결정을 따른다.
 - ADR-0005의 로컬 공유 daemon에는 Root 필수 경계를 적용하지 않고 위 ③의 선택 Root·무인증 단계 결정을 적용한다. 중앙 서버 접근 제한을 막지 않는다. 현재 전경 실행 계약의 변경은 구현 PR에서 기록한다.
 - ADR-0012·0015의 실행 중 Host 자동 탐색·연결과 수명 관리 보류를 위 로컬 범위에서 해제한다. 모든 CLI 명령의 live daemon RPC 전환이나 공유 편집을 결정하지 않는다.
-- [HTTP Host](../design/http-host-v1.md), [Desktop distribution](../design/desktop-distribution-v1.md), [Filesystem Host boundary](../design/filesystem-host-boundary-v1.md)는 현재 구현 계약이다. PR2~PR4에서 실제 변경과 함께 갱신하며, 이 ADR의 Accepted 상태는 구현 완료 선언이 아니다.
+- [HTTP Host](../design/http-host-v1.md), [Desktop distribution](../design/desktop-distribution-v1.md), [Filesystem Host boundary](../design/filesystem-host-boundary-v1.md)는 현재 구현 계약이다. 이 ADR의 Accepted 상태는 구현 완료 선언이 아니다.
 
 ## Evidence and references
 

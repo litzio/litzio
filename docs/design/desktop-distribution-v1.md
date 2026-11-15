@@ -2,11 +2,10 @@
 
 #1285: 설정 → 저장·복구에서 [완전 초기화](app-reset-v1.md)를 제공한다. 현재 제거기의 사용자 데이터 보존 정책과 별개로 Desktop profile·로컬 Host 사용자 데이터·secret·sample·cache를 전부 비우며, 빈 대상 폴더 자체의 제거만 선택한다. 기존 pending-work/restart 보호 후 앱을 닫고 별도 helper가 정확한 부모 종료와 계정 공용 writer gate를 확인해 삭제·receipt·재실행한다. 다른 채널/CLI-owned daemon을 강제 종료하지 않는다. 외부 브라우저 profile·원격 서비스·별도 문서·계정은 유지하며 실행 전 표시한다. 로컬 fixture/main/helper 및 Chrome stand-in UI 검증과 실제 packaged CI의 경계는 연결한 계약을 따른다.
 
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
+AI는 daemon 공식 기능이며 [비서 계약](main-agent-v1.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
-- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
-- Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Log-folder access: 2026-10-29 (#712; [Host-only diagnostics](#log-folder-and-process-diagnostics-712)).
 - Authority: [ADR-0004](../adr/0004-desktop-host-distribution.md); document semantics and Save remain owned by [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md), [Filesystem Host](filesystem-host-boundary-v1.md) and [Editing session](editing-session-save-v1.md).
 - Scope: Windows x64 per-user Electron/NSIS app, Stable/Beta updates and local/CI packaging. Publication requires an owner-authorized release and manual workflow dispatch from master; no separate environment approval is required after validation succeeds.
@@ -19,14 +18,9 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 
 검증 이력은 [별도 기록](../reviews/desktop-distribution-history-2026-11.md)에 보존한다.
 
-
-## 원격 Host (#1174 PR0~4 완료)
-
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
-
 ## Shared daemon Desktop (#1142 PR3)
 
-Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the PR2 lock/HTTP/asset path. A ready identity proves which generation it spawned. Actual Desktop exit disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop exit. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
+Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the shared lock/HTTP/asset path. A ready identity proves which generation it spawned. Actual Desktop exit disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop exit. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
 
 ### Close to tray (#1448)
 
@@ -39,8 +33,7 @@ The first close displays a Windows balloon explaining background execution and t
 The tooltip reports 백그라운드 실행 중 or 연결 끊김 from the existing local connection checks.
 No task count, keep-daemon preference, idle exit, login startup or multiple windows are added.
 
-Tray 종료 first warns that Desktop-owned local daemon work stops, while CLI-owned and remote
-Hosts continue; cancelling preserves the app. Accepted exit uses the existing native unsaved-work
+Tray 종료 first warns that Desktop-owned local daemon work stops, while CLI-owned Hosts continue; cancelling preserves the app. Accepted exit uses the existing native unsaved-work
 guard and window-all-closed daemon cleanup. A refused unload restores ordinary close-to-tray.
 Update install, protected Host restart and reset also close for real after their existing guards.
 A downloaded update never installs merely because the window is hidden; failure to confirm owned
@@ -81,7 +74,7 @@ The existing single Desktop instance, native exit protection, folder picker and 
 
 The existing sidebar DropdownMenu offers **Open in browser** and **Stop daemon**. Stop always confirms that connected tabs and ongoing work will be interrupted, regardless of launcher. The existing NotificationCenter reports disconnection and offers **Reconnect**, which explicitly repeats discovery/spawn without reloading or discarding local editing state. A five-second health check detects loss; it does not restart anything. About settings reuse SettingsRow and a details disclosure for daemon state, URL, launcher and versions plus process/access/path diagnostics. Launcher labels are localized (Desktop / CLI (start) / CLI (run)); CLI status JSON retains `desktop` / `cli-start` / `cli-run`. The window mounts independently of daemon discovery/startup, including failure. Connecting/disconnected states and explicit Reconnect use the same NotificationCenter/Button. Initial Host work waits for successful connection. Product mismatch warns in that surface and retains the connection; protocol mismatch refuses. Both direct the user to restart through the CLI, without a Desktop restart button.
 
-Brand defaults and packager overrides follow [the branding guide](../guides/branding.md). PR3 did not modify the installer; the subsequent phase-2 gate is defined below.
+Brand defaults and packager overrides follow [the branding guide](../guides/branding.md). The update/removal gate is defined below.
 
 ### Update and removal daemon gate (#1164)
 
@@ -151,39 +144,6 @@ The existing live uninstall case removes the installed helper and checks the emb
 it does not replace helperless update coverage. A separate controlled helperless update fixture
 would be needed to restore that specific coverage without redistributing a withdrawn installer.
 
-### PR3 plugin test exception
-
-Baseline: [CI 41782696099](https://github.com/litzio/litzio/actions/runs/41782696099), head `ff2c2936ab4349d44c81919d6a3292e90be2395a`, measured from job steps and per-test log durations before exclusion.
-
-| Job/scenario | Measured duration | PR3 treatment |
-| --- | ---: | --- |
-| Windows Desktop package/update job | 16m05s; packaged step 60s | All non-plugin package/update/uninstall assertions retained |
-| packaged in-process Host forks shipped Docling worker | 5.669s | Only PR3 exclusion; restored in PR4 as daemon-owned worker/native comparison coverage |
-| Browser docling-dashboard / plugin-ui | 42.0s / 9.3s | Retained |
-| Browser docling-server / docling-compare | 50.4s / 21.0s | Retained |
-| Browser docling-review / recovery / retry | 36.7s / 23.3s / 26.5s | Retained |
-| Browser plugin-settings / assistant / assistant-result | 6.9s / 1.2m / 10.7s | Retained |
-| Host close waits admitted workers / partial REST worker kill (Windows) | 1.681s / 6.316s | Retained; existing integration adapters now call HTTP |
-
-Historical PR4 record (before #1150 ③): no fast unit tests or data-preservation assertions were excluded. Obsolete custom-protocol transport tests were removed with that implementation; shared HTTP tests retained CSP, path, revision, trash, template and plugin protections. Startup/sample behavior was covered at the bridge/client and sample copier boundaries. PR4 restored the only skip as `packaged daemon forks its shipped Docling worker and opens a complete native comparison`, checking a separate daemon PID/launcher, shipped worker, notices, native comparison and disable/re-registration. The exception **ended**; all required PR4 CI passing completed phase 1 and lifted this exception's release hold. #1150 ③ removes the plugin/Docling feature tests while preserving Desktop main/CLI notice assertions in the startup/sample smoke. Update/uninstall daemon integration remains phase 2.
-
-PR4 extends existing cases instead of adding a scenario: the fake app-server HTTP
-case detaches the sending connection and observes the same turn through another
-connection until completion, without replay. The HTTP recovery case owns a real
-production CLI daemon subprocess and stops/restarts it at the same origin via a native bridge
-stand-in; it asserts unsaved input, Undo/Redo and Save without page reload. The
-two subprocess starts are necessary to exercise actual daemon loss/reconnection;
-the existing recovery case took 16.3s locally. Native
-daemon ownership/IPC lifecycle remains covered by existing subprocess tests.
-No paid AI, local packaging, install/update/uninstall or Edge is used. The UI
-retains SettingsRow and translations, with no common UI exception.
-
-Manual persistent-Chrome capture review (production controls, bridge stand-in):
-[1440px](assets/desktop-daemon-lifetime-1142/status-1440.png) /
-[640px](assets/desktop-daemon-lifetime-1142/status-640.png). The localized launcher
-and address fit both widths. Existing Desktop browser assertions check English
-and Korean labels; the CLI JSON protocol is unchanged.
-
 ## Open folders in File Explorer (#487)
 
 The Desktop preload exposes `openFolderInExplorer` as the Host capability, plus
@@ -203,7 +163,6 @@ open both a root and a child via their menus; delete a displayed folder and conf
 notice. Actual Explorer execution is deliberately unverified locally. Packaging/update/install
 boundaries are unchanged; their tests remain Windows CI responsibilities.
 
-
 ## File context actions (#505 / #504 PR A)
 
 Desktop uses the same web context menu and dialogs as Vite/HTTP; Electron `Menu.popup` is not
@@ -218,7 +177,6 @@ Shared HTTP tests cover injected trash success/failure and shared path validatio
 Windows behavior remains a required CI check; no local package/install/update run is required
 because packaging and update boundaries are unchanged.
 
-
 ## Optional command-line tools (#604)
 
 The #1128 assistant launcher is separate from this optional integration. Before
@@ -228,7 +186,6 @@ no user/system PATH or registry is changed. Source Desktop instead uses the sour
 CLI with tsx. See [template operations](document-templates-v1.md#shared-host-operations-and-assistant-1128).
 The existing packaged CLI CI exercises one template read through that launcher
 before enabling the optional integration. Local packaging is not part of #1128 verification.
-
 
 Settings exposes **Command-line tools (CLI)** only when the Desktop bridge exists. The initial
 state is Off; neither setup nor update adds anything to PATH. Enabled reports Installed, while
@@ -629,7 +586,6 @@ Stable absence yields `no-stable-release`, displayed as **No Stable release has 
 - [v26 release channels](https://www.electron.build/v26/docs/tutorials/release-using-channels/)
 - [Paseo updates UX](https://paseo.sh/docs/updates) (reference only; staged rollouts are excluded)
 
-
 ## Brand-independent release checks (#859 review)
 
 Alternate-brand builds and simultaneous installation are no longer checked in CI (#1000, owner decision 2026-11-03). Official Litzio packaging, Stable/Beta install/update and uninstall checks remain unchanged.
@@ -638,7 +594,7 @@ The release verifier emits its validated installer, blockmap, current configured
 
 ## Third-party notices (#1076)
 
-The main esbuild input graph supplies `build/app/THIRD_PARTY_LICENSES.txt`, packaged inside `resources/app.asar`. The existing shared CLI copy carries `resources/cli/THIRD_PARTY_LICENSES.txt` and `editor/licenses/` (including the notice index). Electron/Chromium and existing font/component notices remain separate. The existing packaged startup/sample smoke checks the main archive's electron-updater version and Loopline copyright and the CLI's Tiptap notice. These original assertions remain unchanged when moving them out of the removed Docling smoke; only the removed worker/schema checks are dropped. HTTP package tests separately check the Editor-served notices. Editor public notices remain transitive Desktop build inputs in the existing CI scope policy (alone they retain `update=false`; mixed with an update target they select full lifecycle coverage). No new installation or update behavior is introduced.
+The main esbuild input graph supplies `build/app/THIRD_PARTY_LICENSES.txt`, packaged inside `resources/app.asar`. The existing shared CLI copy carries `resources/cli/THIRD_PARTY_LICENSES.txt` and `editor/licenses/` (including the notice index). Electron/Chromium and existing font/component notices remain separate. The existing packaged startup/sample smoke checks the main archive's electron-updater version and Loopline copyright and the CLI's Tiptap notice. HTTP package tests separately check the Editor-served notices. Editor public notices remain transitive Desktop build inputs in the existing CI scope policy (alone they retain `update=false`; mixed with an update target they select full lifecycle coverage). No new installation or update behavior is introduced.
 
 ## Connection and sample messages (#1156, #1157)
 
@@ -668,8 +624,4 @@ Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.
 
 ## Desktop-local remote registry (#1174 PR3a)
 
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
-
-설정 Hosts 화면과 등록·검사·제거·적용 재시작 IPC 및 원격 작업 요약은 없다. 로컬 daemon bootstrap·프로토콜/제품 버전 검사·수명과 native close/update/reset의 pending-work 보호는 그대로다. 탐색기 아래 로컬 연결 관측은 5초 간격 읽기만 사용하며 단절 후에도 회복한다.
-
-현재 UI는 [단일 Host 화면](editor-ux-shell-v1.md#활성-host-실행-계정-1199)을 따른다. 삭제 전 등록·제거의 교차 profile 보호와 캡처는 보관 태그의 이 문서에 있다.
+다른 PC의 Host 등록·접속은 지원하지 않는다. 로컬 daemon bootstrap·프로토콜/제품 버전 검사·수명과 native close/update/reset의 pending-work 보호를 따른다. 로컬 연결 관측은 5초 간격 읽기이며 단절 후에도 회복한다.

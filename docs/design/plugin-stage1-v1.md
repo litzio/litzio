@@ -2,14 +2,11 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [AGENTS.md](../../AGENTS.md).
-- Last verified: 2026-11-14 — #1634 공개 오류·입력 진단 계약 추가. 검증 범위는 PR 실행 기록 참조.
-- Previous verification: 2026-11-13 — #1592 1-2 코드·대상 검사 대조. Node context CLI는 소스·배포 Host의 실행 정보와 그림 포함 create/batch/check 경계를 검사한다. 실제 외부 서비스·원격 PC 수락은 포함하지 않는다.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 
 ## 현재 범위
 
 플러그인은 대상 Host의 Node 하위 프로세스에서 실행되고 자기 React 화면 코드를 제공한다. 설치·신뢰·활성·설정·비밀값·비서 스킬·공용 작업·receipt·reload·앱에 실은 npm과 번들러를 유지한다. Core의 문서 의미와 공식 write path는 플러그인이 재구현하지 않는다.
-
-OneDrive·Jira·Docling, 선언형 화면·조회·자동 form·검수·원본 대조 틀·지정/공식 공급은 2026-11-13 삭제했다. 보관 브랜치 `archive/plugins-declarative-2026-11-13`, 태그 `archive/2026-11-13-plugins-declarative`. [삭제 전 계약](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md)은 역사다. 단독 PDF 탭·문서 편집/저장/복구·비서 변경 보기/Undo는 유지한다.
 
 ## 신분증
 
@@ -93,7 +90,7 @@ export function activate(context) {
 
 Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한다. 새 요청을 차단한 뒤 이미 접수한 호출과 status 관찰을 drain하고 dispose한다. reload는 새 artifact와 설정·secret을 읽는다. 종료는 모든 child를 닫으며 하나의 실패로 다른 child 정리를 건너뛰지 않는다. 화면/daemon/문서의 수명을 섞지 않는다.
 
-일반 호출 RPC는 기존 10초 한계를 유지한다. K1 장기 작업·staging·job history·결과 게시 경로는 삭제했다. 실행 핵심이 선언형 binding과 검수/생성 문서 게시 callback에 결합돼 있어 독립 계약으로 깨끗이 남지 않았기 때문이다. 새 장기 작업 API나 화면 연결은 만들지 않았다.
+일반 호출 RPC는 10초 한계다. 장기 작업 상태·진행 조회는 플러그인이 소유한다.
 
 ## 호출자에게 전달하는 실패 (#1634)
 
@@ -134,6 +131,6 @@ npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 �
 
 SDK는 manifest·schema 경계를, Host 단위 검사는 process·drain·crash·timeout·설정·secret·스킬·신뢰·reload·출력 경계를 보호한다. HTTP/Vite는 같은 작업의 transport와 UI를, packaged 외부 SDK helper는 checkout 없는 SDK resolve·설치·npm·bundle·receipt를 검사한다. 화면의 공식 새 문서 저장은 [화면 계약](plugin-screens-v1.md)을 따른다. fixture/localhost 통과를 실제 원격 PC·사내 서비스·실제 계정 수락으로 표현하지 않는다.
 
-긴 처리는 plugin process에서 접수 후 진행하며 화면은 짧은 호출로 상태를 조회할 수 있다. 비서·CLI도 같은 상태를 알아야 하면 assistant:true 공개 읽기 operation으로 진행/결과를 선언한다. status()의 {available,message}와 작업 기록은 별개다. 10초 한계를 늘리는 변경이나 공용 K1 job store를 추가하지 않았다. 실제 제작의 초기 단일 호출 timeout과 후속 접수/조회 시험은 [3단계 기록](../reviews/plugin-screen-code-1592.md#3단계-협의-절차와-제작-시험)을 따른다.
+긴 처리는 plugin process에서 접수 후 진행하며 화면은 짧은 호출로 상태를 조회할 수 있다. 비서·CLI도 같은 상태를 알아야 하면 assistant:true 공개 읽기 operation으로 진행/결과를 선언한다. status()의 {available,message}와 작업 기록은 별개다. 호출 한계는 10초이며 장기 작업 상태는 플러그인이 소유한다. 실제 제작의 초기 단일 호출 timeout과 후속 접수/조회 시험은 [3단계 기록](../reviews/plugin-screen-code-1592.md#3단계-협의-절차와-제작-시험)을 따른다.
 
 제작 안내는 상태 조회의 `{id,state,message,result?}` 관례를 제공한다. state는 queued/running/succeeded/failed/cancelled/not_found이며 not_found는 조회 기록이 없다는 뜻으로, 쓰기가 없었다는 증거가 아니다. 업무 id는 화면 invoke가 반환하는 result 안에 넣는다. 상태·취소·재시작 복구는 플러그인 소유이며 공용 상태 파일 형식이나 job 엔진을 만들지 않는다. 기존 문서의 지원 의미 부분 편집은 inspect → revision 조건의 한 작업짜리 apply-batch JSON → 다시 inspect로 결과 revision을 확인한다. 제한 권한의 쓰기 CLI guard는 그대로 적용한다.

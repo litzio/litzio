@@ -1,10 +1,5 @@
 # Verification
 
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. Host 구분을 제거한 새 기억·복구 형식은 옛 기록을 읽거나 지우지 않는다([전환 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 연결 고정 client와 취소/세대 보호는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
-
-> 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](../design/plugin-stage1-v1.md)과 [화면 코드](../design/plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
-
-
 변경 유형별 로컬 최소 검증과 CI에 맡길 범위는 [CONTRIBUTING](../../CONTRIBUTING.md#verification-matrix)을 따른다. 관련 패키지 테스트·browser 시나리오 지정 실행을 우선하며, 영향 범위가 여러 계층에 걸치는 경우가 아니면 전체 `pnpm test`·전체 `pnpm browser:test`는 로컬 필수가 아니다. PR의 필수 CI 통과와 실제 Save → Reload·Visual Before/After 등 고유 위험 검증은 유지한다.
 
 `metadata-popover`는 #1626 공통 속성 팝오버의 고유한 배치 위험을 보호한다. 실제 Mermaid 결과와
@@ -20,7 +15,6 @@ Last verified: 2026-10-29 (CI execution-policy/quality/scripts tests, browser fi
 브랜드 기본값과 대체 브랜드 CI는 [패키저 안내](../guides/branding.md)를 따른다. #859 이전 공개 Beta는 옛 식별자이며 새 Litzio 빌드로의 업데이트·데이터 이전 대상이 아니다. 실제 GitHub 업데이트 검증에는 같은 새 브랜드의 공개 버전 두 개가 필요하다.
 
 검증 이력은 [별도 기록](../reviews/verification-history-2026-11.md)에 보존한다.
-
 
 ## 자동 검증
 
@@ -101,12 +95,6 @@ timeouts take precedence. Fixed `waitForTimeout` delays and arbitrary JavaScript
 are not bounded by the action default; the scenario limit remains their backstop. Retries stay at 0;
 shard assignment and CI job limits are unchanged.
 
-The `multi-host` assistant fixture holds the first send until its submission-status GET occurs.
-Both endpoints return the shared submission receipt shape, with pending followed by rejection;
-settings JSON is never a fallback for conversation requests. The scenario checks that the same ID
-is observed only on the selected remote Host, the POST is not replayed, and rejected text/references
-can be restored. Existing panel, reference, and unexpected-console-error assertions remain in place.
-
 Measurement basis for [#549](https://github.com/litzio/litzio/issues/549), 2026-10-26:
 
 - The five most recent successful master CI runs were read with `gh run view --log`:
@@ -148,7 +136,6 @@ Measurement basis for [#549](https://github.com/litzio/litzio/issues/549), 2026-
   even under the provisional, stricter 90-second scenario budget; final-head CI verifies 120 seconds.
 
 ### Scenario helpers
-
 
 The shared `reloadDocument` helper waits for the File actions menu to detach and the loading dialog to close with focus returned to File actions before callers focus the editor (#422). For a dirty tab it instead waits for the interactive discard confirmation to receive focus; the caller still chooses the answer. Tests that hold a Reload response must release it before awaiting the helper's completion.
 
@@ -303,7 +290,7 @@ The `cross-reference` record-removal wait and #407 observation are retained in [
 ```bash
 pnpm --filter @litzio/cli build
 pnpm browser:test http-host
-pnpm browser:test plugin-views
+pnpm browser:test plugin-screen-code
 # CLI 패키징·배포 경계 변경 시 추가 실행
 pnpm --filter @litzio/cli package
 pnpm --filter @litzio/cli test:packaged
@@ -311,7 +298,7 @@ pnpm --filter @litzio/cli test:packaged
 
 The archive test installs outside the checkout with no runtime dependencies and runs Node-only CLI/daemon run, real writes, port conflict and shutdown. The separate HTTP browser scenario starts the built Host with two scratch roots and verifies real Save/Reload, New file/folder, images, dirty/draft guards, revision conflict and SVG script blocking. Do not combine it with Vite scenarios. Windows uses the existing persistent browser profile. `pnpm browser:test http-host --screenshots` saves optional wide/narrow/saved-document manual captures under `tmp/http-host-capture/`. CI runs without this option and uploads only browser failure diagnostics from `tmp/browser-results/`; all DOM and Save/Reload assertions remain enabled.
 
-Windows HTTP는 host(`http-host http-plugins`)와 plugins(`plugin-jobs plugin-views`) 두 독립 runner에서 실행한다. 각각 package·test:packaged 및 crash recovery를 유지하며 runner별 checkout·fixture·daemon·포트를 공유하지 않는다. Linux는 기존 전체 묶음을 유지한다.
+Windows HTTP는 host(`http-host http-plugins`)와 plugins(`plugin-screen-code`) 두 독립 runner에서 실행한다. 각각 package·test:packaged 및 crash recovery를 유지하며 runner별 checkout·fixture·daemon·포트를 공유하지 않는다. Linux는 기존 전체 묶음을 유지한다.
 
 HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts`. When the HTTP job is selected, CI requires the archive and HTTP browser paths on Windows and Linux. Windows unit/integration coverage, including `file-identity.test.ts`, belongs to the two Desktop unit partitions (together `pnpm test`); `http ⇒ desktop` path selection prevents a coverage gap. PR path selection and full checks on master pushes follow the [Verification matrix](../../CONTRIBUTING.md#verification-matrix), with [ci.yml](../../.github/workflows/ci.yml) as the path-rule source of truth. See [HTTP contract](../design/http-host-v1.md) for scope and deployment limitations.
 
@@ -320,7 +307,6 @@ HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filte
 Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit foundation·editor 두 묶음(`desktop`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`). 대표 제거(silent empty·user·foreign)는 package job에서 항상 실행한다. 전체 제거는 기존 설치 경로 분류의 `fullRemoval`로 선택하며 설치·업데이트 코드, 공유 빌드 입력과 unknown 변경에서 실행한다. Published 0.0.2 Stable는 릴리스 전 검사에만 남기고, 모든 release 모드에서 Published·Stable·Beta·전체 제거를 실행해 게시를 차단한다. PR·merge queue의 clean package·Save/Reload·crash recovery·reset과 Beta 대표 설치 보호는 유지한다. 필수 aggregate는 선택된 모든 job의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
 
 공개 0.0.2 Stable fixture는 `GH_TOKEN`이 있으면 GitHub Releases asset API에 인증하여 다운로드하고, 토큰이 없으면 공개 URL을 사용한다. 두 경로 모두 기존 크기·SHA-256·업데이트 SHA-512 검증과 HTTP 504 재시도 횟수를 유지한다. 인증 여부와 요청 URL은 Actions 로그에 남기며 토큰은 출력하지 않는다. 다운로드 캐시의 실제 경로·키·master 저장 정책은 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다.
-
 
 Packaged 테스트의 모든 직접 실행은 `--lang=en-US`로 Chromium UI 언어를 고정하여 OS 언어와 무관하게 영어 UI를 검증한다(#449). 이 인자는 `.md`가 아니므로 Desktop의 문서 인자 처리에서 무시된다. 업데이트 테스트는 설치기가 인자 없이 재실행해도 영어를 유지하도록 테스트 소유 profile의 `litzio.uiLanguage`도 `en`으로 저장한다. 공개 beta.4는 영어 전용이며, 해당 바이너리의 `Ready`와 현재 `ready` 상태 속성은 대소문자를 무시하여 기다린다.
 
@@ -447,7 +433,7 @@ therefore traversed the toolbar instead of the path label. Console errors were e
 This readiness wait preserves the path tooltip, Undo and document assertions and their
 existing timeouts. The explicit Undo Reload is independent of automatic revision detection.
 
-`pnpm --filter @litzio/editor exec tsx --test test/assistant-host.test.ts test/provider-connections.test.ts` verifies direct daemon composition, shared HTTP/CLI settings, unavailable-provider refusal, retained conversations and owned process shutdown with fake app-server/ACP only. No paid model call is needed. `pnpm browser:test assistant assistant-result` checks settings, conversation and assistant tools; `pnpm browser:test assistant --screenshots` separately produces manual 1440/640px evidence. Removed plugin/Docling tests are archived with their feature, not skipped.
+`pnpm --filter @litzio/editor exec tsx --test test/assistant-host.test.ts test/provider-connections.test.ts` verifies direct daemon composition, shared HTTP/CLI settings, unavailable-provider refusal, retained conversations and owned process shutdown with fake app-server/ACP only. No paid model call is needed. `pnpm browser:test assistant assistant-result` checks settings, conversation and assistant tools; `pnpm browser:test assistant --screenshots` separately produces manual 1440/640px evidence.
 
 #1443 / #1530: `assistant-question` covers question DOM, post-turn answers and history
 case. Provider/Host tests own protocol, index persistence and explicit-Host CLI
@@ -489,9 +475,8 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 실제 UI 클릭 성공을 뜻하지 않는다. 셸 명령 목록은 읽기·검사도 포함하므로 문서 쓰기 방식은 명령과 파일 변경을 사람이 대조한다.
 실패 원인의 키워드 분류도 잠정값이다. 최종 보고 전에 오류·마지막 답변·부산물과 대조한다.
 수식 과제는 원문의 단일 역슬래시와 check를 별도로 확인하며 렌더링 정확성은 보장하지 않는다.
-작은 합성 fixture는 XLSX(openpyxl), PPTX(python-pptx), PDF(reportlab)로 만들었다. Docling 자료는 사용하지 않는다.
+작은 합성 fixture는 XLSX(openpyxl), PPTX(python-pptx), PDF(reportlab)로 만들었다.
 이 도구는 CI allowlist에 추가하지 않으며 기존 unknown-path CI 검사를 유지한다.
-
 
 ### 플러그인 화면 코드 (#1592)
 
@@ -511,10 +496,10 @@ offline 설치·shim·Node 문서 명령과 실행 Host의 SDK/화면·두 Root 
 
 ### 비서 화면 도구 제거 (#1360)
 
-`provider-connections`와 `assistant-host`는 저장 경로·접수 식별·질문 수명·Copilot 턴별 권한·첨부·문서 변경 보호를 유지하며 삭제한 여섯 도구가 Codex/MCP 목록에 없음을 확인한다. `assistant` 브라우저 시나리오는 활성 경로 직접 전송, 미저장 본문 미전송, 닫힌 패널의 질문과 일반 설정을 검사한다. 화면 전용 ACK·timeout·표시 Undo 검사는 해당 기능과 함께 제거한다. 문서 변경·되돌리기와 외부 변경 검사는 유지한다.
+`provider-connections`와 `assistant-host`는 저장 경로·접수 식별·질문 수명·Copilot 턴별 권한·첨부·문서 변경 보호를 유지하며 삭제한 여섯 도구가 Codex/MCP 목록에 없음을 확인한다. `assistant` 브라우저 시나리오는 활성 경로 직접 전송, 미저장 본문 미전송, 닫힌 패널의 질문과 일반 설정을 검사한다. 문서 변경·되돌리기와 외부 변경 검사는 유지한다.
 
 수락 과제 1~11은 유지하고 메시지에 사용자가 지정한 작업 폴더를 명시한다. 과제 12는 활성 문서 경로로 지정 문서만 고치고, 13은 열린 탭 닫기 요청에 미지원·직접 조작을 안내하는지 사람이 확인한다. 각 `--smoke --task 12 --opened-only`, `--smoke --task 13 --opened-only`는 Luna low로 한 번만 호출하며 재시도하지 않는다. 자동 predicate는 수동 답변·파일 대조를 대체하지 않는다.
 
 ### 단일 Host 연결 (#1595 PR 2)
 
-`host-client` 검사는 주소에 고정된 문서·asset receipt·비서·템플릿, 변경된 주소의 기존 Save/rollback 거절, 관측 장애 뒤 쓰기 재전송 없음, 늦은 capability 응답 거부, protocol/product 확인과 read-only monitor 중단을 유지한다. 삭제한 검사 부분은 registry 등록/라벨/제거와 서로 다른 Host의 같은 경로 분리뿐이다. `folder-tree`의 늦은 listing·중첩 병합·접힘 보호는 유지한다. `local-host`, `document-tabs`, `folder-navigation`, `file-actions`, `recovery`, `save-session`, `assistant`, `template-gallery`, `plugin-screen-code`와 HTTP recovery는 단일 연결 통합을 검사한다. 새 형식에서도 barrier·nonce·clean acknowledgement 검사를 유지한다. `recovery-storage`는 구형 로컬/원격 DB·clean ACK가 새 기록을 읽거나 덮거나 지우지 못함과 원본 불변, 두 창의 지연 첫 기록/rename/delete/폴더 정리를 검사한다. `shell`은 구형 기억 키 보존과 새 path 기억을 검사한다. Windows packaged Desktop은 CI에서만 실행한다.
+`host-client` 검사는 주소에 고정된 문서·asset receipt·비서·템플릿, 변경된 주소의 기존 Save/rollback 거절, 관측 장애 뒤 쓰기 재전송 없음, 늦은 capability 응답 거부, protocol/product 확인과 read-only monitor 중단을 유지한다. `folder-tree`의 늦은 listing·중첩 병합·접힘 보호는 유지한다. `local-host`, `document-tabs`, `folder-navigation`, `file-actions`, `recovery`, `save-session`, `assistant`, `template-gallery`, `plugin-screen-code`와 HTTP recovery는 단일 연결 통합을 검사한다. 새 형식에서도 barrier·nonce·clean acknowledgement 검사를 유지한다. `recovery-storage`는 구형 로컬/원격 DB·clean ACK가 새 기록을 읽거나 덮거나 지우지 못함과 원본 불변, 두 창의 지연 첫 기록/rename/delete/폴더 정리를 검사한다. `shell`은 구형 기억 키 보존과 새 path 기억을 검사한다. Windows packaged Desktop은 CI에서만 실행한다.
