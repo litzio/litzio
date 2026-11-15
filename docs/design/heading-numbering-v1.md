@@ -7,7 +7,7 @@
 - Document settings verification: 2026-10-27 (#580: inline settings, per-tab expansion, notation previews and existing document operations; [integration, checks and captures](editor-ux-shell-v1.md#document-settings-placement-554)).
 - Accent verification: 2026-10-27 (#559: generated heading/Outline numbers share the local accent; all presets checked by the token contrast and existing Outline browser tests).
 - Body-heading authoring verification: 2026-10-26 (#472 Editor unit/browser checks; Core/CLI and numbering behavior unchanged). [Verification details](document-editing-v1.md).
-- Last verified: 2026-10-26 (#511 generated-number color: Editor tests, typecheck/build, Outline/layout-rules/quiet-document/visual-states browser checks and 1440px manual comparison).
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Previous verification: 2026-10-26 (#462 caption-template Core/CLI/Editor tests and cross-reference browser Undo/Redo, Source and Save → Reload).
 - Reference-template verification: 2026-10-25 (#445 Core/CLI/Editor tests and cross-reference browser Save → Reload).
 - Previous verification: 2026-10-14 (#232 native metadata contract).
@@ -389,9 +389,10 @@ The pinned `myst-parser 1.7.4` / `myst-directives 1.7.4` parse the standard
 [MyST](https://mystmd.org/spec/myst-schema). No private syntax or dependency patch is added.
 Core protects numbering exclusion, image/pending/Mermaid/table canonical round-trip,
 caption/label preservation and contradictory input refusal. Existing Editor tests
-cover caption editing and fresh-locator copies through Core Save; existing CLI creation
-and K1 tests cover unnumbered input and final image-bound targets respectively.
-The existing plugin-jobs browser flow verifies the missing caption prefix after reload.
+cover caption editing and fresh-locator copies through Core Save
+(`apps/editor/test/cross-reference.test.ts`). CLI creation tests cover unnumbered input
+(`packages/cli/test/cli.test.ts`); Core authoring and numbering tests cover canonical
+preservation and counter exclusion (`packages/core/test/native.test.ts` and `numbering.test.ts`).
 These checks add no server process, suite, timeout or retry. Extra wide/narrow captures
 are manual-only and reuse the existing caption and property implementations (P01/P06),
 with no new common interaction or layout exception.
@@ -402,6 +403,4 @@ and with `enumerated:false` (After), in the same current renderer; Before is a
 behavior baseline, not an archived-build capture. [1440 Before](assets/unnumbered-1383/before-1440.png) /
 [After](assets/unnumbered-1383/after-1440.png), [Korean dark 640 Before](assets/unnumbered-1383/before-640.png) /
 [After](assets/unnumbered-1383/after-640.png). Captions, grid spacing, scroll bounds and
-Korean wrapping were inspected. The persistent-profile browser run passed both
-HTTP recovery and plugin-jobs in about 1.5 minutes; baseline-only capture was
-manual and is not additional automated regression coverage.
+Korean wrapping were inspected. Baseline-only capture was manual and is not additional automated regression coverage.

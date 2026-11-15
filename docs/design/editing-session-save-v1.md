@@ -265,7 +265,7 @@ unapplied property drafts, in-flight requests and image binary backups. Autosave
 (#297). No Core/Host semantics change or new CLI operation is needed: this initializes an existing
 Editor session and adds client-local persistence, not a new document semantic operation.
 
-## Local recovery records (#296 PR2)
+## Local recovery records
 
 The client records applied dirty work in IndexedDB (`litzio-recovery`) in the current browser/app
 profile and origin. The original Markdown remains the SSOT. Records contain a format version,

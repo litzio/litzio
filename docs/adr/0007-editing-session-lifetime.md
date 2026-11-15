@@ -1,7 +1,7 @@
 # ADR-0007: 편집 세션 수명과 미저장 작업 보호
 
 - Status: Accepted
-- Last verified: 2026-10-24 (decision 3 extended by the owner-approved #380 decision, implemented in #383: navigation-only tab memory under the ADR-0009 preference boundary; recovery remains authoritative for unsaved work).
+- Last verified: 2026-11-16 — 현재 계약과 완료된 계획·삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Previous verification: 2026-10-16 (decision 1 revised: autosave deferred, #297; #204 implementation status compared with the current Editing session and Save contract).
 - Previous verification: 2026-10-15 (decision recorded and revised after PR #295 review: Host-specific close boundary, recovery guarantee limits; current switching/Save/unload contract compared with [Editing session and Save](../design/editing-session-save-v1.md) and `App.tsx`; #291 Open/New confirmation verified with browser regressions).
 - Authority: product and architectural decision under [AGENTS.md](../../AGENTS.md). Related: [#291](https://github.com/litzio/litzio/issues/291) · [#204](https://github.com/litzio/litzio/issues/204) · [#272](https://github.com/litzio/litzio/issues/272) · [ADR-0001](0001-single-document-editor-architecture.md) · [ADR-0002](0002-document-persistence-semantic-ownership.md) · [ADR-0004](0004-desktop-host-distribution.md)
@@ -61,13 +61,6 @@
 - 앱 안의 동작에 사용한다: 탭 도입 전에는 다른 문서를 열 때(#291), 도입 후에는 문서 탭을 닫을 때.
 - Desktop 창 닫기는 기존 업데이트 재시작 확인처럼 main·renderer 간 확인을 거쳐 같은 대화상자를 사용할 수 있다.
 - 웹(Vite, HTTP Host)의 브라우저 탭·창 닫기와 새로고침에는 이 대화상자를 쓸 수 없다. `beforeunload`는 브라우저가 소유한 일반 확인창만 표시하며 페이지가 선택지·문구나 비동기 Save를 제공할 수 없다([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event)). 이 경로는 기존 `beforeunload` 확인과 2의 복구 기록으로 보호한다.
-
-### 후속 작업 순서
-
-1. #291: 4의 확인 대화상자와 다른 문서 열기에 적용.
-2. #204: 탭과 독립 세션, 닫기에 4를 재사용.
-3. 2의 복구 기록. 세션 구조가 정해진 뒤 세션마다 기록한다.
-4. 1의 자동 저장 설정은 보류한다(#297 향후 검토). 1~3과 독립이다.
 
 ## Rationale
 

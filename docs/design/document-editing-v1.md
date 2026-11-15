@@ -1,7 +1,7 @@
 # Continuous document editing v1
 
 - Status: Implemented
-- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and path-only assistant-send browser regressions).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
 - Native focus selection: 2026-10-26 (#542: restore the retained selection before the observer can accept Chromium's native focus caret; real-click Command center and held-check browser regressions. #502 remains separate).
@@ -678,7 +678,7 @@ The shared CopyButton first tries the Clipboard API, then a temporary textarea a
 browser copy command if the API is absent or denied (#1049). The fallback restores
 focus and selection; if both paths fail, the existing manual-copy alert remains.
 `code-highlighting` covers real clipboard readback with the API absent and unchanged
-engine selection/history. Remote-PC HTTP access remains an owner manual check.
+engine selection/history.
 
 Verification: Editor tests (409), workspace typecheck, Editor production build, docs and
 whitespace checks; `code-highlighting` verifies real clipboard text, pointer/keyboard

@@ -3,7 +3,7 @@
 - Status: Implemented
 - Whole-table tools update: 2026-10-30 (#793; upper Edit/More and metadata, menu-only Delete; [contract and evidence](#whole-table-tools-793)).
 - Property-entry update: 2026-10-27 (#557: shared selection/Enter/double-click and explicit property drafts; see [Continuous editing](document-editing-v1.md#continuous-editing)).
-- Last verified: 2026-10-26 (#517: light line handles, localized names/tooltips, keyboard discovery, no-hover visibility and independent targets; Editor tests/typecheck/build and table-authoring/table-cell-editing/continuous-editing/layout-rules/quiet-document browser regressions; [comparison and evidence](#light-handle-verification-and-comparison)).
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Previous verification: 2026-10-26 (#514: shared Button migration with explicit target/anchor preservation, 28px targets/6px radius; table-authoring/table-cell-editing/continuous-editing browser regressions and [manual captures](../reviews/editor-visual-language-history-2026-10-30.md#shared-control-verification-514)).
 - Previous verification: 2026-10-26 (#474 / PR #486 review: table-authoring and source-view-pending browser regressions for explicit deletion notices, guarded one-step Undo, focus, typing, Save/Reload, Source request start, tab switching and expiry; appended endnote placement in the document-session harness; footnotes and bilingual cross-reference browser regressions, typecheck/build).
 - Previous verification: 2026-10-25 (#430 last-cell Tab, including integration with #431/#433: table-authoring and continuous-editing browser regressions, first-cell focus/typing, one-step Undo/Redo, actual Save/Reload; Editor 281/281, typecheck/build).
@@ -49,8 +49,7 @@ Table 1 fits at 640px with Explorer expanded while Transmission, Distribution an
 each word of Generation Including DER stay intact. Empty cells retain a 28px
 cell minimum with clickable padding. Several columns containing
 very long unbroken strings can still require local scrolling; CSS cannot identify
-which strings are natural words. No per-content classification is introduced. Editing,
-Read and Docling comparison share this presentation. Row/column handles follow
+which strings are natural words. No per-content classification is introduced. Editing and Read share this presentation. Row/column handles follow
 measured cells, upper Edit/More and metadata remain outside horizontal scrolling,
 and Append row remains after the caption. No Core, CLI or serialization changes.
 
@@ -64,12 +63,12 @@ now fit at 1440px; Korean/URL still fits at 640px, and #901 now requires narrow 
 narrow fit assertion is replaced by these stronger word-preservation requirements;
 the URL fit/cell-containment checks remain unchanged. Existing
 many-column scrolling, handle alignment, keyboard commands and Save/Reload checks
-remain active. `docling-compare` also checks the actual NIST Table 1 wraps.
+remain active.
 `quiet-document` again requires `break-word` in all inline code/math contexts.
 
 Local checks: 33 targeted unit/fixture/token tests; Editor typecheck/build;
-`table-authoring`, `table-cell-editing`, `layout-rules`, `quiet-document`,
-`docling-compare`; docs and whitespace checks. Platform/packaging checks belong to CI.
+`table-authoring`, `table-cell-editing`, `layout-rules`, `quiet-document`;
+docs and whitespace checks. Platform/packaging checks belong to CI.
 
 Manual captures use the existing persistent Chrome runner at 127.0.0.1:5292,
 DPR 1, bundled Pretendard, 1440×1000 Light/English and 640×1000 Dark/Korean.
@@ -80,9 +79,7 @@ padding/vertical centering, current-cell outline, table hover boundary, measured
 handles, upper controls, caption/Append row, local scrolling and directional fades.
 The renewed After captures and [capture metadata](assets/table-wrap-897/capture-metadata.json)
 record viewport, theme, browser, scroll geometry and SHA-256 hashes of sources,
-fixtures, capture script and PNGs. These historical #897 captures precede #901: Table 1 now fits at 640px. Comparison captures show
-converted text layout; their source-page placeholders are not source-fidelity proof.
-Capture traversal is manual evidence, not an extra automated regression pass.
+fixtures, capture script and PNGs. These historical #897 captures precede #901: Table 1 now fits at 640px. Capture traversal is manual evidence, not an extra automated regression pass.
 
 | State | Before | After |
 | --- | --- | --- |
@@ -93,7 +90,6 @@ Capture traversal is manual evidence, not an extra automated regression pass.
 | Read, 640px | — | [PNG](assets/table-wrap-897/after-640-read.png) |
 | Wide table, 1440px | — | [Start](assets/table-wrap-897/after-1440-wide-start.png) · [End](assets/table-wrap-897/after-1440-wide-end.png) |
 | Wide table, 640px | — | [Start](assets/table-wrap-897/after-640-wide-start.png) · [End](assets/table-wrap-897/after-640-wide-end.png) |
-| Docling comparison, 1440px | — | [PNG](assets/table-wrap-897/after-1440-compare.png) |
 
 ## Property entry (#557)
 
@@ -435,7 +431,7 @@ existing-table branches of [Save collection](../../apps/editor/src/tiptap-edits.
 
 ## Per-document table presentation (#902)
 
-Table display choices are identified by Host ID and document path; the default remains device-wide.
+Table display choices are identified by document path; the default remains device-wide.
 
 The table block menu includes the checkbox “This document’s tables: wrap long text”
 (“이 문서의 표: 긴 텍스트 줄바꿈”), separated from document mutations in a View group.
@@ -457,7 +453,7 @@ choices for this page. No Core or CLI surface is needed for Editor-only presenta
 Targeted shell/table-authoring/block-command unit tests (77), browser fixture tests
 (9), workspace typecheck, Editor build, documentation and import-boundary checks
 passed. Persistent Chrome browser scenarios: table-authoring, file-actions,
-docling-compare, layout-rules and quiet-document. The existing scenarios cover
+layout-rules and quiet-document. The existing scenarios cover
 separate-document isolation, reopen persistence, clearing default-valued overrides,
 Rename, both entry points, Undo independence, Read and comparison display. No test
 assertions were relaxed. No Core/CLI or document-format changes.

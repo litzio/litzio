@@ -10,34 +10,34 @@
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [리치오의 목적](purpose.md) | Accepted | 2026-11-13 소유자 결정. 누구를 위해 무엇을 하려는지, 문서·비서·플러그인의 관계, 반드시 지키는 것, 리치오가 아닌 것, 지금 하지 않는 것과 다시 논의할 조건. 제품 방향의 기준이며 개별 ADR·계약을 대신하지 않는다. |
+| [리치오의 목적](purpose.md) | Accepted | 문서 중심 업무의 대상과 방향, 문서·비서·플러그인의 관계, 반드시 지킬 것과 지금 하지 않을 것을 정한다. |
 
 ## Architecture decisions
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [ADR-0001: Single-document editor](adr/0001-single-document-editor-architecture.md) | Accepted | 현재 architecture 규범. 하나의 Tiptap/ProseMirror state가 문서 편집 세션을 소유한다. |
-| [ADR-0002: Persistence and semantic ownership](adr/0002-document-persistence-semantic-ownership.md) | Accepted | 현재 architecture 규범. plain-text SSOT와 Core semantic/write ownership. |
-| [ADR-0003: Addressing and identity](adr/0003-document-addressing-identity-boundary.md) | Accepted | 현재 architecture 규범. snapshot locator와 persistent identity의 경계. |
-| [ADR-0004: Desktop Host and distribution](adr/0004-desktop-host-distribution.md) | Accepted | Windows Electron/NSIS Host, 기존 handler 재사용과 사용자 승인 기반 업데이트/배포. |
-| [ADR-0005: Standalone HTTP Host](adr/0005-http-host.md) | Accepted | 복수 허용 Root와 Node 배포물, 기존 handler를 재사용하는 단일 운영자용 HTTP Host. |
-| [ADR-0006: Native document boundary](adr/0006-native-document-boundary.md) | Accepted | 승인된 제품·문서 지원 경계. 표식과 Core 검증을 통한 네이티브 문서 수용, 범용 부분 편집·소스 교체 폐지. 구현 계약은 아래 Native document support를 따른다. |
-| [ADR-0007: Editing session lifetime](adr/0007-editing-session-lifetime.md) | Accepted | 승인된 방향. 명시적 저장(자동 저장은 보류, #297), 원본과 분리된 미저장 작업 복구, 탭별 독립 세션, 경로·순서·활성 탭만 기억하는 탐색 복원(#380), 공용 저장/저장하지 않음/취소 확인. 현재 시작 우선순위·닫기·클라이언트 복구와 실제 Host 검증의 경계는 Editing session and Save를 따른다. |
+| [ADR-0001: Single-document editor](adr/0001-single-document-editor-architecture.md) | Accepted | 하나의 Tiptap/ProseMirror state가 문서 편집 세션을 소유하며 typed block과 연속 편집을 연결하는 경계를 정한다. |
+| [ADR-0002: Persistence and semantic ownership](adr/0002-document-persistence-semantic-ownership.md) | Accepted | plain-text SSOT와 Core의 문서 의미·검증·공식 쓰기 소유권, 교체 가능한 인터페이스의 책임을 정한다. |
+| [ADR-0003: Addressing and identity](adr/0003-document-addressing-identity-boundary.md) | Accepted | snapshot locator인 NodePath/sourcePath와 영속 identity의 경계를 정한다. |
+| [ADR-0004: Desktop Host and distribution](adr/0004-desktop-host-distribution.md) | Accepted | Windows Electron/NSIS shell, 공용 Host handler 재사용과 사용자 승인 기반 업데이트·배포를 정한다. |
+| [ADR-0005: Standalone HTTP Host](adr/0005-http-host.md) | Accepted | 공용 handler를 재사용하는 단일 운영자용 HTTP Host와 Node 배포·접근 범위를 정한다. |
+| [ADR-0006: Native document boundary](adr/0006-native-document-boundary.md) | Accepted | 표식과 Core의 전체 의미 검증으로 네이티브 문서를 수용하고 공식 생성·쓰기의 유효성을 보장하는 경계를 정한다. |
+| [ADR-0007: Editing session lifetime](adr/0007-editing-session-lifetime.md) | Accepted | 명시적 저장, 원본과 분리된 미저장 작업 복구, 탭별 독립 세션과 공용 저장·버리기·취소 확인을 정한다. 탐색 기억은 경로·순서·활성 탭만 보존한다. |
 | [ADR-0008: Citations and bibliography](adr/0008-citations-and-bibliography.md) | Accepted | #327의 승인된 방향. 단위 A·B·C는 Citations 계약으로 구현. MIT BibTeX 입력·Core 제한 IEEE·Root 경계 포함. 단위 D 확장은 각각 별도 결정. #328과의 경계·실행 근거 포함. **2026-10-30 동결:** 기존 동작은 유지하고 새 작업 범위에서는 제외. |
-| [ADR-0009: Multiple opened folders](adr/0009-multiple-opened-folders.md) | Accepted | #235 / #425 / #582 / #702. 포함 관계 없는 루트와 상위 흡수·하위 reveal, origin별 폴더 섹션 접힘 기억과 폴더 줄의 작업 진입점, 순서 있는 여러 폴더, 경로만 브라우저 환경설정으로 복원, 문서 폴더 맥락은 가장 바깥쪽 열린 폴더. #582가 #385의 헤더 진입점 배치를 대체. Workspace 파일·Host 상태 없음. |
-| [ADR-0010: Supported viewport and input](adr/0010-supported-viewport-and-input.md) | Accepted | 2026-10-27 소유자 결정. 지원 최소 폭 640px의 데스크톱급 창과 키보드·포인터 입력. 휴대폰·터치 전용 지원은 실제 사용자 확인 후 별도 결정. 정리 작업은 #602. |
-| [ADR-0011: Code module boundary](adr/0011-code-module-boundary.md) | Accepted | 첫 모듈의 패키지 위치, 모듈 → Core 공개 API 의존, 문서 밖 데이터와 얇은 CLI. 정적 연결·등록/동적 로딩 금지와 process-local 전용 작업 상태는 ADR-0012로 일부 Superseded. |
-| [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | Core 의미·공식 쓰기·수명 분리의 남는 경계. 옛 worker·공유 요청 기록·Docling/UI 기여와 채택 조건은 제거·대체 이력. 현재 제공 계약은 plugin-stage1-v1·plugin-screens-v1. |
-| [ADR-0013: AI 실행 환경](adr/0013-ai-agent-task-service.md) | Accepted | 남아 있는 의미 소유권과 ADR-0014·0017·0021의 대체 관계. 제거된 작업 서비스와 격리 조건은 고정 커밋 이력으로 연결한다. ADR-0017의 2026-11-14 개정과 같이 aiTasks 자동 복원 의무 없음. |
-| [ADR-0014: Host 소유 비서 연결](adr/0014-main-agent-app-server.md) | Accepted | 기존 Codex 환경 재사용·앱 데이터 작업 폴더·Host 프로세스 소유·최소 버전·Copilot 선택. 직접 편집·권한·전용 도구 기준은 ADR-0021로 대체. |
-| [ADR-0015: Shared Host operations](adr/0015-shared-host-operations.md) | Accepted | 2026-11-04 #1132 소유자 승인. 새 사용자 기능의 입력·결과·범위·receipt 공용 정의와 CLI 필수. 비서 도구 생성 기준은 ADR-0021로 대체. #1128 첫 사례. 2026-11-14 개정으로 미래 동시 편집 대비 의무 종료: 실제 충돌 사례에서 재논의하며 선제 설계하지 않음. 1~3절 공용 작업·CLI·현재 보호는 유지. 로컬 daemon 자동 탐색·연결·수명은 ADR-0016으로 개정하고 편집 상태 공유는 보류. |
-| [ADR-0016: 공유 로컬 daemon Host](adr/0016-shared-local-daemon-host.md) | Accepted | 2026-11-04 #1142 소유자 결정 ①~⑥; #1448에서 ①을 창 닫기=트레이 유지·명시적 종료로 개정(2026-11-10). 인증 보류(#1145)·단일 인스턴스·버전·수명·Root·휴지통·샘플·origin, PR1~PR4. PR4에서 플러그인·AI daemon 수명과 테스트 복구로 기간 한정 예외 종료; 필수 CI 전체 통과로 1단계 완료·해당 릴리스 중단 해제. 구현 계약은 HTTP Host/Desktop distribution과 공식 AI Main agent. Plugin runtime은 ADR-0017로 제거·보관했다. 공유 편집은 보류. |
-| [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·프로바이더 가용성·설정 CLI, 플러그인·Docling 기능 제거·직전 master 원격 보관, Host 클라이언트·번들 UI 전환. 소유자 개시 시 컨셉 재개발. 1단계·코어 전환 전 릴리스 금지, 이후 플러그인 없는 제품 릴리스는 소유자 결정. ③a·③b 구현: 공식 AI·설정 CLI와 플러그인/Docling 삭제. ④ Host 클라이언트·⑤ 앱 번들 UI와 정확한 Desktop origin 허용 구현. 2026-11-14 개정: aiTasks 자동 복원 의무 종료. 현재 비서·CLI로 끝내지 못하는 실제 플러그인 사례에서 소유자가 재개 여부·최소 계약을 새로 결정. |
-| [ADR-0018: Desktop의 원격 Host 등록과 여러 Host 보기](adr/0018-desktop-remote-hosts.md) | Superseded | 2026-11-13 #1595·제품 목적에 따라 원격 등록/접속·여러 Host UI 삭제. 같은 PC daemon·독립 개발 HTTP Host는 유지. 당시 결정 본문 보존, archive/2026-11-13-plugins-declarative에 구현 보관. 내부 연결 단일화와 탭·복구의 Host ID 제거. 옛 기록은 새 namespace와 분리해 자동 변환·삭제하지 않음. |
-| [ADR-0019: 공식 플러그인과 커뮤니티 플러그인](adr/0019-plugin-tiers.md) | Accepted | 2026-11-05 소유자 개념 결정. 공식 공급·유지 책임, 공통 manifest·SDK·권한, 커뮤니티 실행 차단·명시 신뢰, Host 실행·자격 증명, 번들 UI·공용 작업·CLI. ADR-0012 개정·0017 보완이며 구현 재개·보류 해제 아님. 비서는 제품 기능, Docling은 재개 시 커뮤니티 계층. |
-| [ADR-0020: 플러그인 구조와 공통 UI](adr/0020-plugin-architecture.md) | Accepted | 공통 공개 SDK·Host 하위 프로세스·등록 단위 신뢰·reload·Windows secret·비서 제작/관리·공용 작업/CLI. 선언형·K1~K4·공식/지정 공급·옛 수락 로드맵은 이력. 현재 화면 코드는 ADR-0022·plugin-screens-v1. |
-| [ADR-0021: 범용 에이전트 비서](adr/0021-general-agent-assistant.md) | Accepted | 2026-11-12 #1565 소유자 결정. 문서 직접 수정, CLI·스킬 기본, 공급자 권한, 짧은 결정 문서와 앱 데이터 작업 폴더 유지. 2026-11-13 #1360에서 창 연동 도구·통로 제거, 활성 문서 경로와 문서 보호 유지. |
-| [ADR-0022: 플러그인 화면 코드](adr/0022-plugin-screen-code.md) | Accepted | 같은 PC/개발 Host의 React 화면 코드·공통 부품·공식 저장. 선언형 병존과 다른 PC 원격 화면 실행은 종료된 이력. 현재 실행·화면은 plugin-stage1-v1·plugin-screens-v1. |
+| [ADR-0009: Multiple opened folders](adr/0009-multiple-opened-folders.md) | Accepted | 포함 관계 없는 여러 열린 폴더의 탐색·상위 흡수·하위 reveal, origin별 경로·접힘 기억과 문서의 폴더 맥락을 정한다. |
+| [ADR-0010: Supported viewport and input](adr/0010-supported-viewport-and-input.md) | Accepted | 최소 폭 640px의 데스크톱급 창과 키보드·포인터 입력을 지원한다. 모바일·터치 전용 지원은 실제 사용자 확인 뒤 별도로 결정한다. |
+| [ADR-0011: Code module boundary](adr/0011-code-module-boundary.md) | Accepted | 모듈의 Core 공개 API 의존 방향, 문서 밖 자료와 얇은 CLI의 책임을 정한다. 실행·화면 연결은 ADR-0020·0022를 따른다. |
+| [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | 플러그인의 Core 공개 API 사용과 문서 의미·검증·공식 쓰기 소유권을 정한다. 실행·화면 기여는 ADR-0020·0022를 따른다. |
+| [ADR-0013: AI 실행 환경](adr/0013-ai-agent-task-service.md) | Accepted | AI 실행과 Core 문서 의미의 소유권을 분리한다. 비서 실행 환경·공식 AI·운영 원칙은 ADR-0014·0017·0021을 따른다. |
+| [ADR-0014: Host 소유 비서 연결](adr/0014-main-agent-app-server.md) | Accepted | Host 소유 공급자 프로세스, 기존 Codex 환경 재사용, 앱 데이터 작업 폴더와 공급자 최소 버전·모드 선택을 정한다. |
+| [ADR-0015: Shared Host operations](adr/0015-shared-host-operations.md) | Accepted | 새 사용자 기능을 입력·결과·범위·receipt의 Host 공용 작업과 CLI로 함께 제공하며 Core 의미와 화면 상태의 소유권을 분리한다. |
+| [ADR-0016: 공유 로컬 daemon Host](adr/0016-shared-local-daemon-host.md) | Accepted | 같은 PC의 공유 daemon 탐색·연결·버전·접근 범위와 주체별 수명, 트레이 유지·명시적 종료·수동 다시 연결을 정한다. 인증은 별도 결정까지 보류한다. |
+| [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | daemon 공식 AI의 가용성과 수명, 대상 Host를 아는 클라이언트와 Desktop 번들 UI·origin 경계를 정한다. |
+| [ADR-0018: Desktop의 원격 Host 등록과 여러 Host 보기](adr/0018-desktop-remote-hosts.md) | Superseded | 리치오의 목적과 #1595의 단일 로컬 연결 결정으로 대체됐다. |
+| [ADR-0019: 공식 플러그인과 커뮤니티 플러그인](adr/0019-plugin-tiers.md) | Accepted | 플러그인의 공식 공급·유지 책임과 공통 SDK·신뢰·Host 실행·자격 증명 소유권을 정한다. 비서는 플러그인과 독립된 제품 기능이다. |
+| [ADR-0020: 플러그인 구조와 공통 UI](adr/0020-plugin-architecture.md) | Accepted | 공통 공개 SDK·패키지, Host 하위 프로세스·등록 단위 신뢰·reload·Windows secret과 비서 제작·관리의 공용 작업·CLI 경계를 정한다. |
+| [ADR-0021: 범용 에이전트 비서](adr/0021-general-agent-assistant.md) | Accepted | 범용 비서의 원본 직접 수정, CLI·스킬 기본, 공급자 권한과 앱 데이터 작업 폴더를 정한다. 활성 문서의 저장 경로는 메시지에 직접 전달한다. |
+| [ADR-0022: 플러그인 화면 코드](adr/0022-plugin-screen-code.md) | Accepted | 플러그인이 React 화면 코드를 제공하고 공통 부품·Core 의미·공식 저장 경로를 사용하는 경계를 정한다. 적용 범위는 같은 PC/개발 Host다. |
 
 ## Current implemented contracts
 
@@ -45,30 +45,30 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
-| [Document templates](design/document-templates-v1.md) | Implemented | Core template 메타데이터·공용 CLI/Host·기본 2종·갤러리와 사용자 저장. 비서는 CLI·스킬을 기본으로 쓰며 템플릿·생성 전용 도구와 receipt/되돌리기도 유지한다. |
-| [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 유지 규칙 32개와 이유, 공급자별 권한 매핑, 활성 문서 경로·대화의 최소 경계, 현재 한계 15개. 화면 코드 플러그인 계약과 수락 시험을 연결하고 과거 기록은 고정 커밋으로 보존한다. |
-| [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse/참조 진단 도달성, URL·inline HTML backport와 patch 제거 조건. |
-| [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
-| [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 path 기반 식별·새 단일 범위 기억/복구 형식과 구형 writer 격리(#1595 PR3). |
-| [Filesystem Host boundary](design/filesystem-host-boundary-v1.md) | Implemented | 파일·asset·folder 계약. Vite, Desktop, HTTP Host가 같은 handler를 재사용. |
-| [플러그인 실행·제작 계약](design/plugin-stage1-v1.md) | Implemented | 명시적 공개 오류(code/message)·값 없는 입력 schema 진단·CLI/비서 전달, 화면 코드 manifest, Node context의 공식 CLI 실행 정보·그림 포함 create/check/batch 예제, Node child·신뢰·설치·reload·설정·secret·스킬·npm/번들러. 선언형·Docling·K1·검수 대조는 삭제하고 보관했다. |
-| [플러그인 화면 코드](design/plugin-screens-v1.md) | Implemented | invoke 오류 code/message·입력 진단·receipt, React 화면 코드·공통 부품·공개 작업·공식 새 문서 저장·DocumentView(저장본 revision과 Core NodePath의 블록·셀 탐색, 배치 변화 추적)·파일/폴더 선택·문서 탭 열기. 단일 연결의 고정 client와 열린 폴더 범위. 선언형·검수 대조는 제거하고 보관했다. |
-| [HTTP Host](design/http-host-v1.md) | Implemented | 무인증 단계(#1145) daemon start/stop/status·실행 주체/상세 상태·stale 회수·Desktop pipe 수명·고정 origin·선택 Root·버전·OS 휴지통, CLI 배포와 HTTP·프록시 경계. |
-| [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | 현재 Windows Electron/NSIS·Stable/Beta·signing·게시 계약. 과거 실행과 공개 릴리스 근거는 별도 검증 이력 및 릴리스 기록을 따른다. |
-| [Desktop app icon](design/app-icon-v1.md) | Implemented | #905 승인된 E안 SVG 원본·Chromium 틈 검사·크기별 ICO, 브랜드 연결·출처·재생성과 Windows CI 검증 경계. |
-| [Folder picker](design/folder-picker-v1.md) | Implemented | 현재 계약. folder 선택, browser preference와 표시 folder에 New file·New folder. |
-| [Complete app reset](design/app-reset-v1.md) | Implemented | #1285 로컬 앱/Host 소유 데이터 전체 초기화·빈 폴더 옵션·공유 writer gate·종료 후 helper·CLI. 외부 브라우저·문서·공급자 계정은 제외하며 실제 packaged 실행은 Windows CI에서 검증. |
-| [Endnotes (MyST footnotes)](design/footnotes-v1.md) | Implemented | 현재 계약. 모든 쓰기에서 미주 정의를 본문 뒤 첫 참조 순서로 배치, 단일 미주 구역, Section과 분리, 실제 참조로 복귀와 기존 삽입·편집·유실 방지. |
+| [Native document support](design/document-support-v1.md) | Implemented | 네이티브 문서의 표식·지원 의미·Core 진입·생성·쓰기와 정규 직렬화·실패 시 보존을 정의한다. 별도 텍스트 종류의 열기·저장 경계를 포함한다. |
+| [Document templates](design/document-templates-v1.md) | Implemented | Core 템플릿 메타데이터, 공용 CLI·Host, 기본 템플릿·갤러리·사용자 저장과 생성 receipt·되돌리기를 정의한다. |
+| [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 비서의 공급자·권한·문서 직접 수정·대화·질문·변경 확인·되돌리기와 실행 수명, 현재 한계와 수락 기준을 정의한다. |
+| [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse·참조 진단의 보안 경계, URL·inline HTML 패치의 보호 범위와 제거 조건을 정의한다. |
+| [Continuous document editing](design/document-editing-v1.md) | Implemented | 연속 편집·selection·history·clipboard와 Core 기반 표·section 구조 변경의 보존 경계를 정의한다. |
+| [Editing session and Save](design/editing-session-save-v1.md) | Implemented | opening snapshot과 Save acknowledgement, 미저장 편집·초안·복구 보호, Visual/소스 비교 및 path 기반 탭·기억·복구 식별을 정의한다. |
+| [Filesystem Host boundary](design/filesystem-host-boundary-v1.md) | Implemented | Vite·Desktop·HTTP Host가 공유하는 파일·asset·folder 작업과 revision·공식 쓰기 경계를 정의한다. |
+| [플러그인 실행·제작 계약](design/plugin-stage1-v1.md) | Implemented | 플러그인 manifest·공개 작업·오류, Node 실행·신뢰·설치·reload·설정·secret·스킬과 CLI·비서 제작 절차를 정의한다. |
+| [플러그인 화면 코드](design/plugin-screens-v1.md) | Implemented | React 화면 코드·공통 부품·invoke·receipt, 공식 새 문서 저장·DocumentView·파일/폴더 선택·문서 탭 열기를 정의한다. 화면은 단일 연결의 고정 client와 열린 폴더 범위를 사용한다. |
+| [HTTP Host](design/http-host-v1.md) | Implemented | daemon CLI·탐색·수명·상태·버전·Root와 HTTP/Origin·프록시 경계, Desktop의 로컬 연결을 정의한다. |
+| [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | Windows Electron/NSIS 패키징·Stable/Beta 업데이트·서명·게시와 로컬 daemon 연결·종료 보호를 정의한다. |
+| [Desktop app icon](design/app-icon-v1.md) | Implemented | 승인된 SVG 원본·크기별 ICO, 브랜드 통합·재생성과 픽셀 검사 및 Windows 검증 경계를 정의한다. |
+| [Folder picker](design/folder-picker-v1.md) | Implemented | Host 폴더·이미지 선택과 경로 탐색, 열린 폴더 기억 및 새 문서·폴더 생성의 화면 동작을 정의한다. |
+| [Complete app reset](design/app-reset-v1.md) | Implemented | 로컬 앱·Host 소유 데이터의 초기화 범위, writer gate·종료 후 helper·receipt와 CLI를 정의한다. 외부 브라우저·문서·공급자 계정은 제외한다. |
+| [Endnotes (MyST footnotes)](design/footnotes-v1.md) | Implemented | 미주 정의의 본문 뒤 첫 참조 순서 배치, 번호·참조 수명·직접 편집·clipboard와 유실 없는 공식 쓰기를 정의한다. |
 | [Citations](design/citations-v1.md) | Implemented | ADR-0008 단위 A·B·C. role·선언 보존, Core 번호·제한 IEEE·readiness, CLI/Host 자료 읽기와 파생 References. 슬래시 검색·인용 폼 저작 UI. |
-| [Heading numbering](design/heading-numbering-v1.md) | Implemented | 현재 계약. Core heading/reference-template settings, H1–H6 본문 표시와 CLI, frontmatter 제목 분리. #720 그림·표·수식 고정 번호, 비차단 경고와 최종 쓰기 경계. |
-| [Section references](design/section-references-v1.md) | Implemented | 현재 계약. 문서 안의 MyST heading label과 reference. |
-| [Table caption and label](design/table-caption-v1.md) | Implemented | 현재 계약. table caption/label과 reference target. |
-| [Table interaction](design/table-interaction-v1.md) | Implemented | 현재 계약. cell·행·열 handle, menu와 engine history. |
-| [Figure authoring](design/figure-authoring-v1.md) | Implemented | 현재 계약. pending/image/Mermaid Figure의 Core·CLI 계약, Editor 원문·미리보기·속성 팝오버와 초안, canonical Save와 CLI readiness 경고. |
-| [Editor UX Shell](design/editor-ux-shell-v1.md) | Implemented | 현재 계약. 공용 제목 줄, 최대 두 에디터 그룹, 탭별 읽기·편집·소스와 초안 유지, Sidebar, 작성 interaction과 상태 표시. |
-| [Editor Layout Rules](design/editor-layout-rules-v1.md) | Implemented | 현재 geometry 규범. 정렬·간격·control 치수와 검증. |
-| [Editor Visual Language — Quiet Document](design/editor-visual-language-v1.md) | Implemented | 현재 토큰·팔레트, 서체, 표면·테마, 상태와 조절 값 규칙. 배치·치수와 반복 동작은 Layout Rules·UI 패턴에 연결한다. |
+| [Heading numbering](design/heading-numbering-v1.md) | Implemented | Core의 본문 H1–H6 번호, 그림·표·수식의 자동·고정 번호·참조 템플릿과 CLI·Editor 표시 및 쓰기 경계를 정의한다. |
+| [Section references](design/section-references-v1.md) | Implemented | 문서 안의 MyST heading label·참조와 Core·CLI·Editor의 대상 변경·표시·미해결 진단을 정의한다. |
+| [Table caption and label](design/table-caption-v1.md) | Implemented | 표 caption·label·참조 대상과 Core 번호, 정규 table directive 저장 및 직접 편집·보존을 정의한다. |
+| [Table interaction](design/table-interaction-v1.md) | Implemented | 표 cell·행·열 handle·추가 도구·메뉴, 키보드·history·스크롤과 보존 경계를 정의한다. |
+| [Figure authoring](design/figure-authoring-v1.md) | Implemented | pending·image·Mermaid Figure의 Core·CLI 의미와 Editor 원문·미리보기·속성 초안, 정규 저장·readiness 경계를 정의한다. |
+| [Editor UX Shell](design/editor-ux-shell-v1.md) | Implemented | 공용 제목 줄·에디터 그룹·탭별 읽기/편집/소스·Sidebar와 초안 유지, 작성 interaction·상태 표시를 정의한다. |
+| [Editor Layout Rules](design/editor-layout-rules-v1.md) | Implemented | Editor의 정렬·간격·control 치수와 geometry 검증 기준을 정의한다. |
+| [Editor Visual Language — Quiet Document](design/editor-visual-language-v1.md) | Implemented | Editor 토큰·팔레트·서체·표면·테마·상태 표현과 조절 값 규칙을 정의한다. |
 
 ## 운영 안내
 
@@ -83,7 +83,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [제품 용어집](contributing/terminology.md) | Implemented | 화면·문서 표준 용어와 PR B에서 반영한 기술 이름. |
+| [제품 용어집](contributing/terminology.md) | Implemented | 화면·문서의 표준 제품 용어와 기술 이름을 정한다. |
 | [이슈 작성](contributing/issues.md) | Implemented | 제목·유형·최소 정보 규칙, 공통 정의에서 생성하는 웹 폼, CLI 사전 검사와 GitHub 등록 후 검사. |
 | [테스트 설계와 PR 확인](contributing/test-design.md) | Implemented | 테스트 작성·확대의 8개 원칙, 예외 기준과 PR 기록·확인 절차. |
 | [Documentation governance](contributing/documentation-governance.md) | Implemented | 현재 작업 규칙. 문서 authority, status, metadata와 갱신 절차. |
@@ -96,14 +96,14 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [UI decision table and gallery](design/ui-decision-table-v1.md) | Implemented | 에이전트의 표면·공통 구현 선택, 개발 전용 실행 예제와 제거·보관된 Plugin API의 역사적 경계. 규범은 기존 세 UI 문서가 소유한다. |
-| [UI patterns](design/ui-patterns-v1.md) | Draft | UI 작업 전 확인. #777 소유자가 확정한 P01–P12 목표와 현재 기준 구현·사용처, 알려진 불일치·후속 이슈 및 다른 화면 확인 규칙. 미구현 목표를 Implemented로 주장하지 않기 위한 상태이며 채택 결정은 확정됨. |
+| [UI decision table and gallery](design/ui-decision-table-v1.md) | Implemented | 에이전트의 표면·공통 구현 선택 기준과 개발 전용 갤러리 사용법을 정한다. 배치·표현·반복 동작의 규범은 Layout Rules·Visual Language·UI Patterns가 소유한다. |
+| [UI patterns](design/ui-patterns-v1.md) | Draft | 소유자가 확정한 반복 UI 패턴 목표와 현재 기준 구현·사용처, 알려진 불일치·후속 이슈 및 다른 화면 확인 규칙을 정의한다. |
 
 ## Historical reviews and spikes
 
 [#204 document tabs implementation and review](reviews/document-tabs-204-2026-10-16.md) records the final tab step's scope, visual evidence, measurements and verification.
 
-- [Block source editing](design/block-source-editing-v1.md) — Superseded by Native document support; former contract retained as history.
+- [Block source editing](design/block-source-editing-v1.md) — Superseded by Native document support.
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
