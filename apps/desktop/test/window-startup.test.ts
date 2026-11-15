@@ -342,7 +342,8 @@ test("tray quit confirms interruption, cancellation keeps running, and accepted 
   cancel.menu.find(item => item.label === "종료").click();
   assert.equal(cancel.window.destroyed, false);
   assert.deepEqual(cancel.daemonCalls, ["connect"]);
-  assert.match(cancel.confirmations[0].detail, /CLI.*원격 Host/);
+  assert.match(cancel.confirmations[0].detail, /CLI로 시작한 daemon은 계속 실행됩니다\./);
+  assert.doesNotMatch(cancel.confirmations[0].detail, /원격 Host/);
   assert.equal(cancel.confirmations[0].cancelId, 0);
   const quit = await start({ stopChoice: 1 });
   quit.window.close();

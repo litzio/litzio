@@ -123,7 +123,7 @@ function createTray(): void {
       openWindow();
       if (dialog.showMessageBoxSync(window, { type: "warning", title: brand.name.ko,
         message: `${brand.name.ko}를 종료할까요?`,
-        detail: "Desktop이 시작한 로컬 daemon과 진행 중인 비서·플러그인 작업이 종료됩니다. CLI로 시작한 daemon과 원격 Host는 계속 실행됩니다.",
+        detail: "Desktop이 시작한 로컬 daemon과 진행 중인 비서·플러그인 작업이 종료됩니다. CLI로 시작한 daemon은 계속 실행됩니다.",
         buttons: ["취소", "종료"], defaultId: 0, cancelId: 0, noLink: true }) !== 1) return;
       exiting = true;
       window.close();
