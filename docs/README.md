@@ -92,13 +92,6 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 [AGENTS.md](../AGENTS.md)는 저장소 전체 제약, [CONTRIBUTING.md](../CONTRIBUTING.md)는 setup·검증 matrix·PR 절차의 진입점이다.
 
-## Design proposals
-
-| Document | Status | Authority / description |
-| --- | --- | --- |
-| [카탈로그 v2](design/catalog-v2.md) | Historical | 2026-11-13 삭제. 보관 브랜치 `archive/plugins-declarative-2026-11-13`, 태그 `archive/2026-11-13-plugins-declarative`. |
-| [Docling 검수 3단계](design/docling-review-stage3.md) | Historical | 2026-11-13 삭제. 보관 브랜치 `archive/plugins-declarative-2026-11-13`, 태그 `archive/2026-11-13-plugins-declarative`. |
-
 ## UI pattern targets awaiting implementation
 
 | Document | Status | Authority / description |
@@ -118,8 +111,6 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [저장소 종합 정리 기록 2026-11-13~14](reviews/2026-11-14-repository-cleanup.md) | Historical | 삭제·보강·측정과 남은 확인 과제의 기록. 현재 계약이 아님. |
 | [#1462 원문 증거 대응 spike ①](reviews/1462-spike-evidence-match.md) | Historical | PDF 텍스트↔문서 양방향 후보 탐지. 주입 오류 탐지와 holdout 오경보 기준 미달을 보존한 오프라인 실험. |
 | [#1462 블록 정체성 spike ②](reviews/1462-spike-block-identity.md) | Historical | 경로 갱신 A와 MyST target B 비교. 시험한 연산의 대응·저장 근거와 Core 단독 B의 실패 경계. |
-| [Generated views v1](design/generated-views-v1.md) | Historical | #1341에서 종료한 비서 생성·저장·통계·Chart 계약과 당시 검증 기록. 현재 계약은 Plugin screens and queries. |
-| [동적 뷰 재정의 v1](design/dynamic-views-v1.md) | Historical | #1341에서 종료한 제안. 이후 재구축은 Discussion #767의 업무·탐색·판단 순환 기준으로 별도 정의. |
 | [UI pattern inventory and target proposals #777](reviews/ui-pattern-inventory-777.md) | Historical | 1단계의 25개 사용처·12개 패턴·실제 캡처·대안·소유자 질문을 보존. 확정 목표와 불일치 추적은 [UI patterns](design/ui-patterns-v1.md)를 따른다. |
 | [Editor UX review and improvements](reviews/editor-ux-review-2026-10-17.md) | Historical | 2026-10-17 실제 Editor UX 평가 결과와 v4.7 변경(위치 표시, 표·메타데이터 배치, 좁은 화면 사이드바, 비네이티브 파일 표시 등), 테스트 변경과 검증. |
 | [Design consolidation proposal](reviews/design-consolidation-2026-10-26.md) | Historical | #507 실제 1440/390px·한영 computed-style 조사, 공용 컨트롤·선택·메뉴·색 규칙과 최소 guard 제안, 네 가지 소유자 결정용 시안. 제품 코드·현재 계약 변경 없음. |

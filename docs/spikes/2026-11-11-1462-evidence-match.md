@@ -22,7 +22,7 @@ pdf.js로 뽑은 PDF 텍스트와 Litzio 문서를 양방향으로 맞춰 텍스
 ## 결론/후속
 
 - 결론: **채택(보조 후보 탐지만)**. master의 설계가 이 방식을 "보조 후보 탐지"로만 쓰기로 했다.
-- 관련 이슈·PR·문서: [#1462 Docling 검수 3단계](https://github.com/litzio/litzio/issues/1462) · [Docling review stage 3 설계](../design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인) · [보고서(master)](../reviews/1462-spike-evidence-match.md)
+- 관련 이슈·PR·문서: [#1462 Docling 검수 3단계](https://github.com/litzio/litzio/issues/1462) · [Docling review stage 3 설계](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인) · [보고서(master)](../reviews/1462-spike-evidence-match.md)
 
 ## 코드 위치
 

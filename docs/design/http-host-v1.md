@@ -203,9 +203,11 @@ Source development can use `pnpm cli daemon run --root <folder>`. Source executi
 uses checkout-local `.litzio-dev/` for plugins, settings and agent cwd. In contrast,
 `node packages/cli/dist/cli.mjs daemon run` is a distributed build and uses the same
 user defaults as installed Desktop. To intentionally share a source HTTP Host with
-Desktop, explicitly set `LITZIO_PLUGINS_DIR`, `LITZIO_ASSISTANT_CWD` to the desired
-locations. These overrides take precedence in both execution forms; see
-[current runtime contract](plugin-stage1-v1.md). No existing store is
+Desktop, explicitly set `LITZIO_DATA_DIR` to the same base directory and, if needed,
+`LITZIO_ASSISTANT_CWD` to the same assistant working directory in both processes.
+Plugins are stored in `<LITZIO_DATA_DIR>/plugins`; templates and default settings files
+also use that base. `LITZIO_PLUGINS_DIR` is not read by `hostPaths`. These overrides
+take precedence in both execution forms; see [current runtime contract](plugin-stage1-v1.md). No existing store is
 migrated or cleaned automatically.
 
 `litzio --version` alone prints `litzio <CLI package version> (<build commit>)` and exits 0. The build injects the version and 12-character Git commit; a Git-free build reports `unknown`. Combining `--version` with any other argument is an argument error. This reads no manifest at runtime. Desktop-specific identity is documented in the [Desktop contract](desktop-distribution-v1.md#optional-command-line-tools-604).

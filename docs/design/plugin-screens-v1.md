@@ -41,6 +41,8 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편집 세션·검수 상태·대응 저장소·동기 스크롤·연결선·PDF·탭 조작은 넣지 않는다. 화면 상호작용이므로 별도 CLI 명령은 만들지 않으며 읽기는 기존 inspect를 사용한다. UI gallery의 Document view는 합성 snapshot을 사용하는 같은 부품의 예제다. 새 색/대화/일반 상호작용 없이 기존 paper·간격·accent·warning Notice를 사용한다.
 
+기본 문서 보기의 기존 합성 표본: [1440 밝음](assets/plugin-document-view-1592/1440-light.png), [1440 어두움](assets/plugin-document-view-1592/1440-dark.png), [640 밝음](assets/plugin-document-view-1592/640-light.png). 왼쪽 원본 영역은 플러그인이 만든 placeholder이며 PDF viewer가 아니다. 이는 2026-11-13 캡처의 연결 복구이고 이번 실행 검증이나 소유자 시각 승인이 아니다.
+
 셀 강조의 시각 확인 표본: [1440 밝음](assets/plugin-document-view-targets-1592/1440-light.png), [1440 어두움](assets/plugin-document-view-targets-1592/1440-dark.png), [640 밝음](assets/plugin-document-view-targets-1592/640-light.png), [640 어두움](assets/plugin-document-view-targets-1592/640-dark.png). 1440에서는 플러그인 화면의 절반을 문서 보기에 사용한다.
 
 12열 표 마지막 셀의 가로 이동·강조 표본: [1440 밝음](assets/plugin-document-view-targets-1592/wide-1440-light.png), [1440 어두움](assets/plugin-document-view-targets-1592/wide-1440-dark.png), [640 밝음](assets/plugin-document-view-targets-1592/wide-640-light.png), [640 어두움](assets/plugin-document-view-targets-1592/wide-640-dark.png). 표 안에서만 가로로 이동하고 바깥 문서 보기는 가로로 넘치지 않는다.
@@ -58,6 +60,8 @@ SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편
 - saveDocument의 open:true도 이 경로를 쓴다. 생성 성공 뒤에는 항상 생성 receipt를 유지하며 `opening:{status:"opened"|"refused",path,message?}`를 추가한다. 열기 거부·오류·화면 취소가 생성 실패로 바뀌지 않는다. opening이 refused여도 생성은 완료됐으므로 재시도하지 말고 receipt.path를 표시한다. open이 없거나 false면 opening도 없다. 생성 자체의 오류·통신 중단은 기존대로 reject하며 자동 재시도하지 않는다.
 
 UI 갤러리 Screen parts의 Screen path selection은 합성 Host의 선택·폴더 범위 변경 예제다. 기존 FolderDialog·Dialog·Button·경로 필드·스크롤을 재사용하며 새 공통 표면이나 토큰은 추가하지 않는다.
+
+기존 합성 폴더 선택 표본: [1440 어두움](assets/plugin-screen-pick-open-1592/1440-dark.png), [640 어두움](assets/plugin-screen-pick-open-1592/640-dark.png). 기존 캡처의 연결 복구이며 이번 실행 검증이나 실제 플러그인 변환 업무의 수락 근거가 아니다.
 
 ## 새 문서 저장
 
