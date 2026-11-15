@@ -2110,6 +2110,8 @@ Desktop의 로컬 Host 상태도  관측 완료 5초 뒤 읽기 전용 health/ca
 
 640px 이상에서 한 줄 말줄임을 사용하며 전체 계정은 키보드 focus/hover 툴팁으로 확인한다. 공통 구현은 HostStatus/Tooltip이며 별도 아이콘·팔레트·상호작용 예외는 없다.
 
+단일 연결 화면 캡처: [탐색기](assets/single-host-connection/after-explorer.png), [설정](assets/single-host-connection/after-settings.png), [비서](assets/single-host-connection/after-assistant.png).
+
 ## Document read lifetime and Host isolation (#1243)
 
 Explicit Open is owned by App per destination group with its captured HostClient and path.
