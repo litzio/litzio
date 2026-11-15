@@ -14,6 +14,7 @@ function repository(run: (root: string, write: (file: string, source: string) =>
   try {
     write("README.md", "# Example\n[Docs](docs/README.md) [Contribute](CONTRIBUTING.md) [License](LICENSE)\n");
     write("AGENTS.md", "# Rules\n");
+    write("DESIGN.md", "# Design\n");
     write("CONTRIBUTING.md", "[Rules](AGENTS.md) [Docs](docs/README.md)\n");
     write("LICENSE", "Fixture license\n");
     write("docs/가이드 (초안).md", "# 한글 제목!\n## Repeat\n## Repeat-1\n## Repeat\n## A & B -- C\n");
@@ -48,6 +49,16 @@ test("local Markdown links work across encoded paths, references, images, titles
     const result = checkDocs(root);
     assert.deepEqual(result.failures, []);
     assert.equal(result.documents, 2);
+  });
+});
+
+test("root design entrypoint links are checked", () => {
+  repository((root, write) => {
+    write("DESIGN.md", "# Design\n[Missing component](apps/editor/src/components/ui/missing.tsx)\n");
+    const failures = checkDocs(root).failures;
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].source, "DESIGN.md");
+    assert.equal(failures[0].reason, "local path does not exist");
   });
 });
 

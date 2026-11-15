@@ -15,7 +15,7 @@ import { load } from "js-yaml";
 type Link = { target: string; original: string; line: number };
 export type Failure = Link & { source: string; resolved: string; reason: string };
 
-const ROOT_FILES = ["README.md", "AGENTS.md", "CONTRIBUTING.md"];
+const ROOT_FILES = ["README.md", "AGENTS.md", "CONTRIBUTING.md", "DESIGN.md"];
 // Generated/cache directories are not maintained documentation.
 const IGNORED_DIRECTORIES = new Set(["node_modules", "tmp", "dist", "build", ".git"]);
 // Every exception must name a repository-relative file and explain why.
