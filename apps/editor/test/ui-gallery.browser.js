@@ -55,7 +55,7 @@ async (page, { expect, screenshots }) => {
     await page.screenshot({path:`tmp/parts-table-${width}-${theme}.png`});
   }
   const cards = page.locator('.screen-summary');
-  const boxes = await cards.evaluateAll(nodes => nodes.map(n => ({height:n.getBoundingClientRect().height, label:n.firstElementChild.getBoundingClientRect().top,value:n.querySelector('strong').getBoundingClientRect().top})));
+  const boxes = await cards.evaluateAll(nodes => nodes.map(n => ({height:n.getBoundingClientRect().height, label:n.firstElementChild.getBoundingClientRect().top,value:n.querySelector('.screen-summary-value').getBoundingClientRect().top})));
   expect(boxes[0]).toEqual(boxes[1]);
   for (const width of [1440,640]) {
   await page.setViewportSize({width,height:1000});

@@ -45,7 +45,15 @@ async (page, { expect, brand, screenshots }) => {
   await expect(pending).toBeVisible();
   expect(await pending.evaluate(el => !!el.closest('details'))).toBe(false);
   await expect(panel.locator('details')).not.toHaveAttribute('open');
+  const radio=pending.getByRole('radio').first();
+  const accents=await page.evaluate(async()=>[...(await import('/src/preferences.ts')).ACCENT_COLORS]);
+  for(const theme of ['light','dark']) for(const accent of accents) {
+    await page.evaluate(({theme,accent})=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.accent=accent;},{theme,accent});
+    expect(await radio.evaluate(n=>getComputedStyle(n).accentColor)).toBe(await radio.evaluate(n=>{const probe=document.createElement('span');probe.style.color='var(--id-color-interaction)';n.after(probe);const color=getComputedStyle(probe).color;probe.remove();return color;}));
+  }
+  await page.evaluate(()=>{document.documentElement.dataset.theme='light';document.documentElement.dataset.accent='plum';});
   await pending.getByRole('radio', { name: '음식 탐방', exact: true }).check();
+  if(screenshots) await pending.screenshot({path:'tmp/consistency-radio.png'});
   await pending.getByRole('button', { name: 'Submit answers' }).click();
   await expect(panel.locator('[data-question-status="answered"]')).toContainText('음식 탐방');
   await panel.getByRole('button', { name: 'Close assistant' }).click();

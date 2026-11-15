@@ -7,8 +7,12 @@ import { Notice } from "../ui/primitives.tsx";
 import { Chart, ScreenLayout, Slider, SummaryCard, Toolbar } from "../components/ui/screen-parts.tsx";
 import { DocumentView } from "./screen-document-view.tsx";
 
-export const screenUI = { Button, Input, DataTable: ScreenDataTable, Notice, Chart, ScreenLayout, Slider, SummaryCard, Toolbar, DocumentView } satisfies Record<keyof typeof SCREEN_UI, unknown>;
+export const screenUI = { Button: ScreenButton, Input, DataTable: ScreenDataTable, Notice, Chart, ScreenLayout, Slider, SummaryCard, Toolbar, DocumentView } satisfies Record<keyof typeof SCREEN_UI, unknown>;
 
 function ScreenDataTable(props: ComponentProps<typeof DataTable>) {
   return createElement("div", { className: "screen-data-table" }, createElement(DataTable, props));
+}
+
+function ScreenButton({ variant = "outline", ...props }: ComponentProps<typeof Button>) {
+  return createElement(Button, { ...props, variant });
 }

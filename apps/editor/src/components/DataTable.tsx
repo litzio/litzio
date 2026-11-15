@@ -1,3 +1,4 @@
+import "./data-table.css";
 import { externalLinkUrl, openExternalLink } from "../link-opening.ts";
 import { ArrowDown, ArrowUp, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -116,6 +117,7 @@ export function DataTable({
                 <th
                   key={c}
                   scope="col"
+                  data-numeric={types[c].type === "number" || undefined}
                   aria-sort={
                     sort?.column === c
                       ? sort.descending
@@ -177,7 +179,7 @@ export function DataTable({
                   const target = fields[c]?.linkField;
                   const value = target ? r[target] : undefined;
                   const href = typeof value === "string" && typeof r[c] === "string" && r[c] !== "" ? externalLinkUrl(value) : undefined;
-                  return <td key={c}>{href ? <a className="view-cell-link" href={href} target="_blank" rel="noopener" onClick={event => { event.preventDefault(); openExternalLink(href); }}>{label(c, r[c])}</a> : label(c, r[c])}</td>;
+                  return <td key={c} data-numeric={types[c].type === "number" || undefined}>{href ? <a className="view-cell-link" href={href} target="_blank" rel="noopener" onClick={event => { event.preventDefault(); openExternalLink(href); }}>{label(c, r[c])}</a> : label(c, r[c])}</td>;
                 })}
               </tr>
             ))}

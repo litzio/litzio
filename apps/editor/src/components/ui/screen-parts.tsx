@@ -4,14 +4,14 @@ import { Slider as BaseSlider } from "@base-ui/react/slider";
 import { Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, ResponsiveContainer, Tooltip, Text, XAxis, YAxis } from "recharts";
 import "./screen-parts.css";
 
-export function ScreenLayout({ title, description, children }: { title?: string; description?: string; children: ReactNode }) {
-  return <section className="screen-layout">{title && <h2 className="screen-layout-title">{title}</h2>}{description && <p className="screen-description">{description}</p>}{children}</section>;
+export function ScreenLayout({ description, children }: { title?: string; description?: string; children: ReactNode }) {
+  return <section className="screen-layout">{description && <p className="screen-description">{description}</p>}{children}</section>;
 }
 export function Toolbar({ children, label }: { children: ReactNode; label?: string }) {
   return <div className="screen-toolbar" role={label ? "group" : undefined} aria-label={label}>{children}</div>;
 }
 export function SummaryCard({ label, value, description }: ScreenSummaryProps) {
-  return <div className="screen-summary"><span className="screen-description">{label}</span><strong>{value}</strong>{description && <span className="screen-description">{description}</span>}</div>;
+  return <div className="screen-summary"><strong className="screen-description">{label}</strong><span className="screen-summary-value">{value}</span>{description && <span className="screen-description">{description}</span>}</div>;
 }
 export function Slider({ label, value, onValueChange, min, max, step = 1, disabled = false }: ScreenSliderProps) {
   return <BaseSlider.Root className="screen-slider" value={value} onValueChange={v => onValueChange(Array.isArray(v) ? v : [v])} min={min} max={max} step={step} disabled={disabled} thumbAlignment="edge">

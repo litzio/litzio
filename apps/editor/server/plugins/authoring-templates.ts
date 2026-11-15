@@ -22,12 +22,14 @@ export function authoringTemplate(id: string, template: "screen" | "chart") {
   return <ui.ScreenLayout description="시간에 따른 측정값">
     <ui.Toolbar>
       <ui.Button onClick={()=>invoke("measurements").then(setValues).catch(e=>setError(e.message))}>불러오기</ui.Button>
-      <ui.Button disabled={!values.length} onClick={()=>saveDocument({name:"measurements.md",authoring:{title:"Measurements",inputs:[{key:"values",blocks:[{kind:"table",rows:[["Value"],...values.map(value=>[String(value)])]}]}]},open:true}).catch(e=>setError(e.message))}>문서로 저장</ui.Button>
+      <ui.Button variant="default" disabled={!values.length} onClick={()=>saveDocument({name:"measurements.md",authoring:{title:"Measurements",inputs:[{key:"values",blocks:[{kind:"table",rows:[["Value"],...values.map(value=>[String(value)])]}]}]},open:true}).catch(e=>setError(e.message))}>문서로 저장</ui.Button>
+    </ui.Toolbar>
+    <ui.Toolbar>
       <ui.SummaryCard label="합계" value={values.reduce((a,b)=>a+b,0)}/>
     </ui.Toolbar>
     {error && <ui.Notice tone="error">{error}</ui.Notice>}
     <ui.Chart title="측정값" data={rows} xKey="time" yKey="value" baseline={15}/>
-    <ui.DataTable title="측정값" rows={rows} columns={["time","value"]} fields={{value:{type:"number"}}}/>
+    <ui.DataTable title="측정값" rows={rows} columns={["time","value"]} fields={{time:{type:"number"},value:{type:"number"}}}/>
   </ui.ScreenLayout>;
 }\n`,
   };

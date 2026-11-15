@@ -46,8 +46,8 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
   }, [client, owner, connected, screen.id]);
   const contribution = catalogClient === client ? catalog?.screens?.find(s => s.plugin === owner && s.id === screen.id) : undefined;
   const active = connected && !!contribution;
-  return <div className="view-workspace" data-testid="view-workspace">
-    <h1>{screen.title}</h1>
+  return <div className="view-workspace task-surface" data-testid="view-workspace">
+    <h1 className="task-surface-title">{screen.title}</h1>
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} onOpen={onOpenDocument} /> : null}</ScreenBoundary>

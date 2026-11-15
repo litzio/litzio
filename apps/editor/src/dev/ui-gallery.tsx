@@ -144,8 +144,8 @@ export function UiGallery() {
       <details><summary>Example guidance</summary><p>{state === "interaction" ? "Move the pointer over examples or press Tab to inspect real hover and keyboard focus. These states are not painted simulations."
         : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p></details>
     </div>
-    {visible("Screen parts") ? <><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
-    {visible("Document view") ? <DocumentViewExample /> : null}
+    {visible("Screen parts") ? <><h2 className="task-surface-title">Screen parts</h2><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
+    {visible("Document view") ? <><h2 className="task-surface-title">Document view</h2><DocumentViewExample /></> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}
