@@ -1,34 +1,26 @@
 # Editor Visual Language — Quiet Document
 
-Document scrollbar (#1182/#1183) reuses `--id-color-border-strong` for its thumb,
-`--id-color-text-muted` on track hover/press, and a transparent track. The shared
-Base UI ScrollArea implementation keeps it visible whenever the document overflows;
-the [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership) own dimensions,
-native scroll ownership and the approved before/after visual review. Current public
-captures use a synthetic Host identity; the identity-only recapture does not alter
-the approved scrollbar design.
-
-Role: current visual rules for tokens, palette, typography, surfaces, themes and states; [Layout Rules](editor-layout-rules-v1.md) owns placement/control dimensions and [UI patterns](ui-patterns-v1.md) owns repeated interaction targets.
-
 - Status: Implemented
-- Last verified: 2026-11-16 — #1650 문서 전체와 현재 코드·계약을 정적으로 대조했다. 제품·브라우저 실행 재검증 없음.
+- Last verified: 2026-11-16 — DESIGN.md와 중복·검증 기록을 정리하고 관련 표현을 코드와 정적 대조했다. 제품·브라우저 실행 재검증 없음.
 - Scope: Editor presentation. Core semantics, source format, Host persistence and editing state follow [ADR-0001](../adr/0001-single-document-editor-architecture.md) and [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md).
 - Authority: [AGENTS.md](../../AGENTS.md), Accepted ADRs and [documentation governance](../contributing/documentation-governance.md). [ADR-0010](../adr/0010-supported-viewport-and-input.md) sets a minimum 640px with keyboard and pointer input.
 - History: [Original rules, issue verification and captures through 2026-10-30](../reviews/editor-visual-language-history-2026-10-30.md) are Historical evidence. The v1 filename remains stable.
 
+This document owns token/palette values, typography metrics, surface/theme details and state mappings. UI principles and decision rules follow [DESIGN.md](../../DESIGN.md).
+
 ## Direction
 
-**Document at rest, application on interaction.** Readable document space and a quiet shell take priority over persistent tools. The paper boundary and empty-document hints make writing discoverable. Showing tools never shifts document text or shell controls.
+UI direction follows [DESIGN.md — Overview](../../DESIGN.md#overview).
 
 [Reference mockup](assets/quiet-document-reference.png) is a visual reference, not a product screenshot or a contract for its tree, search, account, window decorations, numbering, references or autosave. Current feature contracts own those behaviors. [UI pattern targets and known mismatches](ui-patterns-v1.md#알려진-불일치) distinguish approved future work from current implementation; this document does not mark those targets complete.
 
 ## Tokens and palette
 
-#896 verification: default Plum in [1440px Light/English document](assets/accent-896/1440-document.png) and [Settings](assets/accent-896/1440-settings.png), [640px Dark/Korean document](assets/accent-896/640-document.png) and [Settings](assets/accent-896/640-settings.png). [Capture script](assets/accent-896/capture.browser.js) runs through `pnpm browser:test accent-896-capture` after copying it to `apps/editor/test/accent-896-capture.browser.js`; it uses scratch documents and leaves no saved changes. Existing `ui-language` checks first-mounted defaults and alternate choices; `visual-states` checks actual focus/selection/action contrast and all preset roles. Captures are manual visual evidence.
+Document scrollbar uses `--id-color-border-strong` for its thumb, `--id-color-text-muted` on track hover/press, and a transparent track. [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership) owns dimensions and native scroll ownership.
 
-[styles/tokens.css](../../apps/editor/src/styles/tokens.css) is the single source of product values. Consumers use role variables; new UI color literals outside that file are prohibited. [index.css](../../apps/editor/src/index.css) maps product roles one way to shadcn/Tailwind. Product colors/radii use `--id-*` names. No alias cycles, duplicate role definitions or `!important`.
+Color roles and token ownership follow [DESIGN.md — Colors](../../DESIGN.md#colors). [index.css](../../apps/editor/src/index.css) maps product roles one way to shadcn/Tailwind. Product colors/radii use `--id-*` names. No alias cycles, duplicate role definitions or `!important`.
 
-One chosen accent owns primary actions, focus, selection/current/drag indicators, links/references and generated heading/Outline numbers. `accent` aliases `interaction`; `interaction-soft` aliases `surface-selected`; `text-selected` aliases `accent-hover`. Current Outline numbers inherit selected text; heading text retains normal color. Information is neutral; danger and warning keep distinct meanings. shadcn `accent` means neutral hover and `muted` means a quiet background.
+`accent` aliases `interaction`; `interaction-soft` aliases `surface-selected`; `text-selected` aliases `accent-hover`. Current Outline numbers inherit selected text; heading text retains normal color. shadcn `accent` means neutral hover and `muted` means a quiet background.
 
 The table lists `--id-color-` roles; selected roles come from the preset tables below.
 
@@ -72,7 +64,7 @@ Settings offers six validated presets, default Plum, with no free color picker. 
 | Green | `#9bce91` | `#c2e5ba` | `#2d3d2c` | `#374a35` |
 | Graphite | `#b5c6d1` | `#d4e0e8` | `#303b43` | `#3a4751` |
 
-UI text/generated small numbers meet 4.5:1; required control boundaries, focus and state indicators meet 3:1 against adjacent backgrounds, including canvas/paper in Flat. Document-tab markers meet 3:1 at rest and hover. Current list items/segments also use 600 semibold as a non-color cue. Decorative dividers, segment face/shadow edges and rest-versus-hover differences do not carry a 3:1 state-boundary requirement; text and focus still do.
+UI text/generated small numbers meet 4.5:1; required control boundaries, focus and state indicators meet 3:1 against adjacent backgrounds, including canvas/paper in Flat. Document-tab markers meet 3:1 at rest and hover. Decorative dividers, segment face/shadow edges and rest-versus-hover differences do not carry a 3:1 state-boundary requirement; text and focus still do.
 
 The encoded native-select chevron is a deliberate literal exception: data-URL SVG cannot inherit CSS variables, so its theme-specific stroke matches `text-muted`. Black/transparent mask alpha and zero-alpha rings are rendering mechanisms. Shadows remain tokens; document art and syntax/KaTeX content keep their own ownership.
 
@@ -89,7 +81,7 @@ Pretendard `1.3.9` is bundled through its official variable dynamic-subset CSS; 
 | Frontmatter title | H1 type while typing; empty `Add a title (optional)` / `제목 추가(선택)` uses subtle 14px normal UI type centered vertically within the same title slot; outward focus outline leaves breathing room without changing layout; no box at rest (#786) |
 | UI labels/controls and Figure/Table captions | 14/20px, UI stack |
 | Metadata/status/helpers | 12/16px, UI stack |
-| Dialog title / start or Settings title | 16px semibold / 24px semibold UI type |
+| Dialog title / start and task-tab titles | 16px / `--font-size-start-title` (24px), semibold UI type; hierarchy follows [DESIGN.md — Typography](../../DESIGN.md#typography) |
 | Table cells | 15/22px, UI stack for dense columns |
 | Callout kind title | 14/21px semibold UI type |
 | Endnote definition | 16/24px, document stack and normal text; separator label is UI metadata |
@@ -99,7 +91,7 @@ Pretendard `1.3.9` is bundled through its official variable dynamic-subset CSS; 
 
 Korean prose wraps at eojeol boundaries with `--word-break-document: keep-all`: title, headings, paragraphs/lists/quotes/callouts, captions, cells and endnotes. Oversized tokens retain emergency wrapping. CSS declares `overflow-wrap: anywhere`, but Tiptap's injected `word-wrap` alias makes document prose compute to `break-word`; Source computes to `anywhere`. Headings retain `text-wrap: pretty`. Inline code/math keep contextual `keep-all` in headings and `normal` elsewhere, with `break-word`. Code blocks retain their own wrapping. [Layout Rules](editor-layout-rules-v1.md#exceptions-and-checks) owns local table/formula scrolling and prohibits document-wide clipping.
 
-UI prose shares the same existing word-break token with `overflow-wrap: anywhere` at the shell, portal and embedded property-form/notice/helper boundaries (#833). Draft feedback beside the form (`.draft-status` in Equation/image/Mermaid) establishes the same boundary independently; it must not inherit the document root's `normal`. This covers draft messages, property explanations, Settings, dialog descriptions and other shell guidance in both languages. Document text, tables, Source, code, literal recovery comparisons and standalone file/path displays retain their own rules. Buttons, tabs, menu/options and input controls retain their existing wrapping/nowrap/ellipsis; prose defaults do not replace those control rules. [Issue #833](https://github.com/litzio/litzio/issues/833) links the PR with same-state 640px Dark/Korean and 1440px Light/English product captures; [capture metadata and manual review conditions](assets/ui-wrap-833/capture-metadata.json) and the [reproduction script](assets/ui-wrap-833/capture.browser.js) accompany the images. `ui-prose-wrap` checks actual computed styles and Korean word geometry in embedded feedback/forms, rather than inferring coverage from selector strings.
+UI prose shares the same existing word-break token with `overflow-wrap: anywhere` at the shell, portal and embedded property-form/notice/helper boundaries (#833). Draft feedback beside the form (`.draft-status` in Equation/image/Mermaid) establishes the same boundary independently; it must not inherit the document root's `normal`. This covers draft messages, property explanations, Settings, dialog descriptions and other shell guidance in both languages. Document text, tables, Source, code, literal recovery comparisons and standalone file/path displays retain their own rules. Buttons, tabs, menu/options and input controls retain their existing wrapping/nowrap/ellipsis; prose defaults do not replace those control rules.
 
 References read like links without box/fill: content-link color, underline on hover, subtle dashed underline when unresolved, with explicit localized unresolved text. Citations use numeric text/selected treatment; unchecked/incomplete/missing/duplicate resources use subtle dashed text, while complete limited IEEE entries have content-link color without underline. [Reference](section-references-v1.md#editor) and [citation](citations-v1.md) contracts own labels/readiness/interaction. Code comments/quotes use `text-subtle`, keywords `info`, strings `warning`, numbers/types `danger` on `surface-muted`.
 
@@ -112,7 +104,7 @@ References read like links without box/fill: content-link color, underline on ho
 | Light Paper | Gentle `--shadow-paper: 0 2px 8px rgb(32 36 44 / 6%)`, quieter than overlays |
 | Dark Paper | One step brighter than canvas, visible edge, zero elevation (`0 0 0 transparent`) |
 | Floating menus/dialogs/properties | Themed `surface`, shared border/radius and `--shadow-overlay`; fields use control roles |
-| Settings | Opaque themed `surface` viewport, subtle separators; no popup corners/shadow or floating close button |
+| Settings | Task-tab frame follows [DESIGN.md — Layout](../../DESIGN.md#layout); category navigation and content columns use subtle separators, without popup corners/shadow or a floating close button |
 | Start without a document | Canvas with product mark/title, muted explanation and surface cards with subtle edges; never paper |
 | Figure/Equation rest | Transparent; captions remain readable; metadata reserves no space |
 | Callout | Kind surface and side rule, no full outline |
@@ -128,15 +120,17 @@ Page style / 페이지 모양 offers Paper / 종이 (default) and Flat / 평면.
 
 ## Shared controls
 
-Use existing Button/Input and `components/ui` primitives, preserving refs, events and editor selection. Base UI owns shared button/focusable-disabled behavior; document-specific native controls retain their owner. [Control sizes, spacing and deliberate exceptions](editor-layout-rules-v1.md#controls-and-spacing) have one current home in Layout Rules. UI typography stays independent of document preferences.
+Control selection follows [DESIGN.md — Components](../../DESIGN.md#components). Shared controls preserve refs, events and editor selection. Base UI owns shared button/focusable-disabled behavior; document-specific native controls retain their owner. [Control sizes, spacing and deliberate exceptions](editor-layout-rules-v1.md#controls-and-spacing) have one current home in Layout Rules. UI typography stays independent of document preferences.
 
 Ghost rest is transparent; neutral hover is visible on panel/paper. Open-menu faces use neutral pressed fill without a control boundary. Secondary/Cancel has a themed outlined face and neutral hover. Select/outlined controls and modal inputs retain `border-control`; short property text fields use `surface-subtle`, a transparent rest border and visible hover/focus borders under [P05](ui-patterns-v1.md#p05-입력칸placeholder위계). Short field errors reuse `--word-break-document` (`keep-all`) for Korean eojeol boundaries and `overflow-wrap: anywhere` for oversized tokens (#819). Invalid fields retain a danger border and a connected short error under [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터); Command Center uses `surface-subtle` and structural `border`, and selected segments use surface/shadow/weight instead of a control edge.
 
-Destructive Buttons use danger text/border on `surface`, then `surface-danger` on hover. Keyboard focus retains danger text and adds the chosen-accent ring. Native disabled destructive buttons have an opaque muted face, readable secondary text and structural boundary; other native disabled controls retain dimming. Focusable `aria-disabled` keeps its muted face, secondary text, structural boundary, tooltip, focus ring and activation guard.
+Destructive Button appearance follows [DESIGN.md — Components](../../DESIGN.md#components). Keyboard focus retains danger text and adds the chosen-accent ring. Native disabled destructive buttons have an opaque muted face, readable secondary text and structural boundary; other native disabled controls retain dimming. Focusable `aria-disabled` keeps its muted face, secondary text, structural boundary, tooltip, focus ring and activation guard.
 
 Controls/overlays change state without decorative transitions, pressed movement or enter/exit animation. Save retains its reduced-motion-aware progress spinner; theme changes have the whole-screen exception above. Action menu rows use shared line icons/text/separators; destructive rows use danger text/icons and enabled `surface-danger` hover. Disabled rows have no hover fill. [Menu behavior](editor-ux-shell-v1.md#unified-action-menus-516) and [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) own roles/navigation.
 
 ## State rules
+
+Typography hierarchy and the current-value segment exception follow [DESIGN.md — Typography](../../DESIGN.md#typography).
 
 The [assistant button status](main-agent-v1.md#대화와-표시) (#1424)
 uses the existing 6px `agent-dot` slot as an absolute decoration inside the ghost
@@ -174,20 +168,6 @@ Buttons use the solid 2px outer `--focus-ring`; list/menu rows, tab-group contro
 
 Clean available Save is ghost, unsaved is accent, unavailable muted without hover. Saving preserves position/width/name while a spinner overlays a transparent label. The fixed status slot conveys unsaved/saved/operation/failure with localized text/tooltip; clean Ready is blank. Settings' unseen-update dot uses accent with localized tooltip/name; About actions use selected fill/interaction outline without animation. [Shell](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695) and [Desktop](../reviews/desktop-distribution-history-2026-11.md#settings-update-cue-verification-665) own the operations.
 
-## Heading depth verification (#887/#886)
-
-Heading depth #887/#886 was checked with numbered H1–H6, wrapped headings, gutter
-handles/menu, native clipboard, Save/Reload and ordinary Read/Source exclusion in
-`heading-levels`. Windows Chrome captures are manual evidence:
-
-| Surface | 1440px Light / English | 640px Dark / Korean |
-| --- | --- | --- |
-| Editor | [Before](assets/heading-levels-887/before-editor-1440.png) / [After](assets/heading-levels-887/after-editor-1440.png) | [Before](assets/heading-levels-887/before-editor-640.png) / [After](assets/heading-levels-887/after-editor-640.png) |
-
-[Capture conditions, source/image hashes and reproduction commands](assets/heading-levels-887/capture-metadata.json)
-record the clean base and working implementation separately. Core and CLI are unchanged:
-these cues are interface decoration with no semantic operation or CLI parity requirement.
-
 ## Adjustable values and preferences
 
 Values tuned by hand or changed by taste live under **Adjustable values** in `styles/tokens.css`, with a comment describing each purpose. Rules/scripts consume shared variables rather than repeat numbers. Regression checks read tokens/resolved relationships while preserving public constraints such as standard/compact control sizes, contrast, word boundaries and unmoved text.
@@ -224,42 +204,7 @@ The product mark uses the owner-approved E soft-knot [SVG originals](app-icon-v1
 
 ## Editing block bar verification (#1022)
 
-Windows persistent Chrome, English, Plum, 100% zoom / DPR 1, 1000px high.
-Before is pre-spike master `6f037b1f60413ff358e6bc729cf759445c23dcae`; same scratch
-`converter-control.md`, cursor paragraph and panel state as After. The existing
-BlockHandles geometry supplies the cursor range; no new control variant or Core/CLI
-operation is needed for this editor-only cue. Quote exclusion follows the existing
-`.document-editor > .quote` left border. Other framed NodeViews retain their own boundary.
-
-| View | Paragraph (bar) | Nested list (bar) | Admonition (no bar) |
-| --- | --- | --- | --- |
-| 1440 Light | [Before](assets/editing-block-bar-1022/before-1440-light-paragraph.png) / [After](assets/editing-block-bar-1022/after-1440-light-paragraph.png) | [After](assets/editing-block-bar-1022/after-1440-light-nested-list.png) | [After](assets/editing-block-bar-1022/after-1440-light-admonition.png) |
-| 1440 Dark | [After](assets/editing-block-bar-1022/after-1440-dark-paragraph.png) | [After](assets/editing-block-bar-1022/after-1440-dark-nested-list.png) | [After](assets/editing-block-bar-1022/after-1440-dark-admonition.png) |
-| 640 Light | [After](assets/editing-block-bar-1022/after-640-light-paragraph.png) | [After](assets/editing-block-bar-1022/after-640-light-nested-list.png) | [After](assets/editing-block-bar-1022/after-640-light-admonition.png) |
-
-Manual review: pale accent remains visible on Light/Dark, spans the outer list,
-clears handles and text, and does not duplicate the admonition rule. No text shift,
-clipping or additional kind icon was visible. These are manual captures, not pixel
-assertions. Native Korean IME remains a manual check; existing continuous-editing
-covers Chromium composition lifecycle. Capture recipe: temporarily run
-`apps/editor/test/manual/editing-block-bar-1022.js` as `quiet-document.browser.js`
-with `pnpm browser:test quiet-document --screenshots`, then restore the regression.
-Copy the sample and its `assets` into `tmp/editing-block-bar-1022/` first.
-
-Theme toggle #1042 manual evidence (Windows persistent Chrome, 900px height, DPR 1):
-After captures were refreshed after merging #1068 and #1070, retaining the Host settings rows and resizable navigation panels.
-
-| View | Before | After |
-| --- | --- | --- |
-| 1440px Light / English | [Before](assets/theme-toggle-1042/before-1440.png) | [After](assets/theme-toggle-1042/after-1440.png) |
-| 640px Dark / Korean | [Before](assets/theme-toggle-1042/before-640.png) | [After](assets/theme-toggle-1042/after-640.png) |
-
-[640px rail](assets/theme-toggle-1042/after-640-rail.png) and
-[640px Settings](assets/theme-toggle-1042/after-640-settings.png) retain readable
-labels, control padding and reachable controls. Footer centers align without
-clipping or crowding. These captures are manual evidence, not pixel assertions.
-The `color-mode` browser regression exercises the real transition API once and
-checks automated/reduced-motion bypasses; it passed in about 23 seconds locally.
+Current scope is defined in [State rules](#state-rules); geometry is defined in [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership).
 
 ## PDF source paper (#1337)
 
