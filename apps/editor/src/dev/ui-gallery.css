@@ -25,9 +25,3 @@
 }
 
 .gallery-table-example { min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-.gallery-table-example table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
-.gallery-table-example th, .gallery-table-example td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: 1px solid var(--id-color-border-subtle); white-space: nowrap; }
-.gallery-table-example th { background: var(--id-color-surface-subtle); font-weight: 500; }
-.view-table-scroll { min-width: 0; max-width: 100%; }
-.gallery-table-example th, .gallery-table-example td { min-width: calc(var(--space-4) * 8); max-width: calc(var(--space-4) * 24); white-space: normal; overflow-wrap: anywhere; }
-.gallery-table-example .data-table th, .gallery-table-example .data-table td { min-width: 0; max-width: none; }
