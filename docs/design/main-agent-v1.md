@@ -1,12 +1,8 @@
 # 비서: 현재 동작 계약
 
-> 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
-
 - Status: Implemented
-- Last verified: 2026-11-14 — Windows 제한 언어 모드의 대체 편집 안내 추가. 공급자 제한 실행 비교와 기존 master의 실제 AI 수락 범위는 [조사 기록](../reviews/2026-11-14-assistant-completion.md)을 따른다. 이 안내 추가 뒤의 실제 AI 재측정은 하지 않았다.
-- Previous verification: 2026-11-13 — #1360 화면 도구·요청 통로 제거와 활성 경로·문서 보호를 코드·대상 검사와 대조. 실제 AI 수락 시험의 범위·결과는 해당 PR 기록을 따른다.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Authority: [ADR-0021](../adr/0021-general-agent-assistant.md), [ADR-0014](../adr/0014-main-agent-app-server.md), [ADR-0017](../adr/0017-bundled-client-and-official-ai.md).
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
 
 - Scope: 대상 Host의 Codex·Copilot 연결, 설정과 대화. 플러그인의 세부는 화면 코드·실행 계약을 따른다.
 
@@ -153,7 +149,7 @@ Copilot 진단은 진행 대화와 분리된 짧은 연결로 새로 조회한�
 초안의 붙여넣기 이미지는 입력창 위 별도 줄의 64px 썸네일과 빼기 버튼으로 표시하며, hover·focus 안내와 접근 가능한 이름에 ‘이미지 1’(영어 ‘Image 1’)처럼 순서를 넣는다. 일반 파일 칩은 그 위 줄에 유지하고 업로드 중에는 같은 썸네일 줄에 진행 표시를 둔다. 클립보드 미리보기는 화면 세션에만 유지하며, 데이터가 없거나 보낸 메시지에서는 기존 이름 칩을 유지한다. 연속 붙여넣기는 입력 순서대로 업로드하며, 남은 업로드가 끝날 때까지 전송을 비활성화한다.
 활성 문서 경로는 메시지·재전송 때 화면이 직접 붙이며 저장된 내용 기준이다. 미저장 본문·선택 영역·탭 목록은 보내지 않는다. 열린 폴더는 권한·첨부 검사 입력으로 유지하지만 모델 설명 맥락에는 넣지 않는다.
 
-비서는 창·탭·설정 조회, 탭·폴더 조작, 표시 설정 변경·되돌리기를 제공하지 않는다. 사용자가 직접 조작한다. 화면 등록·Host 요청 실행·ACK/응답 캐시 통로도 없다. 대화 관찰·질문·문서 변경 보기와 되돌리기는 유지한다.
+비서는 창·탭·설정 조회, 탭·폴더 조작, 표시 설정 변경·되돌리기를 제공하지 않는다. 사용자가 직접 조작한다. 대화 관찰·질문·문서 변경 보기와 되돌리기는 유지한다.
 
 사용자 메시지는 오른쪽 말풍선, 비서 답변은 왼쪽 본문으로 표시하고 턴 끝에서 전체 답변을 복사한다.
 작업 과정은 기본 접힘이며 질문·확인은 과정 밖에 둔다. 위로 읽을 때 위치를 유지하고 새 내용과 하단 이동을 안내한다.
@@ -218,11 +214,3 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 실제 AI 동작의 수락 기준과 실행법은 [비서 수락 시험](../test/README.md#비서-수락-시험-수동-측정)을 따른다.
 정적 문서·코드 대조, fixture 통과, 실제 AI 실행과 사람의 업무 수락은 각각 구분해 보고한다.
 #1589 칩 시각 확인: [1440 라이트](assets/assistant-paste-1589/light-1440-ko.png) · [1440 다크](assets/assistant-paste-1589/dark-1440-ko.png) · [640 다크](assets/assistant-paste-1589/dark-640-ko.png).
-
-## 이력
-
-[축소 전 문서](https://github.com/litzio/litzio/blob/422e0c1e5499678623a7f5d2be0ad28e4f90a132/docs/design/main-agent-v1.md)에 당시 구현 설명·검증·캡처·대체된 규칙을 보존한다. 이 기록은 현재 요구사항이 아니다.
-
-## 화면 도구 제거 확인 (#1360)
-
-2026-11-13 소유자 결정에 따라 화면 대행을 제거했다. 1440px 라이트에서 표시 변경 카드·Undo만 없어지고 일반 설정과 대화가 유지되는 것을 [변경 전](assets/assistant-screen-removal/before-1440-light.png)·[변경 후](assets/assistant-screen-removal/after-1440-light.png)로 확인한다.

@@ -1,7 +1,7 @@
 # Filesystem Host Boundary v1
 
 - Status: Implemented
-- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Authority: shared file Host boundary for Vite, [ADR-0004 Desktop](../adr/0004-desktop-host-distribution.md) and [ADR-0005 HTTP](../adr/0005-http-host.md). [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) owns persistence semantics.
 - Date: 2026-09-23
 - Scope: 실제 filesystem에 접근하는 주체와 Browser Editor, Host, Core 사이의 책임 경계.
@@ -13,10 +13,9 @@ union, limits and snapshot policy are specified in [Citations v1](citations-v1.m
 
 검증 이력은 [별도 기록](../reviews/filesystem-host-boundary-history-2026-11.md)에 보존한다.
 
-
 ## Shared local daemon transition (#1142)
 
-[ADR-0016](../adr/0016-shared-local-daemon-host.md)의 PR2는 현재 무인증 daemon의 선택 Root와 OS 휴지통 삭제를 구현한다. Linux는 외부 명령 없이 freedesktop 홈 휴지통(`$XDG_DATA_HOME/Trash`, 미설정·상대 경로면 `~/.local/share/Trash`)의 `files/`와 `info/*.trashinfo`에 충돌 없는 이름, percent-encoded 절대 Path와 로컬 DeletionDate를 기록한다. 다른 디스크로의 이동(EXDEV), 휴지통 폴더 생성·기록 실패는 원본을 보존하며 거부하고 영구 삭제로 대체하지 않는다. 디스크별 `.Trash-$uid`는 지원하지 않는다. 휴지통 실패 이유·오류 코드는 클라이언트에 전달하되, Root 제한의 일반 파일 오류는 범위 밖 resolved path를 숨기고 오류 코드만 노출한다. 인증 보류(#1145)·탐색·인스턴스 수명은 [HTTP Host](http-host-v1.md#shared-local-daemon-1142-pr2)를 따른다. Desktop 연결과 종료 정책·플러그인/AI 수명은 PR3/PR4에서 전환한다.
+[ADR-0016](../adr/0016-shared-local-daemon-host.md)에 따라 현재 무인증 daemon의 선택 Root와 OS 휴지통 삭제를 구현한다. Linux는 외부 명령 없이 freedesktop 홈 휴지통(`$XDG_DATA_HOME/Trash`, 미설정·상대 경로면 `~/.local/share/Trash`)의 `files/`와 `info/*.trashinfo`에 충돌 없는 이름, percent-encoded 절대 Path와 로컬 DeletionDate를 기록한다. 다른 디스크로의 이동(EXDEV), 휴지통 폴더 생성·기록 실패는 원본을 보존하며 거부하고 영구 삭제로 대체하지 않는다. 디스크별 `.Trash-$uid`는 지원하지 않는다. 휴지통 실패 이유·오류 코드는 클라이언트에 전달하되, Root 제한의 일반 파일 오류는 범위 밖 resolved path를 숨기고 오류 코드만 노출한다. 인증 보류(#1145)·탐색·인스턴스 수명은 [HTTP Host](http-host-v1.md#shared-local-daemon-1142-pr2)를 따른다. Desktop 연결·종료와 플러그인·AI 수명은 각 현재 계약을 따른다.
 
 ## Plain text file boundary (#817)
 
@@ -40,14 +39,6 @@ shared HTTP/Vite endpoints gain no OS-launch operation. The main process keeps t
 opened subset, checks directory type and reuses `RootAccess` to refuse lexical/real-path escape
 and replaced roots before invoking the OS. UNC/device paths are not eligible. This is a Desktop
 OS action, with no document write, Core semantic operation or CLI parity command.
-
-
-## Docling execution (#797)
-
-Docling execution and comparison were removed on 2026-11-13 (#1592). The former
-contract is preserved in [the archive](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/filesystem-host-boundary-v1.md#docling-execution-797).
-Current plugin execution follows [Plugin stage 1](plugin-stage1-v1.md) and
-[screen code](plugin-screens-v1.md); no Docling-specific route remains.
 
 ## Purpose
 
@@ -266,7 +257,7 @@ Editor Host Save와 CLI의 파일 수정 명령은 기존 Markdown 파일을 같
 
 ### Structured document creation with images (#1371)
 
-`createAuthoredDocumentFile` is the shared K1 and CLI `create --input` operation. Core constructs canonical document semantics; Host validates supplied image bytes and publishes them beside the new document in `assets/`. It reuses the editor asset publisher, MIME/container limits, exclusive collision handling and unpublished temporary-file cleanup, adding content reuse and support for a not-yet-created document. Names include the full document filename hash and image content hash. Completed authoring images may immediately be reused across processes, so failures retain them without rollback receipts; unreferenced images may remain in assets/. Editor paste/drop naming, admission and signed ownership rollback are unchanged. Existing documents are never replaced. The exact request, bounded payloads, naming, retry and capacity evidence are in [the plugin contract](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#공용-문서-이미지긴-문서-확장-1371).
+`createAuthoredDocumentFile` is the shared screen and CLI `create --input` operation. Core constructs canonical document semantics; Host validates supplied image bytes and publishes them beside the new document in `assets/`. It reuses the editor asset publisher, MIME/container limits, exclusive collision handling and unpublished temporary-file cleanup, adding content reuse and support for a not-yet-created document. Names include the full document filename hash and image content hash. Completed authoring images may immediately be reused across processes, so failures retain them without rollback receipts; unreferenced images may remain in assets/. Editor paste/drop naming, admission and signed ownership rollback are unchanged. Existing documents are never replaced. The exact request, bounded payloads, naming, retry and capacity evidence are in [screen document creation](plugin-screens-v1.md#새-문서-저장).
 
 ### CLI revision precondition (#214)
 
@@ -388,7 +379,7 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 현재 `apps/editor/server`는 **세 Host가 공유하는 stateless filesystem 구현**이다.
 
 - `apps/editor/server/document-api.ts`가 요청된 `.md` path를 resolve하고 Node filesystem API로 read/create한다. 기존 파일 교체는 CLI와 공유하는 [File commit v1](#file-commit-v1)을 사용한다.
-- `/api/document` 등의 동일 route를 Vite HTTP, Desktop custom protocol, 독립 HTTP가 연결한다.
+- `/api/document` 등의 동일 route를 Vite HTTP, Desktop 공유 daemon, 독립 HTTP가 연결한다.
 - Host의 Root·파일·자원 교체 검사는 bigint stat의 `dev`/`ino`를 비교하여 큰 Windows inode의 정밀도를 보존한다. 자원 rollback receipt의 identity 문자열도 bigint stat 값으로 생성하고 같은 방식으로 재검증한다. receipt는 Host 프로세스 수명에 한정되며 문서에 저장하지 않는다.
 - `file-access.ts`의 HTTP Root 정책은 모든 파일 helper에 전달한다. 기존 대상은 lexical/real path, 새 대상은 기존 parent의 real path를 검사한다. Root의 경로·identity가 바뀌면 거부한다. 정적 Editor 자산은 `editor-static.ts`가 별도 고정 build directory에서 제공한다.
 - `apps/editor/shared/document-protocol.ts`가 Browser와 Host의 저장 요청·응답 타입을 공유한다. 이 파일은 Core 공개 타입을 사용하는 데이터 계약이며, 파일 접근·검증·저장 실행은 포함하지 않는다.
@@ -649,26 +640,13 @@ Open, Reload, Save, Source and asset creation share Core's [native contract](doc
 
 The shared handler exposes the [template catalog, preview and save routes](document-templates-v1.md#host-api-for-the-gallery-and-assistant). Existing `PUT /api/document` additionally accepts `template` and `language` to create through Core with the same Root and exclusive-write boundaries. The fixed app-owned template directory is a separate capability, not a caller-selected document Root.
 
-## Multi-Host Explorer (#1174 PR4)
+## Root identity metadata
 
-Explorer reads each Host through its registry client and keeps tree preferences scoped by Host.
-Open/rename/delete and local recovery changes retain the original Host. Remote file deletion
-requires the remote trash capability before dispatch; unsupported trash is a failure, never a
-permanent-delete fallback. File Explorer, log-folder and daemon start/stop remain local-only.
-The browser multi-host fixture checks remote Explorer omission; OS trash execution remains
-covered by the existing Host/OS-trash tests rather than a browser fixture claim.
-
-### Root identity metadata for view provenance
-
-Existing `GET /api/folder` responses include an opaque `rootId` computed from the chosen directory’s bigint file identity (`dev`, `ino`, `birthtimeMs`), after the existing RootAccess and real-path checks. No absolute path or account name is encoded in the ID. The app combines this metadata with its registered Host ID and already-opened folder. Source opening rechecks the same metadata before the existing document-open callback; missing, changed or unknown bindings remain unavailable. This metadata grants no additional filesystem access and introduces no Host registry or persistence.
+Existing folder responses include an opaque rootId computed from the chosen directory’s bigint file identity (dev, ino, birthtimeMs), after RootAccess and real-path checks. Plugin document opening rechecks that identity before the existing document-open callback; missing, changed or unknown bindings remain unavailable. This metadata grants no additional filesystem access or Host persistence.
 
 ## PDF byte preview (#1337)
 
 `GET/HEAD /api/file-preview?root=…&path=…` also serves `application/pdf`. The existing opened/allowed Root, realpath, no-symlink and bounded descriptor-read checks apply unchanged. PDF bytes are limited to 25 MiB (images remain 10 MiB), including files that grow during reading. This limits the full-buffer allocation on both Host and client; it is not a limit on decompressed PDF complexity. The Host checks the PDF signature; pdf.js diagnoses malformed structure and passwords in the client. Responses remain no-store/nosniff/sandboxed. No write path is added. Local and remote Hosts use the same HostClient request; the worker and font assets always come from the app origin.
-
-## Plugin-managed generated documents (#1364)
-
-Host app data holds canonical-path connections for generated documents; the document folder and Markdown carry no management metadata. GET document/editor-file exposes managedGenerated for the shared Editor/CLI warning. Moving/renaming may disconnect that warning. Opaque source revision replacement, source-first corrections, explicit same-path document regeneration and receipts use the [plugin contract](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/plugin-stage1-v1.md#generated-document-correction-and-regeneration-1364).
 
 ## Assistant image import (#1554)
 

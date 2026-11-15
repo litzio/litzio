@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Decision date: 2026-11-02
-- Last verified: 2026-11-13 — 현재 공급자 연결·대화 코드와 정적 대조. 실행 검증 없음.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Authority: [#931 소유자 결정](https://github.com/litzio/litzio/issues/931), [#967 최소 버전](https://github.com/litzio/litzio/issues/967), #1053·#1091 공급자 추가와 선택.
 - Partially supersedes: [ADR-0013](0013-ai-agent-task-service.md)의 상주 비서 도입 시 전용 Codex 홈을 만드는 조건.
 - Partially superseded by: [ADR-0017](0017-bundled-client-and-official-ai.md)의 공식 AI·daemon 수명, [ADR-0021](0021-general-agent-assistant.md)의 직접 편집·권한·전용 도구 기준.
@@ -22,13 +22,4 @@
 
 ## 대체 관계와 현재 동작
 
-기존 문서의 텍스트 제안 전용 결정과 제한 권한의 Copilot 셸 거부는 ADR-0021로 대체됐다.
-문서는 원본을 바로 수정하며, CLI·스킬을 기본으로 쓴다. 2026-11-13 #1360에서 창 연동 도구와 요청 통로도 제거했다.
-AI 플러그인 활성화·해제에 따른 연결 수명은 ADR-0017의 공식 AI로 대체됐다.
-
 권한 매핑·모델 선택 시점·질문·대화 재개·도구의 현재 동작과 한계는 [비서 계약](../design/main-agent-v1.md)에 둔다.
-프로토콜 필드·route·검증 연대기를 별도의 아키텍처 결정으로 유지하지 않는다.
-
-## 이력
-
-[축소 전 본문](https://github.com/litzio/litzio/blob/422e0c1e5499678623a7f5d2be0ad28e4f90a132/docs/adr/0014-main-agent-app-server.md)에 당시 연결·설정·도구·검증 기록을 보존한다. 현재 요구사항이 아니다.

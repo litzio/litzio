@@ -1,26 +1,10 @@
 # ADR-0005: Standalone HTTP Host
 
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 내부 hostId·연결 고정 client·취소/세대 보호와 저장/복구 형식은 이번 PR에서 바꾸지 않았다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. 아래 원격 관련 결정은 당시 기록이며 현재 제공 기능이 아니다.
-
 - Status: Accepted
-- Last verified: 2026-11-14 — #1595 뒤의 상태·대체 관계와 현행 계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
-- Previous verification: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
-- Previous verification: 2026-10-31 (documentation-only ADR-0012 exception for plugin registration state and request records; no new runtime verification).
-- Previous verification: 2026-10-13 (Node-only package, shared Host and real browser Save/Reload verification; Windows/Linux CI required).
+- Amended by: [ADR-0016](0016-shared-local-daemon-host.md) — 공유 로컬 HTTP daemon의 연결·Root·수명.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Authority: architectural decision under [AGENTS.md](../../AGENTS.md). Related: [ADR-0002](0002-document-persistence-semantic-ownership.md), [ADR-0004](0004-desktop-host-distribution.md), [HTTP Host contract](../design/http-host-v1.md).
 - Decision date: 2026-10-13
-
-## 현재 적용 범위 (2026-11-14 정적 확인)
-
-현재는 같은 PC의 공유 daemon, 개발·검사용 독립 HTTP Host, 명시적 CLI `--host`를 유지한다. 공용 파일 handler·Core 의미·파일 교체를 재사용하며 Root는 ADR-0016의 선택 옵션이다. 다른 PC 등록·여러 Host UI는 삭제됐다. 탭·기억·복구의 Host ID 제거와 새 namespace 전환도 완료했다([HTTP 계약](../design/http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2), [저장 계약](../design/editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). Docling 설정·변환 task·옛 플러그인 요청 기록은 아래 당시 Host 책임의 이력이며 현행 영속 책임이 아니다.
-
-아래에서 명시적으로 삭제·대체됐다고 적은 부분만 이력이며, 그 밖의 결정은 원문 그대로 유효하다. 위 요약은 현재 상태의 안내이며 원래 결정의 효력을 제한하지 않는다. 당시 날짜·측정·검증 범위는 그대로 보존하며, 삭제된 기능의 재도입을 요구하지 않는다.
-
-## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
-
-[ADR-0016](0016-shared-local-daemon-host.md)은 소유자 승인에 따라 Desktop의 custom protocol·in-process Host·TCP 없음 경계를 공유 로컬 HTTP daemon으로 대체하고, 실행 중 daemon 자동 탐색·연결과 수명 정책을 결정한다. 로컬 daemon은 Root 제한 없이 동작한다. 2026-11-04 소유자의 최종 승인에 따라 현재 단계는 별도 인증이 없으며 인증 방식과 시점은 #1145에서 향후 검토한다. 제품/프로토콜 버전 분리와 자동 교체 금지, 종료·휴지통·샘플·origin 정책 및 기간 한정 테스트 예외는 해당 ADR을 따른다. ADR-0016 ③에 따라 수동 원격 daemon도 Root 제한 없이 실행할 수 있고 non-loopback 시작 시 무인증 접근 위험을 경고한다. Desktop daemon은 loopback 전용이다. 공유 편집 세션과 원격용 HTTPS·계정 체계는 계속 보류한다.
-
-이 개정은 결정이며 PR1에서 제품 동작을 바꾸지 않는다. 아래 기존 transport·Root·인증·수명 서술은 개정 전 결정과 현재 구현의 기록이다. 충돌하는 결정에는 ADR-0016이 우선하며 구현 계약은 PR2~PR4에서 실제 변경과 함께 갱신한다.
 
 ## Context
 
@@ -29,14 +13,14 @@
 ## Decision
 
 - Add a thin CLI `daemon run` entry to a Node HTTP transport in `apps/editor/server` (official command `litzio daemon run` under [#1139](https://github.com/litzio/litzio/issues/1139); product names follow the [brand configuration](../guides/branding.md)). Reuse the document/asset handlers, Core semantics and File commit. Extract the existing production static-file helper for Desktop and HTTP. No new backend package or web framework.
-- Require one or more existing `--root` directories at startup. Apply the fixed allowlist in the shared file operations, checking both normalized paths and real filesystem targets. HTTP cannot fall back to unrestricted access. Vite and Desktop explicitly select their existing local policy.
+- Root 필수 결정은 [ADR-0016](0016-shared-local-daemon-host.md)의 선택 Root로 대체됐다.
 - A root grants file access; it is not the selected sidebar folder or a Workspace. Open Folder chooses one allowed root or descendant at a time; since [ADR-0009](0009-multiple-opened-folders.md) the sidebar may keep several such folders open, each still checked against the roots. HTTP starts without a document and exposes only allowed starting places and breadcrumbs.
 - Bind to loopback by default. Enforce Host/Origin checks, bounded request bodies and timeouts. Remote access belongs behind operator-controlled authentication or a trusted private network; the application does not implement accounts or authentication. A configured public origin never comes from forwarded request headers.
 - Ship a relocatable Node CLI bundle and production Editor in a local npm tarball. Runtime needs supported Node.js, without a source checkout, pnpm, tsx, Vite or Electron. CI artifacts are not a public registry release.
 
 ## Consequences
 
-Three transports reuse the same stateless file handlers. HTTP file state is startup configuration and an asset-receipt signing key; documents remain plain-text files. [ADR-0011](0011-code-module-boundary.md#app-conversion-connections-797) adds the explicitly scoped Docling device setting and one transient module task (#797); this is not document persistence or a job backend. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md) additionally permits only plugin registration state and request records in the common installation folder as an exception to this stateless Host scope. Core gains no HTTP, filesystem or editor-engine types. This adds a Host launch command, not a document semantic operation.
+Three transports reuse the same stateless file handlers. HTTP file state is startup configuration and an asset-receipt signing key; documents remain plain-text files. Core gains no HTTP, filesystem or editor-engine types. This adds a Host launch command, not a document semantic operation.
 
 Root validation does not create an OS sandbox against a hostile filesystem administrator. File commit's existing check/use race boundary remains. Protect all proxy routes, including HTML, static assets, API and media, and restrict direct upstream access. Exact limits, deployment settings and supported platforms are in the [HTTP contract](../design/http-host-v1.md).
 

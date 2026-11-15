@@ -1,25 +1,18 @@
 # Document templates v1
 
-> 2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. Host 구분을 제거한 새 기억·복구 형식은 옛 기록을 읽거나 지우지 않는다([전환 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)). 연결 고정 client와 취소/세대 보호는 유지한다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다. `multi-host`·`host-settings`의 삭제 전 검증/캡처 언급은 역사 기록이며 현재 실행 목록이 아니다. 로컬 회귀는 `local-host`·`document-tabs`·HTTP recovery를 따른다.
-
 - Status: Implemented
-- Last verified: 2026-11-14 — 현재 코드·계약의 상태와 연결을 정적으로 대조했다. 제품·브라우저·초기화·공급자 실행 재검증 없음.
-- Previous verification: 2026-11-11 — #1185 Host 선택·원격 목록/미리보기·폴더 선택·생성 탭을 Windows persistent Chrome의 두 Host fixture로 확인. 실제 외부 원격 Host·packaged Desktop 연결은 미검증.
-- Previous execution verification: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Shared-operation verification: 2026-11-04 (#1128: common Host operations, fake Codex tool calls/receipt history and child CLI execution; no real model call, packaged behavior is CI-only).
 - Scope: #1128 and #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
 - Authority: [#936 owner decisions](https://github.com/litzio/litzio/issues/936), including the 2026-11-04 approval of optional `template: { name, description }`; [native support](document-support-v1.md), [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) and [ADR-0006](../adr/0006-native-document-boundary.md).
 
 ## 현재 비서·연결 범위 (2026-11-14 정적 확인)
 
-단일 연결의 고정 client·공용 템플릿 작업·CLI·갤러리는 유지한다. 원격 Host 선택은 삭제됐다. 비서는 ADR-0021에 따라 CLI·스킬을 기본으로 쓰되 템플릿·문서 생성 전용 도구도 현재 남아 있다. `assistant-conversations.ts`는 Codex 동적 도구와 Copilot MCP에 같은 도구 목록을 연결한다. 생성 receipt·변경 확인·되돌리기는 [비서 계약](main-agent-v1.md)을 따른다. 현재 제작 지침은 요청 범위 안의 템플릿 선택·적용에 추가 동의를 요구하지 않으며 필요한 이름·원본 등 빠진 정보만 확인한다. 문서의 미저장 내용은 별도로 보호한다.
+비서는 ADR-0021에 따라 CLI·스킬을 기본으로 쓰며 템플릿·문서 생성 전용 도구도 제공한다. Codex 동적 도구와 Copilot MCP는 같은 도구 목록을 쓴다. 생성 receipt·변경 확인·되돌리기는 [비서 계약](main-agent-v1.md)을 따른다. 요청 범위 안의 템플릿 선택·적용에 추가 동의를 요구하지 않으며 이름·원본 등 빠진 정보만 확인한다. 미저장 내용은 별도로 보호한다.
 
 ## Host 요청 경계 (#1174 PR2)
 
-현재는 [단일 연결과 고정 대상](http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2)을 따른다. 아래 Host 선택·표시 설명은 삭제 전 #1174/#1185 이력이며 현재 선택 UI가 아니다. client 고정·연결 변경 거부·재전송 금지는 유지한다.
-
-템플릿 목록·미리보기 표면은 mount 시 Host client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 직접 받으며, 대화상자를 여는 시점의 현재 client로 대체하지 않는다. 원본 연결이 달라졌으면 제출을 전송 전에 거부한다. 갤러리에서 템플릿을 선택해 시작한 문서 생성은 갤러리의 고정 client를 생성 대화상자까지 전달하며, 연결 변경 뒤 새 문서 PUT도 전송 전에 거부한다. 비동기 완료 전에 활성 탭을 바꾸어도 요청이 다른 Host로 이동하지 않으며 쓰기를 자동 replay하지 않는다. 갤러리는 탐색기와 같은 SettingsSelect의 Host 선택 관례로 등록한 Host를 선택한다(#1185). 선택한 Host는 화면의 Host control과 갤러리 탭에 표시하며, 선택 변경 때 목록·미리보기를 별도로 mount하여 이전 응답·cache가 새 Host에 섞이지 않게 한다. 활성 문서 탭이나 탐색기 필터는 갤러리 대상을 바꾸지 않는다. 템플릿으로 시작한 생성 흐름은 선택 당시의 Host/client를 보존하며 그 Host의 열린 폴더만 제안하고, 폴더가 없으면 같은 Host의 폴더 picker를 연다. 생성 결과도 같은 Host의 탭으로 연다. Open template folder도 해당 Host의 기존 탐색기 열기를 사용한다. 템플릿 원본 위치·저장 규칙과 공용 작업·CLI는 그대로다.
-
+목록·미리보기는 mount 시 client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 받으며 현재 client로 대체하지 않는다. 갤러리 생성은 고정 client를 생성 대화상자와 결과 탭까지 전달한다. 연결 변경 뒤 요청은 전송 전에 거부하며 쓰기를 자동 재전송하지 않는다. 같은 연결의 열린 폴더만 제안하고 폴더가 없으면 기존 폴더 picker를 쓰며 Open template folder도 같은 연결의 탐색기 열기를 사용한다. [단일 연결 계약](http-host-v1.md#단일-연결과-고정된-작업-대상-1595-pr-2)을 따른다.
 
 ## Native document semantics
 
@@ -209,23 +202,6 @@ retrofitted. Template creation uses the existing result card/Open/guarded Undo;
 changed disk content, unsaved edits and recovery keep their existing protection.
 There is no new undo service or shared editor history.
 
-The following consent and tool-preference paragraphs record the #1128 guidance
-before ADR-0021 and the current generated guide. They are not current consent
-requirements or a claim that Copilot lacks Host tools. Current guidance is
-summarized above; the historical wording is preserved here.
-
-Generated assistant AGENTS.md and `litzio-guide` query `list_templates` at request
-time, propose a suitable template and wait for consent before reading/applying it.
-An explicitly named template supplies consent; a missing entry never silently
-falls back. Saving requires confirmation of name, description and disk source,
-followed by read-back and a refreshed catalog. Unsaved edits must be saved first
-if intended for the template. These consent rules are instructions, not a parser
-of natural-language authorization. Host input and scope checks run independently.
-
-Inside Litzio, templates use Litzio tools. CLI guidance is for terminal Codex
-continuation and richer terminal authoring with existing apply-batch/check.
-Copilot has no Litzio template tools (#1121); it offers text guidance.
-
 Before launching Codex, the Host prepends `<assistant cwd>/bin/<CLI identity>` to that child's
 PATH. A private launcher invokes this Host's CLI with its runtime: source CLI
 and tsx for source runs, bundled `cli.mjs` for distributed HTTP, explicitly supplied
@@ -245,9 +221,7 @@ exercise in-process command parsing/output, shared storage and create/reopen. Ex
 previews, HTTP transport, filesystem collision/no-overwrite, Root refusal and
 broken-file reporting, with one temporary listener closed by test cleanup.
 Host path tests cover source/packaged location calculation without writing the
-shared user folder. The existing Desktop protocol test verifies forwarding its injected Host run
-directory and using the shared save/create routes, without packaging or a new listener.
-Phase 2 adds one `pnpm browser:test template-gallery` scenario: browser-specific
+shared user folder. Phase 2 adds one `pnpm browser:test template-gallery` scenario: browser-specific
 preview lifetime/keyboard focus, native PageDown scrolling in the existing long
 preview, real template PUT/open and localized POST feedback. Focus is asserted
 directly and scrolling waits for actual scrollTop movement, without a fixed sleep.
@@ -257,14 +231,12 @@ This representative flow adds no subprocess or theme/content cross product.
 Measured final local scenario time is about 12 seconds; the gallery, representative
 layout and quiet-document run takes about 1.2 minutes including runner setup.
 The existing `layout-rules` and `quiet-document` cover the shared shell.
-`desktop-updates` keeps its real Tab route through the new gallery entry, Docling
-and Settings. The original fixed Explorer-to-Docling assertion failed in CI;
-the updated check asserts each stop rather than skipping focus/order validation. Manual
+`desktop-updates` keeps its real Tab route through the new gallery entry and Settings. Manual
 captures are separate from automatic assertions; see [gallery visual review](#gallery-visual-review).
 
-Placeholder substitution, folder templates and Docling result formatting (#1103)
+Placeholder substitution and folder templates
 remain outside this contract. Phase 3 extends the existing generated-environment
-test with consent, live catalog and CLI command guidance assertions. Existing CLI
+test with live catalog and CLI command guidance assertions. Existing CLI
 template tests verify list/read/save/create and refusal paths; no duplicate write
 harness or real model call was added for phase 3. #1128 extends the existing fake app-server test with tool registration, captured permissions, template save/create/read and receipt history. One real CLI read from that fake child proves PATH execution; the same test asserts parent PATH preservation. The existing assistant-result browser case uses an actual template creation receipt for Open/guarded Undo (12 seconds locally). Existing packaged Desktop CLI CI adds one template read through the private launcher while optional CLI integration is off; no new packaging run or local install/update/uninstall is added. Core preservation assertions also
 check the YAML marker comment before and after template creation.
@@ -275,7 +247,7 @@ Windows persistent Chrome, Korean, Plum, 100% zoom, 1000px height; 1440px Light
 and 640px Dark. The ordinary document view demonstrates the new sidebar entry;
 the gallery is a new surface with no previous product counterpart. Manual review
 checked row centers, control padding, Korean wrapping, internal scrolling,
-viewport clipping, dark contrast and the Settings/Docling task-tab conventions.
+viewport clipping, dark contrast and the Settings task-tab conventions.
 The reading preview removes the unused empty title slot and table authoring-tool
 gutters locally (the regression first failed with a 76px heading-to-table gap); normal document rendering remains unchanged. At the Ratings
 heading, the table keeps the ordinary block gap instead of the extra 60px gutter.
@@ -304,23 +276,6 @@ The new gallery strings use a bundled i18next `templates` namespace. Adding all
 preserves typed keys/interpolation without changing compiler checks or dependencies.
 
 `litzio create` prints the created file path on one line on success, for both empty and template documents. `--format json` retains the shared creation receipt.
-
-## Remote gallery verification (#1185)
-
-아래는 삭제 전 검증과 캡처 기록이다. 현재 갤러리는 단일 연결의 client를 고정하며 Host 선택·제거·작업 집계를 제공하지 않는다.
-
-기존 `multi-host` 브라우저 시나리오를 보완하여 로컬 탭이 활성화된 상태에서 원격 catalog·preview 요청, 원격 폴더가 없는 생성 picker, template ID를 포함한 원격 PUT과 결과 탭, 템플릿 폴더 열기 및 로컬 재선택의 catalog 격리를 확인한다. 주된 검증 계층은 브라우저의 Host 연결과 생성 흐름이며 기존 `template-gallery`의 실제 로컬 쓰기·stale-client 거부 검사는 유지한다. 새 subprocess·전수 조합은 없고 두 시나리오의 최종 로컬 실행은 약 1.5분이다. localhost fixture의 성공이며 외부 Host 수락을 뜻하지 않는다.
-
-공통 구현은 탐색기의 SettingsSelect/host-filter, 기존 FolderDialog·NewDialog·Host별 Explorer의 폴더 열기와 DocumentTabs다. 기존 Button·Notice·Popover와 role token을 유지하며 새 표면·공통 interaction 예외는 없다. Host 선택은 갤러리 탭의 일시 상태이며 문서나 기기 설정으로 저장하지 않는다.
-
-Windows persistent Chrome, 100% zoom, 1000px 높이의 수동 촬영이다. 1440px English Light는 변경 전 로컬 전용과 변경 후 선택한 원격 catalog를 비교하며, 640px Korean Dark는 같은 로컬 catalog에 대상 선택이 추가된 상태를 비교한다. 행 중심·control/카드 여백·한국어 줄바꿈·탭 overflow와 콘텐츠 경계·다크 대비를 직접 확인했다. 자동 단언용 캡처가 아니며 `pnpm browser:test multi-host --screenshots`에서 임시 촬영 body를 붙여 실행한 뒤 원래 회귀 body를 복원했다.
-
-| 폭·상태 | 변경 전 | 변경 후 |
-| --- | --- | --- |
-| 1440px Light, 로컬 전용 → 원격 선택 | [capture](assets/remote-template-gallery-1185/before-1440.png) | [capture](assets/remote-template-gallery-1185/after-1440.png) |
-| 640px Korean Dark, 로컬 catalog | [capture](assets/remote-template-gallery-1185/before-640.png) | [capture](assets/remote-template-gallery-1185/after-640.png) |
-
-갤러리는 대상 Host의 열린 작업으로 집계한다. 정상 작업 보고와 다른 Host 제거 직전 재보고는 같은 집계 함수를 사용하여 전체 summary 교체 시 갤러리 작업을 보존한다. 기존 `multi-host`에 A의 갤러리만 남긴 채 B 제거를 준비하고 native bridge에서 취소하는 대표 사례를 보완했다. 정상 보고·제거 요청 시점·취소 후 보고에서 A의 `openWork: 1`을 확인한다. 수정 전에는 제거 요청의 summary에서 A가 빠져 `undefined`로 실패하는 것을 실행 확인했다. 주된 검증 계층은 Editor→Desktop bridge 보고이며 새 subprocess·전수 조합은 없다. 실제 packaged native 확인창 실행을 뜻하지 않는다.
 
 ### Failed user-template creation (#1592 follow-up)
 

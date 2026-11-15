@@ -3,16 +3,13 @@
 #1285의 [완전 초기화](app-reset-v1.md)는 기존 pending-work/restart 검사를 재사용하며 현재 미저장 편집·초안·진행 작업을 먼저 정리해야 한다. 사용자가 삭제 범위를 확인한 뒤 로컬 복구 기록도 제거하므로 기존 일반 닫기에서의 복구 보존과 구분한다. 늦은 `beforeunload` 거부는 종료 후 helper 취소로 연결하며, CLI가 살아 있는 편집 owner를 확인 flag로 우회하지 못한다.
 
 - Status: Implemented
-- Last verified: 2026-11-13 — #1595 PR3 형식·구형 writer 격리 코드, Editor 대상 단위·persistent recovery/storage/structure 검사. 전체 검증 범위와 한계는 PR에 기록.
-- Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
-
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 
 - Boundaries: ADR-0001, ADR-0002, ADR-0003. Markdown remains the disk SSOT; Core operations and canonical validation remain the write path.
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
 검증 이력은 [별도 기록](../reviews/editing-session-save-history-2026-11.md)에 보존한다.
-
 
 ## 연결에 고정된 세션 요청
 
@@ -21,7 +18,6 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 탭 admission과 복구 복원은 `apps/editor/src/tab-admission.ts`가 담당한다. 시작 복원 effect와 탐색 기억 수명은 `apps/editor/src/host-tab-restore.ts`의 훅이 담당한다. 작업 상태·콜백·focus ref는 App에 남기며, 문서 열기 거절·Reload 확인의 Dialog 표시만 `apps/editor/src/shell/DocumentOperationDialogs.tsx`에 둔다.
 
 모든 탭 레코드는 작업 시작 시점의 client를 가진다. 열기·새 문서/갤러리 생성·복구 복원·시작 시 기억 탭 복원은 같은 client를 탭까지 전달하고, 탭 생성 직전에 assertCurrent로 연결을 확인한다. 늦은 응답의 연결이 달라졌으면 host-connection-changed로 거부하며 열린 작업·기억·복구 데이터는 버리지 않는다. DocumentTab은 현재 client를 다시 조회하지 않는다. 세션 mount 시 고정한 client가 Reload·Save·Source·자산 생성과 미사용 자산 rollback을 담당하고, 저장 비교·템플릿 저장·이미지 선택기의 목록·시작 위치·미리보기는 소유 세션의 고정 client를 전달받고, 복구 비교는 열릴 때 캡처한 client로 요청한다. 다른 탭 활성화로 대상을 바꾸지 않는다. 로컬 Save/Restore/409 계약과 Core 저장 의미는 유지한다.
-
 
 ## 단일 연결의 기억·복구 형식 (#1595 PR 3)
 
@@ -97,7 +93,7 @@ boundary. [Explorer behavior](editor-ux-shell-v1.md#child-folder-trash-1401).
 ## File deletion and rename (#505 / #504 PR A)
 
 Confirmed file deletion closes its open tab, discards applied edits/property drafts and deletes
-all recovery records matching its Host and path. Dirty work requires the explicit Delete and discard changes
+all recovery records matching its path. Dirty work requires the explicit Delete and discard changes
 confirmation instead of the ordinary tab Save/Don't save prompt. The file tree receives focus.
 
 Renaming a document file in the same folder keeps the mounted editor, history, selection and drafts. It changes the live
@@ -136,12 +132,11 @@ overwriting the changed disk file. On incomplete Host rollback, affected clean t
 reload actual remaining disk contents. Skipped unreadable/non-native files appear in a notice.
 
 Only tabs in the same Editor window participate in the dirty check. No other-window/browser-tab
-or cross-Host live-state communication is introduced. **Cross-window protection is Save-time
+live-state communication is introduced. **Cross-window protection is Save-time
 revision conflict**: another window retains its local edits, but its next Save against the old
 revision is refused after reference rewriting. The current #372 locator-alias limitation remains.
 Image/document commit order and best-effort rollback limits are specified by the
 [Host contract](filesystem-host-boundary-v1.md#referenced-image-rename-504-pr-b).
-
 
 ### Figure-form image rename (#652)
 
@@ -177,7 +172,6 @@ engine history. An incomplete Host rollback follows #504's explicit reload/error
 transport loss can leave an uncertain disk outcome and must be reported, not silently retried.
 No new Core semantic operation or CLI surface is added: #504 owns the file/reference operation.
 
-
 ## Editor ownership
 
 The Editor-internal [`useDocumentSession`](../../apps/editor/src/useDocumentSession.ts) owns one document's path, opening read model and
@@ -187,7 +181,7 @@ It handles Save, Source, Reload and image selection. Each mounted `DocumentTab` 
 and `DocumentEditor`; each [editor group](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)
 shows its active tab. `host-tab-restore.ts` owns startup requests and tab navigation memory;
 `App` owns Open/New requests,
-the Host-and-path tab list, folder tree, preferences, shared header/outline, Desktop integration
+the path-based tab list, folder tree, preferences, shared header/outline, Desktop integration
 and the shared **Save / Don't save / Cancel** close dialog. A tab is added only after Host success.
 Opening a Host-returned path already in the list activates its existing session without replacing it,
 moving that tab into the requested group when needed.
@@ -510,7 +504,6 @@ content bounds and footer button bounds at both supported widths.
 | Source comparison, light | [Capture](../reviews/assets/recovery-source-diff-655/comparison-640-light.png) | [Capture](../reviews/assets/recovery-source-diff-655/comparison-1440-light.png) |
 | Source comparison, dark | [Capture](../reviews/assets/recovery-source-diff-655/comparison-640-dark.png) | [Capture](../reviews/assets/recovery-source-diff-655/comparison-1440-dark.png) |
 
-
 ### Recovery regression coverage
 
 `recovery-storage` tests real IndexedDB write ordering/barriers, expiry, stale restore and quota
@@ -547,7 +540,6 @@ and explains that saving requires Edit. Close/Reload/beforeunload still protect
 both applied changes and retained drafts. Source keeps its existing applied-only
 preview and Save behavior. [Shell](editor-ux-shell-v1.md#read--edit--source-849) owns
 the Read interaction boundary.
-
 
 Undo/Redo from nonediting shell focus (#772) uses only the active editor's applied
 history. It neither applies nor discards unrelated drafts; input/textarea/contenteditable
@@ -950,7 +942,6 @@ external-change and text-mode regressions protect surrounding behavior. Captures
 are manual `pnpm browser:test pre-save-diff --screenshots`, separate from CI success
 runs, at `tmp/pre-save-diff/visual-{1440,640}-{light,dark}.png`.
 
-
 ## Recovery Visual comparison (#1201)
 
 Recovery Compare reuses `SourceCompare` / `VisualCompare` from pre-save review; no
@@ -988,8 +979,7 @@ The existing recovery browser scenario verifies Visual/Source, 1440/640 pair lay
 input/paste/Undo/Ctrl+S rejection, document/disk/record/session invariance and editor
 destruction. Existing revision, Core-refusal, missing-file and source-worker budget
 checks remain. Bibliography covers the recorded common root and current dependency
-context; multi-Host covers a real recorded native snapshot through its remote client,
-semantic endpoint and remote image URLs. Captures are manual only:
+context. Captures are manual only:
 `pnpm browser:test recovery --screenshots`,
 `tmp/296/visual-{1440,640}-{light,dark}.png`.
 
@@ -1009,11 +999,11 @@ copy and recovery actions outside it. No extra screenshot traversal runs in CI.
 ## Document read lifetime and Host isolation (#1243)
 
 Explicit Open is owned by App per destination group with its captured HostClient and path.
-It does not acquire the window operation lock or disable other Hosts' tab navigation, Open or Save.
+It does not acquire the window operation lock or disable other groups’ tab navigation, Open or Save.
 Selecting a tab, opening another document in that group, closing its tab, or choosing Cancel
 in the existing notification cancels the pending Open. A superseded response cannot admit a tab.
-File rename/delete invalidates pending Open on the same Host and path before any asynchronous work,
-including descendant paths for a folder target. Other Hosts remain independent, even at the same path.
+File rename/delete invalidates pending Open on the same path before any asynchronous work,
+including descendant paths for a folder target.
 A failed or uncertain mutation does not revive an invalidated read; opening again is explicit.
 Document GET and its bibliography read share a 15-second timeout and AbortSignal.
 Mounted native/text sessions cancel their reads on disposal; startup restoration cancels on effect cleanup.

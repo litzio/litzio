@@ -1,22 +1,14 @@
 # HTTP Host v1
 
-> 2026-11-13 (#1592): 선언형 query/form·검수 대조 틀·Docling·K1/지정 공급은 삭제했다. 해당 모듈·캡처·API의 아래 기록은 현재 제공 기능이 아니다. 현재 플러그인은 [실행·제작](plugin-stage1-v1.md)과 [화면 코드](plugin-screens-v1.md)를 따른다. 보관: `archive/plugins-declarative-2026-11-13`, `archive/2026-11-13-plugins-declarative`.
-
-
 #1285: [앱 초기화](app-reset-v1.md)의 local apply는 실행 중인 Host를 강제 종료하거나 원격 삭제 API로 노출하지 않는다. HTTP/Vite Host와 CLI가 계정 공용 process gate에 참여해 데이터 삭제와 새 writer 시작을 배타 제어한다. `GET /api/app-reset/paths`는 runtime이 고정한 절대 templates·assistant cwd·설정 파일 경로만 반환하며 Desktop은 자신의 해석과 대조한다. Host close는 listener/socket 종료뿐 아니라 이미 수락한 비동기 request handler의 완료도 기다린 뒤 writer lease를 해제하고, 반복 close는 같은 종료 promise를 반환한다. Vite는 문서·asset middleware의 SSR module loading부터 promise를 추적하며 종료 중 새 Host 서비스 생성을 거부한다. `server.close()`는 그 정리도 기다리고 내부 restart의 listener 종료 이벤트 역시 같은 drain 후에만 lease를 해제한다. socket 종료를 파일 변경 취소로 간주하지 않는다. 종료 실패는 marker로 남아 확인 없이 초기화하지 못하게 한다. 일반 클라이언트 단절이 Host/AI 수명을 끝내는 것으로 취급하지 않는다.
 
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 당시 구 플러그인 등록/관리/기여 탭·Docling을 제거했다. 현재 재개한 플러그인은 아래 Plugin stage 1 절을 따른다. 구 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. ④ Host 클라이언트와 ⑤ Desktop 번들 origin은 아래 경계를 구현한다.
+AI는 daemon 공식 기능이며 현재 계약은 [비서 계약](main-agent-v1.md)을 따른다.
 
 - Status: Implemented
-- Run-as verification: 2026-11-05 — #1199 Windows Host health/capability·CLI lifecycle and two-Host persistent Chrome fixture; 1440px/640px footer captures. Actual Windows Desktop to Linux connection remains unverified.
-- Last verified: 2026-11-14 — 현재 코드·계약의 상태와 연결을 정적으로 대조했다. 제품·브라우저·초기화·공급자 실행 재검증 없음.
-- Previous verification: 2026-11-06 — #1247 ADR-0020·문서 색인·플러그인 subprocess/secret/제작 및 공통 뷰 코드를 정적 대조. 제품 실행 재검증 없음. 이전 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
-- Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
+- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
 - CI artifact policy verification: 2026-10-30 (#808; tarball upload removed, screen evidence retained on failure; workflow policy regressions and docs check, no local HTTP/browser execution).
 - Documentation verification: 2026-10-26 (pathless Host response versus Editor startup/restoration compared with document-api.ts, App.tsx and the session contract; no new HTTP/browser execution).
-- Previous execution verification: 2026-10-16 (#296 PR3: Windows production Host with actual Chrome process crashes, same-profile/origin restart, local Restore, real Save/Reload and external 409 preservation; HTTP boundary tests. Linux execution remains required CI).
-- Previous verification: 2026-10-15 (ADR-0006 route/validation cleanup by code/test comparison; no runtime regressions rerun). Previous verification: 2026-10-13 (real TCP boundaries, packaged Node-only execution and production browser Save/Reload; Windows/Linux package and browser checks are required in CI).
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
 - Scope: local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
 
@@ -34,7 +26,7 @@ request resolution, interruption and disconnect expire it without a new timeout.
 The shared Host question tool also supports Copilot over its HTTP MCP connection;
 there is no native ACP interactive-question extension in the current SDK.
 
-Full access document/review Host tools can address paths outside opened folders
+Full access document Host tools can address paths outside opened folders
 but still obey this Host's fixed --root policy. Restricted Host tools retain their
 folder boundary and explain how the user can open the folder or select Full access.
 File revision checks, plugin secret/private-write restrictions and explicit
@@ -55,10 +47,6 @@ for tool transport; shared question cards are supported, native ACP question ext
 
 운영 연결은 로컬 하나다. per-ID registry·목록·라벨·추가/제거와 다중 monitor는 없다. `hostConnection`은 현재 연결의 capability·상태·실행 계정을 한 곳에서 관측하며 늦은 응답은 attempt token으로 거절한다. 저장·복구에 남은 알 수 없는 식별자를 로컬로 대체하지 않는다. 세션·receipt가 캡처한 client는 유지한다. origin이 바뀌면 기존 저장·rollback·비서·템플릿 요청을 전송 전에 거부하며 새 작업만 새 client를 얻는다. 같은 origin 재연결은 기존 세션을 유지하고 이미 전송한 쓰기는 재전송하지 않는다. 늦은 capability 관측의 세대 보호와 취소도 유지한다.
 
-## 원격 Host (#1174 PR0~4 완료)
-
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
-
 ## 단일 연결과 고정된 작업 대상 (#1595 PR 2)
 
 `host-transport.ts`는 불변 HTTP client를, `host-client.ts`는 단일 연결 관측과 Desktop 주소 gate를 소유한다. 화면 context는 ID를 선택하지 않고 mount 시 client를 캡처한다. 문서 탭·PDF·플러그인 화면·비서·템플릿·파일 작업 확인창은 시작할 때의 client를 유지한다. 주소가 바뀌면 `HostConnectionChangedError`로 기존 작업의 후속 Save·rollback·요청을 전송 전에 거절하고 새 작업만 새 client를 얻는다. 같은 주소 재연결과 진행 중 쓰기의 원래 주소는 유지하며 쓰기를 자동 재전송하지 않는다.
@@ -73,9 +61,7 @@ Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮�
 
 ## Desktop remote registration (#1174 PR3a)
 
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
-
-Desktop CSP의 connect/img는 확인된 로컬 daemon의 정확한 origin만 추가한다. 제품 앱 script는 앱 번들이며, 신뢰·활성 플러그인 화면은 [화면 코드 계약](plugin-screens-v1.md)에 따라 blob 모듈로 실행한다. main HTTP proxy를 만들지 않는다. 로컬 번들 UI를 위한 한정 health GET/protocol OPTIONS와 API/media의 Origin·JSON·sandbox 경계는 유지한다.
+Desktop CSP의 connect/img는 확인된 로컬 daemon의 정확한 origin만 추가한다. 제품 앱 script는 앱 번들이며 신뢰·활성 플러그인 화면은 [화면 코드 계약](plugin-screens-v1.md)에 따른다. 로컬 번들 UI의 한정 health GET/protocol OPTIONS와 API/media의 Origin·JSON·sandbox 경계는 유지한다.
 
 ## Desktop bundled origin (#1150 ⑤)
 
@@ -112,8 +98,8 @@ Desktop main-frame IPC 검사와 실제 dev Electron의 새 origin 복구를 구
 `--public-origin` allow server/deployment settings; without those options it is local mode. `daemon status` verifies its identity and prints a table; `--json` returns structured status including its URL.
 `daemon stop --confirm` stops that exact instance; confirmation acknowledges that other
 clients/jobs can be interrupted. Restart is explicit: stop, then start. Product changes never
-replace a running daemon. Desktop uses this daemon through the PR3 connection/owner-pipe path;
-plugin/AI lifetime revision and the one temporary packaged smoke restoration remain PR4.
+replace a running daemon. Desktop uses this daemon through the connection/owner-pipe path;
+plugin/AI lifetime follows [the plugin contract](plugin-stage1-v1.md) and [assistant contract](main-agent-v1.md).
 
 ### Host and daemon terminology (#1139)
 
@@ -172,8 +158,6 @@ Desktop invokes the same local `run`/lock path with a private IPC pipe (`LITZIO_
 
 **Owner-approved final decision, 2026-11-04:** this phase has **no authentication**.
 The method and adoption timing are deferred to [#1145](https://github.com/litzio/litzio/issues/1145).
-The previous token-file, login/bootstrap, session-cookie, Bearer-check and secret browser-link
-implementation is removed, not disabled. There is no cleanup/migration of old credentials.
 Browsers open the ordinary daemon URL directly. Instance identity and protocol checks are
 compatibility/ownership guards, not proof of an authorized caller.
 
@@ -247,7 +231,6 @@ Choose a folder, then a Markdown file in the sidebar. Several opened folders may
 
 Explorer file deletion uses the daemon OS trash adapter: Windows Shell IFileOperation recycle-bin API, Linux freedesktop home trash (`$XDG_DATA_HOME/Trash`, or `~/.local/share/Trash` when XDG_DATA_HOME is absent or relative), without external commands. Linux writes paired `files/` and `info/*.trashinfo` entries with a percent-encoded absolute Path and local DeletionDate, reserving collision-free names. It only renames on the same filesystem: cross-device (EXDEV) moves are refused; per-device `.Trash-$uid` is outside this contract. Unsupported/unavailable trash fails without unlink fallback. The validated `deleteFile` handler still checks folder/file identity and expected revision. Tests use scratch-only adapters/data homes and never touch the user trash. Failures expose the trash failure reason/error code; restricted Root filesystem errors expose their code without leaking resolved paths outside the roots. Asset receipt rollback and other internal cleanup retain their existing narrow deletion contracts.
 
-
 Every document read/create/save/preview, folder list/browse/create, media read, image choice source and asset upload/rollback passes the same root policy. Figure validation performs no filesystem access. Static Editor assets are a separate fixed build directory, never a requested document directory.
 
 - Both the normalized locator and resolved target must lie in the allowed union. Component-aware comparisons reject sibling prefixes and other drives. Windows case/separator behavior follows filesystem path handling: the matching prefix of both the locator and the resolved target must be the pinned root directory itself, so names that JavaScript case folding equates but the filesystem keeps distinct (for example KELVIN SIGN and `k` on NTFS) are rejected.
@@ -319,7 +302,7 @@ Windows/Linux CI runs package and production browser checks; Windows splits host
 `pnpm browser:test http-host` also runs `http-recovery.spec.ts` against its own production CLI daemon.
 It kills only its launched browser PID (and its children on Windows), checks exit and a new PID,
 and reopens the same persistent profile and exact origin. Browser crash recovery keeps the daemon alive;
-PR4 additionally stops/restarts that owned daemon via a native bridge stand-in and asserts
+The recovery scenario additionally stops/restarts that owned daemon via a native bridge stand-in and asserts
 unsaved edits, Undo/Redo and Save without renderer reload. Committed
 records survive; the actual list/prompt/Restore, dirty state, explicit Save/Reload and external
 file conflict are asserted. This was executed on Windows Chrome; the same HTTP CI command runs
@@ -353,11 +336,7 @@ for bounds, pairing and receipt semantics. CLI `compare <before> <after> --json`
 the same executor in its own process, rather than contacting the running daemon.
 ## Plugin stage 1 (ADR-0020)
 
-현재 플러그인의 등록·등록 단위 신뢰·활성·Node 하위 프로세스·reload·Windows DPAPI secret·비서 제작은 [실행·제작 계약](plugin-stage1-v1.md), React 코드 화면·공통 부품·공식 저장은 [화면 코드 계약](plugin-screens-v1.md)을 따른다. generated-views·rowSchema·선언형 renderer는 삭제됐다.
-
-다음 문단은 삭제 전 ADR-0020 1단계 이력이다. 당시 “provides”·“unavailable”은 현재 제공 여부를 뜻하지 않는다.
-
-Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md): local artifact registration, trust/enable, target-daemon subprocess execution and reload, Windows DPAPI secret storage, and the assistant authoring kit. Management uses the shared operations/CLI and a separate Codex tool; per-call confirmation is replaced by visible activity records. Secret values are entered directly by the user in settings UI and are not exposed to the assistant. Display tools remain restricted to their existing fields. [Generated views](generated-views-v1.md) provide the common Core/Host runtime and bundled app renderer, including active plugin read operations with row schemas. Plugin-specific generatedUi/views contributions remain unsupported; this does not mean the common view runtime is unavailable.
+현재 플러그인의 등록·등록 단위 신뢰·활성·Node 하위 프로세스·reload·Windows DPAPI secret·비서 제작은 [실행·제작 계약](plugin-stage1-v1.md), React 코드 화면·공통 부품·공식 저장은 [화면 코드 계약](plugin-screens-v1.md)을 따른다.
 
 ## Node runtime security baseline (2026-11-11)
 
@@ -377,7 +356,7 @@ OS user permissions; plugin subprocesses are not an OS security sandbox.
 
 | Execution path and source evidence | Runtime / response control / affected process |
 | --- | --- |
-| Desktop daemon launch: `apps/desktop/src/main.ts:620`, `daemon-client.ts:26`, `apps/editor/server/daemon-state.ts:27` | Newly launched daemon uses the Desktop executable with RunAsNode. An existing shared daemon retains its original runtime. The former remote health preflight (`remote-host-registry.ts:196`) consumed the configured Host's response in that daemon; this path was removed on 2026-11-13 and remains historical evidence only. |
+| Desktop daemon launch: `apps/desktop/src/main.ts:620`, `daemon-client.ts:26`, `apps/editor/server/daemon-state.ts:27` | Newly launched daemon uses the Desktop executable with RunAsNode. An existing shared daemon retains its original runtime. |
 | Desktop main daemon probes: `apps/desktop/src/daemon-client.ts:35`, `apps/editor/server/daemon-state.ts:149` | Electron's Node fetch in the main process; response control requires replacing/compromising the selected local loopback service (not an ordinary remote network peer). |
 | CLI daemon / commands: `packages/cli/src/daemon.ts:91`, `cli.ts:1963`, `plugins.ts:83`; Desktop shim: `apps/desktop/src/cli-integration.ts:19` | Standalone CLI/development use system Node; Desktop shim and assistant CLI use Electron RunAsNode when launched from Desktop. Selected local/development Host responses affect the CLI process; daemon responses are handled by its own runtime. |
 | Plugin process: `apps/editor/server/plugins/plugin-process.ts` | Child inherits the daemon runtime. Trusted external plugin code owns any service requests it makes; no conversion service is bundled. |
