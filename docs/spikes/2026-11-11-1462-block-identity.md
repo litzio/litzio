@@ -22,7 +22,7 @@ Docling 검수에서 교정 후에도 블록과 원본 대응을 유지할 수 �
 ## 결론/후속
 
 - 결론: **채택(방식 A)**. master의 Docling 검수 설계 "2026-11-11 아키텍처 확정"이 spike ②의 방식 A를 쓰기로 했다. 블록 영속 ID는 후속으로 남겼다.
-- 관련 이슈·PR·문서: [#1462 Docling 검수 3단계](https://github.com/litzio/litzio/issues/1462) · [Docling review stage 3 설계](../design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인) · [보고서(master)](../reviews/1462-spike-block-identity.md)
+- 관련 이슈·PR·문서: [#1462 Docling 검수 3단계](https://github.com/litzio/litzio/issues/1462) · [Docling review stage 3 설계](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인) · [보고서(master)](../reviews/1462-spike-block-identity.md)
 
 ## 코드 위치
 

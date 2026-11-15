@@ -206,13 +206,14 @@ the viewport's top plus the target's scroll margin, preserving the existing phys
 clearance. Sidebar and Outline retain their independent scroll regions. See the
 [scroll contract and measured captures](editor-ux-shell-v1.md#document-scroll-container-488-phase-0).
 
-- Dedicated Settings (#594/#605/#694) covers the viewport with a 40px minimum header, the existing
-  240px sidebar width and a bounded 680px content column (`--layout-settings-content-width`).
+- The [Settings task tab](editor-ux-shell-v1.md#settings-task-tab-1032) retains the shell title strip,
+  Explorer and task tabs, with the existing 240px category navigation and a bounded
+  680px content column (`--layout-settings-content-width`) inside its editor group.
   Label/description and control columns share row axes; selectors use the adjustable
   `--layout-settings-control-width` (240px) and existing 32px control tokens. Content uses
   the 64px inline/32px block spacing scale; below 768px the named category list stacks above
   content with 24px content insets and single-column rows. The body scrolls inside the
-  viewport, leaving Back reachable. #488 keeps the root viewport locked and places document
+  task content area, keeping the shell tabs reachable. #488 keeps the root viewport locked and places document
   scrolling below the header; Base UI respects that lock without a reserved root gutter.
   Settings and document separators must both reach the window edge. #694 changes neither
   the lock nor document scrolling, and its OS pixel checks allow no gutter exception.

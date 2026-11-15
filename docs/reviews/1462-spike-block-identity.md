@@ -6,7 +6,7 @@
 - Branch: `spike/1462-block-identity`
 - 변경 범위: 이 보고서와 `scripts/spikes/1462-block-identity/`만. Core·SDK·Host·저장 형식·화면 변경, PR, 병합 없음.
 - Last verified: 2026-11-11 — spike `903931ef5c74a26ee9f4b99703282bc9dbe26d92` 보고서·링크 이관 점검. 실험 재실행 없음.
-- Scope: 당시 실험 기록. 현재 교정 방향은 [아키텍처 확정](../design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인)을 따른다. 스크립트·fixture는 이 PR에 포함하지 않는다.
+- Scope: 당시 실험 기록. 현재 교정 방향은 [아키텍처 확정](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인)을 따른다. 스크립트·fixture는 이 PR에 포함하지 않는다.
 
 ## 판정
 

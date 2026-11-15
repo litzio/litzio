@@ -292,7 +292,7 @@ danger 항목을 공유한다. 휴지통 미지원 항목은 실행을 막고 ho
 U23 폴더 메뉴와 U24 파일 삭제를 함께 대조했고, 다른 메뉴를 위한 새 registry나 interaction은
 추가하지 않았다. [현재 계약](editor-ux-shell-v1.md#child-folder-trash-1401).
 
-비서 입력창의 `@` 파일 후보와 `/` Codex 스킬 후보는 같은 inline listbox,
+비서 입력창의 `/` Codex 스킬 후보는 inline listbox와
 Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시하고 선택하면
 `$name`과 경로 칩을 추가한다. 설치·활성화 메뉴는 없다.
 [현재 계약](main-agent-v1.md#현재-한계).
@@ -325,9 +325,8 @@ Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시�
 패널의 프로바이더·모델·강도·쓰기 범위·Copilot 모드는 해당 대화에만 적용한다.
 프로바이더는 대화 생성 뒤 잠그고 쓰기 범위는 다음 turn부터 적용한다. 실행 중 모델·강도는 잠근다.
 대화 언어 선택은 없으며 사용자 메시지 언어를 따른다. U22의 AI 기본 언어는
-대화 없이 시작된 작업에만 적용한다. `@`의 파일 후보는 공용 Button의 listbox이며
-Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채팅에 추가**도
-같은 제거 가능한 초안 칩에 추가한다. 칩에는 파일 이름, 공용 Tooltip에는 전체
+대화 없이 시작된 작업에만 적용한다. 파일은 Explorer의 ContextMenu **채팅에 추가**로
+제거 가능한 초안 칩에 추가하며 `@`는 일반 글자다. 칩에는 파일 이름, 공용 Tooltip에는 전체
 경로를 표시한다. `assistant` 시나리오가 선택·중복·제거·참조만 보내기와 복원을
 검증한다([현재 계약](main-agent-v1.md#대화와-표시)).
 

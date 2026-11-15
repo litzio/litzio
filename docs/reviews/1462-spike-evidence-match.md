@@ -6,7 +6,7 @@
 - Authority: [순서 재조정](https://github.com/litzio/litzio/issues/1462#issuecomment-6782543427), [리치오 문서를 교정 대상으로 고정한 결정](https://github.com/litzio/litzio/issues/1462#issuecomment-6783018003). 후자가 설계 문서의 Docling 패치·replay 전제를 대체한다.
 - Artifacts: [실험 스크립트·재현 방법](https://github.com/litzio/litzio/blob/003da859be155ba4f2046d62ddc31ace303d115e/scripts/spikes/1462-evidence-match/README.md), [사전 프로토콜](https://github.com/litzio/litzio/blob/003da859be155ba4f2046d62ddc31ace303d115e/scripts/spikes/1462-evidence-match/protocol.json), [작은 측정 fixture](https://github.com/litzio/litzio/blob/003da859be155ba4f2046d62ddc31ace303d115e/scripts/spikes/1462-evidence-match/measurement.json), [전체 경보 원인 분류](https://github.com/litzio/litzio/blob/003da859be155ba4f2046d62ddc31ace303d115e/scripts/spikes/1462-evidence-match/noise-labels.json).
 - Last verified: 2026-11-11 — spike `003da859be155ba4f2046d62ddc31ace303d115e` 보고서·링크 이관 점검. 실험 재실행 없음.
-- Scope: 당시 실험 기록. 현재 교정 방향은 [아키텍처 확정](../design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인)을 따른다. 스크립트·fixture는 이 PR에 포함하지 않는다.
+- Scope: 당시 실험 기록. 현재 교정 방향은 [아키텍처 확정](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/docling-review-stage3.md#2026-11-11-아키텍처-확정소유자-승인)을 따른다. 스크립트·fixture는 이 PR에 포함하지 않는다.
 
 ## 판정
 

@@ -880,7 +880,7 @@ Verification and implementation scope are recorded in the [#256 plan](ui-languag
 
 ## Local accent color (#559)
 
-Settings offers six named presets: Blue (default), Violet, Plum, Teal, Green and Graphite.
+Settings offers six named presets: Blue, Violet, Plum (default), Teal, Green and Graphite.
 The accent control (#617) is one named radio group (Accent color / 포인트 색): six
 small circles form one row, without option boxes, check marks or individual visible
 names. Each radio retains its translated accessible name and title tooltip. Only the
@@ -1968,7 +1968,7 @@ other visible group. This does not trap focus or prevent normal document editing
 Like Plugin tabs, Settings has no document session, dirty indicator, recovery
 record or startup restoration. Switching away keeps its mounted category and
 unsaved settings drafts; closing discards view-local drafts. Applied app preferences
-remain stored independently. Assistant settings retain explicit Save. Metadata outside-pointer completion excludes the Settings tab and Sidebar entry.
+remain stored independently. Assistant settings save changes sequentially and automatically, separately from document Save ([current contract](main-agent-v1.md#연결과-설정)). Metadata outside-pointer completion excludes the Settings tab and Sidebar entry.
 Ordinary document-tab pointer switching retains its existing outside-apply behavior;
 keyboard switching retains drafts. Closing Settings selects its ordinary neighbor.
 Document input, drafts and Undo history stay with their mounted
