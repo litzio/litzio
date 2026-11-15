@@ -1,27 +1,5 @@
 # Table caption and label v1
 
-Implementation plan (#584, owner decision 2026-10-27): number every table through
-Core and canonically write every table as a `{table}` directive. Keep accepting plain
-GFM input; treat its wrapper as an explicit canonical equivalence while retaining
-the full reparse/fingerprint guard for grid, alignment, caption, label and other fields.
-Caption/label edits must not change table numbers. Existing CLI operations and inspect
-provide the command surface; no new option or operation is needed. Editor consumes
-Core numbering. No migration, alternate unnumbered table kind or #588 empty-table Save
-change is included. Completion requires pinned MyST parsing/enumeration and grid
-preservation evidence, fail-first Core coverage, targeted Core/CLI/Editor and browser
-checks, comparable 1440/390px captures, docs/typecheck/build and passing PR CI.
-
-Historical implementation plan (#555, approved table-caption portion of #557, 2026-10-26;
-empty-caption discovery superseded by #577 below):
-make captions editable inline children of the Editor table, retaining existing cell
-coordinates and the Core read model/canonical MyST format. Properties edit only Label;
-an explicit Add caption action discovers empty captions. Reuse the existing inline
-NodeViews, toolbar, history and Core save operations. Figure/equation property rules
-are excluded. Completion requires fail-first rich-caption reproduction, preserved
-formatting/references/citations, Undo/Redo, Save/Reload, caption removal/addition,
-whole-table move/delete, keyboard navigation, targeted Editor/browser checks and
-comparable real-product Before/After images. No new Core operation or CLI command:
-the existing `updateTableCaption` operation already owns the persistent semantics.
 
 - Status: Implemented
 - Fixed numbering: 2026-10-29 (#720 Core/CLI and Editor property controls/warnings); [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
@@ -37,7 +15,7 @@ the existing `updateTableCaption` operation already owns the persistent semantic
 - Direct-editing verification: 2026-10-26 (#555 and the approved table-caption portion of #557; scope and evidence below).
 - Caption-label verification: 2026-10-26 (#462 Core template rule, CLI inspect, cross-reference browser immediate update, Undo/Redo, Source and Save → Reload).
 - CLI insertion verification: 2026-10-15 (#280 caption/label in one write, label-only table, invalid/duplicate label refusal and rich batch caption; Core/CLI tests).
-- Last verified: 2026-10-17 (UX review: Edit moved to the table's action bar; table-authoring and property-drafts browser checks).
+- Last verified: 2026-11-16 — 현재 계약과 완료된 계획·삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Previous verification: 2026-10-11 (contract compared with current code and regression coverage; caption inline math and reference display, #165).
 - Scope: Core table caption/label operations and their Editor/CLI interfaces; [Table interaction](table-interaction-v1.md).
 
@@ -187,23 +165,6 @@ exit, shared selection/slash authoring, whole-table move/delete, removal and add
 Existing table-authoring, table-cell-editing, cross-reference, property-drafts, citations,
 recovery-structure and continuous-editing protect their interface-specific integrations.
 
-Review-fix plan (#584): retain the parser's original `{table}` option evidence before
-directive lifting, so native admission rejects every option except the supported Label
-spellings (`name` and `label`). Use MyST's parsed option map, with no new source parser.
-Apply the same guard to captioned and captionless tables. Verify failure first through
-public Core and CLI check/format tests, then unchanged file bytes on refusal, supported
-Label round-trips, Core/CLI tests, typecheck, docs and PR CI. No UI or command change.
-
-Second review-fix plan (#584): supplement the option map with MyST VFile diagnostics
-within each table directive's source range. Refuse any such diagnostic, without a list
-of special option names. At native admission, only the exact `table` directive is
-supported; CSV/list-table source is refused regardless of caption or options. Retain
-source-kind evidence separately from semantic equality, as native syntax admission
-does elsewhere; internal MyST serializer tests do not establish native input support.
-Extend fail-first public Core and CLI regressions to inherited option names, YAML
-options and alternate table directives, with BOM/CRLF byte preservation and supported
-input controls. Verify Core/CLI, typecheck, docs and all PR CI checks.
-
 
 ## Cell code and math preservation (#622)
 
@@ -215,13 +176,6 @@ of how many backslashes already precede the pipe. Authored code/LaTeX strings mu
 therefore reload exactly, including existing backslashes; no `\vert` substitution
 is performed. Math dollar and role forms share this rule. Captions and content
 outside cells retain their existing serialization.
-
-Implementation/verification scope: fix only Core's write-only adaptation, retain
-the complete reparse/fingerprint guard, and replace the existing pipe refusal
-regression with insertion/edit/reopen/repeated-save preservation checks for exact
-strings and column alignment. Existing operations and CLI commands already use
-this writer; no Editor/CLI semantic operation is added. Run fail-first regressions,
-Core tests, workspace typecheck, docs/whitespace checks and required PR CI.
 
 Local verification (2026-10-27): all 24 code/math preservation cases failed before
 the writer fix and pass after it. Core 325/325, workspace typecheck, docs and

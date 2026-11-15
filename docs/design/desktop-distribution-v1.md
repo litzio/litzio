@@ -18,7 +18,7 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 
 검증 이력은 [별도 기록](../reviews/desktop-distribution-history-2026-11.md)에 보존한다.
 
-## Shared daemon Desktop (#1142 PR3)
+## Shared daemon Desktop
 
 Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the shared lock/HTTP/asset path. A ready identity proves which generation it spawned. Actual Desktop exit disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop exit. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
 
@@ -541,7 +541,7 @@ for the last-successful-record and platform limits.
 - Restart to update disables window input and asks the live Editor whether all tabs are safe, using the [session work-protection contract](editing-session-save-v1.md#save-shortcut-and-work-loss-protection-56). No user-input dialog is added inside the timed handshake.
 - Missing/malformed answers, renderer failure or a 5-second timeout refuse and re-enable the window. The existing `beforeunload` remains a second check. `quitAndInstall(true, true)` runs only after the agreed window close; a close veto returns to the downloaded state. Updates never discard or save user work implicitly.
 
-The [client recovery contract](editing-session-save-v1.md#local-recovery-records-296-pr2) owns recording/deletion. Windows Desktop crash/profile persistence checks and remaining limits are recorded in [Host persistence verification](../reviews/editing-session-save-history-2026-11.md#host-persistence-verification-296-pr3).
+The [client recovery contract](editing-session-save-v1.md#local-recovery-records) owns recording/deletion. Windows Desktop crash/profile persistence checks and remaining limits are recorded in [Host persistence verification](../reviews/editing-session-save-history-2026-11.md#host-persistence-verification-296-pr3).
 
 ## Verification and signing
 
@@ -622,6 +622,6 @@ temporarily include that name in the runner's notification/screenshot allowlists
 `pnpm browser:test messages-capture --screenshots`. It is not a CI capture sweep.
 Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.png).
 
-## Desktop-local remote registry (#1174 PR3a)
+## Desktop local connection
 
 다른 PC의 Host 등록·접속은 지원하지 않는다. 로컬 daemon bootstrap·프로토콜/제품 버전 검사·수명과 native close/update/reset의 pending-work 보호를 따른다. 로컬 연결 관측은 5초 간격 읽기이며 단절 후에도 회복한다.

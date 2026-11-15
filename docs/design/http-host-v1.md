@@ -47,7 +47,7 @@ for tool transport; shared question cards are supported, native ACP question ext
 
 운영 연결은 로컬 하나다. per-ID registry·목록·라벨·추가/제거와 다중 monitor는 없다. `hostConnection`은 현재 연결의 capability·상태·실행 계정을 한 곳에서 관측하며 늦은 응답은 attempt token으로 거절한다. 저장·복구에 남은 알 수 없는 식별자를 로컬로 대체하지 않는다. 세션·receipt가 캡처한 client는 유지한다. origin이 바뀌면 기존 저장·rollback·비서·템플릿 요청을 전송 전에 거부하며 새 작업만 새 client를 얻는다. 같은 origin 재연결은 기존 세션을 유지하고 이미 전송한 쓰기는 재전송하지 않는다. 늦은 capability 관측의 세대 보호와 취소도 유지한다.
 
-## 단일 연결과 고정된 작업 대상 (#1595 PR 2)
+## 단일 연결과 고정된 작업 대상
 
 `host-transport.ts`는 불변 HTTP client를, `host-client.ts`는 단일 연결 관측과 Desktop 주소 gate를 소유한다. 화면 context는 ID를 선택하지 않고 mount 시 client를 캡처한다. 문서 탭·PDF·플러그인 화면·비서·템플릿·파일 작업 확인창은 시작할 때의 client를 유지한다. 주소가 바뀌면 `HostConnectionChangedError`로 기존 작업의 후속 Save·rollback·요청을 전송 전에 거절하고 새 작업만 새 client를 얻는다. 같은 주소 재연결과 진행 중 쓰기의 원래 주소는 유지하며 쓰기를 자동 재전송하지 않는다.
 
@@ -59,7 +59,7 @@ Editor의 API 요청(문서·폴더·복구·템플릿·공식 AI와 폴링)과 
 
 Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮기지 않는다. Desktop 번들 UI와 daemon origin 전환은 아래 ⑤ 계약을 따른다.
 
-## Desktop remote registration (#1174 PR3a)
+## Desktop local daemon CSP
 
 Desktop CSP의 connect/img는 확인된 로컬 daemon의 정확한 origin만 추가한다. 제품 앱 script는 앱 번들이며 신뢰·활성 플러그인 화면은 [화면 코드 계약](plugin-screens-v1.md)에 따른다. 로컬 번들 UI의 한정 health GET/protocol OPTIONS와 API/media의 Origin·JSON·sandbox 경계는 유지한다.
 
@@ -74,7 +74,7 @@ NotificationCenter에 원인과 CLI 안내, 수동 Reconnect가 남는다. 재�
 TCP Host authority 목록은 그대로다. UI Origin은 **정확히 `litzio://app` 하나**만 추가한다.
 API/media의 cross-site 거부 예외와 `Access-Control-Allow-Origin`은 그 Origin에만 적용한다.
 OPTIONS는 API/media의 GET/HEAD/POST/PUT/PATCH/DELETE와 Content-Type/X-Litzio-Protocol만
-허용한다. daemon health의 한정 GET/protocol preflight는 위 PR3a 절을 따른다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
+허용한다. daemon health의 한정 GET/protocol preflight는 위 Desktop local daemon CSP 절을 따른다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
 Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 UI와 Host origin이 다른 경우에만 anonymous CORS를 사용한다. 같은-origin 브라우저 이미지는 기존 로딩 방식을 유지한다.
 허용 Origin의 CORS 응답만 CORP cross-origin이며 나머지는 same-origin이다. Origin 없는
 cross-site API/media, lookalike/foreign/null origin과 잘못된 TCP Host는 계속 거부한다.
@@ -90,7 +90,7 @@ SVG/HTML과 파일 미리보기의 sandbox·script-src none, frame 금지는 그
 Desktop main-frame IPC 검사와 실제 dev Electron의 새 origin 복구를 구별한다.
 패키지의 origin·복구·daemon 미가동 시작 검사는 기존 Desktop CI가 실행한다.
 
-## Shared local daemon (#1142 PR2)
+## Shared local daemon
 
 [ADR-0016](../adr/0016-shared-local-daemon-host.md) governs the daemon; the owner-approved 2026-11-04 authentication decision below supersedes earlier token requirements.
 `daemon start` starts a background local-mode daemon for this PC; Desktop discovers it.
@@ -152,7 +152,7 @@ remains a failure; the client never replays the stop request. Identity/version c
 
 Discovery and health also carry launcher (`desktop`, `cli-start`, `cli-run`), OS creation identity, unrestricted/Root scope and non-loopback flag, daemon home, executable path and log path when present. Status offers a table and `--json`; Desktop shows the same information in its existing settings surface. `LITZIO_DATA_DIR` isolates the shared Host data base for tests; public `.litzio` is not used by these tests.
 
-Desktop invokes the same local `run`/lock path with a private IPC pipe (`LITZIO_DESKTOP_DAEMON=1`, requiring an IPC parent). Its daemon exits when that pipe disconnects, including parent crash. CLI `start`/`run` have no Desktop parent lifetime. Normal Desktop close stops only its spawned generation and waits for its process exit as well as discovery removal. Update/removal gates and CLI-daemon refusal follow the [Desktop installation contract](desktop-distribution-v1.md#update-and-removal-daemon-gate-1164). Explicit Desktop Stop uses the existing confirmed identity-checked stop RPC regardless of launcher. No client/job tracking. See [Desktop contract](desktop-distribution-v1.md#shared-daemon-desktop-1142-pr3).
+Desktop invokes the same local `run`/lock path with a private IPC pipe (`LITZIO_DESKTOP_DAEMON=1`, requiring an IPC parent). Its daemon exits when that pipe disconnects, including parent crash. CLI `start`/`run` have no Desktop parent lifetime. Normal Desktop close stops only its spawned generation and waits for its process exit as well as discovery removal. Update/removal gates and CLI-daemon refusal follow the [Desktop installation contract](desktop-distribution-v1.md#update-and-removal-daemon-gate-1164). Explicit Desktop Stop uses the existing confirmed identity-checked stop RPC regardless of launcher. No client/job tracking. See [Desktop contract](desktop-distribution-v1.md#shared-daemon-desktop).
 
 ### Authentication deferred (#1145)
 

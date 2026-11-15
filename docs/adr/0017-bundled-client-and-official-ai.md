@@ -24,7 +24,7 @@ AI 에이전트는 기본 포함 플러그인에서 daemon의 공식 기능으�
 
 프로바이더 가용성 변화 자체는 진행 작업의 취소·drain·provider 연결 종료 신호가 아니며, 기존 명시적 취소·timeout·daemon 종료 계약은 유지한다.
 
-### 2. 플러그인·Docling 기능을 제거하고 삭제 직전 소스를 보관한다
+### 2. 플러그인 결정의 대체 관계
 
 이 절의 결정은 [ADR-0020](0020-plugin-architecture.md)·[ADR-0022](0022-plugin-screen-code.md)로 대체됐다.
 

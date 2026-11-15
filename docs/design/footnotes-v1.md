@@ -12,11 +12,11 @@
 - Nested authoring verification: 2026-10-24 (#377: Core list/Figure incomplete-operation and final-write refusal regressions; Editor slash tests and `citation-authoring` insertion/Save → Reload, with Endnote absent from definitions).
 - Diagnostic verification: 2026-10-15 (#290 / #304: shared source-only diagnostics, indexed source locations and CLI check/write warning integration).
 - Body-end verification: 2026-10-15 (#280 Core insertion index with/without endnotes and empty native documents; CLI single/batch insertion before definitions).
-- Last verified: 2026-10-15 (ADR-0006 native definition boundary and retained test coverage compared with code/tests; no runtime regressions rerun). Previous verification: 2026-10-13 (endnotes v4: canonical placement in Core, CLI and Editor; `pnpm test`, `pnpm browser:test footnotes`).
+- Last verified: 2026-11-16 — 현재 계약과 완료된 계획·삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Current contract: v4 with #714 / #715 explicit edit controls over #579 read-only interaction, on v2 (#140) and v1 (#119); v3 (#194) source-anchor placement is replaced. Historical filename retained for link stability.
 - Scope: footnote references, endnote placement and numbering, inserting footnotes, in-place editing of supported one-paragraph definitions, sections and fail-closed writes; [Native document support](document-support-v1.md).
 
-Issue #119 made paragraphs with footnotes editable and stopped silent loss of definitions MyST would drop. Issue #140 added inserting footnotes and in-place editing of one-paragraph definitions. Issue #194 showed definitions as one endnotes region. Endnotes v4 makes that region the document's placement: every Litzio write puts the definitions after the body, in first-reference order.
+Every Litzio write places endnote definitions after the body, in first-reference order.
 
 ## Product contract
 
@@ -129,12 +129,6 @@ All top-level definitions follow the body in the one editor state. The first has
 - CLI sections: `move-section` and `remove-section` follow the section rule above; `--to` accepts the end of the body or the block count.
 - The Editor inserts footnotes from `/` on the body surfaces listed above. The dedicated CLI `insert-footnote` command addresses paragraphs, headings, quotes, simple admonitions and table cells (`--path table,row,cell`). Lists and Figure/Table captions use their typed content operations; the Editor uses those save paths without adding a Core operation or CLI command. Table captions are direct inline editing surfaces with the same slash menu as Figure captions.
 - Not included: manually renaming labels, a shortcut or toolbar button, keyboard navigation between a reference and its definition beyond the caret. Inline footnotes (`^[...]`) are not enabled in myst-parser.
-
-## Changes from v3 (#194)
-
-- v3 kept each definition where the source wrote it: Save rebuilt that placement from opening-snapshot anchors, and an explicit **미주로 모으기** command (Editor) or `collect-endnotes` (CLI, never released) moved definitions. v4 removes the anchors, the command, the `collectEndnotes` save field and the `endnotesInSource` state: the placement is canonical and applies on every write.
-- A file with definitions within the body is rewritten on its first Save (or `format`), as the Open notice and Source say.
-- In v3 the last section included the trailing definitions, so moving or deleting it moved or deleted them. Sections now exclude them.
 
 ## Verification
 

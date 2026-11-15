@@ -78,4 +78,4 @@ test's `tmp/browser-results/http-recovery-*/host-recovery-proof.json` (also atta
 
 The prior final-v3 two-page
 ticket p95 around 2.4s remains a limitation, not a recording deadline.
-This prior measurement was documented on 2026-10-16 in [the Host recovery verification commit](https://github.com/litzio/litzio/commit/ef1c09a63002827a38f2ea230e134c973cdb9344); the [recovery contract](../design/editing-session-save-v1.md#local-recovery-records-296-pr2) identifies it as a known limitation, not a guarantee or a new PR3 measurement.
+This prior measurement was documented on 2026-10-16 in [the Host recovery verification commit](https://github.com/litzio/litzio/commit/ef1c09a63002827a38f2ea230e134c973cdb9344); the [recovery contract](../design/editing-session-save-v1.md#local-recovery-records) identifies it as a known limitation, not a guarantee or a new PR3 measurement.
