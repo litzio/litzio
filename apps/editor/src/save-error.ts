@@ -82,7 +82,7 @@ export class SaveDisplayError extends Error {
 export type SaveErrorLocation = { index: number; type: string; cell?: { row: number; column: number }; code?: WriteIssueCode };
 
 /** Resolve Host snapshot locators against the submitted document, never later user input. */
-export function saveErrorLocation(error: SaveContentError, submitted?: TiptapJSON, edits?: SupportedEdits): SaveErrorLocation | undefined {
+function saveErrorLocation(error: SaveContentError, submitted?: TiptapJSON, edits?: SupportedEdits): SaveErrorLocation | undefined {
   const nodes = submitted?.content ?? [];
   const target = error.target;
   const node = target && ("path" in target

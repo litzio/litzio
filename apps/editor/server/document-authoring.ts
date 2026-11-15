@@ -38,7 +38,7 @@ export function exportReviewDocumentFile(file: string, source: string, images: {
   return createDocumentSourceFile(file,exported,access);
 }
 
-/** Shared K1/CLI document construction and exclusive publication, never plugin file IO. */
+/** Shared Host/CLI document construction and exclusive publication, never plugin file IO. */
 export async function createAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess = LOCAL_FILE_ACCESS, beforePublish: () => void = () => {}) {
   return publishAuthoredDocumentFile(file, raw, access, beforePublish);
 }

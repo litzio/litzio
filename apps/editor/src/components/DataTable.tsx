@@ -15,7 +15,7 @@ import {
   type TableField,
   type TableFilter,
 } from "./data-table-model.ts";
-export type { TableField } from "./data-table-model.ts";
+
 const empty = (v: unknown) => v === null || v === "" || v === undefined;
 const fresh = (): TableFilter => ({
   mode: "contains",
@@ -420,9 +420,9 @@ function ColumnFilter({
   );
 }
 
-export type TableCoverage = { truncated: boolean; total?: number };
+type TableCoverage = { truncated: boolean; total?: number };
 /** Keep local filtering counts and source coverage on one accessible status line. */
-export function TableRowCount({ shown, loaded, coverage }: { shown: number; loaded: number; coverage?: TableCoverage }) {
+function TableRowCount({ shown, loaded, coverage }: { shown: number; loaded: number; coverage?: TableCoverage }) {
   return <span role="status">{shown} / {loaded}{coverage?.truncated ? <> · <Tooltip>
     <TooltipTrigger render={<span tabIndex={0} className="rounded-sm focus-visible:outline-2 focus-visible:outline-ring" />}>
       {coverage.total === undefined ? i18n.t("Partial results") : i18n.t("Total: {{total}}", { total: coverage.total.toLocaleString(i18n.language) })}

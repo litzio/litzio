@@ -35,7 +35,6 @@ const hasType = type => Object.hasOwn(types, type);
 export const labelDefinitions = [
   ...Object.entries(types).map(([key, value]) => ({ name: `type:${key}`, color: value.color, description: value.name })),
   ...areas.map(area => ({ name: `area:${area.toLowerCase()}`, color: 'c5def5', description: `${area} 영역` })),
-  { name: 'plugin:docling', color: 'd4c5f9', description: 'Docling 플러그인 관련' },
   { name: 'plugin:ai-agent', color: 'd4c5f9', description: '메인 에이전트·비서 플러그인 관련' },
   { name: 'plugin:runtime', color: 'd4c5f9', description: '플러그인 런타임·관리 화면·공통 API 관련' },
   { name: 'status:needs-decision', color: 'fbca04', description: '지원 여부나 범위의 결정 필요; 구현 착수 승인 아님' },
@@ -63,7 +62,7 @@ export function issueForm(type) {
 
 // Only the known form's ##/### section boundaries are read; this is not a document parser.
 // Fenced code and comments cannot supply required headings, but evidence may contain code.
-export function sectionsOf(body) {
+function sectionsOf(body) {
   const result = new Map();
   let current, fence, comment = false;
   for (const original of String(body ?? '').replace(/\r\n?/g, '\n').split('\n')) {

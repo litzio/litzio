@@ -8,7 +8,7 @@ import { readCollapsedFolderSections, readOpenFolders, writeCollapsedFolderSecti
 // (preferences.ts); listings and subfolder expansion are never stored or recursively scanned.
 
 // Adjustable timings for Explorer notification checks and the missed-event safety net.
-export const FOLDER_REFRESH = { pollMs: 2_000, fallbackMs: 60_000 } as const;
+const FOLDER_REFRESH = { pollMs: 2_000, fallbackMs: 60_000 } as const;
 
 export type FolderTreeState = {
   /** The chosen folder; every listed folder is inside it. */
@@ -22,7 +22,7 @@ export type FolderTreeState = {
   pending: ReadonlyMap<string, number>;
 };
 
-export type FolderTreeAction = (
+type FolderTreeAction = (
   | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean; initialState?: FolderTreeState }
   | { type: "closeRoot" }
   | { type: "setSectionExpanded"; expanded: boolean }
@@ -71,7 +71,7 @@ export function folderTreeReducer(state: FolderTreeState | null, action: FolderT
 }
 
 /** Every tree action except opening and closing names the opened folder it belongs to. */
-export type FolderTreesAction = (
+type FolderTreesAction = (
   | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean; initialState?: FolderTreeState }
   | { type: "closeRoot"; root: string }
   | (Exclude<FolderTreeAction, { type: "openRoot" | "closeRoot" }> & { root: string })
@@ -166,7 +166,7 @@ export function folderChain(root: string, documentPath: string): string[] {
   return chain;
 }
 
-export type TreeKeyResult = { focus: string } | { expand: string } | { collapse: string } | { activate: TreeItem };
+type TreeKeyResult = { focus: string } | { expand: string } | { collapse: string } | { activate: TreeItem };
 
 /** The tree keyboard contract: arrows, Home and End move; Right/Left expand, collapse or move; Enter and Space activate. */
 export function treeKey(items: TreeItem[], index: number, key: string, expanded: ReadonlySet<string>): TreeKeyResult | undefined {

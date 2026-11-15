@@ -1,6 +1,6 @@
 import katex from "katex";
 
-export type EquationRenderResult =
+type EquationRenderResult =
   | { html: string; error?: undefined }
   | { html?: undefined; error: string };
 

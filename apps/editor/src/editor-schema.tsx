@@ -44,7 +44,7 @@ import { LabelTargetView } from "./node-views/label-target-view.tsx";
 import { TableCaptionView, TableView } from "./node-views/table-view.tsx";
 import { EDIT_PROPERTIES, type DraftListener } from "./node-views/shared.ts";
 
-export type { DraftKind, DraftListener } from "./node-views/shared.ts";
+export type { DraftKind } from "./node-views/shared.ts";
 export { captionPlaceholderVisible } from "./node-views/shared.ts";
 export { isUnappliedEquationDraft } from "./node-views/equation-view.tsx";
 export { DocumentPathContext, isUnappliedFigureDraft, resolveFigureSource } from "./node-views/figure-view.tsx";

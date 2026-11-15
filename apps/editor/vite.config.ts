@@ -16,8 +16,6 @@ export default defineConfig({
   // Prebundle the lazy renderer/worker dependencies without fetching them until needed.
   // First-use dependency discovery must not reload the development editor and lose drafts.
   optimizeDeps: { include: ["mermaid", "diff", "pdfjs-dist"] },
-  // Resolve extensionless imports in the parser's published ESM entry during Host SSR.
-  ssr: { noExternal: ["jsonc-parser"] },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

@@ -3,7 +3,7 @@ import path from "node:path";
 import { assertUnicode } from "@litzio/file-commit";
 import { prepareSampleDocuments } from "../../editor/server/sample-documents.ts";
 import type { SampleAvailability } from "../../editor/shared/document-protocol.ts";
-export type FirstDocument = { document?: string } & SampleAvailability;
+type FirstDocument = { document?: string } & SampleAvailability;
 
 /**
  * A `.md` or `.txt` argument (opening a file with the app) opens. Otherwise nothing opens until the user

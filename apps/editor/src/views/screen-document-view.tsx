@@ -14,7 +14,7 @@ import { useDocumentViewNavigation } from "./screen-document-view-navigation.ts"
 /** App-owned binding, never a plugin-supplied Host or root override. */
 export const DocumentViewScope = createContext<{ client: HostClient; roots: readonly string[] } | undefined>(undefined);
 
-export function assertDocumentViewPath(path: string, roots: readonly string[]) {
+function assertDocumentViewPath(path: string, roots: readonly string[]) {
   const normalized = path.replaceAll("\\", "/");
   if (!normalized || normalized.split("/").some(part => part === "." || part === "..") ||
     !roots.some(root => normalized.startsWith(root.replaceAll("\\", "/").replace(/\/$/, "") + "/"))) {

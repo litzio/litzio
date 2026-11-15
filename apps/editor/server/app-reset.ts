@@ -46,7 +46,7 @@ function checkRecordedWriters(locations: ResetStorageLocations, identify: typeof
 }
 
 /** Shared local operation for the CLI and Desktop's post-exit helper. No remote execution. */
-export type AppResetResult = { outcome: "success" | "refused" | "partial" | "uncertain"; plan: ReturnType<typeof inspectAppReset>; receipt?: ResetStorageReceipt; reason?: string };
+type AppResetResult = { outcome: "success" | "refused" | "partial" | "uncertain"; plan: ReturnType<typeof inspectAppReset>; receipt?: ResetStorageReceipt; reason?: string };
 export function executeAppReset(locations: ResetStorageLocations, input: { confirmed: boolean; revision: string; removeFolders: boolean },
   guard = new ResetGuard(), identify = processStart): AppResetResult {
   const plan = inspectAppReset(locations);

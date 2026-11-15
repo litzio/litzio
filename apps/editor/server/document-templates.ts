@@ -54,7 +54,7 @@ export function listTemplates(language: TemplateLanguage = "en", directory = hos
   return { directory, templates, problems };
 }
 
-export function readTemplate(name: string, language: TemplateLanguage = "en", directory = hostPaths().templates): TemplateContent {
+function readTemplate(name: string, language: TemplateLanguage = "en", directory = hostPaths().templates): TemplateContent {
   if (typeof name !== "string" || !name) throw Object.assign(new Error("Template name or id is required."),{errorKind:"invalid_input"});
   const defaults = builtins(language);
   const item = defaults.find(item => item.id === name || identity(item.name) === identity(name));
@@ -68,7 +68,7 @@ export function readTemplate(name: string, language: TemplateLanguage = "en", di
   return { ...user, ...getTemplateMetadata(parse(source))!, source };
 }
 
-export function templateDocumentSource(name: string, language: TemplateLanguage = "en", directory = hostPaths().templates): string {
+function templateDocumentSource(name: string, language: TemplateLanguage = "en", directory = hostPaths().templates): string {
   return serialize(createDocumentFromTemplate(parse(readTemplate(name, language, directory).source)));
 }
 
@@ -100,7 +100,7 @@ export const templateOperations = {
   save: { name: "save_template", description: "Save a disk document as a new user template. Confirm name, description and source first; never overwrites. Unsaved changes are not included.", inputSchema: { type: "object", properties: { name: string, from: string, description: string }, required: ["name", "from"], additionalProperties: false } },
 };
 export const templateTools = [templateOperations.list, templateOperations.read, templateOperations.save].map(spec => ({ type: "function", ...spec }));
-export type TemplateScope = {
+type TemplateScope = {
   access: FileAccess; directory?: string;
   /** Absent for local CLI/HTTP; null means a tool turn without opened folders. */
   folders?: RootAccess | null; permissionMode?: string;

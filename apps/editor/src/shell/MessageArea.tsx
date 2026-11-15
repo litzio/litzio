@@ -6,7 +6,7 @@ import type { SaveDisplayError, SaveErrorLocation } from "../save-error.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { useNotifications, type Notification } from "../components/ui/notification-center.tsx";
 
-export const NOTICE_TIMEOUT_MS = 5000;
+const NOTICE_TIMEOUT_MS = 5000;
 type MessageAreaProps = {
   error: string;
   errorCause?: UiMessage;

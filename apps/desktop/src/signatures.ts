@@ -4,7 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { parseDn } from "builder-util-runtime";
 
-export type WindowsSignature = { status: string; path: string; subject: string | null };
+type WindowsSignature = { status: string; path: string; subject: string | null };
 
 function command(file: string) {
   if (process.platform !== "win32") throw new Error("Authenticode requires Windows");

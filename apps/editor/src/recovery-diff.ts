@@ -2,9 +2,9 @@ import { diffLines, diffWordsWithSpace, type Change } from "diff";
 
 // Whole-request limits, not allowances renewed for every changed line. The worker client
 // also has a 2s watchdog covering startup, tokenization and result transfer.
-export const DIFF_BUDGET_MS = 500;
-export const WORD_BUDGET_MS = 100;
-export const MAX_DIFF_CHARACTERS = 1_000_000;
+const DIFF_BUDGET_MS = 500;
+const WORD_BUDGET_MS = 100;
+const MAX_DIFF_CHARACTERS = 1_000_000;
 const MAX_DIFF_LINES = 10_000;
 const MAX_WORD_CHARACTERS = 64 * 1024;
 const MAX_WORD_PAIR_CHARACTERS = 8 * 1024;

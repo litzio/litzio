@@ -49,7 +49,7 @@ test('title and selected area must agree, with exactly one known type and no inv
   assert.match(validateIssue({ ...issue, title: '[UX] 입력란 개선' }).errors.join(), /제목/);
   assert.match(validateIssue({ ...issue, title: 'Desktop: 입력란 개선' }).errors.join(), /서로 다릅니다/);
   for (const labels of [['bug'], ['type:bug', 'type:enhancement'], ['type:constructor'], ['type:toString']]) assert.match(validateIssue({ ...issue, labels }).errors.join(), /type:/);
-  for (const pluginLabels of [['plugin:unknown'], ['area:editor'], 'plugin:docling', null]) {
+  for (const pluginLabels of [['plugin:unknown'], ['area:editor'], 'plugin:runtime', null]) {
     assert.throws(() => createIssue({ ...proposal, pluginLabels }), /pluginLabels/);
   }
   assert.throws(() => createIssue({ ...proposal, type: 'constructor' }), /type must be/);
@@ -62,7 +62,7 @@ test('deferred decisions keep their status, without disturbing unrelated labels'
     background: '비개발자의 원격 문서 관리 요구.', questions: '사용 경험을 분석하고 지원 여부를 정한다.', state: '향후 검토',
   } });
   assert.ok(issue.labels.includes('status:deferred'));
-  const prior = { ...issue, labels: ['type:decision', 'area:editor', 'status:needs-decision', 'status:needs-info', 'help wanted', 'plugin:docling', 'plugin:ai-agent', 'plugin:runtime'] };
+  const prior = { ...issue, labels: ['type:decision', 'area:editor', 'status:needs-decision', 'status:needs-info', 'help wanted', 'plugin:ai-agent', 'plugin:runtime'] };
   assert.deepEqual(metadataChanges(prior), { add: ['area:product', 'status:deferred'], remove: ['area:editor', 'status:needs-decision', 'status:needs-info'] });
 });
 
@@ -99,7 +99,7 @@ test('CLI previews offline by default and rejects missing fields before a publis
   const directory = mkdtempSync(path.join(os.tmpdir(), 'litzio-issue-cli-'));
   try {
     const file = path.join(directory, 'issue.json'), command = fileURLToPath(new URL('./issues.mjs', import.meta.url));
-    const selected = { ...proposal, pluginLabels: ['plugin:docling', 'plugin:ai-agent', 'plugin:runtime'] };
+    const selected = { ...proposal, pluginLabels: ['plugin:ai-agent', 'plugin:runtime'] };
     writeFileSync(file, JSON.stringify(selected));
     const preview = spawnSync(process.execPath, [command, 'create', '--input', file], { encoding: 'utf8' });
     assert.equal(preview.status, 0, preview.stderr);

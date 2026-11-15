@@ -4,7 +4,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { brand } from "../../../brand.ts";
 
-export { hostCli, type HostCli as AssistantCli } from "./host-cli.ts";
+export { hostCli } from "./host-cli.ts";
 import type { HostCli as AssistantCli } from "./host-cli.ts";
 
 /** Private launch shim: no registry, user/system PATH or optional Desktop integration changes. */

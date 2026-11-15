@@ -19,7 +19,7 @@ export class LineDecoder {
     }
   }
 }
-export function codexPath(): string | null {
+function codexPath(): string | null {
   const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
   for (const directory of (process.env.PATH ?? "").split(path.delimiter)) for (const extension of extensions) {
     const file = path.join(directory.replace(/^"|"$/g, ""), `codex${extension}`);

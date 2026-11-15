@@ -16,7 +16,7 @@ export function labelIdentifier(label: string): string | undefined {
  * sees them, except `except` when given. `(label)=` targets are not yet attached to their block
  * after parsing, so their label is normalized here the same way.
  */
-export function targetIdentifiers(root: MystNode, except?: MystNode): Set<string> {
+function targetIdentifiers(root: MystNode, except?: MystNode): Set<string> {
   const identifiers = new Set<string>();
   const visit = (node: MystNode) => {
     if (node !== except) {

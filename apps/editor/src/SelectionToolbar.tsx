@@ -130,7 +130,7 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
  * Turn the selected plain text into inline math whose LaTeX source is that text, keeping the
  * marks that cover the whole selection. Selections containing breaks or math are refused.
  */
-export function makeInlineMath(editor: Editor): boolean {
+function makeInlineMath(editor: Editor): boolean {
   const { state } = editor;
   const { from, to, $from, $to } = state.selection;
   if (!editableInlineContext(editor) || from === to || !$from.sameParent($to)) return false;
