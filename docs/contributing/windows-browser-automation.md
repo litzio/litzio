@@ -17,7 +17,7 @@
 ## Profile reuse and test isolation
 
 runner가 서버를 시작할 때는 실행마다 OS 임시 폴더 아래 Host 전용 디렉터리를 만든다.
-`LITZIO_DATA_DIR`(플러그인 작업 이력 등), daemon 기록, 플러그인 설정·secret과 비서 작업·설정
+`LITZIO_DATA_DIR`(Host 데이터), daemon 기록, 플러그인 설정·secret과 비서 작업·설정
 경로를 그 안으로 전달하여 Vite·production HTTP 모두 실행 간 데이터를 공유하지 않는다.
 사용자가 지정한 `LITZIO_DATA_DIR`는 그대로 사용하고 삭제하지 않는다.
 Host 데이터·비서 작업·비서 설정·daemon·플러그인 설정과 별도로 초기화 보호 경로인 `LITZIO_RESET_DIR`도 실행별로 격리한다. 브라우저 runner와 수동 비서 수락 실행기는 `test/helpers/isolated-host-environment.ts`의 같은 경로 목록을 사용한다. 공급자 로그인은 이 목록에 포함하지 않는다. 외부 서버에 붙을 때는 caller가 서버의 모든 경로와 수명을 소유한다.
@@ -52,7 +52,7 @@ success from taskkill's exit code: already-exited children can cause a nonzero s
 The test logs taskkill's status and stderr, then requires the owned browser PID to disappear
 with the existing ESRCH poll; a surviving PID fails with those termination diagnostics.
 It does not clear storage
-between browser crash/restart steps, which keep the daemon alive. PR4 separately stops/restarts
+between browser crash/restart steps, which keep the daemon alive. The recovery test separately stops/restarts
 its own production CLI daemon at the same origin to check unsaved input, Undo/Redo and Save
 through the Desktop reconnect control (native bridge stand-in). It never stops the runner daemon
 or an external caller-supplied server. The normal fixture still isolates separate

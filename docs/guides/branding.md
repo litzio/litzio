@@ -1,17 +1,14 @@
 # 패키저용 브랜드 설정
 
 - Status: Implemented
-- Last verified: 2026-10-31 (#859; 로컬 타입·단위·Editor 빌드와 persistent Chrome의 한국어/영어 640px·1440px. 실제 두 브랜드 설치·플러그인 실행은 Windows CI 검사).
-- SVG icon verification: 2026-11-02 (#905; Electron Chromium 생성·틈 픽셀 검사, SVG Editor·adaptive favicon과 640px 양 테마 캡처. 패키징·대체 브랜드 설치는 PR Windows CI).
-- CI policy verification: 2026-11-02 (#888; 경로·aggregate·릴리스 workflow 회귀와 문서 검사. 실제 패키징·설치는 PR Windows CI).
-- Repository verification: 2026-10-31 (#860; `litzio/litzio` 기본값, 업데이트·릴리스 단위 검사와 전체 typecheck. 실제 패키징·업데이트는 필수 CI).
+- Last verified: 2026-11-16 — brand.ts·빌드 설정·현재 계약을 정적으로 대조. 제품·브라우저·패키징·설치·업데이트 실행 재검증 없음.
 - Authority: [Discussion #856](https://github.com/litzio/litzio/discussions/856), [AGENTS.md](../../AGENTS.md), [Desktop 계약](../design/desktop-distribution-v1.md), [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md).
 
 ## 설정과 빌드
 
 저장소 루트의 [brand.ts](../../brand.ts) 한 파일이 배포 제품의 이름과 식별자를 소유한다.
 설정을 바꾼 뒤 CLI 또는 Desktop을 다시 빌드한다. 런타임 환경 변수로 브랜드를 전환하지 않는다.
-공식 기본값은 한국어·영어 모두 **Litzio**다. 과거 Beta의 데이터·설정·복구 기록·플러그인 설치·업데이트 경로를 이전하거나 옛 이름을 alias로 제공하지 않는다.
+공식 기본값은 한국어·영어 모두 **Litzio**다. 옛 이름을 alias로 제공하지 않는다.
 
 | 설정 키 | 공식 기본값 / 용도 |
 | --- | --- |
@@ -25,7 +22,7 @@
 | `folders.cli` | `litzio`; `%LOCALAPPDATA%\litzio\bin`의 opt-in CLI와 제거 진단 |
 | `folders.shared` | `.litzio`; 공식 AI 설정과 templates의 공용 상위 폴더 |
 | `cliCommand` | `litzio`; 생성 npm manifest의 bin, Desktop shim·충돌 탐지·도움말·버전 출력 |
-| `storagePrefix` | `litzio`; localStorage 키와 `litzio-recovery` IndexedDB |
+| `storagePrefix` | `litzio`; localStorage 키와 `litzio-recovery-v3` IndexedDB |
 | `updates.repository` | 현재 `litzio/litzio`; 배포와 업데이트를 받는 GitHub 저장소 |
 | `updates.channels.stable`, `.beta` | `latest`, `beta`; 업데이트 메타데이터 파일명. Stable/Beta의 semver 선택·다운그레이드 거부 정책은 고정 |
 
@@ -52,14 +49,14 @@ pnpm --filter @litzio/desktop package
 업데이트가 공식 설치 프로그램을 받을 수 있다. `latest`/`beta` 메타데이터 이름은 별도
 저장소에서는 공유해도 되며, 바꾼 경우 빌드·게시·읽기가 같은 설정을 사용한다.
 서명된 빌드는 자신의 인증서/게시자 설정과 기존 릴리스 검증 절차도 따라야 한다.
-공식판의 배포·업데이트 저장소 기본값은 `litzio/litzio`다(#860). 과거 Beta의 업데이트 경로를 이전하거나 호환 alias를 제공하지 않는다.
+공식판의 배포·업데이트 저장소 기본값은 `litzio/litzio`다. 호환 alias를 제공하지 않는다.
 
 기존 `LITZIO_ASSISTANT_SETTINGS_FILE`, `LITZIO_ASSISTANT_CWD`, `--user-data-dir` 같은 명시적 운영자/테스트 경로는
 기본값보다 우선한다. 두 브랜드를 의도적으로 같은 경로로 덮어쓰면 격리를 보장하지 않는다.
 
 ## 고정 내부 계약과 검증
 
-`@litzio/*`, native `litzio: 1`과 공식 AI HTTP route·Desktop bridge는 제품 브랜드로 바꾸지 않는다. Core는 브랜드 설정을 import하지 않으며 문서 의미는 패키저 설정의 영향을 받지 않는다. 플러그인·Docling·공식 목록 URL과 플러그인 폴더 설정은 ADR-0017 ③에서 제거했다. 과거 저장소/설정을 이전하거나 정리하지 않는다.
+`@litzio/*`, native `litzio: 1`과 공식 AI HTTP route·Desktop bridge는 제품 브랜드로 바꾸지 않는다. Core는 브랜드 설정을 import하지 않으며 문서 의미는 패키저 설정의 영향을 받지 않는다. 과거 저장소/설정을 이전하거나 정리하지 않는다.
 
 다른 브랜드 빌드와 공식판·대체판의 동시 설치는 CI로 검증하지 않는다(#1000). 공식 Litzio의 패키징·설치·Stable/Beta 업데이트·제거 검사는 유지한다.
 

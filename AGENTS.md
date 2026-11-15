@@ -14,7 +14,7 @@
 - 다른 기능이 올라타는 기반 영역(Core의 문서 의미, 공식 write path, Host 공용 작업, 플러그인 SDK의 공개 표면)에서는 가장 작은 변경보다 경계와 책임이 맞는 변경을 우선한다. 쓰일지 모르는 기능을 미리 만드는 것은 기반 영역에서도 하지 않는다.
 - 큰 작업 묶음을 마치고 기능 개발을 멈춘 시점에 저장소 종합 정리(얽힌 코드, 의존성과 경계, 계약 문서, 낡은 문구와 이슈)를 진단부터 수행한다([#1595](https://github.com/litzio/litzio/issues/1595)).
 - 기존 기술로 해결 가능한 parser, AST, document format, editor engine 등을 불필요하게 재구현하지 않는다.
-- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-플러그인-기능-제거와-보관)의 PR3 테스트 제외는 PR4에서 복구해 종료했으며 예외를 연장하지 않는다. [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 AI 공식 기능 이전·구 플러그인/Docling 제거와 보관·번들 UI 전환은 완료했다. 보관 기록은 `archive/plugins-docling-2026-11`에 유지하며, 현재 플러그인 계약은 ADR-0019·0020과 아래 구현 계약을 따른다.
+- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-플러그인-기능-제거와-보관)의 테스트 기준 예외를 연장하지 않는다. 현재 플러그인 계약은 ADR-0019·0020과 아래 구현 계약을 따른다.
 - 비서는 [ADR-0021](docs/adr/0021-general-agent-assistant.md)의 범용 에이전트 결정을 따른다. 새 제약은 구체적 위험, 정상 작업에 주는 영향, 대체 경로를 함께 설명하고, 되돌릴 수 있는 작업은 수행 방법을 먼저 찾는다.
 - 새 상태는 소유자(앱·Host·문서·대화·플러그인·요청)를 먼저 정한다. 병렬 PR은 상대 PR이 바꾼 timeout·취소·출력·수명 가정까지 합쳐 검토한다.
 - 개발 단계이므로 소유자가 Migration을 명시적으로 지시하지 않는 한, 이미 저장된 Litzio 문서·복구 기록·설정 등 과거 데이터의 하위 호환성을 설계 판단이나 구현 범위에 포함하지 않는다. 사람·AI·CLI가 앞으로 작성하는 입력의 처리는 이 규칙과 별개다.
@@ -26,18 +26,20 @@
 - 특정 플러그인만을 위한 Core·Host 기능은 만들지 않는다. 단, 여러 플러그인이 함께 쓸 수 있고 가치 있는 기능은 Core·Host에 넣을 수 있다. 판단은 PR 리뷰에서 사람과 오케스트레이터가 하며 자동 검사로 강제하지 않는다.
 - Editor, CLI, AI 등 서로 다른 인터페이스가 문서 의미를 각각 별도로 구현하지 않도록 한다.
 - 영속적인 문서 의미 변경은 Editor에만 구현하지 않으며, 먼저 또는 동시에 Core의 editor-neutral semantic operation으로 표현한다.
-- [ADR-0015](docs/adr/0015-shared-host-operations.md)에 따라 새 사용자 기능은 Host 공용 작업(입력·결과·범위·receipt)으로 정의하고 CLI 명령을 반드시 함께 제공한다. 비서는 [ADR-0021](docs/adr/0021-general-agent-assistant.md)에 따라 CLI와 스킬을 기본으로 쓰고, 창 상태 조회·화면 대행 도구와 화면↔Host 요청 통로는 #1360에서 제거했다. 활성 문서의 저장 경로는 메시지에 직접 붙인다.
+- [ADR-0015](docs/adr/0015-shared-host-operations.md)에 따라 새 사용자 기능은 Host 공용 작업(입력·결과·범위·receipt)으로 정의하고 CLI 명령을 반드시 함께 제공한다. 비서는 [ADR-0021](docs/adr/0021-general-agent-assistant.md)에 따라 CLI와 스킬을 기본으로 쓴다. 활성 문서의 저장 경로는 메시지에 직접 붙인다.
 - CLI는 공용 작업과 Core operation을 호출하는 얇은 인터페이스로 유지하며, 문서 의미나 Markdown/AST를 별도로 구현하지 않는다.
 - cursor, focus, selection, toolbar, hover 등 Editor 전용 interaction은 CLI parity 대상이 아니다.
 - 공식 write path가 생성하는 문서는 valid하고 안정적으로 다시 처리할 수 있어야 한다.
 - Visual Editor는 ADR-0001에 따라 Tiptap/ProseMirror 기반의 single-document editor state를 사용한다. Litzio가 selection, history, cursor, clipboard 등을 포함한 자체 rich-text editor engine을 재구현하지 않는다.
 - Editor-engine-specific types and document models stay inside `apps/editor`. Core exposes editor-neutral document semantics.
 - Editor는 ADR-0010에 따라 최소 640px의 데스크톱급 창과 키보드·포인터 입력을 지원 대상으로 한다. 휴대폰 폭·터치 전용 레이아웃이나 검증은 실제 사용자가 확인되어 별도 결정이 나기 전까지 계획하지 않는다.
-- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop의 로컬 연결은 PR3부터 공유 daemon을 사용하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. AI는 daemon 수명을 따른다. PR4가 수명 계약과 한정 테스트 복구를 완료했으며, 이후 ADR-0017에서 플러그인 기능을 제거·보관했다.
+- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop의 로컬 연결은 공유 daemon을 사용하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. AI는 daemon 수명을 따른다.
 
-[ADR-0022](docs/adr/0022-plugin-screen-code.md)에 따라 플러그인은 자기 화면 코드를 제공한다. [플러그인 실행 계약](docs/design/plugin-stage1-v1.md)과 [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다. 삭제된 선언형·Docling은 `archive/plugins-declarative-2026-11-13` 브랜치와 `archive/2026-11-13-plugins-declarative` 태그에 보관한다.
+[ADR-0022](docs/adr/0022-plugin-screen-code.md)에 따라 플러그인은 자기 화면 코드를 제공한다. [플러그인 실행 계약](docs/design/plugin-stage1-v1.md)과 [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다.
 
-2026-11-13 #1595에 따라 다른 PC의 Host 등록·접속 UI를 삭제했다(보관: `archive/2026-11-13-plugins-declarative`). 같은 PC daemon·수동 다시 연결·CLI `--host`·개발/검사용 독립 HTTP Host는 유지한다. 화면은 단일 연결을 쓰되 세션·작업에 고정된 client를 유지한다. 탭·기억·복구는 path로 식별하고 새 namespace로 옛 Host별 기록과 분리한다. 옛 기록을 자동 변환하거나 지우지 않는다.
+다른 PC의 Host 등록·접속 UI는 제공하지 않는다. 같은 PC daemon·수동 다시 연결·CLI `--host`·개발/검사용 독립 HTTP Host는 유지한다. 화면은 단일 연결을 쓰되 세션·작업에 고정된 client를 유지한다. 탭·기억·복구는 path로 식별하고 새 namespace로 옛 Host별 기록과 분리한다. 옛 기록을 자동 변환하거나 지우지 않는다.
+
+보관 위치: `archive/plugins-docling-2026-11` 브랜치, `archive/plugins-declarative-2026-11-13` 브랜치, `archive/2026-11-13-plugins-declarative` 태그.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 
@@ -64,11 +66,11 @@
 - `packages/plugin-sdk/` — 플러그인의 공통 manifest·schema·Host SDK와 제작 계약.
 - `apps/editor/src/views/` — 플러그인의 React 화면 코드·단일 연결의 화면 수명·공통 부품·새 문서 저장. [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다.
 - `packages/file-commit/` — CLI와 Editor Host가 공유하는 Node 전용 파일 교체(revision 확인, temporary sibling, rename). 문서 의미를 알지 않는다.
-- `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다.
+- `apps/editor/server` — 공용 HTTP Host handler. [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 AI는 daemon 공식 기능이며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다.
 - `apps/editor/server/assistant-conversations.ts` — 대화·제출·질문·권한 scope와 이벤트 처리의 메모리 수명. `assistant-provider-items.ts`·`assistant-conversation-display.ts`·`assistant-references.ts`·`assistant-conversation-index.ts`는 각각 공급자 값 변환·표시용 축약·참조 검증·metadata 파일 I/O를 소유한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
 - `apps/editor/src/App.tsx` — 창의 탭·세션·복구·파일 action·닫기 보호와 화면 handoff를 소유한다. `shell/folder-requests.ts`는 상태 없는 폴더 HTTP 요청과 응답 검증, `shell/DocumentOperationDialogs.tsx`는 문서 열기 거절·Reload 확인의 표시를 소유한다.
-- `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에서 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트로 전환한다. 문서 의미를 구현하지 않는다.
+- `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에 따른 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트를 사용한다. 문서 의미를 구현하지 않는다.
 - [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.
 - `docs/design/ui-patterns-v1.md` — UI 작업 전에 읽는 반복 패턴 기준. 소유자가 확정한 목표, 현재 기준 구현·사용처와 미구현 불일치·후속 이슈를 구분하며, 같은 패턴의 다른 화면도 확인한다.
 - `docs/design/editor-layout-rules-v1.md` — Editor UI 변경 시 정렬, 간격 및 control 치수 기준으로 참고한다.
