@@ -204,7 +204,7 @@ for (const name of scenarios) {
     const pluginDirectory = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "plugin-artifact");
     const pluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "fixture");
     const otherPluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-b", "fixture");
-    const otherJobInput = path.join(REPOSITORY_ROOT, "tmp", "k1-other-root-request.json");
+    const otherJobInput = path.join(REPOSITORY_ROOT, "tmp", "other-root-request.json");
     if (name === "vite-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
       writeCodePluginManifest(pluginDirectory,{id: "fixture.vite",name: "Vite fixture",entry: "host.mjs",description: "Connection settings fixture",settingsSchema: { type: "object", properties: { serverUrl: { type: "string", title: "Service URL", minLength: 1, description: "HTTP(S) service URL" }, failure: { type: "boolean", title: "Simulate failure", description: "Simulates service availability" } }, additionalProperties: false },secrets: [{ id: "api-key", title: "Access token", scope: "connection", required: false }],operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", additionalProperties: false }, outputSchema: { type: "object" } }],healthCheck: "connection",screen:"screen.jsx"});
