@@ -1,7 +1,8 @@
 # Figure authoring v1
 
 - Status: Implemented
-- Last verified: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
+- Last verified: 2026-11-16 — #1658: 번호 경고 위치를 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-13 (검증 이력 분류·이동과 링크 대조. 기존 계약 문구 보존; 제품·브라우저·Desktop 재실행 없음).
 - Pointer and popover correction: 2026-10-29 (#760; first prose click, quiet fields, aligned controls and metadata clearance).
 - Property popover: 2026-10-29 (#757; owner decisions in #740 and implementation handoff).
 - Fixed numbering: 2026-10-29 (#720 Core/CLI and Editor property controls/warnings); [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
@@ -29,8 +30,8 @@ warning-only missing/duplicate checks and Editor display. The image/pending and 
 property forms place Number after Label and reuse their existing draft,
 validation-busy and Undo contracts. In the Editor, choosing Automatic clears the fixed number;
 empty Fixed input blocks completion with a field error (#776). Captions and
-references update from Core display functions. Core warnings appear beside this field and
-in a document warning Notice without blocking Save.
+references update from Core display functions. Numbering warnings follow the
+[shared notification contract](heading-numbering-v1.md#fixed-numbers-720).
 
 A Figure owns its caption, label, location and number. Content is optional: `contentKind` in the Core read model is `none`, `image` or `mermaid`. Existing `imageUrl` and `imageAlt` fields remain available. Mermaid Figures additionally expose `mermaidSource`; image fields are empty. Unsupported content, including subfigures, rejects native admission.
 
@@ -399,7 +400,7 @@ checkpoint and history contracts. See [filename](document-editing-v1.md#figure-f
 Number uses Automatic/Fixed segments, with an input only for Fixed. Empty fixed input blocks
 completion; choosing Automatic clears the fixed number and shows the automatic number
 preview under the [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
-Core warning Notices appear only when needed. Fields have transparent
+Fields have transparent
 rest borders, a subtle surface fill and empty-value placeholders, with hover/focus boundaries.
 The Number track matches the neighboring input height, and visible segment labels share the
 hidden width-reserving labels' grid cell. Both media kinds use intrinsic-ratio previews within
@@ -408,7 +409,7 @@ a subtle structural border and content radius; compact actions share the facing 
 uses a native keyboard-accessible disclosure with the shared chevron and compact target.
 Its expanded filename row retains the collapsed label-line clearance before the next row.
 Form rows use the shared 12px gap and equal 16px outer padding; warnings/errors use UI 14/20
-type without an extra bottom margin. Number warnings stay in the Number column. Above placement
+type without an extra bottom margin. Numbering warnings follow the shared notification contract. Above placement
 includes the absolute metadata line in the anchor. There is no repeated title, path summary, caption field
 or section heading. Width, thumbnail size and anchor gap are adjustable tokens; other controls reuse shared
 spacing and state tokens. Equation, table, endnote and Mermaid source forms retain their UI.

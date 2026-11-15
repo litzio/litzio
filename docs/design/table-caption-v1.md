@@ -15,7 +15,8 @@
 - Direct-editing verification: 2026-10-26 (#555 and the approved table-caption portion of #557; scope and evidence below).
 - Caption-label verification: 2026-10-26 (#462 Core template rule, CLI inspect, cross-reference browser immediate update, Undo/Redo, Source and Save → Reload).
 - CLI insertion verification: 2026-10-15 (#280 caption/label in one write, label-only table, invalid/duplicate label refusal and rich batch caption; Core/CLI tests).
-- Last verified: 2026-11-16 — 현재 계약과 완료된 계획·삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-16 — #1658: 표 도구·속성·번호 경고·번호 숨김을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-16 — 현재 계약과 완료된 계획·삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Previous verification: 2026-10-11 (contract compared with current code and regression coverage; caption inline math and reference display, #165).
 - Scope: Core table caption/label operations and their Editor/CLI interfaces; [Table interaction](table-interaction-v1.md).
 
@@ -29,7 +30,7 @@ immediately. Disabling `EXPAND_SELECT_ALL_TO_DOCUMENT` keeps Ctrl/Cmd+A local;
 node/read-only selections are retained. See the [selection contract](document-editing-v1.md#select-all-within-an-editing-surface-723).
 
 Issues #94 / #584. Core owns `updateTableCaption`, table `updateLabel` and table numbering.
-Every table receives an automatic number in document order or an authored fixed number, regardless of caption or Label, and is
+Unless explicitly unnumbered under the [shared number contract](heading-numbering-v1.md#fixed-numbers-720), every table receives an automatic number in document order or an authored fixed number, regardless of caption or Label, and is
 canonically written as a MyST `{table}` directive. Without caption or Label, the directive
 has neither an argument nor `:name:`; its optional fixed number uses `:enumerator:`.
 Plain GFM input remains supported and is normalized
@@ -37,8 +38,7 @@ on any official write. Canonical writing uses the existing Markdown writer for t
 and GFM grid, then verifies the complete semantic round-trip. The fingerprint treats only
 the plain top-level table and its empty directive wrapper as equivalent; grid content,
 rows/columns, alignment, caption, Label and other fields remain checked. Cell paths remain
-logical `[block,row,column]` regardless of the directive wrapper. No migration or alternate
-unnumbered table kind is introduced.
+logical `[block,row,column]` regardless of the directive wrapper. No migration or alternate table kind is introduced.
 
 Editor uses the existing single document state. Captions are edited directly below the
 table, including formatting, links, inline math, cross-references and citations, with the
@@ -49,32 +49,27 @@ last cell. Enter leaves the table. Emptying a caption removes its persistent con
 
 The grid-to-caption gap uses the same adjustable `--space-document-caption` as Figures
 (#721). Native caption padding owns that gap; the inner caption adds no second margin.
-Edit, Table actions, Delete and Append row stay together below the caption, including
-the empty input surface, with token-derived control clearance. They do not occupy the
-caption gap or cover its text/click targets. Horizontal scrolling and row/column handle
-placement retain the [Table interaction](table-interaction-v1.md) contract.
+Whole-table tools, row/column handles, append bars and horizontal scrolling follow
+the [Table interaction contract](table-interaction-v1.md#whole-table-tools-793).
 
-Every empty caption surface shows its official `Table N.` and, while the selection is outside,
+Every numbered empty caption surface shows its official `Table N.` and, while the selection is outside,
 the input hint. Filling or
 clearing the caption or Label never changes the table's kind or number, nor the numbers
 of later tables. References to a retained Label therefore keep their number. Clearing a
 Label retains reference text but makes references to that removed target unresolved.
 The Editor uses Core numbering, without a separate prospective-number rule.
 
-Hover a table and choose Edit (the pencil below the caption, beside Table actions, which
-also offers Edit label). The properties form contains Label and Number; Apply/Cancel and
-unsaved-draft protection apply to both fields. It preserves the live caption, including
+Open table properties through the [Table interaction entry points](table-interaction-v1.md#whole-table-tools-793). The properties form contains Label and Number; completion and draft protection follow
+the [shared table popover contract](table-interaction-v1.md#property-entry-557). It preserves the live caption, including
 edits made while properties are open. The inline caret surface is present below every
 editable table, including after clearing and reopening. No Add caption button is needed.
 Read-only captions retain existing content and official numbers, like Figure captions,
 but omit the editable empty-input hint. Save omits empty caption content. Cell and row coordinates remain
 unchanged. CLI and Editor share the Core read model and numbering rule.
-Table properties expose Number after Label (#720), with the shared automatic placeholder
-and empty-to-clear rule. Number-only drafts participate in unsaved-work protection;
-Apply changes label and number in one engine transaction and Save replays Core
-`updateEnumerator`. Cancel/Escape keeps the applied value. The field shows Core's applicable
-missing/duplicate warning; the document Notice also reports warnings. Neither prevents Save.
-See the [shared fixed-number Editor contract](heading-numbering-v1.md#fixed-numbers-720).
+Table properties expose Number after Label (#720), following the
+[shared fixed-number Editor contract](heading-numbering-v1.md#fixed-numbers-720). Number-only drafts participate in unsaved-work protection.
+Completion changes label and number in one engine transaction and Save replays Core
+`updateEnumerator`. Escape keeps the applied value. Numbering warnings follow that shared contract.
 The Editor schema requires exactly one caption after the rows. Native parsing and
 replacement therefore retain the surface even when a range deletion removes everything
 after the final cell while keeping the table. No repair transaction or Undo step is added.
@@ -133,7 +128,8 @@ and citation NodeViews are the same ones used in the body, including computed nu
 readiness, editing and navigation. MyST reads caption citations/endnotes before grid
 cells even though the caption is visually below them; numbering follows that Core order.
 No generated display text enters Markdown. Merged cells, additional legends and directive
-options other than Label (`name` / `label`) and fixed number (`enumerator`) reject native admission. Only plain GFM and
+options other than Label (`name` / `label`), fixed number (`enumerator`) and numbering visibility
+(`enumerated` / `numbered`) reject native admission. Visibility semantics follow the shared number contract. Only plain GFM and
 the exact `{table}` directive are accepted; `{csv-table}`, `{list-table}` and other
 table directives are refused regardless of caption, Label or options. Before lifting,
 Core checks MyST's option map and refuses any VFile diagnostic within the table
