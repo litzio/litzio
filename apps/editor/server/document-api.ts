@@ -31,7 +31,7 @@ import { executeFolderTrash, deleteFile, renameFile, ReferencedImageError, Image
 import { osTrashAvailable, trashFile } from "./os-trash.ts";
 import type { FileOperationRequest, RenameFileRequest } from "../shared/file-operations.ts";
 import { resolveDocumentPath, resolveEditorPath, resolveMediaPath } from "./document-path.ts";
-export { DOCUMENT_DIR, resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
+export { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import {
   readModel,
   SaveContentError,
@@ -86,7 +86,7 @@ function fileStep<T>(apply: () => T): T {
   }
 }
 
-export const DOCUMENT_CONFLICT_MESSAGE = "Document changed outside the editor. Your edits are kept. Use Source to copy applied content, or Reload to discard local changes and open the disk version.";
+const DOCUMENT_CONFLICT_MESSAGE = "Document changed outside the editor. Your edits are kept. Use Source to copy applied content, or Reload to discard local changes and open the disk version.";
 
 const EMPTY_DOCUMENT_MARKDOWN = serialize(createDocument());
 

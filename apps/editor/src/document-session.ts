@@ -20,7 +20,7 @@ export class SaveConflictError extends SaveContentError {
   }
 }
 
-export const DOCUMENT_READ_TIMEOUT_MS = 15_000;
+const DOCUMENT_READ_TIMEOUT_MS = 15_000;
 
 export function createDocumentRequests(client: HostClient) {
   const reads = new Set<AbortController>();
@@ -169,9 +169,6 @@ export function requestDocument(method: "GET" | "PUT", filePath?: string, biblio
   return method === "GET" ? requests.requestDocument(method, filePath, bibliographyRoot) : requests.requestDocument(method, filePath!, bibliographyRoot, template);
 }
 export const requestBibliography = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestBibliography"]>) => createDocumentRequests(getHostClient()).requestBibliography(...args);
-export const requestSave = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSave"]>) => createDocumentRequests(getHostClient()).requestSave(...args);
-export const requestSource = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSource"]>) => createDocumentRequests(getHostClient()).requestSource(...args);
-export const validateFigure = (...args: Parameters<ReturnType<typeof createDocumentRequests>["validateFigure"]>) => createDocumentRequests(getHostClient()).validateFigure(...args);
 
 
 export function messageOf(cause: unknown): string {

@@ -48,7 +48,7 @@ export function blockNumbers(doc: ProseMirrorNode): readonly Readonly<NumberedTa
 }
 
 /** The computed number of the top-level block at `pos`, for one target kind. */
-export function blockNumberAt(doc: ProseMirrorNode, pos: number, kind: NumberedKind): number | string | undefined {
+function blockNumberAt(doc: ProseMirrorNode, pos: number, kind: NumberedKind): number | string | undefined {
   return blockNumbers(doc)[doc.resolve(pos).index(0)]?.[kind];
 }
 
@@ -88,7 +88,7 @@ export function useCaptionNumberText(editor: Editor, getPos: () => number | unde
 }
 
 /** How a number is shown: equations in parentheses, as MyST renders them. */
-export function numberText(kind: NumberedKind, number: number | string): string {
+function numberText(kind: NumberedKind, number: number | string): string {
   return kind === "equation" ? `(${number})` : String(number);
 }
 
@@ -177,7 +177,7 @@ export function addSectionLabel(state: EditorState, index: number): Transaction 
 }
 
 /** The target a reference names here, compared the way MyST resolves labels. */
-export function resolvedTarget(targets: ReferenceTarget[], role: ReferenceRole, label: string): ReferenceTarget | undefined {
+function resolvedTarget(targets: ReferenceTarget[], role: ReferenceRole, label: string): ReferenceTarget | undefined {
   return resolveLabelReference({ label }, key => targets.find((target) => target.role === role && labelKey(target.label) === key));
 }
 
@@ -226,7 +226,7 @@ export function referenceDisplay(targets: ReferenceTarget[], role: ReferenceRole
 }
 
 /** What an unresolved reference tells the reader. */
-export function unresolvedStatus(_role: ReferenceRole, label: string): string {
+function unresolvedStatus(_role: ReferenceRole, label: string): string {
   return i18n.t("Unresolved reference: no target labeled “{{label}}” in this document", { label });
 }
 
@@ -237,7 +237,7 @@ export function isResolved(targets: ReferenceTarget[], role: ReferenceRole, labe
 
 /** Select the block a reference names and bring it into view; false when it names no target here.
  * A section reference goes to the start of its heading. */
-export function revealReferenceTarget(editor: Editor, role: ReferenceRole, label: string): boolean {
+function revealReferenceTarget(editor: Editor, role: ReferenceRole, label: string): boolean {
   const key = labelKey(label);
   const { doc } = editor.state;
   let target: number | undefined;
@@ -305,7 +305,7 @@ export function referenceCommandItems(doc: ProseMirrorNode, query: string): { id
   ];
 }
 
-export function referenceCommandId(target: ReferenceTarget): string {
+function referenceCommandId(target: ReferenceTarget): string {
   return `reference:${target.role}:${target.label}`;
 }
 

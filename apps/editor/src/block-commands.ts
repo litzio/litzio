@@ -20,7 +20,7 @@ import { blockMoveTarget, blockMoveBlockedHint, reorderBlock } from "./block-reo
 export type SlashRange = { from: number; to: number };
 export type TableCellAddress = { row: number; column: number };
 
-export type InsertCommand = {
+type InsertCommand = {
   id: string;
   label: string;
   /** Menu group: what kind of content the command inserts. */
@@ -31,7 +31,7 @@ export type InsertCommand = {
   run(state: EditorState, index: number, slash?: SlashRange): Transaction;
 };
 
-export type BlockCommand = {
+type BlockCommand = {
   id: string;
   label: string;
   /** Whether the block menu lists this command for the block at all; default: every block. */
@@ -440,7 +440,7 @@ function insertAtomAfter(
 }
 
 /** Insert a heading after the target, reusing a transient empty paragraph as its editable block. */
-export function insertHeadingAfter(
+function insertHeadingAfter(
   state: EditorState,
   index: number,
   level: number,
@@ -508,7 +508,7 @@ export function insertCodeBlockAfter(state: EditorState, index: number, slash?: 
 }
 
 /** Insert an editable admonition after the target, reusing a transient empty paragraph. */
-export function insertAdmonitionAfter(
+function insertAdmonitionAfter(
   state: EditorState,
   index: number,
   variant: AdmonitionVariant,
@@ -841,7 +841,7 @@ function sectionMarkers(doc: EditorState["doc"]): SectionMarker[] {
  * Where the section at `index` goes to swap with its previous (-1) or next (+1) sibling section:
  * a section of the same level within the same parent. Undefined without one.
  */
-export function siblingSectionTarget(state: EditorState, index: number, by: -1 | 1): number | undefined {
+function siblingSectionTarget(state: EditorState, index: number, by: -1 | 1): number | undefined {
   if (!isSectionHeading(state, index)) return undefined;
   const markers = sectionMarkers(state.doc);
   return siblingTarget(markers, index, by);
@@ -863,7 +863,7 @@ function siblingTarget(markers: SectionMarker[], index: number, by: -1 | 1): num
 }
 
 /** Move the section at `index` past its previous or next sibling section, in one transaction. */
-export function moveSectionBy(state: EditorState, index: number, by: -1 | 1): Transaction {
+function moveSectionBy(state: EditorState, index: number, by: -1 | 1): Transaction {
   const to = siblingSectionTarget(state, index, by);
   if (to === undefined) throw new Error("the section has no sibling section in that direction");
   const { start, end } = sectionRange(sectionMarkers(state.doc), index);
@@ -893,7 +893,7 @@ const sectionContent = (state: EditorState, { start, end }: { start: number; end
   (at: number) => at >= start && at < end && endnoteLabel(state.doc.child(at)) === undefined;
 
 /** Remove the section at `index`: its label targets, content and deeper sections. Endnotes stay. */
-export function deleteSection(state: EditorState, index: number): Transaction {
+function deleteSection(state: EditorState, index: number): Transaction {
   if (!isSectionHeading(state, index) || wholeDocumentSection(state, index)) throw new Error("invalid section deletion");
   const range = sectionRange(sectionMarkers(state.doc), index);
   const removed = sectionContent(state, range);
@@ -918,7 +918,7 @@ export function deleteBlock(state: EditorState, index: number): Transaction {
   return tr.setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
 }
 
-export type SlashQuery = SlashRange & { index: number; query: string; blockCommands: boolean; endnote: boolean };
+type SlashQuery = SlashRange & { index: number; query: string; blockCommands: boolean; endnote: boolean };
 
 /** The shared schema-backed caret surface for inline insertion, independent of a trigger. */
 export function inlineInsertionAt(state: EditorState) {

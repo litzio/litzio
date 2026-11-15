@@ -5,7 +5,7 @@ import type { OfferedUpdate, ReleaseChannel } from "../../editor/shared/desktop-
 
 /** The GitHub repository whose Releases the app updates from. */
 export const RELEASE_REPOSITORY = brand.updates.repository;
-export const RELEASES_URL = `https://github.com/${RELEASE_REPOSITORY.owner}/${RELEASE_REPOSITORY.repo}/releases`;
+const RELEASES_URL = `https://github.com/${RELEASE_REPOSITORY.owner}/${RELEASE_REPOSITORY.repo}/releases`;
 
 /** Only the GitHub adapter can establish this; generic HTTP errors are never classified here. */
 export class NoStableReleaseError extends Error {
@@ -70,7 +70,7 @@ export function offerFor(installed: string, channel: ReleaseChannel, candidate: 
 }
 
 /** A release's tag, version and channel, as the release workflow accepts them. */
-export type ReleaseIdentity = { tag: string; version: string; channel: ReleaseChannel };
+type ReleaseIdentity = { tag: string; version: string; channel: ReleaseChannel };
 
 /**
  * `v<major>.<minor>.<patch>` is Stable; `v<major>.<minor>.<patch>-beta.<n>` is Beta. Any other tag,

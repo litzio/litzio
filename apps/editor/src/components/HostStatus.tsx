@@ -4,7 +4,7 @@ import type { HostRuntime } from "../host-client.ts";
 import { Button } from "./ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip.tsx";
 
-export type HostStatusProps = {
+type HostStatusProps = {
   /** A read-only observation; this component never connects or selects a Host. */
   runtime?: Pick<HostRuntime, "state" | "failure" | "reason" | "warning">;
   restartRequired?: boolean;

@@ -39,7 +39,7 @@ import type {
 /** Editor document attribute listing snapshot paths removed by an explicit Delete command. */
 export const DELETED_PATHS_ATTR = "deletedPaths";
 
-export function deletedPathsOf(document: TiptapJSON): string[] {
+function deletedPathsOf(document: TiptapJSON): string[] {
   const value = document.attrs?.[DELETED_PATHS_ATTR];
   return Array.isArray(value) ? value.map(String) : [];
 }
@@ -738,7 +738,7 @@ function equationLatex(node: TiptapJSON): string {
   return node.attrs.latex;
 }
 
-export function tableCaption(node: TiptapJSON): InlineContent[] {
+function tableCaption(node: TiptapJSON): InlineContent[] {
   const children = node.content ?? [];
   const captions = children.filter(child => child.type === "tableCaption");
   if (captions.length > 1 || captions.length && children.at(-1) !== captions[0]) throw new Error("a table caption must follow its rows");

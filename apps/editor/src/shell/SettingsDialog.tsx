@@ -28,7 +28,7 @@ const CHANNELS: { value: ReleaseChannel; label: string; hint: string }[] = [
 const kind = (update: OfferedUpdate) => (update.prerelease ? i18n.t("Beta") : i18n.t("Stable"));
 
 /** What updating is doing, in one sentence. Every phase comes from the Desktop updater. */
-export function updateStatusText(info: DesktopInfo): string {
+function updateStatusText(info: DesktopInfo): string {
   const state: UpdateState = info.update;
   const channel = info.channel === "beta" ? i18n.t("Beta") : i18n.t("Stable");
   switch (state.phase) {

@@ -1,4 +1,4 @@
-import { getHostClient, type HostClient } from "./host-client.ts";
+import type { HostClient } from "./host-client.ts";
 import type { SaveTemplateRequest, TemplateContent, TemplateList } from "../shared/template-protocol.ts";
 import { i18n } from "./i18n.ts";
 
@@ -17,10 +17,9 @@ export function createTemplateRequest(client: HostClient) { return async functio
 }
 
 }
-export const templateRequest = createTemplateRequest(getHostClient());
 
 // Host errors are literal transport details; localize the actionable naming failures here.
-export function templateError(error: string): string {
+function templateError(error: string): string {
   switch (error) {
     case "Template already exists.": return templateText("A template with this name already exists. Choose another name.");
     case "Template name is reserved for an app default.": return templateText("This name is reserved for an app default. Choose another name.");

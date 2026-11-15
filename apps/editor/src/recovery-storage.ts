@@ -1,7 +1,7 @@
 import { brand } from "../../../brand.ts";
 import type { SessionSnapshot } from "./DocumentTab.tsx";
 
-export const RECOVERY_DAYS = 10;
+const RECOVERY_DAYS = 10;
 export const RECOVERY_DB = `${brand.storagePrefix}-recovery-v3`;
 export const RECOVERY_VERSION = 3;
 export type RecoveryRecord = {

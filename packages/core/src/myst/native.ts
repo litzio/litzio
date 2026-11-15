@@ -137,7 +137,7 @@ function assertInlineContent(node: MystNode, path: number[]): void {
   node.children?.forEach((child, index) => assertInlineContent(child, [...path, index]));
 }
 
-export function assertNativeDocument(document: MystDocument): void {
+function assertNativeDocument(document: MystDocument): void {
   validateStructure(document);
   metadata(document);
   const shorthand = citationShorthand(document);

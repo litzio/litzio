@@ -4,31 +4,10 @@
  * bridge's public surface in one place.
  */
 export type { TiptapJSON } from "./tiptap-inline.ts";
-export type {
-  HeadingEdit,
-  HeadingLevelEdit,
-  ParagraphEdit,
-  EquationEdit,
-  FigureEdit,
-  AdmonitionEdit,
-  TableCellEdit,
-  TableShapeEdit,
-  ListEdit,
-  CodeEdit,
-  LabelEdit,
-  QuoteEdit,
-  FootnoteEdit,
-  InsertEdit,
-  OrderItem,
-  SupportedEdits,
-} from "../shared/document-protocol.ts";
 export {
   isNewBlockPath,
-  NEW_BLOCK_PREFIX,
   paragraphContent,
-  pathKey,
   TABLE_CELL_SOURCE_ATTR,
-  toTiptapBlockNode,
   toTiptapDocument,
 } from "./tiptap-projection.ts";
 export {
@@ -36,11 +15,9 @@ export {
   assertSupportedDocumentChange,
   collectSupportedEdits,
   DELETED_PATHS_ATTR,
-  deletedPathsOf,
   figureContent,
   freshBlockPath,
   isSessionPlaceholder,
   isSupportedDocumentChange,
   normalizeEngineDocument,
-  tableCaption,
 } from "./tiptap-edits.ts";

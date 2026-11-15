@@ -22,7 +22,7 @@ import "./ui-gallery.css";
 type ExampleState = "default" | "interaction" | "disabled" | "error";
 
 // These examples import production controls. Their local state never writes documents or settings.
-export function ChoiceGroupExamples({ state }: { state: ExampleState }) {
+function ChoiceGroupExamples({ state }: { state: ExampleState }) {
   const [value, setValue] = useState("automatic");
   return <section className="ui-gallery-section" aria-labelledby="gallery-choices">
     <h2 id="gallery-choices">ChoiceGroup</h2>
@@ -32,7 +32,7 @@ export function ChoiceGroupExamples({ state }: { state: ExampleState }) {
   </section>;
 }
 
-export function ControlExamples({ state }: { state: ExampleState }) {
+function ControlExamples({ state }: { state: ExampleState }) {
   const disabled = state === "disabled", invalid = state === "error";
   return <section className="ui-gallery-section" aria-labelledby="gallery-controls">
     <h2 id="gallery-controls">Button · Input · icons</h2>
@@ -59,7 +59,7 @@ export function ControlExamples({ state }: { state: ExampleState }) {
   </section>;
 }
 
-export function SurfaceExamples({ state }: { state: ExampleState }) {
+function SurfaceExamples({ state }: { state: ExampleState }) {
   const [dialog, setDialog] = useState(false), [danger, setDanger] = useState(false);
   const dialogTrigger = useRef<HTMLButtonElement>(null), dangerTrigger = useRef<HTMLButtonElement>(null);
   const name = useRef<HTMLInputElement>(null);
@@ -88,7 +88,7 @@ export function SurfaceExamples({ state }: { state: ExampleState }) {
   </section>;
 }
 
-export function MenuExamples({ state }: { state: ExampleState }) {
+function MenuExamples({ state }: { state: ExampleState }) {
   const [action, setAction] = useState("No action yet");
   const disabled = state === "disabled";
   return <section className="ui-gallery-section" aria-labelledby="gallery-menus">
@@ -108,7 +108,7 @@ export function MenuExamples({ state }: { state: ExampleState }) {
   </section>;
 }
 
-export function NotificationExample({ state }: { state: ExampleState }) {
+function NotificationExample({ state }: { state: ExampleState }) {
   return <section className="ui-gallery-section" aria-labelledby="gallery-notifications">
     <h2 id="gallery-notifications">NotificationCenter</h2>
     <p>The notification button occupies the title strip; its list opens below it. Production features register notifications with the App provider; they do not mount another center.</p>

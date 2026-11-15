@@ -52,7 +52,7 @@ export async function startDaemonChild(options: {
   return { record, identity };
 }
 
-export function daemonUser(): string {
+function daemonUser(): string {
   if (process.platform !== "win32") return `uid:${os.userInfo().uid}`;
   const result = execFileSync("whoami", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
   const sid = result.match(/"(S-1-(?:\d+-)+\d+)"\s*$/)?.[1];

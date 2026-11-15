@@ -3,8 +3,8 @@ import path from "node:path";
 import { DOMParser } from "@xmldom/xmldom";
 import { validateImage } from "../image-validation.ts";
 import { pluginIconMime } from "@litzio/plugin-sdk";
-export const MAX_ICON_BYTES = 64 * 1024;
-export const MAX_ICON_SIZE = 256;
+const MAX_ICON_BYTES = 64 * 1024;
+const MAX_ICON_SIZE = 256;
 /** artifactDigest rejects links and escapes before this function reads the icon. */
 export function readPluginIcon(directory: string, icon: string) {
   const mime = pluginIconMime(icon);

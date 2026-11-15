@@ -7,7 +7,7 @@ export type DocumentWidth = "standard" | "wide";
 
 export const PAGE_BACKGROUNDS = ["paper", "flat"] as const;
 export type PageBackground = typeof PAGE_BACKGROUNDS[number];
-export const PAGE_BACKGROUND_KEY = `${brand.storagePrefix}.pageBackground`;
+const PAGE_BACKGROUND_KEY = `${brand.storagePrefix}.pageBackground`;
 
 export function readPageBackground(): PageBackground {
   try {
@@ -26,7 +26,7 @@ export function writePageBackground(page: PageBackground): boolean {
 export const THEME_LABELS = { light: "Light", dark: "Dark" } as const;
 export const THEMES = ["light", "dark"] as const;
 export type ThemePreference = typeof THEMES[number];
-export const THEME_KEY = `${brand.storagePrefix}.theme`;
+const THEME_KEY = `${brand.storagePrefix}.theme`;
 
 export function readTheme(): ThemePreference {
   try {
@@ -47,7 +47,7 @@ export function writeTheme(theme: ThemePreference): boolean {
 }
 
 export const ACCENT_COLORS = ["blue", "violet", "plum", "teal", "green", "graphite"] as const;
-export type AccentColor = typeof ACCENT_COLORS[number];
+type AccentColor = typeof ACCENT_COLORS[number];
 export const ACCENT_COLOR_KEY = `${brand.storagePrefix}.accentColor`;
 
 export function readAccentColor(): AccentColor {
@@ -168,7 +168,7 @@ export function writeCollapsedFolderSections(roots: readonly string[]): void {
 }
 
 const OPEN_TABS_KEY = `${brand.storagePrefix}.openTabs.v2`;
-export type OpenTabsPreference = { paths: string[]; activePath: string | null };
+type OpenTabsPreference = { paths: string[]; activePath: string | null };
 
 /** null means no usable preference; an empty list deliberately starts without a document. */
 export function readOpenTabs(): OpenTabsPreference | null {

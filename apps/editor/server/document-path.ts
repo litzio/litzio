@@ -6,7 +6,7 @@ import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts
 
 const editorRoot = fileURLToPath(new URL("..", import.meta.url));
 
-export const DOCUMENT_DIR = path.join(editorRoot, "document");
+const DOCUMENT_DIR = path.join(editorRoot, "document");
 
 const DEFAULT_DOCUMENT_PATH = path.join(DOCUMENT_DIR, "technical-document.md");
 

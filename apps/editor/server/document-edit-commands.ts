@@ -508,21 +508,21 @@ export function flag(args: string[], name: string): string {
 }
 
 /** Exactly one of --text (plain) or --content (Core InlineContent JSON). */
-export function captionInput(args: string[]): string | InlineContent[] | undefined {
+function captionInput(args: string[]): string | InlineContent[] | undefined {
   const text = optionalFlag(args, "--caption");
   const content = optionalFlag(args, "--caption-content");
   if (text !== undefined && content !== undefined) throw new Error("--caption and --caption-content are mutually exclusive");
   return content === undefined ? text : jsonFlag<InlineContent[]>(args, "--caption-content");
 }
 
-export function textOrContent(args: string[]): InlineContent[] {
+function textOrContent(args: string[]): InlineContent[] {
   const text = optionalFlag(args, "--text");
   const content = optionalFlag(args, "--content");
   if ((text === undefined) === (content === undefined)) throw new Error("exactly one of --text or --content is required");
   return text !== undefined ? (text ? [{ kind: "text", text }] : []) : jsonFlag<InlineContent[]>(args, "--content");
 }
 
-export function variantFlag(args: string[]): AdmonitionVariant {
+function variantFlag(args: string[]): AdmonitionVariant {
   const value = flag(args, "--variant");
   if (!isAdmonitionVariant(value)) throw new Error(`--variant must be one of ${ADMONITION_VARIANTS.join(", ")}`);
   return value;
@@ -532,11 +532,11 @@ export function optionalFlag(args: string[], name: string): string | undefined {
   return args.includes(name) ? flag(args, name) : undefined;
 }
 
-export function insertionIndex(document: Document, args: string[]): number {
+function insertionIndex(document: Document, args: string[]): number {
   return flag(args, "--at") === "end" ? bodyEndIndex(document) : intFlag(args, "--at");
 }
 
-export function intFlag(args: string[], name: string): number {
+function intFlag(args: string[], name: string): number {
   const raw = flag(args, name);
   const value = Number(raw);
   if (!Number.isInteger(value)) {
@@ -545,7 +545,7 @@ export function intFlag(args: string[], name: string): number {
   return value;
 }
 
-export function jsonFlag<T>(args: string[], name: string): T {
+function jsonFlag<T>(args: string[], name: string): T {
   try {
     return JSON.parse(flag(args, name)) as T;
   } catch (error) {
@@ -554,7 +554,7 @@ export function jsonFlag<T>(args: string[], name: string): T {
   }
 }
 
-export function pathFlag(args: string[]): NodePath {
+function pathFlag(args: string[]): NodePath {
   const raw = flag(args, "--path");
   const path = raw.split(",").map((part) => part.trim() === "" ? NaN : Number(part.trim()));
   if (path.length === 0 || path.some((index) => !Number.isInteger(index) || index < 0)) {

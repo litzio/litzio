@@ -14,7 +14,7 @@ import { Input } from "./components/ui/input.tsx";
 import { SettingsSwitch } from "./components/ui/settings.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./components/ui/dialog.tsx";
 import { usePlugins, type Plugin } from "./plugin-state.ts";
-export { usePlugins } from "./plugin-state.ts";
+
 export function PluginSettings() {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
   const [removing, setRemoving] = useState(false);

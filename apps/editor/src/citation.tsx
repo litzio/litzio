@@ -65,13 +65,13 @@ export function citationStatus(keys: readonly string[], text: string, bibliograp
   return i18n.t("Citation {{numbers}}: {{keys}}. Bibliography has not been checked.", { numbers: text, keys: keys.join(", ") });
 }
 
-export function citationReadiness(keys: readonly string[], bibliography?: BibliographyEvaluation): string {
+function citationReadiness(keys: readonly string[], bibliography?: BibliographyEvaluation): string {
   if (!bibliography) return "not-evaluated";
   const states = keys.map(key => bibliography.references.find(reference => reference.key === key)?.status ?? "unverified");
   return states.find(state => state !== "complete") ?? "complete";
 }
 
-export function useCitationText(editor: Editor, keys: readonly string[]): string {
+function useCitationText(editor: Editor, keys: readonly string[]): string {
   return useEditorState({ editor, selector: ({ editor: current }) => current ? citationText(keys, citationNumbers(current.state.doc)) : "" }) ?? "";
 }
 

@@ -19,7 +19,7 @@ import { cloneDocument, type MystDocument, type MystNode } from "./tree.ts";
 
 /** Root field: why the parse dropped a written definition. Its parenthesized name is not a
  * MyST field. Canonical write refuses a document that has it: the definition would be lost. */
-export const DROPPED_FOOTNOTE_FIELD = "(dropped footnote)";
+const DROPPED_FOOTNOTE_FIELD = "(dropped footnote)";
 
 const REPEATED = (label: string) => `footnote [^${label}] is defined more than once`;
 const UNREFERENCED = (label: string) => `footnote [^${label}] has no reference, and MyST drops an unreferenced definition`;
@@ -29,7 +29,7 @@ type SourceDefinition = { label: string; start: number; end: number };
 const tokenizers = new WeakMap<object, ReturnType<typeof createTokenizer>>();
 
 /** Footnote definitions as written, in source order, with their 1-based lines. `options` are the parse's. */
-export function sourceDefinitions(text: string, options: object): SourceDefinition[] {
+function sourceDefinitions(text: string, options: object): SourceDefinition[] {
   if (!text.includes("[^")) return [];
   // Keep definitions in place: the tail rule is what moves, drops and unpositions them.
   let tokenizer = tokenizers.get(options);
@@ -139,15 +139,6 @@ export function endnotesInPlace(document: MystDocument): boolean {
   return true;
 }
 
-/**
- * Why canonical Markdown cannot keep this document's footnotes, or undefined. Each definition
- * must be referenced and each reference defined, once per label, or the reload would drop or
- * reread them.
- */
-export function footnoteWriteError(document: MystDocument): string | undefined {
-  return footnoteWriteIssue(document)?.reason;
-}
-
 export function footnoteWriteIssue(document: MystDocument): { code: "invalid-footnote"; reason: string; action: string; path?: number[] } | undefined {
   const action = "Check the footnote reference and definition. Keep one definition per referenced label; add the missing definition or remove an unused reference/definition.";
   if (typeof document[DROPPED_FOOTNOTE_FIELD] === "string") return { code: "invalid-footnote", reason: document[DROPPED_FOOTNOTE_FIELD], action };
@@ -213,7 +204,7 @@ function footnoteDefinitions(document: MystDocument): string[] {
  * For an operation's own round-trip check, which covers its blocks rather than the document's
  * footnotes: a copy in which each definition is referenced (from itself) and each reference
  * defined (by a definition after the blocks), so the blocks reload as they are. Whether the
- * document's footnotes are complete is checked when it is written (`footnoteWriteError`).
+ * document's footnotes are complete is checked when it is written (`footnoteWriteIssue`).
  */
 export function completeFootnotes(document: MystDocument): MystDocument {
   const defined = new Set(footnoteDefinitions(document));

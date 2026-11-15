@@ -16,7 +16,7 @@ import { ResetGuard } from "./reset-guard.ts";
 
 export const MAX_JSON_BYTES = 32 * 1024 * 1024;
 
-export type HttpHostOptions = {
+type HttpHostOptions = {
   roots: readonly string[];
   editorDir: string;
   port?: number;
@@ -29,7 +29,7 @@ export type HttpHostOptions = {
 const loopback = (host: string) => host === "::1" || /^127\./.test(host);
 const authority = (host: string, port: number) => `${host.includes(":") ? `[${host}]` : host}:${port}`;
 
-export function publicOrigin(value: string): string {
+function publicOrigin(value: string): string {
   const url = new URL(value);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error("--public-origin must be an http(s) origin without a path, credentials, query or fragment.");

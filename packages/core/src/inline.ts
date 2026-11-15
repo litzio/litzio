@@ -69,7 +69,7 @@ export type InlineContent =
 
 /** The mark an item applies to its content, for comparing rendered semantics:
  * strong/emphasis nesting is irrelevant, a link's target is part of the mark. */
-export function inlineMarkKey(item: InlineContent): string | undefined {
+function inlineMarkKey(item: InlineContent): string | undefined {
   if (MARK_KINDS.has(item.kind)) return item.kind;
   if (item.kind === "link") return `link ${JSON.stringify([item.url, item.title ?? null])}`;
   return undefined;

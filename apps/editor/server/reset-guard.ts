@@ -6,7 +6,7 @@ import { brand } from "../../../brand.ts";
 import { processStart } from "./daemon-state.ts";
 
 /** All channels/installations share this account-wide gate, independently of Host data overrides. */
-export const resetGuardDirectory = () => process.env.LITZIO_RESET_DIR ?? path.join(os.homedir(), `${brand.folders.shared}-reset-guard`);
+const resetGuardDirectory = () => process.env.LITZIO_RESET_DIR ?? path.join(os.homedir(), `${brand.folders.shared}-reset-guard`);
 type Owner = { pid: number; started: string; role: string };
 let ownStart: string | undefined;
 
