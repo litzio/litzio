@@ -1,17 +1,9 @@
 # Editor UX Shell v1
 
-#1595: 탭·폴더와 기억은 Host가 반환한 path로 식별한다. 새 기억·복구 namespace는 옛 Host별 기록과 writer를 읽거나 지우지 않고 분리한다. 세션의 고정 client·늦은 결과 거절·현재 탭 id/key는 유지한다. [저장 형식 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다.
-
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
-
 - Status: Implemented
-- Last verified: 2026-11-13 — #1595 PR3 형식 계약·현재 라벨 문구 대조와 persistent document-tabs/folder-memory 검사. 시각 변경 없음; 전체 검증 범위는 PR에 기록.
-- Run-as verification: 2026-11-05 — #1199 Windows Host health/capability·CLI lifecycle and two-Host persistent Chrome fixture; 1440px/640px footer captures. Actual Windows Desktop to Linux connection remains unverified.
-- Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
-
+- Last verified: 2026-11-16 — #1650 문서 전체와 현재 코드·계약을 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 
 - Scope: existing Editor interactions. [Visual Language](editor-visual-language-v1.md) and [Layout Rules v1](editor-layout-rules-v1.md) define presentation and geometry.
-
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
@@ -20,7 +12,6 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 창의 탭·복구·파일 action·계속하기·닫기 보호와 effect 순서는 App이 소유한다. 상태 없는 폴더 조회·선택기 탐색·폴더 생성·시작 위치의 HTTP 요청과 응답 검증은 [folder requests](../../apps/editor/src/shell/folder-requests.ts)에 둔다. 요청할 때의 기본 client 조회와 명시적으로 받은 client는 기존 방식대로 유지한다.
 
 [문서 작업 대화](../../apps/editor/src/shell/DocumentOperationDialogs.tsx)는 문서 열기 거절·Reload 확인의 기존 Dialog 표시만 소유한다. hook·effect·상태를 갖지 않으며 App의 현재 값·콜백·focus ref를 그대로 받는다. 미저장 보호·다시 읽기·탭 admission과 현재 문서의 수명은 App과 기존 세션에 남는다.
-
 
 ## Read / Edit / Source (#849)
 
@@ -62,11 +53,7 @@ an outside click. View changes do not acknowledge Save, reset history or write
 recovery records. Applied work, dirty state and revision are unchanged.
 
 `DocumentEditor`'s `readOnly` prop is also the rendering/navigation boundary for
-module consumers. The removed Docling comparison used a thin `ReadOnlyDocument`
-adapter in fixed Read without view controls (#815). Its optional engine-neutral
-geometry and selection callbacks connected that surface to the module's source matching;
-see [Docling comparison](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md). These view-only changes need no
-Core/CLI operation.
+module consumers.
 
 ## Plain text mode (#817)
 
@@ -144,24 +131,6 @@ See [document kinds](document-support-v1.md#text-files-in-the-editor-817) and
 [Save/recovery protection](editing-session-save-v1.md#text-editing-sessions-817).
 The native Source screen remains read-only canonical Markdown from Core; it is not
 the text editor and never provides a raw native-document replacement path.
-
-## Docling comparison tabs (#769)
-
-The command, tab kind and expanded-sidebar footer action now come from the
-[versioned UI contribution contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md) (#857). The shell owns tab
-identity/group placement and generic folder navigation. Disabled contributed
-tabs retain their context, can be moved/closed, and reconstruct their content on
-re-registration without a page reload. They create no editing/recovery session.
-
-The sidebar opens the read-only module tab described in
-[Docling comparison](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md), under [ADR-0011](../adr/0011-code-module-boundary.md).
-Its entry sits in the sidebar footer above Settings, separate from Explorer's
-empty-state help and folder navigation. Collapse Explorer → Open folder retains
-its existing Tab order; the collapsed rail exposes Explorer, Color mode and Settings.
-After Explorer's file navigation, the footer's Tab order is Template gallery → Settings → Color mode → Desktop menu (Desktop only) → active Host execution account → TopBar. The account stop exposes the full value and permission explanation through the shared tooltip.
-The rail keeps Settings, Color mode and Desktop menu above the bottom execution-account status.
-It shares tab navigation/closing while remaining outside document editing,
-Save/recovery sessions and startup tab restoration.
 
 ## Two editor groups (#488 phase 1)
 
@@ -411,7 +380,6 @@ capture is retained in the [menu screenshot](../reviews/assets/reveal-folder-487
 Actual Windows root/child Explorer launches and a deleted-folder failure are manual acceptance
 items (not run). See the [Desktop boundary](desktop-distribution-v1.md#open-folders-in-file-explorer-487).
 
-
 ## Child-folder Trash (#1401)
 
 Only child folders below an opened Root offer Delete folder… through the existing
@@ -629,21 +597,7 @@ PNGs are retained here; owner mockups and generated browser traces are not commi
 
 ## Dedicated Settings screen (#594)
 
-Historical surface and verification below: #1032 supersedes the full-screen modal,
-Back action, navigation footer and initial focus described here. Current behavior
-is [Settings task tab](#settings-task-tab-1032). Preference/save contracts remain.
-
-Settings from the Sidebar or command center covers the entire app with an opaque,
-viewport-sized screen. The document shell stays mounted beneath it: tabs, independent
-editor instances, unapplied drafts, selection, Undo history and scroll remain intact.
-Back to document / 문서로 돌아가기 names the active file and its unsaved state;
-without a document the same control reads Back to start / 시작 화면으로 돌아가기.
-Back and Escape restore the opener's focus. Entry focuses Back. The existing modal
-boundary still blocks Save and command-center shortcuts and prevents document interaction.
-
-The named navigation uses buttons with `aria-current="page"`: Appearance & language /
-표시·언어, Saving & recovery / 저장·복구, and Desktop-only About & updates / 정보·업데이트.
-Ordinary entry starts at Appearance; an update notice's View opens About. Theme, page style, language and
+Settings opens at Appearance; an update notice's View opens About. Theme, page style, language and
 accent changes apply immediately, with profile-local preference storage and failure notices.
 Theme offers Light / Dark (라이트 / 다크). Startup reads the OS once when no choice is saved; later OS changes do not change the saved choice. `litzio.theme` belongs to `preferences.ts` localStorage,
 never document content or Host preferences. Unavailable storage retains the current-page
@@ -662,55 +616,6 @@ Recovery retains its explanation, count and confirmed Clear all; individual reco
 on the start screen. Desktop channel, status, release notes and update actions keep their
 existing bridge and restart guards. Settings search remains outside the implemented scope;
 Wide document stays in the document tab-row actions (#695).
-
-The navigation footer explains that heading numbers, reference style and bibliography
-belong to each document. Settings has no Open document settings entry (#669).
-The inline block above the document title and Command center's `Document settings…`
-remain the entry points. Settings dismissal resolves the original
-opener or the currently visible Sidebar toggle.
-
-Implementation/verification scope: Editor shell, shared controls and bundled Korean/English
-copy only; no new Core operation or CLI command. Reuse the existing language, recovery,
-command-center and Desktop-update scenarios; extend their interface coverage for full-screen
-bounds, keyboard navigation/focus, state retention and 1440/390/375px layout. Run Editor
-tests, workspace typecheck, build, docs check and layout-rules/quiet-document regressions.
-Keep only the representative small captures below in Git; generated traces, full browser
-results, scratch fixtures and downloaded owner mockups stay outside the commit.
-
-Local verification (2026-10-27): Editor 297/297 and Desktop 47/47 tests, workspace
-typecheck, Editor production build, docs and whitespace checks passed. Targeted browser
-coverage: ui-language, desktop-updates, recovery, recovery-storage, command-center,
-editor-shell, layout-rules and quiet-document. The existing layout helper now gates the
-screen's Back focus rather than the old popup's language selector; its deliberate delayed
-focus assertion remains. The Desktop scenario also crosses 1440→390px while Settings
-is open: if the old Sidebar opener disappears, Back/Escape focuses the visible Expand
-sidebar control. Review follow-up: the same viewport traversal includes the Document
-settings link and Escape, in both languages, with dismissal at 390px or after returning
-to 1440px. Before the fix, the first linked-dialog case failed with focus on BODY;
-the shared dismissal-time resolver retains the original visible opener or selects the
-current Sidebar toggle. Follow-up local checks passed: the expanded desktop-updates
-scenario, ui-language, command-center, editor-shell and layout-rules, Editor 297/297,
-workspace typecheck, production build, docs and whitespace checks. Packaged Desktop
-and install/update execution remain required CI checks.
-
-Manual comparison: Windows Chrome, bundled Pretendard Variable, DPR 1, zoom 1,
-1440×900 and 390×900, English, content scroll 0, clean `updates.md`, mock Desktop
-version 0.2.0 / Stable / idle and zero recovery records. Before is master
-`987ae137ce0615b51b682fffefe040fca4cec872`; After is this change. Before shows the
-initial language focus; After shows the selected category. The original popup contains
-all three groups and requires vertical scrolling. After covers Sidebar, tabs, document
-and Outline; on phones navigation stacks above content and all controls remain reachable.
-The same geometry assertions cover Korean and 375px (18 language/width/category states);
-the additional captures remain in `tmp/desktop-visual`. Capture with
-`pnpm browser:test desktop-updates --screenshots`; these images support manual review,
-while geometry, keyboard and editor-state checks provide automated coverage.
-
-| State | 1440px | 390px |
-| --- | --- | --- |
-| Before: combined popup | [Before](assets/settings-screen-594/settings-before-1440.png) | [Before](assets/settings-screen-594/settings-before-390.png) |
-| Appearance & language | [After](assets/settings-screen-594/settings-en-appearance-1440.png) | [After](assets/settings-screen-594/settings-en-appearance-390.png) |
-| Saving & recovery | [After](assets/settings-screen-594/settings-en-recovery-1440.png) | [After](assets/settings-screen-594/settings-en-recovery-390.png) |
-| About & updates | [After](assets/settings-screen-594/settings-en-about-1440.png) | [After](assets/settings-screen-594/settings-en-about-390.png) |
 
 ## Sidebar and native title bar (#582 / #605)
 
@@ -773,8 +678,7 @@ native window and retain native double-click maximize; controls use no-drag. Sha
 portal popups, positioners and dialog backdrops also use no-drag, including Command Center
 and Recovery. Dropdown/context menus retain Base UI's outside interaction without an added
 full-screen pointer-catching backdrop. While any shared menu is open, the title strip and
-TopBar themselves use no-drag; closing it restores dragging. Full-screen Settings retains
-its own 40px drag header, caption reservation and no-drag body. Existing surface-subtle and
+TopBar themselves use no-drag; closing it restores dragging. Settings uses the shared title strip and its caption reservation; its body is no-drag. Existing surface-subtle and
 native caption color synchronization remain unchanged. Native drag/double-click behavior
 requires packaged Desktop verification; browser mocks inspect geometry and CSS boundaries.
 
@@ -833,7 +737,7 @@ The shell has three responsibilities: the Sidebar on the left browses opened fol
 
 | Area | Current behavior |
 | --- | --- |
-| Sidebar | Explorer and Collapse Explorer in the header, followed by file navigation; no duplicate New document row with opened folders (#582). There is no Explorer / Display switch. The collapsed 48px rail contains an Explorer icon button at the document-tab row and an icon-only Settings button at the bottom (#671). The Explorer icon restores file navigation; its accessible name and tooltip remain Expand Explorer (탐색기 펼치기), describing the action rather than only naming the panel. Settings uses the same entry component and screen as the expanded footer, at the same vertical position; Back/Escape returns focus to its opening button. Both rail actions are keyboard reachable, have localized names/tooltips and are Desktop no-drag targets. An always-visible Activity bar and additional panels are future work. Explorer contains the opened folders (#112, [ADR-0009](../adr/0009-multiple-opened-folders.md)), each a non-overlapping root section in opening order (ancestor absorption takes the first absorbed position; [#702](#non-overlapping-opened-folders-702)), or, without any, guidance followed by the browser's recent folders (name, full path in `title`): one click lists that folder like Open folder, without opening a document. User-controlled collapse/expand, with a 48px rail when collapsed. No workspace or placeholder navigation. Each folder heading names its folder (disclosure button and name, full path in `title`; [section visibility](#collapsible-folder-sections-425)) with `+` (New document…) and a `⋯` menu containing New folder…, Open folder…, Refresh and Close folder (removes only that folder; tabs stay open). Open folder… adds an unrelated folder; one already open is listed again in place. A descendant is revealed in its ancestor tree, and a new ancestor absorbs its descendant sections ([#702](#non-overlapping-opened-folders-702)). With no opened folder, the empty Explorer panel offers Open folder… and New document…. Below each heading is a folder tree; file listing and activation follow [Folder files and image preview](#folder-files-and-image-preview-217). A `.md` file whose leading frontmatter lacks the native marker stays listed in subtle text with its own icon, and its tooltip and accessible description say it is not an Litzio document; opening it automatically selects text mode (#817) ([Folder listing](filesystem-host-boundary-v1.md#folder-listing-v1-112)). On explicit active-document path changes, the containing sections and folders above it expand in each opened folder containing it; a document elsewhere adds nothing to the trees. The opened folders' paths are browser preferences: on start they are listed again in order, and one the Host refuses or no longer has is left out quietly. Child-folder expansion is page state only. Root section collapse is an origin-specific preference restored on Reload/Desktop restart; startup document restoration respects it. Opening document settings or collapsing the sidebar retains the mounted tree, its expansion, scroll and keyboard stop, without listing again. The tree takes the remaining height and scrolls by itself; the open document uses the shared selected surface/text with 600 semibold as a non-color cue, without a left marker there and Close folder removes it. Keyboard: Up/Down, Home/End move through visible items; Right expands a folder or moves into it; Left collapses it or moves to the parent; Enter or Space opens a document or toggles a folder. Explorer does not list the open document separately: the tab row and TopBar name it. |
+| Sidebar | Explorer and Collapse Explorer in the header, followed by file navigation; no duplicate New document row with opened folders (#582). There is no Explorer / Display switch. The collapsed 48px rail contains an Explorer icon button at the document-tab row and an icon-only Settings button at the bottom (#671). The Explorer icon restores file navigation; its accessible name and tooltip remain Expand Explorer (탐색기 펼치기), describing the action rather than only naming the panel. Settings uses the same entry component and screen as the expanded footer, at the same vertical position; Settings Escape returns focus to its opening button. Both rail actions are keyboard reachable, have localized names/tooltips and are Desktop no-drag targets. Explorer contains the opened folders (#112, [ADR-0009](../adr/0009-multiple-opened-folders.md)), each a non-overlapping root section in opening order (ancestor absorption takes the first absorbed position; [#702](#non-overlapping-opened-folders-702)), or, without any, guidance followed by the browser's recent folders (name, full path in `title`): one click lists that folder like Open folder, without opening a document. User-controlled collapse/expand, with a 48px rail when collapsed. No workspace or placeholder navigation. Each folder heading names its folder (disclosure button and name, full path in `title`; [section visibility](#collapsible-folder-sections-425)) with `+` (New document…) and a `⋯` menu containing New folder…, Open folder…, Refresh and Close folder (removes only that folder; tabs stay open). Open folder… adds an unrelated folder; one already open is listed again in place. A descendant is revealed in its ancestor tree, and a new ancestor absorbs its descendant sections ([#702](#non-overlapping-opened-folders-702)). With no opened folder, the empty Explorer panel offers Open folder… and New document…. Below each heading is a folder tree; file listing and activation follow [Folder files and image preview](#folder-files-and-image-preview-217). A `.md` file whose leading frontmatter lacks the native marker stays listed in subtle text with its own icon, and its tooltip and accessible description say it is not an Litzio document; opening it automatically selects text mode (#817) ([Folder listing](filesystem-host-boundary-v1.md#folder-listing-v1-112)). On explicit active-document path changes, the containing sections and folders above it expand in each opened folder containing it; a document elsewhere adds nothing to the trees. The opened folders' paths are browser preferences: on start they are listed again in order, and one the Host refuses or no longer has is left out quietly. Child-folder expansion is page state only. Root section collapse is an origin-specific preference restored on Reload/Desktop restart; startup document restoration respects it. Opening document settings or collapsing the sidebar retains the mounted tree, its expansion, scroll and keyboard stop, without listing again. The tree takes the remaining height and scrolls by itself; the open document uses the shared selected surface/text with 600 semibold as a non-color cue, without a left marker there and Close folder removes it. Keyboard: Up/Down, Home/End move through visible items; Right expands a folder or moves into it; Left collapses it or moves to the parent; Enter or Space opens a document or toggles a folder. Explorer does not list the open document separately: the tab row and TopBar name it. |
 | Document settings | Collapsed value summary at the top of the paper, before the title and outside ProseMirror (#580). Expands into grouped field rows for Number headings (H1–H6), Reference style (Default, Concise, Formal, Korean; unmatched values show Custom) with notation previews, and Connect bibliography…. Reuses existing operations, history, dirty indication and Save under the [numbering](heading-numbering-v1.md) and [bibliography](citations-v1.md#connect-and-disconnect-bibliography-files-438) contracts. Command center reveals/expands/focuses it. Field controls disable during pending work; Source/start omit the block and read-only shows only summary. Escape inside collapses and focuses the disclosure; the style menu handles its own Escape first. Bibliography uses the existing connection dialog with return to the row’s Connect button. Expansion is per-tab session only. Opening/collapsing preserves editor instance, selection, history and unapplied drafts. App Settings remains separate and has no document-settings entry (#669). |
 | Document panel | Outline, Tables and Figures navigation (#613), with 600 semibold, themed surface and segment shadow for the selected tab, muted inactive labels and reserved semibold label width (#620), titled Outline, with no internal close button (#590). The tab-row Outline toggle opens and closes it. The outline is derived from the editor document, indents 12px per level below H1 up to three levels and wraps labels to two lines, marks the section being read with selected background/text and 600 semibold (no left marker, #515); a hidden semibold copy reserves its two-line text extent to prevent selection height jumps. The current item stays inside the list's visible area. The list scrolls by itself and is never written to the document. Table/Figure items reuse the body caption prefix and Core reference template (for example `Table 1. Caption`), including in Korean UI; a missing caption shows only the number. At 1424px and wider the panel is docked and starts open; below 1424px it starts closed and, opened, overlays the document below the sticky header instead of narrowing it, so Save, File actions and the Outline toggle stay usable; Escape closes it and returns focus to the tab-row Outline toggle. The docking width is independent of the 1024px narrow sidebar. Entering the overlay layout always closes it. Returning to docked restores the user's last explicit docked open/closed choice, or opens by default if none exists. Overlay interactions do not overwrite that choice. Open/closed is page memory only and resets on reload; no persistent preference is added. |
 | TopBar | Shared single-row brand/search/caption strip; document actions and compact status belong to their owning tab row. See [#695](#title-strip-and-tab-row-actions-695) for responsive search, menu guards and status. Save, Source, Compare, Reload/discard, Copy path and layout preferences retain their existing operations and shortcuts. |
@@ -1818,7 +1722,6 @@ The Host chooses readable upload defaults without an extra paste dialog: drop re
 `image.png`, while paste uses document numbering for unnamed/generic images and retains real
 descriptive file names. No CLI surface is added because no new semantic operation is introduced.
 
-
 ## Desktop log folder (#712)
 
 Desktop Settings → About & updates also offers **Open log folder** / **로그 폴더 열기**
@@ -1829,39 +1732,14 @@ owns its fixed path, IPC and logging behavior.
 
 ## Settings document entry removal (#669)
 
-The entry-removal decision remains current; full-screen bounds and Back-action
-verification below are historical, superseded by [#1032](#settings-task-tab-1032).
-
-Settings no longer offers Open document settings. Its navigation footer retains the
-per-document explanation without an empty control container. The document's own
-inline disclosure and Command center entry remain available; this shell-only change
-adds no Core operation or CLI command.
-
-Same-state captures use installed Windows Chrome with the checkout-owned persistent
-profile, English UI, Dark theme, Paper style, DPR 1, 100% zoom and a 900px viewport
-height. The Desktop bridge is the existing browser-test stand-in; no installed-app
-settings or PATH are changed. Before source: `23d178a3c4d19a20cda28991cdb9b911e451a7c8`.
-Manual comparison confirms the footer still contains its explanation at 1440px, and
-at 640px the content moves upward into the space released by the removed button.
-
-| Viewport | Before | After |
-| --- | --- | --- |
-| 1440 x 900 | [Before](assets/settings-doc-link-669/before-1440.png) | [After](assets/settings-doc-link-669/after-1440.png) |
-| 640 x 900 | [Before](assets/settings-doc-link-669/before-640.png) | [After](assets/settings-doc-link-669/after-640.png) |
-
-The existing `desktop-updates` scenario checks entry absence, full-screen bounds,
-category access, overflow and reachable controls in both languages at both widths.
-Its document-settings checks now use Command center and retain disclosure focus,
-resize and Escape coverage. `ui-language` uses the inline disclosure after leaving
-Settings while preserving its draft/history checks.
-
+App Settings has no document-settings entry. The inline document disclosure and Command Center remain the entry points.
 
 ## Collapsed rail Files and Settings (#671)
 
 The owner decision is recorded in [#671](https://github.com/litzio/litzio/issues/671).
 The 48px rail keeps Files on the document-tab row and Settings at the expanded
 footer's vertical position. The same Settings entry has a text or icon-only variant,
-so a later #665 indicator can apply to both; no update indicator is implemented here.
+with the update indicator defined by the Desktop contract.
 The title strip, caption reservation and drag areas from #647 remain unchanged.
 This is shell interaction only; no Core semantic operation or CLI command is needed.
 
@@ -1890,7 +1768,6 @@ their existing geometry, visual and command/focus protection. Across all eight
 Before/After pairs, pixel differences are confined to the rail (x=17–30); document,
 title strip and right panel pixels are identical.
 
-
 ## Localized feature samples (#528)
 
 Desktop and the development Editor offer **Open sample document** on the start screen and in
@@ -1918,7 +1795,6 @@ Manual capture review uses the existing `command-center --screenshots` path at 1
 640×900 with both languages, the checkout-owned persistent Chrome profile and fully loaded
 fonts and image/Mermaid content. The sample feature assertions use Core's read model rather than
 source string matching. No document semantics or supported syntax are extended.
-
 
 | Sample | 1440px | 640px |
 | --- | --- | --- |
@@ -1987,18 +1863,6 @@ folder row and explicitly checks one section with alpha expanded. This correctio
 required PR CI; no fifth local browser execution is performed. The final local counter is 2.
 Final focused folder-tree/shell tests (48), Editor typecheck and production build pass.
 
-## Docling server and conversion (#797)
-
-Settings reaches the module's Docling entry through Plugins for Host-owned server configuration,
-connection checking and the Korean administration guide. Explorer PDF context menus
-and Command Center's Convert with Docling share a PDF picker/explicit conversion
-confirmation flow. Progress and Stop waiting live in the Docling dashboard (#942).
-The shared notification center offers named completion/failure actions alongside
-stale comparison warnings.
-See the [conversion contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#app-pdf-conversion-797) for
-setting lifetime, output naming, limits and explicit completion navigation. Existing
-Appearance/recovery settings and ordinary document actions retain their contracts.
-
 ## Color mode entry (#798)
 
 Expanded Explorer combines Settings (left-aligned gear and label) and a right-aligned icon-only theme toggle on one footer row (#1042). The collapsed rail shows the two icon buttons stacked. The theme button displays the current Light/Sun or Dark/Moon state in its icon, localized accessible name and tooltip. Click, Enter or Space toggles immediately between the two choices and retains button focus. Settings' update dot stays separate. Command Center offers the same two choices with English and Korean search aliases.
@@ -2011,12 +1875,12 @@ Manual `--screenshots` writes 1440px Light/English and 640px Dark/Korean expande
 
 ## Document table display (#902)
 
-Table display choices are identified by Host ID and document path; the default remains device-wide.
+Table display choices are identified by document path; the default remains device-wide.
 
 Settings → Appearance & language sets the new-document table default (Wrap long text /
 Single line). Paths without an override follow it. Table block menus have a separate
 View group with a document-scoped checkbox; the command center provides the same
-label and current value in Edit, Read and plugin comparison tabs. These actions
+label and current value in Edit and Read. These actions
 change only device preferences, never editor history or document files. Default-valued
 overrides are removed. Successful Rename transfers the path preference with the tab
 and session locator. Reopening restores it. See [table presentation](table-interaction-v1.md#per-document-table-presentation-902).
@@ -2030,17 +1894,6 @@ and session locator. Reopening restores it. See [table presentation](table-inter
 Before: [1440px](assets/color-mode-912/before-1440-expanded.png),
 [640px](assets/color-mode-912/before-640-expanded.png). Same scratch document,
 900px height, persistent Chrome profile and bundled fonts; captures are manual evidence.
-
-## Installed plugin inventory (#947)
-
-App Settings adds the Host-owned Plugins category alongside Appearance & language,
-Saving & recovery. Contributed plugin settings are reached inside this list
-(#1007), with Back to plugins returning there. It uses the same content geometry,
-section rows, actions and confirmation dialog. Full installation paths and
-revisions wrap inside the hover/keyboard-focus information tooltip. Inventory
-and the explicit app-default re-registration contract are defined in
-[Plugin UI contributions](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947) and
-[Host worker plugins](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md#plugin-inventory-and-explicit-default-registration-947).
 
 ## Document action visibility (#973)
 
@@ -2060,7 +1913,6 @@ Same-state manual review (1440px English Light / 640px Korean Dark):
 
 #973 visibility follows document tab identity, including newly created, restored and
 still-loading document tabs. Session readiness disables actions; it does not hide them.
-
 
 ## Hidden tab navigation (#972)
 
@@ -2116,8 +1968,7 @@ other visible group. This does not trap focus or prevent normal document editing
 Like Plugin tabs, Settings has no document session, dirty indicator, recovery
 record or startup restoration. Switching away keeps its mounted category and
 unsaved settings drafts; closing discards view-local drafts. Applied app preferences
-remain stored independently. Assistant settings retain explicit Save and Docling retains
-field-exit saving. Metadata outside-pointer completion excludes the Settings tab and Sidebar entry.
+remain stored independently. Assistant settings retain explicit Save. Metadata outside-pointer completion excludes the Settings tab and Sidebar entry.
 Ordinary document-tab pointer switching retains its existing outside-apply behavior;
 keyboard switching retains drafts. Closing Settings selects its ordinary neighbor.
 Document input, drafts and Undo history stay with their mounted
@@ -2149,26 +2000,6 @@ temporary replacement of that scenario body, then restored; it is not CI coverag
 Settings and tab browser scenarios cover navigation, retained document state and
 settings save behavior rather than enumerating all theme/category combinations.
 
-Review correction for PR #1046: `continuous-editing` now keeps a document source
-input and the Docling server address visible in two groups during native Undo/Redo.
-The regression failed before the shared history boundary was applied. `docling-server`
-holds startup document GET to assert disabled Settings entry, then waits for the
-actual enabled control after Reload. `document-tabs` verifies actual focus on
-existing-group reentry; `ui-language` checks Save accent in document context.
-Steady-state layout and the reviewed captures are unchanged.
-
-## Plugin settings navigation (#1007)
-
-The top-level Settings navigation contains Appearance & language, Saving &
-recovery, Plugins and (Desktop) About & updates. Installed plugin settings are
-children reached from the Plugins list, with Back to plugins returning there.
-The Plugins navigation item stays current in a plugin detail view. Direct
-openSettings contributions still select their detail view. A missing contribution
-during feature reactivation does not discard the view; confirmed registration
-loss returns to Plugins. Disabled installations remain in the list with their
-switch off and cannot enter settings. Installation identifiers are accessible on
-hover and keyboard focus; see [plugin management](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947).
-
 ## Template gallery task tab (#936 phase 2)
 
 Sidebar and command center open a single Template gallery tab in the existing
@@ -2189,7 +2020,7 @@ it overlays the document from the title strip to the bottom, with the existing w
 surface and shadow. The document keeps all space beside the 48px control rail (592px at
 the minimum 640px window); Explorer expansion consumes no extra document width.
 
-File activation (local or remote, including PDF), task navigation (Settings, Template
+File activation (including PDF), task navigation (Settings, Template
 gallery and plugin screens), outside pointer and Escape dismiss the
 overlay and return focus to its toggle. A subsequently activated document or outside
 control may take focus through its normal action. Portalled menus/dialogs keep their
@@ -2265,27 +2096,11 @@ corrects the measurement race; it does not change product layout. Local full-lay
 `command-center`, `layout-rules` and `editor-shell` passed (3/3, about two minutes),
 along with workspace typecheck and documentation checks.
 
-## Multiple Host shell (#1174 PR4)
-
-2026-11-13 소유자 결정(#1595): 다른 PC의 Host 등록·접속과 여러 Host UI는 삭제했다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host <origin>`과 개발·검사용 독립 HTTP Host는 유지한다. 연결과 화면은 단일 Host로 정리했다. 작업·세션에 고정된 client와 취소/세대 보호는 유지한다. 탭·기억·복구의 Host 구분은 제거했고, 새 저장 namespace는 옛 기록을 읽거나 지우지 않는다. 전환과 복구 보호는 [편집·저장 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다. 삭제 전 구현은 `archive/2026-11-13-plugins-declarative`에 보관한다.
-
-탐색기는 로컬 폴더만 표시하며 Host 필터/선택기는 없다. 비서는 로컬 대화로 바로 들어가고 템플릿·플러그인 화면에도 Host 드롭다운이 없다. 탭은 파일명과 필요한 부모 폴더를 표시하며 Local/Host 배지는 없다. 현재 탭 id/key·활성 대상과 편집기 수명은 유지한다. 기존 Sidebar·Settings·AssistantPanel 배치와 공통 control을 재사용하며 새로운 표면이나 예외 스타일은 없다.
-
-1440px 라이트 전후(브라우저 fixture, 실제 원격/AI 수락 아님):
-
-| 화면 | 이전 | 이후 |
-| --- | --- | --- |
-| 설정 | [이전](assets/remote-host-removal/before-settings.png) | [이후](assets/remote-host-removal/after-settings.png) |
-| 탐색기 | [이전](assets/remote-host-removal/before-explorer.png) | [이후](assets/remote-host-removal/after-explorer.png) |
-| 비서 | [이전](assets/remote-host-removal/before-assistant.png) | [이후](assets/remote-host-removal/after-assistant.png) |
-
-검증: `pnpm browser:test local-host`의 연결 중→단절→연결 회복, document-tabs의 부분 복원/기억 보존·늦은 열기 취소·다른 탭 저장, HTTP recovery의 daemon 재시작·Save/Reload/409, 기존 file-actions·assistant·template-gallery 검사. 원격의 같은 경로 구분/등록/제거/교차 Host 복원 순서는 기능과 함께 제거했다. 로컬 직렬 초기 복원을 원격 병렬 복원과 같은 보호라고 주장하지 않는다.
-
-## Remote Host settings (#1174 PR3b)
-
-2026-11-13 삭제했다. 설정에는 원격 Hosts 카테고리가 없다. 공통 HostStatus는 탐색기 아래 로컬 연결 관측에 유지한다. 상태 점 CSS는 공급자 표시와 공유한다. 당시 등록·제거·재시작 계약은 `archive/2026-11-13-plugins-declarative`의 이 문서에 보관한다.
-
 ## 활성 Host 실행 계정 (#1199)
+
+After Explorer file navigation, footer Tab order is Template gallery → Settings → Color mode → Desktop menu (Desktop only) → execution account → TopBar. The rail keeps Settings, Color mode and Desktop menu above the bottom execution-account status.
+
+다른 PC의 Host 접속은 지원하지 않는다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host`와 개발·검사용 독립 HTTP Host는 유지한다. 세션·작업은 시작 시점의 client를 유지하며 탭·기억·복구는 Host가 반환한 path로 식별한다. [저장 형식 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다.
 
 사이드바 맨 아래 한 줄은 단일 연결의 상태와 실행 계정을 표시한다. 여러 Host의 라벨·Local 탭 배지는 표시하지 않는다. 관측 대상은 같은 PC의 로컬 Host다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. Host 선택기는 제공하지 않는다.
 
@@ -2294,8 +2109,6 @@ Desktop의 로컬 Host 상태도  관측 완료 5초 뒤 읽기 전용 health/ca
 공통 HostStatus 상태 점·Tooltip과 기존 control 높이·간격·문자색 토큰을 사용한다. 연결된 Host의 `identity.runAs`만 표시하며 연결되지 않거나 계정이 없는 Host는 상태만 표시한다. 축소된 사이드바에서는 상태 점과 툴팁을 사용한다. 백그라운드 서비스·실행 계정과 설명은 툴팁으로 제공한다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 접속자 신원은 제공하지 않는다.
 
 640px 이상에서 한 줄 말줄임을 사용하며 전체 계정은 키보드 focus/hover 툴팁으로 확인한다. 공통 구현은 HostStatus/Tooltip이며 별도 아이콘·팔레트·상호작용 예외는 없다.
-
-검증 캡처: [1440px 원격 Host](assets/host-run-as-1199/1440.png), [640px 로컬 Host](assets/host-run-as-1199/640.png). 두 Host fixture이며 실제 원격 OS 연결 증거가 아니다.
 
 ## Document read lifetime and Host isolation (#1243)
 
@@ -2318,20 +2131,8 @@ and keeps input entered after submission unsaved. The opening HostClient remains
 
 ## Read-only PDF tabs (#1337)
 
-Explorer activation of a `.pdf` opens a read-only task tab identified by Host and path. Reopening activates the existing tab. It uses DocumentTabs close, grouping and Host work accounting, without document admission, drafts, Save or startup tab restoration. The tab owns its fetch, pdf.js document and worker lifetime; closing aborts the fetch and destroys the document/worker.
+Explorer activation of a `.pdf` opens a read-only task tab identified by path. Reopening activates the existing tab. It uses DocumentTabs close, grouping and Host work accounting, without document admission, drafts, Save or startup tab restoration. The tab owns its fetch, pdf.js document and worker lifetime; closing aborts the fetch and destroys the document/worker.
 
 The first viewer supports vertical scrolling, zoom buttons, Ctrl+wheel, fit width, current/total pages, page-number navigation (Enter or field exit), and text selection/copy. Only pages within 800px of the viewport render canvas/text; inactive tabs release their rendered surfaces. Each canvas dimension is bounded to 4096 pixels with DPR at most 2. Paper stays white in dark mode; the surrounding surface follows theme. Unavailable/damaged/over-25-MiB files and password PDFs show fixed localized notices.
 
 Upstream viewer CSS is scoped to the PDF viewer to avoid changing the app shell. The app bundles pdfjs-dist 5.6.205 and a same-origin worker, CMaps and standard fonts. Eval and WASM are disabled. Only canvas and TextLayer APIs are used: no scripting manager, annotation/form layer, link service, printing, search, thumbnails or editing. CSP and Electron webPreferences are unchanged. This Editor-only reading interaction adds no CLI command; byte delivery extends the existing Host preview API.
-
-### 검수 대조 문서 편집 (#1533)
-
-검수 작업공간의 문서 쪽은 기존 DocumentEditor와 compact Button을 재사용한 Edit/Save/Cancel을 제공한다. Save 단축키는 Ctrl+S이며 편집기 Undo/Redo를 사용한다. 미저장 편집 중 닫기와 비교 새로고침·검수 기록 변경은 기존 pending 보호로 막고, 저장 실패는 초안을 유지한 채 Notice로 표시한다. 별도 승인 단계는 없다. [저장·대응·기록 수준 Undo와 화면 캡처](docling-review-stage3.md#검수-정본-직접-편집--1533)를 따른다.
-
-## 단일 연결 화면 확인 (#1595 PR 2)
-
-연결 ID 선택·갤러리 대상·원격 opener/control·Host 라벨 배지를 제거했다. 문서·PDF·화면 탭의 id/key는 유지해 열린 편집기의 초안과 history를 remount로 잃지 않는다. 비서·템플릿·폴더의 일반 동작은 같은 client 경계와 공용 부품을 사용한다. 새 UI 부품이나 상호작용 예외는 없다.
-
-1440px 라이트의 [변경 전](assets/assistant-screen-removal/after-1440-light.png)은 #1612에서 캡처한 동일 baseline 화면이며 [변경 후](assets/single-host-connection/after-1440-light.png)는 이번 시나리오 실행으로 확인한다.
-
-같은 `local-host --screenshots` 실행에서 [탐색기](assets/single-host-connection/after-explorer.png)·[설정](assets/single-host-connection/after-settings.png)·[비서](assets/single-host-connection/after-assistant.png)를 확인했다. 실행 계정은 합성 fixture 값이며 실제 계정 정보는 캡처하지 않았다.

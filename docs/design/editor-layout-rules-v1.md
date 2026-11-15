@@ -3,43 +3,7 @@
 Role: alignment, spacing, control dimensions and deliberate geometry exceptions; [Visual Language](editor-visual-language-v1.md) owns visual roles and [UI patterns](ui-patterns-v1.md) owns repeated interaction targets.
 
 - Status: Implemented
-- Last verified: 2026-11-03 — #990/#1025; panel-lists and assistant browser checks,
-  Editor 419 tests, typecheck/build; 1440/640px visual review. Before restores only
-  #990's list top padding to 0 in the same document; resize handles are invisible at rest.
-  1440px [before](assets/panel-layout-990-1025/before-1440.png) /
-  [after](assets/panel-layout-990-1025/after-1440.png),
-  640px [before](assets/panel-layout-990-1025/before-640.png) /
-  [after](assets/panel-layout-990-1025/after-640.png),
-  [640px Korean Dark overlay](assets/panel-layout-990-1025/after-640-ko-dark.png).
-
-- Read view (#849): the existing 28px view track holds Read/Edit/Source; 640px and compact groups use `--space-1` inline segment padding (matching Document navigation), retain a readable filename/full close target, the icon draft indicator and fixed Save. Only the tablist scrolls; no extra header row or document offset is added. See the [view contract](editor-ux-shell-v1.md#read--edit--source-849).
-- Contract cross-check: 2026-10-30 (#777 inventory and #785 document/code comparison at master `e6eb3282`; control exceptions moved here, no geometry changes or browser rerun).
-- Form content viewport verification: 2026-10-30 (#782; [계약·검사·전후 캡처](#form-content-viewport-782)).
-- Outline display update: 2026-10-29 (#719; single-line ellipsis, full title tooltip and accessible name; [evidence](../reviews/editor-visual-language-history-2026-10-30.md#single-line-outline-719)).
-- Editor groups verification: 2026-10-29 (#488 phase 1; 440px minimum per group, fixed equal columns, narrow merging and [1440/640px evidence](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)).
-- Tab-row actions update: 2026-10-29 (#695; [contract and evidence](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).
-- Document scroll verification: 2026-10-29 (#488 phase 0 and #694 header follow-up; [viewport geometry and captures](editor-ux-shell-v1.md#document-scroll-container-488-phase-0)).
-- Brand title-strip update: 2026-10-28 (#647; title strip spans all columns, side headers align with document tabs).
-- Block outline verification: 2026-10-28 (#469 follow-up: shared expanded selection/hover rectangle and inset stroke; [measurements and captures](../reviews/editor-visual-language-history-2026-10-30.md#typing-and-outline-verification-469)).
-- Save refusal geometry: 2026-10-28 (#578 phase 1: error overlays reuse the same measured block extent and inset stroke, paint above selection/hover within a locally isolated document below the sticky header, and add no document padding/border; [contract and captures](../reviews/editor-visual-language-history-2026-10-30.md#save-refusal-highlights-578)).
-- Previous separator verification: 2026-10-28 (#635: persistent Windows Chrome matrix at 1440/1424/1423/640px, both themes, caption reservation 138px/zero and panel/sidebar states; 1440/640px before/after pixels differ only by the missing separator segment, preserving the total header/tab geometry).
-- Shell verification: 2026-10-27 (#582 / #605: 40px headers, native caption reservation and supported-width browser checks; [contract and captures](editor-ux-shell-v1.md#sidebar-and-native-title-bar-582--605)).
-- Document tab verification: 2026-10-27 (#581: adjustable 32px row, full-height activation, preserved 28px close and measured-header consumers; [comparison](../reviews/editor-visual-language-history-2026-10-30.md#slim-document-tabs-581)).
-- Document settings verification: 2026-10-27 (#580: inline settings, per-tab expansion, notation previews and existing document operations; [integration, checks and captures](editor-ux-shell-v1.md#document-settings-placement-554)).
-- Docking verification: 2026-10-26 (#552: 1424px Standard-column boundary, session-only docked choice, targeted browser checks and [same-state captures](editor-ux-shell-v1.md#outline-docking-verification-552)).
-- Table handle verification: 2026-10-26 (#517: unchanged 28px/6px hit geometry with light line icons; bilingual layout-rules, table-authoring narrow-scroll/keyboard/touch checks and [same-state comparison](table-interaction-v1.md#light-handle-verification-and-comparison)).
-- Last verified: 2026-10-26 (#515 P1/P3 owner review correction: contrast-qualified tab edges, 600 list cue and stable Outline row extent; targeted regressions and [1440/390px comparison](../reviews/editor-visual-language-history-2026-10-30.md#selection-cue-review-correction-515)).
-- Previous verification: 2026-10-26 (#515: owner A1 raised tab groups and background-only current lists; targeted browser regressions, Editor tests/typecheck/build and [1440/390px manual comparison](../reviews/editor-visual-language-history-2026-10-30.md#selection-expression-verification-515)).
-- Shared control verification: 2026-10-26 (#514: B1 32/28px and 6px control geometry, UI isolation and token-selected/focus colors in English/Korean at 1440/390px; [manual captures and guard evidence](../reviews/editor-visual-language-history-2026-10-30.md#shared-control-verification-514)).
-- Previous verification: 2026-10-26 (#476: Source soft wrapping; Editor tests/typecheck/build, Source/layout/quiet-document browser checks and [1440/375px Before/After](editor-ux-shell-v1.md#source-wrapping-476)).
-- Previous verification: 2026-10-26 (#469: shared painted Figure/Equation and hover corner radius, unchanged offsets and 0px content movement; [same-state captures](../reviews/editor-visual-language-history-2026-10-30.md#typing-and-outline-verification-469)).
-- Previous verification: 2026-10-25 (#425: collapsible folder sections; Editor tests/typecheck/build, folder-navigation/folder-memory/command-center/editor-shell/layout-rules/ui-language/quiet-document and [desktop/phone captures](../reviews/editor-ux-shell-history-2026-11.md#section-disclosure-verification-and-captures)).
-- Previous verification: 2026-10-24 (#385: Sidebar header entry, Close-only folder menus; folder-navigation browser check, Editor tests/typecheck/build and [same-state desktop/phone evidence](editor-ux-shell-v1.md#sidebar-open-folder-entry-385)).
-- Previous verification: 2026-10-23 (#363 command center; Editor tests, typecheck/build, command-center/editor-shell/document-tabs/ui-language/layout-rules/quiet-document browser checks; [actual captures](../reviews/editor-ux-shell-history-2026-11.md#command-center-verification-363)).
-- Previous verification: 2026-10-23 (#235: several opened folder sections, separated by `--space-3`; several scroll together as one list while one keeps its own tree scroll; folder-navigation and stable browser suite).
-- Previous verification: 2026-10-19 (#321: phone-width sidebar closed without a rail or covering the whole screen; layout-rules, folder-navigation, quiet-document and the stable suite; same-state 375px captures against `6c03188`: closed [before](assets/phone-sidebar-321/before-375-closed.png)/[after](assets/phone-sidebar-321/after-375-closed.png), open [before](assets/phone-sidebar-321/before-375-open.png)/[after](assets/phone-sidebar-321/after-375-open.png)).
-- Previous verification: 2026-10-17 (UX review: unreserved block metadata, text-aligned tables, folder heading actions, 200px narrow sidebar and the overlay sidebar below 640px; stable browser suite and 1440/1024/375px [Before/After](../reviews/editor-ux-review-2026-10-17.md)).
-- Previous verification: 2026-10-16 (#204: tab row and measured-header overlay bounds; layout-rules/quiet-document checks and approved 1440/375px [captures](../reviews/document-tabs-204-2026-10-16.md)). Previous verification: 2026-10-14 (#218: folder-navigation, layout-rules and quiet-document checks; full folder names, Korean word wrapping, unbroken wrapping, first-line icon and short-name alignment, reachable actions and actual Before/After captures. #225 review fixes: layout-rules and quiet-document browser checks, gutter hover retention, expanded top-level extent geometry, control/neighbor clearance, 0px text shift and same-state Before/After captures). Previous shell verification: 2026-10-13 (#176; [actual captures](../reviews/editor-shell-176-2026-10-13.md)).
+- Last verified: 2026-11-16 — #1650 문서 전체와 현재 코드·계약을 정적으로 대조했다. 제품·브라우저 실행 재검증 없음.
 - Scope: Editor shell, document, block tools and control geometry.
 - Pattern targets: UI 작업 전 [UI 패턴](ui-patterns-v1.md)의 사용처·확정 목표·불일치를 확인한다. 아래는 현재 geometry이며 P01 가용 콘텐츠 경계는 #782에서 구현했다. P09 표 상단 도구 목표는 #793에서 구현했다.
 - [Visual Language](editor-visual-language-v1.md) owns color, typography, surfaces and state expression. It supersedes the earlier restriction against changing fonts/colors.
@@ -107,40 +71,11 @@ Under the [owner decision #1455](https://github.com/litzio/litzio/issues/1455), 
   retain their position and behavior. No bar is painted on framed blocks, in Read,
   during drag, or outside document focus. [Scope and captures](editor-visual-language-v1.md#editing-block-bar-verification-1022).
 
-
 - Heading-depth cues (#887/#886) occupy the existing absolute block gutter and center on
   each heading's first line, independently of its level, number or wrapping. They reserve
   no space within the established gutter. In Edit they change neither text rectangles
   nor document scroll height. The row's
-  visible insertion/drag handles take precedence over its cue, including keyboard focus
-  and an open block menu. The shared review comparison (#1435) reuses `showHeadingLevels` and reserves a constant 48px inspection gutter,
-  with 20px from the cue's right edge to the text edge and 12px to the ordinary expanded
-  block outline. Connectors leave the source horizontally to its pane edge, then use a single smooth curve.
-  Heading endpoints use the first-line top or bottom edge toward the source, clearing depth cues
-  without a large above-gutter detour. Source boxes are unchanged; reading
-  positions and scroll correspondence recompute from the resulting text layout. Continuous source pages
-  keep page-specific check controls outside the PNG. Continuous navigation uses a compact current-page
-  number Input and total, with Enter to jump, rather than previous/next buttons. All visible correspondence
-  lines remain thin; the selected correspondence is thicker and its document block is highlighted. The generated comparison fills its tab height
-  and scrolls each pane vertically rather than fixing the reading area to 520px. One command row
-  combines filename, checked count (Tooltip/accessibility description), page Input/total, one editable
-  zoom Input with native presets, sync,
-  open and refresh; it wraps to at most two rows at 640px. The repeated comparison heading is
-  accessibility-only. Prose wraps to its pane width without the two-editor-group 440px minimum;
-  wide tables, code and equations retain their own block scrolling. At comparison content widths of
-  640px or less, source/document columns use 1:3 and compact reading type reuses the existing
-  14px body and 18/16/15/14px heading tokens. Ordinary words wrap at word boundaries; only
-  overlong single tokens use emergency wrapping. The 48px inspection gutter remains fixed,
-  and no split handle is introduced. Narrow pane insets use the existing 4px spacing token;
-  source kind descriptions use the shared Tooltip/Portal outside the thumbnail clipping boundary.
-  Per [owner decision #1455](https://github.com/litzio/litzio/issues/1455), the 640px guarantee is
-  usable basic controls without overlap or clipping; a short shared Tooltip advises a wider
-  window for side-by-side comparison. Explorer overlay work remains separate. Source zoom changes only PNG
-  display width and preserves the current page position; 100% uses the page metadata width, and
-  Page width fits the pane. Ctrl+wheel changes by 10 percentage points within 25–400% without
-  browser zoom. The existing geometry hooks remeasure correspondence after zoom. BlockHandles
-  remeasures after React NodeView child commits on reread, even if the paper and editor return
-  to the same final outer height; existing cue geometry and hover/handle priority remain shared.
+  visible insertion/drag handles take precedence over its cue, including keyboard focus and an open block menu.
 
 - Frontmatter title (#786) keeps the existing H1-line-height minimum slot. The small empty
   hint's line box matches that slot and centers vertically; empty-state height is explicit
@@ -173,7 +108,6 @@ Under the [owner decision #1455](https://github.com/litzio/litzio/issues/1455), 
   document's scroll position and the menu's scroll offset during refitting.
   [#782 verification and captures](#form-content-viewport-782) cover the former
   single-group mismatch with [P01](ui-patterns-v1.md#p01-속성-편집-표면과-위치).
-
 
 - The bottom Settings icon carries an 8px update dot in the same icon slot in both expanded Sidebar and collapsed rail (#665), without changing button targets or footer placement. Dot activation opens About & updates; its update actions receive an inset accent outline and selected-surface background. See the [update contract and captures](../reviews/desktop-distribution-history-2026-11.md#settings-update-cue-verification-665).
 
@@ -447,40 +381,3 @@ ResizeObserver rather than a repeated container-query literal.
 | 640 native-caption reservation | — | [Capture](assets/notification-titlebar-1644/640-dark-caption-138.png) |
 | Plugin screen | — | [Capture](assets/notification-titlebar-1644/plugin-screen-1440-dark.png) |
 | Settings | — | [Capture](assets/notification-titlebar-1644/settings-1440-dark.png) |
-
-### Historical panel placement (#970)
-
-The earlier bottom-right panel-aware placement and blanket overlap allowance
-(#1003) were replaced by #1644. The following captures and execution notes describe
-the previous implementation, not the current geometry. The earlier proposal to
-reserve a permanent 60px bottom strip was rejected by the owner and reverted.
-
-Visual review (2026-11-03): shared notification colors, radius and control sizes
-follow Visual Language; only placement and obsolete composer clearance change.
-The existing Outline surface is the matching right-panel pattern. Captures from
-`pnpm browser:test notification-center --screenshots` and `assistant --screenshots`
-were inspected for panel overlap, list clipping, control alignment and Korean wrapping.
-Before is `f38eb600`; Outline pairs use the same 1440/1024 × 900 state.
-Assistant before/after uses 1440 × 1000, English Light; the expanded-list capture
-also exercises the remembered resized width. Narrow assistant remains modal.
-
-| Surface | Before | After / retained behavior |
-| --- | --- | --- |
-| Outline 1440, expanded list | [Before](assets/notification-panel-970/before-outline-1440.png) | [After](assets/notification-panel-970/after-outline-1440.png) |
-| Outline 1024, expanded list | [Before](assets/notification-panel-970/before-outline-1024.png) | [After](assets/notification-panel-970/after-outline-1024.png) |
-| Assistant 1440 | [Before](assets/notification-panel-970/before-assistant-1440.png) | [After](assets/notification-panel-970/after-assistant-1440.png), [list](assets/notification-panel-970/after-assistant-1440-list.png), [closed](assets/notification-panel-970/closed-assistant-1440.png) |
-| Assistant 1024 | Modal unchanged | [Open](assets/notification-panel-970/assistant-1024.png), [closed](assets/notification-panel-970/closed-assistant-1024.png) |
-| Assistant 640 Korean Dark | Modal unchanged | [Open](assets/notification-panel-970/assistant-640-dark-ko.png) |
-
-The targeted default notification regression, assistant regression, layout-rules
-and quiet-document checks pass. The optional notification screenshot traversal
-reaches its unrelated Docling comparison branch and fails its empty-center assertion:
-the comparison currently publishes five applied-number warnings. Its assertion was
-not weakened; the new panel geometry and captures complete before that branch.
-
-CI follow-up: the first head failed the existing `continuous-editing` assertion
-that notification history starts outside `.app-shell`. The center remains a
-shell sibling; that implementation passed its current right-panel width to the
-notification outlet. #1644 retains that geometry input for automatic bottom cards; the header trigger and manual popover do not use it. The original history assertion is unchanged.
-
-K1 플러그인 작업 폼은 SettingsSelect/SettingsInput의 공용 라벨·control 행을 재사용한다. 진행 막대는 공용 Progress의 `--space-2` 높이와 surface/accent를 사용하고, 진행량과의 간격은 `--space-3`, 상태·진행·결과 동작의 세로 간격은 기존 view-panel의 `--space-3`을 따른다. 고유한 크기·색·라벨 규칙을 추가하지 않는다.

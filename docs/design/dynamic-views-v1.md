@@ -100,7 +100,7 @@ Core가 strict union, unknown 필드, rowSchema의 공개 scalar 타입·nullabl
 
 ## 표시 위치와 수명
 
-상호작용의 단일 기준은 [UI 패턴의 제안 절](ui-patterns-v1.md#동적-뷰-재정의의-표시-패턴-제안)이다. 아래는 #1254에 따른 상태 소유권이다.
+상호작용의 단일 기준은 [UI 패턴의 제안 절](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-patterns-v1.md#동적-뷰-재정의의-표시-패턴-제안)이다. 아래는 #1254에 따른 상태 소유권이다.
 
 | 위치/상태 | 소유자와 identity | 수명·해제 |
 | --- | --- | --- |
@@ -158,7 +158,7 @@ Panel의 horizontal은 두 자식·한 단계·전체 leaf 8개를 유지하고 
 
 ### 데이터 표의 기본 보기 조작
 
-Table은 별도 명세 opt-in 없이 열별 정렬·필터를 제공한다. 동작의 단일 기준은 [데이터 표 정렬·필터](ui-patterns-v1.md#데이터-표-정렬필터-제안)다. 정렬은 오름차순 → 내림차순 → 원래 순서, 필터는 열 머리글에서 타입별로 설정하며 여러 열은 AND로 결합한다. 화면의 정렬·필터는 원자료·명세·Core sort/filter를 바꾸지 않으며 CLI parity 대상이 아니다. 서버 페이지가 있는 연결 데이터는 불러온 행에만 적용하고 그 범위를 안내한다. 즐겨찾기에 이 상태를 저장하지 않고 열 때마다 원래 순서·필터 없음으로 시작한다.
+Table은 별도 명세 opt-in 없이 열별 정렬·필터를 제공한다. 동작의 단일 기준은 [데이터 표 정렬·필터](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-patterns-v1.md#데이터-표-정렬필터-제안)다. 정렬은 오름차순 → 내림차순 → 원래 순서, 필터는 열 머리글에서 타입별로 설정하며 여러 열은 AND로 결합한다. 화면의 정렬·필터는 원자료·명세·Core sort/filter를 바꾸지 않으며 CLI parity 대상이 아니다. 서버 페이지가 있는 연결 데이터는 불러온 행에만 적용하고 그 범위를 안내한다. 즐겨찾기에 이 상태를 저장하지 않고 열 때마다 원래 순서·필터 없음으로 시작한다.
 
 ### 예시: 갤러리 사용 사례
 
