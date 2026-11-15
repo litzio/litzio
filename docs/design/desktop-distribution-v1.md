@@ -5,7 +5,7 @@
 AI는 daemon 공식 기능이며 [비서 계약](main-agent-v1.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-16 — #1658: 샘플 수명·시작 파일 확장자를 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Log-folder access: 2026-10-29 (#712; [Host-only diagnostics](#log-folder-and-process-diagnostics-712)).
 - Authority: [ADR-0004](../adr/0004-desktop-host-distribution.md); document semantics and Save remain owned by [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md), [Filesystem Host](filesystem-host-boundary-v1.md) and [Editing session](editing-session-save-v1.md).
 - Scope: Windows x64 per-user Electron/NSIS app, Stable/Beta updates and local/CI packaging. Publication requires an owner-authorized release and manual workflow dispatch from master; no separate environment approval is required after validation succeeds.
@@ -320,7 +320,7 @@ not run locally by owner decision. The packaged regression expectations are upda
 
 ## Start-up document path Unicode (#287)
 
-`firstDocument()`는 시작 `.md` 인자의 단독 UTF-16 surrogate를 `assertUnicode()`로 파일 접근·경로 정규화 전에 거부한다. 원본 경로 없이 거부 사유만 `userData/logs/desktop.log`에 기록하고 해당 인자를 건너뛰며, 다른 유효한 문서 인자가 없으면 문서 없이 시작하고 기존 sample 사본을 제공한다. 정상 한글·emoji·리터럴 U+FFFD 파일명은 허용한다([경로 계약](filesystem-host-boundary-v1.md#path-unicode)).
+`firstDocument()`는 시작 `.md`·`.txt` 인자의 단독 UTF-16 surrogate를 `assertUnicode()`로 파일 접근·경로 정규화 전에 거부한다. 원본 경로 없이 거부 사유만 `userData/logs/desktop.log`에 기록하고 해당 인자를 건너뛰며, 다른 유효한 문서 인자가 없으면 문서 없이 시작하고 기존 sample 사본을 제공한다. 정상 한글·emoji·리터럴 U+FFFD 파일명은 허용한다([경로 계약](filesystem-host-boundary-v1.md#path-unicode)).
 
 ## Scope and completion
 
@@ -334,7 +334,7 @@ The native window enforces a minimum width of **640px** (minimum height 480px), 
 
 - App/product name: `Litzio`; App ID: `io.github.litzio.litzio`; updater cache: `%LOCALAPPDATA%\litzio-updater`; preferences/sample/logs: `%APPDATA%\litzio`. These official defaults come from [brand.ts](../../brand.ts); #859 intentionally starts new identities without migrating previous Beta data.
 - Windows EXE, NSIS installer/uninstaller, shortcuts and runtime window use the [Litzio wing/document icon](app-icon-v1.md). Its SVG source and generated ICO are tracked together; this does not replace previously published Beta assets.
-- The per-user one-click NSIS installer requires no separate Node.js/pnpm/browser installation. Uninstall keeps user data. The Host supplies the first valid existing `.md` command-line file, or start information with writable samples copied into user data on every app start. Without an accepted argument it supplies no default document; the Editor may still restore tabs. Startup priority and session protection follow [Editing session and Save](editing-session-save-v1.md#tab-navigation-memory-383); if no tabs open, the Editor shows its [start](editor-ux-shell-v1.md#start-without-a-document-174). The sample opens only when chosen, through the same Open path as any file. Opening another argument into an already running instance and OS file association are not implemented.
+- The per-user one-click NSIS installer requires no separate Node.js/pnpm/browser installation. Uninstall keeps user data. The Host supplies the first valid existing `.md` or `.txt` command-line file (case-insensitive extensions), or start information with writable samples prepared under the [Native sample lifetime](#native-sample). Without an accepted argument it supplies no default document; the Editor may still restore tabs. Startup priority and session protection follow [Editing session and Save](editing-session-save-v1.md#tab-navigation-memory-383); if no tabs open, the Editor shows its [start](editor-ux-shell-v1.md#start-without-a-document-174). The sample opens only when chosen, through the same Open path as any file. Opening another argument into an already running instance and OS file association are not implemented.
 - Electron main owns window lifecycle, protocol, preferences and updater. The sandboxed, isolated renderer has no Node integration; its typed preload exposes only update/settings calls and a restart check. Host/Markdown/file writes never pass through this bridge.
 - IPC accepts only the app's main frame. External navigation/new windows are denied; http(s) links open in the system browser. Static paths are confined to the production build, including symlinks. CSP permits own scripts, own/inline styles needed by the editor/KaTeX, and local/data/blob plus registered exact-origin images; no remote code or frames.
 

@@ -7,7 +7,7 @@
 - Document settings verification: 2026-10-27 (#580: inline settings, per-tab expansion, notation previews and existing document operations; [integration, checks and captures](editor-ux-shell-v1.md#document-settings-placement-554)).
 - Accent verification: 2026-10-27 (#559: generated heading/Outline numbers share the local accent; all presets checked by the token contrast and existing Outline browser tests).
 - Body-heading authoring verification: 2026-10-26 (#472 Editor unit/browser checks; Core/CLI and numbering behavior unchanged). [Verification details](document-editing-v1.md).
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-16 — #1658: 번호 경고 위치·표 번호 숨김을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-26 (#462 caption-template Core/CLI/Editor tests and cross-reference browser Undo/Redo, Source and Save → Reload).
 - Reference-template verification: 2026-10-25 (#445 Core/CLI/Editor tests and cross-reference browser Save → Reload).
 - Previous verification: 2026-10-14 (#232 native metadata contract).
@@ -186,7 +186,7 @@ pairs: [before 1440px](assets/fixed-numbering-720/before-1440.png) /
 under ignored `tmp/`. The lazy Mermaid preview finishes between the narrow captures;
 these review the form and viewport fit, not pixel equivalence. Captures are manual evidence,
 separate from behavioral assertions. The [Korean warning at 640px](assets/fixed-numbering-720/warning-ko-640.png)
-shows the same shared Notice in the document and the affected Mermaid properties.
+records the former document/per-form Notice placement; current warnings follow the notification-center contract above.
 
 ## Generated number color (#511 / #503)
 
@@ -293,8 +293,8 @@ or `Table N` with U+0020, rather than the reference default's U+00A0. An explici
 template retains its actual spaces, including U+00A0. The existing caption separator `. `
 still follows the computed text, even if a custom template contains its own punctuation.
 Korean captions therefore start `그림 1. ` / `표 1. `; Table captions remain below the grid.
-Every table now receives an official Core number (#584), including a table with no
-caption or Label. Its empty caption surface displays that number; adding/removing
+Unless explicitly unnumbered under the [shared visibility rule](#fixed-numbers-720),
+every table receives an official Core number (#584), including a table with no caption or Label. Its empty caption surface displays that number; adding/removing
 caption or Label does not renumber this table or later tables. The [table format
 contract](table-caption-v1.md) defines GFM input normalization to numbered directives.
 

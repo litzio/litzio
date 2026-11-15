@@ -1,7 +1,7 @@
 # Continuous document editing v1
 
 - Status: Implemented
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and path-only assistant-send browser regressions).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
 - Native focus selection: 2026-10-26 (#542: restore the retained selection before the observer can accept Chromium's native focus caret; real-click Command center and held-check browser regressions. #502 remains separate).
@@ -373,7 +373,7 @@ same editing state and history. See [Figure authoring](figure-authoring-v1.md) f
 the persistence boundary and insertion behavior.
 A Table caption is a required last child of its Editor table; its authored content may be
 empty (Save omits an empty caption). It is edited directly below
-the grid with the shared rich-inline controls. Properties contain only Label. The caption
+the grid with the shared rich-inline controls. Properties follow the [Table caption and label contract](table-caption-v1.md). The caption
 input surface is always present without an Add caption step; clearing it removes saved
 caption content.
 Rows/cells keep their existing coordinates. ArrowDown from the final row enters the
@@ -390,9 +390,8 @@ beside the rendered formula remains `(2)`. This is display-only; Core semantics
 and CLI operations are unchanged.
 
 A Figure's caption is inline content in the single ProseMirror document, editable
-in place with the existing formatting/clipboard controls. Image/alt/label drafts
-retain Apply/Cancel; the legacy plain-caption field remains available for plain
-captions. Metadata Apply keeps rich caption content. Legends and unsupported
+in place with the existing formatting/clipboard controls. Property drafts and completion follow [Figure authoring](figure-authoring-v1.md#anchored-figure-properties-757);
+there is no separate plain-caption field. Metadata completion keeps rich caption content. Legends and unsupported
 inline elements reject the document at native admission.
 
 ## Table structure
