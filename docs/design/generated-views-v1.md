@@ -232,7 +232,7 @@ Existing Core views tests cover v2 canonical round trips, missing versus executa
 
 공통 진입점은 `@litzio/core/views-v2`의 CatalogView를 받고 query/review를 분기한다. `src/views/Views.tsx`는 분기만 소유한다. `src/views/QueryViewPage.tsx`만 stats args와 조회·입력 상태를 읽고, 공통 Table·Chart·Panel 렌더링은 `src/views/ViewRenderer.tsx`가 소유한다. review는 `src/review/ReviewViewPage.tsx`를 거쳐 V5 ReviewRenderer로 전달한다. 비서 데이터 표시는 `src/views/AssistantView.tsx`, 조회 페이지의 즐겨찾기 UI는 `src/views/QueryViewFavorites.tsx`에 분리되어 있다. v1 reader나 migration은 없다.
 폼 8입력·표 12열을 Core 계약대로 소비하고 자료 가공은 Host/Core 결과만 표시한다.
-동작은 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3), 조합은 [UI 결정표](ui-decision-table-v1.md#catalog-query-renderer-v3-1241-a안)를 따른다.
+동작은 [공통 조회 패턴](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-patterns-v1.md#query-renderer-v3), 조합은 [UI 결정표](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-decision-table-v1.md#catalog-query-renderer-v3-1241-a안)를 따른다.
 
 V2 Host가 병합된 상태에서 renderer 회귀는 generated-views browser 시나리오의 v2 fixture로 검증한다. Host/CLI 계약은 별도 대상 검사로 확인한다.
 폼은 대상 Host의 `POST /api/views {action:"catalog"}` 응답의 `catalog.operations`에서 operation/version에 맞는 공개
@@ -242,7 +242,7 @@ V2의 실제 plugin namespace·입력·Host/CLI 검사는 유지하며, 외부 �
 브라우저 fixture 통과를 실제 서비스·Host·비서 제작 수락으로 계산하지 않는다.
 
 #1263 UI 보완의 입력/표시·폼 행동·스크롤 규칙과 캡처는
-[조회 폼 패턴](ui-patterns-v1.md#query-form-refinement-1263)을 따른다.
+[조회 폼 패턴](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-patterns-v1.md#query-form-refinement-1263)을 따른다.
 입력 title과 Host field label을 소비하며 현재 v2 form 명세에는 enum 항목별 label slot이 없다.
 renderer가 새 schema나 label DSL을 추가하지 않는다.
 
@@ -407,7 +407,7 @@ D3는 새 작업 탭의 두 query source 표시, 문서 탭별 우측 보기, SD
 
 앱 destination은 kind/id/Host/owner/Root와 generation·AbortSignal로 요청 위치를 고정한다. 문서 숨김은 결과 소유권을 바꾸지 않고 문서 닫힘·새 요청·화면 Host 변경·연결 해제는 token을 무효화한다. 생성 서비스/카드 연결과 통합 수락 범위는 위 D4 절을 따른다. 이 절 자체는 실제 AI 수락 완료를 뜻하지 않는다.
 
-공통 DataTable은 타입별 열 정렬/필터, AND 결합, 불러온 자료 범위 안내, 50행 페이지와 내부 가로 스크롤을 제공한다. 필터와 정렬은 전체 불러온 행에 적용한 뒤 페이지를 나누며 명세·args·원행을 바꾸지 않는다. 저장/다시 열기는 원래 순서와 필터 없음으로 시작한다. 동작 기준은 [UI 패턴](ui-patterns-v1.md#데이터-표-정렬필터-제안), 공통 선택과 검증 범위는 [UI 결정표](ui-decision-table-v1.md#동적-뷰-d3-공통-구현)를 따른다.
+공통 DataTable은 타입별 열 정렬/필터, AND 결합, 불러온 자료 범위 안내, 50행 페이지와 내부 가로 스크롤을 제공한다. 필터와 정렬은 전체 불러온 행에 적용한 뒤 페이지를 나누며 명세·args·원행을 바꾸지 않는다. 저장/다시 열기는 원래 순서와 필터 없음으로 시작한다. 동작 기준은 [UI 패턴](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-patterns-v1.md#데이터-표-정렬필터-제안), 공통 선택과 검증 범위는 [UI 결정표](https://github.com/litzio/litzio/blob/archive/2026-11-13-plugins-declarative/docs/design/ui-decision-table-v1.md#동적-뷰-d3-공통-구현)를 따른다.
 ## V7 Chart and Panel renderer
 
 - Status: Historical
