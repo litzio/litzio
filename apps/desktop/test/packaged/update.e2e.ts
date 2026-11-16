@@ -287,14 +287,14 @@ test("installs per user, then updates from Settings only after the open document
       const cli = page.getByTestId("cli-integration");
       await cli.getByText("Off", { exact: true }).waitFor();
       await cli.getByRole("button", { name: "Turn on", exact: true }).click();
-      await cli.getByText("Installed", { exact: true }).waitFor();
+      await cli.getByText("On", { exact: true }).waitFor();
       verifyPackagedCli(exe, brand.cliCommand, documents, OLD, await freshTerminalEnvironment());
       await cli.getByRole("button", { name: "Turn off", exact: true }).click();
       await cli.getByText("Off", { exact: true }).waitFor();
       assert.deepEqual((await cliEnvironment.read()).user, originalUserPath, "disable preserves the original raw PATH and registry kind");
       assert.equal(existsSync(cliBin), false, "disable must remove an empty owned bin");
       await cli.getByRole("button", { name: "Turn on", exact: true }).click();
-      await cli.getByText("Installed", { exact: true }).waitFor();
+      await cli.getByText("On", { exact: true }).waitFor();
       await t.test("CLI ownership refusal and recovery", { skip: !BETA }, async () => {
         // A damaged ownership record disables Repair, but Turn off must still unregister PATH.
         writeFileSync(path.join(cliBin, "owner.json"), "damaged owner");
@@ -314,10 +314,15 @@ test("installs per user, then updates from Settings only after the open document
         await cli.getByRole("button", { name: "Refresh status", exact: true }).click();
         await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
         await cli.getByRole("button", { name: "Turn on", exact: true }).click();
-        await cli.getByText("Installed", { exact: true }).waitFor();
+        await cli.getByText("On", { exact: true }).waitFor();
       });
     }
-    assert.equal(await page.getByRole("radio", { name: BETA ? /^Beta/ : /^Stable/ }).isChecked(), true, "first install uses its own channel");
+    if (LIVE) {
+      // The public beta.1 binary predates the release-channel combobox.
+      await expect(page.getByRole("radio", { name: /^Beta/ })).toBeChecked();
+    } else {
+      await expect(page.getByRole("combobox", { name: "Release channel", exact: true }), "first install uses its own channel").toHaveValue(BETA ? "beta" : "stable");
+    }
     // CLI verification can outlast the scheduled initial check. Wait for its actual offer,
     // which replaces Check for updates with Download update; manual checking is exercised
     // after relaunch below. All offer/no-download/consent assertions remain the same.

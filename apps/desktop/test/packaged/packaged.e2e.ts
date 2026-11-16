@@ -527,7 +527,6 @@ test("the release channel persists across restarts; an update check never blocks
   const version = process.env.LITZIO_TEST_VERSION ?? JSON.parse(readFileSync(path.join(desktop, "package.json"), "utf8")).version as string;
   const initialChannel = version.includes("-beta.") ? "beta" : "stable";
   const selectedChannel = initialChannel === "beta" ? "stable" : "beta";
-  const channelName = (channel: string) => channel === "beta" ? /^Beta/ : /^Stable/;
   const { file } = documentFolder("settings");
   let { app, page } = await launch(userData, [file]);
   try {
@@ -536,11 +535,12 @@ test("the release channel persists across restarts; an update check never blocks
     await dialog.waitFor();
     await dialog.getByRole("button", { name: "About & updates", exact: true }).click();
     assert.equal(await page.getByTestId("app-version").innerText(), version);
-    assert.equal(await page.getByRole("radio", { name: channelName(initialChannel) }).isChecked(), true, "first launch uses the installed version's channel");
+    const releaseChannel = page.getByRole("combobox", { name: "Release channel", exact: true });
+    await expect(releaseChannel, "first launch uses the installed version's channel").toHaveValue(initialChannel);
     // The choice shows once the Desktop app has saved it.
-    await page.getByRole("radio", { name: channelName(selectedChannel) }).click();
-    await page.waitForFunction((channel) => document.querySelector<HTMLInputElement>(`input[value="${channel}"]`)?.checked, selectedChannel);
-    // GitHub answers for real: this repository has no release yet, or the machine may be offline.
+    await releaseChannel.selectOption(selectedChannel);
+    await expect(releaseChannel).toHaveValue(selectedChannel, { timeout: 30_000 });
+    // GitHub answers for real; the selected channel may have no release, or the machine may be offline.
     await page.getByRole("button", { name: "Check for updates" }).click();
     await page.waitForFunction(() => ["error", "up-to-date", "available", "no-stable-release"].includes(document.querySelector('[data-testid="update-status"]')?.getAttribute("data-phase") ?? ""), null, { timeout: 30_000 });
     console.log(`update check: ${await page.getByTestId("update-status").innerText()}`);
@@ -557,7 +557,7 @@ test("the release channel persists across restarts; an update check never blocks
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByTestId("settings-dialog").waitFor();
     await page.getByRole("button", { name: "About & updates", exact: true }).click();
-    assert.equal(await page.getByRole("radio", { name: channelName(selectedChannel) }).isChecked(), true, "the user's choice survives a restart instead of reverting to the build's default");
+    await expect(page.getByRole("combobox", { name: "Release channel", exact: true }), "the user's choice survives a restart instead of reverting to the build's default").toHaveValue(selectedChannel);
   } finally {
     await closeApp(app);
   }

@@ -1,3 +1,6 @@
+import { Row, Section } from "../components/ui/row.tsx";
+import { Status } from "../components/ui/status.tsx";
+import { brand } from "../../../../brand.ts";
 import { PluginSettings } from "../PluginSettings.tsx";
 import { ResetSettings } from "./ResetSettings.tsx";
 import { AssistantSettings } from "../AssistantSettings.tsx";
@@ -57,6 +60,20 @@ function updateStatusText(info: DesktopInfo): string {
   }
 }
 
+function updateStatusLabel(state: UpdateState): string | undefined {
+  switch (state.phase) {
+    case "idle": return undefined;
+    case "checking": return i18n.t("Checking…");
+    case "no-stable-release": return i18n.t("No Stable release");
+    case "up-to-date": return i18n.t("Up to date");
+    case "available": return i18n.t("Update available");
+    case "downloading": return i18n.t("Downloading…");
+    case "downloaded": return i18n.t("Downloaded");
+    case "installing": return i18n.t("Installing…");
+    case "error": return i18n.t("Update failed");
+  }
+}
+
 export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
@@ -69,24 +86,20 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
       .catch(error => { if (active) setProblem(String(error)); });
     return () => { active = false; };
   }, [desktop]);
+  const [changed, setChanged] = useState(false);
   const change = async (enabled?: boolean) => {
     setBusy(true); setProblem("");
-    try { setState(await (enabled === undefined ? desktop.cliIntegration() : desktop.setCliIntegration(enabled))); }
+    try { setState(await (enabled === undefined ? desktop.cliIntegration() : desktop.setCliIntegration(enabled))); setChanged(enabled === true); }
     catch (error) {
       setProblem(error instanceof Error ? error.message : String(error));
       // A failed operation can leave an owned, repairable registration. Reflect its real state.
       try { setState(await desktop.cliIntegration()); } catch { /* Keep the first actionable error. */ }
     } finally { setBusy(false); }
   };
-  return <div className="settings-section" data-testid="cli-integration" aria-busy={busy}>
-    <div className="settings-label">
-      <h4 className="settings-heading">{i18n.t("Command-line tools (CLI)")}</h4>
-      <p className="settings-status" role="status" data-testid="cli-status">{!state ? i18n.t("Loading…")
-        : state.status === "installed" ? i18n.t("CLI installed") : state.status === "broken" ? i18n.t("CLI path is broken") : i18n.t("CLI off")}</p>
-      <p>{i18n.t("Run {{command}} commands without installing Node.js. PATH changes apply to new terminals.")}</p>
-      {state?.unsupported ? <p>{i18n.t("Available in the installed Windows app.")}</p> : null}
-    </div>
-    <div className="settings-actions">
+  return <div data-testid="cli-integration" aria-busy={busy}>
+    <Row label={i18n.t("Command-line tools (CLI)")} description={<>{i18n.t("Run {{command}} commands without installing Node.js.", { command: brand.cliCommand })}{state?.unsupported ? <p>{i18n.t("Available in the installed Windows app.")}</p> : null}</>}>
+      <span role="status" data-testid="cli-status"><Status variant="plain" tone={!state ? "progress" : state.status === "installed" ? "ok" : state.status === "broken" ? "error" : "neutral"} label={!state ? i18n.t("Loading…") : state.status === "installed" ? i18n.t("On") : state.status === "broken" ? i18n.t("CLI path is broken") : i18n.t("CLI off")} /></span>
+      <div className="settings-actions" title={i18n.t("PATH changes apply to new terminals.")}>
       {state ? <>
         {state.status !== "installed" ? <Button size="sm" variant="outline" disabled={busy || state.unsupported || !!state.conflict}
           onClick={() => void change(true)}>{i18n.t(state.status === "broken" ? "Repair CLI" : "Turn on CLI")}</Button> : null}
@@ -94,7 +107,9 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
           onClick={() => void change(false)}>{i18n.t("Turn off CLI")}</Button> : null}
       </> : null}
       {problem || state?.conflict ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void change()}>{i18n.t("Refresh CLI status")}</Button> : null}
-    </div>
+      </div>
+    </Row>
+    {changed ? <p className="type-helper" role="status">{i18n.t("PATH changes apply to new terminals.")}</p> : null}
     {state?.conflict ? <Notice tone="error">{i18n.t("Another command or file conflicts with {{product}} CLI. Nothing was overwritten.")} {state.conflict}</Notice> : null}
     {problem ? <Notice tone="error" data-testid="cli-problem">{problem}</Notice> : null}
   </div>;
@@ -170,7 +185,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
               {category === "plugins" ? <PluginSettings /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} /> : null}
               {category === "appearance" ? <>
-                <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"
+                <SettingsSelect label={i18n.t("Theme")} testId="theme"
                   value={theme} onChange={value => {
                       onThemeChange(value as ThemePreference);
                     }} options={THEMES.map(value => ({ value, label: i18n.t(THEME_LABELS[value]) }))} />
@@ -185,11 +200,11 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                     }} options={PAGE_BACKGROUNDS.map(value => ({ value, label: i18n.t(PAGE_LABELS[value]) }))} />
                   {pageProblem ? <p role="alert">{i18n.t("Page style could not be saved. This choice applies until you close this page.")}</p> : null}
 
-                <SettingsSelect label={i18n.t("Tables in new documents")} description={i18n.t("Default for documents without a remembered choice on this device.")} testId="table-wrap-default"
+                <SettingsSelect label={<span title={i18n.t("Default for documents without a remembered choice on this device.")}>{i18n.t("Tables in new documents")}</span>} testId="table-wrap-default"
                   value={String(tableWrapDefault)} onChange={value => setTableWrapProblem(!setTableWrapDefault(value === "true"))} options={[{ value: "true", label: i18n.t("Wrap long text") }, { value: "false", label: i18n.t("Single line") }]} />
                   {tableWrapProblem ? <p role="alert">{i18n.t("This choice could not be saved. It applies until you close this page.")}</p> : null}
 
-                <SettingsSelect label={i18n.t("Display language")} description={i18n.t("Remembered here; never saved in the document.")} testId="ui-language"
+                <SettingsSelect label={<span title={i18n.t("Remembered here; never saved in the document.")}>{i18n.t("Display language")}</span>} testId="ui-language"
                   value={i18n.resolvedLanguage ?? i18n.language} onChange={value => {
                       const language = value as UiLanguage;
                       void i18n.changeLanguage(language);
@@ -197,7 +212,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                     }} options={[{ value: "ko", label: "한국어", lang: "ko" }, { value: "en", label: "English", lang: "en" }]} />
                   {languageProblem ? <p role="alert">{i18n.t("Language preference could not be saved. This choice applies until you close this page.")}</p> : null}
 
-                <SettingsRow label={i18n.t("Accent color")} description={i18n.t("Remembered here; never saved in the document.")}>
+                <SettingsRow label={<span title={i18n.t("Remembered here; never saved in the document.")}>{i18n.t("Accent color")}</span>}>
                   <div className="settings-accent-control">
                     <div className="settings-accents" role="radiogroup" aria-label={i18n.t("Accent color")} data-testid="accent-color">
                       {ACCENT_COLORS.map(color => <label key={color} className="settings-accent" title={i18n.t(ACCENT_LABELS[color])}>
@@ -218,23 +233,15 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                   {accentProblem ? <p role="alert">{i18n.t("Accent color could not be saved. This choice applies until you close this page.")}</p> : null}
 
               </> : null}
-              {category === "recovery" ? <section className="settings-group" aria-labelledby="settings-recovery">
-                <h3 id="settings-recovery" className="settings-group-heading">{i18n.t("Local recovery")}</h3>
-                <div className="settings-section">
-                  <div className="settings-label">
-                    <h4 className="settings-heading">{i18n.t("Recovery records")}</h4>
-                    <p className="settings-status">{storageProblem || i18n.t("recoveryCount", { count: recoveryCount })}</p>
-                    <p>{i18n.t("Applied edits are recorded on this device in this browser or app profile. Records are separate from your original files and are not shared with other devices or browsers.")}</p>
-                  </div>
+              {category === "recovery" ? <Section title={i18n.t("Local recovery")}>
+                <Row label={i18n.t("Recovery records")} description={i18n.t("Applied edits are recorded on this device in this browser or app profile. Records are separate from your original files and are not shared with other devices or browsers.")}>
+                  <span className="type-body">{storageProblem || i18n.t("recoveryCount", { count: recoveryCount })}</span>
                   <Button ref={clearButton} size="sm" variant="outline" onClick={() => setClearConfirm(true)}>{i18n.t("Clear all recovery records…")}</Button>
-                </div>
-                <div className="settings-section settings-section--stacked">
-                  <h4 className="settings-heading">{i18n.t("What is kept")}</h4>
-                  <ul className="settings-recovery-details">
+                </Row>
+                <Row kind="fact" label={i18n.t("What is kept")}><ul className="settings-recovery-details">
                     <li>{i18n.t("Records expire 10 days after the last recording, at the next startup or cleanup. Closing a window keeps them. A clean Save, a tab's Don't save, a successful Reload, or Delete record removes that session's record.")}</li>
                     <li>{i18n.t("Unapplied property drafts, Undo history, selection, pending requests and image files are not backed up. Recording may fail; changes after the last record may be lost. Saving the original and recording recovery are separate operations.")}</li>
-                  </ul>
-                </div>
+                  </ul></Row>
                 <RecoveryDeleteDialog open={clearConfirm} pending={clearing} finalFocus={clearButton}
                   onCancel={() => setClearConfirm(false)} onDelete={() => {
                     setClearing(true); setRecoveryProblem("");
@@ -242,52 +249,31 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                   }} />
                 {recoveryProblem ? <p role="alert">{recoveryProblem}</p> : null}
                 {desktop ? <ResetSettings desktop={desktop} /> : null}
-              </section> : null}
+              </Section> : null}
               {category === "about" && info && desktop ? (
-                <section className="settings-group" aria-labelledby="settings-about">
-                  <DaemonStatus desktop={desktop} />
-                  <h3 id="settings-about" className="settings-group-heading">{i18n.t("About")}</h3>
-                  <p className="settings-status settings-section">{i18n.t("{{product}} connects input/output (I/O) with Litz wire.")}</p>
-                  <dl className="settings-facts settings-section">
-                    <dt>{i18n.t("Version")}</dt>
-                    <dd data-testid="app-version">{info.version}</dd>
-                  </dl>
-                  <div className="settings-section">
-                    <div className="settings-actions"><Button size="sm" variant="outline" disabled={logBusy} onClick={async () => {
+                <>
+                  <Section title={i18n.t("Local background service")}>
+                    <DaemonStatus desktop={desktop}>
+                    <Row label={i18n.t("Log folder")}>
+                      <Button size="sm" variant="outline" disabled={logBusy} onClick={async () => {
                       setLogBusy(true); setLogProblem(false);
                       try { await desktop.openLogFolder(); }
                       catch { setLogProblem(true); }
                       finally { setLogBusy(false); }
-                    }}>{i18n.t("Open log folder")}</Button></div>
+                    }}>{i18n.t("Open log folder")}</Button>
                     {logProblem ? <Notice tone="error">{i18n.t("Could not open the log folder.")}</Notice> : null}
-                  </div>
-                  <CliSettings desktop={desktop} />
-                  <h3 className="settings-group-heading">{i18n.t("Updates")}</h3>
-                  <div className="settings-section settings-section--stacked">
-                    <fieldset className="settings-channel" disabled={busy}>
-                      <legend>{i18n.t("Release channel")}</legend>
-                      {CHANNELS.map((channel) => (
-                        <label key={channel.value} className="settings-choice">
-                          <input
-                            type="radio"
-                            name="release-channel"
-                            value={channel.value}
-                            checked={info.channel === channel.value}
-                            onChange={() => run(async () => onInfo(await desktop.setChannel(channel.value)))}
-                          />
-                          <span className="settings-choice-label">{channel.label}</span>
-                          <span className="settings-choice-hint">{channel.hint}</span>
-                        </label>
-                      ))}
-                    </fieldset>
-                  </div>
-                  <div className={`settings-section${highlightUpdate ? " settings-update-highlight" : ""}`} data-testid="settings-update-section"
+
+                    </Row>
+                    </DaemonStatus>
+                  </Section>
+                  <Section title={i18n.t("Updates")}>
+                  <div className={highlightUpdate ? "settings-update-highlight" : undefined} data-testid="settings-update-section"
                     ref={highlightUpdate ? node => node?.scrollIntoView({ block: "nearest" }) : undefined}>
-                    <div className="settings-label">
-                      <h4 className="settings-heading">{i18n.t("Updates")}</h4>
-                      <p className="settings-status" role="status" data-testid="update-status" data-phase={state?.phase}>{updateStatusText(info)}</p>
-                    </div>
-                    <div className="settings-actions">
+                    <Row kind="fact" label={i18n.t("Version")} description={<>
+                      {updateStatusLabel(info.update) ? <><Status variant="plain" tone={state?.phase === "error" ? "error" : state?.phase === "checking" || busy ? "progress" : state?.phase === "up-to-date" || state?.phase === "downloaded" ? "ok" : state?.phase === "available" ? "warning" : "neutral"} label={updateStatusLabel(info.update)} />{" "}</> : null}
+                      <span role={state?.phase === "idle" ? undefined : "status"} data-testid="update-status" data-phase={state?.phase}>{updateStatusText(info)}</span>
+                    </>}>
+                      <span data-testid="app-version">{info.version}</span>
                       {state?.phase === "available" || (state?.phase === "error" && state.during === "download") ? (
                         <Button size="sm" onClick={() => run(() => desktop.downloadUpdate())}>{i18n.t("Download update")}</Button>
                       ) : state?.phase === "downloaded" ? (
@@ -297,13 +283,18 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                           onClick={() => run(() => desktop.checkForUpdates())}>{i18n.t("Check for updates")}</Button>
                       )}
                       <Button size="sm" variant="ghost" onClick={() => run(() => desktop.openReleaseNotes(offered?.version))}>{i18n.t("Release notes")}</Button>
-                    </div>
+                    </Row>
                     {state?.phase === "downloading" ? (
                       <SettingsProgress max={100} value={state.percent} aria-label={i18n.t("Update download")} />
                     ) : null}
                     {problem ? <Notice tone="error" data-testid="update-problem">{problem}</Notice> : null}
                   </div>
-                </section>
+                  <SettingsSelect label={i18n.t("Release channel")} testId="release-channel" disabled={busy} value={info.channel}
+                    description={CHANNELS.find(channel => channel.value === info.channel)?.hint}
+                    options={CHANNELS} onChange={value => run(async () => onInfo(await desktop.setChannel(value as ReleaseChannel)))} />
+                  </Section>
+                  <CliSettings desktop={desktop} />
+                </>
               ) : category === "about" && desktop ? <p className="settings-status">{i18n.t("Loading…")}</p> : null}
             </div>
           </main>

@@ -50,7 +50,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     for(const mode of ['full','narrow']) {
       await expect(workspace.locator('.screen-layout')).toHaveAttribute('data-width',mode);
-      await workspace.screenshot({path:`docs/design/assets/shared-parts-1690/plugin-${mode}-${width}-${theme}.png`});
+      await workspace.screenshot({path:`docs/design/assets/settings-parts-1685/plugin-${mode}-${width}-${theme}.png`});
       await workspace.getByRole('button',{name:'폭 바꾸기',exact:true}).click();
     }
   }

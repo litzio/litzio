@@ -138,7 +138,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   expect((await approved).postDataJSON().registrationId).toBe(registered.registrationId);
   await expect(confirmation).not.toBeVisible();
   await expect(toggle).toBeChecked();
-  await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toHaveCount(0);
+  await expect(page.getByRole("region", {name:"Drive fixture",exact:true}).getByRole("status")).toHaveText("Running");
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(true);
   await returnToObserver();
   await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toBeVisible();
@@ -153,7 +153,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     expect(await page.locator('[data-testid="settings-dialog"]').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const name = await page.getByRole("heading", { name: "Drive fixture", exact: true }).boundingBox();
     const toggle = await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).boundingBox();
-    expect(toggle.x).toBeGreaterThan(name.x + name.width);
+    if(width === 1440) expect(toggle.x).toBeGreaterThan(name.x + name.width);
+    else {
+      expect(toggle.y).toBeGreaterThanOrEqual(name.y + name.height);
+      const row = page.getByRole("region",{name:"Drive fixture",exact:true}).locator('.shared-row');
+      expect(await row.evaluate(n=>Math.abs(n.querySelector('.settings-label').getBoundingClientRect().left-n.querySelector('.settings-row-control').getBoundingClientRect().left)<1)).toBe(true);
+    }
     if (screenshots) await page.screenshot({ path: `tmp/plugin-stage1/settings-${width}.png` });
   }
   const cliSettings = pluginFixture.cli(["plugins", "settings", "fixture.drive", "--file", pluginFixture.otherJobInput]);

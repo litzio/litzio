@@ -1,3 +1,5 @@
+import { Row, Section } from "./components/ui/row.tsx";
+import { Status } from "./components/ui/status.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { AssistantAccount, AssistantRateLimits } from "./AssistantAccountUsage.tsx";
 import { useHostClient } from "./host-context.tsx";
@@ -108,31 +110,31 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
     };
     const date = (value?: number) => value ? new Date(value).toLocaleString() : t("Not checked");
     const filteredModels = models?.models.filter(item => `${item.displayName} ${item.model}`.toLowerCase().includes(search.toLowerCase()));
-    const row = (label: string, content: ReactNode) => <div className="agent-diagnostic-row"><span>{label}</span><div>{content}</div></div>;
+    const row = (label: string, content: ReactNode) => <Row kind="fact" label={label}>{content}</Row>;
     return <section className="agent-settings" aria-label={t("Assistant")}>
       {view === "diagnostics" ? <>
         <div><Button variant="ghost" onClick={() => setView("settings")}>← {t("Assistant")}</Button></div>
-        <div className="agent-heading"><h3 className="settings-heading">{copilot ? t("Copilot diagnostics") : t("Codex diagnostics")}</h3><Button variant="outline" disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
-        <p className="agent-muted">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
+        <div className="agent-heading"><h3 className="settings-heading">{copilot ? t("Copilot diagnostics") : t("Codex diagnostics")}</h3><Button variant="outline" title={t(copilot ? "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota." : "To sign in, run codex login in a terminal, then run diagnostics again.")} disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
+        <p className="type-helper">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
         <div className="agent-diagnostics">
           {row(`${providerName} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<code>{diagnostics?.path ?? "—"}</code></>)}
           {diagnostics?.storePowerShellOnly ? row("PowerShell 7", <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{t("Possible shell issue · Install standard PowerShell 7")}</TooltipTrigger><TooltipContent>{t("Only Microsoft Store PowerShell 7 was found. Codex may fail in restricted modes (CreateProcessAsUserW failed: 5). Replace it with the standard PowerShell 7 installer and run diagnostics again.")}</TooltipContent></Tooltip>) : null}
           {row(copilot ? "ACP" : "app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}{diagnostics?.error ? <Notice tone="error">{diagnostics.error}</Notice> : null}</>)}
           {!copilot ? <>{row(t("Account"), <>{diagnostics?.accountError ?? <AssistantAccount value={diagnostics} />}<code>account/read</code></>)}
           {row(t("Usage and limits"), <>{diagnostics?.rateLimitsError ?? <AssistantRateLimits value={diagnostics} />}<code>account/rateLimits/read</code></>)}
-          {row(t("MCP servers"), <>{diagnostics?.mcpError ?? (diagnostics?.mcp?.length ? diagnostics.mcp.map(server => <p key={server.name}>{server.name} · {t(server.status)} · {t(server.authStatus)}</p>) : t("No MCP servers reported."))}<code>mcpServerStatus/list</code></>)}</> : null}
+          {row(t("MCP servers"), <>{diagnostics?.mcpError ?? (diagnostics?.mcp?.length ? diagnostics.mcp.map(server => <div key={server.name}><p>{server.name} · {t(server.status === "connected" ? "Connected" : server.status === "starting" ? "Checking…" : "Unavailable")} · {t(server.authStatus === "oAuth" ? "oAuth" : server.authStatus === "bearerToken" ? "Token authentication" : server.authStatus === "notLoggedIn" ? "Login required" : server.authStatus === "unsupported" ? "No authentication" : "Not checked")}</p><details><summary>{t("Details")}</summary><code>{server.status} · {server.authStatus}</code></details></div>) : t("No MCP servers reported."))}<code>mcpServerStatus/list</code></>)}</> : null}
         </div>
-        <p className="agent-muted">{t(copilot ? "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota." : "To sign in, run codex login in a terminal, then run diagnostics again.")}</p>
+
       </> : <>
-        <h4 title={t("Connected products: Codex, GitHub Copilot")}>{t("Providers")}</h4>
-        {(["codex", "copilot"] as const).map(provider => <div className="agent-provider" key={provider}>
-          <Button variant="ghost" className="agent-provider-open justify-start" disabled={loading} onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void refresh(provider); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
-            <span aria-hidden="true">›</span><strong>{provider === "copilot" ? "GitHub Copilot" : "Codex"}</strong><span className="agent-provider-summary">{status(provider)}</span>
-          </Button>
+        <Section title={t("Providers")}>
+        {(["codex", "copilot"] as const).map(provider => <Row key={provider} label={<Button variant="ghost" className="agent-provider-open justify-start" disabled={loading} onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void refresh(provider); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
+            <span aria-hidden="true">›</span><span className="type-item-name">{provider === "copilot" ? "GitHub Copilot" : "Codex"}</span>
+          </Button>}>
+          <Status variant="plain" tone={status(provider) === t("Checking…") ? "progress" : status(provider) === t("Available") ? "ok" : status(provider) === t("Unavailable") ? "error" : "warning"} label={status(provider)} />
           <Button variant="ghost" onClick={() => { setInspecting(provider); void refresh(provider); setView("diagnostics"); }}>{t("Diagnostics")}</Button>
-        </div>)}
-        <h4>{t("Defaults")}</h4>
-        <p className="agent-muted">{t("Shared by all AI tasks. Changes apply to the next task.")}</p>
+        </Row>)}
+        </Section>
+        <Section title={t("Defaults")} description={t("Changes apply to the next task.")}>
         <SettingsSelect label={t("Default provider")} value={settings?.provider ?? "codex"} disabled={!settings || loading}
           options={(["codex", "copilot"] as const).map(value => ({ value, label: value === "codex" ? "Codex" : "GitHub Copilot" }))} onChange={value => void selectProvider(value as AiProvider)} />
         <SettingsSelect label={t("Model")} value={settings?.model ?? ""} disabled={loading || !defaultModels || !settings} onChange={selectModel}
@@ -145,25 +147,25 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
             onChange={value => { save({ ...latest.current!, permissionMode: value as AssistantSettings["permissionMode"] }); }}
             options={[{ value: "read-only", label: t("Read-only") }, { value: "opened-folders", label: t("Opened folders") }, { value: "full-access", label: t("Full access"), disabled: defaultModels?.fullAccessAllowed === false }]} />
         </TooltipTrigger><TooltipContent>{t("Opened folders allows folder edits and network access; Read-only allows reads. Provider requests beyond these defaults ask for approval. Full access automatically approves provider tools and allows Host tools outside opened folders, within Host roots. Document edits apply directly; supported changes can be viewed and undone.")}{defaultModels?.fullAccessAllowed === false ? ` ${t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : ""}</TooltipContent></Tooltip>
-        <SettingsSelect label={t("AI default language")} value={settings?.responseLanguage ?? "en"} disabled={!settings}
+        <SettingsSelect label={t("AI default language")} description={t("Used only for tasks started without a conversation.")} value={settings?.responseLanguage ?? "en"} disabled={!settings}
           onChange={value => { save({ ...latest.current!, responseLanguage: value as AssistantSettings["responseLanguage"] }); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
-        <p className="agent-muted">{t("Used only for tasks started without a conversation.")}</p>
+
         {models && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
 
-        <h4>{t("Common working environment")}</h4>
-        <div className="agent-diagnostics">
+        </Section>
+        <Section title={t("Common working environment")}>
           {row(t("Working folder"), <code>{environment?.cwd ?? "—"}</code>)}
           {row(t("Litzio instructions"), <code title={environment?.instructions}>{environment ? "AGENTS.md" : "—"}</code>)}
           {settings?.provider !== "copilot" ? row(t("Litzio skills"), environment?.skills.length ? environment.skills.join(", ") : t("No Litzio skills installed.")) : null}
-        </div>
+        </Section>
       </>}
       {problem ? <Notice tone="error">{problem}</Notice> : null}
       {busy ? <p role="status">{t("Saving…")}</p> : null}
       <Dialog open={dialog} onClose={() => setDialog(false)} title={t(copilot ? "Copilot models" : "Codex models")} description={t(copilot ? "Models reported by Copilot CLI. Account access and quota may vary." : "Models and supported reasoning efforts reported by Codex.")} returnFocus={focus} testId="assistant-models-dialog"
-        footer={<><span className="agent-updated">{t("Updated")}: {date(models?.updatedAt)}</span><Button variant="outline" onClick={() => { setDialog(false); setView("diagnostics"); }}>{t("Diagnostics")}</Button><Button variant="outline" disabled={loading} onClick={() => void refresh()}>{t("Refresh")}</Button></>}>
+        footer={<><span className="agent-updated type-helper">{t("Updated")}: {date(models?.updatedAt)}</span><Button variant="outline" onClick={() => { setDialog(false); setView("diagnostics"); }}>{t("Diagnostics")}</Button><Button variant="outline" disabled={loading} onClick={() => void refresh()}>{t("Refresh")}</Button></>}>
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
-          <p className="agent-muted">{t("Models")}: {filteredModels?.length ?? "—"}</p>
+          <p className="type-helper">{t("Models")}: {filteredModels?.length ?? "—"}</p>
           <div className="agent-model-list">{!models ? <p>{loading ? t("Checking…") : t("Unavailable")}</p> : filteredModels?.map(item => <article key={item.id}>
             <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => t(effort.reasoningEffort)).join(" · ")}</small>
           </article>)}

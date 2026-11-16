@@ -41,6 +41,18 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   const edit = (target, text, owner = engine(target)) => owner.evaluate((node,text) => node.editor.commands.insertContentAt(1,text), text);
   const recoveryLayouts = [];
   const capture = async name => {
+    if(screenshots && name === 'list') {
+  for(const [width,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
+    await page.setViewportSize({width,height:1100});
+    await page.evaluate(async theme=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('ko');const {applyTheme}=await import('/src/theme.ts');await applyTheme(theme,false);await document.fonts.ready;},theme);
+    const list=page.getByTestId('recovery-list');
+    await list.screenshot({path:`docs/design/assets/settings-parts-1685/after-recovery-list-${width}-${theme}.png`,mask:[list.locator('.recovery-records li p:first-of-type')]});
+  }
+      await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('en');const {applyTheme}=await import('/src/theme.ts');await applyTheme('light',false);});
+      await page.setViewportSize({width:1440,height:900});
+      return;
+    }
+
     const reviewLayout = name === 'prompt' || name === 'incompatible';
     if (!screenshots && !reviewLayout) return;
     const layoutFailures = [];
