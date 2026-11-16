@@ -438,7 +438,7 @@ existing timeouts. The explicit Undo Reload is independent of automatic revision
 #1443 / #1530: `assistant-question` covers question DOM, post-turn answers and history
 case. Provider/Host tests own protocol, index persistence and explicit-Host CLI
 `assistant conversation` / `assistant answer`. Manual 1440/640px Light/Dark captures
-are separate from CI in `docs/design/assets/assistant-question-1443/`.
+are separate from CI. The [historical real-call proof](../design/assets/assistant-question-1443/real-proof.json) retains the earlier acceptance evidence; current panel captures are linked from [UI patterns](../design/ui-patterns-v1.md#비서-패널-시각-확인-1686).
 
 ## 비서 수락 시험 (수동 측정)
 

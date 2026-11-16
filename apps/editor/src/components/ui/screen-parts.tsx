@@ -21,7 +21,7 @@ export function Steps({steps, current}: {steps: string[]; current: number}) {
   return <ol className="screen-steps">{steps.map((step, index) => <li key={index} aria-current={index === current ? "step" : undefined} data-state={index < current ? "past" : index === current ? "current" : "remaining"}><span className="screen-step-number" aria-hidden="true">{index + 1}</span><span>{step}</span></li>)}</ol>;
 }
 export function EmptyState({title, description, action}: {title: string; description?: string; action?: ReactNode}) {
-  return <div className="screen-empty"><strong>{title}</strong>{description && <p className="screen-description">{description}</p>}{action && <div>{action}</div>}</div>;
+  return <div className="screen-empty"><strong className="type-item-name">{title}</strong>{description && <p className="screen-description type-helper">{description}</p>}{action && <div>{action}</div>}</div>;
 }
 export function Progress({value, label}: {value?: number; label?: string}) {
   return <div className="screen-progress">{label && <span>{label}</span>}<SettingsProgress aria-label={label} value={value} /></div>;

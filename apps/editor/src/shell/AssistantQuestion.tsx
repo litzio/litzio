@@ -24,7 +24,7 @@ export function AssistantQuestion({ question, disabled, submit }: { question: As
     send(Object.fromEntries(question.questions.map(q => [q.id, { answers: [values.get(q.id)!] }])));
   }}>
     {question.questions.map(q => <fieldset key={q.id} disabled={disabled || sending}>
-      <legend>{q.header ? i18n.t(q.header, { defaultValue: q.header }) : q.question}</legend>{q.header ? <p>{q.question}</p> : null}
+      <legend className="type-item-name">{q.header ? i18n.t(q.header, { defaultValue: q.header }) : q.question}</legend>{q.header ? <p>{q.question}</p> : null}
 
       {!waiting ? <p className="assistant-question-answer">{record?.answers?.[q.id]?.answers.join(" · ")}</p> : approval ? <div className="assistant-approval-actions">
         {q.options?.map((option, index) => {
@@ -37,7 +37,7 @@ export function AssistantQuestion({ question, disabled, submit }: { question: As
       </div> : <>
       {q.options?.map((option, index) => <label className="assistant-question-option" key={index}>
         <input type="radio" name={q.id} checked={!other.get(q.id) && values.get(q.id) === option.label} onChange={() => { setOther(previous => new Map(previous).set(q.id, false)); setValues(previous => new Map(previous).set(q.id, option.label)); }} />
-        <span><span>{i18n.t(option.label, { defaultValue: option.label })}</span><small>{option.description}</small></span>
+        <span><span>{i18n.t(option.label, { defaultValue: option.label })}</span><small className="type-helper">{option.description}</small></span>
       </label>)}
       {q.isOther && !!q.options?.length ? <label className="assistant-question-option"><input type="radio" name={q.id} checked={!!other.get(q.id)} onChange={() => { setOther(previous => new Map(previous).set(q.id, true)); setValues(previous => new Map(previous).set(q.id, "")); }} />{i18n.t("Write another answer")}</label> : null}
       {!q.options?.length || other.get(q.id) ? <label>{i18n.t("Your answer")}<Input className="assistant-question-input" type={q.isSecret ? "password" : "text"} autoComplete="off" value={values.get(q.id) ?? ""} onChange={event => setValues(previous => new Map(previous).set(q.id, event.target.value))} /></label> : null}

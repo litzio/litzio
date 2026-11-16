@@ -245,24 +245,24 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
               const borderColor = getComputedStyle(document.querySelector('.document-tab-row')).borderBottomColor;
               const continuous = Array.from({length:Math.ceil(header.width)}, (_, i) => header.left + i + 0.5)
                 .filter(x => x < header.right).every(x => lines.filter(line => line.left <= x && line.right > x && line.bottom === tabs.top && line.thickness === 1 && line.color === borderColor).length === 1);
-              const blocked = [...document.querySelectorAll('.app-titlebar button, .top-bar button, .document-tab-row button, .sidebar-header button, .sidebar-footer button, .document-panel-header button')].filter(node => {
+              const blocked = [...document.querySelectorAll('.app-titlebar button, .top-bar button, .document-tab-row button, :is(.sidebar-header, .sidebar > .panel-header) button, .sidebar-footer button, .document-panel-header button')].filter(node => {
                 const r = node.getBoundingClientRect();
                 // Preserve the former follow-up's checks even for hidden header controls.
-                const checked = r.width || node.matches('.top-bar button, .document-tab-row button, .sidebar-header button');
+                const checked = r.width || node.matches('.top-bar button, .document-tab-row button, :is(.sidebar-header, .sidebar > .panel-header) button');
                 return checked && (r.right > innerWidth || (r.top < 40 && r.right > innerWidth - reserved) || getComputedStyle(node).getPropertyValue('app-region') !== 'no-drag');
               }).map(node => node.getAttribute('aria-label') || node.textContent);
               const panel = document.querySelector('.document-panel--overlay:not([hidden])');
               const usableWidth = document.querySelector('.top-bar').getBoundingClientRect().width;
               const brand = document.querySelector('.app-brand');
-              const sidebar = document.querySelector('.sidebar-header').getBoundingClientRect();
+              const sidebar = document.querySelector(':is(.sidebar-header, .sidebar > .panel-header)').getBoundingClientRect();
               const docked = document.querySelector('.document-panel:not([hidden]):not(.document-panel--overlay) .document-panel-navigation')?.getBoundingClientRect();
-              const aligned = sidebar.top === tabs.top && sidebar.bottom === tabs.bottom && (!docked || docked.top === tabs.top && docked.bottom === tabs.bottom);
+              const collapsed = document.querySelector('.sidebar').classList.contains('sidebar--collapsed');
+              const aligned = sidebar.top === tabs.top && (collapsed ? sidebar.bottom === tabs.bottom : !docked || sidebar.height === docked.height) && (!docked || docked.top === tabs.top);
               const branded = brand.querySelector('img').complete && !!brand.querySelector('span') ===
                 (!document.querySelector('.sidebar--collapsed') && !document.querySelector('.app-shell--navigation-overlay'));
               const settingsBox = settings.getBoundingClientRect();
               const rail = document.querySelector('.sidebar').getBoundingClientRect();
               const modeBox = document.querySelector('.sidebar-preferences button:last-child').getBoundingClientRect();
-              const collapsed = document.querySelector('.sidebar').classList.contains('sidebar--collapsed');
               const footerAligned = collapsed ? settingsBox.bottom <= modeBox.top && settingsBox.x === modeBox.x
                 : settingsBox.y + settingsBox.height / 2 === modeBox.y + modeBox.height / 2 && settingsBox.right <= modeBox.left;
               const settingsBounded = footerAligned && settingsBox.left >= rail.left && settingsBox.right <= rail.right && modeBox.right <= rail.right && modeBox.bottom <= innerHeight;

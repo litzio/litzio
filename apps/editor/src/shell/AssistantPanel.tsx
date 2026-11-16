@@ -9,9 +9,12 @@ import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle, TriangleAlert } from "lucide-react";
+import { Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle } from "lucide-react";
 import { ASSISTANT, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
+import { PanelHeader } from "@/components/ui/panel-header.tsx";
+import { EmptyState } from "@/components/ui/screen-parts.tsx";
+import { Status } from "@/components/ui/status.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 import { i18n, type MessageKey } from "../i18n.ts";
@@ -397,7 +400,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const submissionActions = (value: AssistantLocalSubmission) => {
     const status = value.receipt.status;
     if (status === "accepted") return null;
-    return <div className="assistant-submission-status">
+    return <div className="assistant-submission-status type-helper">
       <span role={status === "rejected" ? "alert" : "status"}>{i18n.t(status === "pending" ? "Sending…" : status === "rejected" ? "Failed" : "Needs confirmation")}</span>
       {value.receipt.error ? <span>{i18n.t(value.receipt.error, { defaultValue: value.receipt.error })}</span> : null}
       {status !== "pending" ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void retrySubmission(value)}>{i18n.t("Retry")}</Button> : null}
@@ -411,7 +414,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       }}>{i18n.t("Discard message")}</Button> : null}
     </div>;
   };
-  return <aside ref={panel} hidden={!open} className={`assistant-panel${overlay ? " assistant-panel--overlay" : ""}`} aria-label={i18n.t("Assistant")}
+  return <aside ref={panel} hidden={!open} className={`assistant-panel type-body${overlay ? " assistant-panel--overlay" : ""}`} aria-label={i18n.t("Assistant")}
     role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
     onKeyDown={event => {
       if (event.defaultPrevented) return;
@@ -431,8 +434,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       }
     }}>
     {!overlay ? <PanelResize label={i18n.t("Assistant width")} onWidth={onWidth} /> : null}
-    <div className="assistant-header">
-      <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
+    <PanelHeader title={i18n.t("Assistant")} actions={<>
       <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || !ready} onClick={() => { void run(async isCurrent => {
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
@@ -452,8 +454,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         })}>{action === "open" ? <ExternalLink /> : <FolderOpen />}</Button>
       </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>)}
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
-    </div>
-    <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
+    </>} />
+    <div className="assistant-context type-helper" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
 
       {documentPath && documentDirty ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>
         {i18n.t("Using saved version")}
@@ -469,13 +471,13 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
       onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
     <div ref={transcriptContent}>
-      {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
+      {history ? <div className="assistant-history"><h3 className="type-item-name" title={i18n.t(provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}>{i18n.t("Conversation history")}</h3>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id });
           if (!isCurrent()) return;
           setConversation(next); leaveSubmissionScope(); rememberConversation(conversationKey, next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
-        })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
-          {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
+        })}><strong className="type-item-name">{entry.title}</strong><time className="type-helper" dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
+          {entry.folders.length ? <small className="type-helper" title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips previews={imagePreviews} references={item.references ?? []} /></p>
@@ -499,8 +501,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
             if (!result) return null;
             const deleted = removed.includes(item.id);
             return <div key={item.id} className="assistant-result" tabIndex={-1} data-testid="assistant-result">
-              <strong>{i18n.t(deleted ? "Created file deleted" : "Document created")}</strong>
-              <Tooltip><TooltipTrigger render={<span tabIndex={0} aria-label={result.path} />}>
+              <strong className="type-item-name">{i18n.t(deleted ? "Created file deleted" : "Document created")}</strong>
+              <Tooltip><TooltipTrigger render={<span className="type-body" tabIndex={0} aria-label={result.path} />}>
                 {resultLabel(result.path)}
               </TooltipTrigger><TooltipContent className="break-all">{result.path}</TooltipContent></Tooltip>
               <div><Button size="sm" variant="outline" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path, client))}>{i18n.t("Open")}</Button>
@@ -512,12 +514,12 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
                   if (await onUndo(result, client) && isCurrent()) { setRemoved(previous => [...previous, item.id]); resultFocus.current = card; }
                 });
               }}>{i18n.t("Undo creation")}</Button></div>
-              {!deleted ? <small>{i18n.t("Undo deletes the created file.")}</small> : null}
+              {!deleted ? <small className="type-helper">{i18n.t("Undo deletes the created file.")}</small> : null}
             </div>;
           })}
           {conversation.userInput?.turnId === turn.id && !turn.items.some(item => item.question?.requestId === conversation.userInput?.requestId && item.question?.turnId === conversation.userInput?.turnId) ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !enabled || !!setup}
             submit={answers => submitAnswer(conversation.userInput!, answers)} /> : null}
-          {turn.status === "inProgress" ? <p className="assistant-progress" role="status">{i18n.t(conversation.userInput?.turnId === turn.id ? "Needs your attention" : turn.items.at(-1)?.kind === "assistant" ? "Writing answer…" : "Thinking…")}</p> : null}
+          {turn.status === "inProgress" ? <p className="assistant-progress type-helper" role="status">{i18n.t(conversation.userInput?.turnId === turn.id ? "Needs your attention" : turn.items.at(-1)?.kind === "assistant" ? "Writing answer…" : "Thinking…")}</p> : null}
           {turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{i18n.t(turn.error, { defaultValue: turn.error })}</p> : null}
           {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
@@ -529,7 +531,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
           <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips previews={imagePreviews} references={value.references} /></p>
           {submissionActions(value)}
         </div>)}
-      {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. With edit access, documents are edited directly.")}</p></div> : null}
+      {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><EmptyState title={i18n.t("Ask about your document")} description={i18n.t("With edit access, documents are edited directly.")} /></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {conversation?.permissionFallback ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>{i18n.t("Opened folders")}</TooltipTrigger><TooltipContent>{i18n.t("Full access is not allowed in this environment. Continuing with Opened folders.")}</TooltipContent></Tooltip> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
@@ -538,11 +540,11 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     {!history && away ? <Button className="assistant-jump" variant="outline" size="sm" onClick={jumpToBottom}><ArrowDown />{i18n.t(unread ? "New content · Jump to bottom" : "Jump to bottom")}</Button> : null}
     </div>
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
-      {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
+      {percent !== null && percent >= 80 ? <p className="assistant-warning type-helper">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
       <ReferenceChips composer uploading={uploadingImages} previews={imagePreviews} references={references} remove={removeReference} />
       {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t("Codex skills")}>
-        {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.displayName ?? file.name}<small>{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
+        {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.displayName ?? file.name}<small className="type-helper">{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
         {!skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
         {(skillProblem || skillCatalog?.errors.length) ? <p role="alert">{i18n.t("Could not load some skills.")} {skillProblem || skillCatalog?.errors.map(error => `${error.path}: ${error.message}`).join("; ")}</p> : null}
         {!matches.length && skillCatalog ? <p>{i18n.t("No matching skills.")}</p> : null}
@@ -628,7 +630,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
 
         <AssistantUsageTooltip copilotUsage={conversation?.copilotUsage} provider={provider} active={open} context={usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
-        </AssistantUsageTooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
+        </AssistantUsageTooltip><small className="type-helper">{i18n.t("Shift+Enter for a new line")}</small>
         <Tooltip><TooltipTrigger render={<Button type={showStop ? "button" : "submit"} variant={showStop ? "outline" : "default"} size="icon-sm" aria-label={composerAction}
           disabled={pending || !showStop && (!ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup)} />}
           onClick={showStop ? () => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); }) : undefined}>
@@ -643,17 +645,17 @@ function AssistantWorkStep({ item, active, running, onDisclosure, actions }: { a
   useLayoutEffect(() => { if (!running) setExpanded(false); }, [running]);
   const failed = ["failed", "declined"].includes(item.status ?? "");
   const shell = item.work?.kind === "execute";
-  const Icon = active ? LoaderCircle : failed ? TriangleAlert : item.kind === "reasoning" ? Brain : shell ? Terminal : item.work?.kind === "edit" ? FilePen : item.kind === "plan" ? ListChecks : Wrench;
+  const Icon = item.kind === "reasoning" ? Brain : shell ? Terminal : item.work?.kind === "edit" ? FilePen : item.kind === "plan" ? ListChecks : Wrench;
   const status = active ? "inProgress" : !running && ["inProgress", "pending"].includes(item.status ?? "") ? "interrupted" : item.status ?? "completed";
   const label = item.kind === "reasoning" ? i18n.t(active ? "Thinking…" : "Thinking") : shell ? "Shell" : item.kind === "plan" ? i18n.t("Steps") : i18n.t("Tool");
-  return <><details className="assistant-steps" data-kind={item.kind} data-status={status} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary onClick={onDisclosure}><Icon aria-hidden="true" className={active ? "animate-spin" : undefined} /><span title={item.text}><strong>{label}</strong> {item.text.replace(/\s+/g, " ")}</span><small>{activityStatus(status)}</small></summary>
+  return <><details className="assistant-steps type-helper" data-kind={item.kind} data-status={status} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary onClick={onDisclosure}><Icon aria-hidden="true" /><span className="type-helper" title={item.text}><span>{label}</span> {item.text.replace(/\s+/g, " ")}</span><Status variant="plain" tone={["inProgress", "pending", "running"].includes(status) ? "progress" : failed ? "error" : "neutral"} hideIndicator={!["inProgress", "pending", "running"].includes(status) && !failed} label={activityStatus(status)} /></summary>
     {item.kind === "tool" ? <pre>{shell ? "$ " : ""}{item.text}{item.work?.detail ? `\n${item.work.detail}` : ""}</pre> : <p>{item.text}</p>}
     {item.work?.truncated ? <p>{i18n.t("Output truncated.")}</p> : null}
   </details>{actions ? <div className="grid gap-2 mb-3">{actions}</div> : null}</>;
 }
 function activityStatus(value: string) {
-  return value === "interrupted" ? i18n.t("Stopped") : value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
+  return value === "interrupted" ? i18n.t("Stopped") : ["inProgress", "pending", "running"].includes(value) ? i18n.t("In progress") : ["completed", "success"].includes(value) ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : i18n.t("Unknown status");
 }
 
 function createdDocument(item: import("../../shared/assistant.ts").AssistantConversationItem): { path: string; revision: string; identity?: FileIdentity } | null {
@@ -684,7 +686,7 @@ function ReferenceChips({ references, remove, previews, composer = false, upload
   const thumbnails = composer ? files.filter(({ preview }) => preview) : [];
   const chips = composer ? files.filter(({ preview }) => !preview) : files;
   return <>
-    {chips.length ? <span className="assistant-references">{chips.map(({ file, name, preview }) => <span className="assistant-reference" key={file.path}>
+    {chips.length ? <span className="assistant-references">{chips.map(({ file, name, preview }) => <span className="assistant-reference type-helper" key={file.path}>
       <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{preview ? <img className="assistant-reference-preview" src={preview} alt="" /> : null}{name}{file.unavailable ? ` · ${i18n.t("Unavailable")}` : ""}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
       {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.pastedImage ? name : file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
     </span>)}</span> : null}
@@ -696,7 +698,7 @@ function ReferenceChips({ references, remove, previews, composer = false, upload
         </TooltipTrigger>
         <TooltipContent>{name}</TooltipContent>
       </Tooltip>)}
-      {uploading ? <span className="assistant-image-upload" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><span aria-hidden="true">{i18n.t("In progress")}</span><span className="sr-only">{i18n.t("Uploading images…")}</span></span> : null}
+      {uploading ? <span className="assistant-image-upload type-helper" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><span aria-hidden="true">{i18n.t("In progress")}</span><span className="sr-only">{i18n.t("Uploading images…")}</span></span> : null}
     </div> : null}
   </>;
 }

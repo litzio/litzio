@@ -179,6 +179,14 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
   await navigation.getByRole('button',{name:'Shared parts',exact:true}).click();
   const shared = page.getByRole('region',{name:'공용 정보 부품',exact:true});
+  const panelHeader = await shared.locator('.panel-header').evaluate(n => {
+    const probe = document.createElement('div'); probe.style.height = 'calc(var(--layout-document-tab-height) + var(--border-width))'; n.append(probe);
+    const expectedHeight = probe.getBoundingClientRect().height; probe.remove();
+    const style = getComputedStyle(n), title = n.querySelector('h2').getBoundingClientRect(), actions = n.querySelector('.panel-header-actions').getBoundingClientRect();
+    return { height: n.getBoundingClientRect().height, expectedHeight, paddingTop: style.paddingTop, paddingLeft: style.paddingLeft, border: style.borderBottom, titleCenter: title.top + title.height / 2, actionsCenter: actions.top + actions.height / 2 };
+  });
+  expect(panelHeader.height).toBe(panelHeader.expectedHeight);
+  expect(panelHeader.titleCenter).toBe(panelHeader.actionsCenter);
   expect(await page.evaluate(async () => {
     const {screenUI} = await import('/src/views/screen-ui.ts');
     const {Row} = await import('/src/components/ui/row.tsx');
@@ -236,6 +244,12 @@ async (page, { expect, screenshots }) => {
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   await page.setViewportSize({width:1440,height:1000});
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
+  const taskHeader = await page.locator('.task-header').evaluate(n => { const s = getComputedStyle(n); return { paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, paddingLeft: s.paddingLeft, border: s.borderBottom }; });
+  expect(taskHeader.paddingTop).toBe(taskHeader.paddingLeft);
+  expect(taskHeader.paddingBottom).toBe(taskHeader.paddingTop);
+  expect(taskHeader.paddingLeft).toBe(panelHeader.paddingLeft);
+  expect(taskHeader.border).toBe(panelHeader.border);
+  expect(taskHeader.paddingTop).not.toBe(panelHeader.paddingTop);
   // Progress remains distinguishable from success even without motion or color.
   const progressMark = page.locator('.screen-status[data-tone="progress"] svg').first();
   await expect(progressMark).toBeVisible();

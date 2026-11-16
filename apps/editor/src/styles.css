@@ -143,6 +143,11 @@ button {
   padding: 0 var(--space-1) var(--space-3);
 }
 
+.sidebar > .panel-header {
+  width: calc(100% + var(--space-3) * 2);
+  margin-inline: calc(-1 * var(--space-3));
+}
+
 .sidebar-header {
   user-select: none;
   display: flex;
@@ -240,13 +245,6 @@ button {
   .document-settings-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
 }
 
-.product {
-  padding-left: var(--space-3);
-  color: var(--id-color-text);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-label);
-}
 
 /* Without a chosen folder, the sidebar offers to choose one; a single file opens as before. */
 .sidebar-empty {
@@ -500,15 +498,16 @@ button {
   gap: var(--space-2);
   width: calc(100% + var(--space-3) * 2);
   margin-inline: calc(-1 * var(--space-3));
-  padding-inline: var(--space-3);
+  height: calc(var(--layout-document-tab-height) + var(--border-width));
   min-height: calc(var(--layout-document-tab-height) + var(--border-width));
-  border-bottom: var(--border-width) solid var(--id-color-border);
+  padding: 0 var(--space-6);
+  border-bottom: var(--border-width) solid var(--id-color-border-subtle);
 }
 
 .document-panel-navigation {
   display: flex;
   align-items: center;
-  flex: 0 0 calc(var(--layout-document-tab-height) + var(--border-width));
+  flex: 0 0 auto;
   min-width: 0;
 }
 .document-panel-navigation .view-toggle { width: 100%; }
@@ -674,7 +673,7 @@ button {
   container-type: inline-size;
 }
 .app-header { background: var(--id-color-surface-subtle); }
-:is(.app-titlebar, .document-tab-row, .sidebar-header, .document-panel-header) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
+:is(.app-titlebar, .document-tab-row, .sidebar-header, .panel-header, .document-panel-header) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
   app-region: no-drag;
 }
 
@@ -946,7 +945,7 @@ button {
 /* Settings and Color mode share footer row geometry in both sidebar states. */
 .sidebar-preferences { display: flex; align-items: center; gap: var(--space-1); }
 .sidebar--collapsed .sidebar-preferences { flex-direction: column; }
-.sidebar-host-account { display: flex; align-items: center; gap: var(--space-2); min-width: 0; height: var(--size-control-compact); padding-inline: calc(var(--space-3) + var(--border-width)); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
+.sidebar-host-account { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-control-compact); padding-inline: calc(var(--space-3) + var(--border-width)); }
 .sidebar-host-account .host-status { flex-shrink: 0; }
 .sidebar-host-account .host-status .agent-dot { width: var(--size-icon-slot); height: var(--size-icon-slot); display: grid; place-items: center; background: none; }
 .sidebar-host-account .agent-dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }

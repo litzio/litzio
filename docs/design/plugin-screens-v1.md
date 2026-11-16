@@ -81,7 +81,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 `ui.ScreenLayout({description?,status?,actions?,width?,children})`의 description은 머리에 표시한다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
 
-- `ui.Status({tone,label,variant?})`: tone은 ok/progress/warning/error/neutral. 표시와 사람의 말로 된 글자의 알약이다. 원래 상태 식별자는 label로 넘기지 않는다. variant는 기본 pill이며 plain은 바탕과 안쪽 여백 없이 같은 점·색·고리를 쓴다. HostStatus도 이 부품의 plain을 쓴다. progress는 작게 도는 열린 고리이며 움직임 줄이기 설정에서는 정지한다. 다른 tone은 채운 점을 쓴다. ok는 정상 의미 색(`--id-color-success`), neutral은 보조 글씨 색, progress는 포인트, warning/error는 기존 의미 색으로 표시와 글씨를 그린다. 바탕은 조용한 표면(`--id-color-surface-subtle`)을 유지한다. 본문에서도 쓸 수 있다.
+- `ui.Status({tone,label,variant?,hideIndicator?})`: tone은 ok/progress/warning/error/neutral. 표시와 사람의 말로 된 글자의 알약이다. 원래 상태 식별자는 label로 넘기지 않는다. variant는 기본 pill이며 plain은 바탕과 안쪽 여백 없이 같은 점·색·고리를 쓴다. HostStatus도 이 부품의 plain을 쓴다. progress는 작게 도는 열린 고리이며 움직임 줄이기 설정에서는 정지한다. 다른 tone은 채운 점을 쓴다. hideIndicator는 기본 false이며 반복되는 완료 줄은 neutral/plain과 true를 함께 써 점 없이 보조 글씨로 표시한다. ok는 정상 의미 색(`--id-color-success`), neutral은 보조 글씨 색, progress는 포인트, warning/error는 기존 의미 색으로 표시와 글씨를 그린다. 바탕은 조용한 표면(`--id-color-surface-subtle`)을 유지한다. 본문에서도 쓸 수 있다.
 - `ui.Steps({steps,current})`: 문자열 목록과 0부터 시작하는 현재 단계. 지난·현재·남은 단계를 구별하고 목록의 현재 항목은 aria-current="step"이다. 기본 위치는 머리 아래 내용 맨 위이며 클릭 이동은 없다.
 - `ui.EmptyState({title,description?,action?})`: 보조 표면·점선 테두리·가운데 정렬로 다음에 할 한 가지를 안내한다.
 - `ui.Progress({value?,label?})`: 기존 native progress와 포인트 색을 사용한다. value는 0..1, 생략하면 진행 정도를 모르는 상태다. progressbar 역할과 값·접근성 이름을 제공한다. 오래 걸리는 작업은 진행과 상태 문구를 함께 표시한다.
@@ -159,7 +159,7 @@ Green에서는 ok와 progress의 색조 차이가 작아 색만으로 구별하�
 
 플러그인 h2는 type-section-title, h3·h4는 type-item-name의 역할 정의를 공유한다. 문서 보기 안 제목은 제외한다. SummaryCard의 이름·설명은 item-name·helper이며 값은 큰 수치를 빠르게 읽는 기존 표현을 유지하기 위해 screen-title 크기 토큰을 쓴다.
 
-PanelHeader는 본체 패널의 구역 제목·아이콘·오른쪽 동작과 heading level을 제공한다. 작업 탭 제목은 TaskHeader가 계속 소유하며 높이·여백·구분선은 shared-parts.css에서 함께 정의한다. 문서 패널의 탐색 탭은 이 PR에서 옮기지 않는다.
+PanelHeader는 본체 패널의 구역 제목·아이콘·오른쪽 동작과 heading level을 제공한다. PanelHeader의 높이는 문서 탭 줄의 기존 토큰을 쓰며 제목·동작은 세로 가운데다. 작업 탭 제목은 TaskHeader가 계속 소유한다. 좌우 여백·구분선은 shared-parts.css에서 공유하되 TaskHeader의 높이·세로 여백은 별도이며 패널 머리에 적용하지 않는다. 본체의 패널별 좌우 여백은 내용의 시작선에 맞춘다. 문서 패널의 탐색 탭은 구조를 유지하고 PanelHeader와 높이·구분선을 맞춘다.
 
 ### 공용 부품 비교 캡처 (#1690)
 
