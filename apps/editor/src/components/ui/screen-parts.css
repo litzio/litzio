@@ -21,3 +21,5 @@
 
 /* Recharts retains hidden tooltip coordinates after resize; keep that box inside its chart. */
 .screen-chart .recharts-wrapper { overflow: clip; }
+
+.task-surface .screen-layout :where(h2, h3, h4):not(:where(.task-surface-title, .screen-document-view *)) { font-size: inherit; font-weight: var(--font-weight-semibold); margin: var(--space-4) 0 var(--space-2); }
