@@ -82,7 +82,7 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 
 앱 화면에서 역할 표에 없는 크기·굵기·색 조합, 부모의 상대 크기(`em`, `%`, `smaller`),
 700 굵기를 새로 쓰지 않는다. `small`·`kbd`는 보조 크기, `code`는 본문 크기,
-`strong`·`b`는 600을 기본으로 한다. 화면별 기존 불일치의 정리는 #1685·#1686·#1687을 따른다.
+`strong`·`b`는 600을 기본으로 한다.
 
 문서 본문과 앱 화면의 타이포그래피는 따로다. 문서는 `--font-family-document`,
 `--font-size-document`, `--line-height-document`와 문서 제목·caption·표·코드 전용 토큰을 쓴다.
@@ -212,8 +212,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 ### 알려진 불일치
 
-- 플러그인 화면의 바탕·여백·제목 중복·표 밀도·도구 줄 정렬·버튼 기본 변형, 브라우저 기본 입력 요소의 포인트 색: [#1663](https://github.com/litzio/litzio/issues/1663).
-- 숫자 열의 오른쪽 정렬: [#1663](https://github.com/litzio/litzio/issues/1663).
+- 글씨 역할 적용: 설정 화면 [#1685](https://github.com/litzio/litzio/issues/1685), 구역 머리와 비서 패널 [#1686](https://github.com/litzio/litzio/issues/1686), 플러그인 부품과 나머지 화면 [#1687](https://github.com/litzio/litzio/issues/1687).
 
 ## 패턴별 기준 화면
 
