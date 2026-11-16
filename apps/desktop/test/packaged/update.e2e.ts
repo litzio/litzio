@@ -319,7 +319,7 @@ test("installs per user, then updates from Settings only after the open document
     }
     if (LIVE) {
       // The public beta.1 binary predates the release-channel combobox.
-      await expect(page.getByRole("radio", { name: "Beta", exact: true })).toBeChecked();
+      await expect(page.getByRole("radio", { name: /^Beta/ })).toBeChecked();
     } else {
       await expect(page.getByRole("combobox", { name: "Release channel", exact: true }), "first install uses its own channel").toHaveValue(BETA ? "beta" : "stable");
     }
