@@ -30,6 +30,16 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 ui.Button의 변형은 outline/default/ghost/destructive다. 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. 과거 secondary 입력은 오류 없이 outline으로 그린다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도를 쓰며 폭은 내용에 맞추되 부모 폭을 넘으면 내부 가로 스크롤을 사용한다. 표 전체의 최소 폭은 두지 않고 셀은 기존 이름표 폭과 space-6의 합을 최소 폭, reading-preview-width를 최대 폭으로 사용한다. 긴 값은 셀 안에서 줄바꿈하며 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
 
+행이 없는 DataTable의 빈 안내는 표와 같은 폭을 쓰며, 한 열의 좁은 표에서도 안내 문구가 줄바꿈된다. 빈 안내의 문구와 status 역할은 유지한다.
+플러그인 내용 영역(screen-layout)의 h2·h3·h4는 본문 크기를 상속하고 font-weight-semibold와 기존 간격 토큰으로 소제목 위계를 표현한다. 화면 틀 제목과 템플릿 갤러리의 제목 규칙은 유지한다.
+
+빈 표·소제목 합성 화면 비교(1440px, Windows persistent Chrome):
+
+| 테마 | 변경 전 | 현재 |
+| --- | --- | --- |
+| 밝음 | [Before](assets/plugin-screen-empty-headings-1673/before-1440-light.png) | [After](assets/plugin-screen-empty-headings-1673/after-1440-light.png) |
+| 어두움 | [Before](assets/plugin-screen-empty-headings-1673/before-1440-dark.png) | [After](assets/plugin-screen-empty-headings-1673/after-1440-dark.png) |
+
 제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
 
 대표 시각 비교(합성 플러그인, Windows persistent Chrome):

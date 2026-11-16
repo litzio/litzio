@@ -42,3 +42,4 @@
 .screen-progress progress::-webkit-progress-bar { background: var(--id-color-surface-muted); border-radius: inherit; }
 .screen-progress progress::-webkit-progress-value { background: var(--id-color-accent); border-radius: inherit; }
 .screen-progress progress::-moz-progress-bar { background: var(--id-color-accent); }
+.task-surface .screen-layout :where(h2, h3, h4):not(:where(.task-surface-title, .screen-document-view *)) { font-size: inherit; font-weight: var(--font-weight-semibold); margin: var(--space-4) 0 var(--space-2); }

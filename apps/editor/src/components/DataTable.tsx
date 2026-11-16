@@ -103,86 +103,88 @@ export function DataTable({
         role="region"
         aria-label={title}
       >
-        <table>
-          <thead>
-            <tr>
-              {columns.map((c) => (
-                <th
-                  key={c}
-                  scope="col"
-                  data-numeric={types[c].type === "number" || undefined}
-                  aria-sort={
-                    sort?.column === c
-                      ? sort.descending
-                        ? "descending"
-                        : "ascending"
-                      : "none"
-                  }
-                >
-                  <div className="data-table-heading">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSort(
-                          sort?.column !== c
-                            ? { column: c, descending: false }
-                            : !sort.descending
-                              ? { column: c, descending: true }
-                              : undefined,
-                        );
-                        setPage(0);
-                      }}
-                    >
-                      {labels[c] ?? c}
-                      {sort?.column === c ? (
-                        sort.descending ? (
-                          <ArrowDown aria-hidden="true" />
-                        ) : (
-                          <ArrowUp aria-hidden="true" />
-                        )
-                      ) : null}
-                    </Button>
-                    <ColumnFilter
-                      key={c}
-                      name={labels[c] ?? c}
-                      field={types[c]}
-                      rows={rows}
-                      column={c}
-                      value={filters[c]}
-                      apply={(value) => {
-                        setFilters((old) => {
-                          const next = { ...old };
-                          if (value) next[c] = value;
-                          else delete next[c];
-                          return next;
-                        });
-                        setPage(0);
-                      }}
-                    />
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {shown.slice(current * 50, current * 50 + 50).map((r, n) => (
-              <tr key={rowKey && (typeof r[rowKey] === "string" || typeof r[rowKey] === "number") ? String(r[rowKey]) : n}
-                tabIndex={onSelectRow ? 0 : undefined} aria-selected={onSelectRow ? !!rowKey && selectedKey !== undefined && r[rowKey] === selectedKey : undefined}
-                onClick={onSelectRow ? event => { if (!(event.target as Element).closest("a,button,input,select,textarea")) onSelectRow(r); } : undefined}
-                onKeyDown={onSelectRow ? event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectRow(r); } } : undefined}>
-                {columns.map((c) => {
-                  const target = fields[c]?.linkField;
-                  const value = target ? r[target] : undefined;
-                  const href = typeof value === "string" && typeof r[c] === "string" && r[c] !== "" ? externalLinkUrl(value) : undefined;
-                  return <td key={c} data-numeric={types[c].type === "number" || undefined}>{href ? <a className="view-cell-link" href={href} target="_blank" rel="noopener" onClick={event => { event.preventDefault(); openExternalLink(href); }}>{label(c, r[c])}</a> : label(c, r[c])}</td>;
-                })}
+        <div className="data-table-content">
+          <table>
+            <thead>
+              <tr>
+                {columns.map((c) => (
+                  <th
+                    key={c}
+                    scope="col"
+                    data-numeric={types[c].type === "number" || undefined}
+                    aria-sort={
+                      sort?.column === c
+                        ? sort.descending
+                          ? "descending"
+                          : "ascending"
+                        : "none"
+                    }
+                  >
+                    <div className="data-table-heading">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSort(
+                            sort?.column !== c
+                              ? { column: c, descending: false }
+                              : !sort.descending
+                                ? { column: c, descending: true }
+                                : undefined,
+                          );
+                          setPage(0);
+                        }}
+                      >
+                        {labels[c] ?? c}
+                        {sort?.column === c ? (
+                          sort.descending ? (
+                            <ArrowDown aria-hidden="true" />
+                          ) : (
+                            <ArrowUp aria-hidden="true" />
+                          )
+                        ) : null}
+                      </Button>
+                      <ColumnFilter
+                        key={c}
+                        name={labels[c] ?? c}
+                        field={types[c]}
+                        rows={rows}
+                        column={c}
+                        value={filters[c]}
+                        apply={(value) => {
+                          setFilters((old) => {
+                            const next = { ...old };
+                            if (value) next[c] = value;
+                            else delete next[c];
+                            return next;
+                          });
+                          setPage(0);
+                        }}
+                      />
+                    </div>
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {shown.slice(current * 50, current * 50 + 50).map((r, n) => (
+                <tr key={rowKey && (typeof r[rowKey] === "string" || typeof r[rowKey] === "number") ? String(r[rowKey]) : n}
+                  tabIndex={onSelectRow ? 0 : undefined} aria-selected={onSelectRow ? !!rowKey && selectedKey !== undefined && r[rowKey] === selectedKey : undefined}
+                  onClick={onSelectRow ? event => { if (!(event.target as Element).closest("a,button,input,select,textarea")) onSelectRow(r); } : undefined}
+                  onKeyDown={onSelectRow ? event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectRow(r); } } : undefined}>
+                  {columns.map((c) => {
+                    const target = fields[c]?.linkField;
+                    const value = target ? r[target] : undefined;
+                    const href = typeof value === "string" && typeof r[c] === "string" && r[c] !== "" ? externalLinkUrl(value) : undefined;
+                    return <td key={c} data-numeric={types[c].type === "number" || undefined}>{href ? <a className="view-cell-link" href={href} target="_blank" rel="noopener" onClick={event => { event.preventDefault(); openExternalLink(href); }}>{label(c, r[c])}</a> : label(c, r[c])}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!shown.length ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}
+        </div>
       </div>
-      {!shown.length ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}
       {pages > 1 ? (
         <div className="view-controls">
           <Button
