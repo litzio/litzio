@@ -8,8 +8,9 @@ function valueBreaks(children: ReactNode, inCode = false): ReactNode {
       const parts = child.split(/(?<=[/\\.\-_])/u);
       return parts.map((part, index) => <Fragment key={index}>{part}{index < parts.length - 1 && <wbr />}</Fragment>);
     }
-    if (!isValidElement<{ children?: ReactNode }>(child) || typeof child.type !== "string" || child.props.children === undefined) return child;
-    return cloneElement(child, undefined, valueBreaks(child.props.children, inCode || child.type === "code"));
+    if (!isValidElement<{ children?: ReactNode }>(child) || typeof child.type !== "string") return child;
+    const { children: contents } = child.props;
+    return contents === undefined ? child : cloneElement(child, undefined, valueBreaks(contents, inCode || child.type === "code"));
   });
 }
 /** One definition pair per fact keeps standalone and mixed sections valid HTML. */
