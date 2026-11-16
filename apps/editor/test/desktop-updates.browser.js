@@ -667,6 +667,12 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
           `Settings is outside its shell area: ${JSON.stringify(geometry)}`);
         check(!geometry.overflow && geometry.bounded && (width >= 768 || geometry.stacked),
           `Settings layout failed at ${language}/${width}/${category}: ${JSON.stringify(geometry)}`);
+        if(category === 'appearance' && width === 640) {
+          check(await dialog.locator('.shared-row').evaluateAll(rows=>rows.every(row=>{
+            const label=row.querySelector('.settings-label').getBoundingClientRect(), value=row.querySelector('.settings-row-control').getBoundingClientRect();
+            return value.top>=label.bottom && Math.abs(value.left-label.left)<1 && row.scrollWidth<=row.clientWidth;
+          })), 'Settings values must stack at the minimum supported window width');
+        }
         if(category === 'recovery' && width === 1440) {
           check(await dialog.locator('[aria-labelledby="settings-recovery"] > .settings-section').first().evaluate(row=>{
             const label=row.querySelector('.settings-label').getBoundingClientRect(), control=row.querySelector('button').getBoundingClientRect();

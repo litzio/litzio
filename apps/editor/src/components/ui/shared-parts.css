@@ -8,7 +8,7 @@
 .shared-row code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); white-space: normal; overflow-wrap: anywhere; }
 .shared-section > h2 { margin: var(--space-6) 0 0; padding-bottom: var(--space-3); }
 .shared-section > p { margin: var(--space-3) 0 0; }
-@container (width < 32rem) {
+@container (width < 40rem) {
   .shared-row > .settings-label, .shared-row > .settings-row-control { grid-column: 1 / -1; }
   .shared-row .settings-row-control, .settings-field-control { justify-content: flex-start; text-align: start; }
 }

@@ -41,7 +41,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
   await page.locator('.tiptap:visible').click(); await page.keyboard.press('Control+End'); await page.keyboard.insertText(' unsaved-screen-fixture');
   await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
   const workspace=page.getByTestId('view-workspace').filter({visible:true});
-  // Exercise new parts through actual plugin screen compilation and binding.
+  // Exercise new parts through actual plugin screen module loading and binding.
   sharedMode=true; revision++;
   await expect(workspace.getByRole('region',{name:'측정 정보',exact:true})).toBeVisible();
   expect(await workspace.locator('dl.shared-row').count()).toBe(2);
