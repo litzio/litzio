@@ -230,8 +230,15 @@ async (page, { openPath, expect }) => {
       expect((await attrs()).label).toBe(`${kind}-done`);
       await begin();
       await page.getByTestId(field).fill(`${kind}-outside`);
+      // Hold native selection notification so completion deterministically wins the
+      // race observed in CI. Pointer input and its DOM caret remain browser-owned.
+      await page.evaluate(() => {
+        window.__holdPropertySelection = event => event.stopImmediatePropagation();
+        document.addEventListener('selectionchange', window.__holdPropertySelection, true);
+      });
       await page.getByText('Before.', {exact:true}).filter({visible:true}).click({position:{x:20,y:12}});
       await page.getByTestId(`${kind}-editor`).waitFor({state:'detached'});
+      await page.evaluate(() => document.removeEventListener('selectionchange', window.__holdPropertySelection, true));
       expect((await attrs()).label).toBe(`${kind}-outside`);
       check(await editor.evaluate(element => element.editor.view.hasFocus() && element.editor.state.selection.$from.parent.textContent === 'Before.'),
         `${kind}: pointer completion stole the native prose caret`);
