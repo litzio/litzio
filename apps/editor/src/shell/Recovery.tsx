@@ -21,7 +21,7 @@ export function RecoveryList({ records, unavailable = false, onReview }: { recor
       <div><strong>{typeof record.path === "string" ? splitDocumentPath(record.path).name : i18n.t("Unknown document")}</strong>
         <p className="document-start-text">{typeof record.path === "string" ? record.path : i18n.t("Unknown path")}</p>
         <p className="document-start-text">{Number.isFinite(record.recordedAt) ? new Date(record.recordedAt).toLocaleString(i18n.resolvedLanguage) : i18n.t("Unknown recording time")}</p></div>
-      <Button size="sm" variant="secondary" onClick={() => onReview(record)}>{i18n.t("Review recovery")}</Button>
+      <Button size="sm" variant="outline" onClick={() => onReview(record)}>{i18n.t("Review recovery")}</Button>
     </li>)}</ul>
   </section>;
 }
@@ -50,19 +50,19 @@ export function RecoveryPrompt({ record, reason, onRestore, onDelete, onClose }:
           <p>{reason ? recoveryReasonText(reason) : i18n.t("Restore this local record as unsaved work. Your original file is unchanged; Save still checks for external changes. No automatic merge is performed.")}</p>
           <p>{i18n.t("Only the last recorded applied content is available. Unapplied property drafts and image files are not backed up.")}</p>
         </DialogDescription></DialogHeader>
-      <Button variant="secondary" size="sm" aria-expanded={comparing} aria-controls="recovery-comparison" onClick={() => setComparisonRecord(comparing ? null : record)}>{i18n.t("Compare")}</Button>
+      <Button variant="outline" size="sm" aria-expanded={comparing} aria-controls="recovery-comparison" onClick={() => setComparisonRecord(comparing ? null : record)}>{i18n.t("Compare")}</Button>
       {comparing && record ? <div id="recovery-comparison"><Suspense fallback={<p role="status">{i18n.t("Loading comparison…")}</p>}><RecoveryCompare record={record} /></Suspense></div> : null}
       <details><summary>{i18n.t("Plaintext recovery copy")}</summary>
         <p>{i18n.t("Readable text only. This copy does not restore document structure or formatting.")}</p>
         <textarea className="recovery-text" aria-label={i18n.t("Plaintext recovery copy")} readOnly value={typeof record?.recoveryText === "string" ? record.recoveryText : i18n.t("No plaintext was found in this record.")} />
-        <Button variant="secondary" size="sm" onClick={() => void run(async () => {
+        <Button variant="outline" size="sm" onClick={() => void run(async () => {
           if (!navigator.clipboard) throw new UiError({ key: "Clipboard access is unavailable. Select the plaintext and copy it manually." });
           await navigator.clipboard.writeText(record?.recoveryText ?? ""); setCopied({ key: "Copied" });
         })}>{copied || i18n.t("Copy text")}</Button>
       </details>
       {problem ? <p role="alert">{problem}</p> : null}
       <DialogFooter>
-        <Button variant="secondary" size="sm" disabled={pending} onClick={onClose} autoFocus>{i18n.t("Not now")}</Button>
+        <Button variant="outline" size="sm" disabled={pending} onClick={onClose} autoFocus>{i18n.t("Not now")}</Button>
         <Button variant="destructive" size="sm" disabled={pending} ref={deleteButton} onClick={() => setConfirmDelete(true)}>{i18n.t("Delete record")}</Button>
         <Button size="sm" disabled={pending || Boolean(reason)} onClick={() => void run(onRestore)}>{i18n.t("Restore work")}</Button>
       </DialogFooter>
@@ -92,7 +92,7 @@ export function RecoveryDeleteDialog({ open, pending, path, finalFocus, onCancel
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="secondary" size="sm" disabled={pending} onClick={onCancel} autoFocus>{i18n.t("Cancel")}</Button>
+        <Button variant="outline" size="sm" disabled={pending} onClick={onCancel} autoFocus>{i18n.t("Cancel")}</Button>
         <Button variant="destructive" size="sm" disabled={pending} onClick={onDelete}>{path === undefined ? i18n.t("Delete all records") : i18n.t("Delete record")}</Button>
       </DialogFooter>
     </DialogContent>

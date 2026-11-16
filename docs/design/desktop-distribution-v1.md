@@ -402,7 +402,7 @@ real-user Windows acceptance or all display-scale behavior.
 ## Log folder and process diagnostics (#712)
 
 Settings → About & updates offers **Open log folder** / **로그 폴더 열기** only with
-the Desktop bridge. It uses the existing small secondary Settings button, disables
+the Desktop bridge. It uses the existing small outline Settings button, disables
 while opening, and shows a localized failure notice with retry available. HTTP Host
 and Vite have no such control. The no-argument `desktop:open-log-folder` IPC uses the
 existing trusted main-frame check. Main creates `app.getPath("userData")/logs` recursively

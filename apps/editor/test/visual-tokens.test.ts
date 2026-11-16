@@ -204,6 +204,7 @@ test("UI consumers use shared colors, control geometry and reasoned native-butto
         const file = prefix + relative;
         if (!(plugin ? /\.(css|tsx)$/ : /\.(css|tsx?)$/).test(file) || file === "styles/tokens.css") continue;
         const source = readFileSync(new URL(relative, root), "utf8");
+        if (file !== "views/screen-ui.ts") assert.doesNotMatch(source, /\bsecondary\s*:|variant\s*=\s*["']secondary["']|(?:bg|text)-secondary|--(?:color-)?secondary\b/, `${file}: removed button variant/adapter`);
         if (file.endsWith(".css")) {
           const css = source.replace(/\/\*[\s\S]*?\*\//g, "");
           for (const [, selectorText, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {

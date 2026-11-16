@@ -39,13 +39,12 @@ function ControlExamples({ state }: { state: ExampleState }) {
     <p>Standard and compact actions; icons keep a visible label or accessible name.</p>
     <div className="ui-gallery-row">
       <Button disabled={disabled}>Primary</Button>
-      <Button variant="secondary" disabled={disabled}>Secondary</Button>
       <Button variant="outline" disabled={disabled}>Outline</Button>
       <Button variant="ghost" disabled={disabled}>Ghost</Button>
       <Button variant="destructive" disabled={disabled}><Trash2 aria-hidden="true" />Delete</Button>
     </div>
     <div className="ui-gallery-row">
-      <Button size="sm" variant="secondary" disabled={disabled}><Plus aria-hidden="true" />Add item</Button>
+      <Button size="sm" variant="outline" disabled={disabled}><Plus aria-hidden="true" />Add item</Button>
       <Button size="icon-sm" variant="ghost" aria-label="Edit item" disabled={disabled}><Pencil aria-hidden="true" /></Button>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="outline" aria-label="Settings" disabled={disabled} />}><Settings aria-hidden="true" /></TooltipTrigger><TooltipContent>Settings</TooltipContent></Tooltip>
       <span className="ui-gallery-icons" aria-label="Document, folder and more action icons"><FileText aria-hidden="true" /><FolderOpen aria-hidden="true" /><MoreHorizontal aria-hidden="true" /></span>
@@ -68,12 +67,12 @@ function SurfaceExamples({ state }: { state: ExampleState }) {
     <h2 id="gallery-surfaces">Dialog · Popover · DangerConfirmation</h2>
     <p>Try opening a surface, Tab navigation and Escape. Confirmations begin on Cancel.</p>
     <div className="ui-gallery-row">
-      <Button ref={dialogTrigger} variant="secondary" disabled={disabled} onClick={() => setDialog(true)}>Open dialog</Button>
+      <Button ref={dialogTrigger} variant="outline" disabled={disabled} onClick={() => setDialog(true)}>Open dialog</Button>
       <Dialog open={dialog} onOpenChange={setDialog}>
         <DialogContent initialFocus={name} finalFocus={dialogTrigger}>
           <DialogHeader><DialogTitle>Example dialog</DialogTitle><DialogDescription>A local example; no document is changed.</DialogDescription></DialogHeader>
           <label htmlFor="gallery-dialog-name">Name</label><Input ref={name} id="gallery-dialog-name" defaultValue="Example" />
-          <DialogFooter><Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button><Button onClick={() => setDialog(false)}>Done</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setDialog(false)}>Cancel</Button><Button onClick={() => setDialog(false)}>Done</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       <Popover>
@@ -99,7 +98,7 @@ function MenuExamples({ state }: { state: ExampleState }) {
         <DropdownMenuContent><DropdownMenuItem onClick={() => setAction("Open selected")}><FolderOpen aria-hidden="true" />Open</DropdownMenuItem>
           <DropdownMenuItem disabled>Unavailable action</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={() => setAction("Rename selected")}><Pencil aria-hidden="true" />Rename</DropdownMenuItem></DropdownMenuContent>
       </DropdownMenu>
-      <ContextMenu disabled={disabled} trigger={<Button variant="secondary" disabled={disabled}>Right-click this target</Button>}
+      <ContextMenu disabled={disabled} trigger={<Button variant="outline" disabled={disabled}>Right-click this target</Button>}
         actions={[{ id: "open", label: "Open", icon: <FolderOpen aria-hidden="true" />, run: () => setAction("Context Open selected") },
           { id: "unavailable", label: "Unavailable action", icon: <Pencil aria-hidden="true" />, disabled: true, run: () => {} }]} />
       <Tooltip><TooltipTrigger render={<Button variant="ghost" disabled={disabled} />}>Hover or focus me</TooltipTrigger><TooltipContent>Help on pointer hover or keyboard focus</TooltipContent></Tooltip>

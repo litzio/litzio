@@ -147,7 +147,7 @@ while valid cards remain usable. Empty groups have an explicit empty state.
 Host Root checks and missing-directory errors), with the full path on hover.
 It does not extend the Desktop OS-folder capability or create a directory on read.
 
-Shared implementation: Button secondary/ghost, Input, Dialog/FieldError, Notice,
+Shared implementation: Button outline/ghost, Input, Dialog/FieldError, Notice,
 common Popover, Lucide FileText/FolderOpen/RotateCcw and existing role tokens.
 The approved gallery preview is the sole surface exception: a larger reading
 popover rather than a metadata editing form. Core, Host API and Plugin API are

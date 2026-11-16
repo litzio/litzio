@@ -39,7 +39,7 @@ export function SaveTemplateDialog({ client, path, returnFocus, onClose, onSaved
         <label className="form-field"><span>{templateText("Description")}</span>
           <Input value={description} disabled={pending} onChange={event => setDescription(event.target.value)} /></label>
         <FieldError id="template-save-error">{error}</FieldError>
-        <DialogFooter><Button type="button" size="sm" variant="secondary" disabled={pending} onClick={onClose}>{i18n.t("Cancel")}</Button>
+        <DialogFooter><Button type="button" size="sm" variant="outline" disabled={pending} onClick={onClose}>{i18n.t("Cancel")}</Button>
           <Button type="submit" size="sm" disabled={pending || !name.trim()}>{i18n.t("Save")}</Button></DialogFooter>
       </form>
     </DialogContent>

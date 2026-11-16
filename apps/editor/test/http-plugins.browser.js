@@ -1,5 +1,11 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocument, reloadDocument, waitForExplorerLayout }) => {
   const secretSaves = [];
+  const secretInput = page.getByLabel("Access token", { exact: true });
+  const expectSecretState = async status => {
+    await expect(secretInput).toHaveValue("");
+    await expect(secretInput).toHaveAccessibleDescription(status);
+    await expect(page.locator('.plugin-secret-form').filter({ has: secretInput }).getByRole('status')).toHaveText(status);
+  };
   const saveSecret = async () => {
     const start = Date.now();
     const saved = page.waitForResponse(response => response.url().endsWith("/api/plugins/secrets") && response.request().method() === "POST");
@@ -60,9 +66,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   expect(registered.running).toBe(false);
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   if (registered.secrets.supported) {
-    await page.getByLabel("Access token: Not configured", { exact: true }).fill("browser-isolated-secret");
+    await expectSecretState("Not configured");
+    await secretInput.fill("browser-isolated-secret");
     await saveSecret();
-    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
+    await expectSecretState("Configured");
     const status = pluginFixture.cli(["plugins", "secret-status", "fixture.drive"]);
     expect(status.secrets.declarations[0].configured).toBe(true);
     expect(JSON.stringify(status)).not.toContain("browser-isolated-secret");
@@ -80,16 +87,16 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     pluginFixture.corruptSecret();
     await page.reload(); await openSettings();
     await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
-    await expect(page.getByLabel("Access token: Unavailable or damaged", { exact: true })).toHaveValue("");
+    await expectSecretState("Unavailable or damaged");
     await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
-    await expect(page.getByLabel("Access token: Not configured", { exact: true })).toHaveValue("");
-    await page.getByLabel("Access token: Not configured", { exact: true }).fill("browser-repaired-secret");
+    await expectSecretState("Not configured");
+    await secretInput.fill("browser-repaired-secret");
     await saveSecret();
-    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
+    await expectSecretState("Configured");
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
-    await expect(page.getByLabel("Access token: Not configured", { exact: true })).toHaveValue("");
+    await expectSecretState("Not configured");
   } else {
     await expect(page.getByText("Plugin secrets require a Windows Host", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save secret", exact: true })).toBeDisabled();
@@ -156,9 +163,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await page.getByLabel("Connection label", { exact: true }).press("Tab");
   await expect.poll(() => pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive")?.status?.message).toBe("UI connection");
   if (registered.secrets.supported) {
-    await page.getByLabel("Access token: Not configured", { exact: true }).fill("enabled-isolated-secret");
+    await expectSecretState("Not configured");
+    await secretInput.fill("enabled-isolated-secret");
     await saveSecret();
-    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
+    await expectSecretState("Configured");
     let live = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
     expect(live.status.message).toBe("Secret applied");
     expect(JSON.stringify(live)).not.toContain("enabled-isolated-secret");

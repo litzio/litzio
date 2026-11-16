@@ -503,7 +503,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
               <Tooltip><TooltipTrigger render={<span tabIndex={0} aria-label={result.path} />}>
                 {resultLabel(result.path)}
               </TooltipTrigger><TooltipContent className="break-all">{result.path}</TooltipContent></Tooltip>
-              <div><Button size="sm" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path, client))}>{i18n.t("Open")}</Button>
+              <div><Button size="sm" variant="outline" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path, client))}>{i18n.t("Open")}</Button>
               <Button size="sm" variant="destructive" disabled={pending || deleted} onClick={event => {
                 const trigger = event.currentTarget;
                 const card = trigger.closest<HTMLElement>(".assistant-result");

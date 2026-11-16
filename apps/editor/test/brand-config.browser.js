@@ -49,8 +49,8 @@ async (page, { brand, expect, screenshots }) => {
       expect(color).toEqual(theme === 'dark' ? [224,36,79] : [165,0,52]);
       for (const width of [1440,640]) {
         await page.setViewportSize({width,height:900});
-        // The matchMedia handler updates the sidebar after the viewport resize.
-        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), {message:'Brand copy overflows the viewport'}).toBe(true);
+        // Resizing also dispatches the shell's matchMedia/React layout update.
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth > innerWidth), { message: 'Brand copy overflows the viewport' }).toBe(false);
         const aligned = await page.locator('.app-brand img' + (theme === 'dark' ? '[data-brand-dark]' : '[data-brand-light]')).evaluate(image => {
           const icon = image.getBoundingClientRect(), row = image.parentElement.getBoundingClientRect();
           return icon.left >= row.left && icon.right <= row.right && icon.top >= row.top && icon.bottom <= row.bottom

@@ -209,3 +209,25 @@ Current scope is defined in [State rules](#state-rules); geometry is defined in 
 ## PDF source paper (#1337)
 
 `--id-color-pdf-paper` is fixed white in every theme because PDF pages preserve source colors. It is independent of the theme-aware document editor paper. The surrounding viewer uses existing theme surfaces; page-number input geometry uses existing spacing tokens. This is the source-art exception approved in the [PDF shell contract](editor-ux-shell-v1.md#read-only-pdf-tabs-1337).
+
+
+## Core screen consistency (#1664)
+
+공통 Button의 테두리 변형은 outline이며 본체 기본값은 default다. 플러그인 ui.Button은
+outline을 기본으로 사용한다. 질문은 이름, 선택지·답변은 내용의 굵기다. 플러그인 설정은
+SettingsSwitch와 form-field를 재사용한다. 새 표면·공통 상호작용 예외는 없다.
+
+Windows persistent Chrome, 1440×1000, English/Plum에서 같은 상태를 Light/Dark로 비교했다.
+Secondary와 Outline은 두 테마에서 바탕·글자색이 동일했고 통합은 기존 Outline을 따른다.
+질문/선택지 위계, 스위치 오른쪽 선, secret 이름/상태 분리, 입력 간격과 버튼 경계를 검토했다.
+합성 질문·플러그인 fixture의 UI 검증이며 실제 AI·외부 서비스·packaged Desktop 수락은 아니다.
+
+| 화면 | Light Before / After | Dark Before / After |
+| --- | --- | --- |
+| 질문 대기 | [Before](assets/core-screen-consistency-1664/before-question-pending-light.png) / [After](assets/core-screen-consistency-1664/after-question-pending-light.png) | [Before](assets/core-screen-consistency-1664/before-question-pending-dark.png) / [After](assets/core-screen-consistency-1664/after-question-pending-dark.png) |
+| 답변 기록 | [Before](assets/core-screen-consistency-1664/before-question-history-light.png) / [After](assets/core-screen-consistency-1664/after-question-history-light.png) | [Before](assets/core-screen-consistency-1664/before-question-history-dark.png) / [After](assets/core-screen-consistency-1664/after-question-history-dark.png) |
+| 플러그인 설정 | [Before](assets/core-screen-consistency-1664/before-plugin-settings-light.png) / [After](assets/core-screen-consistency-1664/after-plugin-settings-light.png) | [Before](assets/core-screen-consistency-1664/before-plugin-settings-dark.png) / [After](assets/core-screen-consistency-1664/after-plugin-settings-dark.png) |
+| 갤러리 Controls | [Before](assets/core-screen-consistency-1664/before-gallery-controls-light.png) / [After](assets/core-screen-consistency-1664/after-gallery-controls-light.png) | [Before](assets/core-screen-consistency-1664/before-gallery-controls-dark.png) / [After](assets/core-screen-consistency-1664/after-gallery-controls-dark.png) |
+| 대표 화면: 플러그인 목록 | [Before](assets/core-screen-consistency-1664/before-plugin-list-light.png) / [After](assets/core-screen-consistency-1664/after-plugin-list-light.png) | [Before](assets/core-screen-consistency-1664/before-plugin-list-dark.png) / [After](assets/core-screen-consistency-1664/after-plugin-list-dark.png) |
+| 대표 화면: 신뢰 확인 | [Before](assets/core-screen-consistency-1664/before-plugin-trust-light.png) / [After](assets/core-screen-consistency-1664/after-plugin-trust-light.png) | [Before](assets/core-screen-consistency-1664/before-plugin-trust-dark.png) / [After](assets/core-screen-consistency-1664/after-plugin-trust-dark.png) |
+| 대표 화면: 갤러리 Dialog | [Before](assets/core-screen-consistency-1664/before-gallery-dialog-light.png) / [After](assets/core-screen-consistency-1664/after-gallery-dialog-light.png) | [Before](assets/core-screen-consistency-1664/before-gallery-dialog-dark.png) / [After](assets/core-screen-consistency-1664/after-gallery-dialog-dark.png) |

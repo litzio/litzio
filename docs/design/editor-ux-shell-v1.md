@@ -1290,7 +1290,7 @@ descriptive file names. No CLI surface is added because no new semantic operatio
 ## Desktop log folder (#712)
 
 Desktop Settings → About & updates also offers **Open log folder** / **로그 폴더 열기**
-(#712), using the existing small secondary button. It disables during the request and
+(#712), using the existing small outline button. It disables during the request and
 shows a localized failure notice on error. This control is absent from HTTP Host and
 Vite; the [Desktop diagnostic contract](desktop-distribution-v1.md#log-folder-and-process-diagnostics-712)
 owns its fixed path, IPC and logging behavior.

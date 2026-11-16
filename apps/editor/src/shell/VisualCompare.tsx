@@ -96,8 +96,8 @@ export default function VisualCompare({ result, client, path, bibliography, reco
     {comparison.documentChanged ? <p role="status">{i18n.t("Document metadata changed. See Source for details.")}</p> : null}
     <div className="recovery-diff-toolbar">
       <span role="status" aria-live="polite">{i18n.t("{{count}} changes", { count: comparison.changes.length })}{current && comparison.changes.length > 1 ? ` · ${current}/${comparison.changes.length}` : ""}</span>
-      <Button size="sm" variant="secondary" disabled={!comparison.changes.length} onClick={() => move(-1)}>{i18n.t("Previous change")}</Button>
-      <Button size="sm" variant="secondary" disabled={!comparison.changes.length} onClick={() => move(1)}>{i18n.t("Next change")}</Button>
+      <Button size="sm" variant="outline" disabled={!comparison.changes.length} onClick={() => move(-1)}>{i18n.t("Previous change")}</Button>
+      <Button size="sm" variant="outline" disabled={!comparison.changes.length} onClick={() => move(1)}>{i18n.t("Next change")}</Button>
     </div>
     <PreviewBoundary fail={onUnavailable}><div className="visual-comparison-scroll" ref={region} data-testid="visual-comparison" data-current={current} onKeyDownCapture={event => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); event.stopPropagation(); }
