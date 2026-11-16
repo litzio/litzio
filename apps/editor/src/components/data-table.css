@@ -12,3 +12,7 @@
 .data-table tr[aria-selected]:hover { background: var(--id-color-surface-hover); cursor: pointer; }
 .data-table tr[aria-selected="true"], .data-table tr[aria-selected="true"]:hover { background: var(--id-color-surface-selected); }
 .data-table tr[aria-selected]:focus-visible { outline: 2px solid var(--id-color-border-focus); outline-offset: -2px; }
+
+/* The notice does not contribute intrinsic width; the table determines the pair. */
+.data-table-content { display: grid; grid-template-columns: minmax(0, 1fr); width: max-content; max-width: 100%; }
+.data-table-content > .ui-notice { contain: inline-size; min-width: 0; overflow-wrap: anywhere; }
