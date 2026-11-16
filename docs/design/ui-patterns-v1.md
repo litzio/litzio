@@ -171,6 +171,8 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 저장·복구 비교의 800px 이하 변경 블록 라벨·문맥 한 번 표시는 [비교 계약](editing-session-save-v1.md#pre-save-visual-comparison-1201)을 따른다. PDF는 transient 이미지 Dialog와 달리 [읽기 작업 탭](editor-ux-shell-v1.md#read-only-pdf-tabs-1337)을 쓴다. 공급자 원본 로그는 별도 열람면 없이 기존 Button·Tooltip으로 외부 열기·파일 위치를 제공하며 [Desktop 지원 경계](main-agent-v1.md#현재-한계)를 따른다.
 
+플러그인 화면의 파일·PDF·문서·폴더 선택도 U23의 기존 FolderDialog를 재사용한다. 일반 파일의 Root 범위·필터·취소와 비교 캡처는 [화면 계약](plugin-screens-v1.md#파일폴더-선택과-문서-열기)을 따른다.
+
 ### 플러그인 설정
 
 플러그인 목록은 공통 상태 점/톤과 톱니·스위치 배치를 사용하며 꺼진 플러그인도 정보·설정에 진입한다. 화면 진입은 사이드바이며 설정에 화면 이동 버튼이나 “동작 · 이름” 합성 라벨을 두지 않는다.

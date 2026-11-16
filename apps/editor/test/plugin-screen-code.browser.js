@@ -11,8 +11,10 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
     const firstSave=React.useRef(saveDocument);const run=promise=>promise.then(value=>setResult(JSON.stringify(value))).catch(error=>setResult(error.name+': '+error.message));
     return React.createElement(ui.ScreenLayout,{description:'Select a source or destination inside the opened folders.'},
       React.createElement(ui.Input,{'aria-label':'Action path',value:path,onChange:e=>setPath(e.target.value)}),
-      React.createElement(ui.Toolbar,null,...['pdf','folder','document'].map(kind=>React.createElement(ui.Button,{key:kind,onClick:()=>run(pickPath({kind}))},'Pick '+kind)),
+      React.createElement(ui.Toolbar,null,...['pdf','folder','document','file'].map(kind=>React.createElement(ui.Button,{key:kind,onClick:()=>run(pickPath({kind}))},'Pick '+kind)),
         React.createElement(ui.Button,{onClick:()=>run(pickPath({kind:'folder',initialPath:path}))},'Pick initial'),
+        React.createElement(ui.Button,{onClick:()=>run(pickPath({kind:'file',extensions:['.csv']}))},'Pick filtered'),
+        React.createElement(ui.Button,{onClick:()=>run(pickPath({kind:'file',initialPath:path}))},'Pick file initial'),
         React.createElement(ui.Button,{onClick:()=>run(openDocument({path}))},'Open existing'),
         React.createElement(ui.Button,{onClick:()=>run(firstSave.current({name:'screen-child.md',folder:path,authoring:{title:'Child result',inputs:[{key:'child',blocks:[{kind:'paragraph',text:'Created in a selected subfolder.'}]}]},open:true}))},'Save child')),
       React.createElement('output',null,result));}}`;
@@ -288,6 +290,25 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
   await workspace.getByRole('button',{name:'Pick pdf',exact:true}).click();
   await expect(dialog).toHaveAccessibleName('Choose PDF');
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(output).toHaveText('null');
+  await workspace.getByRole('button',{name:'Pick file',exact:true}).click();
+  await expect(dialog).toHaveAccessibleName('Choose file');
+  await expect(dialog.getByRole('button',{name:'Up',exact:true})).toBeDisabled();
+  await dialog.getByTestId('folder-path').fill(inRoot('fixture')+'/');
+  await expect(dialog.getByRole('option',{name:'measurements.CSV',exact:true})).toBeVisible();
+  await expect(dialog.getByRole('option',{name:'a.md',exact:true})).toBeVisible();
+  await expect(dialog.getByRole('option',{name:'README',exact:true})).toBeVisible();
+  await dialog.getByRole('option',{name:'measurements.CSV',exact:true}).click();
+  await dialog.getByTestId('folder-open').click();await expect(output).toHaveText(JSON.stringify({path:inRoot('fixture','measurements.CSV'),kind:'file'}));
+  await workspace.getByRole('button',{name:'Pick filtered',exact:true}).click();
+  await dialog.getByTestId('folder-path').fill(inRoot('fixture')+'/');
+  await expect(dialog.getByRole('option',{name:'measurements.CSV',exact:true})).toBeVisible();
+  await expect(dialog.getByRole('option',{name:'a.md',exact:true})).toHaveCount(0);
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(output).toHaveText('null');
+  await field.fill(root+'/../');await workspace.getByRole('button',{name:'Pick file initial',exact:true}).click();
+  await expect(output).toContainText('inside this screen');await expect(dialog).toHaveCount(0);
+  await workspace.getByRole('button',{name:'Pick file',exact:true}).click();
+  await dialog.getByTestId('folder-path').fill(root+'/../');
+  await expect(output).toContainText('inside this screen');await expect(dialog).toHaveCount(0);
   await page.route('**/api/folder-browse?*',route=>route.fulfill({status:503,json:{error:'Fixture selection read failed'}}),{times:1});
   await workspace.getByRole('button',{name:'Pick folder',exact:true}).click();
   await expect(output).toContainText('Error: Fixture selection read failed');await expect(dialog).toHaveCount(0);
@@ -299,6 +320,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
   await dialog.getByTestId('folder-path').fill(actionPath);
   await expect(dialog.getByRole('option',{name:'a.md',exact:true})).toBeVisible();
   await dialog.getByTestId('folder-open').click();await expect(output).toContainText('"kind":"document"');
+  await field.fill(actionPath);
   await workspace.getByRole('button',{name:'Open existing',exact:true}).click();
   await page.getByRole('tab',{name:'a.md, Unsaved changes',exact:true}).click();
   await expect(page.locator('.tiptap:visible')).toContainText('unsaved-screen-fixture');

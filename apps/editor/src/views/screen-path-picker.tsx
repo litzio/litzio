@@ -3,6 +3,7 @@ import type { ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
 import type { FolderBrowseResponse, FolderPlace } from "../../shared/document-protocol.ts";
 import type { HostClient } from "../host-client.ts";
 import { HostClientContext } from "../host-context.tsx";
+import { requestFolder } from "../shell/folder-requests.ts";
 import { FolderDialog } from "../shell/FolderDialog.tsx";
 import { splitDocumentPath } from "../shell/document-path.ts";
 import { i18n } from "../i18n.ts";
@@ -22,7 +23,8 @@ export function useScreenPathPicker(client: HostClient, roots: string[], lifetim
     const signal = lifetime.current?.signal;
     signal?.throwIfAborted(); client.assertCurrent();
     if (latestRoots.current !== rootsKey) throw new DOMException("Screen folders changed.", "AbortError");
-    if (!["pdf", "folder", "document"].includes(input.kind)) throw new Error("Choose pdf, folder or document.");
+    if (!["pdf", "folder", "document", "file"].includes(input.kind)) throw new Error("Choose pdf, folder, document or file.");
+    if (input.kind === "file" && input.extensions !== undefined && (!Array.isArray(input.extensions) || input.extensions.some(extension => typeof extension !== "string" || !/^\.[^/\\]+$/.test(extension)))) throw new Error("Use dotted file extensions, such as .csv.");
     if (pending.current) throw new Error(i18n.t("Wait for the current operation to finish."));
     const initialPath = input.initialPath ?? roots[0];
     if (!initialPath || !isScreenPath(initialPath, roots, true)) throw new Error(i18n.t("Choose a path inside this screen's opened folders."));
@@ -51,6 +53,23 @@ function ScreenPathDialog({ choice, client }: { choice: Choice; client: HostClie
   const browse = useMemo(() => async (path: string): Promise<FolderBrowseResponse> => {
     try {
       assertPath(path);
+      if (input.kind === "file") {
+        const root = roots.find(root => isScreenPath(path, [root], true))!;
+        const reply = await requestFolder(root, path, false, client, controller.signal);
+        assertPath(reply.path);
+        const crumbs: FolderBrowseResponse["crumbs"] = [];
+        let current = reply.path;
+        while (isScreenPath(current, [root], true)) {
+          const trimmed = current.replace(/(?<=.)[\\/]+$/, "");
+          crumbs.unshift({ name: splitDocumentPath(trimmed).name || current, path: current });
+          if (!isScreenPath(current, [root])) break;
+          const parent = splitDocumentPath(trimmed).directory;
+          if (parent === current) break;
+          current = parent;
+        }
+        return { path: reply.path, crumbs, entries: reply.entries.filter(entry => isScreenPath(entry.path, [root]) &&
+          (entry.kind === "folder" || !input.extensions || input.extensions.some(extension => entry.name.toLowerCase().endsWith(extension.toLowerCase())))) };
+      }
       const response = await client.request(`/api/folder-browse?${new URLSearchParams({ path, ...(input.kind === "pdf" ? { files: "pdf" } : {}) })}`, { signal: controller.signal });
       const reply = await response.json();
       if (!response.ok || !Array.isArray(reply.entries) || !Array.isArray(reply.crumbs)) throw new Error(reply.error ?? `HTTP ${response.status}`);
@@ -66,13 +85,13 @@ function ScreenPathDialog({ choice, client }: { choice: Choice; client: HostClie
       const listing = await browse(input.kind === "folder" ? path : splitDocumentPath(path).directory);
       assertPath(path);
       const entry = listing.entries.find(entry => entry.path === path);
-      if (input.kind !== "folder" && (!entry || entry.kind === "folder" || !(input.kind === "pdf" ? /\.pdf$/i : /\.md$/i).test(path))) throw new Error(i18n.t("Unavailable"));
+      if (input.kind !== "folder" && (!entry || entry.kind === "folder" || (input.kind !== "file" && !(input.kind === "pdf" ? /\.pdf$/i : /\.md$/i).test(path)))) throw new Error(i18n.t("Unavailable"));
       choice.finish({ path: input.kind === "folder" ? listing.path : entry!.path, kind: input.kind });
     } catch (error) { choice.finish(null, error); }
     return "";
   };
   return <HostClientContext.Provider value={client}><FolderDialog open selectOnly choose={input.kind} initialPath={input.initialPath!}
-    title={i18n.t(input.kind === "folder" ? "Choose folder" : input.kind === "pdf" ? "Choose PDF" : "Choose document")}
+    title={i18n.t(input.kind === "folder" ? "Choose folder" : input.kind === "pdf" ? "Choose PDF" : input.kind === "file" ? "Choose file" : "Choose document")}
     description={i18n.t("Choose inside this screen's opened folders. This does not open another folder.")}
     showSidebarHint={false} recent={[]} allowedRoots={roots} browse={browse} places={places}
     onOpen={select} onClose={() => choice.finish(null)} /></HostClientContext.Provider>;

@@ -2,7 +2,7 @@ import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from "react";
-import { ArrowUp, ChevronRight, FileText, Folder, FolderPlus, HardDrive, House, Image as ImageIcon } from "lucide-react";
+import { ArrowUp, ChevronRight, File, FileX, FileText, Folder, FolderPlus, HardDrive, House, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { Input } from "@/components/ui/input.tsx";
@@ -17,7 +17,7 @@ type FolderDialogProps = {
   description?: string;
   showSidebarHint?: boolean;
   /** File pickers list only the chosen kind beside folders; selection admits that file. */
-  choose?: "folder" | "image" | "pdf" | "document";
+  choose?: "folder" | "image" | "pdf" | "document" | "file";
   /** Choosing an output folder returns its address instead of opening it in the sidebar. */
   selectOnly?: boolean;
   /** Where browsing starts, usually the open document's folder. */
@@ -83,7 +83,7 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
   const pdf = choose === "pdf";
   const document = choose === "document";
   const image = choose !== "folder";
-  const matchesFile = (entry: FolderEntry) => pdf ? /\.pdf$/i.test(entry.name) && entry.kind !== "folder"
+  const matchesFile = (entry: FolderEntry) => choose === "file" ? entry.kind !== "folder" : pdf ? /\.pdf$/i.test(entry.name) && entry.kind !== "folder"
     : document ? /\.md$/i.test(entry.name) && entry.kind === "document" : entry.kind === "image";
   // Choosing an image needs an image the listing shows; a typed folder is a place to look.
   const named = partial ? result?.entries.find(entry => entry.name.toLowerCase() === partial) : undefined;
@@ -215,12 +215,12 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
   };
 
   const target = folderName(path);
-  const meta = !directory ? document ? i18n.t("Type a document path or choose a starting place.") : pdf ? i18n.t("Type a PDF path or choose a starting place.") : image ? i18n.t("Type an image path or choose a starting place.") : i18n.t("Type a folder path or choose a starting place.")
+  const meta = !directory ? choose === "file" ? i18n.t("Type a file path or choose a starting place.") : document ? i18n.t("Type a document path or choose a starting place.") : pdf ? i18n.t("Type a PDF path or choose a starting place.") : image ? i18n.t("Type an image path or choose a starting place.") : i18n.t("Type a folder path or choose a starting place.")
     : listing.directory === directory && listing.error ? listing.error
     : !result ? i18n.t("Reading…")
-    : [options.length === 0 ? (partial ? (document ? i18n.t("No matching folders or documents") : pdf ? i18n.t("No matching folders or PDFs") : image ? i18n.t("No matching folders or images") : i18n.t("No matching folders")) : i18n.t("No sub-folders")) : "",
+    : [options.length === 0 ? (partial ? (choose === "file" ? i18n.t("No matching folders or files") : document ? i18n.t("No matching folders or documents") : pdf ? i18n.t("No matching folders or PDFs") : image ? i18n.t("No matching folders or images") : i18n.t("No matching folders")) : i18n.t("No sub-folders")) : "",
       choose === "image" && !partial ? i18n.t("imagesHere", { count: files }) : ""].filter(Boolean).join(" · ");
-  const pathLabel = document ? i18n.t("Document path") : pdf ? i18n.t("PDF path") : image ? i18n.t("Image path") : restricted ? i18n.t("Server folder path") : i18n.t("Folder path");
+  const pathLabel = choose === "file" ? i18n.t("File path") : document ? i18n.t("Document path") : pdf ? i18n.t("PDF path") : image ? i18n.t("Image path") : restricted ? i18n.t("Server folder path") : i18n.t("Folder path");
   const placeLabel = image ? i18n.t("Start from") : restricted ? i18n.t("Server shared folders") : i18n.t("Shortcuts");
   const placesSection = placeList.length > 0 ? (
     <section className={image ? "folder-picker-section" : "folder-picker-shortcuts"} aria-label={placeLabel}>
@@ -266,7 +266,7 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
         <div className="form-field">
           <label className="form-label" htmlFor="folder-path">{pathLabel}</label>
           <div className="folder-picker-field">
-            {pdf || document ? <FileText aria-hidden="true" /> : image ? <ImageIcon aria-hidden="true" /> : <Folder aria-hidden="true" />}
+            {choose === "file" ? <File aria-hidden="true" /> : pdf || document ? <FileText aria-hidden="true" /> : image ? <ImageIcon aria-hidden="true" /> : <Folder aria-hidden="true" />}
             <input
               ref={field}
               id="folder-path"
@@ -345,7 +345,7 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
               onMouseDown={event => event.preventDefault()}
               onClick={() => enter(entry, true)}
             >
-              {entry.kind === "folder" ? <Folder aria-hidden="true" /> : pdf || document ? <FileText aria-hidden="true" /> : <ImageIcon aria-hidden="true" />}
+              {entry.kind === "folder" ? <Folder aria-hidden="true" /> : choose === "file" ? (entry.kind === "document" ? (entry.native === false ? <FileX aria-hidden="true" /> : <FileText aria-hidden="true" />) : entry.kind === "image" ? <ImageIcon aria-hidden="true" /> : <File aria-hidden="true" />) : pdf || document ? <FileText aria-hidden="true" /> : <ImageIcon aria-hidden="true" />}
               <span>{entry.name}</span>
               {entry.kind === "folder" ? <ChevronRight aria-hidden="true" /> : null}
             </li>

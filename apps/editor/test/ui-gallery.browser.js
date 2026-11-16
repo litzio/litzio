@@ -47,6 +47,16 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('dialog').getByRole('option',{name:'report.md',exact:true}).click();
   await page.getByRole('dialog').getByTestId('folder-open').click();
   await expect(selection.locator('output')).toHaveText('{"path":"/example/report.md","kind":"document"}');
+  await selection.getByRole('button',{name:'Choose file example'}).click();
+  await expect(page.getByRole('dialog').getByRole('option',{name:'README',exact:true})).toBeVisible();
+  await page.getByRole('dialog').getByRole('option',{name:'data.CSV',exact:true}).click();
+  await page.getByRole('dialog').getByTestId('folder-open').click();
+  await expect(selection.locator('output')).toHaveText('{"path":"/example/data.CSV","kind":"file"}');
+  await selection.getByRole('button',{name:'Choose CSV example'}).click();
+  await expect(page.getByRole('dialog').getByRole('option',{name:'data.CSV',exact:true})).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('option',{name:'settings.json',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('dialog').getByRole('option',{name:'README',exact:true})).toHaveCount(0);
+  await page.keyboard.press('Escape');await expect(selection.locator('output')).toHaveText('null');
   await selection.getByRole('button',{name:'Pick while folder closes'}).click();
   await expect(selection.locator('output')).toHaveText('AbortError');await expect(page.getByRole('dialog')).toHaveCount(0);
   if (screenshots) for (const width of [1440,640]) for (const theme of ['light','dark']) {
