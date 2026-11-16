@@ -96,14 +96,8 @@ Folder New coverage includes root/sub-folder creation, cancellation, rejected na
 - No Core operation or CLI command: a folder holds documents but is not document content.
   Headless creation is the shell's `mkdir`, as for [folder listing](filesystem-host-boundary-v1.md#folder-listing-v1-112).
 
-## Verification and historical evidence
+## Verification
 
 The Host listing test covers browsing/crumbs; the Host creation test covers portable names, overwrite refusal and missing parents. The folder browser regression covers keyboard navigation, cancellation, recent-folder reload, quoted paths, errors, delayed responses, New folder in the picker and sidebar, and the sidebar/document flow. Preserve source fixtures when running these checks.
 
 Future changes follow the [verification matrix](../../CONTRIBUTING.md#verification-matrix) and required CI. Keep the Host boundary, shell description and manual guide aligned, and close owned verification processes.
-
-Historical local verification (2026-10-07) passed: 441 Core/CLI/Editor tests, all 36 browser regressions,
-typecheck, production build and diff whitespace checks. The folder regression also
-produced 1440px and 375px captures for visual review. Source fixtures remained unchanged.
-
-#1159: Markdown rename accepts an optional `.md` suffix case-insensitively and preserves the existing extension once. New document input already follows this rule. Existing Dialog and Input are reused without a UI pattern exception.
