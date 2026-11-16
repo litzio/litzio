@@ -18,7 +18,7 @@ export function ScreenLayout({ description, status, actions, width = "full", chi
   return <>{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width}>{!slots && <>{descriptionNode}{status}{actions}</>}{children}</section></>;
 }
 export function Status({tone = "neutral", label}: {tone: "ok" | "progress" | "warning" | "error" | "neutral"; label: string}) {
-  return <span className="screen-status" data-tone={tone}><span aria-hidden="true">{tone === "progress" && <LoaderCircle className="motion-safe:animate-spin" />}</span>{label}</span>;
+  return <span className="screen-status" data-tone={tone}><span aria-hidden="true">{tone === "progress" && <LoaderCircle strokeWidth={3} className="motion-safe:animate-spin" />}</span>{label}</span>;
 }
 export function Steps({steps, current}: {steps: string[]; current: number}) {
   return <ol className="screen-steps">{steps.map((step, index) => <li key={index} aria-current={index === current ? "step" : undefined} data-state={index < current ? "past" : index === current ? "current" : "remaining"}><span className="screen-step-number" aria-hidden="true">{index + 1}</span><span>{step}</span></li>)}</ol>;

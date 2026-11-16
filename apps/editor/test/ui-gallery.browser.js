@@ -51,6 +51,16 @@ async (page, { expect, screenshots }) => {
   await page.emulateMedia({reducedMotion:'reduce'});
   await expect(progressMark).toBeVisible();
   await expect(progressMark).toHaveCSS('animation-name','none');
+  const statusGeometry = await page.locator('.screen-status').evaluateAll(nodes => {
+    return ['ok','progress'].map(tone => {
+      const n = nodes.find(n => n.dataset.tone === tone);
+      const pill = n.getBoundingClientRect();
+      const range = document.createRange();range.selectNodeContents(n.lastChild);
+      const label = range.getBoundingClientRect();
+      return {height:pill.height,labelLeft:label.left-pill.left,labelTop:label.top-pill.top};
+    });
+  });
+  expect(statusGeometry[1]).toEqual(statusGeometry[0]);
   await page.emulateMedia({reducedMotion:'no-preference'});
   for(const theme of ['light','dark']) for(const accent of ['plum','green']) {
     await page.setViewportSize({width:1440,height:1000});
@@ -58,7 +68,12 @@ async (page, { expect, screenshots }) => {
     const ok=page.locator('.screen-status[data-tone="ok"]').first();
     await expect(ok).toHaveCSS('color',theme==='light'?'rgb(20, 115, 75)':'rgb(112, 212, 165)');
     await ok.scrollIntoViewIfNeeded();
-    if(screenshots) await page.screenshot({path:`tmp/status-gallery-${accent}-${theme}.png`});
+    if(screenshots) {
+      await page.screenshot({path:`tmp/status-gallery-${accent}-${theme}.png`});
+      await page.emulateMedia({reducedMotion:'reduce'});
+      await page.screenshot({path:`tmp/status-gallery-${accent}-${theme}-reduced.png`});
+      await page.emulateMedia({reducedMotion:'no-preference'});
+    }
   }
   await page.evaluate(()=>{document.documentElement.dataset.theme='light';document.documentElement.dataset.accent='plum';});
   const selection=page.getByRole('region',{name:'Screen path selection'});
