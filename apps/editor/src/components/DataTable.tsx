@@ -75,13 +75,6 @@ export function DataTable({
   const shown = tableRows(rows, filters, sort, types, i18n.language),
     pages = Math.max(1, Math.ceil(shown.length / 50)),
     current = Math.min(page, pages - 1);
-  const columnWidth = (column: string) => {
-    const field = types[column];
-    if (field.date) return 144;
-    if (field.type !== "string") return 112;
-    const length = Math.max((labels[column] ?? column).length, ...rows.map(row => String(row[column] ?? "").length));
-    return Math.min(480, Math.max(144, length * 8 + 48));
-  };
   return (
     <div className="data-table">
       <div className="view-controls data-table-toolbar">
@@ -110,8 +103,7 @@ export function DataTable({
         role="region"
         aria-label={title}
       >
-        <table style={{ width: columns.reduce((sum, c) => sum + columnWidth(c), 0) }}>
-          <colgroup>{columns.map(c => <col key={c} style={{ width: columnWidth(c) }} />)}</colgroup>
+        <table>
           <thead>
             <tr>
               {columns.map((c) => (

@@ -57,9 +57,15 @@ async (page, { expect, screenshots }) => {
     await page.screenshot({path:`tmp/parts-wide-${width}-${theme}.png`});
   }
   await page.setViewportSize({width:1440,height:1000});
-  const tableWidth=await page.locator('.screen-data-table').first().evaluate(n=>({table:n.querySelector('table').getBoundingClientRect().width,parent:n.getBoundingClientRect().width,min:parseFloat(getComputedStyle(n).getPropertyValue('--layout-content-width'))*parseFloat(getComputedStyle(document.documentElement).fontSize)}));
-  expect(tableWidth.table).toBeLessThan(tableWidth.parent);
-  expect(tableWidth.table).toBeGreaterThanOrEqual(tableWidth.min);
+  const tableWidth=await page.locator('.screen-data-table').first().evaluate(n=>({table:n.querySelector('table').getBoundingClientRect().width,parent:n.getBoundingClientRect().width}));
+  expect(tableWidth.table).toBeLessThan(tableWidth.parent / 2);
+  const longTable=page.getByRole('region',{name:'Long descriptions',exact:true});
+  for (const cell of await longTable.locator('tbody td:first-child').all()) {
+    expect(await cell.evaluate(n=>({wrapped:n.getBoundingClientRect().height>parseFloat(getComputedStyle(n).lineHeight)*2,contained:n.scrollWidth<=n.clientWidth}))).toEqual({wrapped:true,contained:true});
+  }
+  for(const heading of await page.getByRole('region',{name:'Measurements',exact:true}).getByRole('columnheader').all()) {
+    expect(await heading.evaluate(n=>[...n.querySelectorAll('button')].every(b=>b.getBoundingClientRect().right<=n.getBoundingClientRect().right && b.scrollWidth<=b.clientWidth))).toBe(true);
+  }
   for(const width of [1440,640]) {
     await page.setViewportSize({width,height:1000});
     const wide=page.getByRole('region',{name:'Wide measurements',exact:true});
@@ -130,7 +136,7 @@ async (page, { expect, screenshots }) => {
   if (screenshots) {
     await page.setViewportSize({width:1440,height:1000});
     await link.focus();
-    await page.screenshot({path:'tmp/view-link-1440.png'});
+    await page.screenshot({path:'tmp/parts-gallery-tables-1440-dark.png'});
     await page.evaluate(async () => { const {i18n} = await import('/src/i18n.ts'); await i18n.changeLanguage('ko'); });
     await page.setViewportSize({width:640,height:1000});
     await link.focus();

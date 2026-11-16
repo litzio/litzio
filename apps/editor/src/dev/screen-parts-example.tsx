@@ -21,6 +21,7 @@ export function ScreenPartsExample({ state }: { state: string }) {
     <ui.Chart title="Empty measurements" data={[]} xKey="time" yKey="value" />
     <ui.DataTable title="Measurements" rowKey="time" selectedKey={selectedKey} onSelectRow={row=>setSelectedKey(row.time as number)} rows={rows} columns={["time", "value"]} fields={{ value: { type: "number" } }} />
     <ui.DataTable title="Wide measurements" columns={Array.from({length:12},(_,i)=>`Column ${i+1}`)} rows={[Object.fromEntries(Array.from({length:12},(_,i)=>[`Column ${i+1}`,`Value ${i+1}`]))]} />
+    <ui.DataTable title="Long descriptions" columns={["description", "value"]} rows={[{description:"A long description with spaces. ".repeat(20),value:1},{description:"unbroken_identifier_".repeat(30),value:2}]} fields={{value:{type:"number"}}}/>
     {dialog}
   </ui.ScreenLayout>;
 }
