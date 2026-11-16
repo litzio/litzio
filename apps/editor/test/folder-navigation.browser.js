@@ -132,7 +132,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});
       if (await expand.isVisible()) await expand.click();
       await sidebar.getByRole('button', {name:'Collapse Explorer', exact:true}).waitFor();
-      const header = sidebar.locator('.sidebar-header');
+      const header = sidebar.locator('.panel-header');
       assert(await header.getByRole('button').count() === 1 && await header.innerText() === 'Explorer',
         `Sidebar header contains only Explorer and collapse: ${state}, ${width}px`);
       const entry = state === 'empty' ? openFolder : section.first().getByRole('button', {name:'More actions', exact:true});
@@ -142,7 +142,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       await collapse.click({trial:true});
       const geometry = await collapse.evaluate(button => {
         const rect = button.getBoundingClientRect();
-        const header = button.closest('.sidebar-header').getBoundingClientRect();
+        const header = button.closest('.panel-header').getBoundingClientRect();
         const style = getComputedStyle(document.documentElement);
         const rem = parseFloat(style.fontSize);
         return {x:rect.x - header.x, y:rect.y - header.y, width:rect.width, height:rect.height,
@@ -164,7 +164,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
         const environment = await page.evaluate(async () => {
           await document.fonts.ready; document.querySelector('.document-scroll[data-active="true"]').scrollTo(0, 0); document.activeElement?.blur();
           return {viewport:[innerWidth, innerHeight], dpr:devicePixelRatio, zoom:visualViewport.scale,
-            cssZoom:getComputedStyle(document.documentElement).zoom, font:getComputedStyle(document.querySelector('.product')).fontFamily,
+            cssZoom:getComputedStyle(document.documentElement).zoom, font:getComputedStyle(document.querySelector('.sidebar > .panel-header h2')).fontFamily,
             scroll:[scrollX, document.querySelector('.document-scroll[data-active="true"]').scrollTop], language:document.documentElement.lang,
             rootNameWidth:document.querySelector('.sidebar-folder-name .sidebar-tree-name')?.getBoundingClientRect().width};
         });
@@ -483,7 +483,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       const environment = await page.evaluate(async () => {
         await document.fonts.ready; document.activeElement?.blur(); document.querySelector('.document-scroll[data-active="true"]').scrollTo(0, 0);
         return {viewport:[innerWidth, innerHeight], dpr:devicePixelRatio, zoom:visualViewport.scale,
-          cssZoom:getComputedStyle(document.documentElement).zoom, font:getComputedStyle(document.querySelector('.product')).fontFamily,
+          cssZoom:getComputedStyle(document.documentElement).zoom, font:getComputedStyle(document.querySelector('.sidebar > .panel-header h2')).fontFamily,
           scroll:[scrollX, document.querySelector('.document-scroll[data-active="true"]').scrollTop], language:document.documentElement.lang,
             rootNameWidth:document.querySelector('.sidebar-folder-name .sidebar-tree-name')?.getBoundingClientRect().width};
       });

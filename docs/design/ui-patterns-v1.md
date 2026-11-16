@@ -185,9 +185,23 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 ### 비서 질문과 보조 작업
 
-기존 도킹 패널·native details/summary·outline sm Button·Lucide ArrowDown을 재사용한다.
+탐색기와 비서의 펼친 머리는 PanelHeader를 쓰고 접힌 탐색기는 기존 레일을 유지한다. 패널 머리와 문서 패널의 탭 줄은 가운데 문서 탭 줄의 높이 토큰을 함께 써 아래 경계를 맞춘다. 이름과 동작은 세로 가운데이며 좌우 여백은 내용의 기존 시작선에 맞춘다(탐색기 목록 줄의 안쪽 시작선, 비서의 맥락·대화 시작선). TaskHeader와는 좌우 여백·구분선만 공유하고 작업 탭의 높이·세로 여백은 별도로 유지한다. 비서 도구 줄은 native details/summary와 plain Status를 쓰며 완료에는 점을 표시하지 않는다. outline sm Button·Lucide ArrowDown을 재사용한다.
 
 좁은 창 비서의 Tab·Escape·이전 편집 focus 복귀와 넓은 창 비모달 패널은 [비서 계약](main-agent-v1.md#대화와-표시)을 따른다. 질문은 과정 밖의 기존 AssistantQuestion fieldset/radio·Input/Button을 사용하며 답변 뒤 같은 카드에 읽기 전용 기록을 남긴다. 끝난 차단 RPC는 입력을 닫고 콜백을 복원하지 않는다. 렌더 확인은 카드가 mount된 창에서만 보내고 숨김 패널·기록 목록에서는 보내지 않는다([질문 계약](main-agent-v1.md#질문과-사용량)).
+
+### 비서 패널 시각 확인 (#1686)
+
+fixture 공급자로 한국어의 1440px 밝음·어두움과 640px 밝음을 확인했다. 실제 AI 호출이나 소유자 시각 승인은 포함하지 않는다. 경로·실행 계정은 촬영 시 가렸다. 탐색기 접기/펼치기의 키보드 focus, 보이는 머리의 높이·여백·구분선 비교와 도구 상태 문구·tone은 브라우저 검사로 보호한다. 파일 트리와 좁은 창의 기존 overlay 수명은 유지한다.
+
+| 화면 | 1440 밝음 전 / 후 | 1440 어두움 전 / 후 | 640 밝음 전 / 후 |
+| --- | --- | --- | --- |
+| 빈 비서 | [전](assets/panel-headers-assistant-1686/before-empty-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-empty-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-empty-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-640-light-ko.png) |
+| 문서 패널 | [전](assets/panel-headers-assistant-1686/before-document-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-document-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-document-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-640-light-ko.png) |
+| 도구 상태 | [전](assets/panel-headers-assistant-1686/before-work-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-work-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-work-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-640-light-ko.png) |
+| 질문·결과 | [전](assets/panel-headers-assistant-1686/before-cards-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-cards-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-cards-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-640-light-ko.png) |
+| 대화 기록 | [전](assets/panel-headers-assistant-1686/before-history-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-history-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-history-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-history-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-history-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-history-640-light-ko.png) |
+
+640px 탐색기: [전](assets/panel-headers-assistant-1686/before-explorer-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-explorer-640-light-ko.png).
 
 ## 알려진 불일치
 
@@ -240,7 +254,7 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 ## 공용 정보 표시
 
-이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음도 같은 Row·Section·Status를 사용하며, 패널 머리·비서 상태는 #1686, 나머지 화면·fixture는 #1687에서 적용한다.
+이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음도 같은 Row·Section·Status를 사용하며, 패널 머리·비서 상태는 같은 PanelHeader·Status를 사용한다. 나머지 화면·fixture는 #1687에서 적용한다.
 
 ### 설정의 묶음과 줄
 
@@ -268,3 +282,5 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 시작 화면의 복구 기록 목록: 1440 밝음 [전](assets/settings-parts-1685/before-recovery-list-1440-light.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-light.png), 1440 어두움 [전](assets/settings-parts-1685/before-recovery-list-1440-dark.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-dark.png), 640 밝음 [전](assets/settings-parts-1685/before-recovery-list-640-light.png) / [후](assets/settings-parts-1685/after-recovery-list-640-light.png). 캡처의 로컬 경로는 가렸다.
 
 표시·언어의 기기 저장 범위(표시 언어·포인트 색)와 새 문서 표 기본값 설명은 항목 이름의 title로 제공한다. 업데이트 idle 안내는 점 없는 보조 설명이며, 실제 업데이트 상태만 짧은 Status plain으로 표시하고 버전·진행률·실패 사유 등 기존 상세 설명은 별도로 유지한다.
+
+설정 줄의 끝 선과 문서 탭 높이의 패널 머리를 함께 확인한 통합 화면: [1440 밝음](assets/settings-parts-1685/merged-panel-settings-1440-light.png), [1440 어두움](assets/settings-parts-1685/merged-panel-settings-1440-dark.png).

@@ -1,8 +1,8 @@
 .screen-status { display: inline-flex; align-items: center; gap: var(--space-2); width: fit-content; padding: var(--space-1) var(--space-3); border-radius: var(--id-radius-xl); background: var(--id-color-surface-subtle); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
-.screen-status > span:first-child { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.screen-status[data-tone="progress"] > span:first-child { display: flex; align-items: center; justify-content: center; background: transparent; }
+.screen-status > [data-status-indicator] { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.screen-status[data-tone="progress"] > [data-status-indicator] { display: flex; align-items: center; justify-content: center; background: transparent; }
 /* Center the larger ring on the existing dot slot to preserve label alignment and pill height. */
-.screen-status > span:first-child > svg { display: block; flex-shrink: 0; width: var(--space-3); height: var(--space-3); }
+.screen-status > [data-status-indicator] > svg { display: block; flex-shrink: 0; width: var(--space-3); height: var(--space-3); }
 .screen-status[data-tone="ok"] { color: var(--id-color-success); }
 .screen-status[data-tone="progress"] { color: var(--id-color-accent); }
 .screen-status[data-tone="warning"] { color: var(--id-color-warning); }

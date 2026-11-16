@@ -223,7 +223,8 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
           const starts=selectors.map(s=>rect('[data-document-tab][data-active=true] .document-editor '+s).left);
           const controls={right:controlsBox.x+controlsBox.width};
           const standard=rect('[data-testid="save"]').height;
-          const compactSelectors=['.sidebar-header button','[data-document-tab][data-active=true] .figure-edit','[data-document-tab][data-active=true] .equation-edit',...(collapsed?[]:['.sidebar-folder-actions button'])];
+          const expectedSidebarHeader=rect('.document-tab-row').height;
+          const compactSelectors=[':is(.sidebar-header, .sidebar > .panel-header) button','[data-document-tab][data-active=true] .figure-edit','[data-document-tab][data-active=true] .equation-edit',...(collapsed?[]:['.sidebar-folder-actions button'])];
           const compact=compactSelectors.flatMap(selector=>{
             const nodes=[...document.querySelectorAll(selector)];
             if(!nodes.length)throw Error(`Missing compact control: ${selector}`);
@@ -274,7 +275,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
             throw Error('Document/UI font must follow its own token');
           const shellOverflow=['.app-shell','.sidebar','.app-main','.top-bar','.document-scroll[data-active="true"] .document-column','[data-document-tab][data-active=true] .document','[data-document-tab][data-active=true] .document-editor','.figure','.equation','.table-block'].filter(s=>{const r=rect(s);return r.left<0||r.right>innerWidth+1;});
           const center=rect('.command-center-trigger'), actions=rect('.top-bar-actions');
-          return {width,collapsed,header:rect('.app-titlebar').height,headerWidth:rect('.top-bar-container').width,commandCenterDelta:Math.abs(center.left+center.width/2-(rect('.top-bar').left+rect('.top-bar').width/2)),centerBottom:center.bottom,actionsTop:actions.top,sidebarHeader:rect('.sidebar-header').height,centerDelta:Math.abs(main.left+main.width/2-column.left-column.width/2),blockDelta:Math.max(...starts)-Math.min(...starts),gutterGap:doc.left-controls.right,standard,compact,icons:icons?.map(r=>({x:r.x,w:r.width,h:r.height}))??null,rowIcons,labels,sidebarWidth,expectedSidebar,panelWidth,expectedPanel,body,headings,caption,table,expectedTypeValues,shellOverflow};
+          return {width,collapsed,expectedSidebarHeader,header:rect('.app-titlebar').height,headerWidth:rect('.top-bar-container').width,commandCenterDelta:Math.abs(center.left+center.width/2-(rect('.top-bar').left+rect('.top-bar').width/2)),centerBottom:center.bottom,actionsTop:actions.top,sidebarHeader:rect(':is(.sidebar-header, .sidebar > .panel-header)').height,centerDelta:Math.abs(main.left+main.width/2-column.left-column.width/2),blockDelta:Math.max(...starts)-Math.min(...starts),gutterGap:doc.left-controls.right,standard,compact,icons:icons?.map(r=>({x:r.x,w:r.width,h:r.height}))??null,rowIcons,labels,sidebarWidth,expectedSidebar,panelWidth,expectedPanel,body,headings,caption,table,expectedTypeValues,shellOverflow};
         },{collapsed,width,controlsBox});
         const matchesType=(actual,expected)=>Math.abs(actual.size-expected.size)<0.1&&Math.abs(actual.line-expected.line)<0.1;
         const expected=result.expectedTypeValues;
@@ -283,7 +284,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
         if(width>=1280&&width<=1424&&result.header!==40)throw Error(`Docking boundary wrapped TopBar: ${JSON.stringify(result)}`);
         if(width>=1279&&Math.abs(await page.locator('.document-scroll[data-active="true"] .document-column').evaluate(n=>n.getBoundingClientRect().width)-928)>0.5)
           throw Error(`Docking reduced Standard column at ${width}px`);
-        if(fail||result.sidebarHeader!==33||result.commandCenterDelta>1||result.header!==40||result.actionsTop<40)throw Error(JSON.stringify(result));
+        if(fail||result.sidebarHeader!==result.expectedSidebarHeader||result.commandCenterDelta>1||result.header!==40||result.actionsTop<40)throw Error(JSON.stringify(result));
         results.push({...result,hoverShift:after-before});
         if(collapsed)await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
       }
@@ -380,7 +381,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   const docked=await shell();
   const panelHeader=await page.locator('.document-panel-header').evaluate(header=>{
     const row=header.getBoundingClientRect(), title=header.querySelector('[role=tablist]').getBoundingClientRect();
-    return {height:row.height,sidebarHeight:document.querySelector('.sidebar-header').getBoundingClientRect().height,titleCenterDelta:Math.abs(title.top+title.height/2-row.top-row.height/2)};
+    return {height:row.height,sidebarHeight:document.querySelector(':is(.sidebar-header, .sidebar > .panel-header)').getBoundingClientRect().height,titleCenterDelta:Math.abs(title.top+title.height/2-row.top-row.height/2)};
   });
   if(panelHeader.height!==panelHeader.sidebarHeight||panelHeader.titleCenterDelta>0.5)throw Error(`Outline header alignment: ${JSON.stringify(panelHeader)}`);
   await outlineToggle.click();

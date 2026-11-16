@@ -204,7 +204,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 - 줄은 `Row`(`SettingsRow`는 같은 구현의 별칭, 플러그인은 `ui.Row`)다. 이름은 왼쪽 선, 값·컨트롤은 오른쪽 끝 선에 맞춘다. 비교할 위치를 일정하게 하기 위해서다. 좁은 부모에서는 값이 이름 아래의 왼쪽 선으로 내려간다.
 - 여러 줄의 묶음은 `Section`(`ui.Section`)이다. 묶음 이름과 항목 이름을 중복하지 않고, 항목 하나에는 묶음을 만들지 않는다. 불필요한 위계를 줄이기 위해서다. 설명은 결과를 바꾸는 경우만 상시 표시한다.
-- 패널 머리는 `PanelHeader`다. 구역 이름은 왼쪽, 동작은 오른쪽이며 `TaskHeader`와 높이·여백·구분선 정의를 공유한다. 같은 구역 경계를 같은 모양으로 읽게 하기 위해서다. 대화상자는 Dialog 구조를 유지하고 제목만 `type-section-title`을 쓴다.
+- 패널 머리는 `PanelHeader`다. 구역 이름은 왼쪽, 동작은 오른쪽이다. 패널 머리는 문서 탭 줄과 같은 높이로 세 열의 아래 경계를 한 선에 맞추며, `TaskHeader`와는 좌우 여백과 구분선을 공유한다. 좌우 여백은 패널 내용의 기존 시작선에 맞춘다. 같은 구역 경계를 같은 모양으로 읽게 하기 위해서다. 대화상자는 Dialog 구조를 유지하고 제목만 `type-section-title`을 쓴다.
 - 상태는 `Status`(`ui.Status`)의 점과 사람의 말로 표시하고 원래 상태 값을 그대로 보이지 않는다. 색에 의존하지 않고 이해하게 하기 위해서다. `ok`는 정상·완료, `progress`는 처리 중(도는 고리), `warning`은 확인 필요, `error`는 실패, `neutral`은 대기·중립이다. 알약 `pill`과 바탕 없는 `plain`은 같은 표시를 쓴다.
 
 ## Do's and Don'ts
@@ -228,7 +228,6 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 ### 알려진 불일치
 
-- [#1686](https://github.com/litzio/litzio/issues/1686): 탐색기·비서 머리를 PanelHeader로, 비서 상태를 Status로 옮기고 문서 패널 탭 정렬을 결정한다.
 - [#1687](https://github.com/litzio/litzio/issues/1687): 나머지 화면과 플러그인 fixture에 Row·Section·글씨 역할을 적용한다.
 
 ## 패턴별 기준 화면
@@ -246,7 +245,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 | 속성 팝오버 | [metadata-properties.tsx](apps/editor/src/metadata-properties.tsx) | 대상 anchor와 문서 가용 영역 |
 | 드롭다운·컨텍스트 메뉴 | [dropdown-menu.tsx](apps/editor/src/components/ui/dropdown-menu.tsx), [context-menu.tsx](apps/editor/src/components/ui/context-menu.tsx) | 공유 메뉴 면과 동작 행 |
 | 알림 | [notification-center.tsx](apps/editor/src/components/ui/notification-center.tsx) | 창 단위 등록과 공통 표시 |
-| 도킹 패널 | [AssistantPanel.tsx](apps/editor/src/shell/AssistantPanel.tsx) | 도킹·좁은 창 오버레이와 focus 경계 |
+| 도킹 패널 | [AssistantPanel.tsx](apps/editor/src/shell/AssistantPanel.tsx) | PanelHeader·Status plain·완료 표시 생략, 도킹·좁은 창 오버레이와 focus 경계 |
 | 데이터 표 | [DataTable.tsx](apps/editor/src/components/DataTable.tsx) | 공통 필터·정렬·목록 표시 |
 | 플러그인 화면 | [PluginScreenCode.tsx](apps/editor/src/views/PluginScreenCode.tsx) | TaskHeader·ScreenLayout과 상태·단계·빈 상태·진행 부품, 고정 client의 화면 수명 |
 
