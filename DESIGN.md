@@ -59,20 +59,34 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 ## Typography
 
 앱 서체는 `--font-family-sans`의 Pretendard 계열, 코드·식별자는 `--font-family-mono`를 쓴다.
-화면마다 서체를 정하지 않는다. 같은 역할이 같은 읽기 리듬을 가져야 하기 때문이다.
+화면마다 크기·굵기·색을 직접 조합하지 않고 아래 역할을 고른다.
+토큰의 px 값은 [tokens.css](apps/editor/src/styles/tokens.css), 공용 class와 기존 class의 연결은
+[type-roles.css](apps/editor/src/styles/type-roles.css) 한 곳에서 정한다.
 
-앱의 크기 단계는 `--font-size-xs`가 metadata·보조 설명, `--font-size-sm`이 일반 컨트롤,
-`--font-size-md`가 기본 본문 역할을 맡는다. 시작·작업 화면 제목에는 `--font-size-start-title`이 있다.
-크기를 키워 매번 새 위계를 만들지 않는다.
+| 역할 / 공용 class | 크기 토큰 | 굵기 토큰 | 색 토큰 (`--id-color-`) |
+| --- | --- | --- | --- |
+| 화면 제목 / `type-screen-title` (화면에 한 번) | `--font-size-xl` | `--font-weight-semibold` | `text` |
+| 범주 제목 / `type-category-title` | `--font-size-lg` | `--font-weight-semibold` | `text` |
+| 구역 이름 / `type-section-title` | `--font-size-md` | `--font-weight-semibold` | `text` |
+| 묶음 이름 / `type-group-title` | `--font-size-xs` | `--font-weight-semibold` | `text-muted`, 아래 `border-subtle` 구분선 |
+| 다루는 항목의 이름 / `type-item-name` | `--font-size-sm` | `--font-weight-semibold` | `text` |
+| 읽기만 하는 값의 이름 / `type-value-name` | `--font-size-sm` | `--font-weight-normal` | `text-muted` |
+| 본문·값 / `type-body` | `--font-size-sm` | `--font-weight-normal` | `text` |
+| 보조 / `type-helper` | `--font-size-xs` | `--font-weight-normal` | `text-muted` |
+| 버튼·탭·메뉴 항목 / `type-control` | `--font-size-sm` | `--font-weight-medium` | 상태에 따름 |
 
-위계는 글씨 크기가 아니라 굵기와 색으로 만든다. 굵은 글씨는 화면·묶음·항목의 이름에 쓴다.
-선택지와 설명과 내용은 보통 굵기다. `--font-weight-semibold`과 `--font-weight-bold`를 강조에 남용하지 않는다.
-예외는 선택 묶음(ChoiceGroup)에서 현재 선택된 값의 semibold 표시 하나다. 이는 위계가 아닌 상태 표시이며,
-목록의 선택지나 라디오 항목의 글씨를 굵게 하는 근거가 아니다.
+앱의 기본 글씨는 14px·400이며 굵기는 400·500·600 셋, 최소 크기는 12px이다.
+의미 색(위험·경고·정상·포인트)은 역할의 색 자리를 대신할 수 있다.
+선택된 탭·항목과 ChoiceGroup의 현재 값은 기존 상태 표시인 600을 유지한다.
 이름과 상태를 한 줄에 섞지 않는다. 대상과 지금의 상태를 따로 읽게 하기 위해서다.
+
+앱 화면에서 역할 표에 없는 크기·굵기·색 조합, 부모의 상대 크기(`em`, `%`, `smaller`),
+700 굵기를 새로 쓰지 않는다. `small`·`kbd`는 보조 크기, `code`는 본문 크기,
+`strong`·`b`는 600을 기본으로 한다. 화면별 기존 불일치의 정리는 #1685·#1686·#1687을 따른다.
 
 문서 본문과 앱 화면의 타이포그래피는 따로다. 문서는 `--font-family-document`,
 `--font-size-document`, `--line-height-document`와 문서 제목·caption·표·코드 전용 토큰을 쓴다.
+문서 내용의 강조·상대 크기는 문서 규칙을 따르며 앱 역할로 바꾸지 않는다.
 문서 취향을 바꿔도 버튼·설정 행의 글씨는 바뀌지 않는다.
 
 ## Layout

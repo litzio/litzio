@@ -14,6 +14,8 @@
 }
 
 body {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
   margin: 0;
   overflow: hidden;
   /* Overrides the base layer's white `bg-background`, which would hide the root canvas. */
@@ -972,7 +974,7 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 .settings-screen { app-region: no-drag; display: flex; height: 100%; min-width: 0; background: var(--id-color-surface); overflow: hidden; }
 .settings-body { app-region: no-drag; display: grid; grid-template-columns: var(--layout-sidebar-width) minmax(0, 1fr); flex: 1; min-height: 0; overflow-y: auto; }
 .settings-navigation { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-6) var(--space-3) var(--space-4); border-right: var(--border-width) solid var(--id-color-border); }
-.settings-navigation h1 { margin: 0; padding-inline: var(--space-3); font-size: var(--font-size-start-title); font-weight: var(--font-weight-semibold); }
+.settings-navigation h1 { margin: 0; padding-inline: var(--space-3); }
 .settings-navigation nav { display: grid; gap: var(--space-1); }
 .settings-navigation nav button { justify-content: start; width: 100%; }
 .settings-navigation nav button[aria-current="page"] { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); font-weight: var(--font-weight-semibold); }
@@ -980,7 +982,7 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 .settings-content { min-width: 0; padding: var(--space-8) var(--space-16); }
 .settings-content-inner { max-width: var(--layout-settings-content-width); }
 .settings-category-header { margin-bottom: var(--space-6); }
-.settings-category-header h2 { margin: 0 0 var(--space-1); font-size: var(--font-size-start-title); font-weight: var(--font-weight-semibold); line-height: var(--line-height-start-title); }
+.settings-category-header h2 { margin: 0 0 var(--space-1); line-height: var(--line-height-start-title); }
 .settings-category-header p { margin: 0; color: var(--id-color-text-muted); }
 .settings-section {
   display: grid;
@@ -1023,7 +1025,7 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 .settings-section--stacked > button { justify-self: start; }
 .settings-label p { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
 .settings-label p.settings-status { font-size: var(--font-size-sm); color: var(--id-color-text); }
-.settings-group-heading { margin: var(--space-6) 0 0; padding-bottom: var(--space-3); border-bottom: var(--border-width) solid var(--id-color-border-subtle); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--id-color-text-muted); }
+.settings-group-heading { margin: var(--space-6) 0 0; padding-bottom: var(--space-3); }
 .settings-recovery-details { display: grid; gap: var(--space-2); margin: 0; padding-left: var(--space-5); list-style: disc; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
 
 @container (width < 48rem) {
@@ -1035,8 +1037,6 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 
 .settings-heading {
   margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
 }
 
 .settings-facts {
@@ -1214,9 +1214,6 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 
 .document-start-title {
   margin: 0;
-  color: var(--id-color-text);
-  font-size: var(--font-size-start-title);
-  font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-start-title);
 }
 
@@ -2744,8 +2741,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 
 .form-label {
   flex-basis: 100%;
-  color: var(--id-color-text);
-  font-size: var(--font-size-sm);
   line-height: var(--line-height-label);
 }
 
@@ -3239,7 +3234,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 }
 
 .message-dismiss {
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* ---- UI polish spike -------------------------------------------------------------------- */
@@ -3529,7 +3524,7 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 
 /* Work tabs share the gallery surface; settings retains its own column layout. */
 .task-surface { height: 100%; min-width: 0; min-height: 0; overflow: auto; padding: var(--space-6); background: var(--id-color-surface); }
-.task-surface-title { font-size: var(--font-size-start-title); font-weight: 600; margin: 0; }
+.task-surface-title { margin: 0; }
 .task-header { position: sticky; top: calc(-1 * var(--space-6)); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-6); padding: var(--space-6); background: var(--id-color-surface); border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
 .task-header-heading { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
 .task-header-description { font-size: var(--font-size-sm); margin-top: var(--space-2); }

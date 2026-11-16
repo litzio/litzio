@@ -256,9 +256,11 @@
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 1rem;
-  --font-size-start-title: 1.5rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
   --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
   --line-height-body: 1.5;
   --line-height-start-title: 1.35;
   --line-height-label: 1.25rem;
