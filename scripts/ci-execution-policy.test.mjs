@@ -527,6 +527,12 @@ test('PR gate requires successful aggregate and rejects pending or failed checks
   }
 });
 
+test('PR gate enqueues only with a written review decision', async () => {
+  const { reviewDecision } = await import('../.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs');
+  for (const note of ['독립 리뷰: APPROVE 0123abcd\n확인한 것', '\uFEFF독립 리뷰: 생략 — 문서만 바뀜\n확인한 것']) assert.equal(reviewDecision(note), true, note);
+  for (const note of ['', '통합 담당자 검토: 캡처 확인', '독립 리뷰: 생략 — ', '확인한 것\n독립 리뷰: 생략 — 문서만']) assert.equal(reviewDecision(note), false, note);
+});
+
 
 test('packaged regression changes select Windows HTTP on PRs without enabling Desktop', () => {
   for (const file of ['packages/cli/test/packaged.test.ts','test/helpers/external-plugin.ts']) {

@@ -2,6 +2,7 @@
 // Check that a Litzio PR can enter the merge queue; optionally comment and enqueue it.
 // Usage: node pr-gate.mjs --pr <N> [--enqueue --note-file <file>]
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -23,6 +24,9 @@ export function ciProblems(checks) {
   return problems;
 }
 
+// The record must state the review decision so that skipping a review is always a written judgment.
+export const reviewDecision = note => /^독립 리뷰: (APPROVE \S+|생략 — \S)/.test(note.replace(/^\uFEFF/, '').trimStart());
+
 async function main() {
   const argv = process.argv.slice(2);
   const option = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -31,6 +35,7 @@ async function main() {
   const noteFile = option('--note-file');
   if (!Number.isInteger(pr) || pr <= 0) throw new Error('Usage: pr-gate.mjs --pr <N> [--enqueue --note-file <file>]');
   if (enqueue && !noteFile) throw new Error('--enqueue requires --note-file with the orchestrator record');
+  if (enqueue && !reviewDecision(readFileSync(noteFile, 'utf8'))) throw new Error('note must start with "독립 리뷰: APPROVE <head>" or "독립 리뷰: 생략 — <사유>"');
 
   if (!/github\.com[/:]litzio\/litzio(\.git)?$/.test(git(['remote', 'get-url', 'origin']))) {
     throw new Error('This script only runs inside the litzio/litzio repository');
