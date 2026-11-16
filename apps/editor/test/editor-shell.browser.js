@@ -56,12 +56,12 @@ async (page, { showNotifications }) => {
     result.headerReverseTab = await isFocused(openFolder);
     await openFolder.focus();
     await page.keyboard.press('Enter');
-    await page.getByTestId('folder-path').waitFor();
+    await page.getByRole('listbox').waitFor();
     await page.keyboard.press('Escape');
     await dialog.waitFor({state:'detached'});
     result.folderEscapeReturnsFocus = await isFocused(openFolder);
     await page.keyboard.press('Enter');
-    await page.getByTestId('folder-path').waitFor();
+    await page.getByRole('listbox').waitFor();
     await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
     await dialog.waitFor({state:'detached'});
     result.folderCancelReturnsFocus = await isFocused(openFolder);

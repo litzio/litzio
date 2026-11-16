@@ -657,7 +657,14 @@ function readFolder<T>(folder: string, files: FileKind | "all", check: () => T):
       const kind = entry.isDirectory() ? "folder" : !entry.isFile() ? undefined : files === "all"
         ? extension === ".md" || extension === ".txt" ? "document" : Object.hasOwn(MEDIA_TYPES, extension) ? "image" : "file"
         : fileKinds[files](extension) ? files === "pdf" ? "file" : files : undefined;
-      return kind ? [{ name: entry.name, kind, path: path.join(folder, entry.name) }] : [];
+      if (!kind) return [];
+      const item: FolderEntry = { name: entry.name, kind, path: path.join(folder, entry.name) };
+      try {
+        const metadata = statSync(item.path);
+        item.modifiedAt = metadata.mtime.toISOString();
+        if (kind !== "folder") item.size = metadata.size;
+      } catch { /* Optional metadata must not fail the listing. */ }
+      return [item];
     });
     entries.sort((a, b) => (a.kind === "folder" && b.kind !== "folder" ? -1 : b.kind === "folder" && a.kind !== "folder" ? 1 : entryOrder.compare(a.name, b.name)));
     return { ...result, entries };

@@ -132,17 +132,7 @@ SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편
 
 UI 갤러리 Screen parts의 Screen path selection은 합성 Host의 선택·폴더 범위 변경 예제다. 기존 FolderDialog·Dialog·Button·경로 필드·스크롤을 재사용하며 새 공통 표면이나 토큰은 추가하지 않는다.
 
-일반 파일 선택의 합성 갤러리 비교. Before는 파일 선택 버튼이 없던 기존 예제이며 After는 같은 FolderDialog에서 모든 파일 또는 `.csv` 목록을 보여 준다. 캡처는 UI 비교이며 실제 업무 수락을 대신하지 않는다.
-
-| 상태 | 1440 밝음 | 1440 어두움 | 640 밝음 |
-| --- | --- | --- | --- |
-| Before | [기존 예제](assets/plugin-screen-file-pick-1670/before-1440-light.png) | [기존 예제](assets/plugin-screen-file-pick-1670/before-1440-dark.png) | [기존 예제](assets/plugin-screen-file-pick-1670/before-640-light.png) |
-| 모든 파일 | [목록](assets/plugin-screen-file-pick-1670/file-1440-light.png) | [목록](assets/plugin-screen-file-pick-1670/file-1440-dark.png) | [목록](assets/plugin-screen-file-pick-1670/file-640-light.png) |
-| CSV 필터 | [목록](assets/plugin-screen-file-pick-1670/CSV-1440-light.png) | [목록](assets/plugin-screen-file-pick-1670/CSV-1440-dark.png) | [목록](assets/plugin-screen-file-pick-1670/CSV-640-light.png) |
-
-비교 기준은 같은 부품의 [기존 문서 선택](assets/plugin-screen-file-pick-1670/document-dialog.png)과 [본체의 폴더 열기](assets/plugin-screen-file-pick-1670/app-open-folder.png)다. 본체는 폴더를 연 뒤 탐색기에서 문서를 고른다. 본체 캡처도 합성 목록을 사용한다.
-
-기존 합성 폴더 선택 표본: [1440 어두움](assets/plugin-screen-pick-open-1592/1440-dark.png), [640 어두움](assets/plugin-screen-pick-open-1592/640-dark.png). 기존 캡처의 연결 복구이며 이번 실행 검증이나 실제 플러그인 변환 업무의 수락 근거가 아니다.
+선택 창의 배치·선택·탐색·정렬·키보드는 [공통 선택 창 계약](folder-picker-v1.md#behavior)을 따른다.
 
 ## 새 문서 저장
 

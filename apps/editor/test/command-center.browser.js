@@ -35,6 +35,29 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const result = {};
 
+  // A writing-time keyboard surface must return the next typed character without
+  // waiting for hidden/detached state or a focus poll after Escape.
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  const typingBaseline=await editor().evaluate(n=>{
+    let first;
+    n.editor.state.doc.forEach((node,pos)=>{if(first===undefined&&node.type.name==='paragraph')first=pos+1;});
+    n.editor.commands.setTextSelection(first);n.editor.view.focus();
+    return JSON.stringify(n.editor.getJSON());
+  });
+  await open();
+  await center().evaluate(async el=>{
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    await Promise.allSettled(el.getAnimations().map(a=>a.finished));
+  });
+  await page.keyboard.press('Escape');
+  await page.keyboard.type('motion-next-key');
+  check((await editor().textContent()).includes('motion-next-key'),'Command center swallowed the next document input');
+  await page.keyboard.press('Control+z');
+  check(await editor().evaluate(n=>JSON.stringify(n.editor.getJSON()))===typingBaseline,'Typing regression did not undo cleanly');
+  await page.emulateMedia({reducedMotion:'reduce'});
+  result.immediateKeyboardReturn=true;
+
+
   // Manual Before/After evidence uses the same initial document and sidebar state.
   if (screenshots) {
     for (const width of [1440, 640]) {
@@ -220,7 +243,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   for (const query of ['new document', '새 문서']) {
     const returnTarget = await page.evaluateHandle(() => document.activeElement);
     await run('New document…', query);
-    await page.getByTestId('folder-path').waitFor();
+    await page.getByRole('listbox').waitFor();
     check(await page.getByTestId('new-file-name').count() === 0, 'New skipped location choice without an opened folder');
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({state:'detached'});
@@ -232,6 +255,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   // Search only listings already held by the sidebar, including collapsed cached children.
   const openFolder = async path => {
     await run('Open folder…');
+    await page.getByRole('button', {name:'Edit path',exact:true}).click();
     await page.getByTestId('folder-path').fill(path + sep);
     await page.getByTestId('folder-open').click();
     await page.getByRole('dialog').waitFor({state:'detached'});
@@ -466,8 +490,8 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   const folderReturnTarget = await page.evaluateHandle(() => document.activeElement);
   await run('Open folder…');
-  await page.getByTestId('folder-path').waitFor();
-  await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid')==='folder-path', null, {timeout:5000});
+  await page.getByRole('listbox').waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('role')==='listbox', null, {timeout:5000});
   await page.keyboard.press('Escape');
   await page.getByRole('dialog').waitFor({state:'detached'});
   check(await page.evaluate(target => target === document.activeElement, folderReturnTarget), 'Open folder command lost its focus return');

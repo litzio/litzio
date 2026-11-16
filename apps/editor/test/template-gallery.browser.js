@@ -48,6 +48,7 @@ async (page, { expect, waitForEditorFocus }) => {
     expect(await preview.locator('.document-editor').evaluate(node => node.editor === window.galleryPreviewEditor)).toBe(true);
     // Creation stays on the card, outside the preview.
     await gallery.getByRole('button', { name: '이 템플릿으로 새 문서', exact: true }).first().click();
+    await page.getByRole('dialog').getByRole('button', {name:'경로 입력',exact:true}).click();
     await page.getByTestId('folder-path').fill(folder);
     await page.getByTestId('folder-open').click();
     await page.getByTestId('new-file-name').fill('from-template');

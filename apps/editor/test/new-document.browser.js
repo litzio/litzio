@@ -33,7 +33,7 @@ async page => {
   await ready();
   const startNew = page.getByTestId('document-start').getByRole('button', {name:'New document…', exact:true});
   await startNew.click();
-  await page.getByTestId('folder-path').waitFor();
+  await page.getByRole('listbox').waitFor();
   await page.keyboard.press('Escape');
   await page.getByRole('dialog').waitFor({state:'detached'});
   check(await startNew.evaluate(node => node === document.activeElement), 'Cancelled location did not return to New document');
@@ -41,17 +41,18 @@ async page => {
     'Cancelled location opened a folder or document');
   const filesNew = page.getByTestId('sidebar').getByRole('button', {name:'New document…',exact:true});
   await filesNew.click();
-  await page.getByTestId('folder-path').waitFor();
+  await page.getByRole('listbox').waitFor();
   await page.getByRole('dialog').getByRole('button', {name:'Cancel',exact:true}).click();
   await page.getByRole('dialog').waitFor({state:'detached'});
   check(await filesNew.evaluate(node => node === document.activeElement), 'Explorer New lost focus after cancelling location');
   await filesNew.click();
+  await page.getByRole('dialog').getByRole('button', {name:'Edit path',exact:true}).click();
   await page.getByTestId('folder-path').fill(folder.split(sep).slice(0,-1).join(sep) + sep);
   const picker = page.getByRole('dialog');
   await picker.getByRole('button', {name:'New folder', exact:true}).click();
   await page.getByTestId('new-folder-name').fill('entry-location');
   await page.getByTestId('new-folder-name').press('Enter');
-  await page.waitForFunction(folder => document.querySelector('[data-testid="folder-path"]').value.replace(/[\\/]+$/, '') === folder, folder);
+  await picker.getByRole('option', {name:'entry-location',exact:true}).and(page.locator('[aria-selected=true]')).waitFor();
   await page.getByTestId('folder-open').click();
   await page.getByRole('dialog', {name:'New document',exact:true}).waitFor();
   check(await page.getByTestId('new-file-directory').inputValue() === folder &&
