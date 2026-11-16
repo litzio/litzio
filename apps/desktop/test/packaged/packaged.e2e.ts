@@ -59,6 +59,7 @@ async function launch(userData: string, args: string[] = [], environment: Record
   const env = Object.fromEntries(Object.entries({ ...process.env, LITZIO_DAEMON_DIR: path.join(work, "daemon"), LITZIO_DATA_DIR: path.join(work, "data"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(work, "data", "plugins.json"), ...environment }).filter((entry): entry is [string, string] => entry[1] !== undefined));
   const app = await electron.launch({ executablePath: exe, args: ["--lang=en-US", `--user-data-dir=${userData}`, ...args], env, timeout: 60_000 });
   const page = await app.firstWindow();
+  await page.emulateMedia({ reducedMotion: "reduce" });
   // The app, not Playwright, answers beforeunload (will-prevent-unload); a listener stops Playwright's auto-dismiss.
   page.on("dialog", () => {});
   const requests: string[] = [];
@@ -623,6 +624,7 @@ test("bundled screen survives absent daemon and reconnects explicitly", async ()
   try {
     app = await electron.launch({executablePath:exe,args:["--lang=en-US",`--user-data-dir=${profile("offline")}`],env:{...process.env,LITZIO_DAEMON_DIR:daemonDirectory,LITZIO_DATA_DIR:path.join(work,"data")}});
     const page = await app.firstWindow();
+    await page.emulateMedia({ reducedMotion: "reduce" });
     page.on("dialog",()=>{});
     await page.waitForURL(DESKTOP_ENTRY);
     assert.equal(page.url(),DESKTOP_ENTRY);

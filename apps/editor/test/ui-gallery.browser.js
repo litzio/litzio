@@ -14,12 +14,115 @@ async (page, { expect, screenshots }) => {
   await navigation.getByRole('button',{name:'Surfaces',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Button · Input · icons',exact:true})).toHaveCount(0);
   const trigger = page.getByRole('button', { name: 'Open dialog', exact: true });
+  if (screenshots) {
+    await page.setViewportSize({width:1280,height:800});
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+    // Sample the real CSS transitions at reproducible fractions of their own duration.
+    // Pausing is evidence capture only, never a regression assertion or product path.
+    const frames = async (name, target) => {
+      const count = await target.evaluate(el => {
+        const animations = el.getAnimations({subtree:true});
+        animations.forEach(a => a.pause()); return animations.length;
+      });
+      expect(count, name + ' has a running transition').toBeGreaterThan(0);
+      for (const [index, fraction] of [0.15,0.4,0.7,1].entries()) {
+        await target.evaluate((el, fraction) => el.getAnimations({subtree:true}).forEach(a => {a.currentTime = Number(a.effect.getTiming().duration) * fraction;}),fraction);
+        await page.screenshot({path:`docs/design/assets/motion-1681/${name}-${index+1}.png`});
+      }
+      await target.evaluate(el => el.getAnimations({subtree:true}).forEach(a => a.finish()));
+    };
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    await trigger.click();
+    await frames('dialog',page.locator('[data-slot="dialog-content"]'));
+    await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
+    await page.emulateMedia({reducedMotion:'reduce'}); await trigger.click();
+    await page.screenshot({path:'docs/design/assets/motion-1681/dialog-reduced.png'});
+    await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
+    await navigation.getByRole('button',{name:'Menus',exact:true}).click();
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    await page.getByRole('button',{name:'Actions',exact:true}).click();
+    await frames('menu',page.locator('[data-slot="dropdown-menu-content"]'));
+    await page.getByRole('menuitem',{name:'Open',exact:true}).click();
+    await expect(page.getByRole('status')).toHaveText('Open selected');
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.getByRole('button',{name:'Actions',exact:true}).click();
+    await page.screenshot({path:'docs/design/assets/motion-1681/menu-reduced.png'});
+    await page.keyboard.press('Escape');
+    await navigation.getByRole('button',{name:'Notifications',exact:true}).click();
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    await page.getByRole('group',{name:'Example state',exact:true}).getByRole('button',{name:'Error',exact:true}).click();
+    await frames('notification',page.locator('.notification-auto'));
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.screenshot({path:'docs/design/assets/motion-1681/notification-reduced.png'});
+    await page.getByRole('group',{name:'Example state',exact:true}).getByRole('button',{name:'Default',exact:true}).click();
+    await navigation.getByRole('button',{name:'Controls',exact:true}).click();
+    const outline = page.getByRole('button',{name:'Outline',exact:true});
+    await page.emulateMedia({reducedMotion:'no-preference'}); await outline.hover();
+    await frames('hover',outline);
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.screenshot({path:'docs/design/assets/motion-1681/hover-reduced.png'});
+    await navigation.getByRole('button',{name:'Surfaces',exact:true}).click();
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    await page.setViewportSize({width:640,height:800});
+    // Exercise the production theme crossfade path in this automation-only review.
+    await page.evaluate(async () => {
+      Object.defineProperty(navigator, 'webdriver', {configurable:true,get:()=>false});
+      const {applyTheme} = await import('/src/theme.ts');
+      await applyTheme('dark');
+      await Promise.allSettled(document.getAnimations().map(a=>a.finished));
+      delete navigator.webdriver;
+    });
+    await trigger.click();
+    await page.locator('[data-slot="dialog-content"]').evaluate(async el => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await Promise.allSettled(el.getAnimations().map(a=>a.finished));
+    });
+    await page.screenshot({path:'tmp/motion-dark-640-dialog.png'});
+    await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
+    await navigation.getByRole('button',{name:'Menus',exact:true}).click();
+    await page.getByRole('button',{name:'Actions',exact:true}).click();
+    await page.getByRole('menuitem',{name:'Open',exact:true}).click();
+    await page.getByRole('button',{name:'Hover or focus me',exact:true}).hover();
+    await page.locator('[data-slot="tooltip-content"]').waitFor();
+    await page.locator('[data-slot="tooltip-content"]').evaluate(async el => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await Promise.allSettled(el.getAnimations().map(a=>a.finished));
+    });
+    await page.screenshot({path:'tmp/motion-dark-640-tooltip.png'});
+    await page.mouse.move(0,0);
+    await page.evaluate(async () => { const {applyTheme} = await import('/src/theme.ts'); await applyTheme('light',false); });
+    await page.setViewportSize({width:1280,height:720});
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await navigation.getByRole('button',{name:'Surfaces',exact:true}).click();
+  }
+  // Reduced motion is the runner default; protect both a control and an overlay.
+  await expect(trigger).toHaveCSS('transition-duration', '0s');
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'Example dialog' });
+  expect(await dialog.evaluate(el => getComputedStyle(el).transitionDuration.split(',').every(value => parseFloat(value) === 0))).toBe(true);
   await expect(dialog.getByRole('textbox', { name: 'Name' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
+  // Reuse the same public close/focus regression with motion enabled.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const durationUsesToken = (el, token) => {
+    const style = getComputedStyle(el), value = style.getPropertyValue(token).trim();
+    const seconds = parseFloat(value) / (value.endsWith('ms') ? 1000 : 1);
+    return seconds > 0 && parseFloat(style.transitionDuration) === seconds;
+  };
+  expect(await trigger.evaluate(durationUsesToken, '--duration-fast')).toBe(true);
+  await trigger.click();
+  expect(await dialog.evaluate(durationUsesToken, '--duration-normal')).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  // Rapid reopening and menu handoff use the same production primitives.
+  for (let index = 0; index < 3; index++) {
+    await trigger.click(); await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+
   await navigation.getByRole('button',{name:'Controls',exact:true}).click();
   // ChoiceGroup owns required-single state; buttons retain native Tab/Enter/Space.
   const choices = page.getByRole('group', { name: 'Example numbering', exact: true });
