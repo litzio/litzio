@@ -88,9 +88,9 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
     </div>
     <div className="settings-actions">
       {state ? <>
-        {state.status !== "installed" ? <Button size="sm" variant="secondary" disabled={busy || state.unsupported || !!state.conflict}
+        {state.status !== "installed" ? <Button size="sm" variant="outline" disabled={busy || state.unsupported || !!state.conflict}
           onClick={() => void change(true)}>{i18n.t(state.status === "broken" ? "Repair CLI" : "Turn on CLI")}</Button> : null}
-        {state.status !== "off" ? <Button size="sm" variant="secondary" disabled={busy || state.unsupported}
+        {state.status !== "off" ? <Button size="sm" variant="outline" disabled={busy || state.unsupported}
           onClick={() => void change(false)}>{i18n.t("Turn off CLI")}</Button> : null}
       </> : null}
       {problem || state?.conflict ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void change()}>{i18n.t("Refresh CLI status")}</Button> : null}
@@ -226,7 +226,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                     <p className="settings-status">{storageProblem || i18n.t("recoveryCount", { count: recoveryCount })}</p>
                     <p>{i18n.t("Applied edits are recorded on this device in this browser or app profile. Records are separate from your original files and are not shared with other devices or browsers.")}</p>
                   </div>
-                  <Button ref={clearButton} size="sm" variant="secondary" onClick={() => setClearConfirm(true)}>{i18n.t("Clear all recovery records…")}</Button>
+                  <Button ref={clearButton} size="sm" variant="outline" onClick={() => setClearConfirm(true)}>{i18n.t("Clear all recovery records…")}</Button>
                 </div>
                 <div className="settings-section settings-section--stacked">
                   <h4 className="settings-heading">{i18n.t("What is kept")}</h4>
@@ -253,7 +253,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                     <dd data-testid="app-version">{info.version}</dd>
                   </dl>
                   <div className="settings-section">
-                    <div className="settings-actions"><Button size="sm" variant="secondary" disabled={logBusy} onClick={async () => {
+                    <div className="settings-actions"><Button size="sm" variant="outline" disabled={logBusy} onClick={async () => {
                       setLogBusy(true); setLogProblem(false);
                       try { await desktop.openLogFolder(); }
                       catch { setLogProblem(true); }
@@ -293,7 +293,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                       ) : state?.phase === "downloaded" ? (
                         <Button size="sm" onClick={() => run(async () => { const reason = await onInstall(); if (reason) setProblem(reason); })}>{i18n.t("Restart to update")}</Button>
                       ) : (
-                        <Button size="sm" variant="secondary" disabled={!info.updatesSupported || state?.phase === "checking" || busy}
+                        <Button size="sm" variant="outline" disabled={!info.updatesSupported || state?.phase === "checking" || busy}
                           onClick={() => run(() => desktop.checkForUpdates())}>{i18n.t("Check for updates")}</Button>
                       )}
                       <Button size="sm" variant="ghost" onClick={() => run(() => desktop.openReleaseNotes(offered?.version))}>{i18n.t("Release notes")}</Button>

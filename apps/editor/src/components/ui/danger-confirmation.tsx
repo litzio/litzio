@@ -20,7 +20,7 @@ export function DangerConfirmation({ title, description, action, pending, error,
       {children}
       {error ? <p role="alert" className="text-sm text-destructive [overflow-wrap:anywhere]">{error}</p> : null}
       <DialogFooter>
-        <Button ref={cancel} size="sm" variant="secondary" disabled={pending} onClick={onClose}>{t("Cancel")}</Button>
+        <Button ref={cancel} size="sm" variant="outline" disabled={pending} onClick={onClose}>{t("Cancel")}</Button>
         <Button size="sm" variant="destructive" disabled={pending || confirmDisabled} onClick={onConfirm}>{action}</Button>
       </DialogFooter>
     </DialogContent>

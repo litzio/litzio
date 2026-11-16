@@ -45,6 +45,13 @@ async (page, { expect, brand, screenshots }) => {
   await expect(pending).toBeVisible();
   expect(await pending.evaluate(el => !!el.closest('details'))).toBe(false);
   await expect(panel.locator('details')).not.toHaveAttribute('open');
+  const weights = await pending.locator('.assistant-question-option').evaluateAll(labels => labels.flatMap(label => {
+    const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT), weights = [];
+    while (walker.nextNode()) if (walker.currentNode.textContent.trim()) weights.push(getComputedStyle(walker.currentNode.parentElement).fontWeight);
+    return weights;
+  }));
+  expect(new Set(weights)).toEqual(new Set([await pending.evaluate(el => getComputedStyle(el).fontWeight)]));
+  expect(Number(await pending.locator('legend').evaluate(el => getComputedStyle(el).fontWeight))).toBeGreaterThan(Number(weights[0]));
   const radio=pending.getByRole('radio').first();
   const accents=await page.evaluate(async()=>[...(await import('/src/preferences.ts')).ACCENT_COLORS]);
   for(const theme of ['light','dark']) for(const accent of accents) {
@@ -56,6 +63,7 @@ async (page, { expect, brand, screenshots }) => {
   if(screenshots) await pending.screenshot({path:'tmp/consistency-radio.png'});
   await pending.getByRole('button', { name: 'Submit answers' }).click();
   await expect(panel.locator('[data-question-status="answered"]')).toContainText('음식 탐방');
+  expect(await panel.locator('.assistant-question-answer').evaluate(el => getComputedStyle(el).fontWeight)).toBe(weights[0]);
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   addQuestion('host-question');
   await expect(trigger).toHaveAttribute('data-status', 'attention');

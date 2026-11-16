@@ -107,7 +107,7 @@ export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFo
               <FileText aria-hidden="true" /><span className="template-card-name">{item.name}</span>
               {item.kind === "builtin" ? <span className="template-card-badge">{templateText("Built-in")}</span> : null}
             </PopoverPrimitive.Trigger>
-            <div className="template-card-footer"><Button size="sm" variant="secondary" disabled={disabled} onClick={event => { setOpen(false); onCreate(item, event.currentTarget, client); }}>
+            <div className="template-card-footer"><Button size="sm" variant="outline" disabled={disabled} onClick={event => { setOpen(false); onCreate(item, event.currentTarget, client); }}>
               {templateText("New document from template")}</Button></div>
           </article>)}
         </div> : <p className="template-gallery-empty">{section.kind === "user" ? templateText("No user templates yet.") : templateText("No templates available.")}</p>}

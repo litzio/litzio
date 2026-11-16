@@ -63,7 +63,7 @@ export default function SourceCompare({ load, recovery = false, assistant = fals
     {(!result || view === "source" && !diff) && !error && !result?.failure ? <p role="status">{result ? i18n.t("Calculating differences…") : i18n.t("Loading comparison…")}</p> : null}
     {result?.failure ? <p role="alert">{i18n.t("Save preview unavailable: {{reason}}", { reason: result.failure.message })}</p> : null}
     {(view === "source" || !result) && error ? <p role="alert">{i18n.t("Comparison unavailable: {{reason}}", { reason: error })}</p> : null}
-    {(view === "source" || !result) && error ? <Button size="sm" variant="secondary" onClick={() => setAttempt(attempt + 1)}>{i18n.t("Retry comparison")}</Button> : null}
+    {(view === "source" || !result) && error ? <Button size="sm" variant="outline" onClick={() => setAttempt(attempt + 1)}>{i18n.t("Retry comparison")}</Button> : null}
     {result?.changed ? <p role="status">{i18n.t(recovery ? "The file changed after this record. Comparing with the current disk file." : "The file changed outside {{product}}. Comparing with the current disk file; Save will still report a conflict.")}</p> : null}
     <MissingFileNotice result={result} diff={diff} recovery={recovery} />
     {result?.fallback ? <p role="status">{i18n.t("Plaintext comparison instead of Save preview: {{reason}}", { reason: result.fallback })}</p> : null}
@@ -77,8 +77,8 @@ export default function SourceCompare({ load, recovery = false, assistant = fals
       {diff.wordsOmitted ? <p role="status">{i18n.t("Word highlighting omitted to keep comparison responsive.")}</p> : null}
       <div className="recovery-diff-toolbar">
         <span role="status">{i18n.t("{{count}} changes", { count: diff.count })}</span>
-        <Button size="sm" variant="secondary" disabled={!diff.count} onClick={() => move(-1)}>{i18n.t("Previous change")}</Button>
-        <Button size="sm" variant="secondary" disabled={!diff.count} onClick={() => move(1)}>{i18n.t("Next change")}</Button>
+        <Button size="sm" variant="outline" disabled={!diff.count} onClick={() => move(-1)}>{i18n.t("Previous change")}</Button>
+        <Button size="sm" variant="outline" disabled={!diff.count} onClick={() => move(1)}>{i18n.t("Next change")}</Button>
         <span aria-live="polite">{current ? i18n.t("Change {{current}} of {{count}}", { current, count: diff.count }) : ""}</span>
       </div>
       <p>{i18n.t(assistant ? "Line numbers: before / current disk. − removed, + added. Long lines wrap." : recovery ? "Line numbers: disk / recovery. − removed, + added. Long lines wrap." : "Line numbers: disk / Save preview. − removed, + added. Long lines wrap.")}</p>

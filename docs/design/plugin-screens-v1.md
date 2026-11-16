@@ -28,7 +28,7 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 기존 Button/Input/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명과 본문만 그린다. 설정의 본문 열 폭 제한은 적용하지 않는다.
 
-ui.Button의 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도·전체 폭·가로 스크롤을 사용하고 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
+ui.Button의 변형은 outline/default/ghost/destructive다. 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. 과거 secondary 입력은 오류 없이 outline으로 그린다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도·전체 폭·가로 스크롤을 사용하고 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
 
 제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
 

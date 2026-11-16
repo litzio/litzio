@@ -328,7 +328,7 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
               disabled={createPending}
               autoFocus
             />
-            <Button type="submit" size="sm" disabled={!result || createPending || !newName.trim()}>{i18n.t("Create")}</Button>
+            <Button type="submit" variant="outline" size="sm" disabled={!result || createPending || !newName.trim()}>{i18n.t("Create")}</Button>
             <Button type="button" variant="ghost" size="sm" aria-label={i18n.t("Cancel new folder")} disabled={createPending} onClick={cancelCreate}>{i18n.t("Cancel")}</Button>
             {createError ? <p id="new-folder-error" className="text-sm text-destructive" role="alert" data-testid="new-error">{createError}</p> : null}
           </form>
@@ -379,7 +379,7 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
         {!image && showSidebarHint ? <p className="folder-picker-meta">{i18n.t("Choose documents in the sidebar after opening a folder.")}</p> : null}
         <div className="folder-picker-footer">
           {choose === "image" ? <p>{i18n.t("Images outside the document's folder are copied into its assets folder.")}</p> : null}
-          <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={onClose}>{i18n.t("Cancel")}</Button>
+          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onClose}>{i18n.t("Cancel")}</Button>
           <Button type="button" size="sm" data-testid="folder-open" title={path} disabled={!ready || pending} onClick={() => void submit()}>
             <span>{ready ? image || selectOnly ? `${i18n.t("Use")} “${target}”` : i18n.t("Open “{{name}}”", { name: target }) : image || selectOnly ? i18n.t("Use") : i18n.t("Open")}</span>
           </Button>

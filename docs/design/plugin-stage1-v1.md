@@ -78,6 +78,8 @@ export function activate(context) {
 
 ## 설정·비밀값·비서 지침
 
+설정 대화상자의 boolean은 본체의 SettingsSwitch 행으로 이름을 왼쪽, 스위치를 오른쪽 끝에 놓는다. 이름표가 붙은 입력은 공용 form-field 간격을 쓴다. secret 이름은 입력의 이름표이며 설정 여부는 별도의 보조 색 상태다. 설명은 Tooltip으로 제공한다. 일반 설정은 필드별 자동 저장, secret은 명시적 저장과 즉시 입력 비움을 유지한다. 일반 설정·secret·연결 확인·제거 순서로 배치한다.
+
 `settingsSchema`는 일반 설정 JSON Schema다. 초기 값은 {}이며 필드별 저장을 위해 최상위 required는 비워 둔다. 필요한 연결 값은 handler나 healthCheck에서 확인한다. 설정은 Host 소유이고 변경은 활성 인스턴스를 drain·dispose한 후 새 값으로 다시 불러온다.
 
 `secrets`는 `{id,title,description?,scope:"connection",required?}` 배열이다. Windows DPAPI 저장은 Host/account/plugin별 namespace로 분리한다. 일반 설정 파일·관리 결과·대화 활동·출력에 평문 값을 노출하지 않는다. 설정 화면의 저장/교체/손상/삭제는 같은 Host 경로를 사용한다. 다른 OS는 미지원 상태를 표시하며 평문 저장으로 우회하지 않는다. plugin context에 해당 plugin의 secret만 전달한다. 공개 출력의 secret 값은 가리고, 비서에 남은 literal secret은 거부한다.

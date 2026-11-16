@@ -13,6 +13,6 @@ function ScreenDataTable(props: ComponentProps<typeof DataTable>) {
   return createElement("div", { className: "screen-data-table" }, createElement(DataTable, props));
 }
 
-function ScreenButton({ variant = "outline", ...props }: ComponentProps<typeof Button>) {
-  return createElement(Button, { ...props, variant });
+function ScreenButton({ variant = "outline", ...props }: Omit<ComponentProps<typeof Button>, "variant"> & { variant?: ComponentProps<typeof Button>["variant"] | "secondary" }) {
+  return createElement(Button, { ...props, variant: variant === "secondary" ? "outline" : variant });
 }

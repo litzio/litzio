@@ -4,6 +4,11 @@ async (page, { expect, screenshots }) => {
   await page.goto(page.url().split('/').slice(0, 3).join('/') + '/ui-gallery');
   await expect(page.getByRole('heading', { name: 'Litzio UI gallery' })).toBeVisible();
   await expect(page.locator('[data-testid="ui-gallery"]')).toHaveCSS('overflow-y', 'auto');
+  // The plugin adapter must accept old code while the core exposes only outline.
+  expect(await page.evaluate(async () => {
+    const { screenUI } = await import('/src/views/screen-ui.ts');
+    return screenUI.Button({variant:'secondary'}).props.variant === 'outline';
+  })).toBe(true);
   const navigation = page.getByRole('navigation', { name: 'Gallery elements' });
   await expect(navigation.getByRole('button', {name:'Controls',exact:true})).toHaveAttribute('aria-current','page');
   await navigation.getByRole('button',{name:'Surfaces',exact:true}).click();

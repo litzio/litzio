@@ -191,7 +191,7 @@ export function DataTable({
         <div className="view-controls">
           <Button
             size="sm"
-            variant="secondary"
+            variant="outline"
             disabled={!current}
             onClick={() => setPage(current - 1)}
           >
@@ -202,7 +202,7 @@ export function DataTable({
           </span>
           <Button
             size="sm"
-            variant="secondary"
+            variant="outline"
             disabled={current === pages - 1}
             onClick={() => setPage(current + 1)}
           >
@@ -397,7 +397,7 @@ function ColumnFilter({
             <Button
               type="button"
               size="sm"
-              variant="secondary"
+              variant="outline"
               onClick={() => setOpen(false)}
             >
               {i18n.t("Cancel")}

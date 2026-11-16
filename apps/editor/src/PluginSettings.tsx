@@ -37,7 +37,7 @@ export function PluginSettings() {
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
     </Notice>
-    <Button ref={addButton} size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
+    <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} showSidebarHint={false} initialPath="" recent={[]}
       browse={browse} places={places}
       onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
@@ -60,7 +60,7 @@ export function PluginSettings() {
         {plugin.error || plugin.enabled && !plugin.running ? <PluginState tone={plugin.error ? "danger" : "muted"} label={i18n.t(plugin.error ? "Plugin error" : "Plugin unavailable")} detail={plugin.error} /> : null}
       </div>
     </section>)}
-    <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, registrationId: trust.registrationId, trust: true }); setTrust(undefined); } catch (e) { if (e instanceof Error && e.message === PLUGIN_REGISTRATION_CHANGED) { setTrust(undefined); setProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED)); } else setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="secondary" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{trust && problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
+    <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, registrationId: trust.registrationId, trust: true }); setTrust(undefined); } catch (e) { if (e instanceof Error && e.message === PLUGIN_REGISTRATION_CHANGED) { setTrust(undefined); setProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED)); } else setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="outline" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{trust && problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
     <Dialog open={!!current} onOpenChange={open => { if (!open && !busy) setSelected(undefined); }}>
       <DialogContent className="plugin-settings-dialog" finalFocus={addButton}>
         <DialogHeader>
@@ -151,12 +151,12 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
       return <div key={key}>
         {field.type === "boolean" ? <SettingsSwitch label={<SettingLabel title={field.title ?? key} description={field.description} />} disabled={busy} checked={draft[key] === true}
           invalid={!!state?.error} describedBy={common["aria-describedby"]} onChange={value => { dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); save(key, value); }} /> :
-          ["string", "number", "integer"].includes(field.type ?? "") ? <><label htmlFor={id}><SettingLabel title={field.title ?? key} description={field.description} /></label>
+          ["string", "number", "integer"].includes(field.type ?? "") ? <><label className="form-field" htmlFor={id}><SettingLabel title={field.title ?? key} description={field.description} />
             <Input {...common} disabled={busy} type={field.type === "string" ? "text" : "number"} value={String(draft[key] ?? "")} onChange={event => { const value = event.target.value; dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); setStates(s => ({ ...s, [key]: {} })); }} onBlur={event => {
               const value = field.type === "string" ? event.target.value : Number(event.target.value);
               if (saved.current[key] !== value || errors.current[key]) save(key, value);
               else dirty.current.delete(key);
-            }} /></> : null}
+            }} /></label></> : null}
         {state?.error ? <FieldError id={`${id}-error`}>{i18n.t("Save failed")}: {state.error}</FieldError> : state?.status ? <p id={`${id}-status`} className="settings-status" role="status">{i18n.t(state.status)}</p> : null}
       </div>;
     })}
@@ -181,9 +181,10 @@ function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; 
         if (!response.ok) { const result = await response.json(); throw new Error(result.error ?? i18n.t("Unable to store plugin secret")); }
       } catch (error) { setProblem(error instanceof Error ? error.message : i18n.t("Unable to store plugin secret")); } finally { window.dispatchEvent(new Event("plugins-changed")); setSaving(false); }
     }}>
-      <label><SettingLabel title={secret.title} description={secret.description} />: {i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}<Input type="password" autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
+      <label className="form-field"><SettingLabel title={secret.title} description={secret.description} /><Input type="password" autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
+      <p className="settings-description" role="status">{i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}</p>
       {secret.error ? <Notice tone="error">{i18n.t("Unable to read this secret. Delete or replace it.")}</Notice> : null}
-      <div className="settings-actions"><Button type="submit" size="sm" variant="secondary" disabled={!supported || busy || saving || !values[secret.id]}>{i18n.t("Save secret")}</Button>
+      <div className="settings-actions"><Button type="submit" size="sm" variant="outline" disabled={!supported || busy || saving || !values[secret.id]}>{i18n.t("Save secret")}</Button>
       <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || !secret.configured && !secret.error} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>
     </form>)}
   </section>;
@@ -212,7 +213,7 @@ function PluginHealthCheck({ plugin, busy, ready }: { plugin?: Plugin; busy: boo
   const disabled = !plugin.enabled || !plugin.running;
   const reason = i18n.t(!plugin.enabled ? "Plugin disabled" : "Plugin unavailable");
   return <section className="settings-section settings-section--stacked" aria-label={i18n.t("Check connection")}>
-    <div className="settings-actions"><Tooltip><TooltipTrigger render={<span tabIndex={disabled ? 0 : undefined} />}><Button size="sm" variant="secondary" disabled={disabled || busy || checking} onClick={async () => {
+    <div className="settings-actions"><Tooltip><TooltipTrigger render={<span tabIndex={disabled ? 0 : undefined} />}><Button size="sm" variant="outline" disabled={disabled || busy || checking} onClick={async () => {
       if (waiting.current) return;
       waiting.current = true;
       const epoch = generation.current;
