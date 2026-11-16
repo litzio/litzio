@@ -42,6 +42,16 @@ async (page, { expect, screenshots }) => {
   await expect(fixed).toBeDisabled();
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
+  // Progress remains distinguishable from success even without motion or color.
+  const progressMark = page.locator('.screen-status[data-tone="progress"] svg').first();
+  await expect(progressMark).toBeVisible();
+  await expect(page.locator('.screen-status[data-tone="ok"] svg')).toHaveCount(0);
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await expect(progressMark).not.toHaveCSS('animation-name','none');
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await expect(progressMark).toBeVisible();
+  await expect(progressMark).toHaveCSS('animation-name','none');
+  await page.emulateMedia({reducedMotion:'no-preference'});
   for(const theme of ['light','dark']) for(const accent of ['plum','green']) {
     await page.setViewportSize({width:1440,height:1000});
     await page.evaluate(({theme,accent})=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.accent=accent;},{theme,accent});
