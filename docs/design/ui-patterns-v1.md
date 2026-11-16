@@ -254,7 +254,7 @@ fixture 공급자로 한국어의 1440px 밝음·어두움과 640px 밝음을 �
 
 ## 공용 정보 표시
 
-이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음도 같은 Row·Section·Status를 사용하며, 패널 머리·비서 상태는 같은 PanelHeader·Status를 사용한다. 나머지 화면·fixture는 #1687에서 적용한다.
+이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음도 같은 Row·Section·Status를 사용하며, 패널 머리·비서 상태는 같은 PanelHeader·Status를 사용한다. 플러그인 제작 템플릿과 갤러리의 화면 예제는 Row·Section·Status plain을 쓴다. 대화상자는 구역 제목, 필드 이름은 항목 이름, 설명은 본문 크기의 흐린 글씨를 쓴다. 파일 선택 창의 묶음 이름·열 제목·선택 footer, 템플릿 갤러리, 시작 화면, 메뉴·알림은 공용 글씨 역할에 연결한다. 사용법은 hover에 두고 저장·복사·손실 범위 안내는 상시 표시한다.
 
 ### 설정의 묶음과 줄
 

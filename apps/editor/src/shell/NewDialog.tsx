@@ -90,9 +90,9 @@ export function NewDialog({ kind = "file", open, busy, destinations, directory, 
             }
           }}
         >
-          <DialogHeader>
+          <DialogHeader title={kind === "folder" ? text.description : undefined}>
             <DialogTitle>{text.title}</DialogTitle>
-            <DialogDescription>{text.description}</DialogDescription>
+            {kind === "file" && <DialogDescription>{text.description}</DialogDescription>}
           </DialogHeader>
           <label className="form-field">
             <span>{i18n.t("Location")}</span>

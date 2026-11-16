@@ -325,11 +325,44 @@ async (page, { expect, screenshots }) => {
   for(const heading of await page.getByRole('region',{name:'Measurements',exact:true}).getByRole('columnheader').all()) {
     expect(await heading.evaluate(n=>[...n.querySelectorAll('button')].every(b=>b.getBoundingClientRect().right<=n.getBoundingClientRect().right && b.scrollWidth<=b.clientWidth))).toBe(true);
   }
+  // Sort/filter controls must not move the title away from its column's value edge.
+  const alignedTable = page.getByRole('region',{name:'Measurements',exact:true});
+  const columnEdges = (region = alignedTable) => region.getByRole('table').evaluate(table => {
+    const textEdge = (element, right) => {
+      const text = [...element.childNodes].find(n=>n.nodeType===Node.TEXT_NODE && n.textContent.trim());
+      const range = document.createRange(); range.selectNodeContents(text);
+      const rect = range.getBoundingClientRect(); return right ? rect.right : rect.left;
+    };
+    return [...table.querySelectorAll('th')].map((th,index)=>{
+      const td=table.querySelectorAll('tbody tr:first-child td')[index];
+      const right=th.hasAttribute('data-numeric');
+      return Math.abs(textEdge(th.querySelector('button'),right)-textEdge(td.querySelector('a')??td,right)) < 1;
+    });
+  });
+  expect((await columnEdges()).every(Boolean)).toBe(true);
+  expect((await columnEdges(page.getByRole('region',{name:'Wide measurements',exact:true}))).every(Boolean)).toBe(true);
+  await alignedTable.getByRole('columnheader').first().getByRole('button').first().click();
+  expect((await columnEdges()).every(Boolean)).toBe(true);
+  const focusedRow = alignedTable.locator('tbody tr').nth(1);
+  await focusedRow.getByRole('cell').last().click();
+  await expect(focusedRow).toHaveAttribute('aria-selected','true');
+  await alignedTable.getByRole('columnheader').first().getByRole('button').first().focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(alignedTable).toBeFocused();
+  await expect(alignedTable).toHaveCSS('outline-style','none');
+  await expect(focusedRow).toHaveCSS('outline-style','solid');
   for(const width of [1440,640]) {
     await page.setViewportSize({width,height:1000});
     const wide=page.getByRole('region',{name:'Wide measurements',exact:true});
     expect(await wide.evaluate(n=>n.scrollWidth>n.clientWidth && n.getBoundingClientRect().width<=n.closest('.screen-data-table').getBoundingClientRect().width)).toBe(true);
   }
+  // Compare computed roles (tokens may use rem while computed styles use px).
+  const summaryRole = await page.locator('.screen-summary-value').evaluateAll(nodes => {
+    const reference=document.createElement('span');reference.className='type-category-title';reference.style.visibility='hidden';document.body.append(reference);
+    const font=el=>{const s=getComputedStyle(el);return [s.fontSize,s.fontWeight,s.color];};
+    const expected=font(reference),actual=nodes.map(font);reference.remove();return {actual,expected};
+  });
+  for(const actual of summaryRole.actual) expect(actual).toEqual(summaryRole.expected);
   const cards = page.locator('.screen-summary');
   const boxes = await cards.evaluateAll(nodes => nodes.map(n => ({height:n.getBoundingClientRect().height, label:n.firstElementChild.getBoundingClientRect().top,value:n.querySelector('.screen-summary-value').getBoundingClientRect().top})));
   expect(boxes[0]).toEqual(boxes[1]);

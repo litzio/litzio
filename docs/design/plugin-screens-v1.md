@@ -28,17 +28,12 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명·상태·동작을 머리에, 내용을 본문에 그린다. 본문은 기본 전체 폭이며 narrow를 선택하면 기존 읽기 폭으로 가운데 정렬한다.
 
-ui.Button의 변형은 outline/default/ghost/destructive다. 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. 과거 secondary 입력은 오류 없이 outline으로 그린다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도를 쓰며 폭은 내용에 맞추되 부모 폭을 넘으면 내부 가로 스크롤을 사용한다. 표 전체의 최소 폭은 두지 않고 셀은 기존 이름표 폭과 space-6의 합을 최소 폭, reading-preview-width를 최대 폭으로 사용한다. 긴 값은 셀 안에서 줄바꿈하며 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
+ui.Button의 변형은 outline/default/ghost/destructive다. 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. 과거 secondary 입력은 오류 없이 outline으로 그린다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도를 쓰며 폭은 내용에 맞추되 부모 폭을 넘으면 내부 가로 스크롤을 사용한다. 표 전체의 최소 폭은 두지 않고 셀은 기존 이름표 폭과 space-6의 합을 최소 폭, reading-preview-width를 최대 폭으로 사용한다. 긴 값은 셀 안에서 줄바꿈하며 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
+
+DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 단추가 있어도 값과 시작선(숫자는 끝선)이 같다. 스크롤 상자 전체에는 focus 테두리를 그리지 않고, 행 선택 표는 현재 선택 행(없으면 첫 행), 그 밖의 표는 현재 칸에 표시한다. 링크·정렬·필터의 키보드 동작은 유지한다. 진행 문구·그래프 값은 본문, 축 이름·개수는 보조, 입력 이름표·그래프 제목·빈 상태 제목은 항목 이름 역할을 쓴다.
 
 행이 없는 DataTable의 빈 안내는 표와 같은 폭을 쓰며, 한 열의 좁은 표에서도 안내 문구가 줄바꿈된다. 빈 안내의 문구와 status 역할은 유지한다.
 플러그인 내용 영역(screen-layout)의 h2는 type-section-title, h3·h4는 type-item-name과 기존 간격 토큰으로 소제목 위계를 표현한다. 화면 틀 제목과 템플릿 갤러리의 제목 규칙은 유지한다.
-
-빈 표·소제목 합성 화면 비교(1440px, Windows persistent Chrome):
-
-| 테마 | 변경 전 | 현재 |
-| --- | --- | --- |
-| 밝음 | [Before](assets/plugin-screen-empty-headings-1673/before-1440-light.png) | [After](assets/plugin-screen-empty-headings-1673/after-1440-light.png) |
-| 어두움 | [Before](assets/plugin-screen-empty-headings-1673/before-1440-dark.png) | [After](assets/plugin-screen-empty-headings-1673/after-1440-dark.png) |
 
 제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
 
@@ -61,20 +56,6 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 `confirm({title:string,message?:string,confirmLabel:string}) -> Promise<boolean>`은 기존 DangerConfirmation을 연다. 취소에 초기 focus를 두며 취소·Esc는 false, 위험 확인 버튼은 true다. 화면 reload/unmount 시 대기 요청은 pickPath처럼 AbortError로 거절한다. 중복 확인 요청은 Error로 거절한다. 일반 확인 변형은 없다.
 
-합성 화면의 시각 비교(#1670, Windows persistent Chrome):
-
-| 대상 | 1440 밝음 | 1440 어두움 | 640 밝음 |
-| --- | --- | --- | --- |
-| 변경 전 갤러리 | [보기](assets/plugin-screen-parts-1670/before-parts-1440-light.png) | [보기](assets/plugin-screen-parts-1670/before-parts-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/before-parts-640-light.png) |
-| Select·Input·행 선택 | [보기](assets/plugin-screen-parts-1670/after-parts-screen-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-screen-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-screen-640-light.png) |
-| 위험 확인 | [보기](assets/plugin-screen-parts-1670/after-parts-confirm-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-confirm-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-confirm-640-light.png) |
-| 2열·다열 표 폭 | [보기](assets/plugin-screen-parts-1670/after-parts-table-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-table-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-table-640-light.png) |
-| 축 이름 | [보기](assets/plugin-screen-parts-1670/after-parts-long-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-long-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-long-640-light.png) |
-
-4열·61행 갤러리 표: [1440 어두움](assets/plugin-screen-parts-1670/after-gallery-tables-1440-dark.png).
-
-변경 전 [표 폭](assets/plugin-screen-parts-1670/before-parts-table-1440-light.png)·[축 이름](assets/plugin-screen-parts-1670/before-parts-long-1440-light.png). 새 부품의 변경 전 표본은 해당 부품이 없던 갤러리다. 캡처는 수동 비교 근거이며 실제 AI 제작·소유자 시각 승인은 포함하지 않는다.
-
 ### 머리 구역과 작업 흐름
 
 화면 틀과 템플릿 갤러리는 TaskHeader를 공유한다. 제목은 기존 task-surface-title 크기·굵기·시작선을 유지한다. 설명은 제목 아래, 상태와 동작은 오른쪽에 놓이며 640px에서는 아래 줄로 내려간다. 머리는 sticky이며 본문과 구분선으로 나뉜다. 설정의 목록+상세 구조는 별도다.
@@ -87,17 +68,6 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 - `ui.Progress({value?,label?})`: 기존 native progress와 포인트 색을 사용한다. value는 0..1, 생략하면 진행 정도를 모르는 상태다. progressbar 역할과 값·접근성 이름을 제공한다. 오래 걸리는 작업은 진행과 상태 문구를 함께 표시한다.
 
 직접 스타일과 자유로운 구성은 계속 허용하며 화면 종류·상단 탭·구성 검사나 경고는 제공하지 않는다.
-
-합성 화면의 머리 구역 비교(#1675, Windows persistent Chrome):
-
-| 상태 | 1440 밝음 | 1440 어두움 | 640 밝음 |
-| --- | --- | --- | --- |
-| 변경 전 | [보기](assets/plugin-screen-frame-1675/before-1440-light.png) | [보기](assets/plugin-screen-frame-1675/before-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/before-640-light.png) |
-| 처음 | [보기](assets/plugin-screen-frame-1675/frame-start-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-start-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-start-640-light.png) |
-| 진행 | [보기](assets/plugin-screen-frame-1675/frame-run-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-run-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-run-640-light.png) |
-| 완료 | [보기](assets/plugin-screen-frame-1675/frame-done-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-done-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-done-640-light.png) |
-
-[스크롤 중](assets/plugin-screen-frame-1675/frame-scrolled.png), 템플릿 갤러리 [변경 전](assets/plugin-screen-frame-1675/before-gallery.png)·[현재](assets/plugin-screen-frame-1675/after-gallery.png). 캡처는 합성 화면의 수동 비교 근거이며 실제 변환·AI 제작·소유자 시각 승인은 포함하지 않는다.
 
 ## 읽기 전용 문서 보기
 
@@ -157,7 +127,7 @@ Green에서는 ok와 progress의 색조 차이가 작아 색만으로 구별하�
 
 `ui.Section({title,description?,children})`은 여러 줄의 묶음이다. 이름은 type-group-title과 아래 구분선이며 묶음 간 간격은 space-6이다. 항목 하나에는 묶음을 만들지 않고 항목 이름을 제목으로 반복하지 않는다. description은 결과를 바꾸는 설명만 준다.
 
-플러그인 h2는 type-section-title, h3·h4는 type-item-name의 역할 정의를 공유한다. 문서 보기 안 제목은 제외한다. SummaryCard의 이름·설명은 item-name·helper이며 값은 큰 수치를 빠르게 읽는 기존 표현을 유지하기 위해 screen-title 크기 토큰을 쓴다.
+플러그인 h2는 type-section-title, h3·h4는 type-item-name의 역할 정의를 공유한다. 문서 보기 안 제목은 제외한다. SummaryCard의 이름·설명은 item-name·helper이며 값은 범주 제목과 같은 글씨(type-category-title)를 쓴다.
 
 PanelHeader는 본체 패널의 구역 제목·아이콘·오른쪽 동작과 heading level을 제공한다. PanelHeader의 높이는 문서 탭 줄의 기존 토큰을 쓰며 제목·동작은 세로 가운데다. 작업 탭 제목은 TaskHeader가 계속 소유한다. 좌우 여백·구분선은 shared-parts.css에서 공유하되 TaskHeader의 높이·세로 여백은 별도이며 패널 머리에 적용하지 않는다. 본체의 패널별 좌우 여백은 내용의 시작선에 맞춘다. 문서 패널의 탐색 탭은 구조를 유지하고 PanelHeader와 높이·구분선을 맞춘다.
 
@@ -174,3 +144,26 @@ PanelHeader는 본체 패널의 구역 제목·아이콘·오른쪽 동작과 he
 갤러리의 좁은 열은 창 폭과 무관한 부모 폭 검증이다. 이름 시작선·값 끝선·select 폭·버튼 두 개·긴 경로 줄바꿈은 자동 geometry 비교와 캡처를 함께 확인한다. 각 줄은 focus를 가로채지 않고 내부 컨트롤만 Tab으로 방문한다. Status 진행 고리는 공통 motion-safe 전환 규칙과 reduced motion을 따른다.
 
 설정 다섯 범주와 플러그인 설정 창의 현재 전후 근거는 [설정 패턴](ui-patterns-v1.md#설정의-묶음과-줄)을 따른다.
+
+## 화면 글씨 역할 검토
+
+Windows persistent Chrome에서 한국어 앱으로 공용 부품·합성 플러그인 예제와 앱 화면을 비교했다. 실제 AI 호출·설치형 Desktop·소유자 시각 승인은 포함하지 않는다. 갤러리 자체의 예제 문구는 영어를 유지한다. 캡처에서 로컬 계정·경로 영역은 가렸다.
+
+| 화면 | 1440 밝음 전 / 후 | 1440 어두움 전 / 후 | 640 밝음 전 / 후 |
+| --- | --- | --- | --- |
+| 화면 흐름 | [전](assets/plugin-parts-rest-1687/before-Screen-parts-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-Screen-parts-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-Screen-parts-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-Screen-parts-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-Screen-parts-640-light.png) / [후](assets/plugin-parts-rest-1687/after-Screen-parts-640-light.png) |
+| 그래프 | [전](assets/plugin-parts-rest-1687/before-chart-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-chart-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-chart-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-chart-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-chart-640-light.png) / [후](assets/plugin-parts-rest-1687/after-chart-640-light.png) |
+| 표 | [전](assets/plugin-parts-rest-1687/before-table-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-table-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-table-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-table-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-table-640-light.png) / [후](assets/plugin-parts-rest-1687/after-table-640-light.png) |
+| 파일 선택 | [전](assets/plugin-parts-rest-1687/before-picker-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-picker-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-picker-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-picker-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-picker-640-light.png) / [후](assets/plugin-parts-rest-1687/after-picker-640-light.png) |
+| 대화상자 | [전](assets/plugin-parts-rest-1687/before-dialog-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-dialog-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-dialog-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-dialog-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-dialog-640-light.png) / [후](assets/plugin-parts-rest-1687/after-dialog-640-light.png) |
+| 위험 확인 | [전](assets/plugin-parts-rest-1687/before-danger-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-danger-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-danger-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-danger-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-danger-640-light.png) / [후](assets/plugin-parts-rest-1687/after-danger-640-light.png) |
+| 메뉴 | [전](assets/plugin-parts-rest-1687/before-menu-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-menu-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-menu-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-menu-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-menu-640-light.png) / [후](assets/plugin-parts-rest-1687/after-menu-640-light.png) |
+| 오류 알림 | [전](assets/plugin-parts-rest-1687/before-notifications-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-notifications-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-notifications-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-notifications-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-notifications-640-light.png) / [후](assets/plugin-parts-rest-1687/after-notifications-640-light.png) |
+| 시작 | [전](assets/plugin-parts-rest-1687/before-start-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-start-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-start-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-start-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-start-640-light.png) / [후](assets/plugin-parts-rest-1687/after-start-640-light.png) |
+| 새 문서 | [전](assets/plugin-parts-rest-1687/before-new-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-new-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-new-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-new-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-new-640-light.png) / [후](assets/plugin-parts-rest-1687/after-new-640-light.png) |
+| 명령 센터 | [전](assets/plugin-parts-rest-1687/before-commands-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-commands-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-commands-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-commands-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-commands-640-light.png) / [후](assets/plugin-parts-rest-1687/after-commands-640-light.png) |
+| 단축키 | [전](assets/plugin-parts-rest-1687/before-shortcuts-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-shortcuts-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-shortcuts-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-shortcuts-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-shortcuts-640-light.png) / [후](assets/plugin-parts-rest-1687/after-shortcuts-640-light.png) |
+| 템플릿 | [전](assets/plugin-parts-rest-1687/before-templates-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-templates-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-templates-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-templates-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-templates-640-light.png) / [후](assets/plugin-parts-rest-1687/after-templates-640-light.png) |
+| 문서 주변 도구 | [전](assets/plugin-parts-rest-1687/before-editor-tools-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-editor-tools-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-editor-tools-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-editor-tools-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-editor-tools-640-light.png) / [후](assets/plugin-parts-rest-1687/after-editor-tools-640-light.png) |
+
+종이 안 글씨는 역할 계측에서 제외한다.

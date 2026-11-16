@@ -2,11 +2,17 @@
 .data-table .view-table-scroll { min-width: 0; max-width: 100%; overflow-x: auto; }
 .data-table table { width: max-content; border-collapse: collapse; font-size: var(--font-size-sm); }
 .data-table th, .data-table td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: var(--border-width) solid var(--id-color-border-subtle); min-width: calc(var(--layout-document-settings-label-width) + var(--space-6)); max-width: var(--layout-reading-preview-width); overflow-wrap: anywhere; }
-.data-table th { background: var(--id-color-surface-subtle); font-weight: 600; }
+.data-table th { background: var(--id-color-surface-subtle); }
 .data-table-heading { display: flex; align-items: center; gap: var(--space-2); }
-.data-table-heading > button:first-child { min-width: 0; min-height: var(--size-control-compact); height: auto; flex-shrink: 1; white-space: normal; overflow-wrap: anywhere; }
+.data-table-heading > button:first-child { padding-inline: 0; border: 0; min-width: 0; min-height: var(--size-control-compact); height: auto; flex-shrink: 1; white-space: normal; overflow-wrap: anywhere; }
 .data-table th[data-numeric], .data-table td[data-numeric] { text-align: right; }
-.data-table th[data-numeric] .data-table-heading { justify-content: flex-end; }
+.data-table th[data-numeric] .data-table-heading { flex-direction: row-reverse; justify-content: flex-start; }
+.data-table th[data-numeric] .data-table-heading > button:first-child > svg { order: -1; }
+.data-table .view-table-scroll:focus-visible { outline: none; box-shadow: none; }
+.data-table .view-table-scroll:focus-visible tbody tr[aria-selected="true"],
+.data-table .view-table-scroll:focus-visible tbody:not(:has(tr[aria-selected="true"])) tr:first-child[aria-selected],
+.data-table .view-table-scroll:focus-visible tbody tr:first-child:not([aria-selected]) td:first-child,
+.data-table tr[aria-selected]:has(:focus-visible), .data-table th:has(:focus-visible), .data-table tr:not([aria-selected]) td:has(:focus-visible) { outline: 2px solid var(--id-color-border-focus); outline-offset: -2px; }
 .data-table-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
 
 .data-table tr[aria-selected]:hover { background: var(--id-color-surface-hover); cursor: pointer; }

@@ -11,7 +11,7 @@ export function Notice({ className, role, tone = "info", ...props }: NoticeProps
     <div
       {...props}
       role={role ?? (tone === "error" ? "alert" : "status")}
-      className={cn("ui-notice", `ui-notice--${tone}`, className)}
+      className={cn("ui-notice type-body", `ui-notice--${tone}`, className)}
     />
   );
 }
