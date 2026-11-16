@@ -298,7 +298,7 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
         <div className="folder-picker-footer">
           <div className="folder-picker-target" title={targetPath}><span>{chosen?.name ?? target}</span>{image ? <span className="folder-picker-types">{fileTypes}</span> : null}</div>
           <Button variant="outline" size="sm" disabled={pending} onClick={onClose}>{i18n.t("Cancel")}</Button>
-          <Button size="sm" data-testid="folder-open" title={targetPath} disabled={!ready || !result && !editing} onClick={() => image && chosen?.kind === "folder" ? go(chosen.path) : void submit()}><span>{image ? chosen?.kind === "folder" ? i18n.t("Open") : i18n.t("Use") : selectOnly ? i18n.t("Use") : i18n.t("Open “{{name}}”", { name: target })}</span></Button>
+          <Button size="sm" data-testid="folder-open" title={targetPath} disabled={!ready || !result && !editing} onClick={() => image && chosen?.kind === "folder" ? go(chosen.path) : void submit()}><span>{image ? chosen?.kind === "folder" ? i18n.t("Open") : i18n.t("Use") : selectOnly ? `${i18n.t("Use")} “${target}”` : i18n.t("Open “{{name}}”", { name: target })}</span></Button>
           {choose === "image" ? <p className="folder-picker-copy-note">{i18n.t("Images outside the document's folder are copied into its assets folder.")}</p> : null}
         </div>
       </DialogContent>
