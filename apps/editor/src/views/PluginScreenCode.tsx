@@ -5,10 +5,12 @@ import { Notice } from "../ui/primitives.tsx";
 import type { HostClient } from "../host-client.ts";
 import { saveScreenDocument, type ScreenDocumentInput } from "./screen-document.ts";
 import { DocumentViewScope } from "./screen-document-view.tsx";
-import type { ScreenOpenDocumentResult, ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
+import type { ScreenConfirmInput, ScreenOpenDocumentResult, ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
 import { useScreenPathPicker } from "./screen-path-picker.tsx";
+import { useScreenConfirmation } from "./screen-confirmation.tsx";
 import { isScreenPath } from "./screen-path.ts";
 type ScreenProps = { React: typeof React; ui: typeof ui; invoke(operation: string, input?: unknown): Promise<unknown>;
+  confirm(input: ScreenConfirmInput): Promise<boolean>;
   pickPath(input: ScreenPickPathInput): Promise<ScreenPickedPath | null>;
   openDocument(input: {path: string}): Promise<ScreenOpenDocumentResult>;
   saveDocument(input: ScreenDocumentInput): Promise<Awaited<ReturnType<typeof saveScreenDocument>> & {opening?: ScreenOpenDocumentResult}> };
@@ -23,6 +25,7 @@ export class ScreenBoundary extends React.Component<{ children: React.ReactNode;
 export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code: string; owner: string; client: HostClient; roots: string[]; onOpen?(path: string, signal: AbortSignal): Promise<ScreenOpenDocumentResult> }) {
   const lifetime = React.useRef<AbortController | null>(null);
   const latestRoots = React.useRef(roots); latestRoots.current = roots;
+  const { confirm, dialog: confirmation } = useScreenConfirmation(client, lifetime);
   const { pickPath, dialog } = useScreenPathPicker(client, roots, lifetime);
   const [Screen, setScreen] = React.useState<React.ComponentType<ScreenProps>>();
   const [error, setError] = React.useState("");
@@ -69,5 +72,5 @@ export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code:
     catch (cause) { opening = {status:"refused",path:receipt.path,message:String((cause as Error).message ?? cause)}; }
     return {...receipt, opening};
   }, [client, openDocument]);
-  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} pickPath={pickPath} openDocument={openDocument} />{dialog}</DocumentViewScope.Provider> : null;
+  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} confirm={confirm} pickPath={pickPath} openDocument={openDocument} />{dialog}{confirmation}</DocumentViewScope.Provider> : null;
 }
