@@ -244,6 +244,7 @@
   /* Recognizable fields and outlined input-like controls; >=3:1 on adjacent surfaces. */
   --id-color-border-control: #7b8390;
   --id-color-border-focus: var(--id-color-interaction);
+  --id-color-success: #14734b;
   --id-color-danger: #a12b32;
   --id-color-info: var(--id-color-text-muted);
   --id-color-warning-paper: #875717;
@@ -379,6 +380,7 @@
   --id-color-border-subtle: #363e4a;
   --id-color-border-strong: #8491a3;
   --id-color-border-control: #9aa6b7;
+  --id-color-success: #70d4a5;
   --id-color-danger: #ffa4aa;
   --id-color-warning: #efc079;
   --id-color-backdrop: rgb(0 0 0 / 45%);

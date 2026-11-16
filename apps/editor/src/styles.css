@@ -3246,7 +3246,7 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 /* Shared Host and provider connection indicators. */
 .agent-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--id-color-text-subtle); flex-shrink: 0; }
 .host-status { display: inline-flex; white-space: nowrap; align-items: center; gap: var(--space-2); color: var(--id-color-text-muted); font-size: var(--font-size-sm); }
-.host-status[data-tone="connected"] { color: var(--id-color-interaction); }
+.host-status[data-tone="connected"] { color: var(--id-color-success); }
 .host-status[data-tone="warning"] { color: var(--id-color-warning); }
 .host-status[data-tone="danger"] { color: var(--id-color-danger); }
 .host-status .agent-dot { background: currentColor; }

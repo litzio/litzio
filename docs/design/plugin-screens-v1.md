@@ -81,7 +81,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 `ui.ScreenLayout({description?,status?,actions?,width?,children})`의 description은 머리에 표시한다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
 
-- `ui.Status({tone,label})`: tone은 ok/progress/warning/error/neutral. 점과 글자의 알약이다. 성공 전용 색은 추가하지 않고 ok/neutral은 보조 글씨 색과 채운 점, progress는 포인트, warning/error는 기존 의미 색을 쓴다. 본문에서도 쓸 수 있다.
+- `ui.Status({tone,label})`: tone은 ok/progress/warning/error/neutral. 점과 글자의 알약이다. ok는 정상 의미 색(`--id-color-success`), neutral은 보조 글씨 색, progress는 포인트, warning/error는 기존 의미 색으로 점과 글씨를 그린다. 바탕은 조용한 표면(`--id-color-surface-subtle`)을 유지한다. 본문에서도 쓸 수 있다.
 - `ui.Steps({steps,current})`: 문자열 목록과 0부터 시작하는 현재 단계. 지난·현재·남은 단계를 구별하고 목록의 현재 항목은 aria-current="step"이다. 기본 위치는 머리 아래 내용 맨 위이며 클릭 이동은 없다.
 - `ui.EmptyState({title,description?,action?})`: 보조 표면·점선 테두리·가운데 정렬로 다음에 할 한 가지를 안내한다.
 - `ui.Progress({value?,label?})`: 기존 native progress와 포인트 색을 사용한다. value는 0..1, 생략하면 진행 정도를 모르는 상태다. progressbar 역할과 값·접근성 이름을 제공한다. 오래 걸리는 작업은 진행과 상태 문구를 함께 표시한다.
@@ -139,3 +139,14 @@ UI 갤러리 Screen parts의 Screen path selection은 합성 Host의 선택·폴
 `saveDocument({name,authoring,images?,folder?,open?})`는 [공식 문서 작성 입력](document-support-v1.md#공식-문서-작성-입력)의 Core DocumentAuthoringInput으로 새 `.md`를 만든다. images는 SDK AuthoredDocumentRequest의 기존 `{key,mime,base64}[]` 입력을 그대로 사용하고 figure의 imageAsset key에 연결한다. 누락하면 빈 배열이다. key 대응·base64·이미지 검증과 기존 제한(그림당 10 MiB, 최대 256개, 전체 작성 요청 32 MiB)은 공통 작성 경로가 적용한다. 문서 게시 실패 뒤 완성된 공유 가능 asset은 남을 수 있다. 기본 위치는 화면 Host의 첫 열린 폴더다. folder를 지정하면 그 Host의 열린 폴더 또는 그 하위 폴더여야 하며, 열린 폴더가 없으면 거부한다. 경로는 대상 Host에서 해석한다. 다른 Host나 클라이언트 PC로 fallback하지 않는다.
 
 공용 `PUT /api/document`와 CLI `create <path.md> --input <json-file> --format json`은 같은 createAuthoredDocumentFile을 사용한다. Core authorDocument의 의미·canonical round-trip과 file-commit의 임시 형제 파일 쓰기·fsync·배타적 hard-link 게시를 유지한다. 부분 쓰기/flush 실패는 최종 파일을 게시하지 않으며 기존 이름은 덮어쓰지 않는다. hard link 미지원 파일시스템은 우회하지 않고 실패한다. 기존 파일 수정·overwrite·별도 문서 형식·생성 문서 연결은 추가하지 않는다.
+
+정상 의미 색 확인(#1678, 1440px):
+
+| 화면 | 밝음 | 어두움 |
+| --- | --- | --- |
+| 다섯 상태 · 기본 Plum | [보기](assets/status-success-1678/status-gallery-plum-light.png) | [보기](assets/status-success-1678/status-gallery-plum-dark.png) |
+| Green의 ok·progress 비교 | [보기](assets/status-success-1678/status-gallery-green-light.png) | [보기](assets/status-success-1678/status-gallery-green-dark.png) |
+| 플러그인 화면 머리 | [보기](assets/status-success-1678/plugin-header-light.png) | [보기](assets/status-success-1678/plugin-header-dark.png) |
+| Host 연결됨 · 기본 Plum | [보기](assets/status-success-1678/status-host-light.png) | [보기](assets/status-success-1678/status-host-dark.png) |
+
+Green에서는 ok와 progress의 색조 차이가 작아 색만으로 구별하기 어렵다. label도 함께 읽어야 하며 이 비교를 소유자가 확인해야 한다. 캡처는 합성 화면의 비교 근거이고 소유자 시각 승인을 뜻하지 않는다.

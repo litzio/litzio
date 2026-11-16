@@ -42,6 +42,15 @@ async (page, { expect, screenshots }) => {
   await expect(fixed).toBeDisabled();
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
+  for(const theme of ['light','dark']) for(const accent of ['plum','green']) {
+    await page.setViewportSize({width:1440,height:1000});
+    await page.evaluate(({theme,accent})=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.accent=accent;},{theme,accent});
+    const ok=page.locator('.screen-status[data-tone="ok"]').first();
+    await expect(ok).toHaveCSS('color',theme==='light'?'rgb(20, 115, 75)':'rgb(112, 212, 165)');
+    await ok.scrollIntoViewIfNeeded();
+    if(screenshots) await page.screenshot({path:`tmp/status-gallery-${accent}-${theme}.png`});
+  }
+  await page.evaluate(()=>{document.documentElement.dataset.theme='light';document.documentElement.dataset.accent='plum';});
   const selection=page.getByRole('region',{name:'Screen path selection'});
   await selection.getByRole('button',{name:'Choose document example'}).click();
   await page.getByRole('dialog').getByRole('option',{name:'report.md',exact:true}).click();
