@@ -36,7 +36,7 @@ export function DataTable({
   loadedOnly = false,
   coverage,
   heading,
-  tools,
+  tools, rowKey, selectedKey, onSelectRow,
 }: {
   rows: TableRow[];
   columns: readonly string[];
@@ -48,6 +48,7 @@ export function DataTable({
   coverage?: TableCoverage;
   heading?: ReactNode;
   tools?: ReactNode;
+  rowKey?: string; selectedKey?: string | number; onSelectRow?(row: TableRow): void;
 }) {
   useTranslation();
   const [sort, setSort] = useState<{ column: string; descending: boolean }>();
@@ -109,7 +110,7 @@ export function DataTable({
         role="region"
         aria-label={title}
       >
-        <table style={{ minWidth: columns.reduce((sum, c) => sum + columnWidth(c), 0) }}>
+        <table style={{ width: columns.reduce((sum, c) => sum + columnWidth(c), 0) }}>
           <colgroup>{columns.map(c => <col key={c} style={{ width: columnWidth(c) }} />)}</colgroup>
           <thead>
             <tr>
@@ -174,7 +175,10 @@ export function DataTable({
           </thead>
           <tbody>
             {shown.slice(current * 50, current * 50 + 50).map((r, n) => (
-              <tr key={n}>
+              <tr key={rowKey && (typeof r[rowKey] === "string" || typeof r[rowKey] === "number") ? String(r[rowKey]) : n}
+                tabIndex={onSelectRow ? 0 : undefined} aria-selected={onSelectRow ? !!rowKey && selectedKey !== undefined && r[rowKey] === selectedKey : undefined}
+                onClick={onSelectRow ? event => { if (!(event.target as Element).closest("a,button,input,select,textarea")) onSelectRow(r); } : undefined}
+                onKeyDown={onSelectRow ? event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectRow(r); } } : undefined}>
                 {columns.map((c) => {
                   const target = fields[c]?.linkField;
                   const value = target ? r[target] : undefined;

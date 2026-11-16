@@ -14,7 +14,7 @@
 
 ## 화면 실행
 
-플러그인의 유일한 화면 형식은 React JS/JSX 코드다. manifest의 screen은 artifact 내부 진입 파일이고 default export 컴포넌트는 `React`, `ui`, `invoke`, `saveDocument`, `pickPath`, `openDocument`를 받는다. React는 앱 인스턴스를 공유하고 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다.
+플러그인의 유일한 화면 형식은 React JS/JSX 코드다. manifest의 screen은 artifact 내부 진입 파일이고 default export 컴포넌트는 `React`, `ui`, `invoke`, `saveDocument`, `pickPath`, `openDocument`, `confirm`를 받는다. React는 앱 인스턴스를 공유하고 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다.
 
 Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다. 실행 시 npm 설치나 원격 import 해석을 하지 않는다. 활성 plugin만 화면 코드와 artifact digest revision을 제공한다. 대상 Host의 `/api/plugin-screens`는 화면 목록/코드만 반환하고 선언형 catalog·validate·query 실행 API는 없다. 클라이언트는 CSP script-src의 blob 모듈로 실행한다. 샌드박스·iframe·권한 모델·서명·버전 협상은 만들지 않는다.
 
@@ -26,9 +26,9 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 비서 제작의 조건 협의와 계획 문서는 [비서 계약](main-agent-v1.md#플러그인)을 따른다. 질문 카드나 계획을 위한 새 화면 기능은 추가하지 않는다.
 
-기존 Button/Input/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명과 본문만 그린다. 설정의 본문 열 폭 제한은 적용하지 않는다.
+기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명과 본문만 그린다. 설정의 본문 열 폭 제한은 적용하지 않는다.
 
-ui.Button의 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도·전체 폭·가로 스크롤을 사용하고 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
+ui.Button의 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도를 쓰며 폭은 내용에 맞추되 부모 폭을 넘으면 내부 가로 스크롤을 사용한다. 최소 읽기 폭은 min(100%, --layout-content-width)이며 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
 
 제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
 
@@ -45,6 +45,26 @@ ui.Button의 생략 변형은 outline이며 주된 동작 하나에만 default�
 | 비서 질문 라디오 | [Before](assets/plugin-screen-consistency-1663/before-radio.png) | [After](assets/plugin-screen-consistency-1663/after-radio.png) |
 
 같은 조건의 템플릿 갤러리: [Before](assets/plugin-screen-consistency-1663/before-consistency-gallery.png), [After](assets/plugin-screen-consistency-1663/after-consistency-gallery.png). 캡처는 수동 비교 근거이며 실제 AI 제작·소유자 시각 승인은 포함하지 않는다.
+
+ui.Select는 label/value/onValueChange/options({value,label}[])와 선택적인 disabled/placeholder를 받는 단일 선택이다. SettingsSelect와 같은 SelectControl·스타일을 쓰고 이름표는 입력칸처럼 위에 둔다.
+
+ui.DataTable의 rowKey는 행 식별 field다. onSelectRow(row)가 있을 때만 행을 클릭하거나 focus 후 Enter/Space로 선택한다. selectedKey(string|number)는 호출자가 소유하며 정렬·필터·페이지가 바꾸지 않는다. 선택 행은 aria-selected와 기존 선택 표면 토큰, hover는 hover 표면 토큰으로 표시한다. 셀 링크는 행 선택을 일으키지 않는다.
+
+ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임하고 표시 간격을 확보한다. 전체 값은 기존 hover·키보드 tooltip으로 확인한다. 날짜 문자열의 형식은 바꾸지 않는다. tooltip은 그래프 컨테이너 안에 가두므로 숨겨진 tooltip의 이전 좌표가 창 축소 후 작업 화면의 가로 스크롤을 만들지 않는다.
+
+`confirm({title:string,message?:string,confirmLabel:string}) -> Promise<boolean>`은 기존 DangerConfirmation을 연다. 취소에 초기 focus를 두며 취소·Esc는 false, 위험 확인 버튼은 true다. 화면 reload/unmount 시 대기 요청은 pickPath처럼 AbortError로 거절한다. 중복 확인 요청은 Error로 거절한다. 일반 확인 변형은 없다.
+
+합성 화면의 시각 비교(#1670, Windows persistent Chrome):
+
+| 대상 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+| --- | --- | --- | --- |
+| 변경 전 갤러리 | [보기](assets/plugin-screen-parts-1670/before-parts-1440-light.png) | [보기](assets/plugin-screen-parts-1670/before-parts-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/before-parts-640-light.png) |
+| Select·Input·행 선택 | [보기](assets/plugin-screen-parts-1670/after-parts-screen-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-screen-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-screen-640-light.png) |
+| 위험 확인 | [보기](assets/plugin-screen-parts-1670/after-parts-confirm-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-confirm-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-confirm-640-light.png) |
+| 2열·다열 표 폭 | [보기](assets/plugin-screen-parts-1670/after-parts-table-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-table-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-wide-640-light.png) |
+| 축 이름 | [보기](assets/plugin-screen-parts-1670/after-parts-long-1440-light.png) | [보기](assets/plugin-screen-parts-1670/after-parts-long-1440-dark.png) | [보기](assets/plugin-screen-parts-1670/after-parts-long-640-light.png) |
+
+변경 전 [표 폭](assets/plugin-screen-parts-1670/before-parts-table-1440-light.png)·[축 이름](assets/plugin-screen-parts-1670/before-parts-long-1440-light.png). 새 부품의 변경 전 표본은 해당 부품이 없던 갤러리다. 캡처는 수동 비교 근거이며 실제 AI 제작·소유자 시각 승인은 포함하지 않는다.
 
 ## 읽기 전용 문서 보기
 

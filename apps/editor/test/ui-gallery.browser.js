@@ -51,8 +51,19 @@ async (page, { expect, screenshots }) => {
     await page.screenshot({path:`tmp/parts-${width}-${theme}.png`});
     await page.getByRole("figure",{name:"Long time labels",exact:true}).scrollIntoViewIfNeeded();
     await page.screenshot({path:`tmp/parts-long-${width}-${theme}.png`});
-    await page.getByRole("table").scrollIntoViewIfNeeded();
+    await page.getByRole('region',{name:'Measurements',exact:true}).getByRole('table').scrollIntoViewIfNeeded();
     await page.screenshot({path:`tmp/parts-table-${width}-${theme}.png`});
+    await page.getByRole('region',{name:'Wide measurements',exact:true}).scrollIntoViewIfNeeded();
+    await page.screenshot({path:`tmp/parts-wide-${width}-${theme}.png`});
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  const tableWidth=await page.locator('.screen-data-table').first().evaluate(n=>({table:n.querySelector('table').getBoundingClientRect().width,parent:n.getBoundingClientRect().width,min:parseFloat(getComputedStyle(n).getPropertyValue('--layout-content-width'))*parseFloat(getComputedStyle(document.documentElement).fontSize)}));
+  expect(tableWidth.table).toBeLessThan(tableWidth.parent);
+  expect(tableWidth.table).toBeGreaterThanOrEqual(tableWidth.min);
+  for(const width of [1440,640]) {
+    await page.setViewportSize({width,height:1000});
+    const wide=page.getByRole('region',{name:'Wide measurements',exact:true});
+    expect(await wide.evaluate(n=>n.scrollWidth>n.clientWidth && n.getBoundingClientRect().width<=n.closest('.screen-data-table').getBoundingClientRect().width)).toBe(true);
   }
   const cards = page.locator('.screen-summary');
   const boxes = await cards.evaluateAll(nodes => nodes.map(n => ({height:n.getBoundingClientRect().height, label:n.firstElementChild.getBoundingClientRect().top,value:n.querySelector('.screen-summary-value').getBoundingClientRect().top})));
@@ -62,6 +73,7 @@ async (page, { expect, screenshots }) => {
   const ticks = page.getByRole('figure',{name:'Long time labels',exact:true}).locator('text').filter({hasText:'2026-11-13T00:'});
   await expect(ticks.first()).toContainText('2026-11-13T00:00:00Z');
   await expect(ticks.last()).toContainText('2026-11-13T00:59:00Z');
+  for (const tick of await ticks.all()) expect(await tick.locator('tspan').count()).toBeLessThanOrEqual(1);
   // Responsive chart rendering can replace ticks between browser round trips.
   // Measure the frame and current ticks in one DOM snapshot within the existing poll.
   let geometry;
@@ -79,10 +91,16 @@ async (page, { expect, screenshots }) => {
   expect(bounds[0].left).toBeGreaterThanOrEqual(frame.x);
   expect(bounds.at(-1).right).toBeLessThanOrEqual(frame.x + frame.width);
   }
+  const longChart=page.getByRole('figure',{name:'Long time labels',exact:true});
+  await longChart.locator('.recharts-line-dot').last().hover();
+  await expect(longChart.locator('.recharts-tooltip-wrapper')).toContainText('2026-11-13T00:59:00Z');
+  await longChart.getByRole('application').focus(); await page.keyboard.press('ArrowRight');
+  await expect(longChart.locator('.recharts-tooltip-wrapper')).toBeVisible();
+  await expect(longChart.locator('.recharts-tooltip-wrapper')).toContainText('2026-11-13T00:');
   const range = page.getByRole('slider', {name:'Visible range 1',exact:true});
   await range.focus(); await page.keyboard.press('ArrowRight');
   await expect(range).toHaveAttribute('aria-valuenow','1');
-  await expect(page.locator('tbody tr')).toHaveCount(4);
+  await expect(page.getByRole('region',{name:'Measurements',exact:true}).locator('tbody tr')).toHaveCount(4);
   const chart = page.getByRole('figure',{name:'Measurements',exact:true});
   await expect(chart.locator('.recharts-line')).toBeVisible();
   await chart.locator('.recharts-line-dot').last().hover();
