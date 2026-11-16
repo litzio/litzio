@@ -38,9 +38,9 @@ async (page, { openPath }) => {
   });
 
   const changedLatex = `${originalLatex} + 1`;
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   const block637 = page.locator('[data-document-tab][data-active=true] [data-block="equation"]').first();
   if (!await block637.evaluate((block) => block.contains(document.querySelector('[data-testid="equation-editor"]')))) {
     throw new Error('Equation editor must appear in its document block');
@@ -58,8 +58,8 @@ async (page, { openPath }) => {
   await page.getByTestId('equation-cancel').click();
   await page.getByRole('button',{name:'Save',exact:true}).click();
   await block637.hover({position:{x:4,y:4}});
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill(changedLatex);
   const beforeResponse = await page.getByTestId('equation-latex').inputValue();
   release();
@@ -77,9 +77,9 @@ async (page, { openPath }) => {
   if (requests[1].equations?.[0]?.to !== changedLatex) throw new Error('Applied Equation was omitted from the next save');
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   if (await page.getByTestId('equation-latex').inputValue() !== changedLatex) {
     throw new Error('Applied Equation was not reflected after reload');
   }
@@ -89,9 +89,9 @@ async (page, { openPath }) => {
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const canceledLatex = `${originalLatex} + 2`;
   await page.getByRole('button',{name:'Save',exact:true}).click();
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill(canceledLatex);
   release();
   await page.getByText('Unsaved changes',{exact:true}).filter({visible:true}).waitFor();
@@ -105,9 +105,9 @@ async (page, { openPath }) => {
   if (requests[1].equations?.length) throw new Error('Canceled Equation was included in the next save');
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   const reloadedCanceled = await page.getByTestId('equation-latex').inputValue();
   if (reloadedCanceled !== originalLatex) throw new Error('Cancel did not preserve the original Equation');
 
@@ -154,8 +154,8 @@ async (page, { openPath }) => {
         }
       };
       await equation.hover();
-      await equation.getByRole('button', {name:'Edit', exact:true}).click();
-      await page.getByTestId('equation-edit-source').click();
+      await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+      await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
       await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'equation-latex');
       await page.getByTestId('equation-latex').fill('x + 1');
       await page.getByTestId('equation-label').fill(label);
@@ -242,8 +242,8 @@ async (page, { openPath }) => {
       const original = await disk();
       const equation = editor.locator('[data-block="equation"]').first();
       await equation.hover();
-      await equation.getByRole('button', {name:'Edit', exact:true}).click();
-      await page.getByTestId('equation-edit-source').click();
+      await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+      await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
       const field = page.getByTestId(fieldName);
       await field.fill('alpha beta gamma');
       // The title area can put the label below the viewport; establish a real pointer target.

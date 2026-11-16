@@ -99,9 +99,9 @@ async (page, { openPath, screenshots }) => {
 
   // F. Source contains applied content; returning to Visual preserves each unapplied draft.
   const equation = page.locator('[data-document-tab][data-active=true] [data-block="equation"]').first();
-  await equation.getByRole('button', {name:'Edit', exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await equation.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('x + SourceDraft');
   await showSource();
   result.sourceExcludesEquationDraft = !(await sourceText()).includes('SourceDraft') && await page.getByTestId('draft-indicator').isVisible();
@@ -110,8 +110,8 @@ async (page, { openPath, screenshots }) => {
   await page.getByTestId('equation-cancel').click();
   const figure = page.locator('[data-document-tab][data-active=true] [data-block="figure"]').first();
   await figure.locator('img').click();
-  await figure.getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-  await figure.getByRole('button', {name:'Edit figure'}).click();
+  await figure.getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await figure.getByRole('button', {name:'Figure properties'}).click();
   await page.getByTestId('figure-alt').fill('Draft caption.');
   await showSource();
   result.sourceExcludesFigureDraft = !(await sourceText()).includes('Draft caption.');

@@ -141,7 +141,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
       const table = overlaySurface.locator('[data-block="table"]');
       await table.scrollIntoViewIfNeeded();
       await table.hover({position:{x:8,y:8}});
-      await table.getByRole('button',{name:'Edit table',exact:true}).click();
+      await table.getByRole('button',{name:'Table properties',exact:true}).click();
       await inspectOverlay(page.getByTestId('table-properties'),'table',width,outline);
       await page.getByTestId('table-label').press('Escape');
     }
@@ -185,7 +185,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   await page.keyboard.press('Escape');
   for (const language of ['en','ko']) {
     await page.evaluate(async language => (await import('/src/i18n.ts')).i18n.changeLanguage(language), language);
-    await secondEquation.getByTestId('equation-preview').click({position:{x:8,y:8}});
+    await secondEquation.getByTestId('equation-preview').click();
     if (screenshots) {
       for (const width of [1440,640]) {
         await page.setViewportSize({width,height:900});
@@ -194,7 +194,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
       }
     }
     await expect(secondEquation.locator('.block-kind')).toHaveText('식 (2) · eq-b');
-    await secondEquation.getByTestId('equation-preview').dblclick({position:{x:8,y:8}});
+    await secondEquation.getByTestId('equation-preview').dblclick();
     await expect(secondEquation.getByRole('form', {name:language==='ko'?'식 (2) 속성':'식 (2) properties',exact:true})).toBeVisible();
     await secondEquation.getByTestId('equation-cancel').click();
   }
@@ -407,9 +407,9 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
 
   // G. Renaming a label keeps the references resolved in the same transaction.
   const equationB = page.locator('[data-document-tab][data-active=true] [data-block="equation"]').nth(1);
-  await equationB.getByRole('button', {name:'Edit', exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await equationB.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equationB.getByRole('button', {name:'Equation properties', exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await equationB.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-label').fill('eq-c');
   await page.getByTestId('equation-apply').click();
   await page.getByTestId('equation-editor').waitFor({state:'detached'});
@@ -477,8 +477,8 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   await openCaption();
   result.captionShowsMathAndReferences = await captionReads();
   const captionFigure = page.locator('[data-document-tab][data-active=true] [data-block="figure"]');
-  await captionFigure.getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-  await captionFigure.getByRole('button', {name:'Edit figure'}).click();
+  await captionFigure.getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await captionFigure.getByRole('button', {name:'Figure properties'}).click();
   await page.getByTestId('figure-label').fill('fig-b');
   await page.getByTestId('figure-apply').click();
   await page.getByTestId('figure-editor').waitFor({state:'detached'});
@@ -550,13 +550,13 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   expect(await readReferences()).toEqual(['그림 1', '표 1', '식 (1)']);
   expect(await readCaptionLabels()).toEqual(['그림 1. ', '표 1. ']);
-  const figureEdit = active.getByRole('button', {name:'Edit figure', exact:true});
-  await figureEdit.locator('..').hover({position:{x:4,y:4}});
+  const figureEdit = active.getByRole('button', {name:'Figure properties', exact:true});
+  await figureEdit.locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
   await figureEdit.click();
   await expect(page.getByRole('dialog', {name:'그림 1 properties', exact:true})).toBeVisible();
   await page.getByTestId('figure-alt').press('Escape');
   await active.locator('[data-block="table"]').hover();
-  await active.getByRole('button', {name:'Edit table', exact:true}).click();
+  await active.getByRole('button', {name:'Table properties', exact:true}).click();
   await expect(page.getByRole('dialog', {name:'표 1 properties', exact:true})).toBeVisible();
   await page.getByTestId('table-label').press('Escape');
   await page.getByRole('button', {name:'Document settings', exact:true}).click();
@@ -578,11 +578,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
       editor.commands.setNodeSelection(pos);
       editor.view.focus();
     }, label);
-    if (kind === 'table') {
-      await active.getByRole('button', {name:'Table actions', exact:true}).click();
-      await page.getByRole('menu', {name:'Table actions',exact:true}).getByRole('menuitem', {name:'Delete table',exact:true}).click();
-    }
-    else await page.keyboard.press('Delete');
+    await page.keyboard.press('Delete');
     result[`${kind}DeletionNotice`] = (await page.getByTestId('notice').allTextContents()).some(text => kind === 'table'
       ? text.includes('Table deleted') && text.includes('Undo') : text.includes('broke a reference') && text.includes('Ctrl+Z'));
     result[`${kind}BrokenText`] = await reference.innerText() === `Unresolved reference: ${label}`;

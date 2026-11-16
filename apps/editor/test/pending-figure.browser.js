@@ -40,11 +40,12 @@ async (page, { openPath, expect }) => {
   const reference = page.locator('[data-testid="cross-reference"][data-label="fig-pfc-control"]').first();
   const form = page.getByTestId('figure-editor');
   const edit = async figure => {
-    const action = figure.getByRole('button', {name:'Edit figure'});
-    await action.locator('..').hover({position:{x:4,y:4}});
+    const action = figure.getByRole('button', {name:'Figure properties'});
+    await action.locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
     await action.click();
     await form.waitFor();
-    await page.getByTestId('figure-replace').click();
+    // An image-free Figure shows its Image field at once; one with an image reveals it through Replace image.
+    if (!await page.getByTestId('figure-image-url').isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
   };
   const apply = async () => {
     await page.getByTestId('figure-apply').click();
@@ -258,7 +259,7 @@ async (page, { openPath, expect }) => {
     await page.getByTestId('save').click();
     await requested;
     await edit(figures.first());
-    if (!await page.getByTestId('figure-image-url').isVisible()) await page.getByTestId('figure-replace').click();
+    if (!await page.getByTestId('figure-image-url').isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByTestId('figure-image-url').fill('./diagram.svg');
     await page.getByTestId('figure-alt').fill('PFC current control diagram');
     await apply();
@@ -281,7 +282,7 @@ async (page, { openPath, expect }) => {
       await figures.first().locator('figcaption').getAttribute('data-number') === 'Figure 1', 'Image connection lost numbering/reference');
 
     await edit(figures.first());
-    if (!await page.getByTestId('figure-image-url').isVisible()) await page.getByTestId('figure-replace').click();
+    if (!await page.getByTestId('figure-image-url').isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByTestId('figure-image-url').fill('');
     await page.getByTestId('figure-alt').fill('');
     await apply();

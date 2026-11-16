@@ -156,8 +156,8 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
   check((await read()).source === preview.markdown, 'Preview differs from real Save');
   const equation = editor().locator('[data-block="equation"]').first();
-  await equation.hover(); await equation.getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.hover(); await equation.getByRole('button', { name: 'Equation properties', exact: true }).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('x + 41');
   await compare();
   await dialog().getByText('0 changes', { exact: true }).waitFor();

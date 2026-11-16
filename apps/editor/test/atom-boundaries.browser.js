@@ -61,7 +61,7 @@ async (page, { openDocument, reloadDocument }) => {
     await page.keyboard.press(key);
     const selected = editor.locator('[data-selected="true"][data-block="equation"]');
     await selected.waitFor({state:'visible',timeout:10000});
-    check(await selected.getByRole('button',{name:'Edit',exact:true}).isVisible(), 'Selected atom must expose Edit');
+    check(await selected.getByRole('button',{name:'Equation properties',exact:true}).isVisible(), 'Selected atom must expose Edit');
     check(await snapshot() === original, 'Selecting must leave document unchanged');
     await page.keyboard.press(key);
     const deleted = await snapshot();

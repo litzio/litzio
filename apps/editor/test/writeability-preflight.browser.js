@@ -54,8 +54,8 @@ async (page, { openDocument }) => {
   const paragraph = editor.locator('p.paragraph').filter({hasText:'The current reference is calculated'});
   await paragraph.click(); await page.keyboard.press('End'); await page.keyboard.type(' Unsaved.');
   const equation = page.locator('[data-document-tab][data-active=true] [data-block="equation"]').first();
-  await equation.hover(); await equation.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.hover(); await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('x + draft');
   const local = await snapshot();
   // Failed Open adds no tab and preserves current applied work and property drafts.

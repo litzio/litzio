@@ -179,8 +179,8 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   const picker = page.getByRole('dialog', {name:'Choose image'});
   const pathField = picker.getByRole('combobox', {name:'Image path'});
   const editFigure = async index => {
-    const edit = figures.nth(index).getByRole('button', {name:'Edit figure'});
-    await edit.locator('..').hover({position:{x:4,y:4}}); await edit.click(); await page.getByTestId('figure-replace').click(); await imageField.waitFor();
+    const edit = figures.nth(index).getByRole('button', {name:'Figure properties'});
+    await edit.locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}}); await edit.click(); if (!await imageField.isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click(); await imageField.waitFor();
   };
   const chooseOutside = async () => {
     await page.getByRole('button', {name:'Choose…', exact:true}).click();

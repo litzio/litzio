@@ -179,9 +179,9 @@ async (page, { showNotifications }) => {
     result.toolbarKeyAppliesOnce = bolded.bold === 1 && bolded.undo && await editorState() === keyboardSelection.replace('"redo":false', '"redo":true');
 
     // Drafts stay visible and explicitly separate from applied Save content.
-    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).locator('..').hover({position:{x:4,y:4}});
-    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-    await page.getByTestId('equation-edit-source').click();
+    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-latex').fill('x + 1');
     result.equationDraftInBlock = await page.locator('[data-document-tab][data-active=true]').getByTestId('equation-draft-status').isVisible();
     result.saveAvailableDuringDraft = await page.getByTestId('save').isEnabled();
@@ -204,7 +204,7 @@ async (page, { showNotifications }) => {
     await page.locator('[data-document-tab][data-active=true] [data-block="figure"] img').click();
     result.figureSelectionOnly = await page.getByTestId('figure-properties').count() === 0 &&
       await page.locator('[data-document-tab][data-active=true] [data-block="figure"]').getAttribute('data-selected') === 'true';
-    await page.getByRole('button', {name:'Edit figure'}).click();
+    await page.getByRole('button', {name:'Figure properties'}).click();
     result.figurePopover = await page.getByTestId('figure-editor').isVisible();
     await settings.focus(); await settings.press('Enter');
     await page.keyboard.press('Escape'); await settingsDialog.waitFor({state:'hidden'});
@@ -234,9 +234,9 @@ async (page, { showNotifications }) => {
 
     // Handle click opens the block menu; Delete removes the table block
     // without resetting another block's in-progress Equation draft.
-    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).locator('..').hover({position:{x:4,y:4}});
-    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-    await page.getByTestId('equation-edit-source').click();
+    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-latex').fill('x + 2');
     // Hover the table while the Equation draft remains open.
     await page.locator('[data-document-tab][data-active=true] [data-block="table"]').hover({position:{x:8,y:8}});

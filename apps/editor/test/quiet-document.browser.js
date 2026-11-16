@@ -220,7 +220,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     }
   },selectors);
   const uiIsolation=await checkUIIsolation(['[data-testid="save"]','.document-settings-summary','.document-outline-item','.document-outline-number',
-    '.code-language','.figure-edit','.table-column-handle']);
+    '.code-language','.object-tools > button:first-child','.table-column-handle']);
   check(JSON.stringify(uiIsolation.before)===JSON.stringify(uiIsolation.after),
     `Document typography leaked into UI: ${JSON.stringify(uiIsolation)}`);
   await page.getByRole('button',{name:'Source',exact:true}).click();
@@ -580,7 +580,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     await page.keyboard.type('x');
     const hiddenAfterTyping = !await extent.isVisible();
     check(await equation.locator('.block-metadata').evaluate(n => getComputedStyle(n).visibility === 'visible') &&
-      await equation.locator('.equation-edit').evaluate(n => getComputedStyle(n).opacity === '1'),
+      await equation.locator('.object-tools').evaluate(n => getComputedStyle(n).opacity === '1'),
       'Typing changed the independent metadata/Edit hover rules');
     check(JSON.stringify(await hoverParagraph.boundingBox()) === JSON.stringify(beforeTyping),
       'Hiding the hover outline while typing moved content');
@@ -728,8 +728,8 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
       await rest();
       await shot(`${width}-figure-selected`);
     }
-    await page.getByRole('button',{name:'Edit figure'}).click();
-    await page.waitForFunction(()=>document.activeElement?.getAttribute('data-testid')==='figure-replace');
+    await page.getByRole('button',{name:'Figure properties'}).click();
+    await page.waitForFunction(()=>document.activeElement?.getAttribute('data-testid')==='figure-alt');
     await bounds(page.getByTestId('figure-properties'), `Figure ${width}`);
     await page.getByTestId('figure-alt').focus();
     const colors=await page.evaluate(()=>{
@@ -760,8 +760,8 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     // Equation Apply/Cancel is exercised by the dedicated Equation regressions.
     if (screenshots) {
       await page.locator('[data-document-tab][data-active=true] .equation').hover();
-      await page.locator('[data-document-tab][data-active=true] .equation').getByRole('button',{name:'Edit',exact:true}).click();
-      await page.getByTestId('equation-edit-source').click();
+      await page.locator('[data-document-tab][data-active=true] .equation').getByRole('button',{name:'Equation properties',exact:true}).click();
+      await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
       await page.getByTestId('equation-editor').waitFor();
       await page.evaluate(()=>document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0));
       await page.mouse.move(0,0);
@@ -802,15 +802,15 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
   let keyboardFigure=false;
   for(let i=0;i<12;i++) {
     await page.keyboard.press('Tab');
-    if(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')==='Edit figure')) {
-      keyboardFigure=await page.getByRole('button',{name:'Edit figure'}).evaluate(n=>getComputedStyle(n).opacity==='1'&&getComputedStyle(n).pointerEvents==='auto');
+    if(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')==='Figure properties')) {
+      keyboardFigure=await page.getByRole('button',{name:'Figure properties'}).evaluate(n=>getComputedStyle(n).opacity==='1'&&getComputedStyle(n).pointerEvents==='auto');
       break;
     }
   }
   check(keyboardFigure,'Figure Edit unreachable or invisible with Tab');
   check(await page.locator('[data-document-tab][data-active=true] .figure .block-metadata').evaluate(n=>getComputedStyle(n).visibility==='visible'),'Keyboard focus metadata missing');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(()=>document.activeElement?.getAttribute('data-testid')==='figure-replace');
+  await page.waitForFunction(()=>document.activeElement?.getAttribute('data-testid')==='figure-alt');
   await page.getByTestId('figure-alt').press('Escape');
     await page.getByTestId('figure-editor').waitFor({state:'detached'});
 
@@ -953,15 +953,12 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     await wide.locator('td').first().click();
     const actions=await wide.evaluate(block=>{
       const view=block.querySelector('.table-scroll').getBoundingClientRect();
-      return ['Edit table','Table actions'].map(name=>{
+      return ['Table properties'].map(name=>{
         const r=block.querySelector(`[aria-label="${name}"]`)?.getBoundingClientRect();
         return {name,visible:!!r&&r.width>0&&r.left>=view.left-0.5&&r.right<=view.right+0.5};
       });
     });
-    check(await wide.getByRole('button',{name:'Delete table',exact:true}).count()===0,'Delete table belongs in More');
-    await wide.getByRole('button',{name:'Table actions',exact:true}).click();
-    await page.getByRole('menu',{name:'Table actions',exact:true}).getByRole('menuitem',{name:'Delete table',exact:true}).waitFor();
-    await page.keyboard.press('Escape');
+    check(await wide.locator('.table-action-bar button').count()===1,'A table has only Properties in its tool row');
     check(actions.every(a=>a.visible),`Wide table actions out of view ${JSON.stringify({width,actions})}`);
     await rest();
     results.push({width,...local});

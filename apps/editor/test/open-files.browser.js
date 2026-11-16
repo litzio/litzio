@@ -277,8 +277,8 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
 
     const equation = page.locator('[data-document-tab][data-active=true] [data-block="equation"]');
     await equation.hover();
-    await equation.getByRole('button', {name:'Edit',exact:true}).click();
-    await page.getByTestId('equation-edit-source').click();
+    await equation.getByRole('button', {name:'Equation properties',exact:true}).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-latex').fill('x + draftClose');
     await closeA();
     await confirmation.getByText(/Unapplied property drafts will be lost with both Save and Don't save/).waitFor();
@@ -300,8 +300,8 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
 
     // Closing a hidden dirty tab keeps B active, including Cancel and draft discard.
     await openPath(page, pathA);
-    await equation.hover(); await equation.getByRole('button',{name:'Edit',exact:true}).click();
-    await page.getByTestId('equation-edit-source').click();
+    await equation.hover(); await equation.getByRole('button',{name:'Equation properties',exact:true}).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-latex').fill('hiddenDraft');
     await page.getByRole('tab',{name:'litzio-b.md',exact:true}).click();
     await closeA();

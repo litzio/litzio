@@ -122,8 +122,8 @@ async page => {
     const harness = page.locator('.document-editor').last();
     const equation = harness.locator('[data-block="equation"]');
     await equation.hover();
-    await equation.getByRole('button', {name:'Edit', exact:true}).click();
-    await page.getByTestId('equation-edit-source').click();
+    await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-latex').fill('Unapplied draft');
     await page.waitForFunction(() => window.sessionHarness.current.draftActive);
     const deferred = await page.evaluate(async () => {

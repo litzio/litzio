@@ -364,7 +364,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(fixtureSource).not.toContain('Enter a');
   await openPath(page, path);
   await table.hover();
-  await table.getByRole('button', {name:'Edit table',exact:true}).click();
+  await table.getByRole('button', {name:'Table properties',exact:true}).click();
   const original = await tableJSON();
   // Baseline reproduction uses its actual property field; the fixed UI edits the same word in place.
   if (await page.getByTestId('table-caption-input').count()) {
@@ -437,9 +437,9 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(movedFile.indexOf('After.')).toBeLessThan(movedFile.indexOf(':::{table}'));
   await reloadDocument(page);
   expect(await tableJSON()).toEqual(rich);
-  await table.hover();
-  await table.getByRole('button',{name:'Table actions',exact:true}).click();
-  await page.getByRole('menu',{name:'Table actions',exact:true}).getByRole('menuitem',{name:'Delete table',exact:true}).click();
+  await table.hover({position:{x:30,y:40}});
+  await page.locator('.block-controls.visible .block-handle').click();
+  await page.getByRole('menu', {name:'Block actions', exact:true}).getByRole('menuitem', {name:'Delete', exact:true}).click();
   expect(await caption.count()).toBe(0);
   await page.keyboard.press('ControlOrMeta+z');
   expect(await tableJSON(), 'One Undo restores the table and rich caption').toEqual(rich);
@@ -462,7 +462,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(await caption.count()).toBe(1);
   expect(await caption.getAttribute('data-number')).toBe('Table 1');
   await table.hover();
-  await table.getByRole('button',{name:'Edit table',exact:true}).click();
+  await table.getByRole('button',{name:'Table properties',exact:true}).click();
   await page.getByTestId('table-label').fill('');
   await page.getByTestId('table-apply').click();
   expect(await table.locator('.block-kind').textContent()).toBe('Table 1');

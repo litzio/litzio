@@ -40,8 +40,8 @@ async (page, { openPath, expect, screenshots }) => {
   };
   const open = async (block, button) => { await block.hover({ position: { x: 4, y: 4 } }); await button.click(); };
   const equation = active.locator('[data-block=equation]').first();
-  await open(equation, equation.getByRole('button', { name: '편집', exact: true }));
-  await page.getByTestId('equation-edit-source').click();
+  await open(equation, equation.getByRole('button', { name: '수식 속성', exact: true }));
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('x + y');
   // This status is a sibling of the form, inside .document-editor, not a form descendant.
   await prose(page.getByTestId('equation-draft-status'), 'equation draft', true);
@@ -58,19 +58,19 @@ async (page, { openPath, expect, screenshots }) => {
   await prose(page.getByTestId('equation-edit-preview-error'), 'embedded preview notice');
   await page.getByTestId('equation-cancel').click();
   const figure = active.locator('[data-block=figure]').first();
-  await open(figure, figure.locator('.figure-edit'));
+  await open(figure, figure.locator('.object-tools > button:first-child'));
   await page.getByTestId('figure-alt').fill('Changed alt');
   await prose(figure.getByTestId('figure-draft-status'), 'image draft', true);
   await prose(page.getByTestId('figure-automatic-number'), 'image hint');
   await page.getByTestId('figure-alt').press('Escape');
   const table = active.locator('[data-block=table]').first();
-  await open(table, table.getByRole('button', { name: '표 편집', exact: true }));
+  await open(table, table.getByRole('button', { name: '표 속성', exact: true }));
   await prose(page.getByTestId('table-editor'), 'table metadata form');
   await prose(page.getByTestId('table-automatic-number'), 'table hint');
   await page.getByTestId('table-label').press('Escape');
   const mermaid = active.locator('.mermaid-figure').first();
-  await open(mermaid, mermaid.locator('.figure-edit'));
-  await page.getByTestId('mermaid-edit-source').click();
+  await open(mermaid, mermaid.locator('.object-tools > button:first-child'));
+  await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('mermaid-edit-source').click();
   await page.getByTestId('mermaid-source').fill('graph LR\n A --> C');
   await prose(mermaid.getByTestId('figure-draft-status'), 'Mermaid draft', true);
   await prose(page.getByTestId('mermaid-automatic-number'), 'Mermaid hint');
