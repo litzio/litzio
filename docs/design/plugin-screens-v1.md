@@ -36,9 +36,6 @@ ui.Button의 생략 변형은 outline이며 주된 동작 하나에만 default�
 
 | 화면 | 변경 전 | 현재 |
 | --- | --- | --- |
-| 작업 화면 1440 밝음 | [Before](assets/plugin-screen-consistency-1663/before-consistency-screen-1440-light.png) | [After](assets/plugin-screen-consistency-1663/after-consistency-screen-1440-light.png) |
-| 작업 화면 1440 어두움 | [Before](assets/plugin-screen-consistency-1663/before-consistency-screen-1440-dark.png) | [After](assets/plugin-screen-consistency-1663/after-consistency-screen-1440-dark.png) |
-| 작업 화면 640 밝음 | [Before](assets/plugin-screen-consistency-1663/before-consistency-screen-640-light.png) | [After](assets/plugin-screen-consistency-1663/after-consistency-screen-640-light.png) |
 | DocumentView 1440 밝음 | [Before](assets/plugin-screen-consistency-1663/before-document-view-wide-1440-light.png) | [After](assets/plugin-screen-consistency-1663/after-document-view-wide-1440-light.png) |
 | DocumentView 1440 어두움 | [Before](assets/plugin-screen-consistency-1663/before-document-view-wide-1440-dark.png) | [After](assets/plugin-screen-consistency-1663/after-document-view-wide-1440-dark.png) |
 | DocumentView 640 밝음 | [Before](assets/plugin-screen-consistency-1663/before-document-view-wide-640-light.png) | [After](assets/plugin-screen-consistency-1663/after-document-view-wide-640-light.png) |
