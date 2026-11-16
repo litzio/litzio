@@ -36,7 +36,6 @@ export function DocumentStart({ mark, darkMark, recovery, recent, sample, busy, 
         {productName(i18n.language)}
       </p>
       <h1 id="document-start-title" className="document-start-title">{i18n.t("Start a {{product}} document")}</h1>
-      <p className="document-start-text">{i18n.t("Create a document, or open a folder to continue working on a {{product}} document.")}</p>
       <div className="document-start-actions">
         <Button size="sm" disabled={busy} onClick={event => onNewDocument(event.currentTarget)}>{i18n.t("New document…")}</Button>
         <Button size="sm" variant="outline" disabled={busy} onClick={event => onOpenFolder(event.currentTarget)}>

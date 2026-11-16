@@ -57,7 +57,7 @@ export function CommandCenter({ open, initialQuery, items, returnFocus, onClose 
           <div className="command-center-search">
             <Search aria-hidden="true" size={16} />
             <Combobox.Input ref={input} autoFocus aria-label={i18n.t("Search documents and commands")}
-              placeholder={i18n.t("Search open tabs, loaded documents and commands")}
+              placeholder={i18n.t("Search open tabs, loaded documents and commands")} title={i18n.t("Type > for commands")}
               render={<Input />} />
             <kbd aria-hidden="true">Esc</kbd>
           </div>
@@ -85,8 +85,7 @@ export function CommandCenter({ open, initialQuery, items, returnFocus, onClose 
               : i18n.t("Results: {{total}}", { total: filtered.length })}
           </Combobox.Status>
           <div className="command-center-footer">
-            <span>{i18n.t("Type > for commands")}</span>
-            <span><kbd>↑↓</kbd> {i18n.t("Navigate")} <kbd>Enter</kbd> {i18n.t("Run")}</span>
+            <kbd title={i18n.t("Navigate")}>↑↓</kbd><kbd title={i18n.t("Run")}>Enter</kbd>
           </div>
         </DialogContent>
       </Dialog>
