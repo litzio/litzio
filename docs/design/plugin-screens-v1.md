@@ -31,7 +31,7 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 ui.Button의 변형은 outline/default/ghost/destructive다. 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. 과거 secondary 입력은 오류 없이 outline으로 그린다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도를 쓰며 폭은 내용에 맞추되 부모 폭을 넘으면 내부 가로 스크롤을 사용한다. 표 전체의 최소 폭은 두지 않고 셀은 기존 이름표 폭과 space-6의 합을 최소 폭, reading-preview-width를 최대 폭으로 사용한다. 긴 값은 셀 안에서 줄바꿈하며 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
 
 행이 없는 DataTable의 빈 안내는 표와 같은 폭을 쓰며, 한 열의 좁은 표에서도 안내 문구가 줄바꿈된다. 빈 안내의 문구와 status 역할은 유지한다.
-플러그인 내용 영역(screen-layout)의 h2·h3·h4는 본문 크기를 상속하고 font-weight-semibold와 기존 간격 토큰으로 소제목 위계를 표현한다. 화면 틀 제목과 템플릿 갤러리의 제목 규칙은 유지한다.
+플러그인 내용 영역(screen-layout)의 h2는 type-section-title, h3·h4는 type-item-name과 기존 간격 토큰으로 소제목 위계를 표현한다. 화면 틀 제목과 템플릿 갤러리의 제목 규칙은 유지한다.
 
 빈 표·소제목 합성 화면 비교(1440px, Windows persistent Chrome):
 
@@ -81,7 +81,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 `ui.ScreenLayout({description?,status?,actions?,width?,children})`의 description은 머리에 표시한다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
 
-- `ui.Status({tone,label})`: tone은 ok/progress/warning/error/neutral. 표시와 글자의 알약이다. progress는 작게 도는 열린 고리이며 움직임 줄이기 설정에서는 정지한다. 다른 tone은 채운 점을 쓴다. ok는 정상 의미 색(`--id-color-success`), neutral은 보조 글씨 색, progress는 포인트, warning/error는 기존 의미 색으로 표시와 글씨를 그린다. 바탕은 조용한 표면(`--id-color-surface-subtle`)을 유지한다. 본문에서도 쓸 수 있다.
+- `ui.Status({tone,label,variant?})`: tone은 ok/progress/warning/error/neutral. 표시와 사람의 말로 된 글자의 알약이다. 원래 상태 식별자는 label로 넘기지 않는다. variant는 기본 pill이며 plain은 바탕과 안쪽 여백 없이 같은 점·색·고리를 쓴다. HostStatus도 이 부품의 plain을 쓴다. progress는 작게 도는 열린 고리이며 움직임 줄이기 설정에서는 정지한다. 다른 tone은 채운 점을 쓴다. ok는 정상 의미 색(`--id-color-success`), neutral은 보조 글씨 색, progress는 포인트, warning/error는 기존 의미 색으로 표시와 글씨를 그린다. 바탕은 조용한 표면(`--id-color-surface-subtle`)을 유지한다. 본문에서도 쓸 수 있다.
 - `ui.Steps({steps,current})`: 문자열 목록과 0부터 시작하는 현재 단계. 지난·현재·남은 단계를 구별하고 목록의 현재 항목은 aria-current="step"이다. 기본 위치는 머리 아래 내용 맨 위이며 클릭 이동은 없다.
 - `ui.EmptyState({title,description?,action?})`: 보조 표면·점선 테두리·가운데 정렬로 다음에 할 한 가지를 안내한다.
 - `ui.Progress({value?,label?})`: 기존 native progress와 포인트 색을 사용한다. value는 0..1, 생략하면 진행 정도를 모르는 상태다. progressbar 역할과 값·접근성 이름을 제공한다. 오래 걸리는 작업은 진행과 상태 문구를 함께 표시한다.
@@ -150,3 +150,31 @@ UI 갤러리 Screen parts의 Screen path selection은 합성 Host의 선택·폴
 | Host 연결됨 · 기본 Plum | [보기](assets/status-success-1678/status-host-light.png) | [보기](assets/status-success-1678/status-host-dark.png) |
 
 Green에서는 ok와 progress의 색조 차이가 작아 색만으로 구별하기 어렵다. label도 함께 읽어야 하며 이 비교를 소유자가 확인해야 한다. 캡처는 합성 화면의 비교 근거이고 소유자 시각 승인을 뜻하지 않는다.
+
+## 공용 정보 부품
+
+`ui.Row({label,description?,children,kind?})`는 본체 SettingsRow와 동일한 Row 구현이다. 기본 item의 이름은 type-item-name, 읽기 전용 fact의 이름은 type-value-name, 값은 type-body다. 이름은 왼쪽, 값·컨트롤은 오른쪽 끝에 놓이고 여러 컨트롤은 가로로 놓인다. select 폭은 기존 설정 값 열 토큰이다. 부모 폭이 좁으면 아래 왼쪽으로 내려가므로 narrow 열에서도 동작한다. fact는 각 줄마다 dl/dt/dd 한 쌍으로 만든다. 혼합 Section과 단독 줄에도 유효한 정의 목록 의미를 보존하기 위해서다. 숫자·날짜·버전은 tabular-nums, 경로·식별자는 code로 감싸 mono 보조 크기를 쓴다. Row가 code 안의 문자열을 `/`, `\`, `.`, `-`, `_` 뒤의 wbr 요소로 나눠 먼저 그 위치에서 줄바꿈하고, 구분자 없는 긴 조각만 글자 단위로 접는다. 보이지 않는 문자를 넣지 않아 복사한 원문은 그대로다. 행 자체를 focus 대상으로 만들지 않으며 내부 컨트롤의 label·Tab 순서를 보존한다.
+
+`ui.Section({title,description?,children})`은 여러 줄의 묶음이다. 이름은 type-group-title과 아래 구분선이며 묶음 간 간격은 space-6이다. 항목 하나에는 묶음을 만들지 않고 항목 이름을 제목으로 반복하지 않는다. description은 결과를 바꾸는 설명만 준다.
+
+플러그인 h2는 type-section-title, h3·h4는 type-item-name의 역할 정의를 공유한다. 문서 보기 안 제목은 제외한다. SummaryCard의 이름·설명은 item-name·helper이며 값은 큰 수치를 빠르게 읽는 기존 표현을 유지하기 위해 screen-title 크기 토큰을 쓴다.
+
+PanelHeader는 본체 패널의 구역 제목·아이콘·오른쪽 동작과 heading level을 제공한다. 작업 탭 제목은 TaskHeader가 계속 소유하며 높이·여백·구분선은 shared-parts.css에서 함께 정의한다. 문서 패널의 탐색 탭은 이 PR에서 옮기지 않는다.
+
+### 공용 부품 비교 캡처 (#1690)
+
+한국어 합성 화면을 persistent Chrome으로 확인했다. 실제 AI 호출·실제 변환 업무·packaged Desktop·소유자 시각 승인은 포함하지 않는다. 설정의 작업 폴더는 로컬 식별자 노출을 피하려고 가렸다. Before는 변경 전 소스, After는 같은 시나리오의 공용 부품 적용 결과다.
+
+| 대상 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+| --- | --- | --- | --- |
+| 갤러리 | [보기](assets/shared-parts-1690/gallery-1440-light.png) | [보기](assets/shared-parts-1690/gallery-1440-dark.png) | [보기](assets/shared-parts-1690/gallery-640-light.png) |
+| 플러그인 full | [보기](assets/shared-parts-1690/plugin-full-1440-light.png) | [보기](assets/shared-parts-1690/plugin-full-1440-dark.png) | [보기](assets/shared-parts-1690/plugin-full-640-light.png) |
+| 플러그인 narrow | [보기](assets/shared-parts-1690/plugin-narrow-1440-light.png) | [보기](assets/shared-parts-1690/plugin-narrow-1440-dark.png) | [보기](assets/shared-parts-1690/plugin-narrow-640-light.png) |
+| 플러그인 설정 창 | [보기](assets/shared-parts-1690/plugin-settings-1440-light.png) | [보기](assets/shared-parts-1690/plugin-settings-1440-dark.png) | [보기](assets/shared-parts-1690/plugin-settings-640-light.png) |
+| 설정 표시·언어 | [전](assets/shared-parts-1690/before-settings-appearance-1440-light.png) / [후](assets/shared-parts-1690/after-settings-appearance-1440-light.png) | [전](assets/shared-parts-1690/before-settings-appearance-1440-dark.png) / [후](assets/shared-parts-1690/after-settings-appearance-1440-dark.png) | [전](assets/shared-parts-1690/before-settings-appearance-640-light.png) / [후](assets/shared-parts-1690/after-settings-appearance-640-light.png) |
+| 설정 저장·복구 | [전](assets/shared-parts-1690/before-settings-recovery-1440-light.png) / [후](assets/shared-parts-1690/after-settings-recovery-1440-light.png) | [전](assets/shared-parts-1690/before-settings-recovery-1440-dark.png) / [후](assets/shared-parts-1690/after-settings-recovery-1440-dark.png) | [전](assets/shared-parts-1690/before-settings-recovery-640-light.png) / [후](assets/shared-parts-1690/after-settings-recovery-640-light.png) |
+| 설정 플러그인 | [전](assets/shared-parts-1690/before-settings-plugins-1440-light.png) / [후](assets/shared-parts-1690/after-settings-plugins-1440-light.png) | [전](assets/shared-parts-1690/before-settings-plugins-1440-dark.png) / [후](assets/shared-parts-1690/after-settings-plugins-1440-dark.png) | [전](assets/shared-parts-1690/before-settings-plugins-640-light.png) / [후](assets/shared-parts-1690/after-settings-plugins-640-light.png) |
+| 설정 비서 | [전](assets/shared-parts-1690/before-settings-assistant-1440-light.png) / [후](assets/shared-parts-1690/after-settings-assistant-1440-light.png) | [전](assets/shared-parts-1690/before-settings-assistant-1440-dark.png) / [후](assets/shared-parts-1690/after-settings-assistant-1440-dark.png) | [전](assets/shared-parts-1690/before-settings-assistant-640-light.png) / [후](assets/shared-parts-1690/after-settings-assistant-640-light.png) |
+| 설정 정보·업데이트 | [전](assets/shared-parts-1690/before-settings-about-1440-light.png) / [후](assets/shared-parts-1690/after-settings-about-1440-light.png) | [전](assets/shared-parts-1690/before-settings-about-1440-dark.png) / [후](assets/shared-parts-1690/after-settings-about-1440-dark.png) | [전](assets/shared-parts-1690/before-settings-about-640-light.png) / [후](assets/shared-parts-1690/after-settings-about-640-light.png) |
+
+갤러리의 좁은 열은 창 폭과 무관한 부모 폭 검증이다. 이름 시작선·값 끝선·select 폭·버튼 두 개·긴 경로 줄바꿈은 자동 geometry 비교와 캡처를 함께 확인한다. 각 줄은 focus를 가로채지 않고 내부 컨트롤만 Tab으로 방문한다. Status 진행 고리는 공통 motion-safe 전환 규칙과 reduced motion을 따른다.

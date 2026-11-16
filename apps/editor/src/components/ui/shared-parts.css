@@ -1,0 +1,18 @@
+/* Each row queries its own available width without changing surrounding containers. */
+.shared-row.settings-row { container-type: inline-size; margin: 0; grid-template-columns: minmax(0, 1fr) minmax(0, var(--layout-settings-control-width)); }
+.shared-row .settings-row-control { justify-content: flex-end; text-align: end; overflow-wrap: anywhere; margin: 0; }
+.shared-row .settings-label { min-width: 0; overflow-wrap: anywhere; }
+.shared-row .screen-select { width: 100%; }
+.settings-field-control { display: flex; justify-content: flex-end; width: 100%; min-width: 0; }
+.shared-row[data-kind="fact"] .settings-row-control { font-variant-numeric: tabular-nums; }
+.shared-row code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); white-space: normal; overflow-wrap: anywhere; word-break: normal; min-width: 0; max-width: 100%; }
+.shared-section > h2 { margin: var(--space-6) 0 0; padding-bottom: var(--space-3); }
+.shared-section > p { margin: var(--space-3) 0 0; }
+@container (width < 40rem) {
+  .shared-row > .settings-label, .shared-row > .settings-row-control { grid-column: 1 / -1; }
+  .shared-row .settings-row-control, .settings-field-control { justify-content: flex-start; text-align: start; }
+}
+.panel-header, .task-header { min-height: var(--layout-header-row); padding: var(--space-6); border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.panel-header > :first-child { margin: 0; display: flex; align-items: center; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
+.panel-header-actions { display: flex; align-items: center; gap: var(--space-2); }

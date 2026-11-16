@@ -119,3 +119,14 @@ UI 원칙과 화면 종류별 바탕·여백은 [DESIGN.md](../../DESIGN.md)를 
 ## 범위 밖
 
 기존 컴포넌트 리디자인·반복 조합 공통화·플러그인 검사 확대는 이 결정표의 제공 기능이 아니다.
+
+## 이름·값과 상태 부품 선택
+
+| 표시할 정보 | 공통 구현 | 갤러리 |
+| --- | --- | --- |
+| 이름과 값·설정 한 줄 | Row (SettingsRow는 같은 구현), ui.Row | Shared parts의 item·fact·좁은 열 |
+| 여러 줄의 묶음 | Section, ui.Section | Shared parts의 표시 방식 |
+| 패널의 구역 머리 | PanelHeader; 작업 탭은 TaskHeader | Shared parts의 머리 |
+| 사람의 말로 된 상태 | Status, ui.Status; HostStatus도 같은 표시 | Shared parts의 pill·plain × 다섯 tone |
+
+규칙과 남은 화면 적용은 [DESIGN Components](../../DESIGN.md#components)를 따른다.

@@ -36,7 +36,9 @@ export const SCREEN_UI = {
   Select: 'label:string, value:string, onValueChange(value:string), options:{value:string,label:string}[], optional disabled:boolean, placeholder:string. Single selection with label above the control.',
   Notice: 'children, optional tone="error"; catch async/event failures here.',
   DataTable: 'title:string, rows:object[], columns:string[], optional labels:{field:"Label"}, fields:{field:{type:"number"}}, rowKey:string (identity field), selectedKey?:string|number, onSelectRow?:(row)=>void. With onSelectRow, click or focus a row and press Enter/Space to select; links do not select. Caller owns selectedKey across sorting/filtering/pages.',
-  Status: 'tone:"ok"|"progress"|"warning"|"error"|"neutral", label:string. A label pill on a quiet surface; ok uses a success-colored dot, progress uses an accent-colored spinning open ring (static with reduced motion); usable in header or body.',
+  Row: 'label:ReactNode, description?:ReactNode, children:ReactNode, kind?:"item"|"fact" (item by default). Name left, values/controls right; stacks in narrow containers. fact is a semantic definition pair; use code for paths/identifiers.',
+  Section: 'title:string, description?:string, children:ReactNode. Group multiple Rows; description only when it changes the result. Do not repeat an item name or wrap a single item.',
+  Status: 'tone:"ok"|"progress"|"warning"|"error"|"neutral", label:string, variant?:"pill"|"plain" (pill by default). Human language only, never raw state identifiers. A label pill on a quiet surface; ok uses a success-colored dot, progress uses an accent-colored spinning open ring (static with reduced motion); usable in header or body.',
   Steps: 'steps:string[], current:number (zero based). Display-only ordered list, aria-current="step" on current item.',
   EmptyState: 'title:string, optional description:string, action:ReactNode. One next action, usually a default Button.',
   Progress: 'optional value:number (0..1; omitted for indeterminate), label:string. Native progressbar with accent color.',
@@ -51,6 +53,8 @@ export const SCREEN_UI_GUIDANCE = Object.entries(SCREEN_UI).map(([name, props]) 
 Design rules:
 - The frame owns background, page padding and the screen title; do not add them yourself.
 - Put screen status and main actions in ScreenLayout status/actions, in the header.
+- Use ui.Row for a name and value/control; ui.Section for several rows. Do not repeat group/item names or group a single item.
+- Use ui.Status with human language, never raw status identifiers.
 - Use ui.Steps for ordered work, ui.EmptyState for one next action when empty, and ui.Progress with status text for long work.
 - Use width="narrow" for one-step-at-a-time work; full for tables and charts.
 - Button defaults to outline; use variant="default" for only the screen's one main action.
@@ -80,6 +84,7 @@ return <ui.ScreenLayout description="Measurements over time" status={<ui.Status 
   {error && <ui.Notice tone="error">{error}</ui.Notice>}
   {!rows.length ? <ui.EmptyState title="Load measurements to begin" description="Use the action in the header."/> : <>
   <ui.Toolbar><ui.Select label="Chart" value={kind} options={[{value:"line",label:"Line"},{value:"bar",label:"Bar"}]} onValueChange={setKind}/></ui.Toolbar>
+  <ui.Section title="Dataset"><ui.Row kind="fact" label="Records">{rows.length}</ui.Row><ui.Row kind="fact" label="Chart style">{kind === "line" ? "Line" : "Bar"}</ui.Row></ui.Section>
   <ui.Toolbar><ui.SummaryCard label="Total" value={rows.reduce((s,r)=>s+r.value,0)}/></ui.Toolbar>
   <ui.Chart kind={kind} title="Measurements" data={rows} xKey="time" yKey="value" baseline={15}/>
   <ui.DataTable title="Measurements" rows={rows} columns={["time","value"]} fields={{value:{type:"number"}}}/>

@@ -1,3 +1,6 @@
+@import "./components/ui/shared-parts.css";
+@import "./components/ui/status.css";
+
 * {
   box-sizing: border-box;
 }
@@ -992,6 +995,8 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
   padding-block: var(--space-4);
   border-bottom: var(--border-width) solid var(--id-color-border-subtle);
 }
+.settings-section:not(.settings-section--stacked) > .settings-actions { grid-column: -2 / -1; justify-content: flex-end; }
+.plugin-settings-dialog .settings-actions { justify-content: flex-end; }
 .settings-section > [role="alert"] { grid-column: 1 / -1; }
 .settings-section > .settings-progress { grid-column: 1 / -1; }
 .settings-row { align-items: center; }
@@ -1032,7 +1037,8 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
   .settings-body { grid-template-columns: minmax(0, 1fr); align-content: start; }
   .settings-navigation { gap: var(--space-3); border-right: 0; border-bottom: var(--border-width) solid var(--id-color-border); padding-block: var(--space-4); }
   .settings-content { padding: var(--space-6); }
-  .settings-section { grid-template-columns: minmax(0, 1fr); }
+  .settings-section:not(.shared-row) { grid-template-columns: minmax(0, 1fr); }
+  .settings-section:not(.settings-section--stacked) > .settings-actions { justify-content: flex-start; }
 }
 
 .settings-heading {
@@ -3291,7 +3297,7 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 /* Work tabs share the gallery surface; settings retains its own column layout. */
 .task-surface { height: 100%; min-width: 0; min-height: 0; overflow: auto; padding: var(--space-6); background: var(--id-color-surface); }
 .task-surface-title { margin: 0; }
-.task-header { position: sticky; top: calc(-1 * var(--space-6)); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-6); padding: var(--space-6); background: var(--id-color-surface); border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
+.task-header { position: sticky; top: calc(-1 * var(--space-6)); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-6); background: var(--id-color-surface); }
 .task-header-heading { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
 .task-header-description { font-size: var(--font-size-sm); margin-top: var(--space-2); }
 .task-header-description:empty, .task-header-trailing:empty { display: none; }

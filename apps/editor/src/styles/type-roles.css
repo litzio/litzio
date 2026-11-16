@@ -23,7 +23,7 @@
   font-weight: var(--font-weight-semibold);
   color: var(--id-color-text);
 }
-.type-section-title {
+.type-section-title, .task-surface .screen-layout :where(h2):not(:where(.screen-document-view *, .shared-section > h2)) {
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--id-color-text);
@@ -34,7 +34,7 @@
   color: var(--id-color-text-muted);
   border-bottom: var(--border-width) solid var(--id-color-border-subtle);
 }
-.type-item-name, .form-label, .settings-heading {
+.task-surface .screen-layout :where(h3, h4):not(:where(.screen-document-view *)), .type-item-name, .form-label, .settings-heading {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--id-color-text);

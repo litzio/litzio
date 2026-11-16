@@ -32,6 +32,7 @@ export function authoringTemplate(id: string, template: "screen" | "chart") {
     <ui.Toolbar>
       <ui.SummaryCard label="합계" value={values.reduce((a,b)=>a+b,0)}/>
     </ui.Toolbar>
+    <ui.Section title="데이터"><ui.Row kind="fact" label="측정 개수">{values.length}</ui.Row><ui.Row kind="fact" label="합계">{values.reduce((a,b)=>a+b,0)}</ui.Row></ui.Section>
     <ui.Chart kind={kind} title="측정값" data={rows} xKey="time" yKey="value" baseline={15}/>
     <ui.DataTable title="측정값" rows={rows} columns={["time","value"]} fields={{time:{type:"number"},value:{type:"number"}}}/>
     </>}

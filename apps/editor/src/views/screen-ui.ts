@@ -1,3 +1,4 @@
+import { Row, Section } from "../components/ui/row.tsx";
 import { createElement, type ComponentProps } from "react";
 import type { SCREEN_UI } from "@litzio/plugin-sdk";
 import { Button } from "../components/ui/button.tsx";
@@ -7,7 +8,7 @@ import { Notice } from "../ui/primitives.tsx";
 import { Status, Steps, EmptyState, Progress, Select, Chart, ScreenLayout, Slider, SummaryCard, Toolbar } from "../components/ui/screen-parts.tsx";
 import { DocumentView } from "./screen-document-view.tsx";
 
-export const screenUI = { Button: ScreenButton, Input, Select, Status, Steps, EmptyState, Progress, DataTable: ScreenDataTable, Notice, Chart, ScreenLayout, Slider, SummaryCard, Toolbar, DocumentView } satisfies Record<keyof typeof SCREEN_UI, unknown>;
+export const screenUI = { Row, Section, Button: ScreenButton, Input, Select, Status, Steps, EmptyState, Progress, DataTable: ScreenDataTable, Notice, Chart, ScreenLayout, Slider, SummaryCard, Toolbar, DocumentView } satisfies Record<keyof typeof SCREEN_UI, unknown>;
 
 function ScreenDataTable(props: ComponentProps<typeof DataTable>) {
   return createElement("div", { className: "screen-data-table" }, createElement(DataTable, props));

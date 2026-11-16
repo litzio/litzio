@@ -1,4 +1,3 @@
-import { LoaderCircle } from "lucide-react";
 import type { ScreenSelectProps, ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "@litzio/plugin-sdk";
 import { useContext, useId, type ReactNode } from "react";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
@@ -17,9 +16,7 @@ export function ScreenLayout({ description, status, actions, width = "full", chi
   const descriptionNode = description && <p className="screen-description">{description}</p>;
   return <>{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width}>{!slots && <>{descriptionNode}{status}{actions}</>}{children}</section></>;
 }
-export function Status({tone = "neutral", label}: {tone: "ok" | "progress" | "warning" | "error" | "neutral"; label: string}) {
-  return <span className="screen-status" data-tone={tone}><span aria-hidden="true">{tone === "progress" && <LoaderCircle strokeWidth={3} className="motion-safe:animate-spin" />}</span>{label}</span>;
-}
+export { Status } from "./status.tsx";
 export function Steps({steps, current}: {steps: string[]; current: number}) {
   return <ol className="screen-steps">{steps.map((step, index) => <li key={index} aria-current={index === current ? "step" : undefined} data-state={index < current ? "past" : index === current ? "current" : "remaining"}><span className="screen-step-number" aria-hidden="true">{index + 1}</span><span>{step}</span></li>)}</ol>;
 }
@@ -33,7 +30,7 @@ export function Toolbar({ children, label }: { children: ReactNode; label?: stri
   return <div className="screen-toolbar" role={label ? "group" : undefined} aria-label={label}>{children}</div>;
 }
 export function SummaryCard({ label, value, description }: ScreenSummaryProps) {
-  return <div className="screen-summary"><strong className="screen-description">{label}</strong><span className="screen-summary-value">{value}</span>{description && <span className="screen-description">{description}</span>}</div>;
+  return <div className="screen-summary"><strong className="type-item-name">{label}</strong><span className="screen-summary-value type-body">{value}</span>{description && <span className="screen-description type-helper">{description}</span>}</div>;
 }
 export function Slider({ label, value, onValueChange, min, max, step = 1, disabled = false }: ScreenSliderProps) {
   return <BaseSlider.Root className="screen-slider" value={value} onValueChange={v => onValueChange(Array.isArray(v) ? v : [v])} min={min} max={max} step={step} disabled={disabled} thumbAlignment="edge">
