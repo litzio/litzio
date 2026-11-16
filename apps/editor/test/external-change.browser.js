@@ -33,8 +33,8 @@ async (page, { openPath, activeDocument, removeTabFixture, screenshots, expect }
   // Inject an engine edit during a held GET to exercise the response-acceptance race;
   // ordinary pointer/keyboard input is blocked by Reload's existing modal boundary.
   let releaseRead, readStarted;
-  const reading = new Promise(resolve => { readStarted = resolve; });
-  const readBarrier = new Promise(resolve => { releaseRead = resolve; });
+  let reading = new Promise(resolve => { readStarted = resolve; });
+  let readBarrier = new Promise(resolve => { releaseRead = resolve; });
   const holdRead = async route => {
     if (route.request().method() !== 'GET') { await route.continue(); return; }
     const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
@@ -44,13 +44,32 @@ async (page, { openPath, activeDocument, removeTabFixture, screenshots, expect }
   try {
     removeTabFixture(disk.source + '\nRacing disk content.\n');
     await reading;
+    await expect(page.getByRole('dialog', { name: 'Reloading…', exact: true })).toBeVisible();
+    const paragraphBounds = await activeDocument(page).getByText('External disk content.', { exact: true }).boundingBox();
+    await page.mouse.click(paragraphBounds.x + paragraphBounds.width / 2, paragraphBounds.y + paragraphBounds.height / 2);
+    await page.keyboard.type('Blocked reload input.');
+    await expect(activeDocument(page)).not.toContainText('Blocked reload input.');
     await activeDocument(page).locator('.document-editor').evaluate(node => node.editor.commands.insertContentAt(1, 'Input during reload. '));
+    await page.mouse.down();
     releaseRead();
     await expect(page.getByRole('dialog', { name: 'Reloading…', exact: true })).toBeHidden();
+    await page.mouse.up();
     await expect(activeDocument(page)).toContainText('Input during reload.');
     await page.getByTestId('external-change').getByRole('button', { name: 'Reload from disk', exact: true }).click();
+    reading = new Promise(resolve => { readStarted = resolve; });
+    readBarrier = new Promise(resolve => { releaseRead = resolve; });
     await page.getByRole('button', { name: 'Discard and reload', exact: true }).click();
+    await reading;
+    await page.mouse.move(paragraphBounds.x + paragraphBounds.width / 2, paragraphBounds.y + paragraphBounds.height / 2);
+    await page.mouse.down();
+    releaseRead();
     await activeDocument(page).getByText('Racing disk content.', { exact: true }).waitFor();
+    await expect(page.getByRole('dialog', { name: 'Reloading…', exact: true })).toBeHidden();
+    await page.mouse.up();
+    await activeDocument(page).getByText('Racing disk content.', { exact: true }).click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' Input after reload.');
+    await expect(activeDocument(page)).toContainText('Racing disk content. Input after reload.');
   } finally { releaseRead(); await page.unroute('**/api/document?*', holdRead); }
   // A delayed check of the previous checkpoint must not flag our own successful Save.
   let release, reached;
