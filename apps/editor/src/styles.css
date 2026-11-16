@@ -3578,6 +3578,15 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 
 @media (prefers-reduced-motion: reduce) {
   :root { --duration-fast: 0s; --duration-normal: 0s; }
+  /* Base UI clears starting/ending attributes on its lifecycle frame. Zero
+   * duration alone must not leave that frame scaled or transparent. */
+  :is([data-slot="dialog-content"], [data-slot="dropdown-menu-content"],
+  [data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"],
+  [data-slot="dialog-overlay"], .notification-center li, .notification-auto):is([data-starting-style], [data-ending-style]) {
+    opacity: 1;
+    transform: none;
+  }
+  @starting-style { .notification-center li, .notification-auto:not([hidden]) { opacity: 1; transform: none; } }
 }
 .notification-auto[hidden] { display: none; }
 
