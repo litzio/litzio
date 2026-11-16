@@ -25,23 +25,21 @@
 | 앱 전체 설정을 바꾼다 | 작업 탭 | Settings / PluginSettings | 앱 설정은 즉시 반영 · 문서 Save와 분리 · 선택값 저장 오류는 입력 피드백 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터)) | [SettingsDialog](../../apps/editor/src/shell/SettingsDialog.tsx) | [AI 설정의 순차 자동 저장](main-agent-v1.md#연결과-설정)의 저장 시점은 각 계약을 따른다. [#1032 탭 수명·키보드·캡처](editor-ux-shell-v1.md#settings-task-tab-1032)를 따른다. |
 
 - Status: Implemented
-- Last verified: 2026-11-16 — #1650 문서 전체와 현재 코드·계약을 정적으로 대조했다. 제품·브라우저 실행 재검증 없음.
+- Last verified: 2026-11-16 — #1662 문서·현재 코드·연결 계약을 정적으로 대조했다. 제품·브라우저 실행 재검증 없음.
 - Scope: 에이전트의 기존 UI 선택과 소유자의 개발 갤러리 검토. [#1013 승인 범위](https://github.com/litzio/litzio/issues/1013#issuecomment-6594406926).
-- Authority: [AGENTS.md](../../AGENTS.md), [Visual Language](editor-visual-language-v1.md), [Layout Rules](editor-layout-rules-v1.md), [UI Patterns](ui-patterns-v1.md). 기존 기본 경로의 안내이며 새 시각·행동 규범이 아니다. UI Patterns의 승인된 미구현 목표는 제공 중인 구현과 구별한다.
+- Authority: [DESIGN.md](../../DESIGN.md), [AGENTS.md](../../AGENTS.md), [Visual Language](editor-visual-language-v1.md), [Layout Rules](editor-layout-rules-v1.md), [UI Patterns](ui-patterns-v1.md). 기존 기본 경로의 안내이며 새 시각·행동 규범이 아니다. 미구현 불일치는 DESIGN.md와 UI Patterns의 연결된 목록에서 확인한다.
 
 ## 작업 순서
 
 표에서 표면을 고른 뒤 아래 구현·예제·실제 사용처를 읽는다. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용·공개 Plugin API 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.
 
-문서의 읽기 여백과 앱 조작 밀도를 구별한다. 문맥 속성은 대상과 연결하고, AI 보조 작업은 문서와 함께 확인하며, 전역 설정의 전체 화면을 작은 속성 폼에 복제하지 않는다. 규범은 [Direction](editor-visual-language-v1.md#direction)과 [Alignment and ownership](editor-layout-rules-v1.md#alignment-and-ownership)에 있다. 큰 배치 변경은 실제 화면에서 검토한다.
+UI 원칙과 화면 종류별 바탕·여백은 [DESIGN.md](../../DESIGN.md)를 따른다. 큰 배치 변경은 실제 화면에서 검토한다.
 
 ## 공통 규칙
 
-### 최소 폭 검수 (#1455)
+### 최소 폭 검수
 
-640px은 최소 지원 폭이다. 검수 기준은 **깨지지 않음**(의도하지 않은 겹침·잘림·조작 불가 없음)이며, 1440px과 같은 동시 정보량이나 배치 완성도를 요구하지 않는다. 여러 패널을 나란히 보는 화면은 좁은 폭에서 기본 동작과 넓은 창 권장 안내만 보장한다. 의도한 탐색기·비서·문서 패널 오버레이는 각 닫기·포커스 계약을 따른다. 캡처는 1440px이 기본이며 640px은 배치가 바뀌는 변경에서만 남긴다. 이미 있는 640px 자동 검사와 단언은 유지한다. [소유자 결정 #1455](https://github.com/litzio/litzio/issues/1455), [레이아웃 계약](editor-layout-rules-v1.md#supported-viewport-and-input)을 따른다.
-
-탐색기는 기존 Sidebar·Button·Tooltip·트리와 문서 패널의 fixed overlay·shadow 토큰을 재사용한다. 비서와 같은 1100px 경계(공용 Adjustable value)를 쓰며 넓은 창의 도킹 선택은 보존한다. 새 공통 표면이나 상호작용 예외는 없다. [동작과 캡처](editor-ux-shell-v1.md#narrow-explorer-overlay-1455).
+지원 폭·깨지지 않음의 기준은 [DESIGN.md Layout](../../DESIGN.md#layout)을 따른다. 캡처는 1440px이 기본이며 640px은 배치가 바뀌는 변경에서만 남긴다. 기존 640px 자동 단언은 유지한다. 여러 패널의 의도한 overlay·닫기·focus와 넓은 창 권장 안내는 [레이아웃 계약](editor-layout-rules-v1.md#supported-viewport-and-input), [탐색기 계약](editor-ux-shell-v1.md#narrow-explorer-overlay-1455)을 따른다.
 
 [shadcn 공식 스킬](https://github.com/shadcn-ui/ui/blob/main/skills/shadcn/SKILL.md)에서 현재 Base UI·제품 토큰 구성과 맞는 항목만 채택한다. 스킬은 설치하지 않으며 레지스트리 기본 외형을 가져오지 않는다. Litzio의 기존 권한 문서가 우선한다.
 
@@ -50,7 +48,7 @@
 - 새 flex/grid 형제 배치는 `space-x/y-*` 대신 토큰에 맞는 `gap-*`를 쓴다([DialogHeader/Footer](../../apps/editor/src/components/ui/dialog.tsx)).
 - Tailwind로 같은 폭·높이를 지정할 때 `size-*`를 사용한다. 컨트롤 크기는 새 수치 대신 기존 size variant·토큰을 고른다([Button](../../apps/editor/src/components/ui/button.tsx)).
 
-**선택지 묶음:** 한 묶음에서 하나를 고르는 값은 [ChoiceGroup](../../apps/editor/src/components/ui/choice-group.tsx)을 사용한다. 기존 Base UI Button 기반 view-toggle을 일반화해 토큰·28px track과 label 폭 예약을 재사용한다. 필수 단일 선택이며 재선택은 해제하지 않는다. 기존처럼 Tab은 각 버튼을 방문하고 Enter/Space로 선택한다. 화살표 선택이나 다중 선택은 현재 사용처에 없으므로 추가하지 않는다. 독립 서식·폭·Outline 토글, 탭·메뉴·문서 selection은 각 소유자의 계약을 유지한다. Plugin에는 공개하지 않는다(#1028).
+**선택지 묶음:** 부품 선택은 [DESIGN.md Components](../../DESIGN.md#components)를 따른다. [ChoiceGroup](../../apps/editor/src/components/ui/choice-group.tsx)의 세부 동작은 다음과 같다. 기존 Base UI Button 기반 view-toggle을 일반화해 토큰·28px track과 label 폭 예약을 재사용한다. 필수 단일 선택이며 재선택은 해제하지 않는다. 기존처럼 Tab은 각 버튼을 방문하고 Enter/Space로 선택한다. 화살표 선택이나 다중 선택은 현재 사용처에 없으므로 추가하지 않는다. 독립 서식·폭·Outline 토글, 탭·메뉴·문서 selection은 각 소유자의 계약을 유지한다. Plugin에는 공개하지 않는다(#1028).
 
 ## 공통 구현
 
@@ -81,17 +79,15 @@
 
 `main.tsx`의 `import.meta.env.DEV` 분기에서 동적 import하고 Tailwind의 source 검색에서 `src/dev`를 제외한다. `pnpm --filter @litzio/editor build` 후 `apps/editor/dist`의 JS/CSS에 `ui-gallery`, `Litzio UI gallery`, `gallery-dialog-name`이 없는지 확인한다. 개발 연결은 `pnpm browser:test ui-gallery`가 실제 Dialog 열기·닫기·focus 복귀로 검사한다. 외형은 수동 Light/Dark 검토이며 전수 조합·픽셀 CI를 추가하지 않는다([테스트 설계](../contributing/test-design.md)).
 
-수동 검토: Windows persistent Chrome, 1440×1100, English, Plum, 100% zoom. [Light](assets/ui-gallery-1013/gallery-1440-light.png) / [Dark](assets/ui-gallery-1013/gallery-1440-dark.png) / [오류 상태](assets/ui-gallery-1013/gallery-error-dark.png). 버튼 정렬·입력 여백·상태 구별·잘림을 확인했다. 기존 화면 변경이 아닌 새 개발 화면이므로 Before 캡처는 없다.
+## 선택지 분류
 
-## 선택지 분류와 검증 (#1034)
-
-`apps/editor/src`의 `aria-pressed`, active/selected 조건과 view-toggle 사용처를 조사했다. 현재 같은 역할의 다중 선택 묶음은 없다.
+현재 선택지의 역할 분류다. 같은 역할의 다중 선택 묶음은 없다.
 
 | 사용처 | 분류 / 처리 | 이유 |
 | --- | --- | --- |
 | NumberField (그림·Mermaid·표·수식) | 필수 단일 선택 → ChoiceGroup | Automatic / Fixed 초안 값과 기존 콜백 유지 |
 | DocumentActions | 필수 단일 선택 → ChoiceGroup | Read / Edit / Source 및 Markdown Text 보기; disabled·접근성 이름 유지 |
-| UiGallery Theme·Example state | 필수 단일 선택 → ChoiceGroup | 메모리상의 한 값; 제품 공통 토큰 사용. 범주는 #1298의 왼쪽 탐색으로 이동 |
+| UiGallery Theme·Example state | 필수 단일 선택 → ChoiceGroup | 메모리상의 한 값; 제품 공통 토큰 사용. 범주는 왼쪽 탐색 사용 |
 | SelectionToolbar | 독립 서식 토글 유지 | Bold/Italic/Strike/Subscript/Superscript/Code는 editor mark 명령, Link는 편집 진입 |
 | DocumentActions Wide / Outline | 독립 토글 유지 | 각각 별도의 표시 환경설정·패널 열기 |
 | TableTools 행/열 손잡이 | 문서 selection·메뉴 anchor 유지 | 가변 문서 좌표, row/column selection과 메뉴 키보드 소유권 |
@@ -99,128 +95,26 @@
 | CommandMenu / FolderDialog / Sidebar | 메뉴·listbox·tree 유지 | active item은 명령 탐색·파일/폴더 탐색이며 선택지 버튼 묶음이 아님 |
 | BlockHandles / NodeView / DocumentTab / PluginTab | 대상·문서 활성 상태 유지 | hover/문서 selection/표시 수명; 선택지 컨트롤이 아님 |
 
-검사 설계: 기존 `read-view`, `text-mode`, `figure-authoring`는 실제 문서 보기와 NumberField의 초안·저장 연결을 보호한다. 기존 `ui-gallery`에 공통 구현의 Tab 이동, Enter/Space, 필수 선택 재선택·disabled를 대표 한 묶음으로 추가한다. Core 의미는 변경하지 않으며 전수 조합·새 subprocess·CI 성공 캡처를 추가하지 않는다. Editor 단위 검사·typecheck/build·문서/토큰 검사를 함께 실행한다. Browser/HTTP/Desktop의 나머지 필수 검사는 PR CI가 담당한다.
+## 화면별 구현 선택
 
-수동 캡처는 Windows persistent Chrome, 1440×1000, English, 같은 문서·고정 번호 속성 및 갤러리의 같은 상태다. `pnpm browser:test numbering-mode --screenshots`로 일시적인 촬영용 body를 실행한 뒤 원래 시나리오를 복원했다. 자동 검사에 촬영 순회를 넣지 않았다.
+#1110/#1124: 비서 대화 선택은 기존 outline Button·Tooltip·DropdownMenu와 DropdownMenuItem을 재사용한다.
+현재 값은 Check·aria-current로 표시한다. 대화별 선택·권한·복원은 [비서 계약](main-agent-v1.md#현재-한계)을 따른다.
 
-| 화면 | Light Before / After | Dark Before / After |
+| 상황 | 공통 구현·예외 | 동작을 소유하는 계약 |
 | --- | --- | --- |
-| 문서 보기·번호 속성 | [Before](assets/choice-group-1034/before-document-light.png) / [After](assets/choice-group-1034/after-document-light.png) | [Before](assets/choice-group-1034/before-document-dark.png) / [After](assets/choice-group-1034/after-document-dark.png) |
-| 갤러리 | [Before](assets/choice-group-1034/before-gallery-light.png) / [After](assets/choice-group-1034/after-gallery-light.png) | [Before](assets/choice-group-1034/before-gallery-dark.png) / [After](assets/choice-group-1034/after-gallery-dark.png) |
+| 알림 묶음 | NotificationCenter의 내부 disclosure·ghost Button | [P07 묶음·마지막 닫기](ui-patterns-v1.md#같은-종류-묶음과-마지막-닫기) |
+| AI 설정 | SettingsSelect·ghost Button·모델 Dialog | [비서 설정](main-agent-v1.md#연결과-설정), [P05](ui-patterns-v1.md#p05-입력칸placeholder위계) |
+| Desktop 연결·진단·종료 | DesktopMenu의 NotificationCenter·Button·DropdownMenu, About의 SettingsRow·details, main의 native 종료 확인 | [Desktop 로컬 연결](desktop-distribution-v1.md#desktop-local-connection), [공유 daemon](desktop-distribution-v1.md#shared-daemon-desktop) |
+| 저장·복구 비교 | VisualCompare·DocumentEditor Read NodeView·ChoiceGroup·Button·Tooltip; unchanged-run disclosure만 ProseMirror decoration 소유 native button 예외. editor 위치 mapping 안에 유지 | [저장 비교](editing-session-save-v1.md#pre-save-visual-comparison-1201), [복구 비교](editing-session-save-v1.md#recovery-visual-comparison-1201) |
+| PDF 읽기 | task tab·DocumentTabs·Button·Tooltip·Input·Notice. 원본 종이는 테마와 무관하게 흰색 PDF paper 역할 | [Shell PDF](editor-ux-shell-v1.md#read-only-pdf-tabs-1337), [Host](filesystem-host-boundary-v1.md#pdf-byte-preview-1337) |
+| 템플릿 목록·미리보기 | task tab·카드·읽기 Popover·이름 Dialog, metadata 편집 폼과 구별 | [템플릿 갤러리](document-templates-v1.md#editor-gallery-phase-2) |
 
-시각 점검: 문서 보기와 번호 세그먼트는 전후 동일한 정렬·높이·대비를 유지했다. 갤러리는 같은 토큰의 quiet track과 선택 면으로 통일했으며 control 높이와 글자 대비·잘림을 점검했다. 문서 Light Before 하단의 Mermaid는 비동기 렌더 중이며 변경 대상 세그먼트 밖의 차이다.
+### 갤러리 탐색과 네이티브 목록
 
-## 알림 묶음 (#1005, #986)
+왼쪽 탐색은 Controls / Surfaces / Menus / Notifications / Tables / Screen parts를 선택하며 기본은 Controls다. ghost/sm Button과 Settings의 settings-navigation·aria-current 패턴을 쓴다. Theme·Example state는 ChoiceGroup이며 안내는 키보드로 여는 Example guidance disclosure에 둔다. 묶음 전환은 해당 예제 상태를 초기화하고 테마·상태 선택은 갤러리 수명 동안 유지한다.
 
-기존 NotificationCenter와 ghost/sm·icon-sm Button, Lucide chevron/X 및 제품 토큰을
-재사용한다. 묶음은 내부 목록의 disclosure이며 새 표면·Plugin API는 추가하지 않는다.
-원인별 숨김·재발과 위치 이동은 기존 등록 경로를 유지한다. 등록 출처·문맥·심각도·
-기존 유형 값으로 묶으며, singleton과 유형 불명 메시지의 보수적 묶음 기준은
-[P07 계약과 전후 캡처](ui-patterns-v1.md#같은-종류-묶음과-마지막-닫기-1005-986)를 따른다.
-기존 native 행/폼 예외를 확장하지 않으며 새 공통 구현 예외는 없다.
+필터는 DataTable·Popover·native form-select를 사용한다. 공통 form-select option은 surface/text 역할을 함께 지정해 네이티브 펼침 목록의 대비를 유지한다. SettingsSelect·DataTable도 같은 레시피를 공유한다.
 
 ## 범위 밖
 
 기존 컴포넌트 리디자인·반복 조합 공통화·플러그인 검사 확대는 이 결정표의 제공 기능이 아니다.
-
-#1110/#1124: 비서 대화 선택은 기존 outline Button·Tooltip·DropdownMenu와 DropdownMenuItem을 재사용한다.
-단추에서 목록이 바로 열리며 현재 값은 기존 Check 아이콘·aria-current로 표시한다.
-경계는 border-control, 목록은 surface/text 토큰을 따른다. radio wrapper를 추가하지 않는다. 새 공통 상호작용 예외는 없다.
-프로바이더 고정·다음 turn 권한·기록 복원은 [비서 계약](main-agent-v1.md#현재-한계)을 따른다.
-
-## AI provider settings (#1109)
-
-공식 Settings → AI agent에서 SettingsSelect, ghost Button과 모델 Dialog를 재사용한다.
-프로바이더 행은 이름·실제 상태와
-진단을 표시하며 기존 설정 화면 geometry와 자동 저장을 유지한다. 새 공통 상호작용 예외는 없다.
-타입은 코드가, 자동 저장 동작은 [비서 설정 계약](main-agent-v1.md#연결과-설정)이 근거다. 과거 캡처는 해당 문서의 고정 커밋 이력에 보존한다.
-
-## Desktop daemon (#1142)
-
-기존 Sidebar footer의 ghost/icon-sm Button·Ellipsis와 DropdownMenu를 재사용한다. 메뉴에는 브라우저에서 열기와 daemon 종료를 둔다. 종료 확인은 기존 main의 native confirmation 경계를 재사용하며 항상 연결된 탭·진행 작업의 중단을 안내한다. About 설정은 SettingsRow와 기존 details disclosure로 상태·주소·주체·버전 및 상세 진단을 표시한다. 연결 끊김은 기존 NotificationCenter·Button으로 다시 연결을 제공한다. 새로운 화면 구조·공통 UI·Plugin API 예외는 없다. 1440px/640px 캡처는 PR 검증 근거로 남긴다.
-
-검증: `pnpm browser:test desktop-updates --screenshots`의 persistent Chrome, English/Light, 1440×1000 및 640×1000. 동일 production 컴포넌트와 native boundary stand-in을 사용했다. 메뉴 열기, 주소·주체·버전 표시, 종료 후 끊김 알림/다시 연결을 자동 검사와 함께 확인했다. 실제 native stop 확인은 main wiring 검사, daemon 종료는 실제 subprocess 검사로 별도 보호한다. 새 메뉴는 기존 Tab 순서를 보존하도록 Settings·Color mode 뒤에 둔다.
-
-| Surface | 1440px | 640px |
-| --- | --- | --- |
-| Menu | [capture](assets/desktop-daemon-1142/daemon-menu-1440.png) | [capture](assets/desktop-daemon-1142/daemon-menu-640.png) |
-| Status | [capture](assets/desktop-daemon-1142/daemon-status-1440.png) | [capture](assets/desktop-daemon-1142/daemon-status-640.png) |
-| Disconnected | [capture](assets/desktop-daemon-1142/daemon-disconnected-1440.png) | [capture](assets/desktop-daemon-1142/daemon-disconnected-640.png) |
-
-시각 점검: 640px 설정의 기존 세로 전환, 주소 줄바꿈, 메뉴의 화면 안 배치, 끊김 본문·행동 및 닫기 버튼의 잘림 없음을 확인했다. 기존 공통 UI를 그대로 사용했으며 새 예외는 없다.
-
-## Desktop bundled connection (#1150 ⑤)
-
-기존 DesktopMenu의 NotificationCenter·ghost/sm Button과 About의 SettingsRow를 그대로
-쓴다. 최초 연결 중·실패와 제품 버전 경고도 같은 창 단위 알림이며 새 표면·공통 구현
-예외는 없다. 비서의 연결 알림과 기존 daemon 끊김 알림을 함께 확인했다.
-
-Windows dev Electron, English/Light, 앱 번들 `litzio://app/index.html`, 1440×1000 및
-640×1000에서 검토했다. 최초 daemon 미가동 시작은 이전에 화면 자체가 없어서 같은
-상태의 Before 캡처가 없다. 기존 연결 끊김 표면의 Before는 위 #1142 캡처를 유지한다.
-
-| 상태 | 1440px | 640px |
-| --- | --- | --- |
-| 최초 연결 실패 / CLI 안내·Reconnect | [capture](assets/desktop-bundled-1150/disconnected-1440.png) | [capture](assets/desktop-bundled-1150/disconnected-640.png) |
-| 같은 화면의 수동 재연결 완료 | [capture](assets/desktop-bundled-1150/connected-1440.png) | [capture](assets/desktop-bundled-1150/connected-640.png) |
-
-본문·긴 오류의 줄바꿈, Reconnect·알림 닫기, 640px 콘텐츠/Sidebar의 잘림 없음을 확인했다.
-새 origin의 복구 [실행 기록](assets/desktop-bundled-1150/recovery-proof.json)은 dev Electron의
-앱 프로세스 강제 종료·일반 닫기/재시작 → Restore → Save/Reload·외부 409를 기록한다.
-패키징/설치 검증이 아니다. 패키지 검사는 PR CI가 담당한다. 촬영은 일회성 dev 수동
-검토이며 CI 성공 캡처용 순회를 추가하지 않았다.
-
-## Pre-save comparison (#1201)
-
-Visual/Source uses the existing ChoiceGroup; Previous/Next and Close use Button and
-the existing comparison Dialog. Both snapshots reuse DocumentEditor with the shared
-Read boundary and Read NodeViews. One shared compact summary per changed pair and
-the comparison information icon use the existing Button/Tooltip components. Removed
-and added surfaces and `−`/`+` markers reuse the Source comparison convention.
-The sole control exception is the unchanged-run
-disclosure: a native button owned by a ProseMirror decoration widget, using existing
-spacing/surface/border/focus tokens and aria-expanded. Keeping it in the editor's
-position mapping avoids a second React editor or detached DOM ownership. Its keyboard
-activation is covered by the existing pre-save browser scenario. Details and scope:
-[Editing session and Save](editing-session-save-v1.md#pre-save-visual-comparison-1201).
-
-Recovery Compare reuses the same VisualCompare, ChoiceGroup, diff markers and
-ComparisonInfo Tooltip without adding another renderer. Its existing Restore/Delete/
-Not now controls and plaintext copy retain their behavior. See the
-[recovery display contract](editing-session-save-v1.md#recovery-visual-comparison-1201).
-
-## 갤러리 탐색과 네이티브 목록 (#1298)
-
-갤러리는 왼쪽 탐색에서 Controls / Surfaces / Menus / Notifications / Tables / Screen parts 묶음을 선택한다. 기본 묶음은 Controls다. Button ghost/sm과
-Settings의 `settings-navigation` 현재 항목(`aria-current="page"`) 패턴을 재사용한다.
-Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내는 키보드로도 열 수
-있는 Example guidance disclosure에 둔다. 선택한 묶음의 예제 상태는 전환 시 초기화하고
-테마·상태 선택은 갤러리 수명 동안 유지한다. 별도 공통 navigation 컴포넌트나 탭 계약은 만들지 않는다.
-
-필터는 제품 공통 DataTable/Popover와 native `.form-select`를 유지한다. Windows Chrome에서
-`color-scheme: dark`만으로 펼침 목록의 흰 배경과 상속한 밝은 글자가 함께 나타나는 것을
-수정 전 캡처로 재현했다. 공통 `.form-select option`에 기존 surface/text 역할을 함께 지정한다.
-같은 레시피를 사용하는 SettingsSelect·DataTable 고정 선택도 이 규칙을 공유하며, 문서 의미·저장·CLI는 바뀌지 않는다.
-
-수동 검토: Windows persistent Chrome, 100% zoom, 1000px 높이. 1440px English Light
-[변경 전](assets/gallery-navigation-1298/before-1440.png) /
-[변경 후](assets/gallery-navigation-1298/after-1440.png), 640px Korean Dark
-[변경 전](assets/gallery-navigation-1298/before-640.png) /
-[변경 후](assets/gallery-navigation-1298/after-640.png).
-필터 네이티브 펼침 목록 [Dark 변경 전](assets/gallery-navigation-1298/before-native-popup.png) /
-[Dark 변경 후](assets/gallery-navigation-1298/after-native-640.png) /
-[Light 변경 후](assets/gallery-navigation-1298/after-native-1440.png).
-실제 Chrome 캡처에 목록이 포함된 것을 직접 보고 옵션 대비, 행 정렬·입력 여백·사이드바와
-패널 경계·640px 테이블 내부 가로 스크롤을 확인했다. DOM 단언을 네이티브 픽셀 검증으로
-취급하지 않는다. Windows의 모든 브라우저/OS 조합이나 패키지된 Desktop의 네이티브 목록은
-이 캡처로 검증하지 않았으며 Settings 실제 화면도 별도로 촬영하지 않았다.
-
-기존 `ui-gallery` 회귀에 묶음 이동/현재 항목/다른 예제 비노출, 공통 옵션의 paired 역할,
-빈 값 필터 실제 적용을 보완한다. CSS 연결과 갤러리 탐색이 주된 브라우저 검증 계층이다.
-기존 정렬·범위 필터/뷰 수명·차트 회귀는 유지한다. 새 subprocess나 전수 조합은 없으며,
-촬영은 임시 scenario body로 `pnpm browser:test ui-gallery --screenshots`를 실행하고 원래
-회귀 body를 복원하는 별도 수동 검토다. 외부 Host/AI 수락이나 OS별 전수 검증을 뜻하지 않는다.
-
-## PDF reading choice (#1337)
-
-Explorer PDF activation uses the existing task tab rather than the transient image dialog: multiple pages require sustained reading and navigation. DocumentTabs, Button, Tooltip, Input and Notice are reused. The source paper remains white in dark mode; only the surrounding surface follows theme. The fixed `--id-color-pdf-paper` role expresses this approved source-color exception and adds no common interaction. Behavior and limits: [shell contract](editor-ux-shell-v1.md#read-only-pdf-tabs-1337), [Host boundary](filesystem-host-boundary-v1.md#pdf-byte-preview-1337).

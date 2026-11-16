@@ -94,12 +94,12 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 [AGENTS.md](../AGENTS.md)는 저장소 전체 제약, [CONTRIBUTING.md](../CONTRIBUTING.md)는 setup·검증 matrix·PR 절차의 진입점이다.
 
-## UI pattern targets awaiting implementation
+## UI 선택과 반복 패턴
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
 | [UI decision table and gallery](design/ui-decision-table-v1.md) | Implemented | 에이전트의 표면·공통 구현 선택 기준과 개발 전용 갤러리 사용법을 정한다. 배치·표현·반복 동작의 규범은 Layout Rules·Visual Language·UI Patterns가 소유한다. |
-| [UI patterns](design/ui-patterns-v1.md) | Draft | 소유자가 확정한 반복 UI 패턴 목표와 현재 기준 구현·사용처, 알려진 불일치·후속 이슈 및 다른 화면 확인 규칙을 정의한다. |
+| [UI patterns](design/ui-patterns-v1.md) | Implemented | 반복 UI의 현재 기준 구현·사용처와 알려진 불일치·후속 이슈 및 다른 화면 확인 규칙을 정의한다. |
 
 ## Historical reviews and spikes
 
