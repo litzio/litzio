@@ -93,8 +93,11 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 | 상태 | 1440 밝음 | 1440 어두움 | 640 밝음 |
 | --- | --- | --- | --- |
 | 변경 전 | [보기](assets/plugin-screen-frame-1675/before-1440-light.png) | [보기](assets/plugin-screen-frame-1675/before-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/before-640-light.png) |
+| 처음 | [보기](assets/plugin-screen-frame-1675/frame-start-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-start-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-start-640-light.png) |
+| 진행 | [보기](assets/plugin-screen-frame-1675/frame-run-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-run-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-run-640-light.png) |
+| 완료 | [보기](assets/plugin-screen-frame-1675/frame-done-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-done-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-done-640-light.png) |
 
-변경 전 [템플릿 갤러리](assets/plugin-screen-frame-1675/before-gallery.png). 캡처는 합성 화면의 수동 비교 근거이며 실제 변환·AI 제작·소유자 시각 승인은 포함하지 않는다.
+[스크롤 중](assets/plugin-screen-frame-1675/frame-scrolled.png), 템플릿 갤러리 [변경 전](assets/plugin-screen-frame-1675/before-gallery.png)·[현재](assets/plugin-screen-frame-1675/after-gallery.png). 캡처는 합성 화면의 수동 비교 근거이며 실제 변환·AI 제작·소유자 시각 승인은 포함하지 않는다.
 
 ## 읽기 전용 문서 보기
 

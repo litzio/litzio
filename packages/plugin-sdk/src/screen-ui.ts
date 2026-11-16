@@ -77,11 +77,12 @@ Example body (inside Screen with React/ui/invoke supplied):
 const [kind,setKind]=React.useState("line");
 const [rows,setRows]=React.useState([]), [error,setError]=React.useState("");
 return <ui.ScreenLayout description="Measurements over time" status={<ui.Status tone="neutral" label={rows.length ? "Loaded" : "Ready"}/>} actions={<ui.Button variant="default" onClick={()=>invoke("load").then(setRows).catch(e=>setError(e.message))}>Load measurements</ui.Button>}>
+  {error && <ui.Notice tone="error">{error}</ui.Notice>}
+  {!rows.length ? <ui.EmptyState title="Load measurements to begin" description="Use the action in the header."/> : <>
   <ui.Toolbar><ui.Select label="Chart" value={kind} options={[{value:"line",label:"Line"},{value:"bar",label:"Bar"}]} onValueChange={setKind}/></ui.Toolbar>
   <ui.Toolbar><ui.SummaryCard label="Total" value={rows.reduce((s,r)=>s+r.value,0)}/></ui.Toolbar>
-  {error && <ui.Notice tone="error">{error}</ui.Notice>}
-  {!rows.length && <ui.EmptyState title="Load measurements to begin" description="Use the action in the header."/>}
   <ui.Chart kind={kind} title="Measurements" data={rows} xKey="time" yKey="value" baseline={15}/>
   <ui.DataTable title="Measurements" rows={rows} columns={["time","value"]} fields={{value:{type:"number"}}}/>
+  </>}
 </ui.ScreenLayout>;
 `;
