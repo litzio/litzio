@@ -19,7 +19,7 @@ UI 작업 전에 해당 패턴과 같은 패턴을 쓰는 다른 사용처를 �
 - **현재 기준:** [MetadataProperties](../../apps/editor/src/metadata-properties.tsx)를 그림·표·수식·절 label이 공유하며 대상 전체(절 label은 연결된 제목)에 붙인다. `documentContentBounds`를 공유하는 작은 폼의 콘텐츠 경계(#782), Mermaid 원문의 본문 폭, 미주 in-place와 문서/앱 설정의 범위 분리.
 - **사용처:** U01–U11 그림·수식·표·미주·inline/절 label, U12 제목, U13 문서 설정, U22 앱 설정.
 
-짧은 metadata와 긴 원문·미주·설정의 경계를 구별한다. 자동 우측 inspector를 열지 않는다. metadata label 칩도 클릭·Enter/Space로 같은 폼의 Label에 진입한다. 동작 행 방향·DOM/Tab 순서·focus 복구와 intrinsic preview는 [metadata 계약](figure-authoring-v1.md#stable-metadata-actions-1626), 비동기 원문 preview의 높이 예약·내부 스크롤은 [Mermaid 계약](figure-authoring-v1.md#mermaid-editor)을 따른다.
+짧은 metadata와 긴 원문·미주·설정의 경계를 구별한다. 자동 우측 inspector를 열지 않는다. 레이블과 번호는 그림·Mermaid·표·수식의 속성 팝오버와 Mermaid·수식 원문 폼에서 같은 2열 배치를 쓴다. metadata label 칩도 클릭·Enter/Space로 같은 폼의 Label에 진입한다. 동작 행 방향·DOM/Tab 순서·focus 복구와 intrinsic preview는 [metadata 계약](figure-authoring-v1.md#stable-metadata-actions-1626), 비동기 원문 preview의 높이 예약·내부 스크롤은 [Mermaid 계약](figure-authoring-v1.md#mermaid-editor)을 따른다.
 
 ## P02 자동·고정 번호
 
