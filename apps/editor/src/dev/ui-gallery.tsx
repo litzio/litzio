@@ -1,3 +1,4 @@
+import { SharedPartsExample } from "./shared-parts-example.tsx";
 import { ScreenFrameExample } from "./screen-frame-example.tsx";
 import { ScreenPartsExample } from "./screen-parts-example.tsx";
 import { ScreenPathExample } from "./screen-path-example.tsx";
@@ -128,7 +129,7 @@ export function UiGallery() {
     <div className="ui-gallery-body">
     <aside className="ui-gallery-navigation settings-navigation">
       <nav aria-label="Gallery elements">
-        {["Controls", "Surfaces", "Menus", "Notifications", "Tables", "Screen parts", "Document view"].map(value =>
+        {["Controls", "Surfaces", "Menus", "Notifications", "Tables", "Screen parts", "Shared parts", "Document view"].map(value =>
           <Button key={value} variant="ghost" size="sm" aria-current={category === value ? "page" : undefined}
             onClick={() => setCategory(value)}>{value}</Button>)}
       </nav>
@@ -144,6 +145,7 @@ export function UiGallery() {
       <details><summary>Example guidance</summary><p>{state === "interaction" ? "Move the pointer over examples or press Tab to inspect real hover and keyboard focus. These states are not painted simulations."
         : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p></details>
     </div>
+    {visible("Shared parts") ? <SharedPartsExample /> : null}
     {visible("Screen parts") ? <><h2 className="task-surface-title">Screen parts</h2><ScreenFrameExample /><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
     {visible("Document view") ? <><h2 className="task-surface-title">Document view</h2><DocumentViewExample /></> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}

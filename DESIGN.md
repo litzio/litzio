@@ -197,6 +197,13 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 [screen-parts.tsx](apps/editor/src/components/ui/screen-parts.tsx)의 화면 부품별 사용법은
 [플러그인 화면 계약](docs/design/plugin-screens-v1.md)이 소유한다.
 
+같은 종류의 정보는 본체와 플러그인에서 같은 공용 부품으로 만든다.
+
+- 줄은 `Row`(`SettingsRow`는 같은 구현의 별칭, 플러그인은 `ui.Row`)다. 이름은 왼쪽 선, 값·컨트롤은 오른쪽 끝 선에 맞춘다. 비교할 위치를 일정하게 하기 위해서다. 좁은 부모에서는 값이 이름 아래의 왼쪽 선으로 내려간다.
+- 여러 줄의 묶음은 `Section`(`ui.Section`)이다. 묶음 이름과 항목 이름을 중복하지 않고, 항목 하나에는 묶음을 만들지 않는다. 불필요한 위계를 줄이기 위해서다. 설명은 결과를 바꾸는 경우만 상시 표시한다.
+- 패널 머리는 `PanelHeader`다. 구역 이름은 왼쪽, 동작은 오른쪽이며 `TaskHeader`와 높이·여백·구분선 정의를 공유한다. 같은 구역 경계를 같은 모양으로 읽게 하기 위해서다. 대화상자는 Dialog 구조를 유지하고 제목만 `type-section-title`을 쓴다.
+- 상태는 `Status`(`ui.Status`)의 점과 사람의 말로 표시하고 원래 상태 값을 그대로 보이지 않는다. 색에 의존하지 않고 이해하게 하기 위해서다. `ok`는 정상·완료, `progress`는 처리 중(도는 고리), `warning`은 확인 필요, `error`는 실패, `neutral`은 대기·중립이다. 알약 `pill`과 바탕 없는 `plain`은 같은 표시를 쓴다.
+
 ## Do's and Don'ts
 
 - 채운 주 버튼을 여러 개 두지 않는다. 하나만 남기고 보조 동작은 테두리로 쓴다.
@@ -218,7 +225,9 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 ### 알려진 불일치
 
-- 글씨 역할 적용: 설정 화면 [#1685](https://github.com/litzio/litzio/issues/1685), 구역 머리와 비서 패널 [#1686](https://github.com/litzio/litzio/issues/1686), 플러그인 부품과 나머지 화면 [#1687](https://github.com/litzio/litzio/issues/1687).
+- [#1685](https://github.com/litzio/litzio/issues/1685): 설정의 사실 목록·묶음·상태 문구를 Row·Section·Status로 옮긴다.
+- [#1686](https://github.com/litzio/litzio/issues/1686): 탐색기·비서 머리를 PanelHeader로, 비서 상태를 Status로 옮기고 문서 패널 탭 정렬을 결정한다.
+- [#1687](https://github.com/litzio/litzio/issues/1687): 나머지 화면과 플러그인 fixture에 Row·Section·글씨 역할을 적용한다.
 
 ## 패턴별 기준 화면
 
@@ -227,6 +236,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 | 만들 화면·패턴 | 본보기 파일 | 확인할 부분 |
 | --- | --- | --- |
+| 이름·값 줄과 묶음 | [shared-parts-example.tsx](apps/editor/src/dev/shared-parts-example.tsx) | item·fact·좁은 열, 이름 시작선과 값 끝선, 상태 두 variant |
 | 설정 화면·설정 행 | [SettingsDialog.tsx](apps/editor/src/shell/SettingsDialog.tsx) | 목록+상세 구조의 탐색 열과 내용 열, 공통 설정 행 |
 | 카드 목록 작업 탭 | [TemplateGallery.tsx](apps/editor/src/shell/TemplateGallery.tsx) | 목록과 미리보기·생성의 분리 |
 | 파일·폴더 선택 대화상자 | [FolderDialog.tsx](apps/editor/src/shell/FolderDialog.tsx) | 경로 입력과 탐색 목록 |

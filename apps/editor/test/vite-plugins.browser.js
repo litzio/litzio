@@ -39,6 +39,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(dialog.locator('input[type="password"]')).toHaveAccessibleDescription('Not configured');
   await expect(dialog.getByRole('status', {name:''}).filter({hasText:/^Not configured$/})).toBeVisible();
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
+  if(screenshots) {
+    await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('ko');});
+    for(const [width,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
+      await page.setViewportSize({width,height:1100});
+      await page.evaluate(async theme=>{const {applyTheme}=await import('/src/theme.ts');await applyTheme(theme,false);},theme);
+      await dialog.screenshot({path:`docs/design/assets/shared-parts-1690/plugin-settings-${width}-${theme}.png`});
+    }
+    await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('en');});
+    await page.setViewportSize({width:1440,height:1000});
+    await page.evaluate(async()=>{const {applyTheme}=await import('/src/theme.ts');await applyTheme('light',false);});
+  }
   const serviceUrl = dialog.getByRole("textbox", { name: "Service URL", exact: true });
   await serviceUrl.fill("https://fixture.example.test/service");
   const check = dialog.getByRole("button", { name: "Check connection", exact: true });

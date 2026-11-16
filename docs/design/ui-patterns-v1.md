@@ -237,3 +237,7 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 [figure]: ../../apps/editor/src/figure-properties.tsx
 [forms]: ../../apps/editor/src/block-properties.tsx
 [number]: ../../apps/editor/src/numbering-properties.tsx
+
+## 공용 정보 표시
+
+이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음은 #1685, 패널 머리·비서 상태는 #1686, 나머지 화면·fixture는 #1687에서 적용한다.

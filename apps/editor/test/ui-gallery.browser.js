@@ -144,6 +144,40 @@ async (page, { expect, screenshots }) => {
   await expect(automatic).toBeDisabled();
   await expect(fixed).toBeDisabled();
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
+  await navigation.getByRole('button',{name:'Shared parts',exact:true}).click();
+  const shared = page.getByRole('region',{name:'공용 정보 부품',exact:true});
+  expect(await page.evaluate(async () => {
+    const {screenUI} = await import('/src/views/screen-ui.ts');
+    const {Row} = await import('/src/components/ui/row.tsx');
+    const {SettingsRow} = await import('/src/components/ui/settings.tsx');
+    return screenUI.Row === Row && SettingsRow === Row;
+  })).toBe(true);
+  const geometry = async section => section.locator('.shared-row').evaluateAll(rows => rows.map(row => {
+    const label = row.querySelector('.settings-label').getBoundingClientRect();
+    const value = row.querySelector('.settings-row-control').getBoundingClientRect();
+    const children = [...row.querySelectorAll('button,select,input')].map(n=>n.getBoundingClientRect());
+    return {left:label.left,right:value.right,top:value.top,labelBottom:label.bottom,valueLeft:value.left,overflow:row.scrollWidth>row.clientWidth,controlRight:children.at(-1)?.right,selectWidth:row.querySelector('select')?.getBoundingClientRect().width};
+  }));
+  await page.setViewportSize({width:1440,height:1100});
+  const rows = shared.locator('.shared-section').first();
+  const wide = await geometry(rows);
+  expect(wide.every(r=>Math.abs(r.left-wide[0].left)<1 && Math.abs(r.right-wide[0].right)<1 && !r.overflow)).toBe(true);
+  expect(wide.filter(r=>r.controlRight).every(r=>Math.abs(r.controlRight-r.right)<1)).toBe(true);
+  expect(wide[0].selectWidth).toBe(wide[1].selectWidth);
+  const narrow = shared.getByRole('region',{name:'좁은 열',exact:true});
+  expect((await geometry(narrow)).every(r=>r.top>=r.labelBottom && Math.abs(r.valueLeft-r.left)<1 && !r.overflow)).toBe(true);
+  const hostDot = shared.locator('.host-status .screen-status > span').first();
+  const pluginDot = shared.locator('.screen-status[data-tone="ok"][data-variant="pill"] > span').first();
+  expect(await hostDot.evaluate(n=>getComputedStyle(n).backgroundColor)).toBe(await pluginDot.evaluate(n=>getComputedStyle(n).backgroundColor));
+  await page.setViewportSize({width:640,height:1100});
+  expect((await geometry(rows)).every(r=>r.top>=r.labelBottom && Math.abs(r.valueLeft-r.left)<1 && !r.overflow)).toBe(true);
+  if(screenshots) for(const [width,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
+    await page.setViewportSize({width,height:1500});
+    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    await shared.screenshot({path:`docs/design/assets/shared-parts-1690/gallery-${width}-${theme}.png`});
+  }
+  await page.evaluate(()=>document.documentElement.dataset.theme='light');
+  await page.setViewportSize({width:1440,height:1000});
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
   // Progress remains distinguishable from success even without motion or color.
   const progressMark = page.locator('.screen-status[data-tone="progress"] svg').first();

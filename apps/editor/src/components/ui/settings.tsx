@@ -1,18 +1,13 @@
 import { type ComponentProps, useId } from "react";
 import type { SettingsRowProps, SettingsSwitchProps, SettingsSelectProps } from "./settings-types.ts";
 
-export function SettingsRow({ label, description, children, testId }: SettingsRowProps) {
-  return <div className="settings-section settings-row" data-testid={testId}>
-    <div className="settings-label"><h3 className="settings-heading">{label}</h3>{description ? <div className="settings-description">{description}</div> : null}</div>
-    <div className="settings-row-control">{children}</div>
-  </div>;
-}
+export { Row as SettingsRow } from "./row.tsx";
+import { Row } from "./row.tsx";
 
 function FieldRow({ label, description, children, id, testId }: SettingsRowProps & { id: string }) {
-  return <div className="settings-section settings-row">
-    <div className="settings-label"><h3 className="settings-heading"><label htmlFor={id}>{label}</label></h3>{description ? <div id={`${id}-description`} className="settings-description">{description}</div> : null}</div>
-    <div className="settings-row-control" data-testid={testId}>{children}</div>
-  </div>;
+  return <Row label={<label htmlFor={id}>{label}</label>} description={description ? <span id={`${id}-description`}>{description}</span> : undefined}>
+    <div className="settings-field-control" data-testid={testId}>{children}</div>
+  </Row>;
 }
 
 export function SettingsSwitch({ checked, onChange, disabled, invalid, describedBy, ...row }: SettingsSwitchProps) {

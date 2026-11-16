@@ -4,7 +4,7 @@
 .screen-toolbar > button { width: auto; }
 .screen-select, .screen-toolbar > label { display: grid; gap: var(--space-2); }
 .screen-summary { align-content: start; grid-template-rows: auto auto 1fr; display: grid; gap: var(--space-2); padding: var(--space-3); border: var(--border-width) solid var(--id-color-border-subtle); border-radius: var(--id-radius-sm); }
-.screen-summary-value { font-size: var(--font-size-xl); }
+.screen-summary .screen-summary-value { font-size: var(--font-size-xl); }
 .screen-summary > strong { font-weight: 600; }
 .screen-chart { margin: 0; min-width: 0; width: 100%; font-size: var(--font-size-sm); }
 .screen-chart figcaption { margin-bottom: var(--space-3); font-weight: 600; }
@@ -23,15 +23,6 @@
 .screen-chart .recharts-wrapper { overflow: clip; }
 
 .screen-layout[data-width="narrow"] { max-width: var(--layout-settings-content-width); margin-inline: auto; }
-.screen-status { display: inline-flex; align-items: center; gap: var(--space-2); width: fit-content; padding: var(--space-1) var(--space-3); border-radius: var(--id-radius-xl); background: var(--id-color-surface-subtle); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
-.screen-status > span { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.screen-status[data-tone="progress"] > span { display: flex; align-items: center; justify-content: center; background: transparent; }
-/* Center the larger ring on the existing dot slot to preserve label alignment and pill height. */
-.screen-status > span > svg { display: block; flex-shrink: 0; width: var(--space-3); height: var(--space-3); }
-.screen-status[data-tone="ok"] { color: var(--id-color-success); }
-.screen-status[data-tone="progress"] { color: var(--id-color-accent); }
-.screen-status[data-tone="warning"] { color: var(--id-color-warning); }
-.screen-status[data-tone="error"] { color: var(--id-color-danger); }
 .screen-steps { display: flex; padding: 0; margin: 0; list-style: none; width: 100%; gap: var(--space-3); }
 .screen-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; color: var(--id-color-text-muted); overflow-wrap: anywhere; }
 .screen-steps li:not(:last-child)::after { content: ""; flex: 1; border-top: var(--border-width) solid var(--id-color-border); }
@@ -42,4 +33,4 @@
 .screen-empty { display: grid; justify-items: center; gap: var(--space-4); padding: var(--space-8) var(--space-6); text-align: center; border: var(--border-width) dashed var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-surface-subtle); }
 .screen-progress { display: grid; gap: var(--space-2); min-width: 0; }
 
-.task-surface .screen-layout :where(h2, h3, h4):not(:where(.task-surface-title, .screen-document-view *)) { font-size: inherit; font-weight: var(--font-weight-semibold); margin: var(--space-4) 0 var(--space-2); }
+.task-surface .screen-layout :where(h2, h3, h4):not(:where(.task-surface-title, .screen-document-view *, .shared-section > h2, .settings-heading)) { margin: var(--space-4) 0 var(--space-2); }

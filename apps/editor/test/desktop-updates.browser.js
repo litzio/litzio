@@ -91,6 +91,27 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
     await page.getByText('running · CLI (start) · 0.2.0', {exact:true}).waitFor();
     check(await page.getByText('http://127.0.0.1:25887', {exact:true}).isVisible(), 'Daemon address missing');
     await capture(`daemon-status-${width}`);
+    if(screenshots && width === 1440) {
+      const screen = page.getByTestId('settings-dialog');
+      for(const [captureWidth,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
+        await page.setViewportSize({width:captureWidth,height:1100});
+        await screen.locator('.settings-navigation nav button').first().click();
+        await page.getByTestId('ui-language').selectOption('ko');
+        await page.getByTestId('theme').selectOption(theme);
+        for(const [index,category] of ['appearance','recovery','plugins','assistant','about'].entries()) {
+          await screen.locator('.settings-navigation nav button').nth(index).click();
+          await screen.locator('.settings-body').evaluate(n=>n.scrollTop=0);
+          await page.evaluate(()=>document.fonts.ready);
+          await screen.screenshot({path:`docs/design/assets/shared-parts-1690/after-settings-${category}-${captureWidth}-${theme}.png`,mask:[screen.locator('.agent-diagnostic-row').filter({hasText:'작업 폴더'}).locator('code')],maskColor:await screen.evaluate(n=>getComputedStyle(n).backgroundColor)});
+        }
+      }
+      await page.setViewportSize({width:1440,height:1000});
+      await screen.locator('.settings-navigation nav button').first().click();
+      await page.getByTestId('ui-language').selectOption('en');
+      await page.getByTestId('theme').selectOption('light');
+      await screen.getByRole('button',{name:'About & updates',exact:true}).click();
+    }
+
     await page.keyboard.press('Escape');
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   }
@@ -646,6 +667,12 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
           `Settings is outside its shell area: ${JSON.stringify(geometry)}`);
         check(!geometry.overflow && geometry.bounded && (width >= 768 || geometry.stacked),
           `Settings layout failed at ${language}/${width}/${category}: ${JSON.stringify(geometry)}`);
+        if(category === 'recovery' && width === 1440) {
+          check(await dialog.locator('[aria-labelledby="settings-recovery"] > .settings-section').first().evaluate(row=>{
+            const label=row.querySelector('.settings-label').getBoundingClientRect(), control=row.querySelector('button').getBoundingClientRect();
+            return label.right<=control.left && label.top<control.bottom;
+          }), 'Row containers changed the neighboring recovery layout');
+        }
         const scrollState = await dialog.evaluate(n => ({
           scrollers:[n,...n.querySelectorAll('*')].filter(e => e.scrollTop).map(e => ({className:e.className,top:e.scrollTop})),
 
