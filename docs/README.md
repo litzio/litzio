@@ -59,7 +59,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [HTTP Host](design/http-host-v1.md) | Implemented | daemon CLI·탐색·수명·상태·버전·Root와 HTTP/Origin·프록시 경계, Desktop의 로컬 연결을 정의한다. |
 | [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | Windows Electron/NSIS 패키징·Stable/Beta 업데이트·서명·게시와 로컬 daemon 연결·종료 보호를 정의한다. |
 | [Desktop app icon](design/app-icon-v1.md) | Implemented | 승인된 SVG 원본·크기별 ICO, 브랜드 통합·재생성과 픽셀 검사 및 Windows 검증 경계를 정의한다. |
-| [Folder picker](design/folder-picker-v1.md) | Implemented | Host 폴더·이미지 선택과 경로 탐색, 열린 폴더 기억 및 새 문서·폴더 생성의 화면 동작을 정의한다. |
+| [Folder picker](design/folder-picker-v1.md) | Implemented | Host 폴더·파일·이미지의 공통 목록 선택·정렬·경로 탐색, 열린 폴더 기억 및 새 문서·폴더 생성의 화면 동작을 정의한다. |
 | [Complete app reset](design/app-reset-v1.md) | Implemented | 로컬 앱·Host 소유 데이터의 초기화 범위, writer gate·종료 후 helper·receipt와 CLI를 정의한다. 외부 브라우저·문서·공급자 계정은 제외한다. |
 | [Endnotes (MyST footnotes)](design/footnotes-v1.md) | Implemented | 미주 정의의 본문 뒤 첫 참조 순서 배치, 번호·참조 수명·직접 편집·clipboard와 유실 없는 공식 쓰기를 정의한다. |
 | [Citations](design/citations-v1.md) | Implemented | ADR-0008 단위 A·B·C. role·선언 보존, Core 번호·제한 IEEE·readiness, CLI/Host 자료 읽기와 파생 References. 슬래시 검색·인용 폼 저작 UI. |

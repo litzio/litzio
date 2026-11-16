@@ -38,7 +38,7 @@ export function PluginSettings() {
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
     </Notice>
     <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
-    <FolderDialog open={choosing} title={i18n.t("Add plugin…")} showSidebarHint={false} initialPath="" recent={[]}
+    <FolderDialog open={choosing} title={i18n.t("Add plugin…")} initialPath="" recent={[]}
       browse={browse} places={places}
       onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
     {error || problem && !current && !trust ? <Notice tone="error">{error || problem}</Notice> : null}

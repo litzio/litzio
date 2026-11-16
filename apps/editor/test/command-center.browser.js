@@ -220,7 +220,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   for (const query of ['new document', '새 문서']) {
     const returnTarget = await page.evaluateHandle(() => document.activeElement);
     await run('New document…', query);
-    await page.getByTestId('folder-path').waitFor();
+    await page.getByRole('listbox').waitFor();
     check(await page.getByTestId('new-file-name').count() === 0, 'New skipped location choice without an opened folder');
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({state:'detached'});
@@ -232,6 +232,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   // Search only listings already held by the sidebar, including collapsed cached children.
   const openFolder = async path => {
     await run('Open folder…');
+    await page.getByRole('button', {name:'Edit path',exact:true}).click();
     await page.getByTestId('folder-path').fill(path + sep);
     await page.getByTestId('folder-open').click();
     await page.getByRole('dialog').waitFor({state:'detached'});
@@ -466,8 +467,8 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   const folderReturnTarget = await page.evaluateHandle(() => document.activeElement);
   await run('Open folder…');
-  await page.getByTestId('folder-path').waitFor();
-  await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid')==='folder-path', null, {timeout:5000});
+  await page.getByRole('listbox').waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('role')==='listbox', null, {timeout:5000});
   await page.keyboard.press('Escape');
   await page.getByRole('dialog').waitFor({state:'detached'});
   check(await page.evaluate(target => target === document.activeElement, folderReturnTarget), 'Open folder command lost its focus return');

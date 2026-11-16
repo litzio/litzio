@@ -1,6 +1,19 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Select": "Select",
+  "Select “{{name}}”": "Select “{{name}}”",
+  "Folders and files": "Folders and files",
+  "Back": "Back",
+
+  "Forward": "Forward",
+  "Edit path": "Edit path",
+  "All files": "All files",
+  "This folder is empty.": "This folder is empty.",
+  "Sort files": "Sort files",
+  "Date modified": "Date modified",
+  "Size": "Size",
+
   "Document preview": "Document preview",
   "Choose a document inside this screen's opened folders.": "Choose a document inside this screen's opened folders.",
   "The target revision differs from this saved snapshot. Read again before navigating.": "The target revision differs from this saved snapshot. Read again before navigating.",
@@ -872,7 +885,6 @@ export const en = {
   "Server folder path": "Server folder path",
   "Server shared folders": "Server shared folders",
   "Shortcuts": "Shortcuts",
-  "Sub-folders · click to navigate": "Sub-folders · click to navigate",
   "Open “{{name}}”": "Open “{{name}}”",
   "Image path": "Image path",
   "Folder path": "Folder path",
@@ -890,7 +902,6 @@ export const en = {
   "Start from": "Start from",
   "Start": "Start",
   "Images outside the document's folder are copied into its assets folder.": "Images outside the document's folder are copied into its assets folder.",
-  "Choose documents in the sidebar after opening a folder.": "Choose documents in the sidebar after opening a folder.",
   "Paragraph": "Paragraph",
   "Markdown · Not a {{product}} document": `Markdown · Not a ${brand.name.en} document`,
   "Text": "Text",
@@ -1190,6 +1201,19 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Select": "선택",
+  "Select “{{name}}”": "“{{name}}” 선택",
+  "Folders and files": "폴더와 파일",
+  "Back": "뒤로",
+
+  "Forward": "앞으로",
+  "Edit path": "경로 입력",
+  "All files": "모든 파일",
+  "This folder is empty.": "이 폴더는 비어 있습니다.",
+  "Sort files": "파일 정렬",
+  "Date modified": "수정한 날짜",
+  "Size": "크기",
+
   "Document preview": "문서 미리 보기",
   "Choose a document inside this screen's opened folders.": "이 화면에서 열린 폴더 안의 문서를 선택하세요.",
   "The target revision differs from this saved snapshot. Read again before navigating.": "대상이 가리키는 저장본과 현재 문서가 다릅니다. 다시 읽은 뒤 위치를 지정하세요.",
@@ -2058,7 +2082,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Server folder path": "서버 폴더 경로",
   "Server shared folders": "서버 공유 폴더",
   "Shortcuts": "바로 가기",
-  "Sub-folders · click to navigate": "하위 폴더 · 클릭하여 이동",
   "Open “{{name}}”": "“{{name}}” 열기",
   "Image path": "이미지 경로",
   "Folder path": "폴더 경로",
@@ -2076,7 +2099,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Start from": "시작 위치",
   "Start": "시작",
   "Images outside the document's folder are copied into its assets folder.": "문서 폴더 밖의 이미지는 문서의 assets 폴더로 복사됩니다.",
-  "Choose documents in the sidebar after opening a folder.": "문서는 폴더를 연 뒤 사이드바에서 선택합니다.",
   "Paragraph": "문단",
   "Markdown · Not a {{product}} document": `Markdown · ${brand.name.ko} 문서가 아닙니다`,
   "Text": "텍스트",
