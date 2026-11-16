@@ -133,7 +133,7 @@ export function NewDialog({ kind = "file", open, busy, destinations, directory, 
           </label>
           {error ? <p id="new-error" className="text-sm text-destructive" role="alert" data-testid="new-error">{error}</p> : null}
           <DialogFooter>
-            <Button type="button" size="sm" variant="secondary" onClick={onClose}>{i18n.t("Cancel")}</Button>
+            <Button type="button" size="sm" variant="outline" onClick={onClose}>{i18n.t("Cancel")}</Button>
             <Button type="submit" size="sm" disabled={disabled || !trimmed}>{i18n.t("Create")}</Button>
           </DialogFooter>
         </form>

@@ -29,7 +29,7 @@ export function UnsavedChangesDialog({ open, pending, documentName, hasDrafts, r
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="secondary" size="sm" disabled={pending} onClick={onCancel} autoFocus>{i18n.t("Cancel")}</Button>
+          <Button variant="outline" size="sm" disabled={pending} onClick={onCancel} autoFocus>{i18n.t("Cancel")}</Button>
           <Button variant="destructive" size="sm" disabled={pending} onClick={onDiscard}>{i18n.t("Don't save")}</Button>
           <Button size="sm" disabled={pending || readOnly} onClick={onSave}>{i18n.t("Save")}</Button>
         </DialogFooter>

@@ -71,7 +71,7 @@ export function FileActionDialog({ action, entry, trash, dirty, root, client, re
             onChange={event => { setName(event.target.value); setError(""); }} />
             {extension ? <span className="shrink-0 text-muted-foreground">{extension}</span> : null}</div></label>
         {error ? <p id="rename-error" role="alert" className="text-sm text-destructive [overflow-wrap:anywhere]">{error}</p> : null}
-        <DialogFooter><Button type="button" size="sm" variant="secondary" disabled={pending} onClick={onClose}>{t("Cancel")}</Button>
+        <DialogFooter><Button type="button" size="sm" variant="outline" disabled={pending} onClick={onClose}>{t("Cancel")}</Button>
           <Button type="submit" size="sm" disabled={pending || !name}>{t("Rename")}</Button></DialogFooter>
       </form>
     </DialogContent>

@@ -19,7 +19,7 @@ export function ExternalChangeNotice({ session, onReveal, onCompare }: {
     id: `external-change:${session.externalRevision}:${conflict}`, testId: "external-change", message,
     severity: conflict ? "error" : "warning", revision: `${session.busy}:${conflict}`,
     render: () => <><p>{message}</p><div className="message-actions flex flex-wrap gap-2">
-      <Button variant="secondary" size="sm" disabled={session.busy} onClick={() => act(() => { void session.reload(); })}>{i18n.t("Reload from disk")}</Button>
+      <Button variant="outline" size="sm" disabled={session.busy} onClick={() => act(() => { void session.reload(); })}>{i18n.t("Reload from disk")}</Button>
       <Button variant="ghost" size="sm" disabled={session.busy} onClick={() => act(() => onCompare(session))}>{i18n.t("Compare with disk")}</Button>
     </div>{conflict && session.kind === "native" && session.saveFailure ? <details className="save-error-details">
       <summary>{i18n.t("Technical details")}</summary><p>{session.saveFailure.details}</p>

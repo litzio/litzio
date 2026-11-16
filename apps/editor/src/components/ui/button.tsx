@@ -13,8 +13,6 @@ const buttonVariants = cva(
           "border-destructive bg-background text-destructive hover:bg-[var(--id-color-surface-danger)] disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
         outline:
           "border-input bg-background hover:bg-accent hover:text-foreground aria-expanded:bg-[var(--id-color-surface-pressed)] aria-expanded:text-foreground",
-        secondary:
-          "border-input bg-secondary text-secondary-foreground hover:bg-accent aria-expanded:bg-[var(--id-color-surface-pressed)] aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-accent hover:text-foreground aria-expanded:bg-[var(--id-color-surface-pressed)] aria-expanded:text-foreground",
         // TableTools owns explicit targets/anchors and its token-backed address geometry.

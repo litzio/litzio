@@ -32,6 +32,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByRole("button", { name: /^Open view ·/ })).toHaveCount(0);
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
+  const switchRow = dialog.getByRole('switch', {name:'Simulate failure',exact:true}).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " settings-row ")]');
+  await expect(switchRow).toBeVisible();
+  expect(await switchRow.evaluate(row => row.querySelector('[role="switch"]').getBoundingClientRect().right === row.getBoundingClientRect().right)).toBe(true);
+  await expect(dialog.locator('input[type="password"]')).toHaveAccessibleName('Access token');
+  await expect(dialog.locator('input[type="password"]')).toHaveAccessibleDescription('Not configured');
+  await expect(dialog.getByRole('status', {name:''}).filter({hasText:/^Not configured$/})).toBeVisible();
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
   const serviceUrl = dialog.getByRole("textbox", { name: "Service URL", exact: true });
   await serviceUrl.fill("https://fixture.example.test/service");

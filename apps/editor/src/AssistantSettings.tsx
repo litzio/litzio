@@ -112,7 +112,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
     return <section className="agent-settings" aria-label={t("Assistant")}>
       {view === "diagnostics" ? <>
         <div><Button variant="ghost" onClick={() => setView("settings")}>← {t("Assistant")}</Button></div>
-        <div className="agent-heading"><h3 className="settings-heading">{copilot ? t("Copilot diagnostics") : t("Codex diagnostics")}</h3><Button variant="secondary" disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
+        <div className="agent-heading"><h3 className="settings-heading">{copilot ? t("Copilot diagnostics") : t("Codex diagnostics")}</h3><Button variant="outline" disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
         <p className="agent-muted">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
         <div className="agent-diagnostics">
           {row(`${providerName} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<code>{diagnostics?.path ?? "—"}</code></>)}
@@ -161,7 +161,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
       {problem ? <Notice tone="error">{problem}</Notice> : null}
       {busy ? <p role="status">{t("Saving…")}</p> : null}
       <Dialog open={dialog} onClose={() => setDialog(false)} title={t(copilot ? "Copilot models" : "Codex models")} description={t(copilot ? "Models reported by Copilot CLI. Account access and quota may vary." : "Models and supported reasoning efforts reported by Codex.")} returnFocus={focus} testId="assistant-models-dialog"
-        footer={<><span className="agent-updated">{t("Updated")}: {date(models?.updatedAt)}</span><Button variant="secondary" onClick={() => { setDialog(false); setView("diagnostics"); }}>{t("Diagnostics")}</Button><Button variant="default" disabled={loading} onClick={() => void refresh()}>{t("Refresh")}</Button></>}>
+        footer={<><span className="agent-updated">{t("Updated")}: {date(models?.updatedAt)}</span><Button variant="outline" onClick={() => { setDialog(false); setView("diagnostics"); }}>{t("Diagnostics")}</Button><Button variant="outline" disabled={loading} onClick={() => void refresh()}>{t("Refresh")}</Button></>}>
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
           <p className="agent-muted">{t("Models")}: {filteredModels?.length ?? "—"}</p>
           <div className="agent-model-list">{!models ? <p>{loading ? t("Checking…") : t("Unavailable")}</p> : filteredModels?.map(item => <article key={item.id}>

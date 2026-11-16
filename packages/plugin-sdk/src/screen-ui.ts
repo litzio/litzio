@@ -27,7 +27,7 @@ export interface ScreenSummaryProps { label: string; value: string | number; des
 /** Shared by the client binding and bundled authoring guidance. No renderer dependency. */
 export const SCREEN_UI = {
   DocumentView: 'path:string inside this screen\'s opened folders; target?:{revision:string,path:Core NodePath}; reloadKey?:string|number (change to reread saved file); height?:number (480px); label?:string; onStateChange?:({state,revision?,message?})=>void. States: loading/ready/error/stale-target/target-not-found. Actual read-only Litzio renderer. Block and exact table-cell navigation/highlight. Endnote definition paths reveal the definition; a paragraph path containing its call reveals that paragraph. Layout changes (math, image/font loading, width) keep the target visible until the user scrolls inside the view. A new path/revision/reloadKey resumes following. A mismatched revision never navigates/highlights. No editing, save, polling or tab interaction.',
-  Button: 'Standard button props; variant outline (when omitted)/default (explicit primary)/secondary/ghost/destructive, size default/sm/icon.',
+  Button: 'Standard button props; variant outline (when omitted)/default (explicit primary)/ghost/destructive, size default/sm/icon.',
   Input: 'Standard input props; wrap in a visible label.',
   Notice: 'children, optional tone="error"; catch async/event failures here.',
   DataTable: 'title:string, rows:object[], columns:string[], optional labels:{field:"Label"}, fields:{field:{type:"number"}}.',

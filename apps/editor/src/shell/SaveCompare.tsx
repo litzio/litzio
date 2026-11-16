@@ -43,7 +43,7 @@ export default function SaveCompare({ comparison, returnFocus, onClose }: {
         </DialogDescription>
       </DialogHeader>
       <SourceCompare load={load} visual={{ client: comparison.client, path: comparison.path, bibliography: comparison.bibliography, unsupported: comparison.text !== undefined ? i18n.t("Text sessions use Source comparison.") : undefined }} />
-      <DialogFooter><Button ref={closeButton} variant="secondary" size="sm" onClick={onClose}>{i18n.t("Close")}</Button></DialogFooter>
+      <DialogFooter><Button ref={closeButton} variant="outline" size="sm" onClick={onClose}>{i18n.t("Close")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

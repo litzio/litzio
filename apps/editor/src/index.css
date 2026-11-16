@@ -15,8 +15,6 @@
   --popover-foreground: var(--id-color-text);
   --primary: var(--id-color-accent);
   --primary-foreground: var(--id-color-text-on-accent);
-  --secondary: var(--id-color-surface);
-  --secondary-foreground: var(--id-color-text);
   --muted: var(--id-color-surface-subtle);
   --muted-foreground: var(--id-color-text-muted);
   /* shadcn accent is an interaction surface, not the product's heritage-red brand accent. */
@@ -39,8 +37,6 @@
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);

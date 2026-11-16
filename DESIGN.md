@@ -130,7 +130,7 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 같은 역할이면 기존 부품을 재사용한다. 시각적 일관성과 focus 동작을 함께 유지하기 위해서다.
 
 [Button](apps/editor/src/components/ui/button.tsx)의 사용자용 종류는 넷이다.
-채움은 `default`, 테두리는 현재 `secondary`와 `outline` 두 변형,
+채움은 `default`, 테두리는 `outline`,
 무테는 `ghost`, 빨간 테두리는 `destructive`다.
 `table-handle`은 표 도구 전용 변형이며 일반 동작 버튼의 다섯 번째 종류로 쓰지 않는다.
 
@@ -196,7 +196,6 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 ### 알려진 불일치
 
 - 플러그인 화면의 바탕·여백·제목 중복·표 밀도·도구 줄 정렬·버튼 기본 변형, 브라우저 기본 입력 요소의 포인트 색: [#1663](https://github.com/litzio/litzio/issues/1663).
-- 비서 질문 카드의 선택지 굵기, 플러그인 설정 창의 정렬과 이름표, secondary와 outline의 구별되지 않는 두 변형: [#1664](https://github.com/litzio/litzio/issues/1664).
 - 숫자 열의 오른쪽 정렬: [#1663](https://github.com/litzio/litzio/issues/1663).
 
 ## 패턴별 기준 화면
