@@ -165,7 +165,6 @@ const nativeButtons = new Map([
   ["shell/DocumentTabs.tsx:document-tab-close", "28px close slot retains square tab-row geometry pending #515."],
   ["shell/DocumentPanel.tsx:document-outline-item", "Outline list navigation and independent focus owner."],
   ["shell/DocumentStart.tsx:document-start-folder", "Wrapping recent-folder list row, not a fixed action."],
-  ["shell/FolderDialog.tsx:folder-picker-option", "Recent-folder list option retains picker navigation."],
   ["shell/Sidebar.tsx:sidebar-tree-item", "Recent-folder tree row retains navigation geometry."],
 ]);
 

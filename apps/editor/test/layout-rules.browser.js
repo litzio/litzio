@@ -77,7 +77,8 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   // #522 removes the duplicate current-folder crumb. A ready New folder action means the
   // current path's listing is available; keep all typography and geometry assertions below.
   await expect(page.getByRole('dialog').getByRole('button',{name:locale==='ko'?'새 폴더':'New folder',exact:true})).toBeEnabled();
-  await page.getByTestId('folder-path').focus();
+  await page.getByTestId('folder-path').press('Escape');
+  await page.getByRole('button', {name:locale==='ko'?'경로 입력':'Edit path',exact:true}).focus();
   const isolation = await page.evaluate(() => {
     const root=document.documentElement;
     // The narrow layout deliberately unmounts the closed Outline; its desktop coverage stays required.

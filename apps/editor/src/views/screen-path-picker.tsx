@@ -90,9 +90,9 @@ function ScreenPathDialog({ choice, client }: { choice: Choice; client: HostClie
     } catch (error) { choice.finish(null, error); }
     return "";
   };
-  return <HostClientContext.Provider value={client}><FolderDialog open selectOnly choose={input.kind} initialPath={input.initialPath!}
+  return <HostClientContext.Provider value={client}><FolderDialog open selectOnly choose={input.kind} extensions={input.kind === "file" ? input.extensions : undefined} initialPath={input.initialPath!}
     title={i18n.t(input.kind === "folder" ? "Choose folder" : input.kind === "pdf" ? "Choose PDF" : input.kind === "file" ? "Choose file" : "Choose document")}
     description={i18n.t("Choose inside this screen's opened folders. This does not open another folder.")}
-    showSidebarHint={false} recent={[]} allowedRoots={roots} browse={browse} places={places}
+    recent={[]} allowedRoots={roots} browse={browse} places={places}
     onOpen={select} onClose={() => choice.finish(null)} /></HostClientContext.Provider>;
 }

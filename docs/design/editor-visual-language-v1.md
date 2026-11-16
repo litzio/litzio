@@ -211,7 +211,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Figure metadata | `--layout-figure-popover-width`, `--size-figure-property-thumbnail-max-width/height`, `--space-figure-popover-gap`; preview retains intrinsic ratio |
 | Motion | `--duration-fast` (250ms, control colors), `--duration-normal` (250ms, surfaces, progress, disclosure), `--ease-motion` (deceleration); at most 250ms, reduced motion disables both durations |
 | Heading depth | `--font-size-heading-level`, `--id-color-heading-level`, `--space-heading-level-gap`, `--layout-reading-heading-gutter`, `--space-heading-level-reading-gap`; all in Adjustable values, using existing metadata/theme tokens |
-| Folder/image picker | `--layout-folder-picker-width`, `--layout-folder-picker-list-height`, `--layout-folder-picker-folder-list-height`, `--layout-folder-picker-preview-height` |
+| Folder/image picker | `--layout-folder-picker-width`, `--layout-folder-picker-height` |
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |
 | Template gallery | `--layout-template-card-min-width`, `--layout-template-preview-width/height`; [reading-only preview](document-templates-v1.md#editor-gallery-phase-2) uses existing paper/type/Popover roles |
 | Other presentation | `--font-feature-sans`, `--layout-start-width`, `--size-start-mark`, `--size-overflow-fade`, `--reference-underline-offset`; start title has independent UI size/line-height tokens |

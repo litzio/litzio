@@ -856,7 +856,14 @@ test("a chosen folder lists all regular files, marks only documents, and stays i
 
     // Choosing a folder can browse outside the eventual sidebar root, with Host-owned crumbs.
     const browsed = browseFolder(chosen);
-    // Choosing a folder returns names only, never content.
+    for (const listing of [top, browsed]) {
+      for (const entry of listing.entries) {
+        const metadata = fs.statSync(entry.path);
+        assert.equal(entry.modifiedAt, metadata.mtime.toISOString());
+        assert.equal(entry.size, entry.kind === "folder" ? undefined : metadata.size);
+      }
+    }
+    // Choosing a folder returns names and metadata, never content.
     assert.deepEqual(browsed.entries, top.entries.filter(entry => entry.kind !== "file").map(({ native: _native, ...entry }) => entry));
     assert.equal(browsed.crumbs[0]?.path, path.parse(chosen).root);
     assert.deepEqual(browsed.crumbs.at(-1), { name: "docs", path: chosen });

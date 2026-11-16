@@ -44,6 +44,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   pluginFixture.cli(["plugins", "register", pluginFixture.directory]);
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Edit path", exact: true }).click();
   await page.getByTestId("folder-path").fill(pluginFixture.directory);
   // Deliver the same list refresh used after settings changes while the user is
   // editing the picker. A changed description proves the refreshed React UI committed.
