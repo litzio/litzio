@@ -34,7 +34,7 @@ export async function openDocument(page: Page, file: string): Promise<void> {
   const sidebar = page.getByTestId("sidebar");
   // The picker helper waits for responsive layout, then expands through the rail.
   await openFolderPicker(page);
-  await page.getByTestId("folder-path").fill(path.dirname(file));
+  await page.getByTestId("folder-path").fill(path.dirname(file) + path.sep);
   await expect(page.getByTestId("folder-open")).toBeEnabled();
   await page.getByTestId("folder-open").click();
   await page.getByRole("dialog", { name: "Open folder", exact: true }).waitFor({ state: "detached" });

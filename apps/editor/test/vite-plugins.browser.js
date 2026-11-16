@@ -16,7 +16,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(page.getByRole("alert")).toContainText(failure.error);
     await expect(input).toHaveValue(directory);
   };
-  await rejectRegistration(pluginFixture.directory + "-missing");
+  await input.fill(pluginFixture.directory + "-missing");
+  await expect(register).toBeDisabled();
+  await input.press("Enter");
+  await expect(page.getByTestId("folder-picker-meta")).toHaveText("folder does not exist");
+  await page.getByRole("dialog").getByRole("button", {name:"Edit path",exact:true}).click();
   await rejectRegistration(pluginFixture.folder);
   await input.fill(pluginFixture.directory);
   await register.click();
