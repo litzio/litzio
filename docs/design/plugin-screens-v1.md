@@ -26,7 +26,7 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 비서 제작의 조건 협의와 계획 문서는 [비서 계약](main-agent-v1.md#플러그인)을 따른다. 질문 카드나 계획을 위한 새 화면 기능은 추가하지 않는다.
 
-기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명과 본문만 그린다. 설정의 본문 열 폭 제한은 적용하지 않는다.
+기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명·상태·동작을 머리에, 내용을 본문에 그린다. 본문은 기본 전체 폭이며 narrow를 선택하면 기존 읽기 폭으로 가운데 정렬한다.
 
 ui.Button의 변형은 outline/default/ghost/destructive다. 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. 과거 secondary 입력은 오류 없이 outline으로 그린다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도를 쓰며 폭은 내용에 맞추되 부모 폭을 넘으면 내부 가로 스크롤을 사용한다. 표 전체의 최소 폭은 두지 않고 셀은 기존 이름표 폭과 space-6의 합을 최소 폭, reading-preview-width를 최대 폭으로 사용한다. 긴 값은 셀 안에서 줄바꿈하며 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
 
@@ -74,6 +74,30 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 4열·61행 갤러리 표: [1440 어두움](assets/plugin-screen-parts-1670/after-gallery-tables-1440-dark.png).
 
 변경 전 [표 폭](assets/plugin-screen-parts-1670/before-parts-table-1440-light.png)·[축 이름](assets/plugin-screen-parts-1670/before-parts-long-1440-light.png). 새 부품의 변경 전 표본은 해당 부품이 없던 갤러리다. 캡처는 수동 비교 근거이며 실제 AI 제작·소유자 시각 승인은 포함하지 않는다.
+
+### 머리 구역과 작업 흐름
+
+화면 틀과 템플릿 갤러리는 TaskHeader를 공유한다. 제목은 기존 task-surface-title 크기·굵기·시작선을 유지한다. 설명은 제목 아래, 상태와 동작은 오른쪽에 놓이며 640px에서는 아래 줄로 내려간다. 머리는 sticky이며 본문과 구분선으로 나뉜다. 설정의 목록+상세 구조는 별도다.
+
+`ui.ScreenLayout({description?,status?,actions?,width?,children})`의 description은 머리에 표시한다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
+
+- `ui.Status({tone,label})`: tone은 ok/progress/warning/error/neutral. 점과 글자의 알약이다. 성공 전용 색은 추가하지 않고 ok/neutral은 보조 글씨 색과 채운 점, progress는 포인트, warning/error는 기존 의미 색을 쓴다. 본문에서도 쓸 수 있다.
+- `ui.Steps({steps,current})`: 문자열 목록과 0부터 시작하는 현재 단계. 지난·현재·남은 단계를 구별하고 목록의 현재 항목은 aria-current="step"이다. 기본 위치는 머리 아래 내용 맨 위이며 클릭 이동은 없다.
+- `ui.EmptyState({title,description?,action?})`: 보조 표면·점선 테두리·가운데 정렬로 다음에 할 한 가지를 안내한다.
+- `ui.Progress({value?,label?})`: 기존 native progress와 포인트 색을 사용한다. value는 0..1, 생략하면 진행 정도를 모르는 상태다. progressbar 역할과 값·접근성 이름을 제공한다. 오래 걸리는 작업은 진행과 상태 문구를 함께 표시한다.
+
+직접 스타일과 자유로운 구성은 계속 허용하며 화면 종류·상단 탭·구성 검사나 경고는 제공하지 않는다.
+
+합성 화면의 머리 구역 비교(#1675, Windows persistent Chrome):
+
+| 상태 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+| --- | --- | --- | --- |
+| 변경 전 | [보기](assets/plugin-screen-frame-1675/before-1440-light.png) | [보기](assets/plugin-screen-frame-1675/before-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/before-640-light.png) |
+| 처음 | [보기](assets/plugin-screen-frame-1675/frame-start-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-start-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-start-640-light.png) |
+| 진행 | [보기](assets/plugin-screen-frame-1675/frame-run-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-run-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-run-640-light.png) |
+| 완료 | [보기](assets/plugin-screen-frame-1675/frame-done-1440-light.png) | [보기](assets/plugin-screen-frame-1675/frame-done-1440-dark.png) | [보기](assets/plugin-screen-frame-1675/frame-done-640-light.png) |
+
+[스크롤 중](assets/plugin-screen-frame-1675/frame-scrolled.png), 템플릿 갤러리 [변경 전](assets/plugin-screen-frame-1675/before-gallery.png)·[현재](assets/plugin-screen-frame-1675/after-gallery.png). 캡처는 합성 화면의 수동 비교 근거이며 실제 변환·AI 제작·소유자 시각 승인은 포함하지 않는다.
 
 ## 읽기 전용 문서 보기
 
