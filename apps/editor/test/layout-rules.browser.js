@@ -223,8 +223,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
           const starts=selectors.map(s=>rect('[data-document-tab][data-active=true] .document-editor '+s).left);
           const controls={right:controlsBox.x+controlsBox.width};
           const standard=rect('[data-testid="save"]').height;
-          const sidebarHeaderStyle=getComputedStyle(required(':is(.sidebar-header, .sidebar > .panel-header)'));
-          const expectedSidebarHeader=collapsed ? rect('.document-tab-row').height : Math.max(parseFloat(sidebarHeaderStyle.minHeight), rect('.sidebar-collapse').height+parseFloat(sidebarHeaderStyle.paddingTop)+parseFloat(sidebarHeaderStyle.paddingBottom)+parseFloat(sidebarHeaderStyle.borderBottomWidth));
+          const expectedSidebarHeader=rect('.document-tab-row').height;
           const compactSelectors=[':is(.sidebar-header, .sidebar > .panel-header) button','[data-document-tab][data-active=true] .figure-edit','[data-document-tab][data-active=true] .equation-edit',...(collapsed?[]:['.sidebar-folder-actions button'])];
           const compact=compactSelectors.flatMap(selector=>{
             const nodes=[...document.querySelectorAll(selector)];

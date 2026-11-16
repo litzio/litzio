@@ -10,6 +10,7 @@ export function SharedPartsExample() {
   const [value, setValue] = useState("ko"), [checked, setChecked] = useState(true);
   const options = [{value:"ko",label:"한국어"},{value:"en",label:"English"}];
   return <section className="ui-gallery-section shared-parts-example" aria-label="공용 정보 부품">
+    {/* Panel headers use document-tab height; work-tab headers retain their own vertical spacing. */}
     <PanelHeader title="공용 정보 부품" level={2} actions={<Button variant="ghost" size="sm">닫기</Button>} />
     <Section title="표시 방식">
       <SettingsSelect label="언어" options={options} value={value} onChange={setValue}/>

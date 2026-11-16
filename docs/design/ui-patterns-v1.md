@@ -185,7 +185,7 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 ### 비서 질문과 보조 작업
 
-탐색기와 비서의 펼친 머리는 PanelHeader를 쓰고 접힌 탐색기는 기존 레일을 유지한다. 문서 패널의 탭 줄은 머리의 치수와 구분선을 따른다. 비서 도구 줄은 native details/summary와 plain Status를 쓰며 완료에는 점을 표시하지 않는다. outline sm Button·Lucide ArrowDown을 재사용한다.
+탐색기와 비서의 펼친 머리는 PanelHeader를 쓰고 접힌 탐색기는 기존 레일을 유지한다. 패널 머리와 문서 패널의 탭 줄은 가운데 문서 탭 줄의 높이 토큰을 함께 써 아래 경계를 맞춘다. 이름과 동작은 세로 가운데이며 좌우 여백은 내용의 기존 시작선에 맞춘다(탐색기 목록 줄의 안쪽 시작선, 비서의 맥락·대화 시작선). TaskHeader와는 좌우 여백·구분선만 공유하고 작업 탭의 높이·세로 여백은 별도로 유지한다. 비서 도구 줄은 native details/summary와 plain Status를 쓰며 완료에는 점을 표시하지 않는다. outline sm Button·Lucide ArrowDown을 재사용한다.
 
 좁은 창 비서의 Tab·Escape·이전 편집 focus 복귀와 넓은 창 비모달 패널은 [비서 계약](main-agent-v1.md#대화와-표시)을 따른다. 질문은 과정 밖의 기존 AssistantQuestion fieldset/radio·Input/Button을 사용하며 답변 뒤 같은 카드에 읽기 전용 기록을 남긴다. 끝난 차단 RPC는 입력을 닫고 콜백을 복원하지 않는다. 렌더 확인은 카드가 mount된 창에서만 보내고 숨김 패널·기록 목록에서는 보내지 않는다([질문 계약](main-agent-v1.md#질문과-사용량)).
 

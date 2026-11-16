@@ -180,7 +180,7 @@ async (page, { openDocument, expect, screenshots, brand }) => {
           const box = panel.getBoundingClientRect();
           const shared = getComputedStyle(document.querySelector('.panel-header'));
           const headerStyle = getComputedStyle(header);
-          return { sameHeaderGeometry: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderBottom', 'minHeight'].every(key => headerStyle[key] === shared[key]), headerHeight: header.getBoundingClientRect().height, navHeight: nav.getBoundingClientRect().height,
+          return { sameHeaderGeometry: ['paddingTop', 'paddingBottom', 'borderBottom', 'minHeight'].every(key => headerStyle[key] === shared[key]), headerHeight: header.getBoundingClientRect().height, navHeight: nav.getBoundingClientRect().height,
             adjacent: Math.abs(panel.getBoundingClientRect().top + parseFloat(getComputedStyle(panel).borderTopWidth) - nav.getBoundingClientRect().top) < 0.5,
             headerDrag: getComputedStyle(header).getPropertyValue('app-region'), segmentDrag: getComputedStyle(segment).getPropertyValue('app-region'),
             fits: box.left >= 0 && box.right <= innerWidth && panel.scrollWidth <= panel.clientWidth,
@@ -194,8 +194,9 @@ async (page, { openDocument, expect, screenshots, brand }) => {
   }
   // English segments retain the full panel width; the title strip owns caption reservation.
   await page.setViewportSize({ width: 1440, height: 900 });
+  const panelPadding = await panel.locator('.document-panel-header').evaluate(header => getComputedStyle(header).paddingRight);
   await page.evaluate(() => document.documentElement.style.setProperty('--window-controls-width', '138px'));
-  expect(await panel.locator('.document-panel-header').evaluate(header => getComputedStyle(header).paddingRight === getComputedStyle(document.querySelector('.panel-header')).paddingRight)).toBe(true);
+  await expect.poll(() => panel.locator('.document-panel-header').evaluate(header => getComputedStyle(header).paddingRight)).toBe(panelPadding);
   expect(await panel.locator('.document-panel-navigation').evaluate(nav => nav.scrollWidth <= nav.clientWidth)).toBe(true);
   await page.evaluate(() => document.documentElement.style.removeProperty('--window-controls-width'));
 

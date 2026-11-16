@@ -26,16 +26,42 @@ async (page, { expect, openPath, assistantFixture, screenshots, brand }) => {
   await expect(page.getByRole('button', { name: 'Expand Explorer', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Expand Explorer', exact: true }).press('Enter');
   await expect(collapse).toBeFocused();
-  const documentGeometry = await page.locator('.document-panel-header').evaluate(n => { const s = getComputedStyle(n); return { height: n.getBoundingClientRect().height, padding: s.padding, border: s.borderBottom }; });
+  const headerGeometry = async (selectors) => page.locator(selectors).evaluateAll(nodes => nodes.map(n => {
+    const style = getComputedStyle(n), rect = n.getBoundingClientRect();
+    return { bottom: rect.bottom, height: rect.height, border: style.borderBottom };
+  }));
+  const docked = await headerGeometry('.sidebar > .panel-header, .document-panel-header, .document-tab-row');
+  expect(docked).toHaveLength(3);
+  expect(docked[0].border).toBe(docked[1].border);
+  expect(docked.map(n => n.bottom)).toEqual(docked.map(() => docked[0].bottom));
+  expect(docked.map(n => n.height)).toEqual(docked.map(() => docked[0].height));
+  const sidebarInset = await page.locator('.sidebar').evaluate(n => {
+    const row = n.querySelector('.sidebar-folder-name');
+    return [n.querySelector('.panel-header h2').getBoundingClientRect().left, row.getBoundingClientRect().left + parseFloat(getComputedStyle(row).paddingLeft)];
+  });
+  expect(sidebarInset[0]).toBe(sidebarInset[1]);
   const trigger = page.locator('.assistant-trigger');
   await trigger.click();
   const panel = page.getByTestId('assistant-panel');
   await expect(panel.getByRole('textbox')).toBeEnabled();
-  {
-    const geometry = await page.locator('.sidebar > .panel-header, .assistant-panel > .panel-header').evaluateAll(nodes => nodes.map(n => { const s = getComputedStyle(n); return { height: n.getBoundingClientRect().height, padding: s.padding, border: s.borderBottom }; }));
-    expect(geometry).toHaveLength(2);
-    expect(geometry[1]).toEqual(geometry[0]); expect(documentGeometry).toEqual(geometry[0]);
-  }
+  const assistant = await headerGeometry('.sidebar > .panel-header, .assistant-panel > .panel-header, .document-tab-row');
+  expect(assistant).toHaveLength(3);
+  expect(assistant[0].border).toBe(assistant[1].border);
+  expect(assistant.map(n => n.bottom)).toEqual(assistant.map(() => assistant[0].bottom));
+  expect(assistant.map(n => n.height)).toEqual(assistant.map(() => assistant[0].height));
+  const assistantInset = await panel.evaluate(n => {
+    const context = n.querySelector('.assistant-context'), transcript = n.querySelector('.assistant-transcript');
+    return [n.querySelector('.panel-header h2').getBoundingClientRect().left,
+      context.getBoundingClientRect().left + parseFloat(getComputedStyle(context).paddingLeft),
+      transcript.getBoundingClientRect().left + parseFloat(getComputedStyle(transcript).paddingLeft)];
+  });
+  expect(assistantInset).toEqual(assistantInset.map(() => assistantInset[0]));
+  await page.setViewportSize({ width: 640, height: 1000 });
+  await expect(panel).toHaveClass(/assistant-panel--overlay/);
+  const overlay = await headerGeometry('.assistant-panel > .panel-header, .document-tab-row');
+  expect(overlay[0].bottom).toBe(overlay[1].bottom);
+  await expect(panel.getByRole('button', { name: 'Close assistant', exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const capture = async (state) => {
     if (!screenshots) return;
     for (const [width, theme] of [[1440, 'light'], [1440, 'dark'], [640, 'light']]) {

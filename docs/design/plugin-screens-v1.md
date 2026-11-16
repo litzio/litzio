@@ -159,7 +159,7 @@ Green에서는 ok와 progress의 색조 차이가 작아 색만으로 구별하�
 
 플러그인 h2는 type-section-title, h3·h4는 type-item-name의 역할 정의를 공유한다. 문서 보기 안 제목은 제외한다. SummaryCard의 이름·설명은 item-name·helper이며 값은 큰 수치를 빠르게 읽는 기존 표현을 유지하기 위해 screen-title 크기 토큰을 쓴다.
 
-PanelHeader는 본체 패널의 구역 제목·아이콘·오른쪽 동작과 heading level을 제공한다. 작업 탭 제목은 TaskHeader가 계속 소유하며 높이·여백·구분선은 shared-parts.css에서 함께 정의한다. 문서 패널의 탐색 탭은 이 PR에서 옮기지 않는다.
+PanelHeader는 본체 패널의 구역 제목·아이콘·오른쪽 동작과 heading level을 제공한다. PanelHeader의 높이는 문서 탭 줄의 기존 토큰을 쓰며 제목·동작은 세로 가운데다. 작업 탭 제목은 TaskHeader가 계속 소유한다. 좌우 여백·구분선은 shared-parts.css에서 공유하되 TaskHeader의 높이·세로 여백은 별도이며 패널 머리에 적용하지 않는다. 본체의 패널별 좌우 여백은 내용의 시작선에 맞춘다. 문서 패널의 탐색 탭은 구조를 유지하고 PanelHeader와 높이·구분선을 맞춘다.
 
 ### 공용 부품 비교 캡처 (#1690)
 
