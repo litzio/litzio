@@ -20,10 +20,11 @@ async (page, { expect, screenshots, brand, openPath, assistantFixture }) => {
   const status=page.locator('.sidebar-host-account .host-status');
   await expect(status).toHaveText('Connecting');release();
   await expect(status).toHaveText('Connected');
+  await page.setViewportSize({width:1440,height:1000});
   for(const theme of ['light','dark']) {
     await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.accent='plum';},theme);
     await expect(status).toHaveCSS('color',theme==='light'?'rgb(20, 115, 75)':'rgb(112, 212, 165)');
-    if(screenshots) await status.screenshot({path:`tmp/status-host-${theme}.png`});
+    if(screenshots) await page.screenshot({path:`tmp/status-host-${theme}.png`,mask:[page.locator('.sidebar-folder-header'),page.locator('.document-location')]});
   }
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   online=false;await expect(status).toHaveText('Unreachable',{timeout:12000});
