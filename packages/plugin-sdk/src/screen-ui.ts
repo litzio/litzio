@@ -36,7 +36,7 @@ export const SCREEN_UI = {
   Select: 'label:string, value:string, onValueChange(value:string), options:{value:string,label:string}[], optional disabled:boolean, placeholder:string. Single selection with label above the control.',
   Notice: 'children, optional tone="error"; catch async/event failures here.',
   DataTable: 'title:string, rows:object[], columns:string[], optional labels:{field:"Label"}, fields:{field:{type:"number"}}, rowKey:string (identity field), selectedKey?:string|number, onSelectRow?:(row)=>void. With onSelectRow, click or focus a row and press Enter/Space to select; links do not select. Caller owns selectedKey across sorting/filtering/pages.',
-  Status: 'tone:"ok"|"progress"|"warning"|"error"|"neutral", label:string. A dot and label pill; ok uses the success semantic color on a quiet surface, progress uses accent; usable in header or body.',
+  Status: 'tone:"ok"|"progress"|"warning"|"error"|"neutral", label:string. A label pill on a quiet surface; ok uses a success-colored dot, progress uses an accent-colored spinning open ring (static with reduced motion); usable in header or body.',
   Steps: 'steps:string[], current:number (zero based). Display-only ordered list, aria-current="step" on current item.',
   EmptyState: 'title:string, optional description:string, action:ReactNode. One next action, usually a default Button.',
   Progress: 'optional value:number (0..1; omitted for indeterminate), label:string. Native progressbar with accent color.',
