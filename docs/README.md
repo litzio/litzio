@@ -216,4 +216,4 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 - [표 커서 도구 배치 스파이크](spikes/2026-11-14-1481-table-cursor-tools.md) — Historical, 채택(배치 방향), #1481.
 - [Windows packed CLI 검사 예산 측정](reviews/windows-packed-cli-budget-2026-11.md) — Historical. #1645의 성공·실패 queue 단계 시간과 cold npm 준비 비용, 검사 구간 분리 근거.
 
-- [v0.0.3-beta.3 게시 준비 기록](releases/v0.0.3-beta.3.md) — Historical. 게시 대기(미게시) 후보와 검증 범위.
+- [v0.0.3-beta.3 게시 준비 기록](releases/v0.0.3-beta.3.md) — 게시 대기(미게시). 후보와 검증 범위.
