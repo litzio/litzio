@@ -349,7 +349,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
       {editableFigure && !editing ? (
         <Button className="figure-edit" size="sm" variant="outline" aria-label={i18n.t("Edit figure")} contentEditable={false} onClick={beginEdit}>{i18n.t("Edit")}</Button>
       ) : null}
-      <FigureProperties
+      <FigureProperties editor={editor}
         anchor={anchor}
         kind={numbered ?? i18n.t("Figure")}
         testId="figure"
@@ -575,7 +575,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
     </figcaption>
     {view.editable && !editing && !properties ? <Button className="figure-edit" size="sm" variant="outline" aria-label={i18n.t("Edit figure")}
       contentEditable={false} onClick={beginEdit}>{i18n.t("Edit")}</Button> : null}
-    <FigureProperties anchor={anchor} kind={kind} testId="mermaid-property" open={properties} error={errorField ? undefined : error} busy={busy}
+    <FigureProperties editor={editor} anchor={anchor} kind={kind} testId="mermaid-property" open={properties} error={errorField ? undefined : error} busy={busy}
       onApply={outside => void apply(false, !outside)} onCancel={cancel}
       media={<div className="figure-property-thumbnail"><MermaidPreview source={applied.mermaidSource ?? ""} /></div>}
       actions={<Button ref={sourceButton} type="button" size="sm" variant="outline" data-testid="mermaid-edit-source"

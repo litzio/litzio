@@ -75,7 +75,7 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
       <TableTools editor={editor} node={node} getPos={getPos} grid={grid} rowLayer={rowLayer} actionLayer={actionLayer} appendAnchor={appendAnchor} onEdit={begin} hidden={editing} />
     </div></div>
     <div ref={rowLayer} className="table-row-layer" contentEditable={false} />
-    <MetadataProperties target={() => anchor.current?.closest("[data-block=table]") ?? null} anchor={anchor} initialFocus={input} kind={kind} testId="table" open={editing}
+    <MetadataProperties editor={editor} target={() => anchor.current?.closest("[data-block=table]") ?? null} anchor={anchor} initialFocus={input} kind={kind} testId="table" open={editing}
       onApply={apply} onCancel={() => close()}>
       <div className="form-field">
         <label className="form-label" htmlFor={`table-label-${formId}`}>{i18n.t("Label")}</label>

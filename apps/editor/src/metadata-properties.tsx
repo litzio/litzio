@@ -1,3 +1,5 @@
+import type { Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
@@ -9,8 +11,8 @@ import { Notice } from "./ui/primitives.tsx";
 import { metadataAnchorRect, useMetadataPlacement } from "./ui/use-metadata-placement.ts";
 
 /** Short metadata only. Source editing retains its explicit Apply/Cancel form. */
-export function MetadataProperties({ anchor, target, initialFocus, kind, testId, open, busy, choosing, error, onApply, onCancel, children, media, actions }: {
-  anchor: RefObject<HTMLElement | null>; target(): Element | null; initialFocus?: RefObject<HTMLElement | null>; kind: string; testId: string; open: boolean;
+export function MetadataProperties({ editor, anchor, target, initialFocus, kind, testId, open, busy, choosing, error, onApply, onCancel, children, media, actions }: {
+  editor: Editor; anchor: RefObject<HTMLElement | null>; target(): Element | null; initialFocus?: RefObject<HTMLElement | null>; kind: string; testId: string; open: boolean;
   busy?: boolean; choosing?: boolean; error?: string; onApply(outside?: boolean): void; onCancel(): void; children: ReactNode;
   media?: ReactNode; actions?: ReactNode;
 }) {
@@ -51,7 +53,25 @@ export function MetadataProperties({ anchor, target, initialFocus, kind, testId,
     if (details.reason === "outside-press" && !inDialog && !switchingView && !busy && details.event instanceof MouseEvent && details.event.detail > 0 && outsideCompletion.current === undefined) {
       // Let the engine read the native pointer selection before a synchronous
       // metadata transaction writes its selection back to the DOM.
-      outsideCompletion.current = window.setTimeout(() => { outsideCompletion.current = undefined; onApply(true); }, 0);
+      outsideCompletion.current = window.setTimeout(() => {
+        outsideCompletion.current = undefined;
+        const view = editor.view;
+        const native = view.dom.ownerDocument.getSelection();
+        // selectionchange may still be queued after click. Read the clicked text
+        // caret before a metadata transaction maps the old engine selection and
+        // writes it back to the DOM. Other surfaces keep their own focus.
+        if (view.hasFocus() && native?.anchorNode && native.focusNode &&
+          view.dom.contains(native.anchorNode) && view.dom.contains(native.focusNode)) {
+          const $anchor = view.state.doc.resolve(view.posAtDOM(native.anchorNode, native.anchorOffset));
+          const $head = view.state.doc.resolve(view.posAtDOM(native.focusNode, native.focusOffset));
+          if ($anchor.parent.isTextblock && $head.parent.isTextblock) {
+            const selection = view.someProp("createSelectionBetween", create => create(view, $anchor, $head))
+              ?? TextSelection.between($anchor, $head);
+            if (!selection.eq(view.state.selection)) view.dispatch(view.state.tr.setSelection(selection));
+          }
+        }
+        onApply(true);
+      }, 0);
     }
   }}>
     <PopoverContent anchor={() => {
