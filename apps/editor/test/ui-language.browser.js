@@ -10,7 +10,7 @@ async (page, { openPath, screenshots }) => {
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const file = [...initial.path.split(sep).slice(0, -4), 'tmp', 'reference-save-reload', 'technical-document.md'].join(sep);
   await openPath(page, file);
-  check(await page.getByTestId('sidebar').locator('.product').innerText() === 'Explorer', 'Explorer heading must be translated into English');
+  check(await page.getByTestId('sidebar').getByRole('heading', { level: 2 }).innerText() === 'Explorer', 'Explorer heading must be translated into English');
   const documentTabId = await page.locator('[data-document-tab][data-active=true]').getAttribute('data-document-tab');
   const editor = page.locator(`[data-document-tab="${documentTabId}"] .document-editor`);
   const original = await editor.evaluateHandle(node => node.editor);
@@ -182,7 +182,7 @@ async (page, { openPath, screenshots }) => {
     if (screenshots) await page.screenshot({ path: 'tmp/256/settings-ko.png' });
     await closeSettings();
     check(await page.evaluate(() => document.querySelector('.document-scroll[data-active="true"]').scrollTop) === scrollBefore, 'Settings changed document scroll');
-    check(await page.getByTestId('sidebar').locator('.product').innerText() === '탐색기', 'Explorer heading must be translated into Korean');
+    check(await page.getByTestId('sidebar').getByRole('heading', { level: 2 }).innerText() === '탐색기', 'Explorer heading must be translated into Korean');
     const collapseExplorer = page.getByRole('button', {name:'탐색기 접기', exact:true});
     check(await collapseExplorer.getAttribute('title') === '탐색기 접기', 'Expanded Explorer tooltip must be translated');
     await collapseExplorer.click();

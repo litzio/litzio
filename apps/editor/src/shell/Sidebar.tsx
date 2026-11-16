@@ -10,7 +10,7 @@ import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
 import type { FileActionHandler } from "./FileActionDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
-import { useSyncExternalStore, useRef, type ReactNode, type RefObject } from "react";
+import { useSyncExternalStore, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { Sun, Moon, FileText, Files as FilesIcon, Folder, FolderOpen, PanelLeftClose, Plus, Settings } from "lucide-react";
 import { DesktopMenu } from "./DesktopDaemon.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -73,6 +73,15 @@ export function Sidebar({
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
+  const localToggleRef = useRef<HTMLButtonElement>(null);
+  const toggleButtonRef = toggleRef ?? localToggleRef;
+  const restoreToggleFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (restoreToggleFocus.current) {
+      toggleButtonRef.current?.focus();
+      restoreToggleFocus.current = false;
+    }
+  }, [open, toggleButtonRef]);
   const only = folders.length === 1 ? folders[0] : undefined;
   const blankActions = only ? folderActions({
     onCopyPath,
@@ -82,6 +91,12 @@ export function Sidebar({
     onRefresh: () => onRefreshFolder?.(only.root), onClose: () => onCloseFolder?.(only.root),
   }, only.root, () => content.current?.querySelector<HTMLButtonElement>('[data-folder-menu]') ?? null)
     : [{ id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => onOpenFolder(content.current) }];
+  const toggleButton = <Button ref={toggleButtonRef} className="sidebar-collapse" variant="ghost" size="icon-sm"
+    aria-label={i18n.t(open ? "Collapse Explorer" : "Expand Explorer")}
+    title={i18n.t(open ? "Collapse Explorer" : "Expand Explorer")} aria-expanded={open} aria-controls="sidebar-files"
+    onClick={event => { restoreToggleFocus.current = document.activeElement === event.currentTarget; onToggle(); }}>
+    {open ? <PanelLeftClose /> : <FilesIcon />}
+  </Button>;
   return (
     <nav className={`sidebar${open ? "" : " sidebar--collapsed"}${overlay && open ? " sidebar--overlay" : ""}`} aria-label={i18n.t("Application")} data-testid="sidebar"
       onKeyDown={event => {
@@ -90,33 +105,8 @@ export function Sidebar({
         }
       }}>
       {open && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
-      {open ? <PanelHeader title={i18n.t("Explorer")} actions={<>          <Button
-            ref={toggleRef}
-            className="sidebar-collapse"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={open ? i18n.t("Collapse Explorer") : i18n.t("Expand Explorer")}
-            title={open ? i18n.t("Collapse Explorer") : i18n.t("Expand Explorer")}
-            aria-expanded={open}
-            aria-controls="sidebar-files"
-            onClick={onToggle}
-          >
-            {open ? <PanelLeftClose /> : <FilesIcon />}
-          </Button>
-</>} /> : <div className="sidebar-header"><div className="sidebar-header-actions">          <Button
-            ref={toggleRef}
-            className="sidebar-collapse"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={open ? i18n.t("Collapse Explorer") : i18n.t("Expand Explorer")}
-            title={open ? i18n.t("Collapse Explorer") : i18n.t("Expand Explorer")}
-            aria-expanded={open}
-            aria-controls="sidebar-files"
-            onClick={onToggle}
-          >
-            {open ? <PanelLeftClose /> : <FilesIcon />}
-          </Button>
-</div></div>}
+      {open ? <PanelHeader title={i18n.t("Explorer")} actions={toggleButton} />
+        : <div className="sidebar-header"><div className="sidebar-header-actions">{toggleButton}</div></div>}
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
       <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}
         onContextMenu={event => {
@@ -215,7 +205,7 @@ function HostAccount({ collapsed }: { collapsed: boolean }) {
   const account = runtime.state === "connected" ? runtime.identity?.runAs : undefined;
   const label = i18n.t("Background service");
   const text = account ?? label;
-  return <Tooltip><TooltipTrigger render={<div tabIndex={0} className="sidebar-host-account" aria-label={`${label} · ${i18n.t("Run as")}${account ? `: ${account}` : ""}`} />}>
+  return <Tooltip><TooltipTrigger render={<div tabIndex={0} className="sidebar-host-account type-helper" aria-label={`${label} · ${i18n.t("Run as")}${account ? `: ${account}` : ""}`} />}>
     <HostStatus runtime={runtime} compact showDetails={false} iconOnly={!!account || collapsed} />
     {!collapsed && account ? <span className="sidebar-tree-name">{text}</span> : null}
   </TooltipTrigger><TooltipContent><div><div>{label}{account ? ` · ${i18n.t("Run as")}: ${account}` : ""}</div>{account ? <div>{i18n.t("This Host performs file operations and assistant execution with this account's permissions.")}</div> : null}</div></TooltipContent></Tooltip>;

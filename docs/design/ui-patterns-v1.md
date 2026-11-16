@@ -189,6 +189,20 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 좁은 창 비서의 Tab·Escape·이전 편집 focus 복귀와 넓은 창 비모달 패널은 [비서 계약](main-agent-v1.md#대화와-표시)을 따른다. 질문은 과정 밖의 기존 AssistantQuestion fieldset/radio·Input/Button을 사용하며 답변 뒤 같은 카드에 읽기 전용 기록을 남긴다. 끝난 차단 RPC는 입력을 닫고 콜백을 복원하지 않는다. 렌더 확인은 카드가 mount된 창에서만 보내고 숨김 패널·기록 목록에서는 보내지 않는다([질문 계약](main-agent-v1.md#질문과-사용량)).
 
+### 비서 패널 시각 확인 (#1686)
+
+fixture 공급자로 한국어의 1440px 밝음·어두움과 640px 밝음을 확인했다. 실제 AI 호출이나 소유자 시각 승인은 포함하지 않는다. 경로·실행 계정은 촬영 시 가렸다. 탐색기 접기/펼치기의 키보드 focus, 보이는 머리의 높이·여백·구분선 비교와 도구 상태 문구·tone은 브라우저 검사로 보호한다. 파일 트리와 좁은 창의 기존 overlay 수명은 유지한다.
+
+| 화면 | 1440 밝음 전 / 후 | 1440 어두움 전 / 후 | 640 밝음 전 / 후 |
+| --- | --- | --- | --- |
+| 빈 비서 | [전](assets/panel-headers-assistant-1686/before-empty-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-empty-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-empty-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-640-light-ko.png) |
+| 문서 패널 | [전](assets/panel-headers-assistant-1686/before-document-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-document-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-document-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-640-light-ko.png) |
+| 도구 상태 | [전](assets/panel-headers-assistant-1686/before-work-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-work-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-work-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-640-light-ko.png) |
+| 질문·결과 | [전](assets/panel-headers-assistant-1686/before-cards-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-cards-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-cards-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-640-light-ko.png) |
+| 대화 기록 | [전](assets/panel-headers-assistant-1686/before-history-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-history-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-history-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-history-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-history-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-history-640-light-ko.png) |
+
+640px 탐색기: [전](assets/panel-headers-assistant-1686/before-explorer-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-explorer-640-light-ko.png).
+
 ## 알려진 불일치
 
 공통 표현의 남은 불일치는 [DESIGN.md의 알려진 불일치](../../DESIGN.md#알려진-불일치)에서 추적한다. 이 목록은 전 화면 실행·시각 승인을 뜻하지 않는다.

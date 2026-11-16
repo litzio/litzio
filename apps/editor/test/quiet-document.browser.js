@@ -785,7 +785,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     const context=canvas.getContext('2d');
     const rgba=color=>{context.clearRect(0,0,1,1);context.fillStyle=color;context.fillRect(0,0,1,1);return [...context.getImageData(0,0,1,1).data];};
     const luminance=rgb=>rgb.slice(0,3).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;}).reduce((s,v,i)=>s+v*[0.2126,0.7152,0.0722][i],0);
-    return ['.document-path-name','.product','.caption','.admonition-label','.admonition-body','.cross-reference-chip','.block-kind','[data-testid="save"]'].map(selector=>{
+    return ['.document-path-name','.sidebar > .panel-header h2','.caption','.admonition-label','.admonition-body','.cross-reference-chip','.block-kind','[data-testid="save"]'].map(selector=>{
       const n=document.querySelector('[data-document-tab][data-active=true] '+selector) ?? document.querySelector(selector);if(!n)throw Error(`Missing contrast target ${selector}`);
       let bg=[255,255,255,255];
       for(let p=n;p;p=p.parentElement){const c=rgba(getComputedStyle(p).backgroundColor);if(c[3]===255){bg=c;break;}}

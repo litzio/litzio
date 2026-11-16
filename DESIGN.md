@@ -246,7 +246,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 | 속성 팝오버 | [metadata-properties.tsx](apps/editor/src/metadata-properties.tsx) | 대상 anchor와 문서 가용 영역 |
 | 드롭다운·컨텍스트 메뉴 | [dropdown-menu.tsx](apps/editor/src/components/ui/dropdown-menu.tsx), [context-menu.tsx](apps/editor/src/components/ui/context-menu.tsx) | 공유 메뉴 면과 동작 행 |
 | 알림 | [notification-center.tsx](apps/editor/src/components/ui/notification-center.tsx) | 창 단위 등록과 공통 표시 |
-| 도킹 패널 | [AssistantPanel.tsx](apps/editor/src/shell/AssistantPanel.tsx) | 도킹·좁은 창 오버레이와 focus 경계 |
+| 도킹 패널 | [AssistantPanel.tsx](apps/editor/src/shell/AssistantPanel.tsx) | PanelHeader·Status plain·완료 표시 생략, 도킹·좁은 창 오버레이와 focus 경계 |
 | 데이터 표 | [DataTable.tsx](apps/editor/src/components/DataTable.tsx) | 공통 필터·정렬·목록 표시 |
 | 플러그인 화면 | [PluginScreenCode.tsx](apps/editor/src/views/PluginScreenCode.tsx) | TaskHeader·ScreenLayout과 상태·단계·빈 상태·진행 부품, 고정 client의 화면 수명 |
 

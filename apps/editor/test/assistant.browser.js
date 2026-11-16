@@ -769,7 +769,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(steps).toHaveAttribute('open', '');
   const progressTool = { id: 'progress-tool', kind: 'tool', text: 'read_document · document.md', status: 'inProgress' };
   progressTurn.items.push(progressTool);
-  const toolStep = panel.locator('.assistant-steps[data-kind=tool]').last();
+  const toolStep = panel.locator('.assistant-steps[data-kind=tool]').filter({ hasText: 'read_document · document.md' });
   await expect(toolStep.locator('summary')).toContainText('read_document · document.md');
   await expect(toolStep).not.toHaveAttribute('open');
   await expect(steps.locator('summary > span:first-of-type > span')).toHaveText('Thinking');
