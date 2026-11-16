@@ -59,8 +59,12 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
     await page.mouse.move(0,0);
     const button = (await state(openFolder)).background;
     await openFolder.click();
+    await page.getByRole('dialog').getByRole('button', {name:'Edit path',exact:true}).click();
     const field = (await state(page.getByTestId('folder-path'))).background;
     await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog').waitFor({state:'detached'});
     return [button, field];
   };
   const lightFaces = await faces();
@@ -69,6 +73,7 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
   await page.emulateMedia({colorScheme:'light'});
   check(JSON.stringify(darkFaces) === JSON.stringify(lightFaces), `OS dark preference changed control faces: ${JSON.stringify({lightFaces, darkFaces})}`);
   await openFolder.click();
+  await page.getByRole('dialog').getByRole('button', {name:'Edit path',exact:true}).click();
   await page.getByTestId('folder-path').fill(folder);
   await page.getByTestId('folder-open').click();
   const currentFile = page.getByRole('treeitem', {name:'quiet-document.md', exact:true});

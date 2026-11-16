@@ -202,7 +202,7 @@ async (page, { openPath, expect }) => {
     await expect(picker).toBeVisible();
     expect(await entryDocument()).toEqual(beforeEntry);
     await picker.getByRole('option', {name:'diagram.svg',exact:true}).click();
-    await picker.getByRole('button', {name:'Use “diagram.svg”',exact:true}).click();
+    await picker.getByRole('button', {name:'Use',exact:true}).click();
     await expect(page.getByTestId('figure-image-url')).toHaveValue('./diagram.svg');
     expect(await entryDocument()).toEqual(beforeEntry);
     await page.keyboard.press('Escape');

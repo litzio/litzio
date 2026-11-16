@@ -268,7 +268,7 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
           <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Forward")} disabled={pending || historyIndex >= history.length - 1} onClick={() => travel(1)}><ArrowRight /></Button>
           <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Up")} disabled={!parent || pending} onClick={() => parent && go(parent.path)}><ArrowUp /></Button>
           <div className="folder-picker-field">
-            {editing ? <input ref={field} id="folder-path" data-testid="folder-path" className="folder-picker-input" role="combobox" aria-label={pathLabel} aria-expanded={options.length > 0} aria-controls="folder-picker-list" aria-activedescendant={activeIndex >= 0 ? `folder-option-${activeIndex}` : undefined} aria-autocomplete="list" value={input} onChange={event => { setInput(event.target.value); setSelected(undefined); setHighlight(-1); setError(""); }} onKeyDown={keyDown} spellCheck={false} autoComplete="off" disabled={pending} /> : <>
+            {editing ? <input ref={field} id="folder-path" data-testid="folder-path" className="folder-picker-input" role="combobox" aria-label={pathLabel} aria-describedby={error ? "open-folder-error" : undefined} aria-expanded={options.length > 0} aria-controls="folder-picker-list" aria-activedescendant={activeIndex >= 0 ? `folder-option-${activeIndex}` : undefined} aria-autocomplete="list" value={input} onChange={event => { setInput(event.target.value); setSelected(undefined); setHighlight(-1); setError(""); }} onKeyDown={keyDown} spellCheck={false} autoComplete="off" disabled={pending} /> : <>
               <nav ref={crumbList} aria-label={i18n.t("Folder location")} className="folder-picker-crumbs">{crumbs.map((crumb, index) => <span key={crumb.path}>{index > 0 ? <ChevronRight aria-hidden="true" /> : null}<Button variant="ghost" size="sm" className="folder-picker-crumb" title={crumb.path} aria-current={index === crumbs.length - 1 ? "location" : undefined} onClick={() => go(crumb.path)}>{crumb.name}</Button></span>)}</nav>
               <Button variant="ghost" size="sm" className="folder-picker-address" aria-label={i18n.t("Edit path")} onClick={() => { setInput(result ? inside(result.path) : location); setEditing(true); }} />
             </>}
@@ -290,12 +290,11 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
                   <span className="folder-picker-date">{entry.modifiedAt ? new Date(entry.modifiedAt).toLocaleDateString(i18n.language) : ""}</span><span className="folder-picker-size">{entry.size === undefined ? "" : entry.size < 1024 ? `${entry.size} B` : `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(entry.size / 1024)} KB`}</span>
                 </li>)}
               </ul>
-              {meta ? <p className="folder-picker-meta" data-testid="folder-picker-meta" role={listing.error ? "alert" : "status"}>{meta}</p> : null}
+              {error ? <p className="folder-picker-meta" id="open-folder-error" role="alert" data-testid="open-error">{error}</p> : meta ? <p className="folder-picker-meta" data-testid="folder-picker-meta" role={listing.error ? "alert" : "status"}>{meta}</p> : null}
             </div>
           </div>
           {open && activeImage && result ? <section className="folder-picker-preview" aria-label={i18n.t("Read-only image preview")}><FileImagePreview key={activeImage.path} entry={activeImage} root={result.path} quiet /></section> : null}
         </div>
-        {error ? <p id="open-folder-error" role="alert" data-testid="open-error">{error}</p> : null}
         <div className="folder-picker-footer">
           <div className="folder-picker-target" title={targetPath}><span>{chosen?.name ?? target}</span>{image ? <span className="folder-picker-types">{fileTypes}</span> : null}</div>
           <Button variant="outline" size="sm" disabled={pending} onClick={onClose}>{i18n.t("Cancel")}</Button>
