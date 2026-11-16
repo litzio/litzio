@@ -317,7 +317,12 @@ test("installs per user, then updates from Settings only after the open document
         await cli.getByText("On", { exact: true }).waitFor();
       });
     }
-    assert.equal(await page.getByRole("combobox", { name: "Release channel", exact: true }).inputValue(), BETA ? "beta" : "stable", "first install uses its own channel");
+    if (LIVE) {
+      // The public beta.1 binary predates the release-channel combobox.
+      await expect(page.getByRole("radio", { name: "Beta", exact: true })).toBeChecked();
+    } else {
+      await expect(page.getByRole("combobox", { name: "Release channel", exact: true }), "first install uses its own channel").toHaveValue(BETA ? "beta" : "stable");
+    }
     // CLI verification can outlast the scheduled initial check. Wait for its actual offer,
     // which replaces Check for updates with Download update; manual checking is exercised
     // after relaunch below. All offer/no-download/consent assertions remain the same.
