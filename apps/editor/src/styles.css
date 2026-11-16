@@ -3585,7 +3585,13 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 }
 .notification-auto[hidden] { display: none; }
 
-/* Exit is shorter so focus restoration and chained dialogs stay responsive. */
+/* A closing surface must not intercept the next pointer action underneath it. */
+:where([data-slot="dialog-content"], [data-slot="dialog-overlay"], [data-slot="dropdown-menu-content"],
+[data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"],
+.notification-center li, .notification-center ul)[data-ending-style],
+.notification-auto[hidden], .notification-auto > ul[hidden] { pointer-events: none; }
+
+/* Exit retains its own token for focus restoration and chained dialogs. */
 :where([data-slot="dialog-content"], [data-slot="dialog-overlay"], [data-slot="dropdown-menu-content"],
 [data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"], .notification-center li)[data-ending-style] { transition-duration: var(--duration-fast); }
 .notification-auto > ul { transition: display var(--duration-normal) allow-discrete; }
