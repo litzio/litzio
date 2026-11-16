@@ -87,9 +87,13 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
   // Retain only the presentation of removed rows until CSS transitions finish.
   // Live counts, announcements and actions continue to use visible/source items.
   const [presented, setPresented] = useState(visible);
+  const reducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Source updates are live immediately. Only removed rows may be retained, and
+  // reduced motion removes them in the same render rather than a later microtask.
+  const displayed = [...visible, ...presented.filter(item => !reducedMotion && !visible.some(next => next.id === item.id))];
   useLayoutEffect(() => {
-    setPresented(previous => [...visible, ...previous.filter(item => !visible.some(next => next.id === item.id))]);
-  }, [items, hidden]);
+    setPresented(previous => [...visible, ...previous.filter(item => !reducedMotion && !visible.some(next => next.id === item.id))]);
+  }, [items, hidden, reducedMotion]);
   useLayoutEffect(() => {
     let cancelled = false;
     const exiting = [...(list.current?.querySelectorAll<HTMLElement>("li[data-ending-style]") ?? [])];
@@ -102,7 +106,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
   // testId already identifies typed producers. Generic errors/standing warnings
   // need their message too, so unrelated causes are not presented as one kind.
   const groups = new Map<string, RegisteredNotification[]>();
-  for (const item of presented) {
+  for (const item of displayed) {
     const kind = item.testId && !["error", "notice", "writeability-warning"].includes(item.testId) ? item.testId : item.message;
     const key = JSON.stringify([item.source, item.context, item.severity, kind]);
     groups.set(key, [...(groups.get(key) ?? []), item]);
@@ -113,7 +117,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
       setPresentation("closed");
       if (dismissed.current || list.current?.contains(document.activeElement)) toggle.current?.focus();
     } else if (dismissed.current) {
-      if (visibleIdsForMotion(presented) !== visibleIds) return;
+      if (visibleIdsForMotion(displayed) !== visibleIds) return;
       list.current?.querySelector<HTMLButtonElement>("li:not([inert]) button")?.focus();
     }
     dismissed.current = false;
@@ -145,7 +149,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
       const rows = entries.map(item => <li key={item.id} data-severity={item.severity} data-ending-style={!visible.some(next => next.id === item.id) ? "" : undefined} inert={!visible.some(next => next.id === item.id)} aria-hidden={!visible.some(next => next.id === item.id) || undefined}>
       <div className="notification-content">
         {entries.length === 1 && item.context ? <p className="notification-context">{item.context}</p> : null}
-        <div data-testid={item.testId} role={item.severity === "error" && !item.actionLabel ? "alert" : "status"}>
+        <div data-testid={visible.some(next => next.id === item.id) ? item.testId : undefined} role={!visible.some(next => next.id === item.id) ? undefined : item.severity === "error" && !item.actionLabel ? "alert" : "status"}>
         {item.render ? item.render() : <p>{item.message}</p>}
         {item.reveal ? <Button className="notification-reveal" size="sm" variant="ghost" onClick={item.reveal}>{item.actionLabel ?? i18n.t("Go to problem")}</Button> : null}
         </div>
