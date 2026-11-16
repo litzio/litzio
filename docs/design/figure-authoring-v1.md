@@ -177,12 +177,13 @@ text-to-border padding, clipping, clearance from Edit and the existing image/tab
 pattern. `mermaid-authoring` covers the cue at rest, both themes/widths, read-only omission and
 failure/draft states; `pending-figure` covers the empty Mermaid source draft.
 
-Edit, selected-node Enter and diagram double-click open the shared Figure metadata popover.
+**Edit source** in the object tool row, selected-node Enter and diagram double-click open the
+full-column source form directly. **Properties** opens the shared Figure metadata popover.
 The label chip also opens that popover on click or keyboard Enter/Space, focusing Label
-(#847); image and pending Figure labels follow the same entry. Edit retains its existing
-image/source focus. Read-only and source-editing metadata has no interactive label.
-Its **Edit source** action applies the metadata draft through Core validation, then closes the
-popover and opens the existing full-column code-style textarea,
+(#847); image and pending Figure labels follow the same entry. Read-only and source-editing
+metadata has no interactive label. Pressing Edit source while the popover is open applies the
+metadata draft through Core validation, then closes the popover and opens the source form.
+An unchanged draft adds no Undo step. The source form is the existing full-column code-style textarea,
 debounced draft preview, label and shared explicit Apply/Cancel actions. Plain Enter adds a
 line; Ctrl/Cmd+Enter applies and Escape cancels. Outside click, blur and selection movement
 retain the form. Source/label drag events stay inside native controls. Apply validates through
@@ -274,8 +275,9 @@ Closing properties retains a text selection inside the caption, otherwise return
 a text/gap caret after the Figure ([Continuous editing](document-editing-v1.md#continuous-editing)).
 Apply changes attributes without replacing an unchanged caption, preserving its
 caret and formatting. Captions are edited directly in the document, with the shared inline formatting tools.
-The image properties popover contains a thumbnail and Replace entry, alt text, label and Number;
-Mermaid metadata contains Edit source, label and Number. Diagram alt text remains unsupported.
+The image properties popover contains a thumbnail, alt text, label and Number;
+Mermaid metadata contains label and Number. Replace image and Edit source are tool-row actions
+beside Properties. Diagram alt text remains unsupported.
 The source editor retains its existing source, preview, label, Number and Apply/Cancel controls. Completion always validates
 and preserves the live caption; it never replaces caption content.
 Figure validation that completes after the user moves elsewhere does not take focus back.
@@ -295,9 +297,9 @@ paste/drop keep their existing behavior; see [Continuous document editing](docum
 
 Filling an empty Figure preserves the caret at its current caption position and is one undo step: Undo restores that empty Figure, while Undo removes a newly inserted Figure. Both results persist through Save → Reload. Apply → Save → Undo → Save writes the Figure as it was before Apply, and Redo → Save writes the applied value again. Save preserves this history and the opening-snapshot replay contract. Deleting and undoing a Figure restores its attributes, including after saving the deletion. No new Core operation or CLI command is needed: filling reuses the existing Figure update path, already available as `update-figure --image`.
 
-Edit or Enter on a selected Figure opens its properties (#557). Single-click selects only. Double-clicking its rendered image, pending no-content frame or image-load error uses the same Edit path, including initial Replace-button focus and focus restoration on closing (#470). Caption double-click keeps normal text selection/caret behavior. Opening properties changes neither document nor history; keyboard re-entry while already editing preserves the existing form, draft and validation error; a pointer click outside the popover follows completion. Apply accepts label and image properties through Core validation, all-empty included; the caption remains direct document content. Alt without an image shows a validation error and retains the form. Edit connects or removes the image URL. Save/Source operate on applied content only; keyboard activation and tab focus retain unapplied fields. Pointer dismissal applies through the popover completion path. Save acknowledges only the submitted applied snapshot; later edits remain dirty under the existing session contract.
+Properties or Enter on a selected image Figure opens its properties (#557). Single-click selects only. Double-clicking its rendered image, pending no-content frame or image-load error uses the same path, focusing Alt text (the Image field for an image-free Figure) and restoring focus on closing (#470). Caption double-click keeps normal text selection/caret behavior. Opening properties changes neither document nor history; keyboard re-entry while already editing preserves the existing form, draft and validation error; a pointer click outside the popover follows completion. Apply accepts label and image properties through Core validation, all-empty included; the caption remains direct document content. Alt without an image shows a validation error and retains the form. The Image field connects or removes the image URL. Save/Source operate on applied content only; keyboard activation and tab focus retain unapplied fields. Pointer dismissal applies through the popover completion path. Save acknowledges only the submitted applied snapshot; later edits remain dirty under the existing session contract.
 
-Replace reveals the existing Image path and explicit Choose… action. Choose… beside that field opens the [folder picker](folder-picker-v1.md#choosing-an-image) to choose an image on the Host, starting in the document's folder ([#208](https://github.com/litzio/litzio/issues/208)). Selection, keyboard navigation and the read-only preview follow the [shared image picker](folder-picker-v1.md#choosing-an-image). Confirming fills the Image field; Apply validates and commits it like a typed value. An image inside the document's folder fills its relative path, such as `./figures/diagram.svg`, and nothing is copied. One elsewhere is copied into `assets/` as a pasted image is, and the field gets that copy's path. Cancel, choosing again, or the form going away unapplied (Reload, closing the document, deleting the Figure) removes a copy the form made; a copy Apply put in the Figure stays. Closing the picker without choosing leaves the field unchanged. No CLI command is added: choosing is Host navigation, and `update-figure --image` already sets the path.
+**Replace image** in the tool row opens the same properties with the Image path revealed and focused, next to the explicit Choose… action. An image-free Figure shows that field whenever its properties open. Choose… beside that field opens the [folder picker](folder-picker-v1.md#choosing-an-image) to choose an image on the Host, starting in the document's folder ([#208](https://github.com/litzio/litzio/issues/208)). Selection, keyboard navigation and the read-only preview follow the [shared image picker](folder-picker-v1.md#choosing-an-image). Confirming fills the Image field; Apply validates and commits it like a typed value. An image inside the document's folder fills its relative path, such as `./figures/diagram.svg`, and nothing is copied. One elsewhere is copied into `assets/` as a pasted image is, and the field gets that copy's path. Cancel, choosing again, or the form going away unapplied (Reload, closing the document, deleting the Figure) removes a copy the form made; a copy Apply put in the Figure stays. Closing the picker without choosing leaves the field unchanged. No CLI command is added: choosing is Host navigation, and `update-figure --image` already sets the path.
 
 Relative image sources remain unchanged in document attributes and Markdown. Both the live NodeView and the editor's HTML serializer resolve document-relative paths through the Host media URL, with or without `./` (`assets/diagram.svg` and `./assets/diagram.svg` display the same image). Sources with a URL scheme, protocol-relative sources (`//host/...`), root-absolute paths and Windows drive/UNC paths retain their existing browser handling. Relative `../` paths still pass through the Host, which rejects access outside the document directory, including encoded traversal and symlink escapes; URL encoding must not let browser dot-segment normalization bypass that check. No path is normalized or prefixed in saved content.
 
@@ -357,7 +359,7 @@ metadata placement. Base UI retains horizontal bounds, focus and dismissal.
 
 Image, Mermaid, table, block Equation and section label share one rule: the action row faces
 the target. Above it, DOM/visual order is preview (when present), fields/errors, actions;
-below it, actions, fields/errors, preview. Replace or Edit source sits beside Done. A keyed
+below it, actions, fields/errors, preview. The action row holds only Done. A keyed
 body/fields/actions structure moves the same controls instead of remounting their drafts.
 Existing entry focus targets remain; Tab/Shift+Tab follow the visible DOM order, Enter and the
 shared submit shortcut complete metadata, and Escape cancels with the existing caret/focus return.
@@ -389,7 +391,7 @@ until it returns. Save still acknowledges only its submitted applied snapshot; l
 completion remains a separate edit. Unapplied properties retain the existing close/unload guard
 and remain outside applied-content recovery. Caption editing stays directly in the document.
 
-Image replacement is an explicit disclosure with the existing path/chooser and copied-asset
+Image replacement is an explicit tool-row entry with the existing path/chooser and copied-asset
 cleanup. File name lives in **Advanced**, initially collapsed on each entry; a retained filename
 draft or error opens it. Only its explicit **Rename** action invokes the Host filesystem rename.
 Done/outside completion never renames a file: an unconfirmed filename survives closing and
@@ -404,7 +406,7 @@ rest borders, a subtle surface fill and empty-value placeholders, with hover/foc
 The Number track matches the neighboring input height, and visible segment labels share the
 hidden width-reserving labels' grid cell. Both media kinds use intrinsic-ratio previews within
 adjustable maximum width/height, without a fixed box or letterbox fill. The image itself has
-a subtle structural border and content radius; compact actions share the facing Done row. Advanced
+a subtle structural border and content radius. Advanced
 uses a native keyboard-accessible disclosure with the shared chevron and compact target.
 Its expanded filename row retains the collapsed label-line clearance before the next row.
 Form rows use the shared 12px gap and equal 16px outer padding; warnings/errors use UI 14/20

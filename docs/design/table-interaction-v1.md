@@ -1,7 +1,7 @@
 # Table interaction v1
 
 - Status: Implemented
-- Whole-table tools update: 2026-10-30 (#793; upper Edit/More and metadata, menu-only Delete; [contract and evidence](#whole-table-tools-793)).
+- Whole-table tools: upper Properties and metadata; deletion through the block menu ([contract](#whole-table-tools-793)).
 - Property-entry update: 2026-10-27 (#557: shared selection/Enter/double-click and explicit property drafts; see [Continuous editing](document-editing-v1.md#continuous-editing)).
 - Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
 - Previous verification: 2026-10-26 (#514: shared Button migration with explicit target/anchor preservation, 28px targets/6px radius; table-authoring/table-cell-editing/continuous-editing browser regressions and [manual captures](../reviews/editor-visual-language-history-2026-10-30.md#shared-control-verification-514)).
@@ -18,15 +18,15 @@ writes a `{table}` directive even when both are absent (#584; [format contract](
 - Scope: active-cell outline, matching row/column handles, append buttons and a contextual menu on existing Markdown tables.
 - Reuse the Editor table commands and Core save operations. Handles and selection indicators are UI only; they never enter Markdown or document attributes.
 - Row/column handles address a specific row/column independently of caret focus. The first row remains the header; the last column cannot be deleted.
-- Menus offer existing add, move, delete and column alignment commands. Table actions include label editing and explicitly named table deletion.
+- Row and column menus offer existing add, move, delete and column alignment commands. There is no whole-table menu: Properties opens label and number, and table deletion uses the block menu or Delete/Backspace on the selected table.
 - Row/column/table menus use the [unified action rows](editor-ux-shell-v1.md#unified-action-menus-516): action-specific 16px line icons, labels and group separators, with danger-token text/icons and enabled danger hover on deletion. Existing explicit targets, disabled restrictions, keyboard focus and deletion paths remain unchanged.
-- Explicit table deletion (block-menu Delete, table-tools Delete table, and Delete/Backspace on a selected table node) takes effect without confirmation. The existing MessageArea shows `Table deleted` / `표를 삭제했습니다` with `Undo` / `되돌리기`, politely announced without taking editor focus. Its action runs the same editor Undo as Ctrl+Z, restoring the complete table, caption and label in one history step and returning editor focus.
+- Explicit table deletion (block-menu Delete, and Delete/Backspace on a selected table node) takes effect without confirmation. The existing MessageArea shows `Table deleted` / `표를 삭제했습니다` with `Undo` / `되돌리기`, politely announced without taking editor focus. Its action runs the same editor Undo as Ctrl+Z, restoring the complete table, caption and label in one history step and returning editor focus.
 - The deletion notice and action expire on the next document change (including typing, keyboard Undo/Redo or an appended transaction such as deferred endnote placement), Save, Reload, Source preview request start, tab switch or the existing five-second temporary-notice timeout. Source revokes the action before its request is pending, so it cannot change a hidden Visual document or outlive the Markdown snapshot; returning to Visual does not revive it. A stale action cannot undo a newer edit or another tab. Further typing starts a separate history step. Deleting a referenced table uses this deletion notice; the existing unresolved reference display remains until Undo restores the table. Other block deletion notices are unchanged.
 - Keep the native engine caret, history and Tab navigation. One structural action is one undo step; after adding, focus moves into the new cell.
 - Ctrl/Cmd+A first selects the current cell's inline content; a consecutive second press selects the document. Empty cells stay local on the first press. See [scoped selection](document-editing-v1.md#select-all-within-an-editing-surface-723). Already complete nonempty cell selections expand immediately; the shared expansion policy switch can keep selection local (#751).
 - Tab in the last cell of an editable table appends a row and focuses its first cell using the same Add row below command and Core Save path. Shift+Tab in the first cell still enters preceding prose; Enter leaves the table; final-row ArrowDown enters the caption, including its always available empty input surface (#577). ArrowUp from the caption returns to the final grid cell. Tab does not act during IME composition or add rows in read-only tables.
 - Editable tables reserve exactly the same content space as read-only tables (#1481). Hover alone never reveals tools. The caret inside a grid cell, or keyboard focus on this table's tools, reveals the matching row/column handles and the append bars. An open menu keeps its target visible and hides both append bars. The small visible faces sit on the top/left grid borders; actual pointer targets remain at least compact-control size. Horizontal scrolling uses an outside overlay; a row handle beside clipped content stays entirely outside the viewport. The column handle follows its column and hides when the column is offscreen. Scroll, resize and structural edits refresh measured geometry.
-- Existing native Tab order is retained, including every row/column entry point. Keyboard focus reveals that entry point without changing the engine caret. Column discovery scrolls its cell into view; Enter opens the existing explicit-target menu and Escape returns to the trigger. Hidden controls reject pointer input. Upper Edit/More and metadata remain outside horizontal scrolling. The block handle is named Move table block; row/column controls have localized Row/Column actions names and matching tooltips.
+- Existing native Tab order is retained, including every row/column entry point. Keyboard focus reveals that entry point without changing the engine caret. Column discovery scrolls its cell into view; Enter opens the existing explicit-target menu and Escape returns to the trigger. Hidden controls reject pointer input. Upper Properties and metadata remain outside horizontal scrolling. The block handle is named Move table block; row/column controls have localized Row/Column actions names and matching tooltips.
 - Only the long edge append bars have an equivalent-path target-size exception. Their short hit axis uses the available gap without intercepting neighboring caption/prose; the visible face is at least the table-bar token (8px). Row/column menu buttons keep their normal compact-control targets. The same additions remain available in full-size menu items and keyboard paths (including last-cell Tab), so the exception does not remove an accessible operation.
 - The row bar first tries the grid/caption gap, then the gap below the caption. Both need the bar and token clearance on each side. The normal 8px caption gap, including an empty caption placeholder, is too small and uses the below-caption gap. A larger caption gap can contain the bar. Only gaps smaller than the visible face plus clearance hide it; the row menu/Tab remain. The column bar sits outside the horizontal scroll viewport, uses its available right-side gap and hides below the face-plus-clearance threshold (12px at the default tokens). Browsers without CSS anchor positioning hide only the column append bar through `@supports`; existing Add column remains available in the column menu. Neither bar reserves document space or intercepts adjacent text.
 - Menu target emphasis is display-only: it is not row/column selection and changes neither the caret, clipboard nor command target. Actual row/column selection is not implemented. Revisit only when a concrete multi-cell selection/copy requirement arises; no custom selection engine is introduced.
@@ -50,7 +50,7 @@ each word of Generation Including DER stay intact. Empty cells retain a 28px
 cell minimum with clickable padding. Several columns containing
 very long unbroken strings can still require local scrolling; CSS cannot identify
 which strings are natural words. No per-content classification is introduced. Editing and Read share this presentation. Row/column handles follow
-measured cells, upper Edit/More and metadata remain outside horizontal scrolling,
+measured cells, upper Properties and metadata remain outside horizontal scrolling,
 and Append row remains after the caption. No Core, CLI or serialization changes.
 
 ### Verification and captures
@@ -96,8 +96,8 @@ fixtures, capture script and PNGs. These historical #897 captures precede #901: 
 The number area of the metadata line selects the whole Table on single click, opens its
 Label properties on double-click, and supports Enter on the engine's Table node selection.
 The label chip opens the same properties directly on click or keyboard Enter/Space and
-focuses Label (#847), matching Figure, Mermaid and Equation metadata. Edit uses the same
-form. Keyboard re-entry keeps the existing draft/error. The short Label/Number form shares
+focuses Label (#847), matching Figure, Mermaid and Equation metadata. Properties and the
+block menu's Properties item use the same form. Keyboard re-entry keeps the existing draft/error. The short Label/Number form shares
 Figure's target-wide metadata popover (#791), including the complete table and caption,
 inside the document content viewport. Done applies, Escape cancels and a valid outside
 pointer click applies without returning focus to the table. Keyboard focus movement alone
@@ -114,13 +114,14 @@ See [shared actions](figure-authoring-v1.md#stable-metadata-actions-1626).
 
 ## Whole-table tools (#793)
 
-Edit and More occupy the upper metadata row, outside `.table-scroll`. Edit uses Figure's
-outlined text button and the existing `figure-edit` reveal class. More retains the shared
-action menu, including Edit label and danger-styled Delete table. There is no standalone
-Delete button. The existing #791 target-wide `MetadataProperties` popover, draft lifecycle,
+Properties occupies the upper metadata row, outside `.table-scroll`, in the
+[object tool row](ui-patterns-v1.md#p03-편집-진입) shared with Figure, Mermaid and Equation.
+A table has no content action there because its cells are edited directly. There is no
+whole-table menu and no standalone Delete button: the block menu leads with Properties and
+keeps Delete. The #791 target-wide `MetadataProperties` popover, draft lifecycle,
 selection, deletion command and one-step Undo remain unchanged; no Core/CLI operation is added.
 
-The compact-control-height number/label row is document content, retained in every display. No additional column-handle or append-row space is reserved in Edit or Read (#1481). Showing, hiding and opening tools never changes the document's height or width. Upper Edit/More share the metadata row; grid handles use the outside overlay. Caption gaps and ordinary block margins remain unchanged.
+The compact-control-height number/label row is document content, retained in every display. No additional column-handle or append-row space is reserved in Edit or Read (#1481). Showing, hiding and opening tools never changes the document's height or width. Upper Properties shares the metadata row; grid handles use the outside overlay. Caption gaps and ordinary block margins remain unchanged.
 
 Read-only displays (Read mode, DocumentView, comparisons and previews) keep the #1635 behavior: no tools or tool space, and the visible number/label row remains.
 

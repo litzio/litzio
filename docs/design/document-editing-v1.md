@@ -206,13 +206,15 @@ A changed document recomputes numbering; source semantics and canonical output a
   paragraph. After any other final block, both create an empty paragraph there.
 - Figure, Table, block Equation and inline math distinguish selection from property editing (#557).
   A single click selects the object without opening a form. Double-click or Enter on an
-  engine node selection opens its properties; block objects also keep Edit. The Table's
+  engine node selection opens the object's content action: the source form for block Equation
+  and Mermaid, properties for image Figure, Table and inline math. Block objects also show the
+  [object tool row](ui-patterns-v1.md#p03-편집-진입). The Table's
   metadata number area is its object selection/double-click surface. Figure (including
   Mermaid), Table and block Equation label chips open the existing metadata popover and
   focus Label on click or keyboard Enter/Space (#847); block selection itself still opens
   no form. Cells and both Figure/Table
   captions retain normal text/caret/word selection. Figure image, empty-content and error
-  surfaces and block/inline formula previews use the same property entry path.
+  surfaces and block/inline formula previews use the same entry path.
 - Endnote definitions use the same explicit selection, Enter and double-click entry pattern for
   in-place editing. Their read-only state and the ownership of their formatting and insertion
   tools are specified in [Endnotes](footnotes-v1.md#editor).
@@ -224,10 +226,10 @@ A changed document recomputes numbering; source semantics and canonical output a
   submits as before. Both forms use explicit Apply, Cancel and Escape. Outside
   click, blur and selection movement neither apply nor discard drafts. Save/Source and tab
   switching retain them under the [editing-session contract](editing-session-save-v1.md#applied-content-and-drafts).
-  Block Equation's upper Edit opens a separate label/number metadata popover (#788).
-  Formula double-click and node-selected Enter still enter the source form directly (#637).
+  Block Equation's Properties opens a separate label/number metadata popover (#788).
+  Its Edit source, formula double-click and node-selected Enter enter the source form directly (#637).
   Only one of these forms can be open: keyboard re-entry while metadata is open retains its
-  draft/error; source editing hides the metadata entry. Metadata's Edit source first applies
+  draft/error; source editing hides the tool row. Edit source pressed while metadata is open first applies
   valid label/number values, then opens source with those applied values and the current LaTeX.
   Invalid values keep metadata open. A pointer on the formula completes valid metadata like
   any outside click; once it is closed, double-click enters source. Cancelling source discards only that source
@@ -256,7 +258,7 @@ A changed document recomputes numbering; source semantics and canonical output a
   retain the metadata form and draft; they do not complete the edit.
   Existing preview typing guards and source/inline Apply/Cancel behavior remain.
   #1626 places the common action row nearest the target: first below it, last above it.
-  Equation Edit source shares that row with Done. DOM/Tab order matches the visual order;
+  The row holds only Done. DOM/Tab order matches the visual order;
   side changes retain draft controls and native input focus/selection. Direction selection uses
   maximum media size, without a fixed preview box. [Shared action layout](figure-authoring-v1.md#stable-metadata-actions-1626).
 - Mermaid Figures reuse the block Equation's in-document source editing surface and shared
