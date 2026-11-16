@@ -167,6 +167,7 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
 
 function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {
   const client = useHostClient();
+  const prefix = useId();
   const [values, setValues] = useState<Record<string, string>>({}), [problem, setProblem] = useState(""), [saving, setSaving] = useState(false);
   useEffect(() => { setValues({}); setProblem(""); }, [client, plugin?.id]);
   if (!plugin?.secrets?.declarations.length) return null;
@@ -181,8 +182,8 @@ function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; 
         if (!response.ok) { const result = await response.json(); throw new Error(result.error ?? i18n.t("Unable to store plugin secret")); }
       } catch (error) { setProblem(error instanceof Error ? error.message : i18n.t("Unable to store plugin secret")); } finally { window.dispatchEvent(new Event("plugins-changed")); setSaving(false); }
     }}>
-      <label className="form-field"><SettingLabel title={secret.title} description={secret.description} /><Input type="password" autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
-      <p className="settings-description" role="status">{i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}</p>
+      <label className="form-field"><SettingLabel title={secret.title} description={secret.description} /><Input type="password" aria-describedby={`${prefix}-${secret.id}-status`} autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
+      <p id={`${prefix}-${secret.id}-status`} className="settings-description" role="status">{i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}</p>
       {secret.error ? <Notice tone="error">{i18n.t("Unable to read this secret. Delete or replace it.")}</Notice> : null}
       <div className="settings-actions"><Button type="submit" size="sm" variant="outline" disabled={!supported || busy || saving || !values[secret.id]}>{i18n.t("Save secret")}</Button>
       <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || !secret.configured && !secret.error} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>

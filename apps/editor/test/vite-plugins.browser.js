@@ -36,6 +36,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(switchRow).toBeVisible();
   expect(await switchRow.evaluate(row => row.querySelector('[role="switch"]').getBoundingClientRect().right === row.getBoundingClientRect().right)).toBe(true);
   await expect(dialog.locator('input[type="password"]')).toHaveAccessibleName('Access token');
+  await expect(dialog.locator('input[type="password"]')).toHaveAccessibleDescription('Not configured');
   await expect(dialog.getByRole('status', {name:''}).filter({hasText:/^Not configured$/})).toBeVisible();
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
   const serviceUrl = dialog.getByRole("textbox", { name: "Service URL", exact: true });
