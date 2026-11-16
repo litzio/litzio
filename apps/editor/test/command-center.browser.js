@@ -35,8 +35,10 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const result = {};
 
-  // A writing-time keyboard surface must return the next typed character without
-  // waiting for hidden/detached state or a focus poll after Escape.
+  // #1700 owner-approved human-speed boundary: 100ms is the chosen fastest
+  // human close-to-next-key interval, not a zero-gap/same-event guarantee.
+  // CI observed focus return at 46ms (54ms margin here). This is not a maximum
+  // latency claim; keep the input/Undo assertions and do not poll for focus.
   await page.emulateMedia({reducedMotion:'no-preference'});
   const typingBaseline=await editor().evaluate(n=>{
     let first;
@@ -50,12 +52,13 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     await Promise.allSettled(el.getAnimations().map(a=>a.finished));
   });
   await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
   await page.keyboard.type('motion-next-key');
   check((await editor().textContent()).includes('motion-next-key'),'Command center swallowed the next document input');
   await page.keyboard.press('Control+z');
   check(await editor().evaluate(n=>JSON.stringify(n.editor.getJSON()))===typingBaseline,'Typing regression did not undo cleanly');
   await page.emulateMedia({reducedMotion:'reduce'});
-  result.immediateKeyboardReturn=true;
+  result.humanSpeedKeyboardReturn={minimumIntervalMs:100};
 
 
   // Manual Before/After evidence uses the same initial document and sidebar state.
