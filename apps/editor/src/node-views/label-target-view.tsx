@@ -59,7 +59,7 @@ export function LabelTargetView({ node, editor, getPos, selected }: ReactNodeVie
             onClick={() => { if (editing) return; setDraft(label); setError(""); setEditing(true); }}>§ {label}</button>
         ) : <span className="label-target-text">§ {label}</span>}
       </p>
-      <MetadataProperties target={() => anchor.current?.closest(".node-labelTarget")?.nextElementSibling ?? anchor.current} anchor={anchor} initialFocus={input} kind={i18n.t("Section label")} testId="label-target" open={editing}
+      <MetadataProperties editor={editor} target={() => anchor.current?.closest(".node-labelTarget")?.nextElementSibling ?? anchor.current} anchor={anchor} initialFocus={input} kind={i18n.t("Section label")} testId="label-target" open={editing}
         onApply={apply} onCancel={() => close()}>
         <div className="form-field">
           <label className="form-label" htmlFor={`label-target-${formId}`}>{i18n.t("Label")}</label>

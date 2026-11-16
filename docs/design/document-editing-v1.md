@@ -248,7 +248,10 @@ A changed document recomputes numbering; source semantics and canonical output a
   [Figure placement/completion](figure-authoring-v1.md#anchored-figure-properties-757)).
   Done/outside pointer completion applies and Escape cancels. Invalid input retains the
   form and values. Keyboard focus movement alone does not apply; keyboard Save includes
-  only applied content. Outside pointer completion preserves the clicked focus/caret.
+  only applied content. Outside pointer completion preserves the clicked focus/caret. Before applying, the
+  shared metadata form reads a focused document text selection through the engine's
+  public DOM-position and selection APIs, even if native selectionchange is still queued.
+  It does not focus the document when the pointer moved to another surface.
   Clicks inside a separate dialog (confirmation Cancel/Keep editing or Settings)
   retain the metadata form and draft; they do not complete the edit.
   Existing preview typing guards and source/inline Apply/Cancel behavior remain.
