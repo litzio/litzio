@@ -4,7 +4,7 @@
 .screen-toolbar > button { width: auto; }
 .screen-select, .screen-toolbar > label { display: grid; gap: var(--space-2); }
 .screen-summary { align-content: start; grid-template-rows: auto auto 1fr; display: grid; gap: var(--space-2); padding: var(--space-3); border: var(--border-width) solid var(--id-color-border-subtle); border-radius: var(--id-radius-sm); }
-.screen-summary-value { font-size: var(--font-size-start-title); }
+.screen-summary-value { font-size: var(--font-size-xl); }
 .screen-summary > strong { font-weight: 600; }
 .screen-chart { margin: 0; min-width: 0; width: 100%; font-size: var(--font-size-sm); }
 .screen-chart figcaption { margin-bottom: var(--space-3); font-weight: 600; }

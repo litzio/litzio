@@ -6,8 +6,8 @@
   --duration-theme-transition: 500ms; /* Whole-screen theme crossfade for user and assistant changes. */
   /* Adjustable values: tuned by hand or chosen by a user preference. Change them here only;
    * no rule or script repeats these numbers. See Visual Language "Adjustable values". */
-  --duration-fast: 100ms;
-  --duration-normal: 150ms;
+  --duration-fast: 250ms;
+  --duration-normal: 250ms;
   --ease-motion: cubic-bezier(0.2, 0, 0, 1);
   /* Initial assistant dock width; an explicit 340–560px user resize overrides it. */
   --layout-assistant-width: 24.5rem;
@@ -258,9 +258,11 @@
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 1rem;
-  --font-size-start-title: 1.5rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
   --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
   --line-height-body: 1.5;
   --line-height-start-title: 1.35;
   --line-height-label: 1.25rem;

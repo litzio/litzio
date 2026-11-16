@@ -58,6 +58,12 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
       await focused;
     }
     await page.getByTestId('ui-language').selectOption(next);
+    const hierarchy=await page.locator('.settings-screen').evaluate(n=>({
+      screen:parseFloat(getComputedStyle(n.querySelector('.settings-navigation h1')).fontSize),
+      category:parseFloat(getComputedStyle(n.querySelector('.settings-category-header h2')).fontSize),
+    }));
+    expect(hierarchy.category).toBeLessThan(hierarchy.screen);
+
     await page.keyboard.press('Escape');
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
     await expect(page.getByRole('button',{name:next==='ko'?'설정':'Settings',exact:true})).toBeFocused();
@@ -94,6 +100,23 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
       return nodes.map(type);
     });
     const before=ui(), body=document.querySelector('.document-editor'), original=type(body);
+    // App browser defaults must stay readable even inside compact helper containers.
+    const probe=document.createElement('div');
+    probe.innerHTML='<small><small>helper</small></small><strong>name</strong><b>name</b><kbd>key</kbd><code>code</code>';
+    document.body.append(probe);
+    const reference=document.createElement('span');
+    reference.style.cssText='font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold)';
+    probe.append(reference);
+    const min=parseFloat(getComputedStyle(reference).fontSize);
+    const max=Number(getComputedStyle(reference).fontWeight);
+    const invalid=[...document.querySelectorAll('body *')].filter(n=>
+      !n.closest('.document-editor,.source-view-text,svg') && n.getClientRects().length &&
+      [...n.childNodes].some(c=>c.nodeType===3&&c.textContent.trim()) &&
+      (parseFloat(getComputedStyle(n).fontSize)<min || Number(getComputedStyle(n).fontWeight)>max)
+    ).map(n=>({tag:n.tagName,cls:n.className,size:getComputedStyle(n).fontSize,weight:getComputedStyle(n).fontWeight}));
+    probe.remove();
+    if(invalid.length)throw Error(`App typography outside role limits: ${JSON.stringify(invalid)}`);
+
     const required=s=>{const n=document.querySelector(s);if(!n)throw Error(`Missing control ${s}`);return n;};
     const resolve=(property,token)=>{
       const probe=document.createElement('span');probe.style[property]=`var(${token})`;document.body.append(probe);

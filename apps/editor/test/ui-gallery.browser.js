@@ -112,8 +112,24 @@ async (page, { expect, screenshots }) => {
     return seconds > 0 && parseFloat(style.transitionDuration) === seconds;
   };
   expect(await trigger.evaluate(durationUsesToken, '--duration-fast')).toBe(true);
+  const reopenPoint=await trigger.boundingBox();
+  await trigger.evaluate(button=>button.addEventListener('click',()=>{
+    window.__reopenedDuringExit=!!document.querySelector('[data-slot="dialog-content"][data-ending-style]');
+  }));
   await trigger.click();
   expect(await dialog.evaluate(durationUsesToken, '--duration-normal')).toBe(true);
+  // Exercise a complete entry/exit, not a close before the entry transition starts.
+  await dialog.evaluate(async el=>{
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    await Promise.allSettled(el.getAnimations().map(a=>a.finished));
+  });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveAttribute('data-ending-style','');
+  // Raw pointer input must reach the underlying trigger before exit completion.
+  await page.mouse.click(reopenPoint.x+reopenPoint.width/2,reopenPoint.y+reopenPoint.height/2);
+  expect(await page.evaluate(()=>window.__reopenedDuringExit)).toBe(true);
+  await expect(dialog).not.toHaveAttribute('data-ending-style');
+  await expect(dialog.getByRole('textbox',{name:'Name'})).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -121,6 +137,23 @@ async (page, { expect, screenshots }) => {
   for (let index = 0; index < 3; index++) {
     await trigger.click(); await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
   }
+  // Removed notifications stay present only for their CSS exit; live focus/count are immediate.
+  await navigation.getByRole('button',{name:'Notifications',exact:true}).click();
+  await page.getByRole('group',{name:'Example state',exact:true}).getByRole('button',{name:'Error',exact:true}).click();
+  const notifications=page.locator('.ui-gallery-section .notification-center');
+  await expect(notifications.getByRole('alert')).toBeVisible();
+  await notifications.locator('.notification-auto').evaluate(async el=>{
+    await Promise.allSettled(el.getAnimations({subtree:true}).map(a=>a.finished));
+  });
+  await notifications.getByRole('button',{name:'Dismiss notification',exact:true}).click();
+  const leaving=notifications.locator('li[data-ending-style]');
+  await expect(leaving).toHaveCount(1);
+  expect(await leaving.evaluate(el=>el.inert&&el.getAttribute('aria-hidden')==='true')).toBe(true);
+  await expect(notifications.getByRole('button',{name:'Notifications',exact:true})).toBeFocused();
+  await expect(notifications.getByRole('button',{name:'Notifications',exact:true})).toHaveAccessibleDescription('Notifications: none');
+  await leaving.evaluate(async el=>{await Promise.allSettled(el.getAnimations().map(a=>a.finished));});
+  await expect(leaving).toHaveCount(0);
+  await page.getByRole('group',{name:'Example state',exact:true}).getByRole('button',{name:'Default',exact:true}).click();
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
   await navigation.getByRole('button',{name:'Controls',exact:true}).click();
@@ -296,58 +329,60 @@ async (page, { expect, screenshots }) => {
     await page.evaluate(async () => { const {i18n} = await import('/src/i18n.ts'); await i18n.changeLanguage('en'); });
   }
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
-  const condition = page.locator('.data-table-filter select').first();
+  const activeFilter=page.locator('[data-slot="popover-content"]:not([data-ending-style]) .data-table-filter');
+  const condition = activeFilter.locator('select').first();
   await expect(condition).toHaveValue('values');
-  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await activeFilter.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(table.getByRole('status')).toHaveText('61 / 61');
   await expect(table.getByRole('button',{name:'Filter name',exact:true})).toHaveAttribute('aria-pressed','false');
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
-  await page.locator('.data-table-filter').getByLabel('Item 1',{exact:true}).uncheck();
-  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await activeFilter.getByLabel('Item 1',{exact:true}).uncheck();
+  await activeFilter.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(table.getByRole('status')).toHaveText('60 / 61');
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
   await expect(condition).toHaveValue('values');
-  await expect(page.locator('.data-table-filter').getByLabel('Item 1',{exact:true})).not.toBeChecked();
+  await expect(activeFilter.getByLabel('Item 1',{exact:true})).not.toBeChecked();
 
   // Native popup pixels are reviewed separately. Protect the shared paired roles.
   const option = condition.locator('option').last();
   await expect(option).toHaveCSS('background-color', await page.locator('[data-slot="popover-content"]').evaluate(el=>getComputedStyle(el).backgroundColor));
   await expect(option).toHaveCSS('color', await page.locator('.ui-gallery').evaluate(el=>getComputedStyle(el).color));
   await condition.selectOption('empty');
-  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await activeFilter.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(table.locator('tbody tr')).toHaveCount(2);
   await table.getByRole('button',{name:'Clear all filters',exact:true}).click();
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
   await condition.selectOption('contains');
-  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await activeFilter.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(table.getByRole('status')).toHaveText('61 / 61');
   await expect(table.getByRole('button',{name:'Filter name',exact:true})).toHaveAttribute('aria-pressed','false');
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
   await condition.selectOption('contains');
-  await page.locator('.data-table-filter').getByRole('textbox',{name:'Contains text',exact:true}).fill('Item 1');
-  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await activeFilter.getByRole('textbox',{name:'Contains text',exact:true}).fill('Item 1');
+  await activeFilter.getByRole('button',{name:'Apply',exact:true}).click();
   // The two empty name rows must not survive a new text condition.
   await expect(table.getByRole('status')).toHaveText('11 / 61');
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
   await expect(condition).toHaveValue('contains');
-  await expect(page.locator('.data-table-filter').getByLabel('Include empty values',{exact:true})).not.toBeChecked();
-  await page.locator('.data-table-filter').getByLabel('Include empty values',{exact:true}).check();
+  await expect(activeFilter.getByLabel('Include empty values',{exact:true})).not.toBeChecked();
+  await activeFilter.getByLabel('Include empty values',{exact:true}).check();
   await condition.selectOption('values');
   await condition.selectOption('contains');
-  await expect(page.locator('.data-table-filter').getByLabel('Include empty values',{exact:true})).toBeChecked();
-  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await expect(activeFilter.getByLabel('Include empty values',{exact:true})).toBeChecked();
+  await activeFilter.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(table.getByRole('status')).toHaveText('13 / 61');
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
   await expect(condition).toHaveValue('contains');
-  await expect(page.locator('.data-table-filter').getByLabel('Include empty values',{exact:true})).toBeChecked();
-  await page.locator('.data-table-filter').getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(activeFilter.getByLabel('Include empty values',{exact:true})).toBeChecked();
+  await activeFilter.getByRole('button',{name:'Cancel',exact:true}).click();
 
   await table.getByRole('button',{name:'Clear all filters',exact:true}).click();
   await table.getByRole('button',{name:'score',exact:true}).click();
   await table.getByRole('button',{name:'score',exact:true}).click();
   await expect(table.locator('tbody tr').first()).toContainText('100');
   await table.getByRole('button',{name:'Filter score',exact:true}).click();
-  const filter = page.locator('[data-slot="popover-content"]');
+  // Closing popovers remain mounted during exit; query the active surface.
+  const filter = page.locator('[data-slot="popover-content"]:not([data-ending-style])');
   await expect(filter.getByLabel('Include empty values',{exact:true})).not.toBeChecked();
   await filter.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(table.getByRole('status')).toHaveText('61 / 61');

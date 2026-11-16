@@ -3,6 +3,7 @@
 @source not "./dev";
 @import "shadcn/tailwind.css";
 @import "./styles/tokens.css";
+@import "./styles/type-roles.css";
 
 /* Native controls, product roles and Tailwind use the same resolved theme. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));

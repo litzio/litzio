@@ -1,7 +1,7 @@
 # Editor Visual Language — Quiet Document
 
 - Status: Implemented
-- Last verified: 2026-11-16 — DESIGN.md와 중복·검증 기록을 정리하고 관련 표현을 코드와 정적 대조했다. 제품·브라우저 실행 재검증 없음.
+- Last verified: 2026-11-16 — 앱 글씨 역할·토큰을 대조하고 대상 브라우저 검사와 1440px 한국어 밝음·어두움 캡처를 확인했다. 설치형 Desktop·실제 AI 호출은 포함하지 않는다.
 - Scope: Editor presentation. Core semantics, source format, Host persistence and editing state follow [ADR-0001](../adr/0001-single-document-editor-architecture.md) and [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md).
 - Authority: [AGENTS.md](../../AGENTS.md), Accepted ADRs and [documentation governance](../contributing/documentation-governance.md). [ADR-0010](../adr/0010-supported-viewport-and-input.md) sets a minimum 640px with keyboard and pointer input.
 - History: [Original rules, issue verification and captures through 2026-10-30](../reviews/editor-visual-language-history-2026-10-30.md) are Historical evidence. The v1 filename remains stable.
@@ -80,15 +80,26 @@ Pretendard `1.3.9` is bundled through its official variable dynamic-subset CSS; 
 | Body, including callout prose | 17/28.9px, 400, document stack |
 | H1–H6 | 34/45.9, 24/32.4, 20/27, 18/24.3, 16/21.6, 14/18.9px, document stack, 700 |
 | Frontmatter title | H1 type while typing; empty `Add a title (optional)` / `제목 추가(선택)` uses subtle 14px normal UI type centered vertically within the same title slot; outward focus outline leaves breathing room without changing layout; no box at rest (#786) |
-| UI labels/controls and Figure/Table captions | 14/20px, UI stack |
-| Metadata/status/helpers | 12/16px, UI stack |
-| Dialog title / start and task-tab titles | 16px / `--font-size-start-title` (24px), semibold UI type; hierarchy follows [DESIGN.md — Typography](../../DESIGN.md#typography) |
+| App UI | Role combinations and shared classes follow [DESIGN.md — Typography](../../DESIGN.md#typography). Size tokens: `--font-size-xs/sm/md/lg/xl` = 12/14/16/20/24px; weights: `--font-weight-normal/medium/semibold` = 400/500/600. Default: sm/normal; HTML rem basis stays unchanged. |
+| Figure/Table captions | 14/20px, UI stack; document token ownership |
 | Table cells | 15/22px, UI stack for dense columns |
 | Callout kind title | 14/21px semibold UI type |
 | Endnote definition | 16/24px, document stack and normal text; separator label is UI metadata |
 | Code block / inline code | Monospace 14/21px / 0.9em with inherited line height |
 | Source | Read-only monospace 14/20px, subtle gutter numbers |
 | Inline math / display equation | `--math-inline-size` (1.1em) / KaTeX's 1.21em; no internal KaTeX restyling |
+
+### App typography reference captures
+
+1440px, Korean UI, light/dark. The before images apply the saved pre-change CSS to the same DOM state; they are controlled CSS comparisons, not separate application runs. Assistant content and Desktop bridge values are fixtures; no live AI request or packaged Desktop verification is represented. Local identity/path displays are masked.
+
+| Surface | Light | Dark |
+| --- | --- | --- |
+| Settings — About & updates | [before](assets/type-roles-1684/settings-about-light-before.png) / [after](assets/type-roles-1684/settings-about-light-after.png) | [before](assets/type-roles-1684/settings-about-dark-before.png) / [after](assets/type-roles-1684/settings-about-dark-after.png) |
+| Settings — Assistant | [before](assets/type-roles-1684/settings-assistant-light-before.png) / [after](assets/type-roles-1684/settings-assistant-light-after.png) | [before](assets/type-roles-1684/settings-assistant-dark-before.png) / [after](assets/type-roles-1684/settings-assistant-dark-after.png) |
+| Assistant tools and result cards | [before](assets/type-roles-1684/assistant-light-before.png) / [after](assets/type-roles-1684/assistant-light-after.png) | [before](assets/type-roles-1684/assistant-dark-before.png) / [after](assets/type-roles-1684/assistant-dark-after.png) |
+| Window, Explorer and document | [before](assets/type-roles-1684/window-light-before.png) / [after](assets/type-roles-1684/window-light-after.png) | [before](assets/type-roles-1684/window-dark-before.png) / [after](assets/type-roles-1684/window-dark-after.png) |
+| Plugin screen | [before](assets/type-roles-1684/plugin-light-before.png) / [after](assets/type-roles-1684/plugin-light-after.png) | [before](assets/type-roles-1684/plugin-dark-before.png) / [after](assets/type-roles-1684/plugin-dark-after.png) |
 
 Korean prose wraps at eojeol boundaries with `--word-break-document: keep-all`: title, headings, paragraphs/lists/quotes/callouts, captions, cells and endnotes. Oversized tokens retain emergency wrapping. CSS declares `overflow-wrap: anywhere`, but Tiptap's injected `word-wrap` alias makes document prose compute to `break-word`; Source computes to `anywhere`. Headings retain `text-wrap: pretty`. Inline code/math keep contextual `keep-all` in headings and `normal` elsewhere, with `break-word`. Code blocks retain their own wrapping. [Layout Rules](editor-layout-rules-v1.md#exceptions-and-checks) owns local table/formula scrolling and prohibits document-wide clipping.
 
@@ -113,7 +124,7 @@ References read like links without box/fill: content-link color, underline on ho
 
 Settings → Appearance & language, the footer toggle beside Settings, and two Command Center choices share Light / Dark (#1042). With no saved choice, startup resolves the OS theme once and stores that explicit choice. Later OS changes do not change it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles. Images retain original pixels; KaTeX inherits text.
 
-User theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; shared control colors and overlay opacity/transform use the motion tokens below. Focus indicators remain immediate. Disclosure uses CSS intrinsic-size interpolation only where supported. Progress values use transform, never width transitions. Reduced motion zeros both motion durations at the token source.
+User theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; shared control colors and overlay opacity/transform use the motion tokens below. Focus indicators remain immediate. The command center keeps its entry transition but exits immediately so the next keystroke returns to the document. Other dialogs, menus and popovers retain their exit transition; keyboard focus returns after that lifecycle completes. Exiting overlays and notification lists stop intercepting pointer input immediately while their visual transitions finish. Disclosure uses CSS intrinsic-size interpolation only where supported. Progress values use transform, never width transitions. Reduced motion zeros both motion durations at the token source.
 
 Motion evidence (#1681): the gallery capture pauses real CSS transitions at 15%, 40%, 70% and 100% of their token duration (light theme), plus the immediate reduced-motion result. Reproduce with `pnpm browser:test ui-gallery --screenshots`. These are sampled frames, not elapsed wall-clock recordings.
 
@@ -198,7 +209,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Command Center | `--layout-command-center-width`, `--layout-command-center-popup-width`, `--layout-command-center-list-height` |
 | Settings | `--layout-settings-content-width`, `--layout-settings-control-width`, `--layout-document-settings-label-width`, `--space-document-settings-after` |
 | Figure metadata | `--layout-figure-popover-width`, `--size-figure-property-thumbnail-max-width/height`, `--space-figure-popover-gap`; preview retains intrinsic ratio |
-| Motion | `--duration-fast` (control colors), `--duration-normal` (surfaces, progress, disclosure), `--ease-motion` (deceleration); at most 200ms, reduced motion disables both durations |
+| Motion | `--duration-fast` (250ms, control colors), `--duration-normal` (250ms, surfaces, progress, disclosure), `--ease-motion` (deceleration); at most 250ms, reduced motion disables both durations |
 | Heading depth | `--font-size-heading-level`, `--id-color-heading-level`, `--space-heading-level-gap`, `--layout-reading-heading-gutter`, `--space-heading-level-reading-gap`; all in Adjustable values, using existing metadata/theme tokens |
 | Folder/image picker | `--layout-folder-picker-width`, `--layout-folder-picker-height` |
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |

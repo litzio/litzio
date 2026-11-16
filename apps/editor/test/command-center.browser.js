@@ -35,6 +35,29 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const result = {};
 
+  // A writing-time keyboard surface must return the next typed character without
+  // waiting for hidden/detached state or a focus poll after Escape.
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  const typingBaseline=await editor().evaluate(n=>{
+    let first;
+    n.editor.state.doc.forEach((node,pos)=>{if(first===undefined&&node.type.name==='paragraph')first=pos+1;});
+    n.editor.commands.setTextSelection(first);n.editor.view.focus();
+    return JSON.stringify(n.editor.getJSON());
+  });
+  await open();
+  await center().evaluate(async el=>{
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    await Promise.allSettled(el.getAnimations().map(a=>a.finished));
+  });
+  await page.keyboard.press('Escape');
+  await page.keyboard.type('motion-next-key');
+  check((await editor().textContent()).includes('motion-next-key'),'Command center swallowed the next document input');
+  await page.keyboard.press('Control+z');
+  check(await editor().evaluate(n=>JSON.stringify(n.editor.getJSON()))===typingBaseline,'Typing regression did not undo cleanly');
+  await page.emulateMedia({reducedMotion:'reduce'});
+  result.immediateKeyboardReturn=true;
+
+
   // Manual Before/After evidence uses the same initial document and sidebar state.
   if (screenshots) {
     for (const width of [1440, 640]) {

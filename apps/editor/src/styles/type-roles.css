@@ -1,0 +1,61 @@
+/* App typography roles. Existing surface classes are aliases, not separate recipes.
+ * Keep document prose outside the browser-default normalization. */
+:where(small):not(:where(.document-editor *, .source-view-text *)) {
+  font-size: var(--font-size-xs);
+}
+:where(strong, b):not(:where(.document-editor *, .source-view-text *)) {
+  font-weight: var(--font-weight-semibold);
+}
+:where(kbd):not(:where(.document-editor *, .source-view-text *)) {
+  font-size: var(--font-size-xs);
+}
+:where(code):not(:where(.document-editor *, .source-view-text *)) {
+  font-size: var(--font-size-sm);
+}
+
+.type-screen-title, .task-surface-title, .document-start-title, .settings-navigation h1 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--id-color-text);
+}
+.type-category-title, .settings-category-header h2 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--id-color-text);
+}
+.type-section-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--id-color-text);
+}
+.type-group-title, .settings-group-heading {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--id-color-text-muted);
+  border-bottom: var(--border-width) solid var(--id-color-border-subtle);
+}
+.type-item-name, .form-label, .settings-heading {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--id-color-text);
+}
+.type-value-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--id-color-text-muted);
+}
+.type-body {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--id-color-text);
+}
+.type-helper {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-normal);
+  color: var(--id-color-text-muted);
+}
+/* Color belongs to the control's interaction state. */
+.type-control {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
