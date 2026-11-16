@@ -359,6 +359,8 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 
 ### Folder picker v1
 
+플러그인 화면의 일반 파일 선택은 Folder listing v1의 `/api/folder`를 화면의 열린 Root 안에 고정해 재사용한다. 기존 Host 목록·허용 범위 계약은 그대로다.
+
 - [Folder picker](folder-picker-v1.md)는 앱 안에서 경로를 고른다. OS 선택창, upload, 별도 복사본은 없다. Open을 누르기 전의 탐색은 sidebar와 문서를 바꾸지 않는다.
 - `GET /api/folder-browse?path=<folder>`는 `{ path, crumbs, entries }`를 돌려준다. `crumbs`는 filesystem root부터 해당 folder까지의 `{ name, path }` 목록이며 Host가 계산한다. 정렬과 hidden/symlink 제외는 Folder listing v1과 같지만, 폴더 선택은 기존 `.md` 필터, 이미지 선택은 기존 이미지 필터를 유지한다. 선택 전 탐색은 이름과 종류만 돌려주고 파일 내용(`native`)은 읽지 않는다. 선택 전의 탐색은 sidebar의 `root` 제한을 사용하지 않는다.
 - `GET /api/folder-places`는 `{ places: [{ kind, name, path }] }`를 돌려준다. Home, 실제 존재하는 Documents, Windows drive roots 또는 `/`가 시작점이다. Host는 탐색 위치나 최근 목록을 저장하지 않는다.

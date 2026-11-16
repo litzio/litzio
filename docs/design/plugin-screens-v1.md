@@ -88,15 +88,25 @@ SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편
 
 ## 파일·폴더 선택과 문서 열기
 
-화면은 `pickPath({kind:"pdf"|"folder"|"document",initialPath?})`와 `openDocument({path})`를 받는다. Host/창 식별자나 임의 확장자 필터는 없다. 화면 상호작용이므로 별도 CLI 명령은 추가하지 않는다.
+화면은 `pickPath({kind:"pdf"|"folder"|"document"|"file",initialPath?,extensions?})`와 `openDocument({path})`를 받는다. Host/창 식별자는 없다. kind:"file"의 extensions는 선택적인 점 포함 확장자 배열(예: [".csv",".json"])이며 대소문자 구분 없이 목록을 거른다. 생략하면 확장자 없는 파일을 포함한 모든 파일을 보여 준다. 화면 상호작용이므로 별도 CLI 명령은 추가하지 않는다.
 
 열린 폴더 범위 확인은 경로 문자열 기준이며 폴더 안의 링크를 따라간 실제 위치까지는 보장하지 않는다. Host의 허용 Root 제한은 그대로 적용된다. 이 한계는 pickPath 결과·openDocument·saveDocument에 공통이다. 예를 들어 Host가 A·B를 허용하고 화면에는 A만 열려 있을 때 A 안의 junction이 B를 가리키면, 그 주소를 통한 선택·열기·하위 폴더 저장이 B에 도달할 수 있다. Host가 A만 허용하면 기존 실제 경로 검증이 이를 거부한다. 화면의 열린 폴더 범위는 보안 경계가 아니다.
 
-- pickPath는 기존 FolderDialog를 화면의 고정 client·현재 열린 폴더에 묶는다. initialPath는 탐색을 시작할 폴더의 Host 절대 경로이며 기본은 첫 열린 폴더다. PDF, 폴더, .md 문서만 선택한다. 성공은 `{path,kind}`, 사용자 취소는 null, 읽기 실패·잘못된 초기 경로·중복 호출은 Error로 거부한다. 화면 reload/unmount·열린 폴더 목록 변경은 AbortError로 거부하고 읽기를 취소한다. 경로는 선택 직전에도 확인하며 열린 폴더 밖은 돌려주지 않는다. 새 폴더 열기·만들기와 최근 폴더 기록은 하지 않는다.
+- pickPath는 기존 FolderDialog를 화면의 고정 client·현재 열린 폴더에 묶는다. initialPath는 탐색을 시작할 폴더의 Host 절대 경로이며 기본은 첫 열린 폴더다. PDF, 폴더, .md 문서 또는 일반 파일을 선택한다. 일반 파일은 기존 Folder listing의 `/api/folder`를 열린 Root에 고정해 재사용하며 숨김·정렬·허용 범위 규칙을 그대로 따른다. 나머지 종류는 기존 folder-browse를 쓴다. 파일 내용은 브라우저로 전달하지 않으며 플러그인은 받은 경로를 Node invoke에 넘겨 읽는다. 성공은 `{path,kind}`, 사용자 취소는 null, 읽기 실패·잘못된 초기 경로·중복 호출은 Error로 거부한다. 화면 reload/unmount·열린 폴더 목록 변경은 AbortError로 거부하고 읽기를 취소한다. 경로는 선택 직전에도 확인하며 열린 폴더 밖은 돌려주지 않는다. 새 폴더 열기·만들기와 최근 폴더 기록은 하지 않는다.
 - openDocument는 .md 문서만 같은 Host의 기존 탭 열기 경로로 연다. 열린 폴더의 실제 식별자를 확인하고, 비동기 읽기 뒤에도 폴더 소속과 화면 수명을 확인한다. `{status:"opened",path}` 또는 `{status:"refused",path,message}`로 응답한다. reload/unmount의 취소는 AbortError다. 기존 미저장 탭은 그대로 활성화하고 저장본으로 교체하지 않는다. 대상 위치 이동은 제공하지 않는다.
 - saveDocument의 open:true도 이 경로를 쓴다. 생성 성공 뒤에는 항상 생성 receipt를 유지하며 `opening:{status:"opened"|"refused",path,message?}`를 추가한다. 열기 거부·오류·화면 취소가 생성 실패로 바뀌지 않는다. opening이 refused여도 생성은 완료됐으므로 재시도하지 말고 receipt.path를 표시한다. open이 없거나 false면 opening도 없다. 생성 자체의 오류·통신 중단은 기존대로 reject하며 자동 재시도하지 않는다.
 
 UI 갤러리 Screen parts의 Screen path selection은 합성 Host의 선택·폴더 범위 변경 예제다. 기존 FolderDialog·Dialog·Button·경로 필드·스크롤을 재사용하며 새 공통 표면이나 토큰은 추가하지 않는다.
+
+일반 파일 선택의 합성 갤러리 비교. Before는 파일 선택 버튼이 없던 기존 예제이며 After는 같은 FolderDialog에서 모든 파일 또는 `.csv` 목록을 보여 준다. 캡처는 UI 비교이며 실제 업무 수락을 대신하지 않는다.
+
+| 상태 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+| --- | --- | --- | --- |
+| Before | [기존 예제](assets/plugin-screen-file-pick-1670/before-1440-light.png) | [기존 예제](assets/plugin-screen-file-pick-1670/before-1440-dark.png) | [기존 예제](assets/plugin-screen-file-pick-1670/before-640-light.png) |
+| 모든 파일 | [목록](assets/plugin-screen-file-pick-1670/file-1440-light.png) | [목록](assets/plugin-screen-file-pick-1670/file-1440-dark.png) | [목록](assets/plugin-screen-file-pick-1670/file-640-light.png) |
+| CSV 필터 | [목록](assets/plugin-screen-file-pick-1670/CSV-1440-light.png) | [목록](assets/plugin-screen-file-pick-1670/CSV-1440-dark.png) | [목록](assets/plugin-screen-file-pick-1670/CSV-640-light.png) |
+
+비교 기준은 같은 부품의 [기존 문서 선택](assets/plugin-screen-file-pick-1670/document-dialog.png)과 [본체의 폴더 열기](assets/plugin-screen-file-pick-1670/app-open-folder.png)다. 본체는 폴더를 연 뒤 탐색기에서 문서를 고른다. 본체 캡처도 합성 목록을 사용한다.
 
 기존 합성 폴더 선택 표본: [1440 어두움](assets/plugin-screen-pick-open-1592/1440-dark.png), [640 어두움](assets/plugin-screen-pick-open-1592/640-dark.png). 기존 캡처의 연결 복구이며 이번 실행 검증이나 실제 플러그인 변환 업무의 수락 근거가 아니다.
 

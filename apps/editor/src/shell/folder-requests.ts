@@ -1,10 +1,10 @@
-import { getHostClient } from "../host-client.ts";
+import { type HostClient, getHostClient } from "../host-client.ts";
 import type { DocumentErrorResponse, FolderBrowseResponse, FolderCreateRequest, FolderCreateResponse, FolderPlace, FolderPlacesResponse, FolderResponse } from "../../shared/document-protocol.ts";
 
 /** Asks the Host for one level of a folder inside the folder the user chose. */
-export async function requestFolder(root: string, path?: string, background = false): Promise<FolderResponse> {
+export async function requestFolder(root: string, path?: string, background = false, client: HostClient = getHostClient(), signal?: AbortSignal): Promise<FolderResponse> {
   const query = new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) });
-  const response = await getHostClient().request(`/api/folder?${query}`);
+  const response = await client.request(`/api/folder?${query}`, { signal });
   const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderResponse;

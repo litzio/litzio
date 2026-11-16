@@ -166,6 +166,8 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   ], scenarios: ["document-tabs", "editor-groups", "pre-save-diff", "external-change", "recovery", "command-center", "inline-document-settings"] },
   // Preserve the parent directories: the running HTTP Host pins their filesystem identities.
   "http-host-a/fixture": { files: [
+    { name: "measurements.CSV", create: () => "time,value\n00:00,10\n" },
+    { name: "README", create: () => "Synthetic source" },
     { name: "reading.pdf", create: syntheticPdf },
     { name: "bibliography.md", create: () => fixture("bibliography.md").create() },
     { name: "a.md", create: () => nativeSource("# HTTP A\n\nAlpha.\n") },
