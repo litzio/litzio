@@ -12,7 +12,7 @@
 
 <!-- 해당 없으면 지웁니다. -->
 
-- [ ] [UI 패턴](../docs/design/ui-patterns-v1.md#사용과-갱신)의 같은 패턴을 쓰는 다른 화면(U ID)을 확인하고 해당 패턴 절의 현재 기준·관련 계약·검증 근거를 갱신했다. 새 불일치는 고정된 추적 정보와 후속 이슈를 등록하고, 진행 상태는 이슈의 열림·닫힘으로 관리한다(공유 표의 상태 수정·해결 행 삭제 없음).
+- [ ] [UI 패턴](../docs/design/ui-patterns-v1.md#사용과-갱신)의 같은 패턴을 쓰는 다른 화면(U ID)을 확인하고 해당 패턴 절의 현재 기준·관련 계약·검증 근거를 갱신했다. 새 불일치는 고정된 추적 정보와 후속 이슈를 등록하고, 진행 상태는 이슈의 열림·닫힘으로 관리한다(열린 이슈·이슈 없는 항목 유지, 닫힌 이슈는 코드의 목표 충족 확인 뒤 제거).
 - [ ] [Visual Language](../docs/design/editor-visual-language-v1.md)의 어느 규칙을 따르는지 적었거나, 같은 PR에서 문서를 갱신했다.
 - [ ] 새 컨트롤·메타데이터는 평소 숨김 / 상호작용 시 표시 규칙을 따르고, chrome 위치를 움직이지 않는다.
 - [ ] 손으로 조절하거나 사용자 취향에 따라 바뀔 값은 `styles/tokens.css`의 Adjustable values에 공용 변수로 두었다([조절 값 규칙](../docs/design/editor-visual-language-v1.md#adjustable-values-and-preferences)).
