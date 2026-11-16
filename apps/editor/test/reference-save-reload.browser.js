@@ -110,9 +110,10 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
       editor.state.doc.forEach((node, pos) => { if (node.attrs.label === label) editor.commands.setNodeSelection(pos); });
       editor.view.focus();
     }, label);
-    await page.keyboard.press('Enter');
+    // Enter opens the selected object's content form; its label and number alone are in Properties.
+    if (kind === 'mermaid-property') await page.locator('[data-block="figure"][data-selected="true"]').getByRole('button', {name:'Figure properties', exact:true}).click();
+    else await page.keyboard.press('Enter');
     if (kind === 'mermaid') {
-      await page.getByTestId('mermaid-edit-source').click();
       // The opening preview changes form height. Wait for it before targeting controls
       // so Apply's pointer down/up reach the same button (#1084).
       await expect(page.getByTestId('mermaid-edit-preview')).toHaveAttribute('aria-busy','false');
@@ -155,7 +156,7 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
       expect((await attrs(label)).enumerator).toBe(previous);
     }
     if (kind === 'mermaid-property') {
-      await page.getByTestId('mermaid-edit-source').click();
+      await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('mermaid-edit-source').click();
       await expect(page.getByTestId('mermaid-source')).toHaveCount(0);
       await expect(page.getByTestId('mermaid-property-enumerator')).toBeFocused();
     }
@@ -229,8 +230,8 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
   const emptyPath = [root,'tmp','reference-save-reload','empty-fixed.md'].join(separator);
   await openPath(page,emptyPath);
   await active.locator('[data-block="equation"]').hover();
-  await active.locator('[data-block="equation"]').getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await active.locator('[data-block="equation"]').getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-editor').getByRole('button',{name:'Fixed',exact:true}).click();
   await page.getByTestId('equation-editor').getByTestId('equation-enumerator').fill('E.1');
   await page.getByTestId('equation-apply').click();
@@ -246,16 +247,16 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
   expect(await page.getByTestId('error').innerText()).toContain('수식 내용을 입력하거나 고정 번호를 해제');
   expect(await readEmpty()).toBe(emptyBefore);
   await active.locator('[data-block="equation"]').hover();
-  await active.locator('[data-block="equation"]').getByRole('button',{name:'편집',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await active.locator('[data-block="equation"]').getByRole('button',{name:'수식 속성',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-editor').getByRole('button',{name:'자동',exact:true}).click();
   expect(await page.getByTestId('equation-automatic-number').innerText()).toBe('자동 번호: 1');
   await page.getByTestId('equation-apply').click();
   await page.getByTestId('equation-editor').waitFor({state:'detached'});
   await save();
   await active.locator('[data-block="equation"]').hover();
-  await active.locator('[data-block="equation"]').getByRole('button',{name:'편집',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await active.locator('[data-block="equation"]').getByRole('button',{name:'수식 속성',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await expect(page.getByTestId('equation-editor').getByRole('button',{name:'자동',exact:true})).toHaveAttribute('aria-pressed','true');
   expect(await page.getByTestId('equation-automatic-number').innerText()).toBe('자동 번호: 1');
   await page.getByTestId('equation-cancel').click();

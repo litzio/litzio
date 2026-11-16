@@ -494,8 +494,8 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   await page.keyboard.press('Escape');
   await page.waitForTimeout(650); await count(0);
   const equation = activeDocument(page).locator('[data-block="equation"]');
-  await equation.hover(); await equation.getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.hover(); await equation.getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('Unapplied recovery draft');
   await page.waitForTimeout(650); await count(0);
   await page.getByTestId('equation-cancel').click();

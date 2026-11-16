@@ -19,12 +19,12 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
   const text = node => (node.content ?? []).map(n => n.type === 'hardBreak' ? '\n' : n.text ?? '').join('');
   const selectEquation = async () => {
-    await equation.locator('[data-testid="equation-preview"]').click({position:{x:8,y:8}});
+    await equation.locator('[data-testid="equation-preview"]').click();
     await page.waitForFunction(() => {
       const e = document.querySelector('[data-document-tab][data-active=true] .document-editor')?.editor;
       return e?.view.hasFocus() && e.state.selection.constructor.name === 'NodeSelection' && e.state.selection.node?.attrs.label === 'eq-power';
     });
-    check(await equation.getByRole('button', {name:'Edit', exact:true}).isVisible(), 'Selected Equation must show Edit');
+    check(await equation.getByRole('button', {name:'Equation properties', exact:true}).isVisible(), 'Selected Equation must show Edit');
   };
   const source = async () => {
     await page.getByTestId('view-source').click();

@@ -28,7 +28,9 @@ import { MermaidPreview } from "../mermaid-preview.tsx";
 import { normalizeMermaidSource } from "../mermaid-source.ts";
 import { figureContent, isNewBlockPath, type TiptapJSON } from "../tiptap-document.ts";
 import { FieldError, Notice } from "../ui/primitives.tsx";
-import { focusBlock, handleTextblockMouseDown, isolateInputDrag, useCaptionPlaceholder, usePropertyEntry, useSourceInputFocus, type DraftListener } from "./shared.ts";
+import { blockCommandAppearance } from "../command-icons.ts";
+import { ObjectTool } from "./object-tool.tsx";
+import { focusBlock, handleTextblockMouseDown, isolateInputDrag, useCaptionPlaceholder, useObjectActions, usePropertyEntry, useSourceInputFocus, type DraftListener } from "./shared.ts";
 
 /** Core's persistent validation of a Figure Apply: its properties and its label. */
 export type FigureValidator = (figure: FigureContent, label: string) => Promise<string | undefined>;
@@ -80,8 +82,8 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
   const labelInput = useRef<HTMLInputElement>(null);
   const [labelEntry, setLabelEntry] = useState(false);
   const imageInput = useRef<HTMLInputElement>(null);
+  const altInput = useRef<HTMLInputElement>(null);
   const chooseButton = useRef<HTMLButtonElement>(null);
-  const replaceButton = useRef<HTMLButtonElement>(null);
   // A copy the chooser made for this form; discarded unless Apply puts it in the Figure.
   const copied = useRef<ImageChoice | undefined>(undefined);
   const [choosing, setChoosing] = useState(false);
@@ -138,13 +140,17 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
     setLabelEntry(false);
     setDraft(applied);
     setLabelDraft(label); numberDraft.reset(enumerator);
-    setReplacing(false);
+    // An image-free Figure has nothing to replace: its properties offer the Image field directly.
+    setReplacing(!applied.imageUrl);
     if (!filenameDraft) setError("");
     setEditing(true);
   }
-  useSourceInputFocus(labelEntry ? labelInput : replaceButton, editing);
+  // Replace image is the same form with its Image field revealed and focused.
+  const replaceImage = () => { beginEdit(); setReplacing(true); };
+  useSourceInputFocus(labelEntry ? labelInput : replacing ? imageInput : altInput, editing);
   useSourceInputFocus(imageInput, editing && replacing);
   usePropertyEntry(anchor, beginEdit);
+  useObjectActions(anchor, { properties: beginEdit, content: replaceImage });
   const releaseCopy = () => {
     const copy = copied.current;
     copied.current = undefined;
@@ -264,7 +270,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
     // Validation may finish after the user has moved on; only focus left in this form returns.
     const active = document.activeElement;
     const returnFocus = !view.dom.closest("[hidden]") &&
-      returnCaret && (active === document.body || Boolean(replaceButton.current?.closest("form")?.contains(active)));
+      returnCaret && (active === document.body || Boolean(altInput.current?.closest("form")?.contains(active)));
     // The copy passes to the document before dispatch, which may replace this view.
     const copy = copied.current;
     copied.current = undefined;
@@ -291,7 +297,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
       <Input id={`${formId}-${key}`}
         aria-invalid={!!error && errorField === key || undefined}
         aria-describedby={error && errorField === key ? `${formId}-${key}-error` : undefined}
-        ref={key === "imageUrl" ? imageInput : undefined}
+        ref={key === "imageUrl" ? imageInput : altInput}
         data-testid={testId}
         disabled={validating}
         placeholder={i18n.t(key === "imageAlt" ? "Describe the image…" : "None")}
@@ -346,8 +352,12 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
       <figcaption className="caption" data-number={numbered} data-caption-prefix={numbered === undefined ? undefined : captionPrefixText(numbered)}
         onMouseDown={event => handleTextblockMouseDown(event, { editor, node, getPos })}><NodeViewContent data-testid="figure-caption-content" aria-label={i18n.t("Figure caption")}
         data-empty-caption={node.content.size === 0 || undefined} data-placeholder={placeholder} /></figcaption>
-      {editableFigure && !editing ? (
-        <Button className="figure-edit" size="sm" variant="outline" aria-label={i18n.t("Edit figure")} contentEditable={false} onClick={beginEdit}>{i18n.t("Edit")}</Button>
+      {editableFigure ? (
+        <div className="object-tools" data-object-tools="" contentEditable={false}>
+          <ObjectTool icon={blockCommandAppearance("object-properties").icon!} label={i18n.t("Properties")} name={i18n.t("Figure properties")} aria-expanded={editing} onClick={beginEdit} />
+          {applied.imageUrl ? <ObjectTool icon={blockCommandAppearance("object-image").icon!} label={i18n.t("Replace image")} disabled={validating || choosing}
+            data-testid="figure-replace" onClick={replaceImage} /> : null}
+        </div>
       ) : null}
       <FigureProperties editor={editor}
         anchor={anchor}
@@ -360,8 +370,6 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
         onApply={outside => void apply(false, !outside)}
         onCancel={cancel}
         media={src && !imageFailed ? <div className="figure-property-thumbnail"><img crossOrigin={src.startsWith(client.url("/document/")) ? client.crossOrigin : undefined} src={src} alt="" /></div> : undefined}
-        actions={<Button ref={replaceButton} type="button" size="sm" variant="outline" disabled={validating || choosing}
-          data-testid="figure-replace" onClick={() => setReplacing(value => !value)}>{i18n.t("Replace")}</Button>}
       >
         {replacing ? chooseImage && documentPath ? (
           <div className="figure-image-field">
@@ -418,9 +426,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
   const sourcePath = String(node.attrs.sourcePath ?? "");
   const anchor = useRef<HTMLParagraphElement>(null);
   const labelInput = useRef<HTMLInputElement>(null);
-  const [labelEntry, setLabelEntry] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
-  const sourceButton = useRef<HTMLButtonElement>(null);
   const [properties, setProperties] = useState(false);
   const request = useRef(0);
   const [editing, setEditing] = useState(!!onCancelPending);
@@ -439,13 +445,13 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
   useLayoutEffect(() => {
     const target = restoreInput.current;
     restoreInput.current = null;
-    const form = (input.current ?? sourceButton.current)?.closest("form");
+    const form = (input.current ?? labelInput.current)?.closest("form");
     if (target?.isConnected && !busy && (editing || properties) && visible && document.hasFocus() &&
         (document.activeElement === document.body || form?.contains(document.activeElement))) target.focus();
   }, [busy, editing, properties, error, visible]);
   const hasDraft = (editing || properties) && (draft !== (applied.mermaidSource ?? "") || labelDraft !== label || numberDraft.changedFrom(enumerator));
   const cancelFocus = useSourceInputFocus(input, editing);
-  useSourceInputFocus(labelEntry ? labelInput : sourceButton, properties);
+  useSourceInputFocus(labelInput, properties);
   useEffect(() => () => { request.current++; focusTracking.current?.abort(); }, []);
   useEffect(() => {
     if (!editing && !properties) { setDraft(applied.mermaidSource ?? ""); setLabelDraft(label); numberDraft.reset(enumerator); }
@@ -454,14 +460,18 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
     onDraftChange?.("Figure", sourcePath, hasDraft);
     return () => onDraftChange?.("Figure", sourcePath, false);
   }, [sourcePath, hasDraft, onDraftChange]);
-  function beginEdit() {
+  function begin(source: boolean) {
+    // Re-entry never replaces an open metadata/source draft with the other form.
     if (!view.editable || editing || properties) return;
-    setLabelEntry(false);
-    setDraft(applied.mermaidSource ?? ""); setLabelDraft(label); numberDraft.reset(enumerator); setError(""); setProperties(true);
+    setDraft(applied.mermaidSource ?? ""); setLabelDraft(label); numberDraft.reset(enumerator); setError("");
+    if (source) setEditing(true); else setProperties(true);
   }
+  const beginProperties = () => begin(false);
+  const beginSource = () => begin(true);
   const [openOnInsert] = useState(() => view.editable && isNewBlockPath(sourcePath));
   useEffect(() => { if (openOnInsert) setEditing(true); }, [openOnInsert]);
-  usePropertyEntry(anchor, beginEdit);
+  usePropertyEntry(anchor, beginSource);
+  useObjectActions(anchor, { properties: beginProperties, content: beginSource });
   const cancel = () => {
     request.current++; cancelFocus(); setBusy(false);
     focusTracking.current?.abort(); restoreInput.current = null;
@@ -490,9 +500,9 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
       return;
     }
     const pending = ++request.current;
-    const form = (input.current ?? sourceButton.current)?.closest("form");
+    const form = (input.current ?? labelInput.current)?.closest("form");
     const activeBefore = document.activeElement;
-    const target = activeBefore instanceof HTMLInputElement || activeBefore instanceof HTMLTextAreaElement ? activeBefore : input.current ?? sourceButton.current;
+    const target = activeBefore instanceof HTMLInputElement || activeBefore instanceof HTMLTextAreaElement ? activeBefore : input.current ?? labelInput.current;
     let movedFocus = !form?.contains(activeBefore);
     const trackFocus = (event: FocusEvent) => {
       if (event.target instanceof globalThis.Node && event.target !== document.body && !form?.contains(event.target)) movedFocus = true;
@@ -541,7 +551,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
     data-content-kind="mermaid" data-editing={editable && (editing || properties)} data-selected={selected} data-source-path={sourcePath}>
     <p ref={anchor} className={`block-kind block-metadata${editable ? " mermaid-metadata" : ""}`} contentEditable={false}>
       {editable ? <span className="mermaid-kind" data-testid="mermaid-kind" aria-hidden="true">Mermaid</span> : null}
-      <span className="mermaid-metadata-label"><MetadataLabel kind={kind} label={label} onEdit={editable && !editing && !properties ? () => { beginEdit(); setLabelEntry(true); } : undefined} /></span>
+      <span className="mermaid-metadata-label"><MetadataLabel kind={kind} label={label} onEdit={editable && !editing && !properties ? beginProperties : undefined} /></span>
     </p>
     {editable && hasDraft ? <p className="draft-status" role="status" data-testid="figure-draft-status" contentEditable={false}>
       {i18n.t(editing ? "Unapplied changes are not saved. Apply to include them, or Cancel."
@@ -567,7 +577,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
         </div>
       </PropertyForm>
     </div> : null : null}
-    {typeof applied.mermaidSource === "string" ? <div hidden={editable && editing} contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}>
+    {typeof applied.mermaidSource === "string" ? <div hidden={editable && editing} contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginSource}>
       <MermaidPreview source={applied.mermaidSource ?? ""} onReveal={() => { focusBlock(view, getPos); anchor.current?.scrollIntoView({ block: "center" }); }} />
     </div> : null}
     <figcaption className="caption" data-number={numbered} data-caption-prefix={numbered === undefined ? undefined : captionPrefixText(numbered)}
@@ -575,13 +585,14 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
       <NodeViewContent data-testid="figure-caption-content" aria-label={i18n.t("Figure caption")}
         data-empty-caption={node.content.size === 0 || undefined} data-placeholder={placeholder} />
     </figcaption>
-    {view.editable && !editing && !properties ? <Button className="figure-edit" size="sm" variant="outline" aria-label={i18n.t("Edit figure")}
-      contentEditable={false} onClick={beginEdit}>{i18n.t("Edit")}</Button> : null}
+    {view.editable && !editing ? <div className="object-tools" data-object-tools="" contentEditable={false}>
+      <ObjectTool icon={blockCommandAppearance("object-properties").icon!} label={i18n.t("Properties")} name={i18n.t("Figure properties")} aria-expanded={properties} onClick={beginProperties} />
+      <ObjectTool icon={blockCommandAppearance("object-source").icon!} label={i18n.t("Edit source")} data-testid="mermaid-edit-source" disabled={busy}
+        onClick={() => properties ? void apply(true) : beginSource()} />
+    </div> : null}
     <FigureProperties editor={editor} anchor={anchor} kind={kind} testId="mermaid-property" open={properties} error={errorField ? undefined : error} busy={busy}
       onApply={outside => void apply(false, !outside)} onCancel={cancel}
-      media={<div className="figure-property-thumbnail"><MermaidPreview source={applied.mermaidSource ?? ""} /></div>}
-      actions={<Button ref={sourceButton} type="button" size="sm" variant="outline" data-testid="mermaid-edit-source"
-        disabled={busy} onClick={() => void apply(true)}>{i18n.t("Edit source")}</Button>}>
+      media={<div className="figure-property-thumbnail"><MermaidPreview source={applied.mermaidSource ?? ""} /></div>}>
       <div className="figure-property-columns">
         <div className="form-field"><label className="form-label" htmlFor={`${formId}-label`}>{i18n.t("Label")}</label>
           <Input ref={labelInput} id={`${formId}-label`} aria-invalid={!!error && errorField === "label" || undefined}

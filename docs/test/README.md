@@ -4,7 +4,7 @@
 
 `metadata-popover`는 #1626 공통 속성 팝오버의 고유한 배치 위험을 보호한다. 실제 Mermaid 결과와
 첫 cold 썸네일 응답·decode를 mouse down/up 사이에 완료시키며, 두 방향·1440/640에서
-Edit source/Replace/Done 한 번의 클릭과 위치를 확인한다. 다섯 종류의 DOM/Tab 순서,
+Done 한 번의 클릭과 위치를 확인한다. 다섯 종류의 DOM/Tab 순서,
 방향 전환 뒤 같은 필드·focus·선택 범위, resize/그룹 경계와 긴 오류/Advanced의 스크롤을 검증한다.
 문서 의미·저장 재실행을 복제하지 않으며 기존 figure/mermaid/property-drafts 등이 계속 보호한다.
 촬영은 별도 수동 [capture script](../design/assets/metadata-popover-1626/capture.browser.js)의

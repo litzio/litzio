@@ -32,8 +32,8 @@ async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect
     n.editor.commands.insertContentAt(1,'Group A ');
   });
   const equation = surface(aid).locator('[data-block="equation"]');
-  await equation.hover(); await equation.getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.hover(); await equation.getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await surface(aid).getByTestId('equation-latex').fill('Group A property draft');
   await openPath(page,b);
   const bid = await activeDocument(page).getAttribute('data-document-tab');

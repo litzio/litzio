@@ -106,7 +106,7 @@ async (page, { openPath, expect }) => {
 
   async function dialogDrafts() {
     const focusFile = file.replace('drafts.md', 'focus.md');
-    for (const [kind, field, first] of [['figure','figure-label','figure-replace'], ['table','table-label','table-label'], ['label-target','label-target-input','label-target-input'], ['equation-property','equation-property-label','equation-property-label']]) {
+    for (const [kind, field, first] of [['figure','figure-label','figure-image-url'], ['table','table-label','table-label'], ['label-target','label-target-input','label-target-input'], ['equation-property','equation-property-label','equation-property-label']]) {
       await openPath(page, focusFile);
       const active = page.locator('[data-document-tab][data-active=true]');
       const target = active.locator(`[data-block="${kind === 'equation-property' ? 'equation' : kind}"]`);
@@ -117,7 +117,7 @@ async (page, { openPath, expect }) => {
         await active.getByTestId('label-target-edit').click();
       } else {
         await target.hover({position:{x:4,y:4}});
-        await target.getByRole('button',{name:kind === 'figure' ? 'Edit figure' : kind === 'table' ? 'Edit table' : 'Edit',exact:true}).click();
+        await target.getByRole('button',{name:kind === 'figure' ? 'Figure properties' : kind === 'table' ? 'Table properties' : 'Equation properties',exact:true}).click();
       }
       check(await focused(first), `${kind}: opening dialog draft focus`);
       const draft = `${kind}-dialog-draft`;
@@ -175,7 +175,7 @@ async (page, { openPath, expect }) => {
       const begin = async () => {
         if (kind === 'table' || type === 'equation') {
           await target.hover({position:{x:4,y:4}});
-          await activate(target.getByRole('button', {name:kind === 'table' ? 'Edit table' : 'Edit',exact:true}));
+          await activate(target.getByRole('button', {name:kind === 'table' ? 'Table properties' : 'Equation properties',exact:true}));
         } else {
           await editor.locator('h2').hover();
           await activate(active.getByTestId('label-target-edit'));
@@ -264,7 +264,7 @@ async (page, { openPath, expect }) => {
   async function appliedTyping() {
     const focusFile = file.replace('drafts.md', 'focus.md');
     const cases = [
-      {kind:'figure', type:'figure', field:'figure-label', first:'figure-replace', value:'fig-applied', label:'fig-applied'},
+      {kind:'figure', type:'figure', field:'figure-label', first:'figure-image-url', value:'fig-applied', label:'fig-applied'},
       {kind:'table', type:'table', field:'table-label', first:'table-label', value:'tbl-applied', label:'tbl-applied'},
       {kind:'label-target', type:'labelTarget', field:'label-target-input', first:'label-target-input', value:'SECTION-A', label:'SECTION-A'},
     ];
@@ -278,7 +278,7 @@ async (page, { openPath, expect }) => {
         await page.locator('[data-document-tab][data-active=true]').getByTestId('label-target-edit').click();
       } else {
         await target.hover({position:{x:4,y:4}});
-        await target.getByRole('button', {name:item.kind === 'figure' ? 'Edit figure' : 'Edit table', exact:true}).click();
+        await target.getByRole('button', {name:item.kind === 'figure' ? 'Figure properties' : 'Table properties', exact:true}).click();
       }
       check(await focused(item.first), `${item.kind}: first field did not receive focus`);
       await page.getByTestId(item.field).fill(item.value);
@@ -325,7 +325,7 @@ async (page, { openPath, expect }) => {
         });
         const cellSelection = await editor.evaluate(element => element.editor.state.selection.toJSON());
         await target.hover({position:{x:4,y:4}});
-        await target.getByRole('button', {name:'Edit table', exact:true}).click();
+        await target.getByRole('button', {name:'Table properties', exact:true}).click();
         check(await focused(item.first), 'Table field did not receive focus');
         await page.getByTestId(item.field).fill('cell-metadata');
         await page.getByTestId('table-apply').click();

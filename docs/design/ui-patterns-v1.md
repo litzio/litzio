@@ -31,10 +31,27 @@ UI 작업 전에 해당 패턴과 같은 패턴을 쓰는 다른 사용처를 �
 
 ## P03 편집 진입
 
-일반 블록의 Edit는 hover·키보드 focus·선택에서 같은 위치에 나타난다. inline 콘텐츠 자체를 큰 UI 버튼으로 바꾸지 않는다.
+표·그림·Mermaid·블록 수식은 같은 객체 도구 줄을 쓴다. 첫 버튼은 항상 **속성**(Properties)이고 레이블·번호·대체 텍스트의 팝오버를 연다. 내용을 본문에서 직접 고칠 수 없는 객체만 그 옆에 내용 동작을 둔다. Mermaid·수식은 **원문 편집**(Edit source), 이미지가 있는 그림은 **이미지 교체**(Replace image)다. 표는 칸을 본문에서 직접 고치므로 속성만 있다. 버튼 이름은 여는 것을 말하며 대상 없는 "편집"을 쓰지 않는다. 도구 줄은 hover·키보드 focus·선택·속성 편집 중에 같은 위치에 나타난다. 문서 폭이 30rem 이하인 블록에서는 버튼이 아이콘만 보이고 이름은 툴팁과 접근성 이름으로 남는다. 가운데 놓인 수식·이미지를 가리지 않기 위해서다. 아이콘은 블록 메뉴의 같은 항목과 같다. 포인터로 누를 때 focus를 블록 안으로 옮기지 않아, 폼을 닫으면 caret이 객체 뒤로 돌아간다. inline 콘텐츠 자체를 큰 UI 버튼으로 바꾸지 않는다.
+
+더블클릭과 선택 뒤 Enter는 그 객체의 내용 동작을 연다. 수식·Mermaid는 원문 폼, 내용 편집면이 따로 없는 이미지·빈 그림·표는 속성이다. 레이블 칩은 속성의 Label로 들어간다. 여백 손잡이·우클릭·Shift+F10의 블록 메뉴는 맨 위에 도구 줄과 같은 이름의 항목을 둔다.
+
+같은 문서·같은 상태의 한국어 1440px 밝음 전후(#1706). 소유자가 2026-11-17 시안을 승인했다. 캡처는 수동 검토 자료이며 자동 검사와 별개다.
+
+| 화면 | 전 | 후 |
+| --- | --- | --- |
+| 표, 칸에 커서 | [PNG](assets/object-editing-1706/entry-before-table.png) | [PNG](assets/object-editing-1706/entry-after-table.png) |
+| 표의 기타 메뉴 | [PNG](assets/object-editing-1706/entry-before-table-menu.png) | [PNG](assets/object-editing-1706/entry-after-table-menu.png) |
+| 이미지 | [PNG](assets/object-editing-1706/entry-before-image.png) | [PNG](assets/object-editing-1706/entry-after-image.png) |
+| 이미지 속성 | [PNG](assets/object-editing-1706/entry-before-image-properties.png) | [PNG](assets/object-editing-1706/entry-after-image-properties.png) |
+| Mermaid | [PNG](assets/object-editing-1706/entry-before-mermaid.png) | [PNG](assets/object-editing-1706/entry-after-mermaid.png) |
+| Mermaid 속성 | [PNG](assets/object-editing-1706/entry-before-mermaid-properties.png) | [PNG](assets/object-editing-1706/entry-after-mermaid-properties.png) |
+| 수식 | [PNG](assets/object-editing-1706/entry-before-equation.png) | [PNG](assets/object-editing-1706/entry-after-equation.png) |
+| 수식 속성 | [PNG](assets/object-editing-1706/entry-before-equation-properties.png) | [PNG](assets/object-editing-1706/entry-after-equation-properties.png) |
+
+그 밖의 후 화면: [이미지 교체](assets/object-editing-1706/entry-after-image-replace.png), [이미지 블록 메뉴](assets/object-editing-1706/entry-after-image-menu.png), [빈 그림 속성](assets/object-editing-1706/entry-after-pending-properties.png), [어두움](assets/object-editing-1706/entry-after-mermaid-properties-dark.png), [640px 아이콘](assets/object-editing-1706/entry-after-image-640.png), [영어](assets/object-editing-1706/entry-after-image-en.png).
 
 - **목적·사용/비사용:** 선택·읽기와 편집 시작을 구별한다. 선택만으로 속성 폼을 열거나 더블클릭만을 유일한 진입으로 삼지 않는다.
-- **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView와 [표](table-interaction-v1.md#whole-table-tools-793)의 상단 Edit 노출, [미주][footnote-view] 상시 버튼과 [미주 계약](footnotes-v1.md#editor)의 예외.
+- **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView와 [표](table-interaction-v1.md#whole-table-tools-793)의 객체 도구 줄, [미주][footnote-view] 상시 버튼과 [미주 계약](footnotes-v1.md#editor)의 예외.
 - **사용처:** U01–U12 그림·원문·표·미주·inline·절 label·직접 본문 입력, U17 선택 toolbar.
 
 코드 블록의 상시 Copy code와 언어 control은 [복사 계약](document-editing-v1.md#code-body-copy-991)을 따른다.
@@ -45,7 +62,7 @@ UI 작업 전에 해당 패턴과 같은 패턴을 쓰는 다른 사용처를 �
 - **현재 기준:** 그림·표·수식·절 label이 공유하는 `MetadataProperties`의 Done·Esc 취소·유효한 바깥 pointer 적용. 키보드 focus/Save만으로 적용하지 않으며 오류 때 폼·값을 유지하고, 바깥 적용은 클릭한 위치의 focus를 유지하며, 포인터 탭 전환으로 문서가 숨겨져도 해당 문서의 완료를 마친다. 별도 dialog 안의 Cancel·Keep editing·Settings 클릭과 읽기 전환·명령 센터 열기(#849)는 바깥 완료에서 제외하고 폼·초안을 유지한다. 표의 번호 입력은 P02 그대로다. 기존 [FigureProperties][figure]의 image chooser·busy guard와 [PropertyForm][forms]을 쓰는 원문/인라인 수식의 명시적 적용·취소. [미주](footnotes-v1.md#editor)의 완료/취소(Done/Cancel)와 기존 in-place·바깥 적용·키보드 동작. 링크·교차참조는 Apply/Cancel·Esc 취소·바깥 클릭 유지이며, 변경된 초안은 같은 문서의 다른 폼과 독립적으로 기존 draft 안내·Save/Source의 적용 내용 구분·탭 전환 보존·close 보호에 참여한다([초안 계약](editing-session-save-v1.md#applied-content-and-drafts)). 인용은 보이는 Cancel 없이 blur로 닫히는 기존 동작을 유지한다.
 - **사용처:** U01–U13 문서 안 편집·설정, U23–U24 파일 작업·미저장 확인과의 경계.
 
-수식 metadata의 원문 편집은 유효한 label·번호를 먼저 적용하고 원문 폼을 연다. 원문 취소는 그 뒤의 초안만 버린다. 오류·열린 폼 재진입은 초안을 유지하고 원문 편집 중 metadata 진입은 숨긴다([편집 계약](document-editing-v1.md#continuous-editing)). 미주의 Enter 적용/Shift+Enter 줄바꿈은 [미주 계약](footnotes-v1.md#editor)을 따른다.
+속성 팝오버에는 필드와 Done만 있다. 팝오버가 열린 채 도구 줄의 원문 편집을 누르면 수식·Mermaid 모두 유효한 label·번호를 먼저 적용하고 원문 폼을 연다. 그 객체의 도구 줄 클릭은 바깥 클릭 적용으로 치지 않는다. 원문 취소는 그 뒤의 초안만 버린다. 오류·열린 폼 재진입은 초안을 유지하고 원문 편집 중 metadata 진입은 숨긴다([편집 계약](document-editing-v1.md#continuous-editing)). 미주의 Enter 적용/Shift+Enter 줄바꿈은 [미주 계약](footnotes-v1.md#editor)을 따른다.
 
 ## P05 입력칸·placeholder·위계
 
@@ -117,9 +134,9 @@ Enter/Space·클릭 펼치기/접기를 제공하고 `aria-expanded`/`aria-contr
 ## P09 metadata와 블록 도구
 
 - **목적·사용/비사용:** 짧은 속성과 구조 작업의 진입을 구분한다. 표의 행·열 선택 도구나 미주 복귀 번호를 일반 metadata 도구로 대체하지 않는다.
-- **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView의 상단 도구와 높이를 차지하지 않는 metadata. [표 #793](table-interaction-v1.md#whole-table-tools-793)은 가로 스크롤 밖 상단 행에 Edit/More·metadata를 두고, Delete는 More 메뉴에 둔다. 표는 앞 문단·열 핸들과 겹치지 않도록 상단 행의 공간을 항상 확보하며 도구 표시로 본문 높이를 바꾸지 않는다. 행·열·Append와 caption 간격은 유지한다. 수식도 같은 상단 Edit/metadata 행에서 작은 속성을 열며, 본문 폭 원문 폼은 별도 경로로 유지한다(#788).
+- **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView의 객체 도구 줄(P03)과 높이를 차지하지 않는 metadata. [표 #793](table-interaction-v1.md#whole-table-tools-793)은 가로 스크롤 밖 상단 행에 속성 버튼과 metadata를 둔다. 표 전용 기타 메뉴는 없으며 삭제는 다른 객체처럼 블록 메뉴와 선택 뒤 Delete로 한다. 표는 앞 문단·열 핸들과 겹치지 않도록 상단 행의 공간을 항상 확보하며 도구 표시로 본문 높이를 바꾸지 않는다. 행·열·Append와 caption 간격은 유지한다. 본문 폭 원문 폼은 속성 팝오버와 별도 표면이다(#788).
 - **사용처:** U01–U06 그림·수식·표·미주, U11 절 label, U18 블록/표 구조 도구.
-- **본문 진입 (#223):** 본문 우클릭과 편집기 안 Shift+F10·메뉴 키도 U18의 기존 여백 핸들 블록 메뉴를 연다. 표·그림·수식도 같은 항목·명령·Undo/Redo를 쓰며 속성 도구 배치와 표시 규칙은 유지한다([본문 메뉴 계약](editor-ux-shell-v1.md#body-block-context-menu-223)).
+- **본문 진입 (#223):** 본문 우클릭과 편집기 안 Shift+F10·메뉴 키도 U18의 기존 여백 핸들 블록 메뉴를 연다. 표·그림·수식도 같은 항목·명령·Undo/Redo를 쓰고, 그 앞에 객체 도구 줄과 같은 이름의 속성·내용 항목이 온다([본문 메뉴 계약](editor-ux-shell-v1.md#body-block-context-menu-223)).
 
 편집 모드 제목 깊이 H1–H6은 왼쪽 여백에 상시 표시하고 같은 줄 블록 핸들이 보일 때만 숨긴다. 읽기·소스·텍스트 모드에서는 숨긴다. 표현은 [Visual Language 상태 규칙](editor-visual-language-v1.md#state-rules)이 소유한다. 글 흐름의 focus 막대 범위도 해당 계약을 따른다.
 

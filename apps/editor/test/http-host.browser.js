@@ -157,7 +157,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fresh)}`, { headers: { Connection: "close" } })).json();
   check(disk.source.includes('Created over HTTP.') && disk.source.includes('./assets/pasted.png'), 'Root B new file and portable image are on disk');
   const figure = page.locator('[data-document-tab][data-active=true] [data-block="figure"]');
-  await figure.hover(); await figure.getByRole('button', {name:'Edit figure', exact:true}).click();
+  await figure.hover(); await figure.getByRole('button', {name:'Figure properties', exact:true}).click();
   await page.getByTestId('figure-editor').getByText('Advanced', {exact:true}).click();
   await page.getByTestId('figure-file-name').fill('http-image');
   await page.getByTestId('figure-alt').fill('HTTP renamed image');

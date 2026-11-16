@@ -548,8 +548,8 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   await editor().evaluate(n => { n.editor.commands.setTextSelection(2); n.editor.view.focus(); });
   await page.keyboard.type('command center edit ');
   const equation = activeDocument(page).locator('[data-block="equation"]').first();
-  await equation.hover(); await equation.getByRole('button',{name:'Edit',exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.hover(); await equation.getByRole('button',{name:'Equation properties',exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('command center draft');
   const dirty = await editor().evaluate(n => JSON.stringify(n.editor.getJSON()));
   await openPath(page, file('technical-2.md'));

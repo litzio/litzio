@@ -57,8 +57,8 @@ async (page, { openPath, withBlockHover }) => {
   // Release the real callbacks only after the menu owns focus; inspect immediately afterwards.
   for (const [folder, document, blockSelector, editName, fieldId, cancelId, draft] of [
     ['block-move', 'draft-boundaries.md', '[data-block="equation"]', 'Edit', 'equation-latex', 'equation-cancel', 'x + DeferredFocusDraft'],
-    ['mermaid-authoring', 'diagram.md', '[data-block="figure"]', 'Edit figure', 'mermaid-source', 'mermaid-cancel', 'graph TD\n  Draft --> Preserved'],
-    ['block-move', 'technical-document.md', '[data-block="figure"]', 'Edit figure', 'figure-alt', 'figure-editor', ' invalid alt'],
+    ['mermaid-authoring', 'diagram.md', '[data-block="figure"]', 'Figure properties', 'mermaid-source', 'mermaid-cancel', 'graph TD\n  Draft --> Preserved'],
+    ['block-move', 'technical-document.md', '[data-block="figure"]', 'Figure properties', 'figure-alt', 'figure-editor', ' invalid alt'],
   ]) {
     await openPath(page, [root, 'tmp', folder, document].join(separator));
     await page.getByRole('dialog').waitFor({state:'detached'});
@@ -70,7 +70,7 @@ async (page, { openPath, withBlockHover }) => {
       // portal's closing animation does not become part of the source-focus experiment.
       if (fieldId === 'equation-latex') await block.getByTestId('equation-preview').dblclick();
       else await block.getByRole('button', {name:editName, exact:true}).click();
-      if (fieldId === 'mermaid-source') await page.getByTestId('mermaid-edit-source').click();
+      if (fieldId === 'mermaid-source') await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('mermaid-edit-source').click();
       await page.getByTestId(fieldId).waitFor();
       await waitForOpeningFrame();
       await page.getByTestId(fieldId).fill(draft);
@@ -111,7 +111,7 @@ async (page, { openPath, withBlockHover }) => {
         if (enter) await page.keyboard.press('Enter');
         else if (fieldId === 'equation-latex') await block.getByTestId('equation-preview').dblclick();
         else await block.getByRole('button', {name:editName, exact:true}).click();
-        if (fieldId === 'mermaid-source') await page.getByTestId('mermaid-edit-source').click();
+        if (fieldId === 'mermaid-source' && !enter) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('mermaid-edit-source').click();
         const field = page.getByTestId(fieldId);
         await field.waitFor();
         await waitForOpeningFrame();
@@ -119,10 +119,12 @@ async (page, { openPath, withBlockHover }) => {
         if (fieldId === 'mermaid-source' && ['same-editor','keyboard','composition'].includes(movement))
           await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(node => node.editor.view.focus());
         const dismisses = fieldId === 'figure-alt' && ['same-editor','round-trip'].includes(movement);
-        const focusTarget = fieldId === 'figure-alt' ? page.getByTestId('figure-replace') : field;
+        // Leave from the form's first control: Done when the popover is below its Figure, else the field.
+        const leadsWithDone = fieldId === 'figure-alt' && await field.evaluate(node => node.closest('form').querySelector('button, input, textarea') !== node);
+        const focusTarget = leadsWithDone ? page.getByTestId('figure-apply') : field;
         let openingFocus = await page.evaluateHandle(() => document.activeElement);
         if (movement === 'tab-out' || movement === 'tab-out-keyboard') {
-          if (movement === 'tab-out') await focusTarget.click();
+          if (movement === 'tab-out' && !leadsWithDone) await focusTarget.click();
           else await focusTarget.focus();
           await page.keyboard.press('Shift+Tab');
           if (await field.evaluate(node => node.closest('form').contains(document.activeElement))) throw new Error(`${fieldId}: Shift+Tab did not leave the form`);
@@ -163,14 +165,14 @@ async (page, { openPath, withBlockHover }) => {
         // Use the unfocusable brand area for the same pointer round-trip to body.
         if (movement === 'round-trip') {
           await page.locator('.app-brand').click({position:{x:1,y:1}});
-          // Formula double-click retains the editor focus owner; return to that
+          // Formula double-click and tool-row presses retain the editor focus owner; return to that
           // same owner after visiting body, still using real pointer input.
-          if (fieldId === 'equation-latex') await prose.click();
+          if (fieldId !== 'inline-math-latex' && ['equation-latex','mermaid-source','figure-alt'].includes(fieldId)) await prose.click();
         }
         if (movement !== 'programmatic-focus' && !await page.evaluate(element => document.activeElement === element, openingFocus)) throw new Error(`${fieldId}: ${movement} did not reproduce identical activeElement`);
         if (!await page.evaluate(() => window.releaseOpeningFrames())) throw new Error('Opening frame was not held');
         if (movement === 'programmatic-focus') {
-          if (!await focusTarget.evaluate(node => node === document.activeElement)) throw new Error(`${fieldId} lost autofocus after programmatic editor focus`);
+          if (!await field.evaluate(node => node === document.activeElement)) throw new Error(`${fieldId} lost autofocus after programmatic editor focus`);
         } else if (!await page.evaluate(element => document.activeElement === element, openingFocus)) throw new Error(`${fieldId} stole focus after ${movement}`);
         await openingFocus.dispose();
         if (movement === 'same-editor') {
@@ -352,9 +354,9 @@ async (page, { openPath, withBlockHover }) => {
   result.menuFollowsReorder = Math.abs(await menuOffset() - anchorOffset) <= 1;
 
   // 6. An unapplied Equation draft pins its block: the handle says why, a drag does nothing, and the draft stays.
-  await equation.getByRole('button', {name:'Edit', exact:true}).locator('..').hover({position:{x:4, y:4}});
-  await equation.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4, y:4}});
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('x + BlockMoveDraft');
   // The draft is reported from an effect, so the handle follows it a render later.
   const handle = page.getByRole('button', {name:/^Move equation block \d+$/});
@@ -415,8 +417,8 @@ async (page, { openPath, withBlockHover }) => {
     const equations = page.locator('[data-document-tab][data-active=true] [data-block="equation"]');
     const block = name === 'Move up' ? equations.first() : equations.last();
     await block.hover();
-    await block.getByRole('button', {name:'Edit', exact:true}).click();
-    await page.getByTestId('equation-edit-source').click();
+    await block.getByRole('button', {name:'Equation properties', exact:true}).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-latex').fill('x + BoundaryDraft');
     // Programmatic handle.focus() is deliberately not a user cancellation signal.
     // Let entry focus finish before preparing this keyboard-menu scenario.

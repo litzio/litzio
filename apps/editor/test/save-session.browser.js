@@ -383,8 +383,8 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   const body = page.getByText('The current reference is calculated from the active power command.', {exact:true}).filter({visible:true});
   await body.click(); await page.keyboard.press('End'); await page.keyboard.type(' BodySaved');
   const equation = page.locator('[data-document-tab][data-active=true] [data-block="equation"]').first();
-  await equation.hover(); await equation.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.hover(); await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-latex').fill('x + 40');
   await save();
   check('draftSaveIsExplicit', (await page.getByTestId('status').innerText()) === 'Unsaved changes' && await page.getByTestId('draft-indicator').isVisible());

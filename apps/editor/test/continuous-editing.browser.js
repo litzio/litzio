@@ -589,8 +589,8 @@ async (page, { expect, showNotifications, openDocument }) => {
   assert(edge.document.blocks[0].text === 'Before' && edge.document.blocks[2].text === 'After', 'Both edge inputs must persist');
 
   await selectEquation();
-  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-label').fill('eq-move');
   await page.getByTestId('equation-apply').click();
   await save();

@@ -54,10 +54,10 @@ async (page, { openPath, expect, screenshots }) => {
     const active = page.locator('[data-document-tab][data-active=true]');
     const tag = `${width}-${theme}-${language}`;
     const labelError = language === 'en' ? 'Label cannot have leading or trailing spaces.' : '레이블 앞뒤에 공백을 넣을 수 없습니다.';
-    const edit = language === 'en' ? 'Edit' : '편집';
+    const edit = language === 'en' ? 'Equation properties' : '수식 속성';
     const equation = active.locator('[data-block="equation"]').first();
     await openEditor(equation, equation.getByRole('button', { name: edit, exact: true }));
-    await page.getByTestId('equation-edit-source').click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await checkSurface('equation-label');
     await page.getByTestId('equation-label').fill(' bad-label');
     await page.getByTestId('equation-apply').click();
@@ -71,7 +71,7 @@ async (page, { openPath, expect, screenshots }) => {
     await page.getByTestId('equation-cancel').click();
 
     const figure = active.locator('[data-block="figure"]').first();
-    await openEditor(figure, figure.locator('.figure-edit'));
+    await openEditor(figure, figure.locator('.object-tools > button:first-child'));
     await page.getByTestId('figure-label').fill(' bad-label');
     await page.getByTestId('figure-apply').click();
     await capture(`${tag}-figure`);
@@ -97,7 +97,7 @@ async (page, { openPath, expect, screenshots }) => {
     await page.getByTestId('figure-file-name').press('Escape');
 
     const table = active.locator('[data-block="table"]').first();
-    await openEditor(table, table.getByRole('button', {name: language === 'en' ? 'Edit table' : '표 편집', exact: true}));
+    await openEditor(table, table.getByRole('button', {name: language === 'en' ? 'Table properties' : '표 속성', exact: true}));
     await checkSurface('table-label');
     await page.getByTestId('table-label').fill(' bad-label');
     await page.getByTestId('table-apply').click();
@@ -116,14 +116,14 @@ async (page, { openPath, expect, screenshots }) => {
     await page.getByTestId('table-label').press('Escape');
 
     const mermaid = active.locator('.mermaid-figure').first();
-    await openEditor(mermaid, mermaid.locator('.figure-edit'));
+    await openEditor(mermaid, mermaid.locator('.object-tools > button:first-child'));
     await page.getByTestId('mermaid-property-label').fill(' bad-label');
     await page.getByTestId('mermaid-property-apply').click();
     await capture(`${tag}-mermaid-metadata`);
     await checkError('mermaid-property-label', ' bad-label', labelError);
     await page.getByTestId('mermaid-property-label').press('Escape');
-    await openEditor(mermaid, mermaid.locator('.figure-edit'));
-    await page.getByTestId('mermaid-edit-source').click();
+    await openEditor(mermaid, mermaid.locator('.object-tools > button:first-child'));
+    await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('mermaid-edit-source').click();
     await page.getByTestId('mermaid-source').fill('');
     await page.getByTestId('mermaid-apply').click();
     await capture(`${tag}-mermaid-source`);

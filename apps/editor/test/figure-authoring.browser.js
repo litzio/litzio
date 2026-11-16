@@ -73,7 +73,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await page.getByRole('menu', {name:'Insert block'}).getByRole('menuitem', {name, exact:true}).click();
   };
   const editor = page.getByTestId('figure-editor');
-  const imageFocused = () => page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'figure-replace', null, {timeout:2000})
+  const imageFocused = () => page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'figure-alt', null, {timeout:2000})
     .then(() => true, () => false);
 
   try {
@@ -117,15 +117,15 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
       for (const entry of ['Edit', 'double-click', 'Enter']) {
         if (entry === 'Edit') {
           await image.click({position:{x:80,y:140}, timeout:5000});
-          await figures.first().getByRole('button', {name:'Edit figure'}).click();
+          await figures.first().getByRole('button', {name:'Figure properties'}).click();
         } else if (entry === 'Enter') {
           await image.click({position:{x:80,y:140}, timeout:5000});
           await page.keyboard.press('Enter');
         } else await image.dblclick({position:{x:80,y:140}, timeout:5000});
-        await expect(page.getByTestId('figure-replace'), `${entry} focuses Replace`).toBeFocused();
+        await expect(page.getByTestId('figure-alt'), `${entry} focuses Alt text`).toBeFocused();
         expect(await snapshot(), `${entry} leaves document unchanged`).toEqual(withProbe);
         if (entry === 'double-click') {
-          if (!await page.getByTestId('figure-image-url').isVisible()) await page.getByTestId('figure-replace').click();
+          if (!await page.getByTestId('figure-image-url').isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
           await page.getByTestId('figure-image-url').fill('./unapplied.svg');
           await image.evaluate(el => el.closest('[data-node-view-wrapper]').dispatchEvent(new Event('litzio-edit-properties', {cancelable:true})));
           expect(await page.getByTestId('figure-image-url').inputValue(), 'Already editing keeps the draft').toBe('./unapplied.svg');
@@ -135,7 +135,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
         const focus = await editorFocus();
         expect(Boolean(focus), `${entry} returns editor focus on ${close}`).toBe(true);
         if (entry === 'Edit') editFocus = focus;
-        else expect(focus, `${close} restores the same caret as Edit`).toEqual(editFocus);
+        else expect(focus, `${entry}: ${close} restores the same caret as Edit`).toEqual(editFocus);
         expect(await snapshot()).toEqual(withProbe);
       }
     }
@@ -240,8 +240,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
               contentHeight:i.height-parseFloat(imageStyle.borderTopWidth)-parseFloat(imageStyle.borderBottomWidth),
               maxWidth:parseFloat(imageStyle.maxWidth),maxHeight:parseFloat(imageStyle.maxHeight),
               background:getComputedStyle(box).backgroundColor,
-              fits:i.left>=b.left && i.right<=b.right && i.top>=b.top && i.bottom<=b.bottom,
-              offset:center(el.querySelector('[data-testid="figure-apply"]').getBoundingClientRect())-center(el.querySelector('[data-testid="figure-replace"]').getBoundingClientRect())},
+              fits:i.left>=b.left && i.right<=b.right && i.top>=b.top && i.bottom<=b.bottom},
             disclosure:el.querySelector('summary svg')?.tagName,
             padding:[style.paddingTop,style.paddingRight,style.paddingBottom,style.paddingLeft],
           };
@@ -260,7 +259,6 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
         expect(controls.thumbnail.image.width).toBeLessThanOrEqual(controls.thumbnail.maxWidth);
         expect(controls.thumbnail.image.height).toBeLessThanOrEqual(controls.thumbnail.maxHeight);
         expect(controls.thumbnail.contentWidth/controls.thumbnail.contentHeight).toBeCloseTo(controls.thumbnail.ratio,1);
-        expect(Math.abs(controls.thumbnail.offset)).toBeLessThanOrEqual(1);
         expect(controls.disclosure).toBe('svg');
         expect(new Set(controls.padding).size).toBe(1);
         const closedGap=await popup.evaluate(el => {
@@ -311,8 +309,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await figures.first().locator('img').click();
     result.selectionOnly = await page.getByTestId('figure-properties').count() === 0 && await editor.count() === 0 &&
       await page.evaluate(() => document.activeElement?.closest('[data-document-tab][data-active=true] .document-editor') !== null);
-    await figures.first().getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await figures.first().getByRole('button', {name:'Edit figure'}).click();
+    await figures.first().getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await figures.first().getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
     result.editFocusesImage = await imageFocused();
     // #461: a clicked image is selected without hiding its siblings; editing resumes filtering.
@@ -320,7 +318,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     const pathField = picker.getByRole('combobox', {name:'Image path'});
     const imageNames = ['diagram-v2.svg', 'diagram.svg'];
     const listedImages = async () => (await picker.getByRole('option').evaluateAll(rows => rows.map(row => row.getAttribute('aria-label')))).filter(name => imageNames.includes(name)).sort();
-    if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();
+    if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
     await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).waitFor();
     expect(await listedImages()).toEqual(imageNames);
@@ -372,7 +370,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await picker.getByRole('button', {name:'Select', exact:true}).click();
     await picker.waitFor({state:'hidden'});
     expect(await page.getByTestId('figure-image-url').inputValue()).toBe('./diagram-v2.svg');
-    if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();
+    if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
     await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).waitFor();
     expect(await listedImages()).toEqual(imageNames);
@@ -390,7 +388,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     };
     await page.route('**/api/folder-browse?*', caseSensitiveListing);
     try {
-      if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();
+      if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
       const upper = picker.getByRole('option', {name:'Diagram.svg', exact:true});
       const lower = picker.getByRole('option', {name:'diagram.svg', exact:true});
@@ -447,7 +445,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await page.route('**/api/file-preview?*', previewRoute);
     await page.route('**/api/folder-places', imagePlaces);
     try {
-      if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();
+      if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
       await picker.getByRole('option', {name:'subfolder', exact:true}).waitFor();
       await expect(picker.getByRole('listbox')).toBeFocused();
@@ -522,7 +520,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await page.setViewportSize({width:1280, height:720});
     result.existingLabelInForm = await page.getByTestId('figure-label').inputValue() === 'fig-control' &&
       await page.getByTestId('figure-caption').count() === 0;
-    if (!await page.getByTestId('figure-image-url').isVisible()) await page.getByTestId('figure-replace').click();
+    if (!await page.getByTestId('figure-image-url').isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByTestId('figure-image-url').fill('./diagram-v2.svg');
     await page.getByTestId('figure-alt').fill('Updated block diagram');
     await figures.first().getByTestId('figure-caption-content').evaluate(element => {
@@ -573,8 +571,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
 
     // A2. Core-shared property validation keeps invalid alt text unapplied and the form open.
     const appliedCaption = 'Updated converter control diagram.';
-    await figures.first().getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await figures.first().getByRole('button', {name:'Edit figure'}).click();
+    await figures.first().getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await figures.first().getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
     await page.getByTestId('figure-alt').fill(' invalid alt');
     await page.getByTestId('figure-apply').click();
@@ -606,8 +604,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     const inserted = await editorFocus();
     result.newFigureCaretInCaption = inserted !== false && inserted.block === 'figure' && inserted.empty && inserted.text === '';
     result.newFigureIsUnsaved = await saveEnabled.count() === 1;
-    await figures.nth(1).getByTestId('figure-no-content').dblclick({position:{x:80,y:20}, timeout:5000});
-    await expect(page.getByTestId('figure-replace'), 'Pending Figure double-click uses Edit').toBeFocused();
+    await figures.nth(1).getByTestId('figure-no-content').dblclick({position:{x:300,y:20}, timeout:5000});
+    await expect(page.getByTestId('figure-image-url'), 'Pending Figure double-click opens properties at Image').toBeFocused();
     await page.getByTestId('figure-alt').press('Escape');
     await editor.waitFor({state:'detached'});
     await page.keyboard.press('ControlOrMeta+z');
@@ -624,11 +622,11 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     const created = figures.nth(1);
     await page.keyboard.type('New figure caption.');
     result.newCaptionTypedAtCaret = await created.locator('figcaption').innerText() === 'New figure caption.';
-    await created.getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await created.getByRole('button', {name:'Edit figure'}).click();
+    await created.getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await created.getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
     result.newLabelEmpty = await page.getByTestId('figure-label').inputValue() === '';
-    if (!await page.getByTestId('figure-image-url').isVisible()) await page.getByTestId('figure-replace').click();
+    if (!await page.getByTestId('figure-image-url').isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
     await page.getByTestId('figure-image-url').fill('./diagram.svg');
     await page.getByTestId('figure-alt').fill('New figure alt');
     await page.getByTestId('figure-apply').click();
@@ -649,8 +647,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     result.newPreviewAfterApply = String(await imageLoaded(created)).startsWith('/document/diagram.svg?path=');
 
     // C2. Apply, Edit, change, Cancel keeps the block and restores the applied value.
-    await created.getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await created.getByRole('button', {name:'Edit figure'}).click();
+    await created.getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await created.getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
     await page.getByTestId('figure-alt').fill('Discarded caption.');
     await page.getByTestId('figure-alt').press('Escape');
@@ -669,8 +667,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     result.newReloadedPreview = String(await imageLoaded(figures.nth(1))).startsWith('/document/diagram.svg?path=');
 
     // Escape cancels an existing Figure draft without removing it.
-    await figures.first().getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await figures.first().getByRole('button', {name:'Edit figure'}).click();
+    await figures.first().getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await figures.first().getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
     await page.getByTestId('figure-alt').fill('Escaped');
     await page.getByTestId('figure-alt').press('Escape');
@@ -690,8 +688,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     let releaseValidation;
     const validationGate = new Promise(resolve => { releaseValidation = resolve; });
     await page.route('**/api/figure-validation', async route => { await validationGate; return route.continue(); });
-    await figures.first().getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await figures.first().getByRole('button', {name:'Edit figure'}).click();
+    await figures.first().getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await figures.first().getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
     await page.getByTestId('figure-alt').fill('Validated later');
     await page.getByTestId('figure-apply').click();
@@ -721,10 +719,10 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
       return route.continue();
     });
     await page.getByRole('button', {name:'Save', exact:true}).click();
-    await figures.first().getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await figures.first().getByRole('button', {name:'Edit figure'}).click();
+    await figures.first().getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await figures.first().getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'figure-replace');
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'figure-alt');
     await page.getByTestId('figure-alt').fill('Caption typed during save.');
     release();
     await page.getByText('Unsaved changes', {exact:true}).filter({visible:true}).waitFor();
@@ -803,8 +801,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
         selection.$from.parentOffset === selection.$from.parent.content.size;
     });
     const captionSelection = await page.evaluate(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.toJSON());
-    await figures.first().getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await figures.first().getByRole('button', {name:'Edit figure'}).click();
+    await figures.first().getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await figures.first().getByRole('button', {name:'Figure properties'}).click();
     await editor.waitFor();
     await page.getByTestId('figure-alt').fill('Rich caption image');
     await page.getByTestId('figure-apply').click();

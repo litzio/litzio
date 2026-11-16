@@ -408,7 +408,7 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
     if (item.kind === 'table') {
       const table = panel.locator('[data-block=table]');
       await table.hover({position:{x:4,y:4}});
-      await table.getByRole('button',{name:'Edit table',exact:true}).click();
+      await table.getByRole('button',{name:'Table properties',exact:true}).click();
     }
     if (item.kind === 'inline') await panel.locator('.inline-math-rendered .katex-html').dblclick();
     await page.getByTestId(item.field).fill(item.value);
@@ -434,7 +434,6 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
 
   // Source drafts of both Equation and Mermaid render only applied content in Read.
   await panel.locator('[data-content-kind=mermaid]').getByTestId('mermaid-preview').dblclick();
-  await page.getByTestId('mermaid-edit-source').click();
   await page.getByTestId('mermaid-source').fill('graph LR\n  UNAPPLIED --> Draft');
   await read.click();
   await expect(panel.locator('[data-content-kind=mermaid]').getByTestId('mermaid-preview')).toBeVisible();

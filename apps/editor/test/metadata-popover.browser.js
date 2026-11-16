@@ -17,12 +17,12 @@ async(page,{openPath,expect,waitForExplorerLayout})=>{
     await target.scrollIntoViewIfNeeded();
     await target.evaluate((el,side)=>{const r=el.getBoundingClientRect();el.closest('.document-scroll').scrollTop+=side==='bottom'?r.top-140:r.bottom-1340;},side);
   };
-  const begin=async target=>{await target.hover({position:{x:4,y:4}});await target.getByRole('button',{name:'Edit figure'}).click();};
+  const begin=async target=>{await target.hover({position:{x:4,y:4}});await target.getByRole('button',{name:'Figure properties'}).click();};
   const outcomes=[];
   await open('cold.md');
   for(const width of [1440,640]){
     await page.setViewportSize({width,height:1400});await waitForExplorerLayout(page);
-    for(const kind of ['mermaid','image'])for(const side of ['bottom','top'])for(const action of ['media','done']){
+    for(const kind of ['mermaid','image'])for(const side of ['bottom','top'])for(const action of ['done']){
       const target=active.locator(kind==='mermaid'?'[data-content-kind="mermaid"]':'figure:not([data-content-kind="mermaid"])').first();
       const id=kind==='mermaid'?'mermaid-property':'figure';const popup=page.getByTestId(`${id}-properties`);
       if(kind==='mermaid'){
@@ -81,7 +81,7 @@ async(page,{openPath,expect,waitForExplorerLayout})=>{
   }
   expect(outcomes.every(r=>r.clicked&&r.buttonStable&&r.sideStable),JSON.stringify(outcomes)).toBe(true);
   await open('properties.md');
-  const kinds=[['figure','figure:not([data-content-kind="mermaid"])','figure-label','Edit figure'],['mermaid-property','[data-content-kind="mermaid"]','mermaid-property-label','Edit figure'],['table','[data-block="table"]','table-label','Edit table'],['equation-property','[data-block="equation"]','equation-property-label','Edit'],['label-target','[data-block="label-target"]','label-target-input',null]];
+  const kinds=[['figure','figure:not([data-content-kind="mermaid"])','figure-label','Figure properties'],['mermaid-property','[data-content-kind="mermaid"]','mermaid-property-label','Figure properties'],['table','[data-block="table"]','table-label','Table properties'],['equation-property','[data-block="equation"]','equation-property-label','Equation properties'],['label-target','[data-block="label-target"]','label-target-input',null]];
   for(const width of [1440,640]){
     await page.setViewportSize({width,height:1400});await waitForExplorerLayout(page);
     for(const[id,selector,fieldId,buttonName]of kinds){
@@ -143,12 +143,12 @@ async(page,{openPath,expect,waitForExplorerLayout})=>{
     await expect(diagramPopup).toHaveAttribute('data-side','top');
     const pendingHeight=await diagramPopup.evaluate(el=>el.getBoundingClientRect().height);
     expect(pendingHeight).toBeLessThan(fullHeight-24);
-    const button=diagramPopup.getByTestId('mermaid-edit-source'),r=await button.boundingBox();
+    const button=diagramPopup.getByTestId('mermaid-property-apply'),r=await button.boundingBox();
     await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down();
     await page.evaluate(()=>{window.__holdMetadata=false;for(const r of window.__metadataReleases.splice(0))r();});
     await expect(diagramPopup.getByTestId('mermaid-preview')).toHaveAttribute('aria-busy','false');await diagramPopup.locator('img').evaluate(img=>img.decode());
     await expect(diagramPopup).toHaveAttribute('data-side','top');await page.mouse.up();
-    await expect(active.getByTestId('mermaid-source')).toHaveCount(1);await active.getByTestId('mermaid-cancel').click();
+    await expect(diagramPopup).toHaveCount(0);
   }finally{await page.mouse.up();await page.evaluate(()=>{window.__holdMetadata=false;for(const r of window.__metadataReleases??[])r();});}
   // Height-constrained Advanced and a long real validation error must scroll only
   // the body, leaving both actions available on either side.
@@ -162,7 +162,7 @@ async(page,{openPath,expect,waitForExplorerLayout})=>{
     await expect(label).toHaveAttribute('aria-invalid','true');await expect(done).toBeEnabled();
     expect((await done.boundingBox()).y).toBeCloseTo(before.y,0);
     const body=popup.locator('.metadata-property-body');expect(await body.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
-    await body.evaluate(el=>el.scrollTop=el.scrollHeight);await expect(done).toBeInViewport();await expect(popup.getByTestId('figure-replace')).toBeInViewport();
+    await body.evaluate(el=>el.scrollTop=el.scrollHeight);await expect(done).toBeInViewport();
     const r=await popup.boundingBox();expect(r.y).toBeGreaterThanOrEqual(72);expect(r.y+r.height).toBeLessThanOrEqual(600);
     await popup.locator('form').press('Escape');
   }

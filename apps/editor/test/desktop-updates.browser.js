@@ -505,7 +505,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   await page.getByText('Saved', {exact:true}).filter({visible:true}).waitFor();
   const table = page.locator('[data-document-tab][data-active=true] [data-block="table"]');
   await table.hover();
-  await table.getByRole('button', {name:'Edit table', exact:true}).click();
+  await table.getByRole('button', {name:'Table properties', exact:true}).click();
   await page.getByTestId('table-label').fill('unapplied-label');
   await page.getByRole('tab', {name:'technical-document.md',exact:true}).focus();
   await page.keyboard.press('Enter');

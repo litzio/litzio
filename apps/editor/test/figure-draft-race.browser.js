@@ -20,10 +20,10 @@ async (page, { openPath, expect, reloadDocument }) => {
   const initialCaption = (await semantic())[0].caption;
   const figure = page.locator('[data-document-tab][data-active=true] [data-block="figure"]').first();
   await figure.locator('img').click();
-  await figure.getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-  await figure.getByRole('button', {name:'Edit figure'}).click();
+  await figure.getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await figure.getByRole('button', {name:'Figure properties'}).click();
   await page.getByTestId('figure-editor').waitFor();
-  await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'figure-replace');
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'figure-alt');
   const beforeSelectionMove = {
     selectedFigure: await page.locator('[data-document-tab][data-active=true] .ProseMirror-selectednode').count() === 1,
     formOpen: await page.getByTestId('figure-editor').count() === 1,
@@ -85,8 +85,8 @@ async (page, { openPath, expect, reloadDocument }) => {
       const dispatch = view.dispatch.bind(view);
       view.dispatch = transaction => { if (view.isDestroyed) probe.lateDispatches++; dispatch(transaction); };
     });
-    const edit = page.locator('[data-document-tab][data-active=true] [data-block="figure"]').first().getByRole('button', {name:'Edit figure'});
-    await edit.locator('..').hover({position:{x:4,y:4}});
+    const edit = page.locator('[data-document-tab][data-active=true] [data-block="figure"]').first().getByRole('button', {name:'Figure properties'});
+    await edit.locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
     await edit.click();
     await page.getByTestId('figure-alt').fill(`Late validation after ${leave}`);
     let release, requested;
@@ -152,7 +152,7 @@ async (page, { openPath, expect, reloadDocument }) => {
   const ownerId = await page.getByRole('tab', {selected:true}).getAttribute('id');
   const otherTab = page.getByRole('tab').and(page.locator(`:not([id="${ownerId}"])`));
   await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(n => { window.hiddenFigureEditor = n.editor; });
-  await figure.hover(); await figure.getByRole('button', {name:'Edit figure'}).click();
+  await figure.hover(); await figure.getByRole('button', {name:'Figure properties'}).click();
   await page.getByTestId('figure-alt').fill('Applied in hidden owner');
   let releaseHidden, requestHidden;
   const gateHidden = new Promise(resolve => { releaseHidden = resolve; });
@@ -200,14 +200,15 @@ async (page, { openPath, expect, reloadDocument }) => {
     const requested = new Promise(resolve => { started = resolve; });
     const hold = async route => { started(); await gate; await route.continue(); };
     if (kind === 'image' || kind === 'mermaid') {
-      await (kind === 'image' ? image.getByTestId('figure-image') : diagram.getByTestId('mermaid-preview')).dblclick();
+      if (kind === 'image') await image.getByTestId('figure-image').dblclick();
+      else { await diagram.hover({position:{x:4,y:4}}); await diagram.getByRole('button',{name:'Figure properties',exact:true}).click(); }
       await page.getByTestId(`${prefix}-label`).fill(`pointer-${kind}`);
       await page.route('**/api/figure-validation', hold);
     } else if (kind === 'equation') {
       await equation.getByTestId('equation-preview').dblclick();
       await page.getByTestId('equation-latex').fill('x=2');
     } else if (kind === 'table') {
-      await table.hover(); await table.getByRole('button', {name:'Edit table',exact:true}).click();
+      await table.hover(); await table.getByRole('button', {name:'Table properties',exact:true}).click();
       await page.getByTestId('table-label').fill('pointer-table');
     } else {
       await note.hover(); await note.getByTestId('endnote-edit').click();

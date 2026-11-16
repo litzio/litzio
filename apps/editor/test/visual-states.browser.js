@@ -272,8 +272,8 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
     await page.keyboard.press('Escape');
   });
   await page.locator('[data-document-tab][data-active=true]').getByTestId('figure-image').click();
-  await page.getByRole('button', {name:'Edit figure', exact:true}).click();
-  const nativeCancel = page.getByTestId('figure-replace');
+  await page.getByRole('button', {name:'Figure properties', exact:true}).click();
+  const nativeCancel = page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace');
   await nativeCancel.hover(); await page.mouse.move(0,0); await settle();
   const native = await state(nativeCancel);
   check(native.background === secondary.background && native.border === secondary.border && native.radius === secondary.radius,
@@ -282,8 +282,8 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
 
   // Preview layout must not override the Notice's error role.
   await page.locator('[data-document-tab][data-active=true] .equation').hover();
-  await page.locator('[data-document-tab][data-active=true] .equation').getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await page.locator('[data-document-tab][data-active=true] .equation').getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   const preview = await state(page.getByTestId('equation-edit-preview'));
   await page.getByTestId('equation-latex').fill('\\frac{');
   const previewError = await state(page.getByTestId('equation-edit-preview-error'));
@@ -291,14 +291,7 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
     'Equation preview layout hides the error role');
   await page.getByTestId('equation-cancel').click();
 
-  await page.locator('[data-document-tab][data-active=true] .table [data-table-cell]').first().click();
-  const tableActions = page.getByRole('button', {name:'Table actions', exact:true});
-  await tableActions.click(); await page.mouse.move(0,0); await settle();
-  await page.getByRole('menu').and(page.locator(':focus-within')).waitFor();
-  const tableOpen = await state(tableActions);
-  check(tableOpen.background === menuOpen.background && tableOpen.ring === 'none' && menuOpen.border === 'rgba(0, 0, 0, 0)',
-    `Native table menu needs the shared persistent open face without a boundary box ${JSON.stringify(tableOpen)}`);
-  await page.keyboard.press('Escape');
+  check(menuOpen.border === 'rgba(0, 0, 0, 0)', `An open menu trigger needs no boundary box ${JSON.stringify(menuOpen)}`);
 
   // Progress remains visible while motion is optional; opening/closing overlays are static.
   for (const reducedMotion of ['no-preference', 'reduce']) {

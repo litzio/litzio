@@ -82,7 +82,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   const isolation = await page.evaluate(() => {
     const root=document.documentElement;
     // The narrow layout deliberately unmounts the closed Outline; its desktop coverage stays required.
-    const selectors=[...(innerWidth>=1424?['.document-outline-item']:[]),'.sidebar-tree-item','[data-testid="save"]','.figure-edit','.equation-edit','.folder-picker-crumb',
+    const selectors=[...(innerWidth>=1424?['.document-outline-item']:[]),'.sidebar-tree-item','[data-testid="save"]','.object-tools > button:first-child','.object-tools > button:first-child','.folder-picker-crumb',
       '.table-row-handle','.table-column-handle','.table-extend','.table-action-bar button',
       '.code-language','.block-metadata','.label-target-edit','.cross-reference-edit','[role="dialog"]',
       // Caption/table families stay UI-owned; their sizes have separate document tokens.
@@ -224,13 +224,13 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
           const controls={right:controlsBox.x+controlsBox.width};
           const standard=rect('[data-testid="save"]').height;
           const expectedSidebarHeader=rect('.document-tab-row').height;
-          const compactSelectors=[':is(.sidebar-header, .sidebar > .panel-header) button','[data-document-tab][data-active=true] .figure-edit','[data-document-tab][data-active=true] .equation-edit',...(collapsed?[]:['.sidebar-folder-actions button'])];
+          const compactSelectors=[':is(.sidebar-header, .sidebar > .panel-header) button','[data-document-tab][data-active=true] .object-tools > button:first-child','[data-document-tab][data-active=true] .object-tools > button:first-child',...(collapsed?[]:['.sidebar-folder-actions button'])];
           const compact=compactSelectors.flatMap(selector=>{
             const nodes=[...document.querySelectorAll(selector)];
             if(!nodes.length)throw Error(`Missing compact control: ${selector}`);
             return nodes.map(n=>n.getBoundingClientRect().height);
           });
-          for(const button of document.querySelectorAll('[data-document-tab][data-active=true] .figure-edit,[data-document-tab][data-active=true] .equation-edit')) {
+          for(const button of document.querySelectorAll('[data-document-tab][data-active=true] .object-tools > button:first-child,[data-document-tab][data-active=true] .object-tools > button:first-child')) {
             if(getComputedStyle(button).fontFamily!==getComputedStyle(document.body).fontFamily)throw Error('Document font leaked into UI control');
           }
           // Every sidebar icon is 16px; top-level tree entries share one icon start and one text start.

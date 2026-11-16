@@ -47,9 +47,9 @@ async (page, { openPath }) => {
     return text;
   };
   const setEquationLabel = async (block, label) => {
-    await block.getByRole('button', {name:'Edit', exact:true}).locator('..').hover({position:{x:4,y:4}});
-    await block.getByRole('button', {name:'Edit', exact:true}).click();
-    await page.getByTestId('equation-edit-source').click();
+    await block.getByRole('button', {name:'Equation properties', exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await block.getByRole('button', {name:'Equation properties', exact:true}).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-label').fill(label);
     await page.getByTestId('equation-apply').click();
     await page.getByTestId('equation-editor').waitFor({state:'detached'});
@@ -58,12 +58,12 @@ async (page, { openPath }) => {
   // Wait for that intended autofocus before typing, as a user would, so no input lands elsewhere.
   const figureFormReady = async () => {
     await page.getByTestId('figure-editor').waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'figure-replace');
+    await page.waitForFunction(() => ['figure-alt','figure-image-url'].includes(document.activeElement?.getAttribute('data-testid')));
   };
   const setFigureLabel = async (block, label) => {
     await block.locator('img').click();
-    await block.getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-    await block.getByRole('button', {name:'Edit figure'}).click();
+    await block.getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+    await block.getByRole('button', {name:'Figure properties'}).click();
     await figureFormReady();
     await page.getByTestId('figure-label').fill(label);
     await page.getByTestId('figure-apply').click();
@@ -87,9 +87,9 @@ async (page, { openPath }) => {
   await open();
 
   // A. Change both labels in the editor forms; Source shows them before Save; the file is untouched.
-  await equation.getByRole('button', {name:'Edit', exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await equation.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   result.equationFormShowsLabel = await page.getByTestId('equation-label').inputValue() === 'eq-current';
   await page.getByTestId('equation-label').fill('eq-reference');
   // The draft reaches the top bar through a React effect after the input event; wait for it.
@@ -118,9 +118,9 @@ async (page, { openPath }) => {
 
   // C. Core refuses a conflicting rename at Apply, retaining the form and applied state.
   const beforeDuplicate = await markdown();
-  await equation.getByRole('button', {name:'Edit', exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await equation.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-label').fill('FIG-Diagram');
   await page.getByTestId('equation-apply').click();
   await page.getByTestId('equation-editor').getByText(/already names another target/).waitFor();
@@ -129,9 +129,9 @@ async (page, { openPath }) => {
   await page.getByTestId('equation-cancel').click();
 
   // D. A label with surrounding spaces is refused at Apply and keeps the form open.
-  await equation.getByRole('button', {name:'Edit', exact:true}).locator('..').hover({position:{x:4,y:4}});
-  await equation.getByRole('button', {name:'Edit', exact:true}).click();
-  await page.getByTestId('equation-edit-source').click();
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await equation.getByRole('button', {name:'Equation properties', exact:true}).click();
+  await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
   await page.getByTestId('equation-label').fill(' eq-x');
   await page.getByTestId('equation-apply').click();
   result.invalidLabelRefusedAtApply = await page.getByTestId('equation-editor').getByText('Label cannot have leading or trailing spaces.').isVisible();
@@ -155,10 +155,10 @@ async (page, { openPath }) => {
   await insertAfterParagraph('Figure');
   // A new Figure opens no form; its properties are an explicit Edit.
   const newFigure = page.locator('[data-document-tab][data-active=true] [data-block="figure"]').filter({has:page.getByTestId('figure-no-content')});
-  await newFigure.getByRole('button', {name:'Edit figure'}).locator('..').hover({position:{x:4,y:4}});
-  await newFigure.getByRole('button', {name:'Edit figure'}).click();
+  await newFigure.getByRole('button', {name:'Figure properties'}).locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}});
+  await newFigure.getByRole('button', {name:'Figure properties'}).click();
   await figureFormReady();
-  if (!await page.getByTestId('figure-image-url').isVisible()) await page.getByTestId('figure-replace').click();
+  if (!await page.getByTestId('figure-image-url').isVisible()) await page.locator('[data-block="figure"][data-editing="true"]').getByTestId('figure-replace').click();
   await page.getByTestId('figure-image-url').fill('./diagram.svg');
   await page.getByTestId('figure-label').fill('fig-new');
   await page.getByTestId('figure-apply').click();

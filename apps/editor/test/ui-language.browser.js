@@ -50,8 +50,8 @@ async (page, { openPath, screenshots }) => {
     await editor.evaluate(node => node.editor.chain().focus().setTextSelection(3).insertContent('LANGUAGE-PRESERVED ').run());
     const equation = page.locator('[data-document-tab][data-active=true] [data-block="equation"]').first();
     await equation.hover();
-    await equation.getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.getByTestId('equation-edit-source').click();
+    await equation.getByRole('button', { name: 'Equation properties', exact: true }).click();
+    await page.locator('[data-block="equation"][data-editing="true"]').getByTestId('equation-edit-source').click();
     await page.getByTestId('equation-latex').fill('x_{language} = 42');
     const before = await snapshot();
     const tabCount = await page.getByRole('tab').count();

@@ -218,8 +218,8 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
   expect((await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file('ref.md')), { headers: { Connection: "close" } })).json()).source).not.toContain('Applied edit.');
   await row('ref.md').click(); await expect(caption()).toContainText('Applied edit.');
   await page.getByTestId('save').click(); await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
-  const editFigure = activeDocument(page).getByRole('button',{name:'Edit figure',exact:true});
-  await editFigure.locator('..').hover({position:{x:4,y:4}}); await editFigure.click();
+  const editFigure = activeDocument(page).getByRole('button',{name:'Figure properties',exact:true});
+  await editFigure.locator('xpath=ancestor::*[@data-block][1]').hover({position:{x:4,y:4}}); await editFigure.click();
   await page.getByRole('textbox',{name:'Alt text',exact:true}).fill('Unapplied alt');
   await row('b.md').focus(); await row('b.md').press('Enter'); await expect(page.getByTestId('current-file')).toHaveText('b.md');
   await context('diagram.svg','Rename…');
