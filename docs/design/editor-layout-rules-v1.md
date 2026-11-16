@@ -1,20 +1,18 @@
 # Editor Layout Rules v1
 
-Role: alignment, spacing, control dimensions and deliberate geometry exceptions; [Visual Language](editor-visual-language-v1.md) owns visual roles and [UI patterns](ui-patterns-v1.md) owns repeated interaction targets.
-
 - Status: Implemented
-- Last verified: 2026-11-16 — #1650 문서 전체와 현재 코드·계약을 정적으로 대조했다. 제품·브라우저 실행 재검증 없음.
+- Last verified: 2026-11-16 — DESIGN.md와 중복·검증 기록을 정리하고 관련 표현을 코드와 정적 대조했다. 제품·브라우저 실행 재검증 없음.
 - Scope: Editor shell, document, block tools and control geometry.
-- Pattern targets: UI 작업 전 [UI 패턴](ui-patterns-v1.md)의 사용처·확정 목표·불일치를 확인한다. 아래는 현재 geometry이며 P01 가용 콘텐츠 경계는 #782에서 구현했다. P09 표 상단 도구 목표는 #793에서 구현했다.
-- [Visual Language](editor-visual-language-v1.md) owns color, typography, surfaces and state expression. It supersedes the earlier restriction against changing fonts/colors.
+- Pattern targets: UI 작업 전 [UI 패턴](ui-patterns-v1.md)의 사용처·확정 목표·불일치를 확인한다.
+- [Visual Language](editor-visual-language-v1.md) owns color, typography, surfaces and state expression.
 
-- Viewport alignment: #695 replaces the 35rem/56rem multi-row header and 704px action wrapping with a fixed title strip and tab row. Search becomes icon-only below a 22rem available title container; Wide document folds into ⋯ at viewport widths up to 1024px. Settings, Sidebar and Outline docking breakpoints remain unchanged.
+- Viewport alignment: The shell uses a fixed title strip and tab row. Search becomes icon-only below a 22rem available title container; Wide document folds into ⋯ at viewport widths up to 1024px. Settings, Sidebar and Outline docking breakpoints remain unchanged.
+
+This document owns alignment axes, spacing, control dimensions and deliberate geometry exceptions. UI principles and decision rules follow [DESIGN.md](../../DESIGN.md).
 
 ## Supported viewport and input
 
-[ADR-0010](../adr/0010-supported-viewport-and-input.md) defines a minimum viewport width of **640px**, with keyboard and pointer input. Viewports below 640px and touch-only entry are outside support and verification. Existing no-hover fallbacks may remain without creating a touch requirement.
-
-Under the [owner decision #1455](https://github.com/litzio/litzio/issues/1455), 640px review means **no broken layout**: no unintended overlap, clipping or unreachable controls. It does not require the same simultaneous information or arrangement as 1440px. Side-by-side multi-panel screens guarantee basic operation and a recommendation to use a wider window at narrow widths. Intentional navigation overlays retain their dismissal and focus contracts. Capture at 1440px by default; capture at 640px only when the change alters layout there. Existing 640px automated checks and assertions remain in place.
+Viewport support and the 640px acceptance rule follow [DESIGN.md — Layout](../../DESIGN.md#layout) and [ADR-0010](../adr/0010-supported-viewport-and-input.md). Capture at 1440px by default; capture at 640px when the change alters layout there. Existing no-hover fallbacks do not create a touch requirement.
 
 ## Alignment and ownership
 
@@ -29,47 +27,13 @@ Under the [owner decision #1455](https://github.com/litzio/litzio/issues/1455), 
   The 1424px docking boundary, 928px Standard column and centered content axis remain
   unchanged. Native print flow releases both the frame and viewport; the track is hidden.
 
-  Windows persistent Chrome manual captures (2026-11-06), in Light/Dark at
-  1440/1424/1423/640px (640px Korean), use the same long/short fixtures before/after.
-  [Before geometry](assets/scrollbar-overlay-1183/before.json) /
-  [After geometry](assets/scrollbar-overlay-1183/after.json) show zero native gutter
-  and identical paper/header/panel x/width between long/short documents after the fix;
-  the column remains 928px at 1424px in both themes. The
-  [capture body](assets/scrollbar-overlay-1183/capture.browser.js) temporarily replaces
-  `apps/editor/test/document-scroll.browser.js` for `pnpm browser:test document-scroll --screenshots`;
-  restore the regression afterwards. Committed images are lossless WebP encodings
-  of the original PNGs, with no pixel edits. All pairs are in the same asset directory:
-  `before/after-{width}-{light/dark}-{long/short}.webp`.
-
-  | Width/theme | Long before / after | Short before / after |
-  | --- | --- | --- |
-  | 1440 Light | [Before](assets/scrollbar-overlay-1183/before-1440-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-1440-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1440-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-1440-light-short.webp) |
-  | 1440 Dark | [Before](assets/scrollbar-overlay-1183/before-1440-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-1440-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1440-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-1440-dark-short.webp) |
-  | 1424 Light | [Before](assets/scrollbar-overlay-1183/before-1424-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-1424-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1424-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-1424-light-short.webp) |
-  | 1424 Dark | [Before](assets/scrollbar-overlay-1183/before-1424-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-1424-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1424-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-1424-dark-short.webp) |
-  | 1423 Light | [Before](assets/scrollbar-overlay-1183/before-1423-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-1423-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1423-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-1423-light-short.webp) |
-  | 1423 Dark | [Before](assets/scrollbar-overlay-1183/before-1423-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-1423-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1423-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-1423-dark-short.webp) |
-  | 640 Light/Korean | [Before](assets/scrollbar-overlay-1183/before-640-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-640-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-640-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-640-light-short.webp) |
-  | 640 Dark/Korean | [Before](assets/scrollbar-overlay-1183/before-640-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-640-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-640-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-640-dark-short.webp) |
-
-  The owner approved the scrollbar visuals. Public captures were subsequently
-  recaptured with a synthetic Host capability identity (`DEMO-PC\\demo`); the capture
-  body asserts that synthetic label before every image. Geometry was compared with
-  the previous evidence; this replacement does not change product behavior or design.
-  [Pixel comparison bounds](assets/scrollbar-overlay-1183/identity-pixel-audit.json)
-  for all 32 images are confined to the Host identity footer; all other pixels match.
-  This updates current evidence, not historical commits or external caches.
-  Actual packaged Desktop and OS scrollbar settings
-  are not proven by these Chrome captures. Other scroll surfaces (navigation lists,
-  tabs, tables, textarea interiors) retain their existing behavior.
-
 - Editing flow-block bar (#1022) reuses BlockHandles’ top-level geometry, with absolute
   top/height and no reflow or transition. Its left edge is the text edge minus the
   existing `--space-block-hover-inline`; only thickness and pale accent color add
   adjustable tokens. The existing gutter safety gap keeps insertion/drag handles
   clear; heading-level cues remain farther left. Hover outline and Edit/metadata
   retain their position and behavior. No bar is painted on framed blocks, in Read,
-  during drag, or outside document focus. [Scope and captures](editor-visual-language-v1.md#editing-block-bar-verification-1022).
+  during drag, or outside document focus. [State scope](editor-visual-language-v1.md#state-rules).
 
 - Heading-depth cues (#887/#886) occupy the existing absolute block gutter and center on
   each heading's first line, independently of its level, number or wrapping. They reserve
@@ -106,8 +70,6 @@ Under the [owner decision #1455](https://github.com/litzio/litzio/issues/1455), 
   Hidden selection tools do not intercept Tab. A height-constrained slash menu
   reveals its keyboard-active choice through its own scroll, preserving the
   document's scroll position and the menu's scroll offset during refitting.
-  [#782 verification and captures](#form-content-viewport-782) cover the former
-  single-group mismatch with [P01](ui-patterns-v1.md#p01-속성-편집-표면과-위치).
 
 - The bottom Settings icon carries an 8px update dot in the same icon slot in both expanded Sidebar and collapsed rail (#665), without changing button targets or footer placement. Dot activation opens About & updates; its update actions receive an inset accent outline and selected-surface background. See the [update contract and captures](../reviews/desktop-distribution-history-2026-11.md#settings-update-cue-verification-665).
 
@@ -145,12 +107,12 @@ Under the [owner decision #1455](https://github.com/litzio/litzio/issues/1455), 
   the 1424px docking boundary stay unchanged. At the docking boundary, both maximum
   widths leave 864px for the document area; default widths still leave 928px. Settings
   category width uses its existing default token independently of Explorer resizing.
-- Expanded sidebar width is `--layout-sidebar-width` (240px), or `--layout-sidebar-width-narrow` (200px, so a short folder name fits beside its actions) at ≤1024px; both are [adjustable values](editor-visual-language-v1.md#adjustable-values-and-preferences). It is 48px when collapsed. Below the shared Explorer/Assistant `--layout-navigation-overlay-breakpoint` (1100px), Explorer starts collapsed and expands as a fixed overlay below the title strip; the document always keeps the space beside the 48px rail. The existing 1100px Assistant boundary is reused instead of adding another breakpoint. Both consume this Adjustable value through matchMedia and shell classes (CSS media queries cannot consume custom properties). Each entry into the narrow layout starts closed; returning wide restores the user's explicit docked choice. File selection, outside pointer and Escape close Explorer with focus return; nested menus/dialogs dismiss first. Its shadow and z-index 4 reuse the Document panel overlay; the later-painted right panel wins any overlap, and the modal Assistant remains above both at z-index 20 with background inert. See [shell contract and captures](editor-ux-shell-v1.md#narrow-explorer-overlay-1455). The collapsed rail contains Expand Explorer and the shared Settings footer (#671/#703). Color mode sits beside Settings in expanded Explorer and immediately above it in the rail, using shared 28px ghost buttons and a 4px gap; Settings remains bottom-aligned (#798). Folder-specific New/Close actions appear in expanded file navigation; Open folder is in each folder menu, or in empty Explorer. Document settings uses 14px labels, 12px descriptions/previews, 16px native checkboxes and shared 28px actions. Grouped rows align on the adjustable label column, stacking labels above controls at narrow desktop widths. Its summary ellipsizes secondary values with a full-value tooltip. Long filenames wrap in the expanded body; controls and menu stay within the viewport at 640px. The body is position-independent. Label-column width and title separation are Adjustable values in tokens.css.
+- Expanded sidebar width is `--layout-sidebar-width` (240px), or `--layout-sidebar-width-narrow` (200px, so a short folder name fits beside its actions) at ≤1024px; both are [adjustable values](editor-visual-language-v1.md#adjustable-values-and-preferences). It is 48px when collapsed. Below the shared Explorer/Assistant `--layout-navigation-overlay-breakpoint` (1100px), Explorer starts collapsed and expands as a fixed overlay below the title strip; the document always keeps the space beside the 48px rail. The existing 1100px Assistant boundary is reused instead of adding another breakpoint. Both consume this Adjustable value through matchMedia and shell classes (CSS media queries cannot consume custom properties). Each entry into the narrow layout starts closed; returning wide restores the user's explicit docked choice. File selection, outside pointer and Escape close Explorer with focus return; nested menus/dialogs dismiss first. Its shadow and z-index 4 reuse the Document panel overlay; the later-painted right panel wins any overlap, and the modal Assistant remains above both at z-index 20 with background inert. See [shell contract](editor-ux-shell-v1.md#narrow-explorer-overlay-1455). The collapsed rail contains Expand Explorer and the shared Settings footer (#671/#703). Color mode sits beside Settings in expanded Explorer and immediately above it in the rail, using shared 28px ghost buttons and a 4px gap; Settings remains bottom-aligned (#798). Folder-specific New/Close actions appear in expanded file navigation; Open folder is in each folder menu, or in empty Explorer. Document settings uses 14px labels, 12px descriptions/previews, 16px native checkboxes and shared 28px actions. Grouped rows align on the adjustable label column, stacking labels above controls at narrow desktop widths. Its summary ellipsizes secondary values with a full-value tooltip. Long filenames wrap in the expanded body; controls and menu stay within the viewport at 640px. The body is position-independent. Label-column width and title separation are Adjustable values in tokens.css.
 - The Document panel is `--layout-document-panel-width` (256px, an adjustable value) and docks at 1424px and wider; closed, it takes no width. The docking width is separate from the 1024px narrow sidebar so the document keeps a readable width beside both panels: at 1424px, 1424 − 240 − 256 = 928px remains, preserving the Standard column (736px of text after outer and inner insets). At 1280–1423px it stays closed by default, preserving the 928px Standard column and single-row TopBar; the former 1280px docking rule left only 592px of text. Below 1424px the panel never takes grid width: opened, it overlays at its width against the right edge (at most the viewport), from the bottom of the sticky header (title strip and tab row, measured as `--app-header-height`) to the bottom of the viewport, and the document keeps its width. When resizing below the docking width, CSS immediately hides any still-mounted docked panel until the media-query state update closes it, so its header cannot overflow the zero-width column. Explicitly opened overlays remain visible. Returning to the docked layout restores the user's last explicit docked open/closed choice, or opens by default if none exists. Overlay interactions do not replace that docked choice; each transition into overlay starts closed. This choice lives only in page memory and resets on reload. The docking width is a media query (`width < 89rem` in `styles.css` and `PANEL_OVERLAY_LAYOUT` in `App.tsx`), not an adjustable value.
 
 The Document panel's Outline / Tables N / Figures N segments form its first visible row, aligned with document tabs (#647), with `--layout-document-tab-height` content and a 1px bottom boundary. They reuse
 the Visual/Source 28px track and 24px Button segments; the three labels divide the available
-width with the existing compact inline spacing. All view segments reserve their semibold label width, so changing selection never moves the track or neighboring controls (#620). The list keeps single-line ellipsis and
+width with the existing compact inline spacing. View segments use 600 semibold for the current value under [DESIGN.md — Typography](../../DESIGN.md#typography), and reserve that label width, so changing selection never moves the track or neighboring controls (#620). The list keeps single-line ellipsis and
 semibold extent reservation. Overflow uses ellipsis; the full title remains in the native `title` tooltip and accessible name (#719). Heading/table/figure reveal uses the same measured-header
 scroll margin. The accessible Outline heading remains visually hidden; overlay placement stays below the whole measured header.
 
@@ -204,12 +166,12 @@ overlay height and actual Windows pixels in document/Settings are verified by [#
 Navigation clearance is
 the viewport's top plus the target's scroll margin, preserving the existing physical header
 clearance. Sidebar and Outline retain their independent scroll regions. See the
-[scroll contract and measured captures](editor-ux-shell-v1.md#document-scroll-container-488-phase-0).
+[scroll contract](editor-ux-shell-v1.md#document-scroll-container-488-phase-0).
 
 - The [Settings task tab](editor-ux-shell-v1.md#settings-task-tab-1032) retains the shell title strip,
   Explorer and task tabs, with the existing 240px category navigation and a bounded
   680px content column (`--layout-settings-content-width`) inside its editor group.
-  Label/description and control columns share row axes; selectors use the adjustable
+  The task-tab frame follows [DESIGN.md — Layout](../../DESIGN.md#layout). Label/description and control columns share row axes; selectors use the adjustable
   `--layout-settings-control-width` (240px) and existing 32px control tokens. Content uses
   the 64px inline/32px block spacing scale; below 768px the named category list stacks above
   content with 24px content insets and single-column rows. The body scrolls inside the
@@ -224,7 +186,7 @@ clearance. Sidebar and Outline retain their independent scroll regions. See the
 
 - The [folder dialog](folder-picker-v1.md#folder-presentation-522) keeps one column at wide and supported narrow widths. Its folder-only child list has a 16rem maximum (eight standard 32px rows); longer lists scroll and the enclosing dialog remains scrollable for short viewports. The shared image mode retains its 15rem bound. Starting-place names wrap inside the column, retaining the whole name and path description; New folder shares the child-list heading row. Ancestor breadcrumbs retain wrapping and disappear with Up at the Root.
 
-- B1 (#514): standard controls/inputs 32px (`--size-control`); compact controls/actions/fields 28px (`--size-control-compact`); control radius 6px (`--id-radius-md`); text-button inline padding 12px; centered line icons 16px. Use Button/Input, the lockfile-pinned lucide icons and existing size/radius/UI tokens; do not derive control metrics from document type. Measure actual rendered height after transitions complete. Typography follows [Visual Language](editor-visual-language-v1.md#typography); role-specific exceptions and reasons are in [Deliberate control exceptions](#deliberate-control-exceptions).
+- B1 (#514): standard controls/inputs 32px (`--size-control`); compact controls/actions/fields 28px (`--size-control-compact`); control radius 6px (`--id-radius-md`); text-button inline padding 12px; centered line icons 16px. Component selection follows [DESIGN.md — Components](../../DESIGN.md#components). Measure actual rendered height after transitions complete. Typography follows [Visual Language](editor-visual-language-v1.md#typography); role-specific exceptions and reasons are in [Deliberate control exceptions](#deliberate-control-exceptions).
 - Existing 4/8/12/16/20/24/32/48/64px spacing scale remains. The paper starts 16px below the header; its adjustable top block padding is 32px (16px at ≤1024px), keeping the content start at 48px (32px at ≤1024px), before block margins.
 - Typography follows [Visual Language](editor-visual-language-v1.md#typography); changing document type never changes UI control metrics.
 - Paragraph/block gaps: 16px. Heading before/after: 32/12px. Figure and Table caption gap: the shared adjustable `--space-document-caption` (8px by default).
@@ -284,28 +246,6 @@ bounds, and hit-tests controls to detect covering panels. The same section-label
 form also stays usable while Outline changes. `editor-groups` checks reference and
 link forms in both columns; 640px retains the existing automatic single-group merge.
 
-Manual before/after evidence uses the same disposable `overlays.md`, Windows Chrome
-persistent checkout profile, English/light UI, default document width, 100% zoom,
-DPR 1 and the bundled Pretendard fonts at 1440×900/640×900. Before uses base
-`ceead74c` product code; after uses this PR's content-boundary change. Inline targets
-are opened with the document at scroll top 0; the screenshot captures the resulting
-focus/selection and popup. These are manual review images, not pixel assertions.
-
-| Form / Outline open | 1440px before / after | 640px before / after |
-| --- | --- | --- |
-| Cross-reference | [Before](assets/form-viewport-782/before/reference-1440-open.png) / [After](assets/form-viewport-782/after/reference-1440-open.png) | [Before](assets/form-viewport-782/before/reference-640-open.png) / [After](assets/form-viewport-782/after/reference-640-open.png) |
-| Link | [Before](assets/form-viewport-782/before/link-1440-open.png) / [After](assets/form-viewport-782/after/link-1440-open.png) | [Before](assets/form-viewport-782/before/link-640-open.png) / [After](assets/form-viewport-782/after/link-640-open.png) |
-| Inline math | [Before](assets/form-viewport-782/before/inline-math-1440-open.png) / [After](assets/form-viewport-782/after/inline-math-1440-open.png) | [Before](assets/form-viewport-782/before/inline-math-640-open.png) / [After](assets/form-viewport-782/after/inline-math-640-open.png) |
-
-The same asset directories include each form with Outline closed.
-[Measured geometry and browser environment](assets/form-viewport-782/verification.json)
-record the before/after bounds and pointer hit results. Before: at 1440px
-the reference extends to x=1388.625 beyond the content right edge x=1184, hiding Apply;
-at 640px it extends to x=632 beyond x=384. Section-label properties also cross the
-Sidebar boundary; inline math/table properties can cross the narrow overlay panel.
-After: all five forms' inputs and buttons fit and receive pointer hits in all four
-states. Citation-only behavior was not changed or reworked (ADR-0008 freeze).
-
 ## Table display choice (#902)
 
 The default remains the wrapping geometry in [Cell wrapping](table-interaction-v1.md#cell-wrapping-897).
@@ -352,33 +292,10 @@ returns to the bell. Closed contents remain a hidden native list for the existin
 producer lifecycle, with no mounted popup to block Settings Escape. The narrow
 modal assistant hides/inerts both presentations through the shared external outlet.
 
-Browser regressions check closed-bell/document rectangles, automatic-card Save hit
-access, pointer hit/Apply at the 640px dark document bottom, history dispatch and
-panel/modal lifetimes. Manual captures use `pnpm browser:test notification-center
---screenshots` and synthetic document/plugin data; Sidebar local information is masked.
-Only the two changed automatic-error captures are refreshed after the owner's
-bottom-card decision; the unchanged manual/chrome captures retain their earlier evidence.
+The bell is centered in the 40px title strip beside Assistant with an 8px action gap.
 
-Visual self-check (Windows persistent Chrome, DPR 1, 900px height, synthetic
-scratch documents and a trusted test plugin): the button is centered in the 40px
-strip, aligned with Assistant, with the existing 8px action gap. Closed bell and
-search/Assistant rectangles do not overlap; the document keeps its full height.
-The manual list fits the viewport in both themes; it can cover tab/body actions
-when explicitly opened. Automatic cards retain the master bottom-right appearance
-and do not cover the title/tab toolbar.
 At 640px + 138px native-caption reservation, Assistant becomes an icon, the command
 button is at least 160px and all three rectangles are disjoint and left of caption
 controls. At 1440px Assistant keeps its label. The adjustable transition is
 `--layout-assistant-label-breakpoint` (30rem), resolved by the existing TopBar
 ResizeObserver rather than a repeated container-query literal.
-
-| Surface | Light | Dark |
-| --- | --- | --- |
-| 1440 closed | [Capture](assets/notification-titlebar-1644/1440-light-closed.png) | [Capture](assets/notification-titlebar-1644/1440-dark-closed.png) |
-| 1440 open | [Capture](assets/notification-titlebar-1644/1440-light-open.png) | [Capture](assets/notification-titlebar-1644/1440-dark-open.png) |
-| 1440 automatic error | [Capture](assets/notification-titlebar-1644/1440-light-error-auto.png) | [Capture](assets/notification-titlebar-1644/1440-dark-error-auto.png) |
-| 640 closed | [Capture](assets/notification-titlebar-1644/640-light-closed.png) | [Capture](assets/notification-titlebar-1644/640-dark-closed.png) |
-| 640 open | [Capture](assets/notification-titlebar-1644/640-light-open.png) | [Capture](assets/notification-titlebar-1644/640-dark-open.png) |
-| 640 native-caption reservation | — | [Capture](assets/notification-titlebar-1644/640-dark-caption-138.png) |
-| Plugin screen | — | [Capture](assets/notification-titlebar-1644/plugin-screen-1440-dark.png) |
-| Settings | — | [Capture](assets/notification-titlebar-1644/settings-1440-dark.png) |
