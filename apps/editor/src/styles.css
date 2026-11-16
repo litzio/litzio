@@ -3595,3 +3595,9 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 :where([data-slot="dialog-content"], [data-slot="dialog-overlay"], [data-slot="dropdown-menu-content"],
 [data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"], .notification-center li)[data-ending-style] { transition-duration: var(--duration-fast); }
 .notification-auto > ul { transition: display var(--duration-normal) allow-discrete; }
+
+/* The writing-time command center returns keyboard input without an exit delay. */
+.command-center-dialog[data-ending-style],
+.ui-portal:has(.command-center-dialog[data-ending-style]) [data-slot="dialog-overlay"][data-ending-style] {
+  transition-duration: 0s;
+}
