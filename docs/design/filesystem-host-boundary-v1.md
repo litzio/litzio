@@ -366,6 +366,8 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 - `GET /api/folder-places`는 `{ places: [{ kind, name, path }] }`를 돌려준다. Home, 실제 존재하는 Documents, Windows drive roots 또는 `/`가 시작점이다. Host는 탐색 위치나 최근 목록을 저장하지 않는다.
 - Recent는 이 Browser의 `litzio.recentFolders` preference다. 성공한 Open만 기록하며, Recent 자체는 복원 목록이 아니다. 별도의 `litzio.openFolders` preference가 위 Folder listing v1과 [ADR-0009](../adr/0009-multiple-opened-folders.md)에 따라 sidebar folder를 복원한다. 문서 내용·의미와 무관하므로 Core operation이나 CLI command를 추가하지 않는다.
 
+Both `/api/folder` and `/api/folder-browse` entries may include `modifiedAt` (ISO timestamp) and `size` (bytes, files only). The Host obtains metadata within the same listing; an entry's stat failure omits its metadata without failing the list. Display formatting and sort state belong to the [shared picker](folder-picker-v1.md).
+
 ### Folder creation v1
 
 [Folder picker](folder-picker-v1.md#new-folder)와 sidebar folder의 New folder가 사용한다.

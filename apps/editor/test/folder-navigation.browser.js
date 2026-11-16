@@ -69,7 +69,8 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   const field = page.getByTestId('folder-path');
   const open = page.getByTestId('folder-open');
   const option = name => dialog.getByRole('option', {name, exact:true});
-  const enterFolder = path => field.fill(path + sep);
+  const editPath = async () => { if (!await field.isVisible()) await dialog.getByRole('button', {name:'Edit path',exact:true}).click(); };
+  const enterFolder = async path => { await editPath(); await field.fill(path + sep); };
   const requestedFolder = url => decodeURIComponent((url.split('?path=')[1] ?? '').replace(/\+/g, ' '));
   // The `path` query parameter of a Host request (the scenario runs without the URL global).
   const queryPath = url => {
@@ -228,6 +229,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
         await page.getByRole('menuitem', {name:'Open folder…', exact:true}).focus();
         await page.keyboard.press('Enter');
       }
+      await editPath();
       await field.waitFor();
       if (state === 'one' && width === 640) {
         await field.fill(folder);
@@ -236,6 +238,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
         await dialog.getByRole('button', {name:'Cancel', exact:true}).click();
       } else {
         await field.press('Escape');
+        await page.keyboard.press('Escape');
       }
       await dialog.waitFor({state:'detached'});
       assert(await entry.evaluate(node => node === document.activeElement), `Folder picker must restore focus at ${width}px`);
@@ -287,41 +290,66 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await home.waitFor();
   const homePath = await home.getAttribute('title');
   await home.click();
+  await editPath();
   assert(await field.inputValue() === (homePath.endsWith(sep) ? homePath : homePath + sep), 'Home starts at the Host home folder');
   result.startsFromHostPlace = true;
   await enterFolder(folder);
   await option('guides').waitFor();
-  assert(!/Markdown file/.test(await page.getByTestId('folder-picker-meta').innerText()), 'Folder picker must not count documents absent from its folder-only list');
-  assert(await dialog.getByText('Sub-folders · click to navigate', {exact:true}).count() === 1 &&
-    await dialog.getByText('Choose documents in the sidebar after opening a folder.', {exact:true}).count() === 1,
-    'Folder navigation and document opening must be explained separately');
-  const newFolderHeader = await dialog.getByRole('button', {name:'New folder', exact:true}).evaluate(button => {
-    const heading = [...button.parentElement.children].find(node => node.textContent === 'Sub-folders · click to navigate');
-    return Boolean(heading) && Math.abs(heading.getBoundingClientRect().top - button.getBoundingClientRect().top) < button.clientHeight;
-  });
-  assert(newFolderHeader, 'New folder belongs beside the child-folder heading');
-  const shortcuts = dialog.getByRole('region', {name:'Shortcuts', exact:true});
-  assert(await shortcuts.count() === 1 && await shortcuts.evaluate(element => Boolean(element.compareDocumentPosition(document.querySelector('#folder-path')) & Node.DOCUMENT_POSITION_FOLLOWING)),
-    'Shortcuts must precede the path in the single-column reading order');
+  await field.press('Enter');
+  await expect(dialog.getByRole('listbox')).toBeFocused();
   await option('guides').click();
-  await page.getByTestId('folder-picker-meta').getByText(/No sub-folders/).waitFor();
+  await expect(option('guides')).toHaveAttribute('aria-selected', 'true');
+  await expect(dialog.locator('.folder-picker-target')).toContainText('guides');
+  await expect(option('資料')).toHaveCount(0);
+  await expect(option('자료')).toBeVisible();
+  await expect(open).toContainText('guides');
+  // A folder at the same row in the next listing must not receive the second click.
+  const nestedPath = [folder, 'guides', 'nested'].join(sep);
+  const nextListing = async route => {
+    const response = await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+    const value = await response.json();
+    if(value.path === [folder,'guides'].join(sep)) value.entries.unshift({name:'nested',kind:'folder',path:nestedPath});
+    await route.fulfill({response,json:value});
+  };
+  await page.route('**/api/folder-browse?*',nextListing);
+  await option('guides').dblclick();
+  await option('nested').waitFor();
+  await expect(dialog.getByRole('navigation',{name:'Folder location'}).getByRole('button',{name:'guides',exact:true})).toHaveAttribute('aria-current','location');
+  await page.unroute('**/api/folder-browse?*',nextListing);
+  await dialog.getByRole('button', {name:'Back', exact:true}).click();
+  await option('guides').waitFor();
+  await dialog.getByRole('button', {name:'Forward', exact:true}).click();
+  await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
   await dialog.getByRole('button', {name:'Up', exact:true}).click();
   await option('guides').waitFor();
-  await option('guides').click();
-  await dialog.getByRole('navigation', {name:'Folder location'}).getByRole('button', {name:'folder-navigation', exact:true}).click();
-  await option('guides').waitFor();
+  const names = await dialog.getByRole('option').evaluateAll(rows => rows.map(row => row.getAttribute('aria-label')));
+  await dialog.getByRole('button', {name:/^Name/}).click();
+  await expect(dialog.getByRole('columnheader').first()).toHaveAttribute('aria-sort','descending');
+  await expect.poll(() => dialog.getByRole('option').evaluateAll(rows => rows.map(row => row.getAttribute('aria-label')))).toEqual([...names].reverse());
+  await dialog.getByRole('button', {name:/^Name/}).click();
   await dialog.getByRole('button', {name:'Cancel', exact:true}).click();
   await dialog.waitFor({state:'detached'});
   result.cancelKeepsDocument = await section.count() === 0 && await current() === 'technical-document.md';
+  await openFolderPicker(page);
+  await enterFolder(folder);
+  await option('guides').click();
+  await open.click();
+  await dialog.waitFor({state:'detached'});
+  await expect(section).toHaveAttribute('data-root', [folder,'guides'].join(sep));
+  await section.getByRole('button',{name:'More actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Close folder',exact:true}).click();
+  await expect(section).toHaveCount(0);
+
 
   await openFolderPicker(page);
   await field.fill([folder, 'g'].join(sep));
   await option('guides').waitFor();
   assert(await dialog.getByRole('option').count() === 1, 'Partial path must filter the folders');
   await field.press('Tab');
-  await page.getByTestId('folder-picker-meta').getByText(/No sub-folders/).waitFor();
+  await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
   assert(await field.inputValue() === [folder, 'guides', ''].join(sep), 'Tab completes into the folder');
   await field.press('Backspace');
+  await editPath();
   await option('guides').waitFor();
   assert(await field.inputValue() === folder + sep, 'Backspace returns to the parent');
   result.completesAndGoesUp = true;
@@ -356,10 +384,11 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     await page.unroute('**/api/folder-browse?*', handler);
   }
 
-  // Highlight is completion focus; Enter always opens the typed path, not its highlighted child.
+  // Address Enter navigates to the typed location; confirmation opens it, not a completion child.
   await field.press('ArrowDown');
   assert(await dialog.getByRole('option', {selected:true}).count() === 1, 'ArrowDown highlights a folder');
   await field.press('Enter');
+  await open.click();
   await dialog.waitFor({state:'detached'});
   await section.waitFor();
   assert(await sidebar.getByRole("button", {name:"Collapse Explorer", exact:true}).evaluate(node => node === document.activeElement), 'Successful folder Open returns focus to header');
@@ -405,6 +434,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await refreshed;
   await option('guides').waitFor();
   await field.press('Escape');
+  await page.keyboard.press('Escape');
   await dialog.waitFor({state:'detached'});
   result.refreshesOnReopen = await section.getByTitle(folder, {exact:true}).count() === 1;
 
@@ -414,7 +444,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   const roots = () => section.evaluateAll(sections => sections.map(element => element.dataset.root));
   await openFolderPicker(page);
   await enterFolder(guides);
-  await page.getByTestId('folder-picker-meta').getByText(/No sub-folders/).waitFor();
+  await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
   await open.click();
   await dialog.waitFor({state:'detached'});
   await section.nth(1).waitFor();
@@ -457,15 +487,17 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   assert(await section.count() === 0, 'Reload restores no folder after the last one is closed');
   await openFolderPicker(page);
   const recent = dialog.getByRole('region', {name:'Recent folders'});
-  await recent.getByRole('button', {name:folder, exact:true}).click();
+  await recent.getByRole('button', {name:folder.split(sep).pop(), exact:true}).click();
   await option('guides').waitFor();
+  await editPath();
   result.remembersRecent = await field.inputValue() === folder + sep;
   await field.fill([folder, '자'].join(sep));
   await option('자료').waitFor();
   await field.press('ArrowRight');
-  await page.getByTestId('folder-picker-meta').getByText(/No sub-folders/).waitFor();
+  await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
   assert(await field.inputValue() === [folder, '자료', ''].join(sep), 'Right completes a Korean folder path');
   await field.press('Backspace');
+  await editPath();
   await option('guides').waitFor();
   result.completesKoreanPath = true;
 
@@ -491,17 +523,17 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await newFolder.click();
   await newFolderName.fill('picked');
   await newFolderName.press('Enter');
-  await page.getByTestId('folder-picker-meta').getByText(/No sub-folders/).waitFor();
-  assert(await field.inputValue() === [folder, 'picked', ''].join(sep) && (await open.innerText()).includes('picked') &&
-    await field.evaluate(node => node === document.activeElement), 'New folder moves into the created folder');
-  await field.press('Backspace');
-  await option('picked').waitFor();
+  await expect(option('picked')).toHaveAttribute('aria-selected', 'true');
+  await expect(open).toContainText('picked');
+  await expect(dialog.getByRole('listbox')).toBeFocused();
+  await expect(option('guides')).toBeVisible();
   result.pickerCreatesFolder = await section.count() === 0 && await option('guides').count() === 1;
 
   // The dialog remains inside both desktop and narrow viewports; Open/Cancel stay reachable.
   await resizeViewport({width:1440, height:1000});
   if (screenshots) await page.screenshot({path: 'tmp/picker-capture/04-final.png'});
   await resizeViewport({width:640, height:812});
+  await editPath();
   await field.fill(folder + sep + 'long-folder-name-'.repeat(12));
   const bounds = await dialog.boundingBox();
   const buttonBounds = await open.boundingBox();
@@ -927,8 +959,9 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await newFolder.click();
   await newFolderName.fill('later');
   await newFolderName.press('Enter');
-  await page.getByTestId('folder-picker-meta').getByText(/No sub-folders/).waitFor();
+  await expect(option('later')).toHaveAttribute('aria-selected','true');
   await field.press('Escape');
+  await page.keyboard.press('Escape');
   await dialog.waitFor({state:'detached'});
   await row('later').waitFor();
   result.pickerFolderListedInSidebar = await row('later').getAttribute('aria-level') === '1' && await current() === '추가.md' &&
@@ -998,6 +1031,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await page.getByRole('button', {name:'Find documents and commands', exact:true}).click();
   await page.getByRole('dialog', {name:'Command center', exact:true}).getByRole('combobox').fill('>Open folder');
   await page.getByRole('option', {name:'Open folder…', exact:true}).click();
+  await editPath();
   await field.fill(chapterPath);
   await open.click();
   await dialog.waitFor({state:'detached'});
@@ -1029,7 +1063,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     await newFolder.click();
     await newFolderName.fill(name);
     await newFolderName.press('Enter');
-    await page.getByTestId('folder-picker-meta').getByText(/No sub-folders/).waitFor();
+    await expect(option(name)).toHaveAttribute('aria-selected','true');
     await open.click();
     await dialog.waitFor({state:'detached'});
     await section.getByTitle([folder, name].join(sep), {exact:true}).waitFor();
@@ -1109,7 +1143,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     const bounds = await dialog.evaluate(element => {
       const list = element.querySelector('[role=listbox]');
       return {overflow:element.scrollWidth > element.clientWidth, pageOverflow:document.documentElement.scrollWidth > innerWidth,
-        listScrollable:list.scrollHeight > list.clientHeight, listHeight:list.clientHeight, rowHeight:list.firstElementChild.clientHeight};
+        listScrollable:list.parentElement.scrollHeight > list.parentElement.clientHeight, listHeight:list.parentElement.clientHeight, rowHeight:list.firstElementChild.clientHeight};
     });
     assert(!bounds.overflow && !bounds.pageOverflow && bounds.listScrollable && bounds.listHeight >= bounds.rowHeight,
       `Long names and a long child list must stay within the usable scrollable picker at ${width}px: ${JSON.stringify(bounds)}`);
@@ -1126,6 +1160,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
     assert(reachable, 'Open stays reachable by dialog scrolling with long shortcut names');
   }
   await field.press('Escape');
+  await page.keyboard.press('Escape');
   await dialog.waitFor({state:'detached'});
   await page.unrouteAll();
   result.longPickerNamesAndScroll = true;

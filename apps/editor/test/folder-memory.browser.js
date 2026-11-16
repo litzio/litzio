@@ -38,6 +38,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath }) => {
   };
   const section = (path, target = page) => target.getByTestId('folder').filter({has:target.locator('.sidebar-folder-name').getByText(path.split(sep).pop(), {exact:true})});
   const menu = async (path, name, target = page) => {
+    await target.bringToFront();
     await section(path, target).getByRole('button', {name:'More actions', exact:true}).click();
     await target.getByRole('menuitem', {name, exact:true}).click();
   };

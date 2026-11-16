@@ -313,6 +313,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
   await workspace.getByRole('button',{name:'Pick file',exact:true}).click();
   await expect(dialog).toHaveAccessibleName('Choose file');
   await expect(dialog.getByRole('button',{name:'Up',exact:true})).toBeDisabled();
+  await dialog.getByRole('button',{name:'Edit path',exact:true}).click();
   await dialog.getByTestId('folder-path').fill(inRoot('fixture')+'/');
   await expect(dialog.getByRole('option',{name:'measurements.CSV',exact:true})).toBeVisible();
   await expect(dialog.getByRole('option',{name:'a.md',exact:true})).toBeVisible();
@@ -320,6 +321,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
   await dialog.getByRole('option',{name:'measurements.CSV',exact:true}).click();
   await dialog.getByTestId('folder-open').click();await expect(output).toHaveText(JSON.stringify({path:inRoot('fixture','measurements.CSV'),kind:'file'}));
   await workspace.getByRole('button',{name:'Pick filtered',exact:true}).click();
+  await dialog.getByRole('button',{name:'Edit path',exact:true}).click();
   await dialog.getByTestId('folder-path').fill(inRoot('fixture')+'/');
   await expect(dialog.getByRole('option',{name:'measurements.CSV',exact:true})).toBeVisible();
   await expect(dialog.getByRole('option',{name:'a.md',exact:true})).toHaveCount(0);
@@ -327,16 +329,18 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture}) =
   await field.fill(root+'/../');await workspace.getByRole('button',{name:'Pick file initial',exact:true}).click();
   await expect(output).toContainText('inside this screen');await expect(dialog).toHaveCount(0);
   await workspace.getByRole('button',{name:'Pick file',exact:true}).click();
+  await dialog.getByRole('button',{name:'Edit path',exact:true}).click();
   await dialog.getByTestId('folder-path').fill(root+'/../');
   await expect(output).toContainText('inside this screen');await expect(dialog).toHaveCount(0);
   await page.route('**/api/folder-browse?*',route=>route.fulfill({status:503,json:{error:'Fixture selection read failed'}}),{times:1});
   await workspace.getByRole('button',{name:'Pick folder',exact:true}).click();
   await expect(output).toContainText('Error: Fixture selection read failed');await expect(dialog).toHaveCount(0);
   await workspace.getByRole('button',{name:'Pick pdf',exact:true}).click();
+  await dialog.getByRole('button',{name:'Edit path',exact:true}).click();
   await dialog.getByTestId('folder-path').fill([root,'fixture'].join(root.includes('\\')?'\\':'/')+'/');
-  await dialog.getByRole('option',{name:'reading.pdf',exact:true}).click();
-  await dialog.getByTestId('folder-open').click();await expect(output).toContainText('"kind":"pdf"');
+  await dialog.getByRole('option',{name:'reading.pdf',exact:true}).dblclick();await expect(output).toContainText('"kind":"pdf"');
   await workspace.getByRole('button',{name:'Pick document',exact:true}).click();
+  await dialog.getByRole('button',{name:'Edit path',exact:true}).click();
   await dialog.getByTestId('folder-path').fill(actionPath);
   await expect(dialog.getByRole('option',{name:'a.md',exact:true})).toBeVisible();
   await dialog.getByTestId('folder-open').click();await expect(output).toContainText('"kind":"document"');

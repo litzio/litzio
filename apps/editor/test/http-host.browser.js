@@ -29,11 +29,11 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await picker.getByRole('option', {name:'fixture', exact:true}).waitFor();
   check(browseRequests.every(value => start.allowedRoots.some(root => value === root || value.startsWith(root + sep))), 'Opening and typing an allowed root never lists its parent');
   page.off('request', trackBrowse);
-  const places = picker.getByRole('region', {name:'Server shared folders', exact:true});
+  const places = picker.getByRole('region', {name:'Start from', exact:true});
   await places.getByTitle(a, {exact:true}).click();
   await picker.getByRole('option', {name:'fixture', exact:true}).waitFor();
-  check(await picker.getByRole('button', {name:'Up', exact:true}).count() === 0, 'Up is absent at an allowed root');
-  check(await picker.getByRole('navigation', {name:'Folder location'}).count() === 0, 'At a root the path and actual root button supply location without duplicate breadcrumbs');
+  check(await picker.getByRole('button', {name:'Up', exact:true}).isDisabled(), 'Up cannot leave an allowed root');
+  check(await picker.getByRole('navigation', {name:'Folder location'}).getByRole('button').count() === 1, 'Root location retains its breadcrumb');
   check(await places.getByRole('button').count() === start.allowedRoots.length, 'Only allowed roots are starting places');
   for (const path of start.allowedRoots) {
     const button = places.getByTitle(path, {exact:true});
@@ -51,9 +51,9 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   check(await currentRoot.getAttribute('aria-current') === 'location' && !await otherRoot.getAttribute('aria-current') &&
     activeStyle.background !== inactiveStyle.background && activeStyle.color === inactiveStyle.color && activeStyle.weight === inactiveStyle.weight && activeStyle.shadow === inactiveStyle.shadow,
     'Current root uses only background, with semantic location announced');
-  await page.getByTestId('folder-path').focus();
-  // The current root is the next shortcut in reverse Tab order; its focus stays independent of current state.
-  await page.keyboard.press('Shift+Tab');
+  await currentRoot.focus();
+  // Traverse a sibling and return through keyboard focus, independently of location.
+  await page.keyboard.press('Tab');
   await page.keyboard.press('Shift+Tab');
   check(await currentRoot.evaluate(element => element === document.activeElement && element.matches(':focus-visible')) &&
     (await rootStyle(currentRoot)).shadow !== activeStyle.shadow, 'Keyboard focus remains visible on the current root');
@@ -73,6 +73,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   // A typed outside path does not trigger a listing.
   browseRequests.length = 0;
   page.on('request', trackBrowse);
+  await picker.getByRole('button', {name:'Edit path',exact:true}).click();
   await page.getByTestId('folder-path').fill(stale + sep);
   await page.getByTestId('folder-picker-meta').getByText('Path is outside the allowed folders.', {exact:true}).waitFor();
   check(await page.getByTestId('folder-open').isEnabled(), 'A typed outside path keeps Open enabled');

@@ -13,6 +13,7 @@ export async function waitForExplorerLayout(page: Page): Promise<void> {
 
 /** Follow the empty-state entry or an opened folder's menu, retaining its focus return target. */
 export async function openFolderPicker(page: Page, language = "en"): Promise<void> {
+  await page.bringToFront();
   await waitForExplorerLayout(page);
   const sidebar = page.getByTestId("sidebar");
   const expand = sidebar.getByRole("button", { name: language === "ko" ? "탐색기 펼치기" : "Expand Explorer", exact: true });
@@ -23,6 +24,8 @@ export async function openFolderPicker(page: Page, language = "en"): Promise<voi
     await folders.first().getByRole("button", { name: language === "ko" ? "더 많은 작업" : "More actions", exact: true }).click();
     await page.getByRole("menuitem", { name, exact: true }).click();
   } else await sidebar.getByRole("button", { name, exact: true }).click();
+  await page.getByRole("listbox").waitFor();
+  await page.getByRole("dialog").getByRole("button", { name: language === "ko" ? "경로 입력" : "Edit path", exact: true }).click();
   await page.getByTestId("folder-path").waitFor();
 }
 

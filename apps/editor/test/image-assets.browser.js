@@ -184,9 +184,11 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   };
   const chooseOutside = async () => {
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
+    await picker.getByRole('button', {name:'Edit path',exact:true}).click();
     await pathField.fill(outsidePhoto);
     await picker.getByRole('option', {name:'photo.png', exact:true}).waitFor();
     await pathField.press('Enter');
+    await picker.getByTestId('folder-open').click();
     await picker.waitFor({state:'hidden', timeout:10000});
     return imageField.inputValue();
   };
@@ -198,12 +200,13 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   assert(await imageField.inputValue() === before, 'Cancelling the picker keeps the Image field');
   await page.getByRole('button', {name:'Choose…', exact:true}).click();
   // A typed folder path is a place to look, never a choice; Enter enters it.
+  await picker.getByRole('button', {name:'Edit path',exact:true}).click();
   await pathField.fill([root, 'tmp', 'image-assets', 'fresh', 'figures'].join(separator));
   await picker.getByRole('option', {name:'figures', exact:true}).waitFor();
-  assert(await picker.getByTestId('folder-open').isDisabled(), 'A folder path cannot be used as the image');
+  assert(await picker.getByTestId('folder-open').innerText() === 'Open', 'A selected folder offers navigation rather than image confirmation');
   await pathField.press('Enter');
   await picker.getByRole('option', {name:'diagram.svg', exact:true}).click();
-  await picker.getByRole('button', {name:'Use “diagram.svg”', exact:true}).click();
+  await picker.getByRole('button', {name:'Use', exact:true}).click();
   await picker.waitFor({state:'hidden', timeout:10000});
   assert(await imageField.inputValue() === './figures/diagram.svg', 'An image beside the document is linked by its relative path');
   assert(await page.evaluate(() => document.activeElement?.textContent) === 'Choose…', 'Closing the picker returns focus to Choose…');
@@ -264,9 +267,11 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   });
   try {
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
+    await picker.getByRole('button', {name:'Edit path',exact:true}).click();
     await pathField.fill(outsidePhoto);
     await picker.getByRole('option', {name:'photo.png', exact:true}).waitFor();
     await pathField.press('Enter');
+    await picker.getByTestId('folder-open').click();
     const receipt = await choiceCreated;
     await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(el => {
       const {state, view} = el.editor;

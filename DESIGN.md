@@ -207,7 +207,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 | --- | --- | --- |
 | 설정 화면·설정 행 | [SettingsDialog.tsx](apps/editor/src/shell/SettingsDialog.tsx) | 목록+상세 구조의 탐색 열과 내용 열, 공통 설정 행 |
 | 카드 목록 작업 탭 | [TemplateGallery.tsx](apps/editor/src/shell/TemplateGallery.tsx) | 목록과 미리보기·생성의 분리 |
-| 파일·폴더 선택 대화상자 | [FolderDialog.tsx](apps/editor/src/shell/FolderDialog.tsx) | 경로 입력과 탐색 목록 |
+| 파일·폴더 선택 대화상자 | [FolderDialog.tsx](apps/editor/src/shell/FolderDialog.tsx) | 목록 선택·탐색, 위치와 확정 footer |
 | 위험 확인 | [danger-confirmation.tsx](apps/editor/src/components/ui/danger-confirmation.tsx) | 취소 초기 focus와 pending 중 실행 방지 |
 | 속성 팝오버 | [metadata-properties.tsx](apps/editor/src/metadata-properties.tsx) | 대상 anchor와 문서 가용 영역 |
 | 드롭다운·컨텍스트 메뉴 | [dropdown-menu.tsx](apps/editor/src/components/ui/dropdown-menu.tsx), [context-menu.tsx](apps/editor/src/components/ui/context-menu.tsx) | 공유 메뉴 면과 동작 행 |

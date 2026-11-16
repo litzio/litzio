@@ -319,7 +319,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     const picker = page.getByRole('dialog', {name:'Choose image'});
     const pathField = picker.getByRole('combobox', {name:'Image path'});
     const imageNames = ['diagram-v2.svg', 'diagram.svg'];
-    const listedImages = async () => (await picker.getByRole('option').allTextContents()).filter(name => imageNames.includes(name)).sort();
+    const listedImages = async () => (await picker.getByRole('option').evaluateAll(rows => rows.map(row => row.getAttribute('aria-label')))).filter(name => imageNames.includes(name)).sort();
     if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
     await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).waitFor();
@@ -327,7 +327,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await picker.getByRole('option', {name:'diagram.svg', exact:true}).click();
     expect(await listedImages(), 'Selecting an image keeps sibling images listed (#461)').toEqual(imageNames);
     expect(await picker.getByRole('option', {name:'diagram.svg', exact:true}).getAttribute('aria-selected')).toBe('true');
-    expect(await pathField.inputValue()).toBe(filePath.replace('technical-document.md', 'diagram.svg'));
+    expect(await picker.locator('.folder-picker-target').getAttribute('title')).toBe(filePath.replace('technical-document.md', 'diagram.svg'));
     // Manual same-state comparison only; these images are not automated visual assertions.
     if (screenshots) {
       const viewport = page.viewportSize();
@@ -351,8 +351,10 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     const previewImage = preview.getByRole('img', {name:'diagram.svg', exact:true});
     await expect(previewImage, 'The clicked image has a preview before Use (#480)').toBeVisible();
     await expect.poll(() => previewImage.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
-    expect(await pathField.inputValue()).toBe(filePath.replace('technical-document.md', 'diagram.svg'));
-    await expect(pathField).toBeFocused();
+    expect(await picker.locator('.folder-picker-target').getAttribute('title')).toBe(filePath.replace('technical-document.md', 'diagram.svg'));
+    await expect(picker.getByRole('listbox')).toBeFocused();
+    await page.keyboard.press('Control+l');
+    await pathField.fill(filePath.replace('technical-document.md', 'diagram.svg'));
     await pathField.press('End');
     await pathField.press('Backspace');
     expect(await listedImages(), 'Editing the clicked path resumes filtering').toEqual(['diagram.svg']);
@@ -367,7 +369,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).click();
     expect(await listedImages()).toEqual(imageNames);
     expect(await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).getAttribute('aria-selected')).toBe('true');
-    await picker.getByRole('button', {name:'Use “diagram-v2.svg”', exact:true}).click();
+    await picker.getByRole('button', {name:'Use', exact:true}).click();
     await picker.waitFor({state:'hidden'});
     expect(await page.getByTestId('figure-image-url').inputValue()).toBe('./diagram-v2.svg');
     if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();
@@ -393,6 +395,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
       const upper = picker.getByRole('option', {name:'Diagram.svg', exact:true});
       const lower = picker.getByRole('option', {name:'diagram.svg', exact:true});
       await upper.waitFor();
+      await page.keyboard.press('Control+l');
       for (const key of ['Tab', 'ArrowRight']) {
         await pathField.fill(filePath.slice(0, -'technical-document.md'.length));
         await lower.click();
@@ -447,17 +450,18 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
       if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();
     await page.getByRole('button', {name:'Choose…', exact:true}).click();
       await picker.getByRole('option', {name:'subfolder', exact:true}).waitFor();
-      await expect(pathField).toBeFocused();
-      const typedPath = await pathField.inputValue();
+      await expect(picker.getByRole('listbox')).toBeFocused();
+      const listedLocation = await picker.getByRole('navigation', {name:'Folder location'}).textContent();
       expect(previewRequests, 'Listing does not preload thumbnails').toEqual([]);
-      await pathField.press('ArrowDown');
+      await picker.getByRole('listbox').press('ArrowDown');
       expect(await preview.count(), 'A keyboard-active folder has no preview').toBe(0);
       expect(previewRequests).toEqual([]);
       const entries = await picker.getByRole('option').allTextContents();
       const moveTo = async name => {
+        if(name === 'diagram.svg') await picker.getByRole('listbox').press('End');
         for (let i = 0; i < entries.length; i++) {
-          await pathField.press('ArrowDown');
           if (await picker.getByRole('option', {name, exact:true}).getAttribute('aria-selected') === 'true') return;
+          await picker.getByRole('listbox').press('ArrowUp');
         }
         throw new Error(`Could not activate ${name}`);
       };
@@ -473,10 +477,10 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       expect(await preview.getByRole('img').getAttribute('alt')).toBe('diagram-v2.svg');
       expect(previewRequests.map(path => path.split(/[\\/]/).at(-1))).toEqual(['diagram.svg', 'diagram-v2.svg']);
-      expect(await pathField.inputValue(), 'Keyboard preview does not choose an image').toBe(typedPath);
+      expect(await picker.getByRole('navigation', {name:'Folder location'}).textContent(), 'Keyboard selection keeps the browsed folder').toBe(listedLocation);
       expect(await page.getByTestId('figure-image-url').inputValue()).toBe('./diagram-v2.svg');
-      await expect(pathField).toBeFocused();
-      expect(await pathField.getAttribute('aria-activedescendant')).toBe(await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).getAttribute('id'));
+      await expect(picker.getByRole('listbox')).toBeFocused();
+      expect(await picker.getByRole('listbox').getAttribute('aria-activedescendant')).toBe(await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).getAttribute('id'));
       for (const [width, height] of [[1440, 1000], [1366, 768], [640, 667]]) {
         await page.setViewportSize({width, height});
         // Browser viewport emulation completes before responsive layout/scroll-lock updates.
@@ -503,8 +507,8 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
       await expect(preview.getByText('The image could not be previewed. It may be unavailable, damaged, unsupported, or larger than 10 MiB.')).toBeVisible();
       expect(await preview.getByRole('img').isVisible()).toBe(false);
       expect(await preview.getByRole('alert').count(), 'Preview failure is quiet').toBe(0);
-      await expect(pathField).toBeFocused();
-      expect(await pathField.inputValue()).toBe(typedPath);
+      await expect(picker.getByRole('listbox')).toBeFocused();
+      expect(await picker.getByRole('navigation', {name:'Folder location'}).textContent()).toBe(listedLocation);
       await moveTo('subfolder');
       expect(await preview.count()).toBe(0);
       await picker.getByRole('button', {name:'Cancel', exact:true}).click();
