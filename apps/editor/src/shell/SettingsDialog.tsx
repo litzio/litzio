@@ -60,6 +60,20 @@ function updateStatusText(info: DesktopInfo): string {
   }
 }
 
+function updateStatusLabel(state: UpdateState): string | undefined {
+  switch (state.phase) {
+    case "idle": return undefined;
+    case "checking": return i18n.t("Checking…");
+    case "no-stable-release": return i18n.t("No Stable release");
+    case "up-to-date": return i18n.t("Up to date");
+    case "available": return i18n.t("Update available");
+    case "downloading": return i18n.t("Downloading…");
+    case "downloaded": return i18n.t("Downloaded");
+    case "installing": return i18n.t("Installing…");
+    case "error": return i18n.t("Update failed");
+  }
+}
+
 export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
@@ -186,11 +200,11 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                     }} options={PAGE_BACKGROUNDS.map(value => ({ value, label: i18n.t(PAGE_LABELS[value]) }))} />
                   {pageProblem ? <p role="alert">{i18n.t("Page style could not be saved. This choice applies until you close this page.")}</p> : null}
 
-                <SettingsSelect label={i18n.t("Tables in new documents")} description={i18n.t("Default for documents without a remembered choice on this device.")} testId="table-wrap-default"
+                <SettingsSelect label={<span title={i18n.t("Default for documents without a remembered choice on this device.")}>{i18n.t("Tables in new documents")}</span>} testId="table-wrap-default"
                   value={String(tableWrapDefault)} onChange={value => setTableWrapProblem(!setTableWrapDefault(value === "true"))} options={[{ value: "true", label: i18n.t("Wrap long text") }, { value: "false", label: i18n.t("Single line") }]} />
                   {tableWrapProblem ? <p role="alert">{i18n.t("This choice could not be saved. It applies until you close this page.")}</p> : null}
 
-                <SettingsSelect label={i18n.t("Display language")} description={i18n.t("Remembered here; never saved in the document.")} testId="ui-language"
+                <SettingsSelect label={<span title={i18n.t("Remembered here; never saved in the document.")}>{i18n.t("Display language")}</span>} testId="ui-language"
                   value={i18n.resolvedLanguage ?? i18n.language} onChange={value => {
                       const language = value as UiLanguage;
                       void i18n.changeLanguage(language);
@@ -198,7 +212,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                     }} options={[{ value: "ko", label: "한국어", lang: "ko" }, { value: "en", label: "English", lang: "en" }]} />
                   {languageProblem ? <p role="alert">{i18n.t("Language preference could not be saved. This choice applies until you close this page.")}</p> : null}
 
-                <SettingsRow label={i18n.t("Accent color")} description={i18n.t("Remembered here; never saved in the document.")}>
+                <SettingsRow label={<span title={i18n.t("Remembered here; never saved in the document.")}>{i18n.t("Accent color")}</span>}>
                   <div className="settings-accent-control">
                     <div className="settings-accents" role="radiogroup" aria-label={i18n.t("Accent color")} data-testid="accent-color">
                       {ACCENT_COLORS.map(color => <label key={color} className="settings-accent" title={i18n.t(ACCENT_LABELS[color])}>
@@ -255,7 +269,10 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                   <Section title={i18n.t("Updates")}>
                   <div className={highlightUpdate ? "settings-update-highlight" : undefined} data-testid="settings-update-section"
                     ref={highlightUpdate ? node => node?.scrollIntoView({ block: "nearest" }) : undefined}>
-                    <Row kind="fact" label={i18n.t("Version")} description={<span role="status" data-testid="update-status" data-phase={state?.phase}><Status variant="plain" tone={state?.phase === "error" ? "error" : state?.phase === "checking" || busy ? "progress" : state?.phase === "up-to-date" || state?.phase === "downloaded" ? "ok" : state?.phase === "available" ? "warning" : "neutral"} label={updateStatusText(info)} /></span>}>
+                    <Row kind="fact" label={i18n.t("Version")} description={<>
+                      {updateStatusLabel(info.update) ? <><Status variant="plain" tone={state?.phase === "error" ? "error" : state?.phase === "checking" || busy ? "progress" : state?.phase === "up-to-date" || state?.phase === "downloaded" ? "ok" : state?.phase === "available" ? "warning" : "neutral"} label={updateStatusLabel(info.update)} />{" "}</> : null}
+                      <span role={state?.phase === "idle" ? undefined : "status"} data-testid="update-status" data-phase={state?.phase}>{updateStatusText(info)}</span>
+                    </>}>
                       <span data-testid="app-version">{info.version}</span>
                       {state?.phase === "available" || (state?.phase === "error" && state.during === "download") ? (
                         <Button size="sm" onClick={() => run(() => desktop.downloadUpdate())}>{i18n.t("Download update")}</Button>

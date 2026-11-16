@@ -1,6 +1,13 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Update failed": "Update failed",
+  "Installing\u2026": "Installing\u2026",
+  "Downloaded": "Downloaded",
+  "Downloading\u2026": "Downloading\u2026",
+  "Update available": "Update available",
+  "Up to date": "Up to date",
+  "No Stable release": "No Stable release",
   "Token authentication": "Token authentication",
   "No authentication": "No authentication",
   "Installed": "Installed",
@@ -1206,6 +1213,13 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Update failed": "업데이트 실패",
+  "Installing\u2026": "설치 중…",
+  "Downloaded": "다운로드 완료",
+  "Downloading\u2026": "다운로드 중…",
+  "Update available": "새 버전 있음",
+  "Up to date": "최신 버전",
+  "No Stable release": "안정판 없음",
   "Token authentication": "토큰 인증",
   "No authentication": "인증 없음",
   "Installed": "설치됨",

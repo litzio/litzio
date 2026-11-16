@@ -67,6 +67,14 @@ async (page, { openPath, screenshots }) => {
     await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
     check(await screen.getByRole('heading',{name:'Local recovery',exact:true}).isVisible(), 'Keyboard cannot select recovery');
     await screen.getByRole('button',{name:'Appearance & language',exact:true}).click();
+    for(const [name,help] of [
+      ['Display language','Remembered here; never saved in the document.'],
+      ['Accent color','Remembered here; never saved in the document.'],
+      ['Tables in new documents','Default for documents without a remembered choice on this device.'],
+    ]) {
+      check(await screen.getByRole('heading',{name,exact:true}).locator('[title]').getAttribute('title') === help, 'Appearance help must be on the item name');
+      check(await screen.getByText(help,{exact:true}).count() === 0, 'Appearance help is still always visible');
+    }
     if (screenshots) {
       for (const theme of ['light','dark']) {
         await page.getByTestId('theme').selectOption(theme);

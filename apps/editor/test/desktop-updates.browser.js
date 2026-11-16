@@ -105,6 +105,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
         await page.getByTestId('theme').selectOption(theme);
         for(const [index,category] of ['appearance','recovery','plugins','assistant','about'].entries()) {
           await screen.locator('.settings-navigation nav button').nth(index).click();
+          if(category === 'appearance') check(await screen.getByText('이 기기에 기억하며 문서에는 저장하지 않습니다.',{exact:true}).count() === 0, 'Appearance guidance is still always visible');
           if(category === 'assistant') await page.waitForFunction(()=>!!document.querySelector('.agent-settings select:not(:disabled)'));
           await screen.locator('.settings-body').evaluate(n=>n.scrollTop=0);
           await page.evaluate(()=>document.fonts.ready);
@@ -370,8 +371,16 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   const dialog = page.getByTestId('settings-dialog');
   const status = () => page.getByTestId('update-status').innerText();
   // Bridge callbacks schedule React work; delivery is not a rendered-state acknowledgement.
-  const waitForStatus = expected => page.waitForFunction(text =>
-    document.querySelector('[data-testid="update-status"]')?.textContent === text, expected, {timeout:5000});
+  const waitForStatus = async expected => {
+    await page.waitForFunction(text => document.querySelector('[data-testid="update-status"]')?.textContent === text, expected, {timeout:5000});
+    const detail = page.getByTestId('update-status');
+    const status = detail.locator('..').locator('.screen-status');
+    if(await detail.getAttribute('data-phase') === 'idle') check(await status.count() === 0, 'Idle update guidance must have no status dot');
+    else {
+      const labels = {checking:'Checking…','no-stable-release':'No Stable release','up-to-date':'Up to date',available:'Update available',downloading:'Downloading…',downloaded:'Downloaded',installing:'Installing…',error:'Update failed'};
+      check(await status.innerText() === labels[await detail.getAttribute('data-phase')], 'Update Status must be a short label separate from its explanation');
+    }
+  };
   const notice = page.getByTestId('update-notice');
 
   // Built-in task entries precede Settings; retain the real keyboard route through the retained entry.

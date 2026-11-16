@@ -266,3 +266,5 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 설치된 플러그인 목록의 상태·오른쪽 동작 근거: 1440 밝음 [전](assets/settings-parts-1685/before-plugin-list-1440-light.png) / [후](assets/settings-parts-1685/plugin-list-1440-light.png), 1440 어두움 [전](assets/settings-parts-1685/before-plugin-list-1440-dark.png) / [후](assets/settings-parts-1685/plugin-list-1440-dark.png), 640 밝음 [전](assets/settings-parts-1685/before-plugin-list-640-light.png) / [후](assets/settings-parts-1685/plugin-list-640-light.png).
 
 시작 화면의 복구 기록 목록: 1440 밝음 [전](assets/settings-parts-1685/before-recovery-list-1440-light.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-light.png), 1440 어두움 [전](assets/settings-parts-1685/before-recovery-list-1440-dark.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-dark.png), 640 밝음 [전](assets/settings-parts-1685/before-recovery-list-640-light.png) / [후](assets/settings-parts-1685/after-recovery-list-640-light.png). 캡처의 로컬 경로는 가렸다.
+
+표시·언어의 기기 저장 범위(표시 언어·포인트 색)와 새 문서 표 기본값 설명은 항목 이름의 title로 제공한다. 업데이트 idle 안내는 점 없는 보조 설명이며, 실제 업데이트 상태만 짧은 Status plain으로 표시하고 버전·진행률·실패 사유 등 기존 상세 설명은 별도로 유지한다.
