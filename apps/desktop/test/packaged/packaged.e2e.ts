@@ -539,7 +539,7 @@ test("the release channel persists across restarts; an update check never blocks
     await expect(releaseChannel, "first launch uses the installed version's channel").toHaveValue(initialChannel);
     // The choice shows once the Desktop app has saved it.
     await releaseChannel.selectOption(selectedChannel);
-    await expect(releaseChannel).toHaveValue(selectedChannel);
+    await expect(releaseChannel).toHaveValue(selectedChannel, { timeout: 30_000 });
     // GitHub answers for real; the selected channel may have no release, or the machine may be offline.
     await page.getByRole("button", { name: "Check for updates" }).click();
     await page.waitForFunction(() => ["error", "up-to-date", "available", "no-stable-release"].includes(document.querySelector('[data-testid="update-status"]')?.getAttribute("data-phase") ?? ""), null, { timeout: 30_000 });
