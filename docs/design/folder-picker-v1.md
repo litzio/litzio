@@ -28,7 +28,7 @@ Figure image choice reuses the identical layout and lists the existing supported
 
 ## Visual reference
 
-The shared component is rendered with synthetic Host paths and entries for manual comparison. These captures establish layout, not real-file/plugin workflow acceptance. The existing browser scenarios exercise those integrations separately. Windows persistent Chrome, Korean UI, 900px height; the approved static mockup was reviewed in folder/file/empty states and both themes. Product tokens take precedence over mockup values.
+The shared component is rendered with synthetic Host paths and entries for manual comparison. These captures establish layout, not real-file/plugin workflow acceptance. The PDF sample supplies only the screen's opened Root and no recent folders. The existing browser scenarios exercise those integrations separately. Windows persistent Chrome, Korean UI, 900px height; the approved static mockup was reviewed in folder/file/empty states and both themes. Product tokens take precedence over mockup values.
 
 | State | 1440 light | 1440 dark | 640 light |
 | --- | --- | --- | --- |
