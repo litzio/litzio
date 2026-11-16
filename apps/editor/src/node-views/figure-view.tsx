@@ -556,6 +556,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
           <FieldError id={`${formId}-source-error`}>{errorField === "source" ? error : ""}</FieldError>
         </div>
         {!onCancelPending || draft.trim() ? <MermaidPreview source={draft} draft /> : null}
+        <div className="figure-property-columns">
         <div className="form-field"><label className="form-label" htmlFor={`${formId}-label`}>{i18n.t("Label")}</label>
           <Input id={`${formId}-label`} aria-invalid={!!error && errorField === "label" || undefined}
             aria-describedby={error && errorField === "label" ? `${formId}-label-error` : undefined} data-testid="mermaid-label" disabled={busy} value={labelDraft} placeholder={i18n.t("None")}
@@ -563,6 +564,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
           <FieldError id={`${formId}-label-error`}>{errorField === "label" ? error : ""}</FieldError>
         </div>
         <NumberField editor={editor} getPos={getPos} testId="mermaid" draft={numberDraft} onChange={() => setError("")} disabled={busy} />
+        </div>
       </PropertyForm>
     </div> : null : null}
     {typeof applied.mermaidSource === "string" ? <div hidden={editable && editing} contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}>
