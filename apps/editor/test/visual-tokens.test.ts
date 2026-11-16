@@ -143,6 +143,7 @@ test("every accent preset meets text, primary-action, focus and control contrast
       check("border-focus", bg, 3);
       check("border-control", bg, 3);
     }
+    for (const bg of ["surface", "surface-subtle", "canvas"]) check("success", bg, 4.5);
     for (const role of ["info", "danger", "warning"]) check(role, `surface-${role}`, 4.5);
     for (const bg of ["paper", "canvas", "surface", "surface-subtle", "surface-muted", "surface-hover", "surface-pressed"])
       for (const fg of ["text", "text-muted", "text-subtle"]) check(fg, bg, 4.5);

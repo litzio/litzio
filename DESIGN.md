@@ -46,6 +46,7 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 
 `--id-color-danger`와 `--id-color-surface-danger`는 위험·오류,
 `--id-color-warning`과 `--id-color-surface-warning`은 경고에 쓴다.
+`--id-color-success`는 정상·성공·연결됨 같은 상태의 점과 글씨에 쓴다.
 `--id-color-info`는 중립 정보다. 단순 안내를 포인트 색이나 위험색으로 강조하지 않는다.
 
 라디오·체크박스·진행 표시 같은 브라우저 기본 입력 요소도 포인트 색 토큰을 쓴다.
