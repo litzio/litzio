@@ -1,5 +1,4 @@
-.template-gallery-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-3); margin-bottom:var(--space-6); }
-.template-gallery-actions { display:flex; align-items:center; gap:var(--space-2); }
+.template-gallery-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
 .template-gallery-section { margin-top:var(--space-6); }
 .template-gallery-section h2 { font-size:var(--font-size-sm); font-weight:600; margin:0 0 var(--space-3); }
 .template-gallery-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--layout-template-card-min-width)),1fr)); gap:var(--space-4); }

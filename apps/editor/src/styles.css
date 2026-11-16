@@ -3530,4 +3530,9 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 /* Work tabs share the gallery surface; settings retains its own column layout. */
 .task-surface { height: 100%; min-width: 0; min-height: 0; overflow: auto; padding: var(--space-6); background: var(--id-color-surface); }
 .task-surface-title { font-size: var(--font-size-start-title); font-weight: 600; margin: 0; }
-.view-workspace > .task-surface-title { margin-bottom: var(--space-6); }
+.task-header { position: sticky; top: calc(-1 * var(--space-6)); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-6); padding: var(--space-6); background: var(--id-color-surface); border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
+.task-header-heading { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+.task-header-description { font-size: var(--font-size-sm); margin-top: var(--space-2); }
+.task-header-description:empty, .task-header-trailing:empty { display: none; }
+.task-header-trailing { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
+@media (max-width: 640px) { .task-header-heading { flex-basis: 100%; } }

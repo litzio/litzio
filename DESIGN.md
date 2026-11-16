@@ -88,6 +88,8 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 작업 탭인 설정·템플릿 갤러리·플러그인 화면은 같은 바탕(`--id-color-surface`)을 쓴다.
 화면의 바깥 여백은 `--space-6`이며 화면 제목의 위치도 같다.
 바탕·바깥 여백·제목 위치는 화면 틀이 소유하고 화면 내용이나 플러그인이 정하지 않는다.
+템플릿 갤러리와 플러그인 작업 탭의 머리는 제목과 설명, 상태, 동작을 가진 고정 구역이다.
+내용을 스크롤해도 머리는 남으며 구분선으로 본문과 나눈다.
 설정처럼 목록+상세 구조인 화면은 그 안에서 탐색 열과 자체 여백을 가진 내용 열을 나눈다.
 내용 열의 최대 폭은 `--layout-settings-content-width`를 따른다.
 내용이 바뀌어도 같은 종류의 화면이라는 감각을 유지하기 위해서다.
@@ -214,7 +216,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 | 알림 | [notification-center.tsx](apps/editor/src/components/ui/notification-center.tsx) | 창 단위 등록과 공통 표시 |
 | 도킹 패널 | [AssistantPanel.tsx](apps/editor/src/shell/AssistantPanel.tsx) | 도킹·좁은 창 오버레이와 focus 경계 |
 | 데이터 표 | [DataTable.tsx](apps/editor/src/components/DataTable.tsx) | 공통 필터·정렬·목록 표시 |
-| 플러그인 화면 | [PluginScreenCode.tsx](apps/editor/src/views/PluginScreenCode.tsx) | 공통 ui와 고정 client의 화면 수명 |
+| 플러그인 화면 | [PluginScreenCode.tsx](apps/editor/src/views/PluginScreenCode.tsx) | TaskHeader·ScreenLayout과 상태·단계·빈 상태·진행 부품, 고정 client의 화면 수명 |
 
 ## 세부 계약
 
