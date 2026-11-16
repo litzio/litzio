@@ -673,7 +673,7 @@ button {
   container-type: inline-size;
 }
 .app-header { background: var(--id-color-surface-subtle); }
-:is(.app-titlebar, .document-tab-row, .sidebar-header, .document-panel-header) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
+:is(.app-titlebar, .document-tab-row, .sidebar-header, .panel-header, .document-panel-header) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
   app-region: no-drag;
 }
 
