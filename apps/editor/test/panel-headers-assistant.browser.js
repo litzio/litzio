@@ -32,7 +32,7 @@ async (page, { expect, openPath, assistantFixture, screenshots, brand }) => {
   }));
   const docked = await headerGeometry('.sidebar > .panel-header, .document-panel-header, .document-tab-row');
   expect(docked).toHaveLength(3);
-  expect(docked[0].border).toBe(docked[1].border);
+  expect(await page.locator('.document-panel-header').evaluate(n => getComputedStyle(n).borderBottom)).toBe(docked[0].border);
   expect(docked.map(n => n.bottom)).toEqual(docked.map(() => docked[0].bottom));
   expect(docked.map(n => n.height)).toEqual(docked.map(() => docked[0].height));
   const sidebarInset = await page.locator('.sidebar').evaluate(n => {
@@ -46,7 +46,7 @@ async (page, { expect, openPath, assistantFixture, screenshots, brand }) => {
   await expect(panel.getByRole('textbox')).toBeEnabled();
   const assistant = await headerGeometry('.sidebar > .panel-header, .assistant-panel > .panel-header, .document-tab-row');
   expect(assistant).toHaveLength(3);
-  expect(assistant[0].border).toBe(assistant[1].border);
+  expect(await panel.locator('.panel-header').evaluate(n => getComputedStyle(n).borderBottom)).toBe(assistant[0].border);
   expect(assistant.map(n => n.bottom)).toEqual(assistant.map(() => assistant[0].bottom));
   expect(assistant.map(n => n.height)).toEqual(assistant.map(() => assistant[0].height));
   const assistantInset = await panel.evaluate(n => {
