@@ -297,6 +297,22 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await option('guides').waitFor();
   await field.press('Enter');
   await expect(dialog.getByRole('listbox')).toBeFocused();
+  await expect(option('guides')).toHaveAttribute('aria-selected', 'false');
+  await expect(option('guides')).toHaveAttribute('data-active', 'true');
+  const focusStyle = await dialog.getByRole('listbox').evaluate(list => ({
+    list:getComputedStyle(list).boxShadow,
+    row:getComputedStyle(list.querySelector('[data-active=true]')).boxShadow,
+  }));
+  assert(focusStyle.list === 'none' && focusStyle.row !== 'none', 'Keyboard focus belongs to the active row, not the whole list');
+  const alignment = await dialog.evaluate(dialog => {
+    const textBox = element => { const range=document.createRange();range.selectNodeContents(element);return range.getBoundingClientRect(); };
+    const headers=dialog.querySelectorAll('[role=columnheader] button');
+    const date=dialog.querySelector('.folder-picker-date').getBoundingClientRect();
+    const size=dialog.querySelector('.folder-picker-size').getBoundingClientRect();
+    return {date:Math.abs(textBox(headers[1]).left-date.left),size:Math.abs(textBox(headers[2]).right-size.right)};
+  });
+  assert(alignment.date <= 1 && alignment.size <= 1, 'Metadata headings and values share their column edges');
+  assert(/\d{1,2}:\d{2}/.test(await dialog.locator('.folder-picker-date').first().innerText()), 'Wide metadata includes hours and minutes');
   await option('guides').click();
   await expect(option('guides')).toHaveAttribute('aria-selected', 'true');
   await expect(dialog.locator('.folder-picker-target')).toContainText('guides');
@@ -344,6 +360,8 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await openFolderPicker(page);
   await field.fill([folder, 'g'].join(sep));
   await option('guides').waitFor();
+  await expect(open).toBeDisabled();
+  await expect(dialog.locator('.folder-picker-target')).toHaveText('');
   assert(await dialog.getByRole('option').count() === 1, 'Partial path must filter the folders');
   await field.press('Tab');
   await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();

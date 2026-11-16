@@ -46,7 +46,7 @@ async page => {
   await page.getByRole('dialog').waitFor({state:'detached'});
   check(await filesNew.evaluate(node => node === document.activeElement), 'Explorer New lost focus after cancelling location');
   await filesNew.click();
-  await page.keyboard.press('Control+l');
+  await page.getByRole('dialog').getByRole('button', {name:'Edit path',exact:true}).click();
   await page.getByTestId('folder-path').fill(folder.split(sep).slice(0,-1).join(sep) + sep);
   const picker = page.getByRole('dialog');
   await picker.getByRole('button', {name:'New folder', exact:true}).click();

@@ -43,6 +43,7 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 `--id-color-interaction`과 `--id-color-accent`는 포인트 색이다.
 주 동작·선택·링크·focus에 쓰며, hover·pressed·selected 면은 각각의 surface 토큰을 쓴다.
 선택 상태와 keyboard focus는 별개로 보인다. 현재 값과 다음 조작 위치가 다르기 때문이다.
+목록·트리·표처럼 여러 줄을 가진 부품은 focus를 상자 전체가 아니라 현재 줄에 표시한다. 상자 테두리는 어느 줄에 있는지 알려 주지 못하고, 창을 열 때마다 큰 강조를 만들기 때문이다.
 
 `--id-color-danger`와 `--id-color-surface-danger`는 위험·오류,
 `--id-color-warning`과 `--id-color-surface-warning`은 경고에 쓴다.
@@ -170,6 +171,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 데이터 표는 [DataTable](apps/editor/src/components/DataTable.tsx)의 기본 밀도를 쓰고, 폭은 내용에 맞추되 화면 폭을 넘지 않는다.
 화면마다 글씨·행 간격을 줄이지 않는다. 숫자 열은 오른쪽 정렬이다. 같은 자리의 수치를 비교하기 위해서다.
+열 제목은 그 열의 값과 같은 선에서 시작하고, 오른쪽 정렬 열은 같은 선에서 끝난다. 제목과 값을 같은 열로 읽고 비교하기 위해서다.
 문서 안 표의 의미와 편집은 문서 표 계약을 따른다.
 
 설정은 [SettingsRow·SettingsSwitch·SettingsSelect](apps/editor/src/components/ui/settings.tsx)로 이름·설명·컨트롤을 배치한다.
