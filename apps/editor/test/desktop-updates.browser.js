@@ -667,6 +667,18 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
           `Settings is outside its shell area: ${JSON.stringify(geometry)}`);
         check(!geometry.overflow && geometry.bounded && (width >= 768 || geometry.stacked),
           `Settings layout failed at ${language}/${width}/${category}: ${JSON.stringify(geometry)}`);
+        if(category === 'about' && width === 1440) {
+          await page.waitForFunction(()=>!!document.querySelector('[data-testid="cli-integration"] button'));
+          const ends = await dialog.evaluate(n=>{
+            const right = element=>{const range=document.createRange();range.selectNodeContents(element);return range.getBoundingClientRect().right;};
+            const reference=right(n.querySelector('[data-testid="app-version"]'));
+            const values=[...n.querySelectorAll('.shared-row .settings-row-control')].map(right);
+            const actions=[...n.querySelectorAll('.settings-section:not(.settings-section--stacked) > .settings-actions')].map(group=>[...group.querySelectorAll('button')].at(-1)?.getBoundingClientRect().right);
+            return {reference,values,actions};
+          });
+          check(ends.values.length>0 && ends.actions.length>0 && [...ends.values,...ends.actions].every(right=>Math.abs(right-ends.reference)<1),
+            `About values and final action buttons must share an end line: ${JSON.stringify(ends)}`);
+        }
         if(category === 'appearance' && width === 640) {
           check(await dialog.locator('.shared-row').evaluateAll(rows=>rows.every(row=>{
             const label=row.querySelector('.settings-label').getBoundingClientRect(), value=row.querySelector('.settings-row-control').getBoundingClientRect();

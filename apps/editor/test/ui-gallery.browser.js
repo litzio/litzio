@@ -197,6 +197,30 @@ async (page, { expect, screenshots }) => {
   expect(wide.every(r=>Math.abs(r.left-wide[0].left)<1 && Math.abs(r.right-wide[0].right)<1 && !r.overflow)).toBe(true);
   expect(wide.filter(r=>r.controlRight).every(r=>Math.abs(r.controlRight-r.right)<1)).toBe(true);
   expect(wide[0].selectWidth).toBe(wide[1].selectWidth);
+  // Gallery headings must retain the same production role as a Section outside it.
+  const sectionStyles = await shared.locator('.shared-section > h2').evaluateAll(headings=>{
+    const sample=document.createElement('h2');sample.className='type-group-title';document.body.append(sample);
+    const recipe=n=>{const s=getComputedStyle(n);return [s.fontSize,s.fontWeight,s.color,s.borderBottomStyle,s.borderBottomColor];};
+    const reference=recipe(sample), actual=headings.map(recipe);sample.remove();return {reference,actual};
+  });
+  expect(sectionStyles.actual.length).toBeGreaterThan(0);
+  for(const actual of sectionStyles.actual)expect(actual).toEqual(sectionStyles.reference);
+  const path = rows.locator('code');
+  const originalPath='/documents/research/measurements/long-directory-name/measurement-report.md';
+  await expect(path).toHaveText(originalPath);
+  const breaks = await path.evaluate(n=>[...n.childNodes].map(node=>{
+    if(node.nodeName==='WBR')return {break:true,after:node.previousSibling?.textContent};
+    const range=document.createRange();range.selectNodeContents(node);
+    return {text:node.textContent,lines:[...range.getClientRects()].filter(r=>r.width>0).length};
+  }));
+  expect(breaks.filter(n=>n.break).length).toBeGreaterThan(0);
+  expect(breaks.filter(n=>n.break).every(n=>/[\/\\.\-_]$/.test(n.after))).toBe(true);
+  expect(breaks.filter(n=>n.text).every(n=>n.lines===1)).toBe(true);
+  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+  await path.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);getSelection().removeAllRanges();getSelection().addRange(range);});
+  await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(originalPath);
+  await page.evaluate(()=>getSelection().removeAllRanges());
   const narrow = shared.getByRole('region',{name:'좁은 열',exact:true});
   expect((await geometry(narrow)).every(r=>r.top>=r.labelBottom && Math.abs(r.valueLeft-r.left)<1 && !r.overflow)).toBe(true);
   const hostDot = shared.locator('.host-status .screen-status > span').first();

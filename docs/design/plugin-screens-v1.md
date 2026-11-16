@@ -153,7 +153,7 @@ Green에서는 ok와 progress의 색조 차이가 작아 색만으로 구별하�
 
 ## 공용 정보 부품
 
-`ui.Row({label,description?,children,kind?})`는 본체 SettingsRow와 동일한 Row 구현이다. 기본 item의 이름은 type-item-name, 읽기 전용 fact의 이름은 type-value-name, 값은 type-body다. 이름은 왼쪽, 값·컨트롤은 오른쪽 끝에 놓이고 여러 컨트롤은 가로로 놓인다. select 폭은 기존 설정 값 열 토큰이다. 부모 폭이 좁으면 아래 왼쪽으로 내려가므로 narrow 열에서도 동작한다. fact는 각 줄마다 dl/dt/dd 한 쌍으로 만든다. 혼합 Section과 단독 줄에도 유효한 정의 목록 의미를 보존하기 위해서다. 숫자·날짜·버전은 tabular-nums, 경로·식별자는 code로 감싸 mono 보조 크기와 줄바꿈을 쓴다. 행 자체를 focus 대상으로 만들지 않으며 내부 컨트롤의 label·Tab 순서를 보존한다.
+`ui.Row({label,description?,children,kind?})`는 본체 SettingsRow와 동일한 Row 구현이다. 기본 item의 이름은 type-item-name, 읽기 전용 fact의 이름은 type-value-name, 값은 type-body다. 이름은 왼쪽, 값·컨트롤은 오른쪽 끝에 놓이고 여러 컨트롤은 가로로 놓인다. select 폭은 기존 설정 값 열 토큰이다. 부모 폭이 좁으면 아래 왼쪽으로 내려가므로 narrow 열에서도 동작한다. fact는 각 줄마다 dl/dt/dd 한 쌍으로 만든다. 혼합 Section과 단독 줄에도 유효한 정의 목록 의미를 보존하기 위해서다. 숫자·날짜·버전은 tabular-nums, 경로·식별자는 code로 감싸 mono 보조 크기를 쓴다. Row가 code 안의 문자열을 `/`, `\`, `.`, `-`, `_` 뒤의 wbr 요소로 나눠 먼저 그 위치에서 줄바꿈하고, 구분자 없는 긴 조각만 글자 단위로 접는다. 보이지 않는 문자를 넣지 않아 복사한 원문은 그대로다. 행 자체를 focus 대상으로 만들지 않으며 내부 컨트롤의 label·Tab 순서를 보존한다.
 
 `ui.Section({title,description?,children})`은 여러 줄의 묶음이다. 이름은 type-group-title과 아래 구분선이며 묶음 간 간격은 space-6이다. 항목 하나에는 묶음을 만들지 않고 항목 이름을 제목으로 반복하지 않는다. description은 결과를 바꾸는 설명만 준다.
 
