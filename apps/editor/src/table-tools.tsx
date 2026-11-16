@@ -57,6 +57,7 @@ function columnName(index: number): string {
   return name;
 }
 
+/** Only rows and columns open a menu; "table" is keyboard focus on a whole-table tool. */
 type Menu = { kind: "row" | "column" | "table"; target: TableCellAddress };
 
 /** Handles reuse explicit-target table commands. Geometry and menu state never enter the document. */
@@ -148,11 +149,10 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
   const row = menu?.kind === "row" || focused?.kind === "row" ? target.row : current?.row;
   const column = menu?.kind === "column" || focused?.kind === "column" ? target.column : current?.column;
   const actions = BLOCK_COMMANDS.filter(command => menu?.kind === "row" ? command.id.startsWith("table-row")
-    : menu?.kind === "column" ? command.id.startsWith("table-column") || command.id.startsWith("table-align") : command.id === "delete");
-  const items: CommandMenuItem[] = actions.map(command => ({ id: command.id, label: command.id === "delete" ? i18n.t("Delete table") : command.label,
+    : command.id.startsWith("table-column") || command.id.startsWith("table-align"));
+  const items: CommandMenuItem[] = actions.map(command => ({ id: command.id, label: command.label,
     ...blockCommandAppearance(command.id), group: blockCommandGroup(command.id),
     disabled: !command.enabled(editor.state, index, target) }));
-  if (menu?.kind === "table") items.unshift({ id: "properties", label: i18n.t("Edit label"), ...blockCommandAppearance("properties"), group: i18n.t("Table") });
   const active = !!current || !!focused || !!menu;
   const focus = (kind: Menu["kind"], target: TableCellAddress) => {
     setFocused({ kind, target });
@@ -188,16 +188,13 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
         style={{ left: geometry.left, top: geometry.appendTop, width: geometry.right - geometry.left, height: geometry.appendHeight }}
         onClick={() => run("table-row", { row: tableRowCount(node) - 1, column: current?.column ?? 0 })}><Plus size={16} /></Button>
     </div>, rowLayer.current)}
-    {createPortal(<>
-      <Button variant="outline" size="sm" type="button" aria-label={i18n.t("Edit table")} onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur} onClick={onEdit}>{i18n.t("Edit")}</Button>
-      <Button variant="outline" size="icon-sm" type="button" aria-label={i18n.t("Table actions")} title={i18n.t("Table actions")} onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur} aria-haspopup="menu" aria-expanded={menu?.kind === "table"}
-        onClick={event => open(event.currentTarget, "table", current ?? { row: 0, column: 0 })}><MoreHorizontal size={16} /></Button>
-    </>, actionLayer.current)}
+    {createPortal(<Button variant="outline" size="sm" type="button" aria-label={i18n.t("Table properties")}
+      onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur} onClick={onEdit}>{i18n.t("Properties")}</Button>, actionLayer.current)}
     <Popover open={menu !== null} onOpenChange={open => { if (!open) setMenu(null); }}>
       <PopoverContent anchor={anchor} side="bottom" align="start" sideOffset={4} initialFocus={false} finalFocus={false} className="table-command-popover">
-        <CommandMenu label={menu?.kind === "row" ? i18n.t("Row {{row}} actions", { row: target.row + 1 }) : menu?.kind === "column" ? i18n.t("Column {{column}} actions", { column: columnName(target.column) }) : i18n.t("Table actions")}
+        <CommandMenu label={menu?.kind === "row" ? i18n.t("Row {{row}} actions", { row: target.row + 1 }) : i18n.t("Column {{column}} actions", { column: columnName(target.column) })}
           items={items} style={{ position: "relative" }} focusOnOpen onClose={() => setMenu(null)}
-          onSelect={id => { if (id === "properties") { setMenu(null); onEdit(); } else run(id, target); }} />
+          onSelect={id => run(id, target)} />
       </PopoverContent>
     </Popover>
   </div>;

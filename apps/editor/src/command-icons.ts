@@ -14,6 +14,7 @@ import {
   Eraser,
   Rows3,
   Pencil,
+  SlidersHorizontal,
   Trash2,
   BookOpen,
   Bookmark,
@@ -73,7 +74,7 @@ const BLOCK_ICONS: Record<string, LucideIcon> = {
   "table-align-left": AlignLeft, "table-align-center": AlignCenter,
   "table-align-right": AlignRight, "table-align-none": Eraser,
   "section-label": BookmarkPlus, "section-up": ArrowUpFromLine, "section-down": ArrowDownFromLine,
-  properties: Pencil,
+  "object-properties": SlidersHorizontal, "object-source": Pencil, "object-image": Image,
 };
 
 /** Action metadata shared by the block and explicit-target table menus. */

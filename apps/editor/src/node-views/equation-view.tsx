@@ -15,7 +15,7 @@ import { useBlockNumber, useCaptionNumberText } from "../cross-reference.tsx";
 import { renderEquation } from "../equation-render.ts";
 import { isNewBlockPath } from "../tiptap-document.ts";
 import { FieldError, Notice } from "../ui/primitives.tsx";
-import { focusBlock, isolateInputDrag, usePropertyEntry, useSourceInputFocus, type DraftListener } from "./shared.ts";
+import { focusBlock, isolateInputDrag, useObjectActions, usePropertyEntry, useSourceInputFocus, type DraftListener } from "./shared.ts";
 
 /** An open Equation form is unsaved only when its source changed. */
 export function isUnappliedEquationDraft(editing: boolean, draft: string, latex: string): boolean {
@@ -87,6 +87,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
     setProperties(true);
   }
   usePropertyEntry(anchor, beginEdit);
+  useObjectActions(anchor, { properties: beginProperties, content: beginEdit });
   const cancel = () => {
     cancelFocus();
     setDraft(latex);
@@ -145,7 +146,10 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
             {latex.length === 0 ? <div className="equation-math empty-equation" data-testid="equation-empty" onDoubleClick={beginEdit}>{i18n.t("Enter an equation")}</div> : <EquationFormula className="equation-math" latex={latex} testId="equation-preview" onDoubleClick={beginEdit} />}
             {number === undefined ? null : <span className="equation-number" data-testid="equation-number">({number})</span>}
           </div>
-          {view.editable && !properties ? <Button className="equation-edit" size="sm" variant="outline" onClick={beginProperties}>{i18n.t("Edit")}</Button> : null}
+          {view.editable ? <div className="object-tools" data-object-tools="">
+            <Button className="equation-edit" size="sm" variant="outline" aria-label={i18n.t("Equation properties")} aria-expanded={properties} onClick={beginProperties}>{i18n.t("Properties")}</Button>
+            <Button size="sm" variant="outline" data-testid="equation-edit-source" onClick={() => properties ? apply(true) : beginEdit()}>{i18n.t("Edit source")}</Button>
+          </div> : null}
         </>
       ) : visible ? (
         <div data-testid="equation-properties" onDragStart={isolateInputDrag} onDragEnter={isolateInputDrag}
@@ -192,8 +196,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
       {/* End the metadata field's ref lifetime before the source field takes ownership. */}
       {!editing ? <MetadataProperties editor={editor} anchor={anchor} target={() => anchor.current?.closest('[data-block="equation"]') ?? null}
         initialFocus={labelInput} kind={kind} testId="equation-property" open={properties}
-        onApply={outside => apply(false, !outside)} onCancel={cancel}
-        actions={<Button type="button" size="sm" variant="outline" data-testid="equation-edit-source" onClick={() => apply(true)}>{i18n.t("Edit source")}</Button>}>
+        onApply={outside => apply(false, !outside)} onCancel={cancel}>
         <div className="figure-property-columns">
           <div className="form-field">
             <label className="form-label" htmlFor={`${formId}-property-label`}>{i18n.t("Label")}</label>

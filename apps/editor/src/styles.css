@@ -1687,7 +1687,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .table [data-table-menu-target="true"] { background: var(--id-color-surface-selected); box-shadow: inset 0 0 0 var(--border-width) var(--id-color-interaction); }
 .table-block > .table-action-bar { opacity: 0; pointer-events: none; }
 .table-block:has(.table-tools[data-active="true"]) > .table-action-bar, .table-block > .table-action-bar:focus-within { opacity: 1; pointer-events: auto; }
-/* Reuse Figure's Edit reveal on the metadata row, outside the grid's scroller. */
+/* The shared object tool row sits on the metadata row, outside the grid's scroller. */
 .table-block > .table-action-bar {
   font-family: var(--font-family-sans);
   line-height: var(--line-height-label);
@@ -2633,18 +2633,22 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   min-height: var(--size-control-compact);
 }
 
-.figure-edit,
-.equation-edit {
+/* One tool row per document object: Properties first, then the object's content action. */
+.object-tools {
   position: absolute;
   top: var(--space-1);
   left: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-family-sans);
   opacity: 0;
   pointer-events: none;
   z-index: 1;
 }
 
-:is(.figure, .equation, .table-block):is(:hover, :focus-within, [data-selected="true"]) > :is(.figure-edit, .equation-edit),
-.table-block:has(.table-tools[data-menu-open="true"]) > .figure-edit {
+:is(.figure, .equation, .table-block):is(:hover, :focus-within, [data-selected="true"], [data-editing="true"]) .object-tools,
+.table-block:has(.table-tools[data-menu-open="true"]) > .object-tools {
   opacity: 1;
   pointer-events: auto;
 }
@@ -2663,8 +2667,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 @media (hover: none) {
   .block-gutter-row:has(> .block-controls) > .heading-level { visibility: hidden; }
   .block-controls,
-  .figure-edit,
-  .equation-edit {
+  .object-tools {
     opacity: 1;
     pointer-events: auto;
   }

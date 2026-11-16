@@ -12,7 +12,7 @@ import { MetadataLabel, MetadataProperties } from "../metadata-properties.tsx";
 import { NumberField, useNumberDraft } from "../numbering-properties.tsx";
 import { captionPrefixText, useCaptionNumberText } from "../cross-reference.tsx";
 import { TableTools } from "../table-tools.tsx";
-import { focusBlock, handleTextblockMouseDown, useCaptionPlaceholder, usePropertyEntry, type DraftListener } from "./shared.ts";
+import { focusBlock, handleTextblockMouseDown, useCaptionPlaceholder, useObjectActions, usePropertyEntry, type DraftListener } from "./shared.ts";
 
 export function TableCaptionView({ node, editor, getPos }: ReactNodeViewProps) {
   useTranslation();
@@ -48,6 +48,7 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
   useEffect(() => { onDraftChange?.("Table", sourcePath, dirty); return () => onDraftChange?.("Table", sourcePath, false); }, [sourcePath, dirty, onDraftChange]);
   const begin = () => { if (!editor.isEditable || editing) return; setDraft(label); numberDraft.reset(enumerator); setError(""); setEditing(true); };
   usePropertyEntry(anchor, begin);
+  useObjectActions(anchor, { properties: begin });
   const close = (returnCaret = true) => { setEditing(false); if (returnCaret) focusBlock(editor.view, getPos); };
   const apply = (outside = false) => {
     if (!numberDraft.validate()) return;
@@ -69,7 +70,7 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
       editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, position)));
       editor.view.focus();
     }} onDoubleClick={begin}><MetadataLabel kind={kind} label={label} onEdit={editable && !editing ? begin : undefined} /></p>
-    <div ref={actionLayer} className="figure-edit table-action-bar" contentEditable={false} />
+    <div ref={actionLayer} className="object-tools table-action-bar" data-object-tools="" contentEditable={false} />
     <div className="table-scroll" style={{ anchorName: editable ? appendAnchor : undefined }}><div ref={grid} className="table-grid">
       <NodeViewContent as="div" className="table" />
       <TableTools editor={editor} node={node} getPos={getPos} grid={grid} rowLayer={rowLayer} actionLayer={actionLayer} appendAnchor={appendAnchor} onEdit={begin} hidden={editing} />
