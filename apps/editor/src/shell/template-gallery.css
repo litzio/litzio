@@ -1,6 +1,4 @@
-.template-gallery { height:100%; overflow:auto; padding:var(--space-6); background:var(--id-color-surface); }
 .template-gallery-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-3); margin-bottom:var(--space-6); }
-.template-gallery-header h1 { font-size:var(--font-size-start-title); font-weight:600; margin:0; }
 .template-gallery-actions { display:flex; align-items:center; gap:var(--space-2); }
 .template-gallery-section { margin-top:var(--space-6); }
 .template-gallery-section h2 { font-size:var(--font-size-sm); font-weight:600; margin:0 0 var(--space-3); }

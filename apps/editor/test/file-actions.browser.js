@@ -242,7 +242,8 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
     await context('diagram.svg','Rename…');
     await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('updated');
     await dialog.getByRole('button',{name:'Rename',exact:true}).click();
-    await dialog.waitFor({state:'hidden'});
+    // Rename may briefly overlap a closing discard confirmation; wait for both to detach.
+    await expect(dialog).toHaveCount(0);
     expect(await activeDocument(page).getByTestId('source-view').count()).toBe(0);
     // Direct state after the operation: no polling/reload may mask a stale open tab.
     for (const name of ['ref.md','second-ref.md']) {

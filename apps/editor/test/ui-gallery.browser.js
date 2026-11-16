@@ -55,7 +55,7 @@ async (page, { expect, screenshots }) => {
     await page.screenshot({path:`tmp/parts-table-${width}-${theme}.png`});
   }
   const cards = page.locator('.screen-summary');
-  const boxes = await cards.evaluateAll(nodes => nodes.map(n => ({height:n.getBoundingClientRect().height, label:n.firstElementChild.getBoundingClientRect().top,value:n.querySelector('strong').getBoundingClientRect().top})));
+  const boxes = await cards.evaluateAll(nodes => nodes.map(n => ({height:n.getBoundingClientRect().height, label:n.firstElementChild.getBoundingClientRect().top,value:n.querySelector('.screen-summary-value').getBoundingClientRect().top})));
   expect(boxes[0]).toEqual(boxes[1]);
   for (const width of [1440,640]) {
   await page.setViewportSize({width,height:1000});
@@ -92,8 +92,11 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('button',{name:'Switch chart',exact:true}).click();
   await expect(chart.locator('.recharts-bar')).toBeVisible();
   await expect(page.getByRole('figure',{name:'Empty measurements',exact:true})).toContainText('No data');
+  const density = node => {const s=getComputedStyle(node);return {padding:s.padding,font:s.fontSize,lineHeight:s.lineHeight};};
+  const screenDensity=await page.locator('.screen-data-table tbody td').first().evaluate(density);
   await navigation.getByRole('button',{name:'Tables',exact:true}).click();
   const table = page.getByRole('region', {name:'Table — 예시: 열별 정렬·필터',exact:true}).first();
+  expect(await table.locator('tbody td').first().evaluate(density)).toEqual(screenDensity);
   await page.getByRole('group',{name:'Theme',exact:true}).getByRole('button',{name:'Dark',exact:true}).click();
   await page.evaluate(() => { window.__openedLinks = []; window.open = (...args) => { window.__openedLinks.push(args); return null; }; });
   const link = table.getByRole('link', { name: 'Item 1', exact: true });

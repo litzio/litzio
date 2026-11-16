@@ -75,8 +75,8 @@ export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFo
   }, [selected, language, open, catalog]);
   const choose = (item: TemplateSummary, id: string) => { setSelected(item); setTriggerId(id); setOpen(true); };
   const sections = [{ kind: "builtin", label: templateText("Built-in templates") }, { kind: "user", label: templateText("User templates") }];
-  return <section className="template-gallery" aria-label={i18n.t("Template gallery")}>
-    <header className="template-gallery-header"><h1>{i18n.t("Template gallery")}</h1>
+  return <section className="template-gallery task-surface" aria-label={i18n.t("Template gallery")}>
+    <header className="template-gallery-header"><h1 className="task-surface-title">{i18n.t("Template gallery")}</h1>
       <div className="template-gallery-actions">
         <Button size="sm" variant="ghost" disabled={disabled || !catalog} title={catalog?.directory}
           onClick={async () => { if (catalog) { const error = await onOpenFolder(catalog.directory); if (error) setProblem(error); } }}>

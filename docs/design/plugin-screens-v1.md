@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-16 — 화면 틀·부품 기본값과 제작 안내를 대조하고 합성 화면·DocumentView·UI gallery·비서 질문을 Windows persistent Chrome으로 검증했다. 실제 AI 제작·packaged Desktop 수락은 포함하지 않는다.
 
 ## 연결 수명
 
@@ -26,7 +26,25 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 비서 제작의 조건 협의와 계획 문서는 [비서 계약](main-agent-v1.md#플러그인)을 따른다. 질문 카드나 계획을 위한 새 화면 기능은 추가하지 않는다.
 
-기존 Button/Input/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 필요한 배치와 모양은 plugin이 정한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
+기존 Button/Input/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명과 본문만 그린다. 설정의 본문 열 폭 제한은 적용하지 않는다.
+
+ui.Button의 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도·전체 폭·가로 스크롤을 사용하고 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 굵은 글씨는 이름에 사용하고 요약 값은 보통 굵기로 표시한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
+
+제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
+
+대표 시각 비교(합성 플러그인, Windows persistent Chrome):
+
+| 화면 | 변경 전 | 현재 |
+| --- | --- | --- |
+| 작업 화면 1440 밝음 | [Before](assets/plugin-screen-consistency-1663/before-consistency-screen-1440-light.png) | [After](assets/plugin-screen-consistency-1663/after-consistency-screen-1440-light.png) |
+| 작업 화면 1440 어두움 | [Before](assets/plugin-screen-consistency-1663/before-consistency-screen-1440-dark.png) | [After](assets/plugin-screen-consistency-1663/after-consistency-screen-1440-dark.png) |
+| 작업 화면 640 밝음 | [Before](assets/plugin-screen-consistency-1663/before-consistency-screen-640-light.png) | [After](assets/plugin-screen-consistency-1663/after-consistency-screen-640-light.png) |
+| DocumentView 1440 밝음 | [Before](assets/plugin-screen-consistency-1663/before-document-view-wide-1440-light.png) | [After](assets/plugin-screen-consistency-1663/after-document-view-wide-1440-light.png) |
+| DocumentView 1440 어두움 | [Before](assets/plugin-screen-consistency-1663/before-document-view-wide-1440-dark.png) | [After](assets/plugin-screen-consistency-1663/after-document-view-wide-1440-dark.png) |
+| DocumentView 640 밝음 | [Before](assets/plugin-screen-consistency-1663/before-document-view-wide-640-light.png) | [After](assets/plugin-screen-consistency-1663/after-document-view-wide-640-light.png) |
+| 비서 질문 라디오 | [Before](assets/plugin-screen-consistency-1663/before-radio.png) | [After](assets/plugin-screen-consistency-1663/after-radio.png) |
+
+같은 조건의 템플릿 갤러리: [Before](assets/plugin-screen-consistency-1663/before-consistency-gallery.png), [After](assets/plugin-screen-consistency-1663/after-consistency-gallery.png). 캡처는 수동 비교 근거이며 실제 AI 제작·소유자 시각 승인은 포함하지 않는다.
 
 ## 읽기 전용 문서 보기
 
