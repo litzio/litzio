@@ -203,10 +203,10 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
   await picker.getByRole('button', {name:'Edit path',exact:true}).click();
   await pathField.fill([root, 'tmp', 'image-assets', 'fresh', 'figures'].join(separator));
   await picker.getByRole('option', {name:'figures', exact:true}).waitFor();
-  assert(await picker.getByTestId('folder-open').innerText() === 'Open', 'A selected folder offers navigation rather than image confirmation');
+  assert(await picker.getByTestId('folder-open').isDisabled(), 'A typed folder is navigated with Enter, not confirmed as an image');
   await pathField.press('Enter');
   await picker.getByRole('option', {name:'diagram.svg', exact:true}).click();
-  await picker.getByRole('button', {name:'Use', exact:true}).click();
+  await picker.getByRole('button', {name:'Select', exact:true}).click();
   await picker.waitFor({state:'hidden', timeout:10000});
   assert(await imageField.inputValue() === './figures/diagram.svg', 'An image beside the document is linked by its relative path');
   assert(await page.evaluate(() => document.activeElement?.textContent) === 'Choose…', 'Closing the picker returns focus to Choose…');

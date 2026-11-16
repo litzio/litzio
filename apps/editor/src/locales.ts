@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Select": "Select",
+  "Select “{{name}}”": "Select “{{name}}”",
   "Folders and files": "Folders and files",
   "Back": "Back",
 
@@ -1199,6 +1201,8 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Select": "선택",
+  "Select “{{name}}”": "“{{name}}” 선택",
   "Folders and files": "폴더와 파일",
   "Back": "뒤로",
 

@@ -100,11 +100,14 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
     const order = sort.key === "name" ? a.name.localeCompare(b.name, i18n.language, { numeric: true }) : sort.key === "size" ? (a.size ?? 0) - (b.size ?? 0) : (a.modifiedAt ?? "").localeCompare(b.modifiedAt ?? "");
     return (sort.descending ? -1 : 1) * order;
   });
-  const chosen = options.find(entry => entry.path === selected) ?? (highlight >= 0 ? options[highlight] : named);
-  const targetPath = chosen?.path ?? (editing ? path : result?.path ?? location);
-  const ready = !pending && (image ? !!chosen : Boolean(targetPath));
-  const activeIndex = chosen ? options.indexOf(chosen) : highlight;
-  const activeImage = choose === "image" && options[activeIndex]?.kind === "image" ? options[activeIndex] : undefined;
+  const chosen = options.find(entry => entry.path === selected) ??
+    (named && (image ? matchesFile(named) : named.kind === "folder") ? named : undefined);
+  // A draft prefix is not a target. The current directory is known only after its read completes.
+  const targetPath = chosen?.path ?? (image ? "" : editing ? (!partial ? result?.path ?? "" : "") : result?.path ?? "");
+  const ready = !pending && !!result && !!targetPath;
+  const chosenIndex = chosen ? options.indexOf(chosen) : -1;
+  const activeIndex = highlight >= 0 && options[highlight] ? highlight : chosenIndex >= 0 ? chosenIndex : options.length ? 0 : -1;
+  const activeImage = choose === "image" && chosen?.kind === "image" ? chosen : undefined;
 
   const crumbs = result?.crumbs ?? [];
   const parent = crumbs.at(-2);
@@ -193,7 +196,7 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
   };
 
   const submit = async (target = targetPath) => {
-    if (!ready || pending) return;
+    if (!target || pending) return;
     setPending(true);
     try {
       const message = await onOpen(target);
@@ -236,12 +239,12 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
   const fileTypes = choose === "pdf" ? "PDF (*.pdf)" : document ? "Markdown (*.md)" : choose === "image" ? "PNG, JPEG, GIF, WebP, SVG" : extensions?.map(extension => `*${extension}`).join(", ") ?? i18n.t("All files");
   const listKeys = (event: KeyboardEvent<HTMLUListElement>) => {
     if (pending || event.nativeEvent.isComposing) return;
-    let index = activeIndex;
+    let index = chosenIndex >= 0 ? activeIndex : -1;
     if (event.key === "ArrowDown") index = Math.min(index + 1, options.length - 1);
     else if (event.key === "ArrowUp") index = index < 0 ? options.length - 1 : Math.max(0, index - 1);
     else if (event.key === "Home") index = 0;
     else if (event.key === "End") index = options.length - 1;
-    else if (event.key === "Enter") { event.preventDefault(); if (chosen) enter(chosen); return; }
+    else if (event.key === "Enter") { event.preventDefault(); if (options[activeIndex]) enter(options[activeIndex]!); return; }
     else if (event.key === "Backspace") { event.preventDefault(); if (parent) go(parent.path); return; }
     else if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
       const now = Date.now(), previous = typeAhead.current;
@@ -285,9 +288,9 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
             <div className="folder-picker-scroll">
               {creating ? <form className="folder-picker-new" onSubmit={event => void createFolder(event)}><Folder /><Input data-testid="new-folder-name" aria-label={i18n.t("New folder name")} value={newName} onChange={event => { setNewName(event.target.value); setCreateError(""); }} autoFocus disabled={createPending} aria-invalid={!!createError} aria-describedby={createError ? "new-folder-error" : undefined} /><Button type="submit" variant="outline" size="sm" disabled={createPending || !newName.trim()}>{i18n.t("Create")}</Button><Button type="button" variant="ghost" size="sm" aria-label={i18n.t("Cancel new folder")} onClick={cancelCreate}>{i18n.t("Cancel")}</Button>{createError ? <p id="new-folder-error" role="alert" data-testid="new-error">{createError}</p> : null}</form> : null}
               <ul ref={list} id="folder-picker-list" className="folder-picker-list" role="listbox" aria-label={choose === "file" ? i18n.t("Folders and files") : document ? i18n.t("Folders and documents") : pdf ? i18n.t("Folders and PDFs") : image ? i18n.t("Folders and images") : i18n.t("Folders")} tabIndex={0} aria-activedescendant={activeIndex >= 0 ? `folder-option-${activeIndex}` : undefined} onKeyDown={listKeys}>
-                {options.map((entry, index) => <li key={entry.path} id={`folder-option-${index}`} role="option" aria-label={entry.name} aria-selected={index === activeIndex} className="folder-picker-option" title={entry.path} onClick={() => { if (!pending) { setSelected(entry.path); setHighlight(index); list.current?.focus(); } }} onDoubleClick={() => enter(entry)}>
+                {options.map((entry, index) => <li key={entry.path} id={`folder-option-${index}`} role="option" aria-label={entry.name} aria-selected={index === chosenIndex} data-active={index === activeIndex || undefined} className="folder-picker-option" title={entry.path} onClick={() => { if (!pending) { setSelected(entry.path); setHighlight(index); list.current?.focus(); } }} onDoubleClick={() => enter(entry)}>
                   <span className="folder-picker-name">{entry.kind === "folder" ? <Folder aria-hidden="true" /> : entry.kind === "image" ? <ImageIcon aria-hidden="true" /> : entry.kind === "document" ? (choose === "file" && entry.native === false ? <FileX aria-hidden="true" /> : <FileText aria-hidden="true" />) : <File aria-hidden="true" />}<span>{entry.name}</span></span>
-                  <span className="folder-picker-date">{entry.modifiedAt ? new Date(entry.modifiedAt).toLocaleDateString(i18n.language) : ""}</span><span className="folder-picker-size">{entry.size === undefined ? "" : entry.size < 1024 ? `${entry.size} B` : `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(entry.size / 1024)} KB`}</span>
+                  <span className="folder-picker-date">{entry.modifiedAt ? new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.modifiedAt)) : ""}</span><span className="folder-picker-size">{entry.size === undefined ? "" : entry.size < 1024 ? `${entry.size} B` : `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(entry.size / 1024)} KB`}</span>
                 </li>)}
               </ul>
               {error ? <p className="folder-picker-meta" id="open-folder-error" role="alert" data-testid="open-error">{error}</p> : meta ? <p className="folder-picker-meta" data-testid="folder-picker-meta" role={listing.error ? "alert" : "status"}>{meta}</p> : null}
@@ -298,7 +301,7 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
         <div className="folder-picker-footer">
           <div className="folder-picker-target" title={targetPath}><span>{chosen?.name ?? target}</span>{image ? <span className="folder-picker-types">{fileTypes}</span> : null}</div>
           <Button variant="outline" size="sm" disabled={pending} onClick={onClose}>{i18n.t("Cancel")}</Button>
-          <Button size="sm" data-testid="folder-open" title={targetPath} disabled={!ready || !result && !editing} onClick={() => image && chosen?.kind === "folder" ? go(chosen.path) : void submit()}><span>{image ? chosen?.kind === "folder" ? i18n.t("Open") : i18n.t("Use") : selectOnly ? `${i18n.t("Use")} “${target}”` : i18n.t("Open “{{name}}”", { name: target })}</span></Button>
+          <Button size="sm" data-testid="folder-open" title={targetPath} disabled={!ready} onClick={() => image && chosen?.kind === "folder" ? go(chosen.path) : void submit()}><span>{image ? chosen?.kind === "folder" ? i18n.t("Open") : i18n.t("Select") : selectOnly ? target ? i18n.t("Select “{{name}}”", { name: target }) : i18n.t("Select") : target ? i18n.t("Open “{{name}}”", { name: target }) : i18n.t("Open")}</span></Button>
           {choose === "image" ? <p className="folder-picker-copy-note">{i18n.t("Images outside the document's folder are copied into its assets folder.")}</p> : null}
         </div>
       </DialogContent>

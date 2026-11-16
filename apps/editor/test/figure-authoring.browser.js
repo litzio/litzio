@@ -369,7 +369,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).click();
     expect(await listedImages()).toEqual(imageNames);
     expect(await picker.getByRole('option', {name:'diagram-v2.svg', exact:true}).getAttribute('aria-selected')).toBe('true');
-    await picker.getByRole('button', {name:'Use', exact:true}).click();
+    await picker.getByRole('button', {name:'Select', exact:true}).click();
     await picker.waitFor({state:'hidden'});
     expect(await page.getByTestId('figure-image-url').inputValue()).toBe('./diagram-v2.svg');
     if (!await page.getByRole('button', {name:'Choose…', exact:true}).isVisible()) await page.getByTestId('figure-replace').click();

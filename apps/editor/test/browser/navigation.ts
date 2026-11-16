@@ -35,6 +35,7 @@ export async function openDocument(page: Page, file: string): Promise<void> {
   // The picker helper waits for responsive layout, then expands through the rail.
   await openFolderPicker(page);
   await page.getByTestId("folder-path").fill(path.dirname(file));
+  await expect(page.getByTestId("folder-open")).toBeEnabled();
   await page.getByTestId("folder-open").click();
   await page.getByRole("dialog", { name: "Open folder", exact: true }).waitFor({ state: "detached" });
   // The chosen directory may now live inside an already-open ancestor (#702).

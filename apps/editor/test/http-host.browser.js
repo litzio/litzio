@@ -76,7 +76,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await picker.getByRole('button', {name:'Edit path',exact:true}).click();
   await page.getByTestId('folder-path').fill(stale + sep);
   await page.getByTestId('folder-picker-meta').getByText('Path is outside the allowed folders.', {exact:true}).waitFor();
-  check(await page.getByTestId('folder-open').isEnabled(), 'A typed outside path keeps Open enabled');
+  check(await page.getByTestId('folder-open').isDisabled(), 'A typed outside path is not a confirmation target');
   await page.getByTestId('folder-path').blur();
   check(browseRequests.length === 0, 'Outside paths are not listed');
   page.off('request', trackBrowse);

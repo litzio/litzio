@@ -386,7 +386,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
 
   // Address Enter navigates to the typed location; confirmation opens it, not a completion child.
   await field.press('ArrowDown');
-  assert(await dialog.getByRole('option', {selected:true}).count() === 1, 'ArrowDown highlights a folder');
+  assert(await field.getAttribute('aria-activedescendant'), 'ArrowDown focuses a completion row');
   await field.press('Enter');
   await open.click();
   await dialog.waitFor({state:'detached'});
@@ -546,17 +546,20 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
 
   await enterFolder([folder, 'missing'].join(sep));
   await page.getByTestId('folder-picker-meta').getByText('folder does not exist', {exact:true}).waitFor();
-  await open.click();
+  await expect(open).toBeDisabled();
+  await field.press('Enter');
   await dialog.getByRole('alert').getByText('folder does not exist', {exact:true}).waitFor();
+  await editPath();
   result.keepsInvalidPath = await field.inputValue() === [folder, 'missing', ''].join(sep) && await section.count() === 0;
 
   // A file is not a folder: the dialog says so and nothing is listed.
   await page.getByTestId('folder-path').fill([folder, 'index.md'].join(sep));
-  await open.click();
+  await field.press('Enter');
   await page.getByRole('dialog').getByText('folder path must point to a directory').waitFor();
   result.rejectsFile = await section.count() === 0;
 
   // The chosen folder lists sub-folders first, then Markdown files, without opening any.
+  await editPath();
   await page.getByTestId('folder-path').fill(`"${folder}"`);
   await open.click();
   await page.getByRole('dialog').waitFor({state:'detached'});
