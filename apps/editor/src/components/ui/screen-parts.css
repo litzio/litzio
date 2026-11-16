@@ -4,10 +4,8 @@
 .screen-toolbar > button { width: auto; }
 .screen-select, .screen-toolbar > label { display: grid; gap: var(--space-2); }
 .screen-summary { align-content: start; grid-template-rows: auto auto 1fr; display: grid; gap: var(--space-2); padding: var(--space-3); border: var(--border-width) solid var(--id-color-border-subtle); border-radius: var(--id-radius-sm); }
-.screen-summary .screen-summary-value { font-size: var(--font-size-xl); }
-.screen-summary > strong { font-weight: 600; }
 .screen-chart { margin: 0; min-width: 0; width: 100%; font-size: var(--font-size-sm); }
-.screen-chart figcaption { margin-bottom: var(--space-3); font-weight: 600; }
+.screen-chart figcaption { margin-bottom: var(--space-3); }
 .screen-slider { min-width: 0; width: 100%; font-size: var(--font-size-sm); }
 .screen-slider-control { display: flex; align-items: center; height: var(--size-control); touch-action: none; }
 .screen-slider-track { position: relative; width: 100%; height: var(--space-1); border-radius: var(--id-radius-sm); background: var(--id-color-border-strong); }
@@ -24,11 +22,10 @@
 
 .screen-layout[data-width="narrow"] { max-width: var(--layout-settings-content-width); margin-inline: auto; }
 .screen-steps { display: flex; padding: 0; margin: 0; list-style: none; width: 100%; gap: var(--space-3); }
-.screen-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; color: var(--id-color-text-muted); overflow-wrap: anywhere; }
+.screen-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .screen-steps li:not(:last-child)::after { content: ""; flex: 1; border-top: var(--border-width) solid var(--id-color-border); }
 .screen-step-number { display: inline-grid; place-items: center; flex-shrink: 0; width: var(--size-control-compact); height: var(--size-control-compact); border: var(--border-width) solid var(--id-color-border); border-radius: 50%; }
 .screen-steps [data-state="past"] .screen-step-number { background: var(--id-color-surface-selected); color: var(--id-color-accent); }
-.screen-steps [aria-current="step"] { color: var(--id-color-text); font-weight: 600; }
 .screen-steps [aria-current="step"] .screen-step-number { background: var(--id-color-accent); color: var(--id-color-text-on-accent); border-color: var(--id-color-accent); }
 .screen-empty { display: grid; justify-items: center; gap: var(--space-4); padding: var(--space-8) var(--space-6); text-align: center; border: var(--border-width) dashed var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-surface-subtle); }
 .screen-progress { display: grid; gap: var(--space-2); min-width: 0; }

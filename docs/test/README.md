@@ -380,6 +380,8 @@ Litzio keeps one stylesheet; comparison captures do not need a runtime old/new t
 
 Use 1440px as the default comparison width under [ADR-0010](../adr/0010-supported-viewport-and-input.md) and owner decision #1455; add 640px captures when layout changes there. At the minimum width, check for unintended overlap, clipping and unreachable controls; side-by-side multi-panel screens guarantee basic operation and wider-window guidance. Keep existing automated 640px assertions. Follow the [Windows browser/session rules](../contributing/windows-browser-automation.md), and close processes started for the comparison. Captures are manual evidence, not screenshot assertions or owner visual approval.
 
+목록·그림의 내용이 완성된 상태를 기다린 뒤 촬영한다. 공개할 캡처는 기존 Playwright `mask` 관례를 재사용한다. `.sidebar-host-account`의 계정 표시와 `.document-path`, `.sidebar-folder-name`, `.document-start-folder-path`, `.command-center-result-detail` 등 파일 경로·최근 폴더 영역을 가리고, 설정·진단·선택 창에서 추가로 드러나는 로컬 값도 해당 영역을 가린다. 촬영 코드를 실행했다는 사실만으로 가림을 판정하지 않으며, 게시 전에 모든 이미지를 한 장씩 열어 계정·PC 이름·실제 경로가 없는지 확인한다. 합성 fixture 이름과 실제 로컬 값을 구분하고, 가림의 색은 해당 표면 토큰을 사용한다.
+
 ## Native document boundary
 
 Success fixtures contain `litzio: 1` and supported content. Core owns syntax/support rejection. CLI tests cover exclusive create, failed text/JSON check and unchanged bytes. Host tests cover refused files and Save revalidation. `pnpm browser:test writeability-preflight` covers native admission errors and retained document, selection, unsaved content and property drafts. `new-document`, `source-view`, `outline` and `property-drafts` retain their interface checks. Block-source and partial read-only scenarios have been removed. Production HTTP and packaged Desktop use the same Core admission.

@@ -228,7 +228,6 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 ### 알려진 불일치
 
-- [#1687](https://github.com/litzio/litzio/issues/1687): 나머지 화면과 플러그인 fixture에 Row·Section·글씨 역할을 적용한다.
 
 ## 패턴별 기준 화면
 
@@ -246,7 +245,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 | 드롭다운·컨텍스트 메뉴 | [dropdown-menu.tsx](apps/editor/src/components/ui/dropdown-menu.tsx), [context-menu.tsx](apps/editor/src/components/ui/context-menu.tsx) | 공유 메뉴 면과 동작 행 |
 | 알림 | [notification-center.tsx](apps/editor/src/components/ui/notification-center.tsx) | 창 단위 등록과 공통 표시 |
 | 도킹 패널 | [AssistantPanel.tsx](apps/editor/src/shell/AssistantPanel.tsx) | PanelHeader·Status plain·완료 표시 생략, 도킹·좁은 창 오버레이와 focus 경계 |
-| 데이터 표 | [DataTable.tsx](apps/editor/src/components/DataTable.tsx) | 공통 필터·정렬·목록 표시 |
+| 데이터 표 | [DataTable.tsx](apps/editor/src/components/DataTable.tsx) | 공통 필터·정렬, 제목과 값의 시작·끝선, 현재 행·칸 focus |
 | 플러그인 화면 | [PluginScreenCode.tsx](apps/editor/src/views/PluginScreenCode.tsx) | TaskHeader·ScreenLayout과 상태·단계·빈 상태·진행 부품, 고정 client의 화면 수명 |
 
 ## 세부 계약

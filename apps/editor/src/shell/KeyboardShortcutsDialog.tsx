@@ -2,7 +2,7 @@ import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
 import { COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS as keys, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, SAVE_SHORTCUT } from "../shortcuts.ts";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
 type Entry = { label: MessageKey; shortcuts: readonly { readonly label: string; binding: string }[] };
 const groups: { label: MessageKey; entries: Entry[] }[] = [
@@ -46,12 +46,12 @@ export function KeyboardShortcutGroups() {
   useTranslation();
   return keyboardShortcutGroups().map(group => (
     <section key={group.label} className="grid gap-2" aria-label={i18n.t(group.label)}>
-      <h3 className="text-sm font-semibold">{i18n.t(group.label)}</h3>
+      <h3 className="type-group-title">{i18n.t(group.label)}</h3>
       <dl className="grid gap-2">
         {group.entries.map(entry => (
           <div key={entry.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-            <dt>{i18n.t(entry.label)}</dt>
-            <dd className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-muted-foreground">
+            <dt className="type-body">{i18n.t(entry.label)}</dt>
+            <dd className="type-helper flex flex-wrap justify-end gap-x-3 gap-y-1">
               {entry.shortcuts.map(shortcut => <kbd key={shortcut.label} className="whitespace-nowrap">{shortcut.label}</kbd>)}
             </dd>
           </div>
@@ -68,9 +68,8 @@ export function KeyboardShortcutsDialog({ open, returnFocus, onClose }: {
   return (
     <Dialog open={open} onOpenChange={next => { if (!next) onClose(); }}>
       <DialogContent className="sm:max-w-[var(--layout-folder-picker-width)]" finalFocus={() => returnFocus.current ?? true}>
-        <DialogHeader>
+        <DialogHeader title={i18n.t("Editing shortcuts in the Visual editor where supported.")}>
           <DialogTitle>{i18n.t("Keyboard shortcuts")}</DialogTitle>
-          <DialogDescription>{i18n.t("Editing shortcuts in the Visual editor where supported.")}</DialogDescription>
         </DialogHeader>
         <KeyboardShortcutGroups />
       </DialogContent>

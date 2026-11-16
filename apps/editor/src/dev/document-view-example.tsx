@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { getEditableDocument, parse } from "@litzio/core";
 import { DocumentViewScope } from "../views/screen-document-view.tsx";
@@ -12,6 +13,8 @@ const revision = "a".repeat(64), path = "/example/report.md";
 
 /** Synthetic saved snapshot; the gallery never reads or writes a user's files. */
 export function DocumentViewExample() {
+  const {t} = useTranslation();
+  const stateLabels = {loading:t("Loading…"),ready:t("Ready"),error:t("Error"),"stale-target":t("The saved document has changed."),"target-not-found":t("Target not found. Check the target address or identifier.")};
   const [reads, setReads] = useState(0), [extraFolder, setExtraFolder] = useState(false);
   const [client] = useState<HostClient>(() => ({ assertCurrent() {}, url: path => path, crossOrigin: undefined,
     async request() { setReads(value => value + 1); return Response.json({ kind: "native", path, source, document, revision }); } }));
@@ -24,7 +27,7 @@ export function DocumentViewExample() {
         <ui.Button variant="outline" onClick={() => setColumn(value => 11-value)}>Select other cell</ui.Button>
         <ui.Button variant="outline" onClick={() => setNarrow(value => !value)}>Toggle preview width</ui.Button>
         <ui.Button variant="outline" aria-pressed={extraFolder} onClick={() => setExtraFolder(value => !value)}>Toggle unrelated folder</ui.Button>
-        <span aria-label="Document reads">{reads}</span><span role="status">{state?.state}</span></ui.Toolbar>
+        <span aria-label="Document reads">{reads}</span><ui.Status variant="plain" tone={state?.state === "ready" ? "ok" : state?.state === "loading" ? "progress" : "warning"} label={state ? stateLabels[state.state] : t("Ready")} /></ui.Toolbar>
       <div style={{width:narrow?260:"100%",maxWidth:"100%"}}><ui.DocumentView path={path} height={480} reloadKey={reloadKey} target={{ revision: stale ? "b".repeat(64) : revision, path: document.blocks.find(block => block.block === "table")!.rows[1].cells[column].path }} onStateChange={setState} /></div>
     </ui.ScreenLayout>
   </DocumentViewScope.Provider>;

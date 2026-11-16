@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useRef, useState } from "react";
 import { useScreenPathPicker } from "../views/screen-path-picker.tsx";
 import type { HostClient } from "../host-client.ts";
@@ -5,6 +6,7 @@ import { Button } from "../components/ui/button.tsx";
 
 /** Synthetic Host only. Folder removal during a read demonstrates the scope lifetime. */
 export function ScreenPathExample() {
+  const {t}=useTranslation();
   const lifetime = useRef(new AbortController());
   const [roots, setRoots] = useState(["/example"]), [result, setResult] = useState("");
   const closeDuringRead = useRef(false);
@@ -26,5 +28,5 @@ export function ScreenPathExample() {
       <Button variant="outline" disabled={!roots.length} onClick={() => choose("document")}>Choose document example</Button>
       <Button variant="outline" disabled={!roots.length} onClick={() => choose("folder", true)}>Pick while folder closes</Button>
       {!roots.length ? <Button variant="outline" onClick={() => setRoots(["/example"])}>Restore example folder</Button> : null}</div>
-    <output>{result}</output>{dialog}</section>;
+    <details hidden={!result}><summary>{t("Details")}</summary><output>{result}</output></details>{dialog}</section>;
 }

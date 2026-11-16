@@ -62,7 +62,7 @@ Design rules:
 - Choose files with pickPath; do not use native file inputs.
 - Use ui.Select for choices instead of native select.
 - Use ui.DataTable row selection for picking an item; do not stack buttons.
-- Use bold only for screen, group and item names, not values or prose.
+- Use shared parts for headings and summaries. Keep ordinary values and prose normal.
 - Use ui.DataTable at default density, fitting content within the screen width; declare numeric columns with fields type:"number".
 - Put controls in ui.Toolbar; group summary cards in a separate ui.Toolbar.
 - Use token variables for colors and spacing, never arbitrary hex or px values.
@@ -80,14 +80,14 @@ Opened-folder scope checks compare path strings, not the physical destination be
 Example body (inside Screen with React/ui/invoke supplied):
 const [kind,setKind]=React.useState("line");
 const [rows,setRows]=React.useState([]), [error,setError]=React.useState("");
-return <ui.ScreenLayout description="Measurements over time" status={<ui.Status tone="neutral" label={rows.length ? "Loaded" : "Ready"}/>} actions={<ui.Button variant="default" onClick={()=>invoke("load").then(setRows).catch(e=>setError(e.message))}>Load measurements</ui.Button>}>
+return <ui.ScreenLayout description="Measurements over time" status={<ui.Status variant="plain" tone="neutral" label={rows.length ? "Loaded" : "Ready"}/>} actions={<ui.Button variant="default" onClick={()=>invoke("load").then(setRows).catch(e=>setError(e.message))}>Load measurements</ui.Button>}>
   {error && <ui.Notice tone="error">{error}</ui.Notice>}
-  {!rows.length ? <ui.EmptyState title="Load measurements to begin" description="Use the action in the header."/> : <>
+  {!rows.length ? <ui.EmptyState title="Load measurements to begin"/> : <>
   <ui.Toolbar><ui.Select label="Chart" value={kind} options={[{value:"line",label:"Line"},{value:"bar",label:"Bar"}]} onValueChange={setKind}/></ui.Toolbar>
   <ui.Section title="Dataset"><ui.Row kind="fact" label="Records">{rows.length}</ui.Row><ui.Row kind="fact" label="Chart style">{kind === "line" ? "Line" : "Bar"}</ui.Row></ui.Section>
   <ui.Toolbar><ui.SummaryCard label="Total" value={rows.reduce((s,r)=>s+r.value,0)}/></ui.Toolbar>
   <ui.Chart kind={kind} title="Measurements" data={rows} xKey="time" yKey="value" baseline={15}/>
-  <ui.DataTable title="Measurements" rows={rows} columns={["time","value"]} fields={{value:{type:"number"}}}/>
+  <ui.DataTable title="Measurements" rows={rows} columns={["time","value"]} labels={{time:"Time",value:"Value"}} fields={{value:{type:"number"}}}/>
   </>}
 </ui.ScreenLayout>;
 `;
