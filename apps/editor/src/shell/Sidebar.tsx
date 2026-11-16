@@ -14,6 +14,7 @@ import { useSyncExternalStore, useRef, type ReactNode, type RefObject } from "re
 import { Sun, Moon, FileText, Files as FilesIcon, Folder, FolderOpen, PanelLeftClose, Plus, Settings } from "lucide-react";
 import { DesktopMenu } from "./DesktopDaemon.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { PanelHeader } from "@/components/ui/panel-header.tsx";
 
 import type { FolderTreeState } from "./folder-tree.ts";
 
@@ -89,10 +90,7 @@ export function Sidebar({
         }
       }}>
       {open && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
-      <div className="sidebar-header">
-        {open ? <span className="product">{i18n.t("Explorer")}</span> : null}
-        <div className="sidebar-header-actions">
-          <Button
+      {open ? <PanelHeader title={i18n.t("Explorer")} actions={<>          <Button
             ref={toggleRef}
             className="sidebar-collapse"
             variant="ghost"
@@ -105,8 +103,20 @@ export function Sidebar({
           >
             {open ? <PanelLeftClose /> : <FilesIcon />}
           </Button>
-        </div>
-      </div>
+</>} /> : <div className="sidebar-header"><div className="sidebar-header-actions">          <Button
+            ref={toggleRef}
+            className="sidebar-collapse"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={open ? i18n.t("Collapse Explorer") : i18n.t("Expand Explorer")}
+            title={open ? i18n.t("Collapse Explorer") : i18n.t("Expand Explorer")}
+            aria-expanded={open}
+            aria-controls="sidebar-files"
+            onClick={onToggle}
+          >
+            {open ? <PanelLeftClose /> : <FilesIcon />}
+          </Button>
+</div></div>}
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
       <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}
         onContextMenu={event => {

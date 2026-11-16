@@ -772,7 +772,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const toolStep = panel.locator('.assistant-steps[data-kind=tool]').last();
   await expect(toolStep.locator('summary')).toContainText('read_document · document.md');
   await expect(toolStep).not.toHaveAttribute('open');
-  await expect(steps.locator('summary strong')).toHaveText('Thinking');
+  await expect(steps.locator('summary > span:first-of-type > span')).toHaveText('Thinking');
   await expect(steps).toHaveAttribute('open', '');
   await steps.locator('summary').click();
   const existingJump = panel.getByRole('button', { name: /Jump to bottom$/ });
@@ -784,11 +784,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const shellRow = panel.locator('.assistant-steps').last();
   await expect(shellRow.locator('summary')).toContainText("Shell rg -n 'timeline'");
   await expect(shellRow).toHaveAttribute('data-status', 'inProgress');
+  await expect(shellRow.locator('.screen-status')).toHaveText('In progress');
+  await expect(shellRow.locator('.screen-status svg')).toBeVisible();
   await shellRow.locator('summary').click();
   await expect(shellRow.locator('pre')).toContainText("$ rg -n 'timeline' apps/editor\napps/editor: timeline output");
   await expect(steps).not.toHaveAttribute('open');
   shellStep.status = 'failed';
   await expect(shellRow).toHaveAttribute('data-status', 'failed');
+  await expect(shellRow.locator('.screen-status')).toHaveText('Failed');
+  await expect(shellRow.locator('.screen-status')).toHaveAttribute('data-tone', 'error');
+  await expect(toolStep.locator('.screen-status')).toHaveText('Completed');
+  await expect(toolStep.locator('.screen-status > span')).toHaveCount(0);
   await shellRow.locator('summary').click();
   await expect(shellRow).not.toHaveAttribute('open');
 

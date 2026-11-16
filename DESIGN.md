@@ -229,7 +229,6 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 ### 알려진 불일치
 
 - [#1685](https://github.com/litzio/litzio/issues/1685): 설정의 사실 목록·묶음·상태 문구를 Row·Section·Status로 옮긴다.
-- [#1686](https://github.com/litzio/litzio/issues/1686): 탐색기·비서 머리를 PanelHeader로, 비서 상태를 Status로 옮기고 문서 패널 탭 정렬을 결정한다.
 - [#1687](https://github.com/litzio/litzio/issues/1687): 나머지 화면과 플러그인 fixture에 Row·Section·글씨 역할을 적용한다.
 
 ## 패턴별 기준 화면

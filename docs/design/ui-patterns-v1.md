@@ -185,7 +185,7 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 ### 비서 질문과 보조 작업
 
-기존 도킹 패널·native details/summary·outline sm Button·Lucide ArrowDown을 재사용한다.
+탐색기와 비서의 펼친 머리는 PanelHeader를 쓰고 접힌 탐색기는 기존 레일을 유지한다. 문서 패널의 탭 줄은 머리의 치수와 구분선을 따른다. 비서 도구 줄은 native details/summary와 plain Status를 쓰며 완료에는 점을 표시하지 않는다. outline sm Button·Lucide ArrowDown을 재사용한다.
 
 좁은 창 비서의 Tab·Escape·이전 편집 focus 복귀와 넓은 창 비모달 패널은 [비서 계약](main-agent-v1.md#대화와-표시)을 따른다. 질문은 과정 밖의 기존 AssistantQuestion fieldset/radio·Input/Button을 사용하며 답변 뒤 같은 카드에 읽기 전용 기록을 남긴다. 끝난 차단 RPC는 입력을 닫고 콜백을 복원하지 않는다. 렌더 확인은 카드가 mount된 창에서만 보내고 숨김 패널·기록 목록에서는 보내지 않는다([질문 계약](main-agent-v1.md#질문과-사용량)).
 
@@ -240,4 +240,4 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 ## 공용 정보 표시
 
-이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음은 #1685, 패널 머리·비서 상태는 #1686, 나머지 화면·fixture는 #1687에서 적용한다.
+이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음은 #1685, 나머지 화면·fixture는 #1687에서 적용한다.
