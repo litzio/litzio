@@ -991,7 +991,7 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
   border-bottom: var(--border-width) solid var(--id-color-border-subtle);
 }
 .settings-section > [role="alert"] { grid-column: 1 / -1; }
-.settings-section > progress { grid-column: 1 / -1; }
+.settings-section > .settings-progress { grid-column: 1 / -1; }
 .settings-row { align-items: center; }
 .settings-row-control { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
 .settings-description { margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
@@ -3536,3 +3536,52 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .task-header-description:empty, .task-header-trailing:empty { display: none; }
 .task-header-trailing { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
 @media (max-width: 640px) { .task-header-heading { flex-basis: 100%; } }
+
+/* Shared controls; document blocks and handles remain immediate. */
+:where([data-slot="button"]:not(.document-editor *), .sidebar-folder-header,
+.sidebar-tree-item, .document-outline-item, .document-tab, .command-center-result,
+.document-settings-option, .command-menu-item, .settings-select, .settings-switch, .settings-switch::before, [role="menuitem"], [role="option"]:not(.document-editor *),
+.screen-steps li, .screen-step-number) {
+  transition-property: background-color, color, border-color;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-motion);
+}
+[data-slot="button"]:focus-visible { transition-property: background-color, color; }
+:where([data-slot="dialog-content"], [data-slot="dropdown-menu-content"],
+[data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"]) {
+  transition: opacity var(--duration-normal) var(--ease-motion), transform var(--duration-normal) var(--ease-motion);
+  transform-origin: var(--transform-origin, center);
+}
+:where([data-slot="dialog-content"], [data-slot="dropdown-menu-content"],
+[data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"]):is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  transform: scale(0.98);
+}
+[data-slot="dialog-overlay"] { transition: opacity var(--duration-normal) var(--ease-motion); }
+[data-slot="dialog-overlay"]:is([data-starting-style], [data-ending-style]) { opacity: 0; }
+.notification-center li, .notification-auto {
+  transition: opacity var(--duration-normal) var(--ease-motion), transform var(--duration-normal) var(--ease-motion), display var(--duration-normal) allow-discrete;
+}
+.notification-center li[data-ending-style], .notification-auto[hidden] { opacity: 0; transform: translateY(4px); }
+@starting-style { .notification-center li, .notification-auto:not([hidden]) { opacity: 0; transform: translateY(4px); } }
+@supports (interpolate-size: allow-keywords) {
+  :where(.app-shell, .ui-portal, .ui-gallery) details:not(.document-editor *)::details-content {
+    interpolate-size: allow-keywords;
+    block-size: 0;
+    overflow: clip;
+    transition: block-size var(--duration-normal) var(--ease-motion), content-visibility var(--duration-normal) allow-discrete;
+  }
+  :where(.app-shell, .ui-portal, .ui-gallery) details[open]:not(.document-editor *)::details-content { block-size: auto; }
+}
+.settings-progress { height: var(--space-2); overflow: hidden; border-radius: var(--id-radius-sm); background: var(--id-color-surface-muted); }
+.settings-progress > span { display: block; height: 100%; background: var(--id-color-accent); transform-origin: left; transition: transform var(--duration-normal) var(--ease-motion); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --duration-fast: 0s; --duration-normal: 0s; }
+}
+.notification-auto[hidden] { display: none; }
+
+/* Exit is shorter so focus restoration and chained dialogs stay responsive. */
+:where([data-slot="dialog-content"], [data-slot="dialog-overlay"], [data-slot="dropdown-menu-content"],
+[data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"], .notification-center li)[data-ending-style] { transition-duration: var(--duration-fast); }
+.notification-auto > ul { transition: display var(--duration-normal) allow-discrete; }

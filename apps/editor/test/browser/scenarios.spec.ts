@@ -53,6 +53,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
     const context = await chromium.launchPersistentContext(profile, {
       ...(channel ? { channel } : {}),
       headless: true,
+      reducedMotion: workerInfo.project.use.reducedMotion,
       // Manual visual review must include the product's real scrollbar affordance.
       // Playwright otherwise adds --hide-scrollbars in headless Chromium.
       ...(screenshots ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}),

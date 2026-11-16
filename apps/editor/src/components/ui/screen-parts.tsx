@@ -1,3 +1,4 @@
+import { SettingsProgress } from "./settings.tsx";
 import type { ScreenSelectProps, ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "@litzio/plugin-sdk";
 import { useContext, useId, type ReactNode } from "react";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
@@ -26,7 +27,7 @@ export function EmptyState({title, description, action}: {title: string; descrip
   return <div className="screen-empty"><strong>{title}</strong>{description && <p className="screen-description">{description}</p>}{action && <div>{action}</div>}</div>;
 }
 export function Progress({value, label}: {value?: number; label?: string}) {
-  return <div className="screen-progress">{label && <span>{label}</span>}<progress className="settings-progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={1} aria-valuenow={value === undefined ? undefined : Math.max(0, Math.min(1, value))} max={1} value={value === undefined ? undefined : Math.max(0, Math.min(1, value))}/></div>;
+  return <div className="screen-progress">{label && <span>{label}</span>}<SettingsProgress aria-label={label} value={value} /></div>;
 }
 export function Toolbar({ children, label }: { children: ReactNode; label?: string }) {
   return <div className="screen-toolbar" role={label ? "group" : undefined} aria-label={label}>{children}</div>;

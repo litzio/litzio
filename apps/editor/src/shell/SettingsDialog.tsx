@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
 import { FileText, Info, Palette, History, Server } from "lucide-react";
-import { SettingsRow, SettingsSelect } from "@/components/ui/settings.tsx";
+import { SettingsRow, SettingsSelect, SettingsProgress } from "@/components/ui/settings.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import type { CliIntegrationState, DesktopBridge, DesktopInfo, OfferedUpdate, ReleaseChannel, UpdateState } from "../../shared/desktop-bridge.ts";
 import { RecoveryDeleteDialog } from "./Recovery.tsx";
@@ -299,7 +299,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
                       <Button size="sm" variant="ghost" onClick={() => run(() => desktop.openReleaseNotes(offered?.version))}>{i18n.t("Release notes")}</Button>
                     </div>
                     {state?.phase === "downloading" ? (
-                      <progress className="settings-progress" max={100} value={state.percent} aria-label={i18n.t("Update download")} />
+                      <SettingsProgress max={100} value={state.percent} aria-label={i18n.t("Update download")} />
                     ) : null}
                     {problem ? <Notice tone="error" data-testid="update-problem">{problem}</Notice> : null}
                   </div>

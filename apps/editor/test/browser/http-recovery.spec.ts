@@ -47,7 +47,7 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
   const processes: number[] = [];
   const launch = async (startupPath?: string) => {
     context = await chromium.launchPersistentContext(profile, {
-      ...(process.platform === "win32" ? { channel: "chrome" } : {}), headless: true,
+      ...(process.platform === "win32" ? { channel: "chrome" } : {}), headless: true, reducedMotion: info.project.use.reducedMotion,
     });
     // Apply to every persistent context, including the ones recreated after a crash.
     context.setDefaultTimeout(info.project.use.actionTimeout!);
