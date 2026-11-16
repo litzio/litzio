@@ -1045,44 +1045,6 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
   margin: 0;
 }
 
-.settings-facts {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-1) var(--space-4);
-  margin: 0;
-}
-
-.settings-facts dt { color: var(--id-color-text-muted); }
-.settings-facts dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; }
-
-.settings-channel {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.settings-channel legend {
-  margin-bottom: var(--space-1);
-  padding: 0;
-  color: var(--id-color-text-muted);
-}
-
-.settings-choice {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: var(--space-2);
-  align-items: baseline;
-}
-
-.settings-choice-hint {
-  grid-column: 2;
-  color: var(--id-color-text-subtle);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-meta);
-}
-
 .settings-status { margin: 0; line-height: var(--line-height-label); }
 .settings-progress { width: 100%; }
 

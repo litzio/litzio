@@ -101,7 +101,7 @@ Enter/Space·클릭 펼치기/접기를 제공하고 `aria-expanded`/`aria-contr
 자연 해소·만료로 비면 센터는 접되, 센터 밖에서 편집 중인 focus는 유지한다.
 빈 센터 버튼을 직접 열면 #837의 빈 상태 안내를 계속 볼 수 있다.
 
-비서 상태·접수·질문은 [대화와 표시](main-agent-v1.md#대화와-표시), 계정·컨텍스트·사용량은 [질문과 사용량](main-agent-v1.md#질문과-사용량)을 따른다. 공급자 연결·설정 요청 실패는 입력 오류가 아닌 `Notice tone="error"`다. 진단의 일반 label/값은 UI 14/20, 경로·프로토콜은 mono metadata 12/16이다. Host 주소 설명은 12/18, About daemon 값·facts는 SettingsRow/facts 16/24다. Host footer는 Settings와 같은 16px 슬롯·padding·8px 간격이며 6px 상태 점은 슬롯 중앙에 둔다. 읽기 전용 실행 계정도 Tab focus·Tooltip을 유지한다.
+비서 상태·접수·질문은 [대화와 표시](main-agent-v1.md#대화와-표시), 계정·컨텍스트·사용량은 [질문과 사용량](main-agent-v1.md#질문과-사용량)을 따른다. 공급자 연결·설정 요청 실패는 입력 오류가 아닌 `Notice tone="error"`다. 진단의 일반 label/값은 UI 14/20, 경로·프로토콜은 mono metadata 12/16이다. Host 주소 설명은 12/18, About daemon 값·facts는 Row fact의 type-value-name·type-body를 쓴다. Host footer는 Settings와 같은 16px 슬롯·padding·8px 간격이며 6px 상태 점은 슬롯 중앙에 둔다. 읽기 전용 실행 계정도 Tab focus·Tooltip을 유지한다.
 
 계정·한도는 Context 링의 hover/keyboard-focus Tooltip과 AI Settings에서 같은 부품으로 표시한다. 날짜는 당일이면 시각만, 그 외에는 숫자 월/일과 시각으로 표시하고 연도·초를 생략한다. 로그인 방법과 기간은 지역화한다. 한도 행은 max-w-md Tooltip 안에서 한 줄을 유지한다. 조회 실패는 Tooltip의 짧은 Unavailable이며 전송을 막거나 대화 오류로 보내지 않는다. 성공한 빈 응답은 No usage information으로 표시한다. 개별 잔여량·과금 경고도 같은 짧은 표현을 사용하며 과금 경고는 기존 대비 면 안의 bold text로 표시한다.
 
@@ -177,9 +177,9 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 플러그인 목록은 공통 상태 점/톤과 톱니·스위치 배치를 사용하며 꺼진 플러그인도 정보·설정에 진입한다. 화면 진입은 사이드바이며 설정에 화면 이동 버튼이나 “동작 · 이름” 합성 라벨을 두지 않는다.
 
-설정 순서는 이름·버전·설명 → schema 선언 순서의 일반 설정 → secret → 연결 확인 → 접힌 상세(신뢰·digest)다. title은 label, description은 hover/keyboard-focus Tooltip이다. 오류·사용 불가만 상태 줄에 표시하고 정상 실행·꺼짐은 스위치로 표현한다. 폭은 settings-content-width와 viewport 양쪽 16px 여백을 사용한다.
+설정 순서는 이름·버전·설명 → schema 선언 순서의 일반 설정 → secret → 연결 확인 → 접힌 상세(신뢰·digest)다. title은 label, description은 hover/keyboard-focus Tooltip이다. 목록의 실행 중·설치됨·오류·사용 불가는 Status plain으로 표시하고 켜짐은 기존 스위치로 조작한다. 폭은 settings-content-width와 viewport 양쪽 16px 여백을 사용한다.
 
-일반 설정은 기존 Dialog·Input·SettingsSwitch·FieldError를 사용한다. 필드별 저장 중·저장됨·실패를 가까이에 표시하고 실패 시 초안을 보존한다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하며 저장 실패·꺼짐·미실행이면 막고 이유를 Tooltip으로 보인다. secret은 password Input에 명시적으로 저장한 뒤 비우며 값을 재조회하거나 비서에 입력하지 않는다. 목록 갱신은 picker 초안·focus를 초기화하지 않으며 선택한 등록이 외부에서 제거될 때만 Dialog를 닫고 Notice를 보인다.
+일반 설정은 Dialog 안의 Row·Input·SettingsSwitch·FieldError를 사용한다. 필드별 저장 중·저장됨·실패를 가까이에 표시하고 실패 시 초안을 보존한다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하며 저장 실패·꺼짐·미실행이면 막고 이유를 Tooltip으로 보인다. secret은 password Input에 명시적으로 저장한 뒤 비우며 값을 재조회하거나 비서에 입력하지 않는다. 목록 갱신은 picker 초안·focus를 초기화하지 않으며 선택한 등록이 외부에서 제거될 때만 Dialog를 닫고 Notice를 보인다.
 
 첫 켜기 확인의 registrationId·신뢰 수명과 secret 저장은 [플러그인 계약](plugin-stage1-v1.md#수명과-공용-작업), [설정·비밀값 계약](plugin-stage1-v1.md#설정비밀값비서-지침)이 소유한다. PluginIcon은 사이드바·탭·제목 행의 장식용 16px img를 공유하고 비율을 contain하며 기존 화면 아이콘으로 fallback한다. 형식·크기·Host 전달은 [신분증 계약](plugin-stage1-v1.md#신분증), 화면 부품은 [화면 계약](plugin-screens-v1.md#화면-부품)이 소유한다.
 
@@ -240,4 +240,29 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 ## 공용 정보 표시
 
-이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음은 #1685, 패널 머리·비서 상태는 #1686, 나머지 화면·fixture는 #1687에서 적용한다.
+이름·값과 컨트롤 한 줄은 Row, 여러 줄의 묶음은 Section, 패널 머리는 PanelHeader, 점과 사람의 말로 된 상태는 Status를 쓴다. 본체와 플러그인은 같은 구현이며 [DESIGN 규칙](../../DESIGN.md#components)과 [화면 API](plugin-screens-v1.md#공용-정보-부품)를 따른다. 현재 본보기는 개발 갤러리 Shared parts다. 기존 SettingsRow 사용처는 Row 별칭으로 함께 바뀐다. 설정 사실 목록·묶음도 같은 Row·Section·Status를 사용하며, 패널 머리·비서 상태는 #1686, 나머지 화면·fixture는 #1687에서 적용한다.
+
+### 설정의 묶음과 줄
+
+설정 다섯 범주와 플러그인 설정 창은 Row·Section·Status plain을 사용한다. 이름은 왼쪽 선,
+값과 컨트롤은 내용 폭(행 폭의 60% 이내)으로 오른쪽 끝 선에 맞추며 좁은 부모에서는 이름 아래로 내려간다. 선택·텍스트 입력 컨트롤은 기존 공용 폭을 유지한다. 단일 항목에는
+묶음을 만들지 않는다. 정보·업데이트는 로컬 백그라운드 서비스(상태·주소·로그 폴더·상세),
+업데이트(버전·현재 상태·동작, 릴리스 채널), 단독 CLI 줄 순서다. 채널은 선택 컨트롤 하나와
+선택한 채널 설명만 표시한다. CLI의 PATH 안내는 버튼 hover와 켠 직후의 결과 안내로 보인다.
+비서는 AI 공급자·기본값·공통 작업 환경으로 묶고 적용 시점은 기본값 묶음 설명,
+대화 없는 작업 범위는 AI 기본 언어 줄 설명에 둔다. 복구 보존·제외 범위는 상시 남긴다.
+
+한국어 전후 캡처(합성 Desktop bridge, 실제 AI 호출 없음):
+
+| 화면 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+| --- | --- | --- | --- |
+| 표시·언어 | [전](assets/settings-parts-1685/before-settings-appearance-1440-light.png) / [후](assets/settings-parts-1685/after-settings-appearance-1440-light.png) | [전](assets/settings-parts-1685/before-settings-appearance-1440-dark.png) / [후](assets/settings-parts-1685/after-settings-appearance-1440-dark.png) | [전](assets/settings-parts-1685/before-settings-appearance-640-light.png) / [후](assets/settings-parts-1685/after-settings-appearance-640-light.png) |
+| 저장·복구 | [전](assets/settings-parts-1685/before-settings-recovery-1440-light.png) / [후](assets/settings-parts-1685/after-settings-recovery-1440-light.png) | [전](assets/settings-parts-1685/before-settings-recovery-1440-dark.png) / [후](assets/settings-parts-1685/after-settings-recovery-1440-dark.png) | [전](assets/settings-parts-1685/before-settings-recovery-640-light.png) / [후](assets/settings-parts-1685/after-settings-recovery-640-light.png) |
+| 플러그인 | [전](assets/settings-parts-1685/before-settings-plugins-1440-light.png) / [후](assets/settings-parts-1685/after-settings-plugins-1440-light.png) | [전](assets/settings-parts-1685/before-settings-plugins-1440-dark.png) / [후](assets/settings-parts-1685/after-settings-plugins-1440-dark.png) | [전](assets/settings-parts-1685/before-settings-plugins-640-light.png) / [후](assets/settings-parts-1685/after-settings-plugins-640-light.png) |
+| 비서 | [전](assets/settings-parts-1685/before-settings-assistant-1440-light.png) / [후](assets/settings-parts-1685/after-settings-assistant-1440-light.png) | [전](assets/settings-parts-1685/before-settings-assistant-1440-dark.png) / [후](assets/settings-parts-1685/after-settings-assistant-1440-dark.png) | [전](assets/settings-parts-1685/before-settings-assistant-640-light.png) / [후](assets/settings-parts-1685/after-settings-assistant-640-light.png) |
+| 정보·업데이트 | [전](assets/settings-parts-1685/before-settings-about-1440-light.png) / [후](assets/settings-parts-1685/after-settings-about-1440-light.png) | [전](assets/settings-parts-1685/before-settings-about-1440-dark.png) / [후](assets/settings-parts-1685/after-settings-about-1440-dark.png) | [전](assets/settings-parts-1685/before-settings-about-640-light.png) / [후](assets/settings-parts-1685/after-settings-about-640-light.png) |
+| 플러그인 설정 창 | [전](assets/settings-parts-1685/before-plugin-settings-1440-light.png) / [후](assets/settings-parts-1685/after-plugin-settings-1440-light.png) | [전](assets/settings-parts-1685/before-plugin-settings-1440-dark.png) / [후](assets/settings-parts-1685/after-plugin-settings-1440-dark.png) | [전](assets/settings-parts-1685/before-plugin-settings-640-light.png) / [후](assets/settings-parts-1685/after-plugin-settings-640-light.png) |
+
+설치된 플러그인 목록의 상태·오른쪽 동작 근거: 1440 밝음 [전](assets/settings-parts-1685/before-plugin-list-1440-light.png) / [후](assets/settings-parts-1685/plugin-list-1440-light.png), 1440 어두움 [전](assets/settings-parts-1685/before-plugin-list-1440-dark.png) / [후](assets/settings-parts-1685/plugin-list-1440-dark.png), 640 밝음 [전](assets/settings-parts-1685/before-plugin-list-640-light.png) / [후](assets/settings-parts-1685/plugin-list-640-light.png).
+
+시작 화면의 복구 기록 목록: 1440 밝음 [전](assets/settings-parts-1685/before-recovery-list-1440-light.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-light.png), 1440 어두움 [전](assets/settings-parts-1685/before-recovery-list-1440-dark.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-dark.png), 640 밝음 [전](assets/settings-parts-1685/before-recovery-list-640-light.png) / [후](assets/settings-parts-1685/after-recovery-list-640-light.png). 캡처의 로컬 경로는 가렸다.

@@ -74,8 +74,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const categories = page.getByRole('navigation', { name: /^(Settings categories|설정 분류)$/ });
   await categories.getByRole('button', { name: 'Assistant', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Assistant', exact: true }).last()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Available');
-  await expect(page.getByRole('button', { name: 'Copilot models', exact: true })).toContainText('Available');
+  await expect(page.getByRole('button', { name: 'Codex models', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]')).toContainText('Available');
+  await expect(page.getByRole('button', { name: 'Copilot models', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]')).toContainText('Available');
   await page.getByRole('button', { name: 'Codex models', exact: true }).click();
   const modelDialog = page.getByRole('dialog', { name: 'Codex models', exact: true });
   await modelDialog.getByLabel('Search models', { exact: true }).fill('luna');
@@ -94,7 +94,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toBeFocused();
   await page.getByTestId('settings-dialog').getByRole('button', { name: 'Diagnostics', exact: true }).first().click();
   await expect(page.getByText('example@example.invalid · plus')).toBeVisible();
-  await expect(page.getByText('docs · connected · oAuth', { exact: true })).toBeVisible();
+  await expect(page.getByText('docs · Connected · OAuth', { exact: true })).toBeVisible();
+  const mcpDetails = page.getByText('docs · Connected · OAuth', {exact:true}).locator('..').locator('details');
+  await expect(mcpDetails.locator('code')).not.toBeVisible();
+  await mcpDetails.locator('summary').click();
+  await expect(mcpDetails.locator('code')).toHaveText('connected · oAuth');
+  await mcpDetails.locator('summary').click();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-1440-light-en.png' });
   await page.getByRole('button', { name: '← Assistant', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'AI default language', exact: true })).toHaveValue('en');
@@ -142,8 +147,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
   await page.setViewportSize({ width: 640, height: 1000 });
   await categories.getByRole('button', { name: '비서', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toContainText('사용 가능');
-  await expect(page.getByRole('button', { name: 'Copilot 모델', exact: true })).toContainText('사용 가능');
+  await expect(page.getByRole('button', { name: 'Codex 모델', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]')).toContainText('사용 가능');
+  await expect(page.getByRole('button', { name: 'Copilot 모델', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]')).toContainText('사용 가능');
   await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
   await expect(page.getByLabel('추론 강도', { exact: true })).toHaveValue('high');
   await expect(page.getByLabel('추론 강도', { exact: true }).locator('option')).toHaveText(['보통', '높음']);

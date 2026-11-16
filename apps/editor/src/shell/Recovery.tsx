@@ -1,3 +1,4 @@
+import { Row } from "../components/ui/row.tsx";
 import { UiError } from "../ui-message.ts";
 import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
@@ -18,10 +19,11 @@ export function RecoveryList({ records, unavailable = false, onReview }: { recor
     <h2 id="recovery-title" className="document-start-label">{i18n.t("Recover unsaved work")}</h2>
     <p className="document-start-text">{unavailable ? i18n.t("Local recovery records could not be read. Open Settings to review storage information.") : records.length ? i18n.t("Local records, newest first. Review a record before restoring or deleting it.") : i18n.t("No local recovery records.")}</p>
     <ul className="recovery-records">{records.map(record => <li key={record.id}>
-      <div><strong>{typeof record.path === "string" ? splitDocumentPath(record.path).name : i18n.t("Unknown document")}</strong>
+      <Row label={typeof record.path === "string" ? splitDocumentPath(record.path).name : i18n.t("Unknown document")} description={<>
         <p className="document-start-text">{typeof record.path === "string" ? record.path : i18n.t("Unknown path")}</p>
-        <p className="document-start-text">{Number.isFinite(record.recordedAt) ? new Date(record.recordedAt).toLocaleString(i18n.resolvedLanguage) : i18n.t("Unknown recording time")}</p></div>
+        <p className="document-start-text">{Number.isFinite(record.recordedAt) ? new Date(record.recordedAt).toLocaleString(i18n.resolvedLanguage) : i18n.t("Unknown recording time")}</p></>}>
       <Button size="sm" variant="outline" onClick={() => onReview(record)}>{i18n.t("Review recovery")}</Button>
+      </Row>
     </li>)}</ul>
   </section>;
 }

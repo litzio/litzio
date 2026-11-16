@@ -188,11 +188,11 @@ The existing packaged CLI CI exercises one template read through that launcher
 before enabling the optional integration. Local packaging is not part of #1128 verification.
 
 Settings exposes **Command-line tools (CLI)** only when the Desktop bridge exists. The initial
-state is Off; neither setup nor update adds anything to PATH. Enabled reports Installed, while
+state is Off; neither setup nor update adds anything to PATH. Enabled reports On, while
 missing or mismatched owned files, application target or PATH registration report Broken path.
 Broken registrations offer Repair and Turn off. A conflicting external `litzio` command or an
 unowned file is reported without overwriting it. Operations report failures and allow another try.
-The UI follows existing Settings sections, controls and tokens, in Korean and English.
+The UI uses a standalone Row with Status plain and the existing controls, in Korean and English. PATH guidance appears on action hover and immediately after enabling.
 
 The per-user `%LOCALAPPDATA%\litzio\bin` directory contains a marked `litzio.cmd`, ownership
 record and an owned `app` junction to the fixed installation folder. The ASCII shim uses relative

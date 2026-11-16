@@ -49,8 +49,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     for(const [width,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
       await page.setViewportSize({width,height:1100});
       await page.evaluate(async theme=>{const {applyTheme}=await import('/src/theme.ts');await applyTheme(theme,false);},theme);
-      await dialog.screenshot({path:`docs/design/assets/shared-parts-1690/plugin-settings-${width}-${theme}.png`});
+      await dialog.screenshot({path:`docs/design/assets/settings-parts-1685/after-plugin-settings-${width}-${theme}.png`});
     }
+    await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0);
+    for(const [width,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
+      await page.setViewportSize({width,height:1100});
+      await page.evaluate(async theme=>{const {applyTheme}=await import('/src/theme.ts');await applyTheme(theme,false);},theme);
+      await page.mouse.move(0,0);
+      await expect(page.locator('[data-slot=tooltip-content][data-open]')).toHaveCount(0);
+      await page.getByTestId('settings-dialog').screenshot({path:`docs/design/assets/settings-parts-1685/plugin-list-${width}-${theme}.png`});
+    }
+    await external.getByRole('button',{name:'Vite fixture 설정',exact:true}).click();
     await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('en');});
     await page.setViewportSize({width:1440,height:1000});
     await page.evaluate(async()=>{const {applyTheme}=await import('/src/theme.ts');await applyTheme('light',false);});

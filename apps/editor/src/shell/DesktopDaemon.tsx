@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Ellipsis } from "lucide-react";
 import type { DesktopBridge } from "../../shared/desktop-bridge.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { useNotifications } from "@/components/ui/notification-center.tsx";
-import { SettingsRow } from "@/components/ui/settings.tsx";
+import { Row } from "@/components/ui/row.tsx";
+import { Status } from "@/components/ui/status.tsx";
 import { connectDesktop, desktopConnection, disconnectDesktop } from "../desktop-connection.ts";
 import { i18n } from "../i18n.ts";
 
@@ -52,7 +53,7 @@ export function DesktopMenu({ desktop }: { desktop: DesktopBridge }) {
   </DropdownMenu>;
 }
 
-export function DaemonStatus({ desktop }: { desktop: DesktopBridge }) {
+export function DaemonStatus({ desktop, children }: { desktop: DesktopBridge; children?: ReactNode }) {
   const [info, setInfo] = useState<Awaited<ReturnType<DesktopBridge["daemonInfo"]>>>();
   useEffect(() => {
     let active = true;
@@ -60,14 +61,15 @@ export function DaemonStatus({ desktop }: { desktop: DesktopBridge }) {
     read(); const timer = setInterval(read, 5000);
     return () => { active = false; clearInterval(timer); };
   }, [desktop]);
-  if (!info) return null;
+  if (!info) return <>{children}</>;
   return <>
-    <SettingsRow label={i18n.t("Local daemon")}><span>{info.state} · {i18n.t(info.launcher === "desktop" ? "Desktop" : info.launcher === "cli-start" ? "CLI (start)" : "CLI (run)")} · {info.productVersion}</span></SettingsRow>
-    <SettingsRow label={i18n.t("Address")}><span className="break-all">{info.url}</span></SettingsRow>
+    <Row kind="fact" label={i18n.t("Status")}><Status variant="plain" tone={info.state === "running" ? "ok" : "error"} label={i18n.t(info.state === "running" ? "Running" : "Unreachable")} /><span className="type-helper">{i18n.t(info.launcher === "desktop" ? "Desktop" : info.launcher === "cli-start" ? "CLI (start)" : "CLI (run)")} · {info.productVersion}</span></Row>
+    <Row kind="fact" label={i18n.t("Address")}><span className="break-all">{info.url}</span></Row>
+    {children}
     <details className="settings-section"><summary>{i18n.t("Details")}</summary>
-      <dl className="settings-facts">
-        {Object.entries({ protocolVersion: info.protocolVersion, pid: info.pid, startedAt: info.startedAt, access: info.roots.length ? info.roots.join(", ") : "unrestricted", nonLoopback: String(info.nonLoopback), daemonHome: info.daemonHome, executable: info.executable, ...(info.log ? { log: info.log } : {}) }).map(([name, value]) => <Fragment key={name}><dt>{name}</dt><dd className="break-all">{value}</dd></Fragment>)}
-      </dl>
+
+        {Object.entries({ protocolVersion: info.protocolVersion, pid: info.pid, startedAt: info.startedAt, access: info.roots.length ? info.roots.join(", ") : "unrestricted", nonLoopback: String(info.nonLoopback), daemonHome: info.daemonHome, executable: info.executable, ...(info.log ? { log: info.log } : {}) }).map(([name, value]) => <Row kind="fact" key={name} label={name}><code>{value}</code></Row>)}
+
     </details>
   </>;
 }

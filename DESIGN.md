@@ -228,7 +228,6 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 
 ### 알려진 불일치
 
-- [#1685](https://github.com/litzio/litzio/issues/1685): 설정의 사실 목록·묶음·상태 문구를 Row·Section·Status로 옮긴다.
 - [#1686](https://github.com/litzio/litzio/issues/1686): 탐색기·비서 머리를 PanelHeader로, 비서 상태를 Status로 옮기고 문서 패널 탭 정렬을 결정한다.
 - [#1687](https://github.com/litzio/litzio/issues/1687): 나머지 화면과 플러그인 fixture에 Row·Section·글씨 역할을 적용한다.
 
@@ -240,7 +239,7 @@ Tooltip이 입력 이름표나 필수 오류 안내를 대신하지 않는다.
 | 만들 화면·패턴 | 본보기 파일 | 확인할 부분 |
 | --- | --- | --- |
 | 이름·값 줄과 묶음 | [shared-parts-example.tsx](apps/editor/src/dev/shared-parts-example.tsx) | item·fact·좁은 열, 이름 시작선과 값 끝선, 상태 두 variant |
-| 설정 화면·설정 행 | [SettingsDialog.tsx](apps/editor/src/shell/SettingsDialog.tsx) | 목록+상세 구조의 탐색 열과 내용 열, 공통 설정 행 |
+| 설정 화면·설정 행 | [SettingsDialog.tsx](apps/editor/src/shell/SettingsDialog.tsx) | 목록+상세 구조의 탐색 열과 내용 열, Row·Section·Status와 기기 설정 |
 | 카드 목록 작업 탭 | [TemplateGallery.tsx](apps/editor/src/shell/TemplateGallery.tsx) | 목록과 미리보기·생성의 분리 |
 | 파일·폴더 선택 대화상자 | [FolderDialog.tsx](apps/editor/src/shell/FolderDialog.tsx) | 목록 선택·탐색, 위치와 확정 footer |
 | 위험 확인 | [danger-confirmation.tsx](apps/editor/src/components/ui/danger-confirmation.tsx) | 취소 초기 focus와 pending 중 실행 방지 |

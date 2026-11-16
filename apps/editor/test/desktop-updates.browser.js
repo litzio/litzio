@@ -88,10 +88,15 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
     await page.getByRole('menu').waitFor({state:'hidden'});
     await page.getByRole('button', {name:'Settings',exact:true}).click();
     await page.getByRole('button', {name:'About & updates',exact:true}).click();
-    await page.getByText('running · CLI (start) · 0.2.0', {exact:true}).waitFor();
+    await page.getByText('Running', {exact:true}).waitFor();
     check(await page.getByText('http://127.0.0.1:25887', {exact:true}).isVisible(), 'Daemon address missing');
     await capture(`daemon-status-${width}`);
     if(screenshots && width === 1440) {
+      // Deterministic settings read fixtures for visual review; no provider invocation.
+      await page.route('**/api/assistant/settings*', route=>route.fulfill({json:{provider:'codex',model:'gpt-6.1-sol',reasoningEffort:'medium',permissionMode:'opened-folders',responseLanguage:'ko'}}));
+      await page.route('**/api/assistant/environment*', route=>route.fulfill({json:{cwd:'C:/Litzio/assistant',instructions:'C:/Litzio/assistant/AGENTS.md',skills:[]}}));
+      await page.route('**/api/assistant/models*', route=>route.fulfill({json:{provider:'codex',updatedAt:1793590000000,models:[{id:'sol',model:'gpt-6.1-sol',displayName:'GPT Sol',description:'',defaultReasoningEffort:'medium',supportedReasoningEfforts:[{reasoningEffort:'medium',description:''}]}]}}));
+      await page.route('**/api/assistant/diagnostics*', route=>route.fulfill({json:{provider:'codex',connected:true,account:{type:'chatgpt'},checkedAt:1793590000000}}));
       const screen = page.getByTestId('settings-dialog');
       for(const [captureWidth,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
         await page.setViewportSize({width:captureWidth,height:1100});
@@ -100,9 +105,10 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
         await page.getByTestId('theme').selectOption(theme);
         for(const [index,category] of ['appearance','recovery','plugins','assistant','about'].entries()) {
           await screen.locator('.settings-navigation nav button').nth(index).click();
+          if(category === 'assistant') await page.waitForFunction(()=>!!document.querySelector('.agent-settings select:not(:disabled)'));
           await screen.locator('.settings-body').evaluate(n=>n.scrollTop=0);
           await page.evaluate(()=>document.fonts.ready);
-          await screen.screenshot({path:`docs/design/assets/shared-parts-1690/after-settings-${category}-${captureWidth}-${theme}.png`,mask:[screen.locator('.agent-diagnostic-row').filter({hasText:'작업 폴더'}).locator('code')],maskColor:await screen.evaluate(n=>getComputedStyle(n).backgroundColor)});
+          await screen.screenshot({path:`docs/design/assets/settings-parts-1685/after-settings-${category}-${captureWidth}-${theme}.png`});
         }
       }
       await page.setViewportSize({width:1440,height:1000});
@@ -170,7 +176,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   check(await cli.getByRole('button',{name:'Turn on',exact:true}).isDisabled(), 'CLI enable remains clickable while pending');
   await page.evaluate(() => { window.__cli.pending = false; window.__cli.finish(); });
   await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-  check(await page.getByTestId('cli-status').innerText() === 'Installed', 'CLI did not show completed installation');
+  check(await page.getByTestId('cli-status').innerText() === 'On', 'CLI did not show completed installation');
   await cli.getByRole('button',{name:'Turn off',exact:true}).click();
   await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
   check(await page.getByTestId('cli-status').innerText() === 'Off', 'CLI did not show completed removal');
@@ -183,7 +189,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   await page.evaluate(() => window.__cli.fail = false);
   await cli.getByRole('button',{name:'Repair',exact:true}).click();
   await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-  check(await page.getByTestId('cli-status').innerText() === 'Installed', 'Repair did not complete');
+  check(await page.getByTestId('cli-status').innerText() === 'On', 'Repair did not complete');
   await page.keyboard.press('Escape');
   await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   await page.evaluate(() => window.__cli.state = {status:'off',conflict:'C:\\Another CLI\\litzio.cmd'});
@@ -380,10 +386,9 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
   await dialog.getByRole('button',{name:'About & updates',exact:true}).click();
   check(await page.getByTestId('app-version').innerText() === '0.2.0', 'About does not show the version');
-  check(await dialog.getByText(`${brand.name.en} connects input/output (I/O) with Litz wire.`, {exact:true}).isVisible(), 'About does not explain the product name');
-  const stable = page.getByRole('radio', {name:/^Stable/});
-  const beta = page.getByRole('radio', {name:/^Beta/});
-  check(await stable.isChecked() && !await beta.isChecked(), 'Stable is not the default channel');
+  const stable = page.getByRole('combobox', {name:'Release channel',exact:true});
+  const beta = stable;
+  check(await stable.inputValue() === 'stable', 'Stable is not the default channel');
   await stable.focus();
   await push({phase:'no-stable-release'});
   await waitForStatus('No Stable release has been published yet.');
@@ -392,8 +397,8 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   check(await page.getByRole('button', {name:'Check for updates'}).isEnabled(), 'Stable absence disabled checking');
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => window.__desktop.calls.some(call => call[0] === 'channel'));
-  await beta.and(page.locator(':checked')).waitFor({state:'attached', timeout:5000});
-  check(await beta.isChecked() && (await calls()).includes('channel:beta'), 'The channel change did not reach the Desktop app');
+  await page.waitForFunction(() => document.querySelector('[data-testid="release-channel"]').value === 'beta');
+  check((await beta.inputValue() === 'beta') && (await calls()).includes('channel:beta'), 'The channel change did not reach the Desktop app');
   await page.getByRole('button', {name:'Check for updates'}).click();
   await page.getByRole('button', {name:'Release notes'}).click();
   await page.keyboard.press('Escape');
@@ -601,7 +606,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
 
   // Restore the baseline display state for the screen comparison (mock version 0.2.0,
   // Stable, idle, no records); the updater interaction assertions above are complete.
-  await stable.check();
+  await stable.selectOption('stable');
   await push({phase:'idle'});
   await waitForStatus('Litzio checks for updates automatically.');
   await page.keyboard.press('Escape'); await dialog.waitFor({state:'detached'});
@@ -621,8 +626,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   }
   await koreanSettings.click(); await dialog.waitFor(); await dot.waitFor({state:'detached'});
   check(await dialog.getByRole('button',{name:'정보·업데이트',exact:true}).getAttribute('aria-current') === 'page', 'Korean cue did not open About');
-  await dialog.getByText('running · CLI (백그라운드 실행) · 0.2.0', {exact:true}).waitFor();
-  check(await dialog.getByText(`${brand.name.ko}(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.`, {exact:true}).isVisible(), 'Korean About does not explain the product name');
+  await dialog.getByText('실행 중', {exact:true}).waitFor();
   await capture('update-highlight-ko-light-640');
   await push({phase:'available',version:'0.3.0-beta.4',prerelease:true});
   await page.waitForFunction(() => window.__desktop.info.seenUpdate === '0.3.0-beta.4');
@@ -671,12 +675,14 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
           await page.waitForFunction(()=>!!document.querySelector('[data-testid="cli-integration"] button'));
           const ends = await dialog.evaluate(n=>{
             const right = element=>{const range=document.createRange();range.selectNodeContents(element);return range.getBoundingClientRect().right;};
-            const reference=right(n.querySelector('[data-testid="app-version"]'));
-            const values=[...n.querySelectorAll('.shared-row .settings-row-control')].map(right);
+            const reference=n.querySelector('.shared-row').getBoundingClientRect().right;
+            const values=[...n.querySelectorAll('.shared-row .settings-row-control')].filter(element=>element.checkVisibility()).map(right);
             const actions=[...n.querySelectorAll('.settings-section:not(.settings-section--stacked) > .settings-actions')].map(group=>[...group.querySelectorAll('button')].at(-1)?.getBoundingClientRect().right);
             return {reference,values,actions};
           });
-          check(ends.values.length>0 && ends.actions.length>0 && [...ends.values,...ends.actions].every(right=>Math.abs(right-ends.reference)<1),
+          const versionLine = await dialog.getByTestId('settings-update-section').evaluate(n=>{const elements=[...n.querySelectorAll('[data-testid="app-version"],button')];return elements.every(element=>Math.abs(element.getBoundingClientRect().top-elements[0].getBoundingClientRect().top)<element.getBoundingClientRect().height);});
+          check(versionLine, 'Version and update actions must share a line in a wide settings column');
+          check(ends.values.length>0 && [...ends.values,...ends.actions].every(right=>Math.abs(right-ends.reference)<1),
             `About values and final action buttons must share an end line: ${JSON.stringify(ends)}`);
         }
         if(category === 'appearance' && width === 640) {
@@ -686,7 +692,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
           })), 'Settings values must stack at the minimum supported window width');
         }
         if(category === 'recovery' && width === 1440) {
-          check(await dialog.locator('[aria-labelledby="settings-recovery"] > .settings-section').first().evaluate(row=>{
+          check(await dialog.locator('.shared-section > .shared-row').first().evaluate(row=>{
             const label=row.querySelector('.settings-label').getBoundingClientRect(), control=row.querySelector('button').getBoundingClientRect();
             return label.right<=control.left && label.top<control.bottom;
           }), 'Row containers changed the neighboring recovery layout');

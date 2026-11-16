@@ -189,7 +189,7 @@ async (page, { expect, screenshots }) => {
     const label = row.querySelector('.settings-label').getBoundingClientRect();
     const value = row.querySelector('.settings-row-control').getBoundingClientRect();
     const children = [...row.querySelectorAll('button,select,input')].map(n=>n.getBoundingClientRect());
-    return {left:label.left,right:value.right,top:value.top,labelBottom:label.bottom,valueLeft:value.left,overflow:row.scrollWidth>row.clientWidth,controlRight:children.at(-1)?.right,selectWidth:row.querySelector('select')?.getBoundingClientRect().width};
+    return {valueWidth:value.width,rowWidth:row.getBoundingClientRect().width,left:label.left,right:value.right,top:value.top,labelBottom:label.bottom,valueLeft:value.left,overflow:row.scrollWidth>row.clientWidth,controlRight:children.at(-1)?.right,selectWidth:row.querySelector('select')?.getBoundingClientRect().width};
   }));
   await page.setViewportSize({width:1440,height:1100});
   const rows = shared.locator('.shared-section').first();
@@ -197,6 +197,8 @@ async (page, { expect, screenshots }) => {
   expect(wide.every(r=>Math.abs(r.left-wide[0].left)<1 && Math.abs(r.right-wide[0].right)<1 && !r.overflow)).toBe(true);
   expect(wide.filter(r=>r.controlRight).every(r=>Math.abs(r.controlRight-r.right)<1)).toBe(true);
   expect(wide[0].selectWidth).toBe(wide[1].selectWidth);
+  expect(wide.every(r=>r.valueWidth<=r.rowWidth*.6)).toBe(true);
+  expect(wide[2].valueWidth).toBeLessThan(wide[0].valueWidth);
   // Gallery headings must retain the same production role as a Section outside it.
   const sectionStyles = await shared.locator('.shared-section > h2').evaluateAll(headings=>{
     const sample=document.createElement('h2');sample.className='type-group-title';document.body.append(sample);
@@ -231,7 +233,7 @@ async (page, { expect, screenshots }) => {
   if(screenshots) for(const [width,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
     await page.setViewportSize({width,height:1500});
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
-    await shared.screenshot({path:`docs/design/assets/shared-parts-1690/gallery-${width}-${theme}.png`});
+    await shared.screenshot({path:`docs/design/assets/settings-parts-1685/gallery-${width}-${theme}.png`});
   }
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   await page.setViewportSize({width:1440,height:1000});

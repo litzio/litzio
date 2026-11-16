@@ -1,9 +1,10 @@
 /* Each row queries its own available width without changing surrounding containers. */
-.shared-row.settings-row { container-type: inline-size; margin: 0; grid-template-columns: minmax(0, 1fr) minmax(0, var(--layout-settings-control-width)); }
-.shared-row .settings-row-control { justify-content: flex-end; text-align: end; overflow-wrap: anywhere; margin: 0; }
+.shared-row.settings-row { container-type: inline-size; margin: 0; grid-template-columns: minmax(0, 1fr) fit-content(60%); }
+.shared-row .settings-row-control { justify-content: flex-end; text-align: end; overflow-wrap: anywhere; margin: 0; max-width: 100%; }
 .shared-row .settings-label { min-width: 0; overflow-wrap: anywhere; }
-.shared-row .screen-select { width: 100%; }
-.settings-field-control { display: flex; justify-content: flex-end; width: 100%; min-width: 0; }
+.shared-row .screen-select { width: var(--layout-settings-control-width); max-width: 100%; }
+.settings-field-control { display: flex; justify-content: flex-end; width: fit-content; max-width: 100%; min-width: 0; }
+.settings-field-control > .settings-select, .shared-row .settings-row-control > input:not(.settings-switch) { width: var(--layout-settings-control-width); max-width: 100%; }
 .shared-row[data-kind="fact"] .settings-row-control { font-variant-numeric: tabular-nums; }
 .shared-row code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); white-space: normal; overflow-wrap: anywhere; word-break: normal; min-width: 0; max-width: 100%; }
 .shared-section > h2 { margin: var(--space-6) 0 0; padding-bottom: var(--space-3); }
