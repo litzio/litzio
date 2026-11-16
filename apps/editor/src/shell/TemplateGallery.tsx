@@ -1,3 +1,4 @@
+import { TaskHeader } from "../components/ui/task-header.tsx";
 import type { HostClient } from "../host-client.ts";
 import { useHostClient } from "../host-context.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -76,13 +77,13 @@ export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFo
   const choose = (item: TemplateSummary, id: string) => { setSelected(item); setTriggerId(id); setOpen(true); };
   const sections = [{ kind: "builtin", label: templateText("Built-in templates") }, { kind: "user", label: templateText("User templates") }];
   return <section className="template-gallery task-surface" aria-label={i18n.t("Template gallery")}>
-    <header className="template-gallery-header"><h1 className="task-surface-title">{i18n.t("Template gallery")}</h1>
+    <TaskHeader title={i18n.t("Template gallery")} actions={
       <div className="template-gallery-actions">
         <Button size="sm" variant="ghost" disabled={disabled || !catalog} title={catalog?.directory}
           onClick={async () => { if (catalog) { const error = await onOpenFolder(catalog.directory); if (error) setProblem(error); } }}>
           <FolderOpen aria-hidden="true" />{templateText("Open template folder")}</Button>
         <Button size="icon-sm" variant="ghost" aria-label={i18n.t("Refresh")} disabled={loading} onClick={() => { setOpen(false); setRefresh(value => value + 1); }}><RotateCcw aria-hidden="true" /></Button>
-      </div></header>
+      </div>} />
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     {loading ? <p role="status">{i18n.t("Loading…")}</p> : null}
     {catalog?.problems.length ? <Notice tone="warning"><strong>{templateText("Some user templates could not be loaded.")}</strong>

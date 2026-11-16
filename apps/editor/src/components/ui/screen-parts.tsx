@@ -1,16 +1,32 @@
 import type { ScreenSelectProps, ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "@litzio/plugin-sdk";
-import { useId, type ReactNode } from "react";
+import { useContext, useId, type ReactNode } from "react";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
 import { Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, ResponsiveContainer, Tooltip, Text, XAxis, YAxis } from "recharts";
 import "./screen-parts.css";
+import { createPortal } from "react-dom";
+import { TaskHeaderSlots } from "./task-header.tsx";
 import { SelectControl } from "./settings.tsx";
 export function Select({ label, ...props }: ScreenSelectProps) {
   const id = useId();
   return <label className="screen-select" htmlFor={id}>{label}<SelectControl id={id} {...props} /></label>;
 }
 
-export function ScreenLayout({ description, children }: { title?: string; description?: string; children: ReactNode }) {
-  return <section className="screen-layout">{description && <p className="screen-description">{description}</p>}{children}</section>;
+export function ScreenLayout({ description, status, actions, width = "full", children }: { title?: string; description?: string; status?: ReactNode; actions?: ReactNode; width?: "full" | "narrow"; children: ReactNode }) {
+  const slots = useContext(TaskHeaderSlots);
+  const descriptionNode = description && <p className="screen-description">{description}</p>;
+  return <>{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width}>{!slots && <>{descriptionNode}{status}{actions}</>}{children}</section></>;
+}
+export function Status({tone = "neutral", label}: {tone: "ok" | "progress" | "warning" | "error" | "neutral"; label: string}) {
+  return <span className="screen-status" data-tone={tone}><span aria-hidden="true"/>{label}</span>;
+}
+export function Steps({steps, current}: {steps: string[]; current: number}) {
+  return <ol className="screen-steps">{steps.map((step, index) => <li key={index} aria-current={index === current ? "step" : undefined} data-state={index < current ? "past" : index === current ? "current" : "remaining"}><span className="screen-step-number" aria-hidden="true">{index + 1}</span><span>{step}</span></li>)}</ol>;
+}
+export function EmptyState({title, description, action}: {title: string; description?: string; action?: ReactNode}) {
+  return <div className="screen-empty"><strong>{title}</strong>{description && <p className="screen-description">{description}</p>}{action && <div>{action}</div>}</div>;
+}
+export function Progress({value, label}: {value?: number; label?: string}) {
+  return <div className="screen-progress">{label && <span>{label}</span>}<progress className="settings-progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={1} aria-valuenow={value === undefined ? undefined : Math.max(0, Math.min(1, value))} max={1} value={value === undefined ? undefined : Math.max(0, Math.min(1, value))}/></div>;
 }
 export function Toolbar({ children, label }: { children: ReactNode; label?: string }) {
   return <div className="screen-toolbar" role={label ? "group" : undefined} aria-label={label}>{children}</div>;

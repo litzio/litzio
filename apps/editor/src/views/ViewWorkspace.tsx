@@ -1,3 +1,4 @@
+import { ScreenFrame } from "../components/ui/task-header.tsx";
 import { PluginScreenCode, ScreenBoundary } from "./PluginScreenCode.tsx";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { hostConnection, getHostClient, type HostClient } from "../host-client.ts";
@@ -47,9 +48,9 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
   const contribution = catalogClient === client ? catalog?.screens?.find(s => s.plugin === owner && s.id === screen.id) : undefined;
   const active = connected && !!contribution;
   return <div className="view-workspace task-surface" data-testid="view-workspace">
-    <h1 className="task-surface-title">{screen.title}</h1>
+    <ScreenFrame title={screen.title}>
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} onOpen={onOpenDocument} /> : null}</ScreenBoundary>
-  </div>;
+  </ScreenFrame></div>;
 }
