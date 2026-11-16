@@ -176,12 +176,13 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByTestId('figure-alt').press('Escape');
   await openPath(page, fileA);
   // Another client commits using the same real API; the Editor's stale baseline must get 409.
+  await editor.locator('p').filter({hasText:'Alpha.'}).click(); await page.keyboard.press('End'); await page.keyboard.type(' Kept local.');
+  await page.getByRole('tab', {name:'a.md, Unsaved changes',exact:true}).waitFor();
   const loaded = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fileA)}`, { headers: { Connection: "close" } })).json();
   const external = await page.request.post(origin + '/api/document', { headers:{ Connection: "close", Origin:origin}, data:{
     path:fileA, revision:loaded.revision, base:{source:loaded.source}, paragraphs:[{path:[2], content:[{kind:'text', text:'Changed elsewhere.'}]}],
   } });
   check(external.status() === 200, 'Concurrent writer commits');
-  await editor.locator('p').filter({hasText:'Alpha.'}).click(); await page.keyboard.press('End'); await page.keyboard.type(' Kept local.');
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"][data-operation="save-conflict"]').waitFor({state:'attached'});
   check((await editor.innerText()).includes('Kept local.'), '409 keeps local input');
@@ -189,6 +190,8 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByRole('button', {name:'File actions', exact:true}).click();
   await page.getByRole('menuitem', {name:'Reload', exact:true}).click();
   await page.getByRole('button', {name:'Discard and reload', exact:true}).click(); await ready();
+  await editor.locator('p').filter({hasText:'Changed elsewhere.'}).waitFor();
+  check(!(await editor.innerText()).includes('Kept local.'), 'Confirmed Reload replaces local input with disk content');
   // The media CSP also works in a real browser when an SVG is opened as a document.
   const media = await page.context().newPage();
   try {
