@@ -25,7 +25,7 @@ export function HostStatus({ runtime, restartRequired = false, showDetails = tru
   else if (runtime.state === "disconnected") { status = t("Unreachable"); tone = "error"; }
   else if (runtime.warning) { status = t("Version warning"); tone = "warning"; }
   else { status = t("Connected"); tone = "ok"; }
-  return <span className="host-status" data-tone={tone} data-compact={compact || undefined} role="status">
+  return <span className="host-status" data-tone={tone === "ok" ? "connected" : tone === "error" ? "danger" : tone === "neutral" ? "muted" : tone} data-compact={compact || undefined} role="status">
     <Status variant="plain" tone={tone} label={<span className={iconOnly ? "sr-only" : undefined}>{status}</span>} />
     {showDetails && detail ? <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={t("Connection details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip> : null}
   </span>;
