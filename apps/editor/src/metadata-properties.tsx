@@ -11,10 +11,10 @@ import { Notice } from "./ui/primitives.tsx";
 import { metadataAnchorRect, useMetadataPlacement } from "./ui/use-metadata-placement.ts";
 
 /** Short metadata only. Source editing retains its explicit Apply/Cancel form. */
-export function MetadataProperties({ editor, anchor, target, initialFocus, kind, testId, open, busy, choosing, error, onApply, onCancel, children, media, actions }: {
+export function MetadataProperties({ editor, anchor, target, initialFocus, kind, testId, open, busy, choosing, error, onApply, onCancel, children, media }: {
   editor: Editor; anchor: RefObject<HTMLElement | null>; target(): Element | null; initialFocus?: RefObject<HTMLElement | null>; kind: string; testId: string; open: boolean;
   busy?: boolean; choosing?: boolean; error?: string; onApply(outside?: boolean): void; onCancel(): void; children: ReactNode;
-  media?: ReactNode; actions?: ReactNode;
+  media?: ReactNode;
 }) {
   const { t } = useTranslation();
   const visible = useEditorAuthoring();
@@ -50,7 +50,11 @@ export function MetadataProperties({ editor, anchor, target, initialFocus, kind,
     const switchingView = details.event.composedPath().some(target => target instanceof Element &&
       target.matches('[data-testid="view-read"], .command-center-trigger, [data-tab-id="settings"], [data-open-settings]'));
     const inDialog = details.event.composedPath().some(target => target instanceof Element && target.getAttribute("role") === "dialog");
-    if (details.reason === "outside-press" && !inDialog && !switchingView && !busy && details.event instanceof MouseEvent && details.event.detail > 0 && outsideCompletion.current === undefined) {
+    // This object's own tool row is not "outside": each of its buttons states what it does.
+    const block = target();
+    const inTools = details.event.composedPath().some(node => node instanceof Element &&
+      node.matches("[data-object-tools]") && !!block?.contains(node));
+    if (details.reason === "outside-press" && !inDialog && !switchingView && !inTools && !busy && details.event instanceof MouseEvent && details.event.detail > 0 && outsideCompletion.current === undefined) {
       // Let the engine read the native pointer selection before a synchronous
       // metadata transaction writes its selection back to the DOM.
       outsideCompletion.current = window.setTimeout(() => {
@@ -98,7 +102,7 @@ export function MetadataProperties({ editor, anchor, target, initialFocus, kind,
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCancel(); }
         }}>
         {(side === "bottom" ? ["actions", "body"] : ["body", "actions"]).map(slot => slot === "actions"
-          ? <div key="actions" className="form-actions">{actions}<Button type="submit" size="sm" disabled={busy} data-testid={`${testId}-apply`}>{t("Done")}</Button></div>
+          ? <div key="actions" className="form-actions"><Button type="submit" size="sm" disabled={busy} data-testid={`${testId}-apply`}>{t("Done")}</Button></div>
           : <div key="body" className="metadata-property-body">
             {(side === "bottom" ? ["fields", "media"] : ["media", "fields"]).map(part => part === "fields"
               ? <div key="fields" className="metadata-property-fields">{children}{error ? <Notice tone="error">{error}</Notice> : null}</div>

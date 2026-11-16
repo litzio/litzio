@@ -18,6 +18,19 @@ export function usePropertyEntry(anchor: RefObject<HTMLElement | null>, begin: (
   }, [anchor, begin]);
 }
 
+/** The block menu addresses a mounted object's own entry points by name. */
+export const OBJECT_ACTION = "litzio-object-action";
+export type ObjectAction = "properties" | "content";
+
+export function useObjectActions(anchor: RefObject<HTMLElement | null>, actions: Partial<Record<ObjectAction, () => void>>) {
+  useEffect(() => {
+    const wrapper = anchor.current?.closest("[data-node-view-wrapper]");
+    const run = (event: Event) => actions[(event as CustomEvent<ObjectAction>).detail]?.();
+    wrapper?.addEventListener(OBJECT_ACTION, run);
+    return () => wrapper?.removeEventListener(OBJECT_ACTION, run);
+  });
+}
+
 export function handleTextblockMouseDown(event: ReactMouseEvent, { editor, node, getPos }: Pick<ReactNodeViewProps, "editor" | "node" | "getPos">): void {
   if (!editor.isEditable || event.button !== 0 || event.defaultPrevented) return;
   if (node.content.size !== 0 && event.detail !== 3) return;

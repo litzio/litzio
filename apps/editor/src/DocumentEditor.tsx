@@ -40,6 +40,7 @@ import { blockMoveBlockedHint } from "./block-reorder.ts";
 import { DocumentTitle } from "./document-title.tsx";
 import { CommandMenu, type CommandMenuItem } from "./CommandMenu.tsx";
 import { insertCommandIcon, blockCommandAppearance } from "./command-icons.ts";
+import { OBJECT_ACTION, type ObjectAction } from "./node-views/shared.ts";
 import { insertReference, referenceCommandItems, referenceOfCommand, ReferenceForm, referencesBrokenByDeletion, referenceTargets, isResolved, type ReferenceTarget } from "./cross-reference.tsx";
 import { ENDNOTE_COMMAND, ENDNOTE_DRAFT_CLOSED, canEditEndnoteAt, endnoteAt, endnoteCommandItems, endnoteEditingKey, endnoteEditorToken, insertEndnote, setEndnoteEditing } from "./endnotes.ts";
 import { LinkForm, linkDraftOf, SelectionToolbar, type LinkDraft } from "./SelectionToolbar.tsx";
@@ -813,6 +814,24 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     editor.view.dispatch(command.run(editor.state, index));
     editor.view.focus();
   };
+  // A document object's own entry points lead its block menu, under the names its tool row uses.
+  const objectMenuItems = (index: number): CommandMenuItem[] => {
+    const node = editor.state.doc.child(index);
+    if (!["table", "figure", "equation"].includes(node.type.name)) return [];
+    const content = node.type.name === "equation" || typeof node.attrs.mermaidSource === "string"
+      ? { id: "object-source", label: i18n.t("Edit source") }
+      : node.type.name === "figure" && node.attrs.imageUrl ? { id: "object-image", label: i18n.t("Replace image") } : undefined;
+    return [{ id: "object-properties", label: i18n.t("Properties") }, ...(content ? [content] : [])]
+      .map(item => ({ ...item, group: i18n.t("Properties"), icon: blockCommandAppearance(item.id).icon }));
+  };
+  const runObjectAction = (id: string, index: number) => {
+    setBlockMenu(null);
+    let position = 0;
+    for (let block = 0; block < index; block++) position += editor.state.doc.child(block).nodeSize;
+    const dom = editor.view.nodeDOM(position);
+    const wrapper = dom instanceof HTMLElement ? dom.querySelector("[data-node-view-wrapper]") : null;
+    wrapper?.dispatchEvent(new CustomEvent<ObjectAction>(OBJECT_ACTION, { detail: id === "object-properties" ? "properties" : "content" }));
+  };
   const closeBlockMenu = (event?: MouseEvent) => {
     setBlockMenu(null);
     if (blockMenu?.context && event) {
@@ -1032,7 +1051,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         <CommandMenu
           key={`block-${blockMenu.index}`}
           label={i18n.t("Block actions")}
-          items={[...(editor.state.doc.child(blockMenu.index).type.name === "orderedList"
+          items={[...objectMenuItems(blockMenu.index), ...(editor.state.doc.child(blockMenu.index).type.name === "orderedList"
             ? [{ id: "list-format", label: i18n.t("List format"), group: i18n.t("Lists"), icon: insertCommandIcon("numbered-list") }] : []),
             ...BLOCK_COMMANDS.filter(command => (command.applies?.(editor.state, blockMenu.index) ?? true) &&
               command.id !== `heading-level-${editor.state.doc.child(blockMenu.index).attrs.level}`).map(command => ({
@@ -1057,7 +1076,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             if (id === "table-wrap") {
               setTableWrap(documentPath ?? "", !tableWrap);
               closeBlockMenu(); editor.view.focus();
-            } else runBlockCommand(id, blockMenu.index);
+            } else if (id.startsWith("object-")) runObjectAction(id, blockMenu.index);
+            else runBlockCommand(id, blockMenu.index);
           }}
           onClose={closeBlockMenu}
         />
