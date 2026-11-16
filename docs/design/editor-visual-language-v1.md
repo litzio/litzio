@@ -40,6 +40,7 @@ The table lists `--id-color-` roles; selected roles come from the preset tables 
 | `border-control` | `#7b8390` | `#9aa6b7` | Recognizable fields and outlined controls |
 | `paper-border` | Alias `border-subtle` | `#485363` | Independent paper edge |
 | `danger` / `surface-danger` | `#a12b32` / `#fff1f0` | `#ffa4aa` / `#422b30` | Errors and destructive actions |
+| `success` | `#14734b` | `#70d4a5` | Normal, successful and connected status text/dots |
 | `warning` / `surface-warning` | `#875717` / `#fff8ed` | `#efc079` / `#3e3323` | Caution |
 | `info` / `surface-info` | Alias `text-muted` / `surface-subtle` | Same aliases | Neutral information |
 | `backdrop` | Black 10% | Black 45% | Modal backdrop |
