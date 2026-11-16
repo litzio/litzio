@@ -169,6 +169,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
               <EquationFormula className="equation-math equation-preview" latex={draft} testId="equation-edit-preview" />
               {number === undefined ? null : <span className="equation-number" data-testid="equation-number">({number})</span>}
             </div>
+            <div className="figure-property-columns">
             <div className="form-field">
               <label className="form-label" htmlFor={`${formId}-label`}>{i18n.t("Label")}</label>
               <Input id={`${formId}-label`}
@@ -184,6 +185,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
               <FieldError id={`${formId}-error`}>{error}</FieldError>
             </div>
             <NumberField editor={editor} getPos={getPos} testId="equation" draft={numberDraft} onChange={() => setError("")} />
+            </div>
           </PropertyForm>
         </div>
       ) : null}

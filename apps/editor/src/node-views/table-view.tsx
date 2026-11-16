@@ -77,12 +77,14 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
     <div ref={rowLayer} className="table-row-layer" contentEditable={false} />
     <MetadataProperties editor={editor} target={() => anchor.current?.closest("[data-block=table]") ?? null} anchor={anchor} initialFocus={input} kind={kind} testId="table" open={editing}
       onApply={apply} onCancel={() => close()}>
+      <div className="figure-property-columns">
       <div className="form-field">
         <label className="form-label" htmlFor={`table-label-${formId}`}>{i18n.t("Label")}</label>
         <Input ref={input} id={`table-label-${formId}`} aria-invalid={!!error || undefined} aria-describedby={error ? `${formId}-error` : undefined} data-testid="table-label" value={draft} onChange={event => { setDraft(event.target.value); setError(""); }} />
         <FieldError id={`${formId}-error`}>{error}</FieldError>
       </div>
       <NumberField editor={editor} getPos={getPos} testId="table" draft={numberDraft} />
+      </div>
     </MetadataProperties>
   </NodeViewWrapper>;
 }
