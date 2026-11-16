@@ -80,13 +80,33 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
   const [presentation, setPresentation] = useState<"closed" | "automatic" | "manual">(() =>
     items.some(item => item.severity !== "info" || !!item.actionLabel) ? "automatic" : "closed");
   const expanded = presentation !== "closed";
+  const [manualMounted, setManualMounted] = useState(false);
   const [announcement, setAnnouncement] = useState<{ sequence: number; text: string }>();
   const previous = useRef<string[]>([]);
   const visible = items.filter(item => !hidden.includes(item.id));
+  // Retain only the presentation of removed rows until CSS transitions finish.
+  // Live counts, announcements and actions continue to use visible/source items.
+  const [presented, setPresented] = useState(visible);
+  const reducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Source updates are live immediately. Only removed rows may be retained, and
+  // reduced motion removes them in the same render rather than a later microtask.
+  const displayed = [...visible, ...presented.filter(item => !reducedMotion && !visible.some(next => next.id === item.id))];
+  useLayoutEffect(() => {
+    setPresented(previous => [...visible, ...previous.filter(item => !reducedMotion && !visible.some(next => next.id === item.id))]);
+  }, [items, hidden, reducedMotion]);
+  useLayoutEffect(() => {
+    let cancelled = false;
+    const exiting = [...(list.current?.querySelectorAll<HTMLElement>("li[data-ending-style]") ?? [])];
+    const animations = exiting.flatMap(element => element.getAnimations());
+    if (exiting.length) Promise.allSettled(animations.map(animation => animation.finished)).then(() => {
+      if (!cancelled) setPresented(previous => previous.filter(item => visible.some(next => next.id === item.id)));
+    });
+    return () => { cancelled = true; };
+  }, [presented, visibleIdsForMotion(visible)]);
   // testId already identifies typed producers. Generic errors/standing warnings
   // need their message too, so unrelated causes are not presented as one kind.
   const groups = new Map<string, RegisteredNotification[]>();
-  for (const item of visible) {
+  for (const item of displayed) {
     const kind = item.testId && !["error", "notice", "writeability-warning"].includes(item.testId) ? item.testId : item.message;
     const key = JSON.stringify([item.source, item.context, item.severity, kind]);
     groups.set(key, [...(groups.get(key) ?? []), item]);
@@ -97,11 +117,12 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
       setPresentation("closed");
       if (dismissed.current || list.current?.contains(document.activeElement)) toggle.current?.focus();
     } else if (dismissed.current) {
-      list.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      if (visibleIdsForMotion(displayed) !== visibleIds) return;
+      list.current?.querySelector<HTMLButtonElement>("li:not([inert]) button")?.focus();
     }
     dismissed.current = false;
     previousCount.current = visible.length;
-  }, [visibleIds]);
+  }, [visibleIds, presented]);
   const dismiss = (entries: Notification[]) => {
     dismissed.current = true;
     setHidden(value => [...value, ...entries.map(item => item.id)]);
@@ -124,11 +145,11 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
     previous.current = ids;
   }, [causes]);
   const contents = (
-    <ul ref={list} hidden={!expanded} id="notification-list" aria-label={i18n.t("Notifications")}>{Array.from(groups, ([key, entries]) => {
-      const rows = entries.map(item => <li key={item.id} data-severity={item.severity}>
+    <ul ref={list} hidden={!expanded && !manualMounted} id="notification-list" aria-label={i18n.t("Notifications")}>{Array.from(groups, ([key, entries]) => {
+      const rows = entries.map(item => <li key={item.id} data-severity={item.severity} data-ending-style={!visible.some(next => next.id === item.id) ? "" : undefined} inert={!visible.some(next => next.id === item.id)} aria-hidden={!visible.some(next => next.id === item.id) || undefined}>
       <div className="notification-content">
         {entries.length === 1 && item.context ? <p className="notification-context">{item.context}</p> : null}
-        <div data-testid={item.testId} role={item.severity === "error" && !item.actionLabel ? "alert" : "status"}>
+        <div data-testid={visible.some(next => next.id === item.id) ? item.testId : undefined} role={!visible.some(next => next.id === item.id) ? undefined : item.severity === "error" && !item.actionLabel ? "alert" : "status"}>
         {item.render ? item.render() : <p>{item.message}</p>}
         {item.reveal ? <Button className="notification-reveal" size="sm" variant="ghost" onClick={item.reveal}>{item.actionLabel ?? i18n.t("Go to problem")}</Button> : null}
         </div>
@@ -155,8 +176,9 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
       // Outside pointer dismissal, the bell and Escape still close the nonmodal list.
       if (!next && details.reason === "focus-out") { details.cancel(); return; }
       returnFocus.current = !next && details.reason === "escape-key" && !!list.current?.contains(document.activeElement);
+      if (next) setManualMounted(true);
       setPresentation(next ? "manual" : "closed");
-    }} modal={false}>
+    }} onOpenChangeComplete={next => { if (!next) setManualMounted(false); }} modal={false}>
     <aside ref={setOutlet} className="notification-center" data-severity={visible.length ? severity : undefined} aria-label={i18n.t("Notifications")} data-presentation={presentation}>
     <Tooltip><TooltipTrigger render={<PopoverPrimitive.Trigger
       aria-expanded={expanded} aria-controls={expanded ? "notification-list" : undefined}
@@ -165,14 +187,14 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
         aria-label={i18n.t("Notifications")} aria-description={accessibleLabel} />} />}>
       <Bell />{visible.length ? <span className="notification-count" aria-hidden="true">{visible.length}</span> : null}
     </TooltipTrigger><TooltipContent>{i18n.t("Notifications")}</TooltipContent></Tooltip>
-    {presentation === "manual" ? <PopoverContent anchor={toggle} portalContainer={outlet} side="bottom" align="end" sideOffset={8}
+    {presentation === "manual" || manualMounted ? <PopoverContent anchor={toggle} portalContainer={outlet} side="bottom" align="end" sideOffset={8}
       initialFocus={false} finalFocus={() => {
         const target = returnFocus.current ? toggle.current : false;
         returnFocus.current = false;
         return target;
       }} className="notification-popover" aria-label={i18n.t("Notifications")}>
     {contents}
-    </PopoverContent> : presentation === "automatic" ? <section className="notification-auto" aria-label={i18n.t("Notifications")}>{contents}</section> : contents}
+    </PopoverContent> : <section className="notification-auto" hidden={presentation !== "automatic"} aria-label={i18n.t("Notifications")}>{contents}</section>}
 
   </aside></Popover></>;
 }
@@ -197,3 +219,5 @@ function NotificationGroup({ summary, context, severity, expanded, onToggle, onD
     </div>
   </li>;
 }
+
+function visibleIdsForMotion(items: Notification[]) { return JSON.stringify(items.map(item => item.id)); }

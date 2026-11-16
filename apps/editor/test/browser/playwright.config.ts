@@ -11,7 +11,7 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   timeout: 120_000,
-  use: { actionTimeout: 15_000, navigationTimeout: 15_000 },
+  use: { reducedMotion: "reduce", actionTimeout: 15_000, navigationTimeout: 15_000 },
   reporter: "list",
   outputDir: path.join(REPOSITORY_ROOT, "tmp/browser-results"),
   // An explicitly supplied URL belongs to its caller. Every default server is owned by Playwright, on both local and CI runs.

@@ -35,3 +35,13 @@ export function SettingsSelect({ value, options, onChange, disabled, testId, ...
   return <FieldRow {...row} id={id}><SelectControl id={id} data-testid={testId} value={value} options={options} disabled={disabled}
     aria-describedby={row.description ? `${id}-description` : undefined} onValueChange={onChange} /></FieldRow>;
 }
+
+/** Shared progress semantics with a compositor-only value transition. */
+export function SettingsProgress({ value, max = 1, ...props }: { value?: number; max?: number; "aria-label"?: string }) {
+  const fraction = value === undefined ? undefined : Math.max(0, Math.min(1, value / max));
+  if (fraction === undefined) return <progress className="settings-progress" role="progressbar" max={max} {...props} />;
+  return <div className="settings-progress">
+    <progress className="sr-only" role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={fraction * max} max={max} value={fraction * max} {...props} />
+    <span style={{ transform: `scaleX(${fraction})` }} />
+  </div>;
+}

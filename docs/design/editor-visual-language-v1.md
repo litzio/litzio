@@ -124,7 +124,16 @@ References read like links without box/fill: content-link color, underline on ho
 
 Settings → Appearance & language, the footer toggle beside Settings, and two Command Center choices share Light / Dark (#1042). With no saved choice, startup resolves the OS theme once and stores that explicit choice. Later OS changes do not change it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles. Images retain original pixels; KaTeX inherits text.
 
-User theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
+User theme changes use a 500ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; shared control colors and overlay opacity/transform use the motion tokens below. Focus indicators remain immediate. Disclosure uses CSS intrinsic-size interpolation only where supported. Progress values use transform, never width transitions. Reduced motion zeros both motion durations at the token source.
+
+Motion evidence (#1681): the gallery capture pauses real CSS transitions at 15%, 40%, 70% and 100% of their token duration (light theme), plus the immediate reduced-motion result. Reproduce with `pnpm browser:test ui-gallery --screenshots`. These are sampled frames, not elapsed wall-clock recordings.
+
+| Surface | Transition frames | Reduced motion |
+| --- | --- | --- |
+| Dialog | [1](assets/motion-1681/dialog-1.png), [2](assets/motion-1681/dialog-2.png), [3](assets/motion-1681/dialog-3.png), [4](assets/motion-1681/dialog-4.png) | [Immediate](assets/motion-1681/dialog-reduced.png) |
+| Menu | [1](assets/motion-1681/menu-1.png), [2](assets/motion-1681/menu-2.png), [3](assets/motion-1681/menu-3.png), [4](assets/motion-1681/menu-4.png) | [Immediate](assets/motion-1681/menu-reduced.png) |
+| Notification | [1](assets/motion-1681/notification-1.png), [2](assets/motion-1681/notification-2.png), [3](assets/motion-1681/notification-3.png), [4](assets/motion-1681/notification-4.png) | [Immediate](assets/motion-1681/notification-reduced.png) |
+| Button hover | [1](assets/motion-1681/hover-1.png), [2](assets/motion-1681/hover-2.png), [3](assets/motion-1681/hover-3.png), [4](assets/motion-1681/hover-4.png) | [Immediate](assets/motion-1681/hover-reduced.png) |
 
 External blocking [theme-init.js](../../apps/editor/public/theme-init.js) resolves theme/page before styles/app bundle; it temporarily sets native `color-scheme` without duplicating colors. Runtime applies theme/accent before React UI. [Desktop appearance](desktop-distribution-v1.md#appearance-595) owns native resolution/bridge and first-window background; no Host theme persistence is added.
 
@@ -200,6 +209,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Command Center | `--layout-command-center-width`, `--layout-command-center-popup-width`, `--layout-command-center-list-height` |
 | Settings | `--layout-settings-content-width`, `--layout-settings-control-width`, `--layout-document-settings-label-width`, `--space-document-settings-after` |
 | Figure metadata | `--layout-figure-popover-width`, `--size-figure-property-thumbnail-max-width/height`, `--space-figure-popover-gap`; preview retains intrinsic ratio |
+| Motion | `--duration-fast` (control colors), `--duration-normal` (surfaces, progress, disclosure), `--ease-motion` (deceleration); at most 200ms, reduced motion disables both durations |
 | Heading depth | `--font-size-heading-level`, `--id-color-heading-level`, `--space-heading-level-gap`, `--layout-reading-heading-gutter`, `--space-heading-level-reading-gap`; all in Adjustable values, using existing metadata/theme tokens |
 | Folder/image picker | `--layout-folder-picker-width`, `--layout-folder-picker-list-height`, `--layout-folder-picker-folder-list-height`, `--layout-folder-picker-preview-height` |
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |
