@@ -1,4 +1,4 @@
-import { SettingsProgress } from "./settings.tsx";
+import { LoaderCircle } from "lucide-react";
 import type { ScreenSelectProps, ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "@litzio/plugin-sdk";
 import { useContext, useId, type ReactNode } from "react";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
@@ -6,7 +6,7 @@ import { Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, Resp
 import "./screen-parts.css";
 import { createPortal } from "react-dom";
 import { TaskHeaderSlots } from "./task-header.tsx";
-import { SelectControl } from "./settings.tsx";
+import { SelectControl, SettingsProgress } from "./settings.tsx";
 export function Select({ label, ...props }: ScreenSelectProps) {
   const id = useId();
   return <label className="screen-select" htmlFor={id}>{label}<SelectControl id={id} {...props} /></label>;
@@ -18,7 +18,7 @@ export function ScreenLayout({ description, status, actions, width = "full", chi
   return <>{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width}>{!slots && <>{descriptionNode}{status}{actions}</>}{children}</section></>;
 }
 export function Status({tone = "neutral", label}: {tone: "ok" | "progress" | "warning" | "error" | "neutral"; label: string}) {
-  return <span className="screen-status" data-tone={tone}><span aria-hidden="true"/>{label}</span>;
+  return <span className="screen-status" data-tone={tone}><span aria-hidden="true">{tone === "progress" && <LoaderCircle strokeWidth={3} className="motion-safe:animate-spin" />}</span>{label}</span>;
 }
 export function Steps({steps, current}: {steps: string[]; current: number}) {
   return <ol className="screen-steps">{steps.map((step, index) => <li key={index} aria-current={index === current ? "step" : undefined} data-state={index < current ? "past" : index === current ? "current" : "remaining"}><span className="screen-step-number" aria-hidden="true">{index + 1}</span><span>{step}</span></li>)}</ol>;
