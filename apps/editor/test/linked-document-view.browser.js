@@ -71,10 +71,7 @@ async (page, { expect, screenshots }) => {
   await expect(linkedItem(2)).toHaveAttribute('aria-pressed','true');
   await linkedPreview.focus();
   const matchingAction = linkedPreview.getByRole('button',{name:'Source section 1',exact:true});
-  // The read-only title and document body keep their own stops.
-  for (let stop = 0; stop < 4 && !await matchingAction.evaluate(button => document.activeElement === button); stop++) {
-    await page.keyboard.press('Tab');
-  }
+  await page.keyboard.press('Tab');
   await expect(matchingAction).toBeFocused();
   await expect(matchingAction).toHaveCSS('opacity','1');
   await page.keyboard.press('Enter');

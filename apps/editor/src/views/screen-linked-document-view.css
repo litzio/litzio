@@ -47,7 +47,6 @@
 }
 .linked-document-band-hit { fill: transparent; pointer-events: fill; cursor: pointer; }
 .linked-document-outline { position: absolute; }
-.linked-document-actions { position: absolute; inset: 0; pointer-events: none; }
 .linked-document-action { position: absolute; opacity: 0; pointer-events: none; }
 .linked-document-action > span { overflow: hidden; text-overflow: ellipsis; }
 .linked-document-action:focus-visible {

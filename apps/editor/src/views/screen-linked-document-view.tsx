@@ -115,14 +115,14 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
     }
     const root = host.current;
     const leftPane = source.current;
-    const { viewport: rightPane, paper, content, scale, positions } = geometry;
+    const { viewport: rightPane, paper, actionHost, scale, positions } = geometry;
     const tokens = probe.current;
     let frame = 0;
     const draw = () => {
       frame = 0;
       const hostBox = root.getBoundingClientRect();
       const paperBox = paper.getBoundingClientRect();
-      const contentBox = content.getBoundingClientRect();
+      const actionsBox = actionHost.getBoundingClientRect();
       const origin = { left: paperBox.left - hostBox.left, top: paperBox.top - hostBox.top };
       const sourceViewport = viewportRect(leftPane, hostBox);
       const documentViewport = viewportRect(rightPane, hostBox);
@@ -169,8 +169,8 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
         if (position.key === focusedBlock || top < viewportBottom && bottom > documentViewport.top) {
           const item = group.find(item => item.id === selectedId) ?? group[0];
           actions.push({ key: position.key, item, style: {
-            left: paperBox.left - contentBox.left + position.left,
-            top: paperBox.top - contentBox.top + position.top,
+            left: paperBox.left - actionsBox.left + position.left,
+            top: paperBox.top - actionsBox.top + position.top,
             maxWidth: position.width,
           } });
         }
@@ -251,11 +251,9 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
       </svg>
       <Outlines outlines={drawing.left} viewport={drawing.sourceViewport} scale={sourceScale} side="source" />
       <Outlines outlines={drawing.right} viewport={drawing.documentViewport} scale={geometry.scale} side="document" />
-      {createPortal(<div className="linked-document-actions">
-        {drawing.actions.map(({ key, item, style }) => <Button key={key} variant="outline" size="sm" className="linked-document-action"
-          style={style} data-linked-item={item.id} data-linked-action={key}
-          aria-pressed={item.id === selectedId} onClick={() => onSelect(item.id)}><span>{item.label}</span></Button>)}
-      </div>, geometry.content)}
+      {createPortal(drawing.actions.map(({ key, item, style }) => <Button key={key} variant="outline" size="sm" className="linked-document-action"
+        style={style} data-linked-item={item.id} data-linked-action={key}
+        aria-pressed={item.id === selectedId} onClick={() => onSelect(item.id)}><span>{item.label}</span></Button>), geometry.actionHost)}
     </>}
   </>;
 }

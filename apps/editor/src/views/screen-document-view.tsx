@@ -27,7 +27,7 @@ function assertDocumentViewPath(path: string, roots: readonly string[]) {
 export type DocumentViewGeometry = {
   viewport: HTMLDivElement;
   paper: HTMLElement;
-  content: HTMLDivElement;
+  actionHost: HTMLDivElement;
   revision: string;
   scale: number;
   positions: ReadingPosition;
@@ -55,7 +55,7 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
   const [problem, setProblem] = useState("");
   const [positions, setPositions] = useState<ReadingPosition>();
   const viewport = useRef<HTMLDivElement>(null);
-  const content = useRef<HTMLDivElement>(null);
+  const actions = useRef<HTMLDivElement>(null);
   const notify = useRef(onStateChange); notify.current = onStateChange;
   const request = useMemo(() => ({}), [path, reloadKey, scope?.client, scopeProblem]);
   const file = snapshot?.request === request ? snapshot.file : undefined;
@@ -104,8 +104,8 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
     if (!onGeometry) return;
     const element = viewport.current;
     const paper = element?.querySelector<HTMLElement>(".document");
-    onGeometry(element && paper && content.current && positions && file && !stale && !problem
-      ? { viewport: element, paper, content: content.current, revision: file.revision, scale: previewScale, positions }
+    onGeometry(element && paper && actions.current && positions && file && !stale && !problem
+      ? { viewport: element, paper, actionHost: actions.current, revision: file.revision, scale: previewScale, positions }
       : undefined);
   }, [file, stale, problem, positions, previewScale, onGeometry]);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
@@ -117,7 +117,8 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
         navigation.onKeyDownCapture(event);
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); event.stopPropagation(); }
       }}>
-        <div className="screen-document-view-content" ref={content} style={{"--document-view-scale":previewScale} as CSSProperties}>
+        <div className="screen-document-view-content" style={{"--document-view-scale":previewScale} as CSSProperties}>
+          {onGeometry && <div className="screen-document-view-actions" ref={actions} />}
           <DocumentEditor key={JSON.stringify([path, file.revision, reloadKey])} readOnly preview document={file.document} bibliography={file.bibliography}
             documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} />
           {clip ? <div className="screen-document-view-highlight-clip" style={{top:clip.top,left:clip.left,width:clip.width,height:clip.height}}>{highlight}</div> : highlight}
