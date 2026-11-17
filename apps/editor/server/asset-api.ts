@@ -101,8 +101,9 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
   return publishImageAsset(locator, mime, bytes, key, access, originalName, source) as AssetResponse;
 }
 
-/** Host document creation: same validated publisher, content-addressed names and reuse. */
-export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess): { path: string } {
+/** Shared validated publication; new authored documents use their image key. */
+export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess, imageKey?: string): { path: string } {
+  if (imageKey !== undefined) return publishImageAsset(locator, mime, bytes, Buffer.alloc(0), access, `${imageKey}.image`, "drop", true, true);
   const hash = createHash("sha256").update(bytes).digest("hex");
   const documentHash = createHash("sha256").update(path.basename(locator)).digest("hex");
   const stem = Array.from(path.basename(locator, path.extname(locator))).slice(0, 8).join("");
@@ -123,7 +124,7 @@ export function importDocumentImageAsset(document: string, source: string, acces
   return { path: result.path, receipt: { outcome: "success" } };
 }
 
-function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false): ImageChoiceResponse {
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false, keyed = false): ImageChoiceResponse {
   validateImage(mime, bytes); // Rejected input must not create even a directory/temp file.
   assertUnicode(originalName);
   if (source !== "paste" && source !== "drop") throw new AssetError("Invalid image input source.");
@@ -134,16 +135,16 @@ function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Bu
     // Leave room for a collision suffix and MIME extension, without splitting Unicode.
     let bounded = "";
     for (const point of stem) {
-      if (Buffer.byteLength(bounded + point, "utf8") > 180) break;
+      if (Buffer.byteLength(bounded + point, "utf8") > (keyed ? 80 : 180)) break;
       bounded += point;
     }
     return bounded.trim().replace(/[. ]+$/, "");
   };
-  const originalStem = cleanStem(originalName.replace(/\.[^.]*$/, ""));
+  const originalStem = cleanStem(keyed ? originalName.replace(/\.[^.]*$/, "").normalize("NFC").toLowerCase() : originalName.replace(/\.[^.]*$/, ""));
   // Chromium's clipboard File is named image.png; match exact MIME-family generic names,
   // not descriptive names such as image-architecture.png or image1.png.
-  const numbered = !originalStem || source === "paste" && /^image\.(?:png|jpe?g|gif|webp)$/i.test(originalName);
-  const stem = numbered ? cleanStem(path.basename(scope.document, path.extname(scope.document))) || "document" : originalStem;
+  const numbered = !keyed && (!originalStem || source === "paste" && /^image\.(?:png|jpe?g|gif|webp)$/i.test(originalName));
+  const stem = keyed ? originalStem || "image" : numbered ? cleanStem(path.basename(scope.document, path.extname(scope.document))) || "document" : originalStem;
   const directory = assetDirectory(scope.root, true, access);
   let sequence = 1;
   if (numbered) for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -169,7 +170,11 @@ function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Bu
     // A hard link publishes the completed bytes atomically and fails on EEXIST.
     // Unlike rename on POSIX, it cannot overwrite another file on a name collision.
     for (; Number.isSafeInteger(sequence); sequence++) {
-      const destination = path.join(directory, `${stem}${numbered || sequence > 1 ? `-${sequence}` : ""}.${ASSET_TYPES[mime]}`);
+      const suffix = keyed ? (sequence > 1 ? `-${createHash("sha256").update(bytes).digest("hex").slice(0, 8)}` : "") : numbered || sequence > 1 ? `-${sequence}` : "";
+      const filename = `${stem}${suffix}.${ASSET_TYPES[mime]}`;
+      // Treat existing case variants identically on all supported filesystems.
+      const existingName = keyed ? fs.readdirSync(directory).find(name => name.normalize("NFC").toLowerCase() === filename) : undefined;
+      const destination = path.join(directory, existingName ?? filename);
       try { fs.linkSync(accessPath(temporary, access), accessPath(destination, access, true)); published = destination; break; }
       catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
@@ -180,6 +185,7 @@ function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Bu
           if (existing.owner.size === BigInt(bytes.length) && existing.hash === createHash("sha256").update(bytes).digest("hex")) {
             return { path: `./assets/${path.basename(destination)}` };
           }
+          if (keyed && sequence > 1) throw new AssetError("Asset content hash suffix is already occupied; existing file was preserved.");
         }
       }
     }

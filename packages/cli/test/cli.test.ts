@@ -2067,7 +2067,7 @@ function runProcess(args: string[], nodeArgs: string[] = [], env?: NodeJS.Proces
 test("CLI create --input uses shared authoring and image publication without overwriting existing files", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-cli-authoring-"));
   try {
-    const file = path.join(dir, "report.md"), input = path.join(dir, "input.json");
+    const file = path.join(dir, "output", "nested", "report.md"), input = path.join(dir, "input.json");
     writeFileSync(input, JSON.stringify({ authoring: { inputs: [{ key: "source", blocks: [
       { kind: "figure", imageAsset: "picture", imageAlt: "Picture", caption: "Caption", enumerator: "A.3" },
       { kind: "table", rows: [["Heading"], ["Value"]], enumerated: false }, { kind: "equation", latex: "x^2", enumerator: "4-2" },
@@ -2077,14 +2077,14 @@ test("CLI create --input uses shared authoring and image publication without ove
     const receipt = JSON.parse(created.stdout);
     const saved = readFileSync(file, "utf8");
     assert.equal(saved, receipt.source);
-    assert.match(saved, /\.\/assets\/report-[a-f0-9]{64}-[a-f0-9]{64}\.png/);
+    assert.match(saved, /\.\/assets\/picture\.png/);
     for (const enumerator of ["A.3", "4-2"]) assert.ok(saved.includes(`:enumerator: ${enumerator}`));
     assert.match(saved, /:enumerated: false/);
     assert.equal(receipt.inputs[0].targets.length, 3);
     const again = runProcess(["create", file, "--input", input]);
     assert.equal(again.status, 1); assert.match(again.stderr, /already exists/);
     assert.equal(readFileSync(file, "utf8"), saved);
-    assert.equal(readdirSync(path.join(dir, "assets")).length, 1);
+    assert.equal(readdirSync(path.join(path.dirname(file), "assets")).length, 1);
     const untouched = path.join(dir, "untouched.md");
     const synchronous = run(["create", untouched, "--input", input]);
     assert.equal(synchronous.status, 1); assert.equal(fs.existsSync(untouched), false);

@@ -2,7 +2,7 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { messageText } from "../src/ui-message.ts";
 import { nativeSource } from "./helpers/document.ts";
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import os from "node:os";
@@ -19,6 +19,8 @@ import { collectSupportedEdits, toTiptapDocument } from "../src/tiptap-document.
 import { loadEditableDocument } from "./helpers/document.ts";
 import { saveEdits } from "../server/document-replay.ts";
 import { chooseImageAsset, createImageAsset, handleAssetRequest, rollbackImageAsset } from "../server/asset-api.ts";
+import { createAuthoredDocumentFile } from "../server/document-authoring.ts";
+import { RootAccess } from "../server/file-access.ts";
 import { resolveMediaPath } from "../server/document-api.ts";
 import { renameFile } from "../server/file-operations.ts";
 
@@ -49,7 +51,7 @@ test("independent authoring owners retain the successful document image when the
   const source = fs.readFileSync(successful, "utf8");
   const relative = /\.\/assets\/[^\s]+\.png/.exec(source)![0];
   assert.deepEqual(fs.readFileSync(path.join(root, relative)), PNG);
-  assert.equal(fs.readdirSync(path.join(root, "assets")).length, 2); // Full names distinguish the equal 24-character prefix.
+  assert.deepEqual(fs.readdirSync(path.join(root, "assets")), ["picture.png"]); // Identical completed bytes are shared.
 
   // The same destination can still be shared by independent creators. A semantic
   // failure must retain bytes already reused by the successful creator.
@@ -676,3 +678,68 @@ for (const field of ["dev", "ino"] as const) {
     assert.equal(fs.existsSync(path.join(root, created.path)), false);
   });
 }
+
+
+test("authored save creates missing parents only within roots and removes request-owned empty folders on failure", async t => {
+  const { root } = fixture(t);
+  const access = new RootAccess([root]);
+  const input = { authoring: { inputs: [{ key: "text", blocks: [{ kind: "paragraph", text: "Saved" }] }] }, images: [] };
+  for (const folder of ["one", "two/nested", Array(4).fill("long-" + "x".repeat(55)).join("/")]) {
+    const file = path.join(root, folder, "result.md");
+    await createAuthoredDocumentFile(file, input, access);
+    assert.match(fs.readFileSync(file, "utf8"), /Saved/);
+  }
+  const outside = path.join(root, "..", path.basename(root) + "-outside", "nested", "result.md");
+  await assert.rejects(createAuthoredDocumentFile(outside, input, access), /outside/);
+  assert.equal(fs.existsSync(path.dirname(path.dirname(outside))), false);
+  const failed = path.join(root, "failed", "nested", "result.md");
+  await assert.rejects(createAuthoredDocumentFile(failed, input, access, () => {
+    if (fs.existsSync(path.dirname(failed))) throw new Error("publication refused");
+  }), /publication refused/);
+  assert.equal(fs.existsSync(path.join(root, "failed")), false);
+  await assert.rejects(createAuthoredDocumentFile(failed, input, access, () => {
+    if (fs.existsSync(path.dirname(failed))) {
+      fs.writeFileSync(path.join(path.dirname(failed), "other.txt"), "another writer");
+      throw new Error("publication refused");
+    }
+  }), /publication refused/);
+  assert.equal(fs.readFileSync(path.join(path.dirname(failed), "other.txt"), "utf8"), "another writer");
+  fs.rmSync(path.join(root, "failed"), { recursive: true });
+  const bad = { ...input, images: [{ key: "bad", mime: "image/png", base64: "AA==" }] };
+  await assert.rejects(createAuthoredDocumentFile(failed, bad, access));
+  assert.equal(fs.existsSync(path.join(root, "failed")), false);
+});
+
+test("authored image keys produce portable bounded names and preserve existing bytes across documents", async t => {
+  const { root } = fixture(t);
+  const keys = ["table-003", "dir/bad?", "CON", "Chart", "chart", "한".repeat(100)];
+  const input = { authoring: { inputs: [{ key: "figures", blocks: keys.map(key => ({ kind: "figure", imageAsset: key, imageAlt: "Image", caption: key })) }] },
+    images: keys.map(key => ({ key, mime: "image/png", base64: PNG.toString("base64") })) };
+  fs.mkdirSync(path.join(root, "assets"));
+  fs.writeFileSync(path.join(root, "assets", "table-003.png"), "keep existing");
+  const file = path.join(root, "first.md");
+  await createAuthoredDocumentFile(file, input);
+  const names = fs.readdirSync(path.join(root, "assets"));
+  const hash = createHash("sha256").update(PNG).digest("hex").slice(0, 8);
+  for (const name of [`table-003-${hash}.png`, "dir-bad-.png", "_con.png", "chart.png"]) assert.ok(names.includes(name), name);
+  assert.ok(names.every(name => Buffer.byteLength(name) <= 93));
+  assert.equal(fs.readFileSync(path.join(root, "assets", "table-003.png"), "utf8"), "keep existing");
+  await createAuthoredDocumentFile(path.join(root, "second.md"), input);
+  assert.deepEqual(fs.readdirSync(path.join(root, "assets")), names);
+  assert.equal(loadEditableDocument(fs.readFileSync(file, "utf8")).blocks.length, keys.length);
+  for (const name of names.filter(name => name !== "table-003.png")) assert.deepEqual(fs.readFileSync(resolveMediaPath(`assets/${encodeURIComponent(name)}`, file)), PNG);
+});
+
+
+test("successive documents with the same key and different bytes keep both images", async t => {
+  const { root } = fixture(t);
+  const alternate = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAMAAAABACAIAAADDDu+IAAAA8ElEQVR4nO3SoQ0CQQAAwe8KiaATFDXQAA5Dq4QgseQly+X/kkm2gBWzPF9v6eeWzQ80dQApBZBSACkFkFIAbdz9fBza6H+ANg4gpQBSCiClAFIKIKUAUgogpQBSCiClAFIKoJ12ul2HBhBAAAEEEEAAAbTHAAIIIIAAAmjSAAIIIIAAAmjSAAIIIIAAAmjSAAIIIIAAAmjV4fIYGkAAAQQQQAABBBBAAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQP8FJH0HkFIAKQWQUgApBZBSHwWDNS8DL1+0AAAAAElFTkSuQmCC", "base64");
+  const request = (bytes: Buffer) => ({ authoring: { inputs: [{ key: "source", blocks: [{ kind: "figure", imageAsset: "chart", imageAlt: "Chart", caption: "Chart" }] }] },
+    images: [{ key: "chart", mime: "image/png", base64: bytes.toString("base64") }] });
+  await createAuthoredDocumentFile(path.join(root, "first.md"), request(PNG));
+  await createAuthoredDocumentFile(path.join(root, "second.md"), request(alternate));
+  const suffix = createHash("sha256").update(alternate).digest("hex").slice(0, 8);
+  assert.deepEqual(fs.readFileSync(path.join(root, "assets", "chart.png")), PNG);
+  assert.deepEqual(fs.readFileSync(path.join(root, "assets", `chart-${suffix}.png`)), alternate);
+  assert.match(fs.readFileSync(path.join(root, "second.md"), "utf8"), new RegExp(`chart-${suffix}\\.png`));
+});
