@@ -1,6 +1,6 @@
 // Protect the development entry's lazy module/CSS/provider connection, not primitive internals.
 // pnpm browser:test ui-gallery
-async (page, { expect, screenshots }) => {
+async (page, { expect, screenshots, withBlockHover }) => {
   await page.goto(page.url().split('/').slice(0, 3).join('/') + '/ui-gallery');
   await expect(page.getByRole('heading', { name: 'Litzio UI gallery' })).toBeVisible();
   await expect(page.locator('[data-testid="ui-gallery"]')).toHaveCSS('overflow-y', 'auto');
@@ -508,6 +508,23 @@ async (page, { expect, screenshots }) => {
   const documentView=page.getByRole('region',{name:'Document preview content',exact:true});
   await expect(documentView).toContainText('Document view example');
   await expect(documentView.getByRole('table')).toContainText('18');
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('button',{name:'Toggle preview width',exact:true}).click();
+  await withBlockHover(page, async () => {
+    const paragraph=documentView.locator('.tiptap > p').first();
+    await paragraph.hover();
+    const outline=documentView.getByTestId('block-hover-outline');
+    await expect(outline).toBeVisible();
+    if(screenshots) await page.screenshot({path:'tmp/hover-1712-gallery-1440.png'});
+    await expect.poll(()=>paragraph.evaluate(node=>{
+      const block=node.getBoundingClientRect(),outline=node.closest('.document').querySelector('.block-hover-outline').getBoundingClientRect();
+      const probe=document.createElement('span');probe.style.padding='var(--space-block-hover-block) var(--space-block-hover-inline)';probe.style.position='absolute';probe.style.visibility='hidden';node.closest('.document').append(probe);
+      const style=getComputedStyle(probe),inline=parseFloat(style.paddingLeft),vertical=parseFloat(style.paddingTop);probe.remove();
+      return Math.max(Math.abs(outline.left-block.left+inline),Math.abs(outline.right-block.right-inline),Math.abs(outline.top-block.top+vertical),Math.abs(outline.bottom-block.bottom-vertical));
+    })).toBeLessThan(2);
+  });
+  await page.getByRole('button',{name:'Toggle preview width',exact:true}).click();
+
   await expect(page.getByTestId('document-view-highlight')).toHaveAttribute('data-target-kind','cell');
   await page.getByRole('button',{name:'Select other cell',exact:true}).click();
   await expect(page.getByTestId('document-view-highlight')).toHaveAttribute('data-target-kind','cell');
