@@ -8,6 +8,8 @@
 
 플러그인은 대상 Host의 Node 하위 프로세스에서 실행되고 자기 React 화면 코드를 제공한다. 설치·신뢰·활성·설정·비밀값·비서 스킬·공용 작업·receipt·reload·앱에 실은 npm과 번들러를 유지한다. Core의 문서 의미와 공식 write path는 플러그인이 재구현하지 않는다.
 
+SDK 0.10.0은 Core의 `updateDocumentStatus`, `DocumentStatus`, `DOCUMENT_STATUSES`와 선택 `DocumentAuthoringInput.status`를 제공한다. 상태 의미와 검증은 [native 문서 계약](document-support-v1.md#문서-검토-상태)을 따른다.
+
 ## 신분증
 
 최소 artifact는 `litzio-plugin.json`, `host.mjs`, `screen.jsx`다.

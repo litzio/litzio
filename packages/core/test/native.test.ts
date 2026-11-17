@@ -775,3 +775,41 @@ test("structured authoring applies limits inside inline content and nested lists
   assert.equal(parseInput([{ kind: "list", ordered: false, items: Array.from({ length: 49 }, () => ({ content: [], list })) }]).success, true);
   assert.equal(parseInput([{ kind: "list", ordered: false, items: Array.from({ length: 50 }, () => ({ content: [], list })) }]).success, false);
 });
+
+
+test("document status is strict optional metadata preserved through body writes", async () => {
+  const source = native("Body.\n");
+  const original = parse(source);
+  const baseline = serialize(original);
+  assert.equal(getEditableDocument(original).status, undefined);
+  for (const status of core.DOCUMENT_STATUSES) {
+    const changed = core.updateDocumentStatus(original, status);
+    const saved = serialize(changed);
+    assert.equal(getEditableDocument(parse(saved)).status, status);
+    assert.equal(serialize(parse(saved)), saved);
+    assert.deepEqual(getEditableDocument(changed).blocks, getEditableDocument(original).blocks);
+    const edited = updateNodeTextAtPath(changed, [1], "Body.", "Edited.");
+    assert.equal(getEditableDocument(parse(serialize(edited))).status, status);
+    assert.equal(serialize(core.updateDocumentStatus(changed, null)), baseline);
+    assert.equal(getEditableDocument(core.updateDocumentStatus(changed, "review")).status, "review");
+    const authored = await authorDocument({ status, inputs: [] });
+    assert.equal(getEditableDocument(parse(authored.source)).status, status);
+  }
+  assert.equal(serialize(original), source);
+  for (const value of ["", "pending", "Draft", "null", "false", "12", "[]", "{}", "[draft]", '""']) {
+    assert.throws(() => parse(`---\nlitzio: 1\nstatus: ${value}\n---\n\nBody.\n`), error => error instanceof NativeDocumentError && error.code === "native-metadata");
+  }
+  for (const value of ["", "pending", false, 12, {}, [], undefined]) {
+    assert.throws(() => core.updateDocumentStatus(original, value as core.DocumentStatus));
+  }
+  await assert.rejects(authorDocument({status: "pending", inputs: []}));
+  const marked = parse('---\nstatus: draft # review state\nlitzio: 1 # marker\ntitle: Example\n---\n\nBody.\n');
+  assert.match(serialize(marked), /status: draft # review state\nlitzio: 1 # marker\ntitle: Example\n---/);
+  const comparison = core.compareDocuments(original, core.updateDocumentStatus(original, "draft"));
+  assert.deepEqual(comparison.changes, []);
+  assert.equal(comparison.documentChanged, true);
+  const template = core.updateTemplateMetadata(core.updateDocumentStatus(original, "approved"), {name: "Example", description: ""});
+  const created = core.createDocumentFromTemplate(template);
+  assert.equal(getEditableDocument(created).status, undefined);
+  assert.deepEqual(getEditableDocument(created).blocks, getEditableDocument(original).blocks);
+});

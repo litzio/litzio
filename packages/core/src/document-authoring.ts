@@ -1,6 +1,7 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { createDocument, parseNativeDocument, serializeNativeDocument } from "./myst/native.ts";
+import { updateDocumentStatus } from "./myst/status.ts";
 import { updateDocumentTitle } from "./myst/title.ts";
 import * as operations from "./operations.ts";
 import { getEditableDocument } from "./editable.ts";
@@ -40,6 +41,7 @@ export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<
     let document = createDocument();
     const empty = createDocument();
     if (input.title !== undefined) document = updateDocumentTitle(document, input.title);
+    if (input.status !== undefined) document = updateDocumentStatus(document, input.status);
     const authoredNodes: typeof document.children = [];
     for (const [inputIndex, item] of input.inputs.entries()) for (const [blockIndex, block] of item.blocks.entries()) {
       location = ["inputs", inputIndex, "blocks", blockIndex];

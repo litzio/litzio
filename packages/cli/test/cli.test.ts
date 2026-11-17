@@ -716,7 +716,7 @@ test("litzio help exits successfully", () => {
       "Edit — text and content": ["insert-hard-break", "replace-text", "update-heading", "update-admonition-variant", "update-quote", "update-figure", "update-media-references", "update-list", "update-code-block", "update-node-text", "update-equation-latex"],
       "Edit — structure": ["split-paragraph", "merge-paragraph", "update-heading-level", "convert-block", "remove-block", "move-block", "move-section", "remove-section"],
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
-      "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
+      "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-status", "update-title"],
       "Format": ["format"],
       "Serve": ["app-reset", "assistant", "daemon", "operation", "plugins"],
     };
@@ -1703,7 +1703,7 @@ test("inspect prints Core editable targets", () => {
     if (quotedParagraph?.block === "paragraph") {
       assert.equal(
         quoted.stdout,
-        `title: absent\n1 paragraph inlineEditable=${quotedParagraph.editable} text=${JSON.stringify(quotedParagraph.text)}\nnumbering: automatic\n`,
+        `status: absent\ntitle: absent\n1 paragraph inlineEditable=${quotedParagraph.editable} text=${JSON.stringify(quotedParagraph.text)}\nnumbering: automatic\n`,
       );
       assert.equal(quoted.stdout.includes("\n\n"), false);
     }
@@ -3213,4 +3213,32 @@ test("Node document SDK shares CLI inspect and canonical edit results", () => {
     assert.throws(() => writeDocument(sdkFile, snapshot.document, snapshot.revision), FileChangedError);
     assert.deepEqual(readFileSync(sdkFile), external);
   }
+});
+
+
+test("document status CLI connects inspect, mutation, batch and authoring", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-status-"));
+  try {
+    const file = path.join(dir, "document.md");
+    const input = path.join(dir, "input.json");
+    writeFileSync(input, JSON.stringify({authoring: {status: "draft", inputs: [{key: "body", blocks: [{kind: "paragraph", text: "Body."}]}]}}));
+    const created = runProcess(["create", file, "--input", input]);
+    assert.equal(created.status, 0, created.stderr);
+    const inspect = () => JSON.parse(run(["inspect", file, "--format", "json"]).stdout);
+    assert.equal(inspect().status, "draft");
+    assert.equal(run(["update-status", file, "--value", "review"]).status, 0);
+    assert.equal(inspect().status, "review");
+    const before = readFileSync(file, "utf8");
+    assert.notEqual(run(["update-status", file, "--value", "invalid"]).status, 0);
+    assert.equal(readFileSync(file, "utf8"), before);
+    writeFileSync(input, JSON.stringify([{command: "update-status", value: "approved"}]));
+    assert.equal(run(["apply-batch", file, "--operations", input]).status, 0);
+    assert.equal(inspect().status, "approved");
+    writeFileSync(input, JSON.stringify([{command: "update-status", remove: true}]));
+    assert.equal(run(["apply-batch", file, "--operations", input]).status, 0);
+    assert.equal(inspect().status, null);
+    assert.equal(run(["update-status", file, "--value", "draft"]).status, 0);
+    assert.equal(run(["update-status", file, "--remove"]).status, 0);
+    assert.equal(inspect().status, null);
+  } finally { rmSync(dir, {recursive: true, force: true}); }
 });

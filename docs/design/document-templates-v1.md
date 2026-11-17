@@ -36,7 +36,7 @@ Unknown metadata keys and duplicate YAML keys retain existing refusal rules.
 
 Core exposes `getTemplateMetadata`, `updateTemplateMetadata` (null removes the
 field), and `createDocumentFromTemplate`. The latter requires template metadata
-and removes **only** `template`. Body, title, numbering and bibliography remain as
+and removes `template` and optional `status`. A new document does not inherit the template review status. Body, title, numbering and bibliography remain as
 authored. Operations clone the input; canonical serialization and repeated reopen
 must preserve accepted metadata. User templates containing `bibliography` retain
 it under the existing contract; this work adds no citation behavior. Relative

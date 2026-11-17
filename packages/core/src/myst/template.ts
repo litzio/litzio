@@ -1,3 +1,4 @@
+import { updateDocumentStatus } from "./status.ts";
 import { isMap, isScalar, Scalar } from "yaml";
 import { DocumentWriteError } from "../write-error.ts";
 import { serializeFor } from "./serialize.ts";
@@ -49,5 +50,5 @@ export function updateTemplateMetadata(document: MystDocument, value: TemplateMe
 
 export function createDocumentFromTemplate(document: MystDocument): MystDocument {
   if (!getTemplateMetadata(document)) invalid();
-  return updateTemplateMetadata(document, null);
+  return updateDocumentStatus(updateTemplateMetadata(document, null), null);
 }

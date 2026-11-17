@@ -1,3 +1,4 @@
+import { updateDocumentStatus as updateDocumentStatusTree } from "./myst/status.ts";
 /**
  * Public Core API. Consumers (CLI, Editor Host, automation) see `Document` as an
  * opaque handle; the MyST AST behind it stays inside Core. Every export below is
@@ -54,6 +55,8 @@ export { sectionBoundaries, sectionMarker, sectionRange, type SectionMarker } fr
 export { planNumberingChange, blockTargets, NUMBERED_KINDS, targetNumbers, numberingReport, type NumberingDiagnostic, type NumberedKind, type NumberedTargets } from "./numbering.ts";
 export { endnoteOrder, footnoteNumbers, nextFootnoteLabel, orphanedEndnotes, headingNumbers, sectionReferenceText, defaultHeadingNumbering, type EndnoteBlock, type HeadingNumbering } from "./numbering.ts";
 export { firstReferenceNumbers } from "./numbering.ts";
+export { DOCUMENT_STATUSES, type DocumentStatus } from "./status.ts";
+export const updateDocumentStatus = fence(updateDocumentStatusTree);
 export const updateDocumentTitle = fence(updateDocumentTitleTree);
 export const updateHeadingNumbering = fence(updateHeadingNumberingTree);
 export const updateReferenceTemplates = fence(updateReferenceTemplatesTree);
