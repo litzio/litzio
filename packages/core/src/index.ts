@@ -155,3 +155,5 @@ export const createDocumentFromTemplate = fence(templates.createDocumentFromTemp
 
 export type { DocumentComparison, BlockChange } from "./compare.ts";
 export const compareDocuments = fence(compareTrees);
+
+export { serializeChange, machineNodes, snapshotSection } from "./document-output.ts";
