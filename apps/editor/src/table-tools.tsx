@@ -8,10 +8,10 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { useEditorState, type ReactNodeViewProps } from "@tiptap/react";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { MoreHorizontal, MoreVertical, Plus } from "lucide-react";
+import { MoreHorizontal, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
-import { BLOCK_COMMANDS, blockCommandGroup, tableRowCount, type TableCellAddress } from "./block-commands.ts";
+import { BLOCK_COMMANDS, blockCommandGroup, type TableCellAddress } from "./block-commands.ts";
 import { CommandMenu, type CommandMenuItem } from "./CommandMenu.tsx";
 import { blockCommandAppearance } from "./command-icons.ts";
 
@@ -61,13 +61,12 @@ function columnName(index: number): string {
 type Menu = { kind: "row" | "column" | "table"; target: TableCellAddress };
 
 /** Handles reuse explicit-target table commands. Geometry and menu state never enter the document. */
-export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, appendAnchor, onEdit, hidden }: Pick<ReactNodeViewProps, "editor" | "node" | "getPos"> & {
+export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, onEdit, hidden }: Pick<ReactNodeViewProps, "editor" | "node" | "getPos"> & {
   grid: RefObject<HTMLDivElement | null>;
   /** Left of the text axis and outside the horizontal scroller: rows never scroll sideways. */
   rowLayer: RefObject<HTMLDivElement | null>;
   /** Whole-table entry points stay above the grid, outside horizontal scrolling. */
   actionLayer: RefObject<HTMLDivElement | null>;
-  appendAnchor: string;
   onEdit(): void; hidden: boolean;
 }) {
   useTranslation();
@@ -116,17 +115,6 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
     return () => { block.style.removeProperty("--table-action-left"); block.style.removeProperty("--table-action-clearance"); };
   }, [actionLayer, grid, geometry, emphasizedColumn]);
 
-  useLayoutEffect(() => {
-    const element = document.activeElement;
-    if (!geometry || !element || !rowLayer.current?.contains(element)) return;
-    if ((element.matches(".table-extend-column") && !geometry.columnSpace) ||
-        (element.matches(".table-extend-row") && !geometry.rowSpace)) {
-      // A resize can remove an append bar's gap while it has keyboard focus.
-      // Keep focus on an available equivalent entry point, without moving caret.
-      actionLayer.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    }
-  }, [geometry, actionLayer, rowLayer]);
-
   if (!visible || !editor.isEditable || hidden || !geometry || !rowLayer.current || !actionLayer.current) return null;
   const position = getPos();
   if (typeof position !== "number") return null;
@@ -169,11 +157,6 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
         onFocus={() => focus("column", { row: current?.row ?? 0, column: i })} onBlur={blur}
         style={{ left: cell.left, top: geometry.top }}
         onClick={event => open(event.currentTarget, "column", { row: current?.row ?? 0, column: i })}><MoreHorizontal size={16} aria-hidden="true" /></Button>)}
-      <Button variant="table-handle" size="sm" type="button" className="table-extend table-extend-column" aria-label={i18n.t("Append column")} title={i18n.t("Append column")}
-        data-show={active && !menu && geometry.columnSpace ? "true" : "false"} tabIndex={geometry.columnSpace && !menu ? 0 : -1}
-        onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur}
-        style={{ display: geometry.columnSpace ? undefined : "none", positionAnchor: appendAnchor, width: geometry.appendWidth, height: geometry.bottom - geometry.top }}
-        onClick={() => run("table-column", { row: current?.row ?? 0, column: node.child(0).childCount - 1 })}><Plus size={16} /></Button>
       {geometry.rows.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-row-handle"
         data-show={active && row === i ? "true" : "false"} data-scrolled={geometry.scrolled ? "true" : "false"}
         aria-label={i18n.t("Row {{row}} actions{{header}}", { row: i + 1, header: i === 0 ? i18n.t(" (header)") : "" })}
@@ -182,11 +165,6 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
         onFocus={() => focus("row", { row: i, column: current?.column ?? 0 })} onBlur={blur}
         style={{ left: geometry.left, top: cell.top + cell.height / 2 }}
         onClick={event => open(event.currentTarget, "row", { row: i, column: current?.column ?? 0 })}><MoreVertical size={16} aria-hidden="true" /></Button>)}
-      <Button variant="table-handle" size="sm" type="button" className="table-extend table-extend-row" aria-label={i18n.t("Append row")} title={i18n.t("Append row")}
-        data-show={active && !menu && geometry.rowSpace ? "true" : "false"} tabIndex={menu || !geometry.rowSpace ? -1 : 0}
-        onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur}
-        style={{ left: geometry.left, top: geometry.appendTop, width: geometry.right - geometry.left, height: geometry.appendHeight }}
-        onClick={() => run("table-row", { row: tableRowCount(node) - 1, column: current?.column ?? 0 })}><Plus size={16} /></Button>
     </div>, rowLayer.current)}
     {createPortal(<Button variant="outline" size="sm" type="button" aria-label={i18n.t("Table properties")}
       onFocus={() => focus("table", current ?? { row: 0, column: 0 })} onBlur={blur} onClick={onEdit}>{i18n.t("Properties")}</Button>, actionLayer.current)}

@@ -29,7 +29,6 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
   useTranslation();
   const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable });
   const formId = useId();
-  const appendAnchor = `--table-append-${formId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const grid = useRef<HTMLDivElement>(null);
   const rowLayer = useRef<HTMLDivElement>(null);
   const actionLayer = useRef<HTMLDivElement>(null);
@@ -71,9 +70,9 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
       editor.view.focus();
     }} onDoubleClick={begin}><MetadataLabel kind={kind} label={label} onEdit={editable && !editing ? begin : undefined} /></p>
     <div ref={actionLayer} className="object-tools table-action-bar" data-object-tools="" contentEditable={false} />
-    <div className="table-scroll" style={{ anchorName: editable ? appendAnchor : undefined }}><div ref={grid} className="table-grid">
+    <div className="table-scroll"><div ref={grid} className="table-grid">
       <NodeViewContent as="div" className="table" />
-      <TableTools editor={editor} node={node} getPos={getPos} grid={grid} rowLayer={rowLayer} actionLayer={actionLayer} appendAnchor={appendAnchor} onEdit={begin} hidden={editing} />
+      <TableTools editor={editor} node={node} getPos={getPos} grid={grid} rowLayer={rowLayer} actionLayer={actionLayer} onEdit={begin} hidden={editing} />
     </div></div>
     <div ref={rowLayer} className="table-row-layer" contentEditable={false} />
     <MetadataProperties editor={editor} target={() => anchor.current?.closest("[data-block=table]") ?? null} anchor={anchor} initialFocus={input} kind={kind} testId="table" open={editing}

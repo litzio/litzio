@@ -1656,17 +1656,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .table-tools .table-row-handle::before { left: auto; width: var(--size-table-tool-face); }
 .table-row-handle svg { position: absolute !important; right: calc((var(--size-table-tool-face) - var(--size-icon-slot)) / 2); }
 .table-tools .table-row-handle[data-scrolled="true"] { transform: translate(calc(-1 * var(--size-control-compact) - var(--space-table-tool-edge)), -50%); }
-/* The browser follows the block-relative anchor even after position-only layout
- * changes. Fixed paint avoids adding overflow to the document text column. */
-.table-tools .table-extend-column { display: none; margin-left: var(--space-table-tool-edge); margin-top: var(--size-control-compact); }
-@supports (position-anchor: --table-append) and (left: anchor(right)) {
-  .table-tools .table-extend-column { display: inline-flex; position: fixed; left: anchor(right); top: anchor(top); }
-}
-.table-tools .table-extend-column::before { right: auto; width: var(--size-table-tool-bar); }
-.table-extend-column svg { position: absolute !important; left: calc((var(--size-table-tool-bar) - var(--size-icon-slot)) / 2); }
-.table-tools .table-extend-row { min-height: 0; }
-.table-tools .table-extend-row::before { bottom: auto; height: var(--size-table-tool-bar); }
-.table-extend-row svg { position: absolute !important; top: calc((var(--size-table-tool-bar) - var(--size-icon-slot)) / 2); }
 .table [data-table-menu-target="true"] { background: var(--id-color-surface-selected); box-shadow: inset 0 0 0 var(--border-width) var(--id-color-interaction); }
 .table-block > .table-action-bar { opacity: 0; pointer-events: none; }
 .table-block:has(.table-tools[data-active="true"]) > .table-action-bar, .table-block > .table-action-bar:focus-within { opacity: 1; pointer-events: auto; }

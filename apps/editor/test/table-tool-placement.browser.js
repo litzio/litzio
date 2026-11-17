@@ -15,7 +15,7 @@ async(page,{openPath,expect,assertTableToolGeometry})=>{
  if(positionOnly.length)expect(sizes).toEqual(positionOnly[0].sizes);
  positionOnly.push({expanded,sizes,...report});
  }
- expect(positionOnly[1].metrics.addColumn.top-positionOnly[0].metrics.addColumn.top).toBeGreaterThan(100);
+ expect(positionOnly[1].metrics.column.top-positionOnly[0].metrics.column.top).toBeGreaterThan(100);
  const paragraph=page.locator('.document-editor:visible .paragraph').first();
  await paragraph.evaluate(p=>p.style.minHeight='120px');
  await assertTableToolGeometry(short);
