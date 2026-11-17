@@ -167,7 +167,7 @@ const COMMANDS: CommandSpec[] = [
     group: "Create and inspect",
     summary: `Create a ${brand.name.en} native document, optionally from a template`,
     usage: `${brand.cliCommand} create <file> [--template <name|id> | --input <json-file>] [--language <ko|en>] [--format <text|json>]`,
-    details: ["Create a new .md file in an existing directory. --input accepts {authoring, images:[{key,mime,base64}]} through the shared Host authoring operation. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
+    details: ["Create a new .md file. Empty/template creation requires an existing directory; --input creates missing parent directories. --input accepts {authoring, images:[{key,mime,base64}]} through the shared Host authoring operation. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
   },
 
   {

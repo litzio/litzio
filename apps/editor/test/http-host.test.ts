@@ -478,7 +478,7 @@ const saveBody = (file: string, text = "Edited.") => {
 
 test("HTTP authored creation preserves Core validity, receipt and exclusive publication", async t => {
   const { a, outside, send } = await fixture(t);
-  const file = path.join(a, "authored.md");
+  const file = path.join(a, "new", "nested", "authored.md");
   const authoring = { title: "Measurements", inputs: [{ key: "filtered", blocks: [{ kind: "paragraph", text: "Above 15" }, { kind: "table", rows: [["Value"], ["18"], ["24"]] }, { kind: "figure", imageAsset: "chart", imageAlt: "Chart", caption: "Saved chart" }] }] };
   const images = [{ key: "chart", mime: "image/png", base64: png.toString("base64") }];
   const response = await send("/api/document", "PUT", { path: file, authoring, images });
@@ -492,7 +492,7 @@ test("HTTP authored creation preserves Core validity, receipt and exclusive publ
   assert.equal(reopened.kind, "native");
   assert.equal(reopened.source, receipt.source);
   const relative = /\.\/assets\/[^\s]+\.png/.exec(receipt.source)![0];
-  assert.deepEqual(fs.readFileSync(path.resolve(a, relative)), png);
+  assert.deepEqual(fs.readFileSync(path.resolve(path.dirname(file), relative)), png);
   const collision = await send("/api/document", "PUT", { path: file, authoring, images });
   assert.equal(collision.status, 400);
   assert.match((await collision.json()).error, /already exists/);
@@ -505,16 +505,17 @@ test("HTTP authored creation preserves Core validity, receipt and exclusive publ
     [{ ...images[0], key: "wrong" }],
     [{ ...images[0], base64: "%%%" }],
   ]) {
-    const rejected = path.join(a, "bad-image.md");
+    const rejected = path.join(a, "bad-image", "nested", "bad-image.md");
     const response = await send("/api/document", "PUT", { path: rejected, authoring, images: invalid });
     assert.equal(response.status, 400);
     assert.equal(typeof (await response.json()).error, "string");
-    assert.equal(fs.existsSync(rejected), false);
+    assert.equal(fs.existsSync(path.join(a, "bad-image")), false);
     assert.equal(fs.readFileSync(file, "utf8"), receipt.source);
-    assert.deepEqual(fs.readFileSync(path.resolve(a, relative)), png);
+    assert.deepEqual(fs.readFileSync(path.resolve(path.dirname(file), relative)), png);
   }
 
-  assert.equal((await send("/api/document", "PUT", { path: path.join(outside, "blocked.md"), authoring })).status, 403);
+  assert.equal((await send("/api/document", "PUT", { path: path.join(outside, "new", "blocked.md"), authoring })).status, 403);
+  assert.equal(fs.existsSync(path.join(outside, "new")), false);
 });
 
 test("HTTP starts with only allowed places and saves both roots through Core and revision checks", async t => {
