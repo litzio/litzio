@@ -341,16 +341,17 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   expect(await page.evaluate(()=>window.__viewClicks.length)).toBe(clickedBeforeDrag);
   await preview.hover();await page.mouse.wheel(0,400);
   await expect.poll(()=>page.evaluate(()=>window.__viewScroll.length)).toBeGreaterThan(0);
-  await page.waitForTimeout(250);
-  const reported=await page.evaluate(()=>window.__viewScroll);
-  const visiblePath=await preview.evaluate(node=>{
+  await expect.poll(()=>preview.evaluate(node=>{
     const top=node.getBoundingClientRect().top;
     const block=[...node.querySelector('.tiptap').children].find(child=>child.hasAttribute('data-source-path')&&child.getBoundingClientRect().bottom>top);
-    return block.getAttribute('data-source-path').split(',').map(Number);
-  });
-  expect(reported.at(-1).path).toEqual(visiblePath);
+    const visiblePath=block?.getAttribute('data-source-path').split(',').map(Number);
+    const reports=window.__viewScroll;
+    // The final report repeats the last changed block, at the actual viewport position.
+    return reports.length>=2 && JSON.stringify(reports.at(-1).path)===JSON.stringify(visiblePath)
+      && JSON.stringify(reports.at(-1).path)===JSON.stringify(reports.at(-2).path);
+  })).toBe(true);
+  const reported=await page.evaluate(()=>window.__viewScroll);
   expect(reported.every(item=>item.revision===documentRevision)).toBe(true);
-  expect(reported.at(-1).path).toEqual(reported.at(-2)?.path??reported.at(-1).path);
   await workspace.getByRole('button',{name:'Go to table cell',exact:true}).click();
   await expect(highlight).toHaveAttribute('data-target-kind','cell');
   await preview.locator('table tr').nth(1).locator('td').last().click();
