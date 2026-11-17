@@ -71,7 +71,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 ## 읽기 전용 문서 보기
 
-`ui.DocumentView({path,target?,reloadKey?,height?,label?,onStateChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
+`ui.DocumentView({path,target?,reloadKey?,height?,label?,onStateChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 블록 호버 테두리도 읽기 전용 문서 탭과 같이 유지하며, 문서 보기의 본문 여백을 기준으로 블록 영역을 감싼다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
 
 - `target?: {revision:string,path:NodePath}`: CLI `inspect --format json` 또는 Host 읽기 출력의 Core NodePath 배열을 그대로 받는다. 저장본 revision과 같을 때만 해당 블록 또는 표 셀로 내부 스크롤을 이동하고 강조한다. 셀 경로는 그 셀의 실제 렌더링 영역을 강조한다. 미주 정의 경로는 뒤로 배치된 정의를, 호출이 들어 있는 문단 경로는 그 문단을 가리킨다. 인라인 호출 자체의 별도 경로·글자 범위·중첩 목록 항목 단위 탐색은 제공하지 않는다. 지원하지 않거나 없는 경로는 target-not-found로 알리고 강조하지 않는다.
 - `reloadKey?: string|number`: 값을 바꾸면 저장본을 다시 읽는다. target 변경이나 현재 문서를 여전히 포함하는 무관한 폴더 목록 변경은 다시 읽지 않는다. 현재 문서가 열린 폴더 범위에서 빠지면 요청을 취소하고 표시를 지운다. polling·자동 변경 추적·오래된 경로 자동 재대응은 없다. 새 저장본의 revision이 target과 다르면 stale-target으로 알리고 이동·강조하지 않는다.
@@ -81,6 +81,8 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 대상 이동은 처음 측정한 좌표에 고정하지 않는다. 렌더러가 수식·그림·글꼴·셀 배치 및 폭 변화를 관측해 좌표를 다시 보고하면, 대상이 내부 뷰포트에서 벗어났을 때 다시 보이게 한다. 넓은 표의 셀은 기존 표 자체의 가로 스크롤 상자 안에서 이동하고 강조도 그 상자에 맞춰 잘린다. 문서 보기나 플러그인 화면 전체를 가로로 이동시키지 않는다. 이미 보이는 대상은 매 측정마다 맨 위로 옮기지 않는다. 사용자가 보기 또는 표 안에서 wheel·가로/세로 스크롤 키·스크롤바로 직접 스크롤하면 같은 대상에 대한 자동 위치 맞춤은 중단하고 강조 좌표만 갱신한다. 경로·revision·reloadKey가 바뀌거나 대상을 해제한 뒤 다시 지정하면 자동 위치 맞춤을 재개한다. 뷰포트보다 큰 대상은 시작 부분을 보여 준다. 임의의 시간 대기나 문서 의미 변경은 없다.
 
 SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편집 세션·검수 상태·대응 저장소·동기 스크롤·연결선·PDF·탭 조작은 넣지 않는다. 화면 상호작용이므로 별도 CLI 명령은 만들지 않으며 읽기는 기존 inspect를 사용한다. UI gallery의 Document view는 합성 snapshot을 사용하는 같은 부품의 예제다. 새 색/대화/일반 상호작용 없이 기존 paper·간격·accent·warning Notice를 사용한다.
+
+블록 호버의 합성 표본(1440px): [갤러리 변경 전](assets/document-view-hover-1712/before-1440-dark.png) · [갤러리](assets/document-view-hover-1712/after-1440-dark.png), [두 열 화면 변경 전](assets/document-view-hover-1712/before-plugin-1440-light.png) · [두 열 화면](assets/document-view-hover-1712/after-plugin-1440-light.png).
 
 기본 문서 보기의 기존 합성 표본: [1440 밝음](assets/plugin-document-view-1592/1440-light.png), [1440 어두움](assets/plugin-document-view-1592/1440-dark.png), [640 밝음](assets/plugin-document-view-1592/640-light.png). 왼쪽 원본 영역은 플러그인이 만든 placeholder이며 PDF viewer가 아니다. 이는 2026-11-13 캡처의 연결 복구이고 이번 실행 검증이나 소유자 시각 승인이 아니다.
 
