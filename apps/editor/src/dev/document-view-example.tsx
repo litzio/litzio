@@ -73,6 +73,7 @@ export function LinkedDocumentViewExample() {
   const korean = i18n.resolvedLanguage === "ko";
   const [large, setLarge] = useState(false);
   const [stale, setStale] = useState(false);
+  const [fillHeight, setFillHeight] = useState(false);
   const [scale, setScale] = useState(1);
   const [selected, select] = useState<string>();
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
@@ -111,13 +112,16 @@ export function LinkedDocumentViewExample() {
     colorToken: index % 3 === 1 ? "--id-color-warning" : "--id-color-info",
   })), [sample, korean, inset, pitch, width, height]);
   return <DocumentViewScope.Provider value={{ client: sample.client, roots: ["/example"] }}>
-    <ui.ScreenLayout>
+    <div className="task-surface gallery-document-view"><ScreenFrame title={korean ? "문서 블록 대조" : "Linked document view"}>
+    <ui.ScreenLayout fillHeight={fillHeight} actions={<ui.Button aria-pressed={fillHeight} onClick={() => setFillHeight(value => !value)}>
+      {korean ? "남은 높이 채우기" : "Fill available height"}
+    </ui.Button>}>
       <ui.Toolbar>
         <ui.Button aria-pressed={scale !== 1} onClick={() => setScale(scale === 1 ? .75 : 1)}>{korean ? "원본 배율" : "Source scale"} {scale}</ui.Button>
         <ui.Button aria-pressed={stale} onClick={() => setStale(!stale)}>{korean ? "다른 저장본 연결" : "Use another revision"}</ui.Button>
         <ui.Button aria-pressed={large} onClick={() => { select(undefined); setLarge(!large); }}>{korean ? "1,200개 블록" : "1,200 blocks"}</ui.Button>
       </ui.Toolbar>
-      <ui.LinkedDocumentView document={{ path: sample.samplePath }}
+      <ui.LinkedDocumentView document={{ path: sample.samplePath, height: fillHeight ? "fill" : undefined }}
         sourceLabel={korean ? "원본 자료" : "Source material"} sourceRef={setViewport} sourceScale={scale}
         revision={stale ? "b".repeat(64) : revision} items={items} selectedId={selected} onSelect={select}
         source={<div style={{ position: "relative", height: 2 * inset + pitch * items.length }}>
@@ -125,6 +129,6 @@ export function LinkedDocumentViewExample() {
             style={{ position: "absolute", ...item.boxes[0], justifyContent: "start",
               borderInlineStartWidth: "var(--space-1)", borderInlineStartColor: `var(${item.colorToken})` }}>{item.label}</ui.Button>)}
         </div>} />
-    </ui.ScreenLayout>
+    </ui.ScreenLayout></ScreenFrame></div>
   </DocumentViewScope.Provider>;
 }

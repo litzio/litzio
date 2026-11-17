@@ -39,6 +39,8 @@ export function LinkedDocumentView({ document: view, revision, source, sourceLab
   const index = useMemo(() => indexItems(items), [items]);
   const matching = geometry?.revision === revision ? geometry : undefined;
   const scale = Number.isFinite(sourceScale) && sourceScale > 0 ? sourceScale : 1;
+  const height = view.height ?? 480;
+  const fillHeight = height === "fill";
   const select = (id: string) => {
     const item = index.byId.get(id);
     if (!item || !matching) return;
@@ -49,11 +51,11 @@ export function LinkedDocumentView({ document: view, revision, source, sourceLab
     const group = index.byPath.get(key);
     return group?.find(item => item.id === selectedId) ?? group?.[0];
   };
-  return <div className="linked-document-view">
+  return <div className="linked-document-view" data-fill-height={fillHeight || undefined}>
     <p className="type-helper linked-document-narrow-hint">{t("Widen the window to compare side by side.")}</p>
     <div ref={host} className="linked-document-panes">
       <div ref={setSourceViewport} className="linked-document-source" role="region" aria-label={sourceLabel} tabIndex={0}
-        style={{ height: view.height ?? 480 }} onClick={event => {
+        style={fillHeight ? undefined : { height }} onClick={event => {
           const id = linkedId(event.target, event.currentTarget, "data-linked-item");
           if (id !== undefined) select(id);
         }}>{source}</div>

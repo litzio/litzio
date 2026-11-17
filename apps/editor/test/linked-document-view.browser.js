@@ -96,6 +96,37 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('button',{name:'Use another revision',exact:true}).click();
   await expect(band(1)).toHaveAttribute('data-direction','document-above');
 
+  const fill = page.getByRole('button',{name:'Fill available height',exact:true});
+  const fillGeometry = () => linkedPreview.evaluate(node => {
+    const panes = node.closest('.linked-document-panes');
+    const source = panes.querySelector('.linked-document-source').getBoundingClientRect();
+    const view = node.getBoundingClientRect();
+    const bottom = panes.closest('.screen-layout').getBoundingClientRect().bottom;
+    return { source: source.height, view: view.height, fitted: Math.abs(view.bottom - bottom) < 2,
+      stacked: source.bottom <= view.top };
+  });
+  await fill.click();
+  await expect.poll(async () => {
+    const geometry = await fillGeometry();
+    return geometry.fitted && Math.abs(geometry.source - geometry.view) < 2 && geometry.view > 480;
+  }).toBe(true);
+  await expect(band(9)).toBeAttached();
+  await page.setViewportSize({width:1440,height:700});
+  await expect.poll(async () => {
+    const geometry = await fillGeometry();
+    return geometry.fitted && Math.abs(geometry.source - geometry.view) < 2 && geometry.view < 480;
+  }).toBe(true);
+  await expect(band(9)).toHaveCount(0);
+  await page.setViewportSize({width:1440,height:1000});
+  await expect(band(9)).toBeAttached();
+  await page.setViewportSize({width:640,height:700});
+  await expect.poll(async () => {
+    const geometry = await fillGeometry();
+    return geometry.fitted && geometry.stacked && Math.abs(geometry.source - geometry.view) < 2 &&
+      geometry.source > 0 && geometry.view > 0;
+  }).toBe(true);
+  await fill.click();
+
   await page.setViewportSize({width:640,height:1000});
   await expect(page.getByText('Widen the window to compare side by side.')).toBeVisible();
   await expect(bands).toHaveCount(0);
