@@ -73,6 +73,7 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 
 - 이슈마다 새 Paseo worktree를 `baseBranch: "origin/master"`에서 branch-off로 만든다(로컬 master는 낡았을 수 있다). 병합 직후의 worktree를 재사용하지 않는다(workspace가 자동 archive되어 작업자가 사라질 수 있다). 선행 PR의 head에서 갈라 미리 시작시키는 것은 선행 PR이 승인돼 merge queue에 있을 때만 한다(수정 중인 PR 위에는 얹지 않는다). 그때는 지시문 첫 문단에 선행 PR 번호와 함께 "대기열 검사 중에는 state가 OPEN으로 보인다. 구현을 마친 뒤 병합을 몇 분 간격으로 확인하고, 병합되면 origin/master를 merge해 master를 base로 PR을 만든다. 30분이 지나도 병합되지 않으면 보고한다"를 넣는다.
 - 작업자는 쓰기와 네트워크가 가능한 모드로 만든다. 지시문은 파일 쓰기 도구로 파일에 쓰고(셸 heredoc으로 긴 글을 만들지 않는다), 공통 규칙은 띄울 때마다 [worker-prompt.md](references/worker-prompt.md)의 블록을 그 파일에서 읽어 그대로 붙인다. 줄이거나 고친 세션 사본을 만들어 돌려쓰지 않는다. 공통 규칙이 모자라거나 길면 worker-prompt.md를 고치는 PR을 낸다. 이슈별 범위와 승인된 결정만 바꾼다.
+- **작업자 한 명은 PR 하나만 맡는다.** PR이 병합되면 그 작업자의 일은 끝난다. 다음 일은 주제가 이어지더라도 새 worktree와 새 작업자에게 맡기고, 필요한 맥락은 지시문 파일에 적는다. 같은 작업자에게 이어서 맡기는 것은 불가피하거나 작업의 연속성이 결정적일 때만 한다: 같은 PR의 리뷰 지적 반영, 충돌 해결, queue 실패 수정, 그리고 한 이슈를 여러 PR로 나눈 경우의 바로 다음 조각(앞 조각에서 쌓은 이해가 없으면 다시 조사해야 하는 경우). 이어서 맡길 때는 먼저 그 작업자의 컨텍스트 사용량을 확인하고(`get_agent_status`의 `contextWindowUsedTokens`), 절반을 넘었으면 새 작업자로 바꾼다. 컨텍스트가 차면 앞의 지시를 잊고, 한 작업자에게 줄을 세우면 병렬로 할 수 있는 일이 순서를 기다린다.
 - 만든 뒤 1–2분 지나서 상태가 `running`인지, worktree가 실제로 있는지 직접 확인한다. 알림이 없다는 이유로 "진행 중"이라고 보고하지 않는다.
 - 작업자가 모델 용량 오류로 멈추면 같은 agent에 "`git status`, 최근 커밋, 열린 PR을 확인한 뒤 이어서 진행하라"를 보낸다. 횟수와 상관없이 새 agent로 교체하지 않는다(서버 쪽 문제라 교체해도 효과가 없다는 소유자 판단).
 - 작업자가 결정이 필요하다고 멈추면, 승인된 결정 범위에서 답할 수 있으면 근거와 함께 답한다. 범위 밖이면 사용자에게 묻는다.
@@ -121,6 +122,7 @@ node <skill>/scripts/pr-gate.mjs --pr <N> --enqueue --note-file <note.md>  # 기
 ```
 
 - **대기열에서만 도는 검사를 먼저 대조한다.** PR CI는 Windows Desktop package·update·uninstall과 HTTP 일부를 건너뛰고, `pr-gate`는 건너뛴 job을 통과로 센다. `pr-gate`의 성공은 PR 검사의 성공이며 merge_group 전용 검사의 성공이 아니다. 화면의 문구·role·구조·test id나 CLI 출력을 바꾼 PR은 넣기 전에 오케스트레이터가 `apps/desktop/test/packaged/`와 `http-plugins`·`http-host` 시나리오에서 그 화면을 다루는 줄을 직접 읽고 PR head의 소스와 대조한다. 지운 이름을 검색하는 것만으로는 남아 있는 요소에 대한 기다림(role, 순서, 저장 대기)을 잡지 못한다. 작업자의 "검색해 보니 없음" 보고로 대신하지 않는다. 대조한 파일과 결과를 기록 댓글에 쓰고, 충돌 해결로 head가 바뀌면 다시 한다.
+- **넣기 전에 대기열에 있는 PR과의 충돌을 확인한다.** `pr-gate`의 충돌 검사는 지금의 master만 본다. 대기열에 이미 다른 PR이 있으면 `git merge-tree --write-tree --name-only origin/<앞 PR의 브랜치> origin/<이 PR의 브랜치>`로 두 PR이 서로 충돌하는지 본다. 충돌하면 넣지 말고 앞 PR의 병합을 기다린 뒤 master를 병합해 풀게 한다. 버전 줄만이 아니라 계약 문서와 공용 검사 파일도 같은 자리를 고치기 쉽다. 같은 파일을 고칠 것이 보이는 PR들은 처음부터 순서를 정해 하나씩 올리거나 한 PR로 묶는다.
 - 스크립트는 저장소, PR head와 원격 브랜치 일치, Draft 여부, 충돌, PR의 필수 CI 성공, 미해결 review thread 0, 저장소 validator의 AI trailer, 기록 파일의 리뷰 판정 줄을 확인한다. 하나라도 실패하면 enqueue하지 않는다. Draft PR은 `gh pr ready <N>`로 바꾼 뒤 다시 확인한다.
 - 기록 댓글의 첫 줄은 `독립 리뷰: APPROVE <head>` 또는 `독립 리뷰: 생략 — <5절 기준에 비춘 사유>`다. 스크립트는 이 줄이 없는 기록 파일로는 넣지 않는다. 이어서 오케스트레이터가 확인한 것을 쓴다.
 - 승인 뒤 head가 바뀐 경우에는 CONTRIBUTING 5단계를 따른다.
