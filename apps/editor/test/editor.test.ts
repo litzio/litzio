@@ -1,3 +1,4 @@
+import { readDocument as readSdkDocument, writeDocument as writeSdkDocument } from "@litzio/plugin-sdk/node";
 import { parse as parseTemplateDocument, getEditableDocument as templateReadModel, referenceNumberText as templateReference, captionNumberText as templateCaption } from "@litzio/core";
 import { saveTemplate, listTemplates as listDocumentTemplates } from "../server/document-templates.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
@@ -1322,6 +1323,12 @@ test("Source preview is the canonical Markdown Save would write, without writing
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { markdown: preview.markdown });
     assert.equal(readFileSync(file, "utf8"), source);
+
+    const sdkSnapshot = readSdkDocument(file);
+    const sdkReceipt = writeSdkDocument(file, sdkSnapshot.document, sdkSnapshot.revision);
+    assert.equal(sdkReceipt.revision, loadDocumentFile(file).revision, "DocumentView target uses the same saved revision as the Node SDK");
+    // Restore this test's source snapshot before checking its existing preview/save paths.
+    writeFileSync(file, source);
 
     // An unchanged document previews as its canonical form.
     const unchanged = await post({ path: file, revision: loaded.revision, base: { source: loaded.source } });

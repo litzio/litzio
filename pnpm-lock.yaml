@@ -490,6 +490,9 @@ importers:
       '@litzio/core':
         specifier: workspace:*
         version: link:../core
+      '@litzio/file-commit':
+        specifier: workspace:*
+        version: link:../file-commit
       ajv:
         specifier: 8.20.0
         version: 8.20.0

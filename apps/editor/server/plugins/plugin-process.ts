@@ -3,19 +3,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLUGIN_ERROR_KINDS, SDK_VERSION, PluginPublicError, PluginOperationError, pluginErrorKind, type PluginCli, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
 
-let sdkUrl: Promise<string> | undefined;
+const sdkUrls: Partial<Record<"root" | "node", Promise<string>>> = {};
 declare const __LITZIO_CLI_BUILD__: { desktop: boolean };
 // Source Hosts own the checkout; shipped Hosts own their installation bundles.
 const internalRoot = fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "../../../../"
   : typeof __LITZIO_CLI_BUILD__ !== "undefined" && __LITZIO_CLI_BUILD__.desktop ? "../" : "./", import.meta.url));
-function hostSdkUrl(): Promise<string> {
-  return sdkUrl ??= (async () => {
+function hostSdkUrl(node = false): Promise<string> {
+  return sdkUrls[node ? "node" : "root"] ??= (async () => {
     if (import.meta.url.endsWith(".ts")) {
       const tooling = new URL("../../../../packages/cli/scripts/plugin-sdk.ts", import.meta.url);
       // Node loads checkout tooling at runtime, including under Vite SSR.
-      return (await import(/* @vite-ignore */ tooling.href)).developmentSdkUrl();
+      return (await import(/* @vite-ignore */ tooling.href)).developmentSdkUrl(node);
     }
-    return new URL("./plugin-sdk.mjs", import.meta.url).href;
+    return new URL(node ? "./plugin-sdk-node.mjs" : "./plugin-sdk.mjs", import.meta.url).href;
   })();
 }
 
@@ -45,6 +45,7 @@ process.on('message', async ({id, method, args}) => {
       // The SDK is one self-contained bundle. parentURL is caller-controlled
       // (createRequire), so it must never grant access to private Host files.
       registerHooks({ resolve(specifier, context, nextResolve) {
+        if (specifier === '@litzio/plugin-sdk/node') return {url: args.nodeSdkUrl, format: 'module', shortCircuit: true};
         if (specifier === '@litzio/plugin-sdk') return {url: args.sdkUrl, format: 'module', shortCircuit: true};
         if (specifier.startsWith('@litzio/')) throw new Error('Use the public plugin SDK');
         const resolved = nextResolve(specifier, context);
@@ -108,7 +109,7 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
   });
   const stop = async () => { stopped = true; child.kill(); await exited; };
   let operationNames: string[];
-  try { operationNames = await request("activate", { entry, settings, secrets, cli, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id), codeScreen: manifest.contributes.screens?.some(screen => screen.entry) ?? false }); }
+  try { operationNames = await request("activate", { entry, settings, secrets, cli, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, nodeSdkUrl: await hostSdkUrl(true), sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id), codeScreen: manifest.contributes.screens?.some(screen => screen.entry) ?? false }); }
   catch (error) { await stop(); throw error; }
   return {
     operations: Object.fromEntries(operationNames.map(id => [id, (input: unknown) => request("invoke", { operation: id, input })])),
