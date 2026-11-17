@@ -38,6 +38,15 @@ export function DesktopMenu({ desktop }: { desktop: DesktopBridge }) {
     const timer = setInterval(() => { void check(); }, 5000);
     return () => { active = false; clearInterval(timer); };
   }, [desktop, connection.version, checkingConnection]);
+  const stop = async () => {
+    const { version } = desktopConnection.get();
+    try {
+      if (await desktop.stopDaemon()) {
+        const current = desktopConnection.get();
+        if (current.version === version && current.phase !== "connecting") disconnectDesktop(undefined, true);
+      }
+    } catch (error) { setProblem(String(error)); }
+  };
   const busy = connection.phase === "connecting";
   // Keep the same notice through reconnect; its disappearance acknowledges success.
   useNotifications([
@@ -53,7 +62,7 @@ export function DesktopMenu({ desktop }: { desktop: DesktopBridge }) {
   return <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Desktop menu")} />}><Ellipsis /></DropdownMenuTrigger>
     <DropdownMenuContent align="start">
       <DropdownMenuItem onClick={() => { void desktop.openInBrowser().catch(error => setProblem(String(error))); }}>{i18n.t("Open in browser")}</DropdownMenuItem>
-      <DropdownMenuItem onClick={() => { void desktop.stopDaemon().then(stopped => { if (stopped) disconnectDesktop(undefined, true); }).catch(error => setProblem(String(error))); }}>{i18n.t("Stop daemon")}</DropdownMenuItem>
+      <DropdownMenuItem onClick={() => { void stop(); }}>{i18n.t("Stop daemon")}</DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>;
 }
