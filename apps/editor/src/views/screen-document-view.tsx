@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
 import type { ScreenDocumentViewProps, ScreenDocumentViewState } from "@litzio/plugin-sdk";
 import type { DocumentFileResponse } from "../../shared/document-protocol.ts";
 import type { HostClient } from "../host-client.ts";
@@ -10,6 +10,7 @@ import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 import "./screen-document-view.css";
 import { useDocumentViewInteractions } from "./screen-document-view-interactions.ts";
+import { useDocumentViewLayout } from "./screen-document-view-layout.ts";
 import { useDocumentViewNavigation } from "./screen-document-view-navigation.ts";
 
 /** App-owned binding, never a plugin-supplied Host or root override. */
@@ -24,7 +25,8 @@ function assertDocumentViewPath(path: string, roots: readonly string[]) {
 }
 
 /** Saved snapshots only. The existing reader owns admission, bibliography and its read timeout. */
-export function DocumentView({ path, target, reloadKey, height = 480, label = i18n.t("Document preview"), onStateChange, onVisibleBlockChange, onBlockClick }: ScreenDocumentViewProps) {
+export function DocumentView({ path, target, reloadKey, scale = 1, height = 480, label = i18n.t("Document preview"), onStateChange, onVisibleBlockChange, onBlockClick, onVisibleBlockLayoutChange }: ScreenDocumentViewProps) {
+  const previewScale = Number.isNaN(scale) ? 1 : Math.max(0.4, Math.min(1, scale));
   const scope = useContext(DocumentViewScope);
   let scopeProblem = "";
   try {
@@ -71,7 +73,8 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
   const highlight = selected && target?.highlight !== false ? <div className="screen-document-view-highlight" data-testid="document-view-highlight" data-target-kind={cell ? "cell" : "block"} aria-hidden="true"
     style={{ top: selected.top - (clip?.top ?? 0), height: selected.height, ...(cell ? {left:selected.left - (clip?.left ?? 0),width:selected.width} : {}) }} /> : null;
   const cancelScroll = useDocumentViewInteractions(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
-  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, reloadKey]), selected, target?.highlight === false, cancelScroll);
+  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, reloadKey]), selected, target?.highlight === false, cancelScroll, previewScale, positions);
+  useDocumentViewLayout(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockLayoutChange);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
   return <section className="screen-document-view" aria-label={label} data-state={state}>
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
@@ -81,7 +84,7 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
         navigation.onKeyDownCapture(event);
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); event.stopPropagation(); }
       }}>
-        <div className="screen-document-view-content">
+        <div className="screen-document-view-content" style={{"--document-view-scale":previewScale} as CSSProperties}>
           <DocumentEditor key={JSON.stringify([path, file.revision, reloadKey])} readOnly preview document={file.document} bibliography={file.bibliography}
             documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} />
           {clip ? <div className="screen-document-view-highlight-clip" style={{top:clip.top,left:clip.left,width:clip.width,height:clip.height}}>{highlight}</div> : highlight}
