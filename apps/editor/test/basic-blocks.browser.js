@@ -47,8 +47,8 @@ async (page, { openDocument }) => {
 
   // Admonition kind from the block menu.
   await editor.locator('aside[data-block="admonition"]').hover();
-  await page.getByRole('button', {name:'Move admonition block 2'}).click();
-  await page.getByRole('menuitem', {name:'Change to Danger', exact:true}).click();
+  await page.getByRole('button', {name:'Move Callout block 2'}).click();
+  await page.getByRole('menuitemradio', {name:'Danger', exact:true}).click();
   const danger = editor.locator('aside[data-block="admonition"][data-variant="danger"]');
   await danger.waitFor({state:'visible'});
   const kindLabelShown = (await danger.locator('.admonition-label').innerText()).trim() === 'Danger';
