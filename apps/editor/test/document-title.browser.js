@@ -79,6 +79,7 @@ async (page, { openPath, reloadDocument, expect, screenshots, waitForEditorFocus
   await openPath(page, scratch('chapter.md'));
   await expect(title).toHaveValue('IEEE 1547 · Chapter 7');
   const opening = (await read('chapter.md')).document;
+  expect(opening.status).toBe('draft');
   await expect(editor.locator('h1').first()).toHaveAttribute('data-heading-number','1');
   await expect(editor.locator('h2')).toHaveAttribute('data-heading-number','1.1');
   const outline = page.getByTestId('outline');
@@ -129,6 +130,17 @@ async (page, { openPath, reloadDocument, expect, screenshots, waitForEditorFocus
   await reloadDocument(page);
   await expect(editor.locator('h1').first()).toHaveText('Next clause');
   await expect(title).toHaveValue('');
+  // A real body edit uses the existing shared editor Save/Reload path.
+  const body = editor.locator('p').filter({hasText:'Body.'}).first();
+  await body.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Status retained.');
+  await expect(body).toContainText('Status retained.');
+  await save();
+  expect((await read('chapter.md')).document.status).toBe('draft');
+  await reloadDocument(page);
+  await expect(editor).toContainText('Status retained.');
+  expect((await read('chapter.md')).source).toContain('status: draft');
   // Single-line input follows the existing inline-math convention: pasted line separators become spaces.
   await page.context().grantPermissions(['clipboard-read','clipboard-write']);
   await title.focus();

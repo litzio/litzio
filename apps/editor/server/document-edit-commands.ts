@@ -51,6 +51,8 @@ import {
   updateTableCaption,
   updateHeadingNumbering,
   updateDocumentTitle,
+  updateDocumentStatus,
+  type DocumentStatus,
   updateReferenceTemplates,
   type ReferenceTemplateUpdate,
   updateBibliography,
@@ -266,6 +268,10 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
       if (!Object.keys(templates).length) throw new Error("provide a template or --reset");
       return document => updateReferenceTemplates(document, templates);
     }
+    case "update-status": {
+      if (flags.includes("--value") === flags.includes("--remove")) throw new Error("choose --value or --remove");
+      return document => updateDocumentStatus(document, flags.includes("--remove") ? null : flag(flags, "--value") as DocumentStatus);
+    }
     case "update-title": {
       if (flags.includes("--text") === flags.includes("--remove")) throw new Error("choose --text or --remove");
       return document => updateDocumentTitle(document, flags.includes("--remove") ? null : flag(flags, "--text"));
@@ -408,6 +414,7 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "update-table-alignment": ["--path", "--column", "--align"],
   "insert-table-column": ["--path", "--at"],
   "update-heading-numbering": ["--enabled"],
+  "update-status": ["--value", "--remove"],
   "update-title": ["--text", "--remove"],
   "update-reference-templates": ["--figure", "--table", "--equation", "--reset"],
   "update-table-caption": ["--path", "--text", "--content"],

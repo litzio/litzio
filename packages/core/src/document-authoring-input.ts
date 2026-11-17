@@ -1,3 +1,4 @@
+import { DOCUMENT_STATUSES } from "./status.ts";
 import { z } from "zod";
 import { ADMONITION_VARIANTS } from "./myst/admonition.ts";
 import type { InlineContent } from "./inline.ts";
@@ -44,7 +45,7 @@ const block = z.discriminatedUnion("kind", [
   if ((value.kind === "paragraph" || value.kind === "heading" || value.kind === "quote" || value.kind === "admonition" || value.kind === "footnote") && (value.text === undefined) === (value.content === undefined))
     ctx.addIssue({ code: "custom", message: "Expected exactly one of text or content" });
 });
-export const documentAuthoringSchema = z.strictObject({ title: text.optional(), inputs: z.array(z.strictObject({
+export const documentAuthoringSchema = z.strictObject({ status: z.enum(DOCUMENT_STATUSES).optional(), title: text.optional(), inputs: z.array(z.strictObject({
   key: text.min(1).max(512), blocks: z.array(block).max(DOCUMENT_AUTHORING_LIMITS.blocks),
 })).max(DOCUMENT_AUTHORING_LIMITS.inputs) }).superRefine((value, ctx) => {
   // Count nested list items as blocks too; inline atoms and every nested string are bounded by bytes/string limits.

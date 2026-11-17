@@ -681,6 +681,13 @@ const COMMANDS: CommandSpec[] = [
     details: ["Templates contain %s (or {number}). Omitted kinds are unchanged. --reset restores MyST defaults; it cannot also set the same kind."],
   },
   {
+    name: "update-status",
+    group: "Edit — labels, footnotes and numbering",
+    summary: "Set or remove the document review status through Core",
+    details: ["Status is informational and never restricts editing. --remove deletes the field."],
+    usage: `${brand.cliCommand} update-status <file> (--value <draft|review|approved> | --remove)`,
+  },
+  {
     name: "update-title",
     group: "Edit — labels, footnotes and numbering",
     summary: "Set or remove the single-line frontmatter document title through Core",
@@ -1104,7 +1111,7 @@ function commandHelp(name: string): string {
 function inspectFile(file: string, bibliographyRoot?: string): string {
   const document = parse(readFile(file));
   const editable = getEditableDocument(document);
-  return `title: ${editable.title === undefined ? "absent" : quote(editable.title)}\n${formatInspect(editable)}\n${formatNumbering(numberingReport(editable.blocks))}${formatCitations(resourceReport(document, file, bibliographyRoot))}`;
+  return `status: ${editable.status ?? "absent"}\ntitle: ${editable.title === undefined ? "absent" : quote(editable.title)}\n${formatInspect(editable)}\n${formatNumbering(numberingReport(editable.blocks))}${formatCitations(resourceReport(document, file, bibliographyRoot))}`;
 }
 
 function inspectFileJson(file: string, bibliographyRoot?: string): string {
@@ -1115,6 +1122,7 @@ function inspectFileJson(file: string, bibliographyRoot?: string): string {
     ok: true,
     command: "inspect",
     revision: textRevision(source),
+    status: editable.status ?? null,
     title: editable.title ?? null,
     nodes: machineNodes(editable),
     numbering: numberingReport(editable.blocks),
