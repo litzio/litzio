@@ -1,3 +1,6 @@
+import type { Document } from "@litzio/core";
+import { readDocument, writeDocument, FileChangedError } from "@litzio/plugin-sdk/node";
+import { mergeParagraphWithPrevious, splitParagraph, updateHeadingLevel, removeBlock, insertParagraph, machineNodes } from "@litzio/plugin-sdk";
 import { DAEMON_PROTOCOL } from "../../../apps/editor/server/daemon-protocol.ts";
 import { syncBuiltinESMExports } from "node:module";
 import assert from "node:assert/strict";
@@ -12,13 +15,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   getEditableDocument,
   inspectDocument,
-  insertParagraph,
   insertHardBreak,
-  splitParagraph,
-  mergeParagraphWithPrevious,
   moveBlock,
   parse,
-  removeBlock,
   replaceText,
   serialize,
   validateStructure,
@@ -3184,4 +3183,34 @@ test("inspect preserves Core inline content at every native location", () => {
     assert.equal(created.status, 0, created.stderr);
     assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Public SDK/CLI integration: byte parity, locator parity and conflicts, without new subprocesses.
+test("Node document SDK shares CLI inspect and canonical edit results", () => {
+  const sdkFile = path.join(fixtures, "sdk.md");
+  const cliFile = path.join(fixtures, "cli.md");
+  const source = nativeSource("# Heading\n\nFirst paragraph.\n\nSecond paragraph.\n");
+  const edits = [
+    { args: ["merge-paragraph", "--path", "3"], change: (d: Document) => mergeParagraphWithPrevious(d, [3]) },
+    { args: ["split-paragraph", "--path", "2", "--offset", "5"], change: (d: Document) => splitParagraph(d, [2], 5) },
+    { args: ["update-heading-level", "--path", "1", "--from", "1", "--to", "2"], change: (d: Document) => updateHeadingLevel(d, [1], 1, 2) },
+    { args: ["remove-block", "--at", "3"], change: (d: Document) => removeBlock(d, 3) },
+    { args: ["insert-block", "--at", "3", "--text", "Inserted"], change: (d: Document) => insertParagraph(d, 3, "Inserted") },
+  ];
+  for (const { args: [command, ...flags], change } of edits) {
+    writeFileSync(sdkFile, source); writeFileSync(cliFile, source);
+    const snapshot = readDocument(sdkFile);
+    const inspected = JSON.parse(run(["inspect", cliFile, "--format", "json"]).stdout);
+    assert.equal(snapshot.revision, inspected.revision);
+    assert.deepEqual(JSON.parse(JSON.stringify(machineNodes(getEditableDocument(snapshot.document)))), inspected.nodes);
+    const result = writeDocument(sdkFile, change(snapshot.document), snapshot.revision);
+    const cli = run([command, cliFile, ...flags, "--if-revision", snapshot.revision]);
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.deepEqual(readFileSync(sdkFile), readFileSync(cliFile));
+    assert.equal(result.revision, JSON.parse(run(["inspect", cliFile, "--format", "json"]).stdout).revision);
+    writeFileSync(sdkFile, source + "External edit.\n");
+    const external = readFileSync(sdkFile);
+    assert.throws(() => writeDocument(sdkFile, snapshot.document, snapshot.revision), FileChangedError);
+    assert.deepEqual(readFileSync(sdkFile), external);
+  }
 });

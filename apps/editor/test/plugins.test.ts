@@ -788,15 +788,22 @@ test("Host SDK runtime is one self-contained JavaScript module with only Node bu
     }
   }
   const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
-  assert.equal(runtime.SDK_VERSION, "0.5.0");
+  assert.equal(runtime.SDK_VERSION, "0.6.0");
   assert.equal(JSON.parse(readFileSync(new URL("../../../packages/plugin-sdk/package.json", import.meta.url), "utf8")).version, runtime.SDK_VERSION);
   assert.equal(typeof runtime.PluginOperationError, "function");
+  const nodeResult = await buildSdkRuntime(undefined, true);
+  const nodeRuntime = await import(`data:text/javascript;base64,${Buffer.from(nodeResult.outputFiles![0]!.contents).toString("base64")}`);
+  assert.equal(typeof nodeRuntime.readDocument, "function");
+  assert.equal(typeof nodeRuntime.writeDocument, "function");
+
 });
 
 test("runtime import boundary checks resolved real paths, including aliases into the Host checkout", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-import-boundary-"));
   const host = new PluginHost(path.join(root, "state.json")), id = "fixture.imports";
   const source = `import { SDK_VERSION } from '@litzio/plugin-sdk';
+import { readDocument } from '@litzio/plugin-sdk/node';
+if (typeof readDocument !== 'function') throw new Error('Missing Node SDK');
 import {basename} from 'node:path'; import {message} from './local.js'; import {value} from 'fixture-dependency';
 export function activate(){return {operations:{},status:()=>({available:true,message:[SDK_VERSION,basename('okay'),message,value].join('/')}),dispose(){}}}`;
   // A legitimate artifact can itself live under the checkout boundary.
@@ -1487,4 +1494,13 @@ test("scaffolded Node plugins use the Host CLI and fail clearly without a launch
     await host.invoke("reload",{id:"fixture.cli"});
     assert.equal((await host.list())[0]!.status!.available,true);
   } finally { await Promise.all([host.close(),absent.close()]);rmSync(root,{recursive:true,force:true}); }
+});
+
+test("screen compilation refuses the Node document SDK entry", async () => {
+  const { compileScreen } = await import("../server/plugins/screen-code.ts");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-screen-node-sdk-"));
+  try {
+    writeFileSync(path.join(root, "screen.jsx"), "import {readDocument} from '@litzio/plugin-sdk/node'; export default readDocument;");
+    assert.throws(() => compileScreen(root, "screen.jsx", true), /Could not resolve|local plugin files|unsupported/);
+  } finally { rmSync(root, {recursive:true,force:true}); }
 });

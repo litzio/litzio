@@ -26,6 +26,28 @@
 
 소스 Host는 현재 checkout의 CLI와 tsx loader, 패키징된 Desktop daemon과 독립 HTTP Host는 자기 CLI 배포물의 entry를 사용한다. 비서의 CLI shim도 같은 Host resolver를 사용한다. 이 값은 Host 주소·인증·문서 API가 아니며 `--host`를 자동 추가하지 않는다. `create`, `check`, `apply-batch`의 파일 경로는 이 PC에서 해석된다. SDK/Core나 Host에 명령별 wrapper·문서 의미를 새로 구현하지 않는다. CLI 파일 쓰기는 미저장 Editor 상태를 알지 못하므로 저장된 파일에만 사용한다.
 
+SDK 0.6.0의 Node 전용 진입점 `@litzio/plugin-sdk/node`는 `readDocument(path): {revision, document}`와 `writeDocument(path, document, expectedRevision): {revision}`을 제공한다. 같은 프로세스에서 Core 연산과 CLI 단일 명령·apply-batch와 같은 Core 정규 직렬화·유효성 검사, file-commit의 revision 검사·임시 형제 파일·교체를 쓴다. revision 충돌은 `FileChangedError`로 거부하고 파일을 바꾸지 않는다. revision은 Host·문서 보기·CLI와 같은 `textRevision`이다. SDK 루트의 `machineNodes(getEditableDocument(document))`는 CLI inspect JSON의 경로·종류 투영과 같은 구현이다. 루트는 `mergeParagraphWithPrevious`, `splitParagraph`, `updateHeadingLevel`을 재수출하며 블록 넣기는 기존 `insertParagraph` 등을 쓴다.
+
+이 함수도 미저장 Editor 상태를 알지 못하므로 저장된 파일에만 사용한다. 열린 폴더 제한·Host HTTP API·새 RPC는 없으며 CLI처럼 이 PC의 파일 경로를 해석한다. 화면 코드는 Node 진입점을 import할 수 없고 화면 소스/번들 검증에서 거부한다.
+
+```js
+import { mergeParagraphWithPrevious } from "@litzio/plugin-sdk";
+import { readDocument, writeDocument } from "@litzio/plugin-sdk/node";
+export function activate() {
+  return {
+    status: () => ({ available: true, message: "Ready" }),
+    operations: { merge: ({ path, blockPath, revision }) => {
+      const snapshot = readDocument(path);
+      // The caller's revision guards its snapshot-local blockPath.
+      if (snapshot.revision !== revision) throw new Error("Read the document again");
+      return writeDocument(path,
+        mergeParagraphWithPrevious(snapshot.document, blockPath), revision);
+    } },
+    dispose() {}
+  };
+}
+```
+
 아래 예는 필요한 플러그인의 처리 코드에만 넣는다. scaffold 기본 골격에는 추가하지 않는다. 입력 folder는 존재하는 출력 폴더, imagePath는 실제 PNG 파일이다. CLI에 줄 JSON은 artifact 밖 임시 폴더에 두고 완료·실패 모두 정리한다. 예는 짧은 작업이며 긴 처리는 기존 plugin 소유 작업·진행 조회 방식으로 나눈다.
 
 ```js

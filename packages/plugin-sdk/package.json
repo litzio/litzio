@@ -1,9 +1,12 @@
 {
   "name": "@litzio/plugin-sdk",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts"
+  },
   "scripts": {
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
@@ -13,7 +16,8 @@
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "@litzio/core": "workspace:*",
-    "@babel/parser": "7.29.9"
+    "@babel/parser": "7.29.9",
+    "@litzio/file-commit": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

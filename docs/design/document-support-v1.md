@@ -394,7 +394,7 @@ block-count and fingerprint-size refusal. UI rendering requires separate measure
 
 CLI `inspect --format json`의 `nodes`는 Core `getEditableDocument`의 인라인 구조를 그대로 노출한다. 문단·제목·인용·주의 상자·미주 정의·그림 caption 노드·표 cell 노드는 `content: InlineContent[]`를 제공한다. 표 캡션은 table 노드의 `caption`, 목록은 `items[].content`와 재귀적인 `items[].list`로 제공한다. 빈 인라인 내용은 빈 배열이다.
 
-`text`는 기존 표시·요약 소비자를 위해 유지한다. `content`가 구조 보존과 재작성의 입력이며 `text`에서 서식이나 원자를 추론하지 않는다. 인라인 서식, 첨자, 수식, 코드, 링크, 참조, 미주 표시는 Core 타입 그대로다. 경로는 해당 revision의 locator다. 번호 등 파생 표시 필드는 저장 의미가 아니다. JSON 투영은 Host 공용 `machineNodes`를 사용한다. 비서의 `read_document`는 원문과 revision을 반환하며 별도의 의미 투영을 만들지 않는다. 비서가 JSON 구조를 필요로 하면 같은 CLI를 사용한다.
+`text`는 기존 표시·요약 소비자를 위해 유지한다. `content`가 구조 보존과 재작성의 입력이며 `text`에서 서식이나 원자를 추론하지 않는다. 인라인 서식, 첨자, 수식, 코드, 링크, 참조, 미주 표시는 Core 타입 그대로다. 경로는 해당 revision의 locator다. 번호 등 파생 표시 필드는 저장 의미가 아니다. JSON 투영은 Core 공용 `machineNodes`를 CLI·Host·SDK가 함께 사용한다. 비서의 `read_document`는 원문과 revision을 반환하며 별도의 의미 투영을 만들지 않는다. 비서가 JSON 구조를 필요로 하면 같은 CLI를 사용한다.
 
 ## 공식 문서 작성 입력
 
