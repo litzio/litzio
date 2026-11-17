@@ -365,9 +365,28 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect.poll(layoutMatches).toBe(true);
   // Public callbacks report user input, never target navigation or text selection.
   await page.evaluate(()=>{window.__viewScroll=[];window.__viewClicks=[];});
+  const call=preview.locator('.tiptap > p').filter({hasText:'Evidence call'});
+  const readingPosition=await call.evaluate(node=>{
+    const view=node.closest('.screen-document-view-scroll');
+    view.scrollTop+=node.getBoundingClientRect().top-view.getBoundingClientRect().top-120;
+    return view.scrollTop;
+  });
+  await workspace.getByRole('button',{name:'Go to endnote call',exact:true}).click();
+  await expect.poll(inViewport).toBe(true);
+  await expect.poll(()=>highlight.evaluate(node=>Math.abs(node.getBoundingClientRect().top-[...node.closest('.screen-document-view').querySelectorAll('p')].find(p=>p.textContent.startsWith('Evidence call')).getBoundingClientRect().top))).toBeLessThan(2);
+  if(screenshots) {
+    const sidebar=page.locator('.sidebar');
+    const capture=async theme=>page.screenshot({path:`tmp/visible-target-1440-${theme}.png`,mask:[sidebar],maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
+    await capture('light');
+    await sidebar.getByRole('button',{name:'Color mode: Light',exact:true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+    await capture('dark');
+    await sidebar.getByRole('button',{name:'Color mode: Dark',exact:true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  }
+  expect(await preview.evaluate(node=>node.scrollTop)).toBe(readingPosition);
   await workspace.getByRole('button',{name:'Follow call without highlight',exact:true}).click();
   await expect(highlight).toHaveCount(0);
-  const call=preview.locator('.tiptap > p').filter({hasText:'Evidence call'});
   await expect.poll(()=>call.evaluate(node=>Math.abs(node.getBoundingClientRect().top-node.closest('.screen-document-view-scroll').getBoundingClientRect().top-1))).toBeLessThan(2);
   await page.waitForTimeout(250); // Negative assertion spans the settled scroll-report window.
   expect(await page.evaluate(()=>window.__viewScroll)).toEqual([]);
