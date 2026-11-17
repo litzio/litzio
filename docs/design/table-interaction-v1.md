@@ -67,7 +67,7 @@ Local checks: 33 targeted unit/fixture/token tests; Editor typecheck/build;
 `table-authoring`, `table-cell-editing`, `layout-rules`, `quiet-document`;
 docs and whitespace checks. Platform/packaging checks belong to CI.
 
-[Cell wrapping verification data (#897)](assets/table-wrap-897/capture-metadata.json).
+See [cell wrapping in the read-only comparison](assets/table-wrap-897/after-1440-compare.png) and [Read mode](assets/table-wrap-897/after-640-read.png).
 
 ## Property entry (#557)
 
@@ -122,8 +122,6 @@ retaining unchanged paper/content size, zero transactions, reading-line crossing
 row/column alignment assertions (`inline-document-settings`).
 Broader interface/platform regressions belong to required CI. The existing D08 tracking
 row remains linked to #793; issue closure owns its progress state.
-
-[Whole-table tools verification data (#793)](assets/table-tools-793/capture-metadata.json).
 
 ## Light handle work record (#517)
 
@@ -456,8 +454,6 @@ A second Linux run showed the same 2px overflow despite the smaller minimum: the
 remaining bound is the sum of intact word widths and padding. Narrow scrollers
 (at most 30rem) therefore use 8px inline cell padding; wide tables retain 12px.
 The empty-cell minimum stays 28px and ordinary words remain intact.
-
-[Cursor tool measurements from #1481](assets/table-cursor-1481/measurements.json).
 
 ### Native selection boundary correction (#1481)
 
