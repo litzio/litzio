@@ -98,6 +98,8 @@
   /* Dedicated Settings: bounded reading column and aligned controls. */
   --layout-settings-content-width: 42.5rem;
   --layout-settings-control-width: 15rem;
+  /* Minimum usable body in a fill-height plugin tab. */
+  --layout-screen-fill-min-height: 12rem;
   /* AI model discovery keeps search/actions visible while results scroll. */
   --layout-agent-model-list-height: 45dvh;
   /* Document panel (outline) beside the document; in the narrow layout it overlays at this width. */

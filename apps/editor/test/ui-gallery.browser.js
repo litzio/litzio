@@ -554,5 +554,22 @@ async (page, { expect, screenshots, withBlockHover }) => {
   await page.getByRole('button',{name:'Toggle stale target',exact:true}).click();
   await expect(page.locator('.screen-document-view')).toHaveAttribute('data-state','stale-target');
   await expect(page.getByTestId('document-view-highlight')).toHaveCount(0);
-
+  if (screenshots) {
+    await page.setViewportSize({width:1440,height:1000});
+    await page.getByRole('button',{name:'Toggle stale target',exact:true}).click();
+    await expect(page.locator('.screen-document-view')).toHaveAttribute('data-state','ready');
+    const theme = page.getByRole('group',{name:'Theme',exact:true});
+    const capture = async (width,height,mode,stage) => {
+      await page.setViewportSize({width,height});
+      await theme.getByRole('button',{name:mode === 'light' ? 'Light' : 'Dark',exact:true}).click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme',mode);
+      await page.evaluate(() => document.querySelector('.ui-gallery').scrollTop = 0);
+      await page.screenshot({path:`tmp/screen-fill-${stage}-${width}x${height}-${mode}.png`,animations:'disabled'});
+    };
+    await capture(1440,1000,'light','before');
+    await page.getByRole('button',{name:'Fill available height',exact:true}).click();
+    for (const [width,height,mode] of [[1440,1000,'light'],[1440,700,'light'],[640,700,'dark'],[1440,1000,'dark']]) {
+      await capture(width,height,mode,'after');
+    }
+  }
 }
