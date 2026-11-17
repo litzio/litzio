@@ -1,7 +1,6 @@
 import { DocumentDiagnosticError } from "../write-error.ts";
 import { inlineContentText, projectInlineContent, sameInlineContent } from "../inline.ts";
-import { parse } from "./parse.ts";
-import { serialize, serializeFor } from "./serialize.ts";
+import { repeatRoundTrip, roundTripFor } from "./serialize.ts";
 import type { MystNode } from "./tree.ts";
 
 /** Persistent text edits must retain their block type, text and marks.
@@ -16,16 +15,15 @@ export function assertInlineBlockRoundTrip(node: MystNode): void {
     throw new DocumentDiagnosticError("empty-content", `empty ${node.type} cannot be saved`);
   }
   const failure = `${node.type} edit cannot round-trip losslessly through canonical Markdown`;
-  const markdown = serializeFor({ type: "root", children: [node] }, failure);
-  const reparsed = parse(markdown);
+  const result = roundTripFor({ type: "root", children: [node] }, failure);
   // Footnote definitions after the block complete its references (see `serializeFor`).
-  const blocks = reparsed.children.filter((child) => child.type !== "footnoteDefinition");
+  const blocks = result.reparsed.children.filter((child) => child.type !== "footnoteDefinition");
   const block = blocks[0];
   const projected = block && projectInlineContent(block);
   if (blocks.length !== 1 || block?.type !== node.type ||
       (node.type === "heading" && block.depth !== node.depth) || !projected ||
       !sameInlineContent(content, projected) ||
-      serialize(reparsed) !== markdown) {
+      repeatRoundTrip(result).markdown !== result.markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", failure);
   }
 }

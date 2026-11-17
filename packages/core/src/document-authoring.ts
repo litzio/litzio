@@ -1,6 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { createDocument, parseNativeDocument, serializeNativeDocument } from "./myst/native.ts";
+import { canonicalNativeSnapshot, createDocument } from "./myst/native.ts";
 import { updateDocumentStatus } from "./myst/status.ts";
 import { updateDocumentTitle } from "./myst/title.ts";
 import * as operations from "./operations.ts";
@@ -94,9 +94,8 @@ export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<
       throw new Error(`Unresolved reference: ${"label" in missing ? missing.label : "syntax"}`);
     }
     document.children = endnotePlacement(document);
-    source = serializeNativeDocument(document);
-    const snapshot = parseNativeDocument(source);
-    if (serializeNativeDocument(snapshot) !== source) throw new Error();
+    const { markdown, reparsed: snapshot } = canonicalNativeSnapshot(document);
+    source = markdown;
     const snapshotPaths = getEditableDocument(snapshot).blocks.map(block => block.path);
     if (snapshotPaths.length !== authoredNodes.length) throw new Error("Authored block boundaries changed during serialization");
     paths = authoredNodes.map(node => snapshotPaths[document.children.indexOf(node) - 1]);
