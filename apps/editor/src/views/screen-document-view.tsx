@@ -71,7 +71,13 @@ export function DocumentView({ path, target, reloadKey, scale = 1, height = 480,
   const selected = !stale && location;
   const clip = selected && "clip" in selected ? selected.clip : undefined;
   const highlight = selected && target?.highlight !== false ? <div className="screen-document-view-highlight" data-testid="document-view-highlight" data-target-kind={cell ? "cell" : "block"} aria-hidden="true"
-    style={{ top: selected.top - (clip?.top ?? 0), height: selected.height, ...(cell ? {left:selected.left - (clip?.left ?? 0),width:selected.width} : {}) }} /> : null;
+    // Reading geometry is measured after zoom; paint with the same zoom as the paper.
+    style={{
+      top: (selected.top - (clip?.top ?? 0)) / previewScale,
+      left: (selected.left - (clip?.left ?? 0)) / previewScale,
+      width: selected.width / previewScale,
+      height: selected.height / previewScale,
+    }} /> : null;
   const cancelScroll = useDocumentViewInteractions(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
   const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, reloadKey]), selected, target?.highlight === false, cancelScroll, previewScale, positions);
   useDocumentViewLayout(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockLayoutChange);
