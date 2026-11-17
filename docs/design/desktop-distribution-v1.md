@@ -5,7 +5,7 @@
 AI는 daemon 공식 기능이며 [비서 계약](main-agent-v1.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
-- Last verified: 2026-11-16 — beta.3 공개 Release·tag·workflow·다운로드 해시·본문을 직접 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Last verified: 2026-11-17 — beta.4 후보 버전·게시 대기 및 harness 참조를 소스와 대조했다. 공개 결과는 beta.3 기록을 따르며 실제 설치·업데이트 재검증 없음.
 - Log-folder access: 2026-10-29 (#712; [Host-only diagnostics](#log-folder-and-process-diagnostics-712)).
 - Authority: [ADR-0004](../adr/0004-desktop-host-distribution.md); document semantics and Save remain owned by [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md), [Filesystem Host](filesystem-host-boundary-v1.md) and [Editing session](editing-session-save-v1.md).
 - Scope: Windows x64 per-user Electron/NSIS app, Stable/Beta updates and local/CI packaging. Publication requires an owner-authorized release and manual workflow dispatch from master; no separate environment approval is required after validation succeeds.
