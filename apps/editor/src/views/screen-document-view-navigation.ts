@@ -4,8 +4,8 @@ import type { ReadingPosition } from "../document-reading.ts";
 /** The preview owns scrolling; the renderer only reports snapshot geometry. */
 export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | null>, request: object, identity: string,
   selected: false | ReadingPosition["blocks"][number] | ReadingPosition["cells"][number] | undefined, alignStart = false, onProgrammaticScroll?: () => void, scale = 1, positions?: ReadingPosition) {
-  const manual = useRef(false), first = useRef(true);
-  useLayoutEffect(() => { manual.current = false; first.current = true; }, [request, identity]);
+  const manual = useRef(false);
+  useLayoutEffect(() => { manual.current = false; }, [request, identity]);
   const scrollTop = useRef(0);
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -37,10 +37,10 @@ export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | n
     const element = viewport.current;
     if (!element || !selected || manual.current || selected.height <= 0) return;
     // A later renderer measurement can move the target after its first reveal.
-    // Keep it visible without moving an already-visible target on every report.
+    // Highlighted targets keep their position whenever they are already visible.
     const visibleHeight = Math.min(selected.height, Math.max(0, element.clientHeight - 32));
     const outside = selected.top < element.scrollTop + 16 || selected.top + visibleHeight > element.scrollTop + element.clientHeight - 16;
-    if (alignStart || first.current || outside) {
+    if (alignStart || outside) {
       onProgrammaticScroll?.();
       element.scrollTo({ top: Math.max(0, selected.top - (alignStart ? 0 : 16)) });
     }
@@ -53,7 +53,6 @@ export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | n
         scroller.scrollBy({ left: (selected.left - selected.clip.left - 16) / scale });
       }
     }
-    first.current = false;
   }, [viewport, request, identity, selected, alignStart, onProgrammaticScroll, scale]);
   const pause = () => { manual.current = true; anchor.current = undefined; };
   return {
