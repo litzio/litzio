@@ -4,7 +4,7 @@
 - Number form verification: 2026-10-30 (#776; five shared Automatic/Fixed forms, empty fixed input refusal, automatic preview, existing draft/Undo and Save/Reload browser regression; Core/CLI semantics unchanged).
 - Title/body contract update: 2026-10-29 (#722; H1–H6 body numbering, frontmatter-only unnumbered title, installed MyST transform boundary below).
 - Fixed numbering: 2026-10-29 (#720 Core/CLI and Editor property entry, warning display and Save/Reload).
-- Document settings verification: 2026-10-27 (#580: inline settings, per-tab expansion, notation previews and existing document operations; [integration, checks and captures](editor-ux-shell-v1.md#document-settings-placement-554)).
+- Document settings verification: 2026-11-17 — shared property controls, caption-mode conversion/Undo/Save/Reload, per-tab expansion and notation previews; [settings contract and captures](editor-ux-shell-v1.md#document-settings-placement-554). Core/CLI numbering semantics were not changed or reverified.
 - Accent verification: 2026-10-27 (#559: generated heading/Outline numbers share the local accent; all presets checked by the token contrast and existing Outline browser tests).
 - Body-heading authoring verification: 2026-10-26 (#472 Editor unit/browser checks; Core/CLI and numbering behavior unchanged). [Verification details](document-editing-v1.md).
 - Last verified: 2026-11-16 — #1658: 번호 경고 위치·표 번호 숨김을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.

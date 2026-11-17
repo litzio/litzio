@@ -1,7 +1,7 @@
 # Editor UX Shell v1
 
 - Status: Implemented
-- Last verified: 2026-11-16 — DESIGN.md와 중복·검증 기록을 정리하고 관련 표현을 코드와 정적 대조했다. 제품·브라우저 실행 재검증 없음.
+- Last verified: 2026-11-17 — 문서 설정의 대상 unit·browser, 상태 Save/Reload·Undo/Redo·읽기 전용, 1440px·640px 영어/한국어·밝음/어두움 캡처를 확인했다. 다른 Shell 계약 전체의 실행 재검증은 포함하지 않는다.
 
 - Scope: existing Editor interactions. [Visual Language](editor-visual-language-v1.md) and [Layout Rules v1](editor-layout-rules-v1.md) define presentation and geometry.
 
