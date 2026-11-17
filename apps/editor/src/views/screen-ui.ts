@@ -6,9 +6,10 @@ import { Input } from "../components/ui/input.tsx";
 import { DataTable } from "../components/DataTable.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import { Status, Steps, EmptyState, Progress, Select, Chart, ScreenLayout, Slider, SummaryCard, Toolbar } from "../components/ui/screen-parts.tsx";
+import { ContextMenu } from "../components/ui/context-menu.tsx";
 import { DocumentView } from "./screen-document-view.tsx";
 
-export const screenUI = { Row, Section, Button: ScreenButton, Input, Select, Status, Steps, EmptyState, Progress, DataTable: ScreenDataTable, Notice, Chart, ScreenLayout, Slider, SummaryCard, Toolbar, DocumentView } satisfies Record<keyof typeof SCREEN_UI, unknown>;
+export const screenUI = { ContextMenu, Row, Section, Button: ScreenButton, Input, Select, Status, Steps, EmptyState, Progress, DataTable: ScreenDataTable, Notice, Chart, ScreenLayout, Slider, SummaryCard, Toolbar, DocumentView } satisfies Record<keyof typeof SCREEN_UI, unknown>;
 
 function ScreenDataTable(props: ComponentProps<typeof DataTable>) {
   return createElement("div", { className: "screen-data-table" }, createElement(DataTable, props));

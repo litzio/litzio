@@ -30,6 +30,7 @@ export interface ScreenSliderProps {
 export interface ScreenSummaryProps { label: string; value: string | number; description?: string }
 /** Shared by the client binding and bundled authoring guidance. No renderer dependency. */
 export const SCREEN_UI = {
+  ContextMenu: 'trigger:ReactElement (focusable target), actions:{id:string,label:string,icon:ReactNode (null for text only),visible?:boolean,disabled?:boolean,disabledReason?:string,danger?:boolean,run():void}[], disabled?:boolean. Shared target menu: right-click, Shift+F10 or ContextMenu key; Escape/outside closes. After an action, restores trigger focus unless the action moved focus elsewhere. No separators or submenus.',
   DocumentView: 'path:string inside this screen\'s opened folders; target?:{revision:string,path:Core NodePath}; reloadKey?:string|number (change to reread saved file); height?:number (480px); label?:string; onStateChange?:({state,revision?,message?})=>void. States: loading/ready/error/stale-target/target-not-found. Actual read-only Litzio renderer. Block and exact table-cell navigation/highlight. Endnote definition paths reveal the definition; a paragraph path containing its call reveals that paragraph. Layout changes (math, image/font loading, width) keep the target visible until the user scrolls inside the view. A new path/revision/reloadKey resumes following. A mismatched revision never navigates/highlights. No editing, save, polling or tab interaction.',
   Button: 'Standard button props; variant outline (when omitted)/default (explicit primary)/ghost/destructive, size default/sm/icon.',
   Input: 'Standard input props; wrap in a visible label.',
@@ -61,6 +62,7 @@ Design rules:
 - Use destructive buttons and confirm() for dangerous actions; do not build inline confirmation buttons.
 - Choose files with pickPath; do not use native file inputs.
 - Use ui.Select for choices instead of native select.
+- Menus are never the only entry to a main action; provide the same action as a screen button.
 - Use ui.DataTable row selection for picking an item; do not stack buttons.
 - Use shared parts for headings and summaries. Keep ordinary values and prose normal.
 - Use ui.DataTable at default density, fitting content within the screen width; declare numeric columns with fields type:"number".
