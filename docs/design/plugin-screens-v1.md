@@ -39,6 +39,8 @@ DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 
 
 제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
 
+플러그인 부품 갤러리 1440px 수동 비교: Select [밝음 전](assets/plugin-screen-controls-1717/before-select-light.png)·[후](assets/plugin-screen-controls-1717/after-select-light.png), [어두움 전](assets/plugin-screen-controls-1717/before-select-dark.png)·[후](assets/plugin-screen-controls-1717/after-select-dark.png). ContextMenu [밝음](assets/plugin-screen-controls-1717/menu-light.png)·[어두움](assets/plugin-screen-controls-1717/menu-dark.png). 소유자 시각 승인은 포함하지 않는다.
+
 대표 시각 비교(합성 플러그인, Windows persistent Chrome):
 
 | 화면 | 변경 전 | 현재 |
@@ -50,7 +52,7 @@ DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 
 
 같은 조건의 템플릿 갤러리: [Before](assets/plugin-screen-consistency-1663/before-consistency-gallery.png), [After](assets/plugin-screen-consistency-1663/after-consistency-gallery.png). 캡처는 수동 비교 근거이며 실제 AI 제작·소유자 시각 승인은 포함하지 않는다.
 
-ui.Select는 label/value/onValueChange/options({value,label}[])와 선택적인 disabled/placeholder를 받는 단일 선택이다. SettingsSelect와 같은 SelectControl·스타일을 쓰고 이름표는 입력칸처럼 위에 둔다.
+ui.Select는 label/value/onValueChange/options({value,label}[])와 선택적인 disabled/placeholder를 받는 단일 선택이다. SettingsSelect와 같은 SelectControl·스타일을 쓰고 이름표는 기본적으로 입력칸처럼 위에 둔다. hideLabel?:boolean은 필수 label을 접근성 이름으로 유지하면서 시각적으로만 숨긴다. 버튼과 나란한 도구 줄(Toolbar·ScreenLayout actions)에서만 쓰며 설정·폼에서는 이름을 보인다. 값이 없으면 placeholder로 무엇을 고르는지 알린다.
 
 ui.DataTable의 rowKey는 행 식별 field다. onSelectRow(row)가 있을 때만 행을 클릭하거나 focus 후 Enter/Space로 선택한다. selectedKey(string|number)는 호출자가 소유하며 정렬·필터·페이지가 바꾸지 않는다. 선택 행은 aria-selected와 기존 선택 표면 토큰, hover는 hover 표면 토큰으로 표시한다. 셀 링크는 행 선택을 일으키지 않는다.
 
