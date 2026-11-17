@@ -10,6 +10,7 @@ import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 import "./screen-document-view.css";
 import { useDocumentViewInteractions } from "./screen-document-view-interactions.ts";
+import { useDocumentViewLayout } from "./screen-document-view-layout.ts";
 import { useDocumentViewNavigation } from "./screen-document-view-navigation.ts";
 
 /** App-owned binding, never a plugin-supplied Host or root override. */
@@ -24,7 +25,7 @@ function assertDocumentViewPath(path: string, roots: readonly string[]) {
 }
 
 /** Saved snapshots only. The existing reader owns admission, bibliography and its read timeout. */
-export function DocumentView({ path, target, reloadKey, height = 480, label = i18n.t("Document preview"), onStateChange, onVisibleBlockChange, onBlockClick }: ScreenDocumentViewProps) {
+export function DocumentView({ path, target, reloadKey, height = 480, label = i18n.t("Document preview"), onStateChange, onVisibleBlockChange, onBlockClick, onVisibleBlockLayoutChange }: ScreenDocumentViewProps) {
   const scope = useContext(DocumentViewScope);
   let scopeProblem = "";
   try {
@@ -72,6 +73,7 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
     style={{ top: selected.top - (clip?.top ?? 0), height: selected.height, ...(cell ? {left:selected.left - (clip?.left ?? 0),width:selected.width} : {}) }} /> : null;
   const cancelScroll = useDocumentViewInteractions(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
   const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, reloadKey]), selected, target?.highlight === false, cancelScroll);
+  useDocumentViewLayout(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockLayoutChange);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
   return <section className="screen-document-view" aria-label={label} data-state={state}>
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
