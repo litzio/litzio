@@ -251,7 +251,7 @@ fix: preserve machine-readable provenance
 Describe the change here.
 
 AI-Agent: Codex
-AI-Model: openai/gpt-6.1-sol
+AI-Model: openai/gpt-6.2-sol
 ```
 
 이 모델 값은 예시다. 현재 구현에 실제 사용한 agent/model을 확인한 뒤 기록하며, 검증기는 값을 생성하거나 진실성을 추정하지 않는다.
@@ -262,6 +262,8 @@ Examples:
 
 ```
 xai/grok-4.6
+openai/gpt-6.2-sol
+openai/gpt-6.2-astra
 openai/gpt-6.1-sol
 openai/gpt-5.6-luna
 openai/gpt-5.6-terra
@@ -287,7 +289,7 @@ fix: describe the change
 Describe the change here.
 
 AI-Agent: Codex
-AI-Model: openai/gpt-6.1-sol
+AI-Model: openai/gpt-6.2-sol
 '@ | Set-Content -LiteralPath commit-message.txt -Encoding utf8
 node scripts/commit-provenance.mjs message commit-message.txt
 git commit --file commit-message.txt
