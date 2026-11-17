@@ -217,3 +217,5 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 - [Windows packed CLI 검사 예산 측정](reviews/windows-packed-cli-budget-2026-11.md) — Historical. #1645의 성공·실패 queue 단계 시간과 cold npm 준비 비용, 검사 구간 분리 근거.
 
 - [v0.0.3-beta.3 배포·검증 기록](releases/v0.0.3-beta.3.md) — Historical. 공개 Beta·workflow·자산 해시와 한국어 본문. 실제 GitHub 설치·업데이트는 미실행·미검증.
+
+- [v0.0.3-beta.4 게시 준비·검증 기록](releases/v0.0.3-beta.4.md) — Historical. 게시 대기 후보·사용자 영향별 변경과 한국어 본문 초안. 실제 설치·업데이트는 미검증.
