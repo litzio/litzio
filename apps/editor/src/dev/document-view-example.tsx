@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { useState, useRef, useLayoutEffect, useCallback } from "react";
+import { useState, useRef, useLayoutEffect, useMemo } from "react";
 import { getEditableDocument, parse } from "@litzio/core";
 import { DocumentViewScope } from "../views/screen-document-view.tsx";
 import { screenUI as ui } from "../views/screen-ui.ts";
-import type { ScreenDocumentViewState, ScreenDocumentViewLayout, ScreenDocumentViewProps } from "@litzio/plugin-sdk";
+import type { ScreenDocumentViewState, ScreenDocumentViewProps, ScreenLinkedDocumentItem } from "@litzio/plugin-sdk";
 import type { HostClient } from "../host-client.ts";
 
 const columns = Array.from({length:12}, (_, index) => `Column ${index+1}`);
@@ -29,30 +29,6 @@ export function DocumentViewExample() {
     const item = list.current?.children[index] as HTMLElement | undefined;
     if (item && list.current) list.current.scrollTop = item.offsetTop;
   };
-  // Screen-owned refs and SVG: only vertical block geometry comes from DocumentView.
-  const pair = useRef<HTMLDivElement>(null), preview = useRef<HTMLDivElement>(null);
-  const [layout, setLayout] = useState<ScreenDocumentViewLayout>();
-  const [lines, setLines] = useState<{key:string; x1:number; y1:number; x2:number; y2:number}[]>([]);
-  const connect = useCallback(() => {
-    const host = pair.current, source = list.current;
-    const view = preview.current?.querySelector<HTMLElement>('[role="region"]');
-    if (!host || !source || !view) { setLines([]); return; }
-    const box = host.getBoundingClientRect(), from = source.getBoundingClientRect(), to = view.getBoundingClientRect();
-    setLines((layout?.blocks ?? []).flatMap(block => {
-      const index = document.blocks.findIndex(item => JSON.stringify(item.path) === JSON.stringify(block.path));
-      const row = source.children[index]?.getBoundingClientRect();
-      if (!row || row.bottom <= from.top || row.top >= from.bottom || from.right >= to.left) return [];
-      return [{key:JSON.stringify(block.path), x1:from.right-box.left, y1:Math.max(from.top,Math.min(from.bottom,(row.top+row.bottom)/2))-box.top,
-        x2:to.left-box.left, y2:to.top+view.clientTop+Math.max(0,Math.min(layout!.height,(block.top+block.bottom)/2))-box.top}];
-    }));
-  }, [layout]);
-  useLayoutEffect(() => {
-    connect();
-    const observer = new ResizeObserver(connect);
-    if(pair.current) observer.observe(pair.current);
-    list.current?.addEventListener("scroll",connect);
-    return () => {observer.disconnect();list.current?.removeEventListener("scroll",connect);};
-  }, [connect]);
   const [state, setState] = useState<ScreenDocumentViewState>();
   return <DocumentViewScope.Provider value={{ client, roots: extraFolder ? ["/example", "/unrelated"] : ["/example"] }}>
     <ui.ScreenLayout title="Document view" description="Synthetic saved snapshot. The application renderer owns text, tables, equations and references.">
@@ -62,7 +38,7 @@ export function DocumentViewExample() {
         <ui.Button variant="outline" onClick={() => setNarrow(value => !value)}>Toggle preview width</ui.Button>
         <ui.Button variant="outline" aria-pressed={extraFolder} onClick={() => setExtraFolder(value => !value)}>Toggle unrelated folder</ui.Button>
         <span aria-label="Document reads">{reads}</span><ui.Status variant="plain" tone={state?.state === "ready" ? "ok" : state?.state === "loading" ? "progress" : "warning"} label={state ? stateLabels[state.state] : t("Ready")} /></ui.Toolbar>
-      <div ref={pair} style={{display:"flex",flexWrap:"wrap",gap:"var(--space-12)",position:"relative"}}>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"var(--space-12)"}}>
       <div ref={list} role="region" aria-label="Source passages" tabIndex={0}
         style={{height:480,overflow:"auto",position:"relative",flex:"1 1 200px",minWidth:0}}
         onWheel={() => {manualList.current = true;}} onKeyDown={() => {manualList.current = true;}}
@@ -77,9 +53,75 @@ export function DocumentViewExample() {
           <ui.Button onClick={() => { manualList.current = true; setFollowing({revision,path:block.path,highlight:false}); }}>Source block {index+1}</ui.Button>
         </div>)}
       </div>
-      <div ref={preview} onWheelCapture={() => {manualList.current = false;}} onKeyDownCapture={() => {manualList.current = false;}} onPointerDownCapture={() => {manualList.current = false;}} style={{width:narrow?260:undefined,flex:narrow?"0 1 260px":"2 1 320px",minWidth:0,maxWidth:"100%"}}><ui.DocumentView path={path} scale={scale} height={480} reloadKey={reloadKey} onVisibleBlockLayoutChange={setLayout} onVisibleBlockChange={followSource} onBlockClick={followSource} target={following ? {...following,revision:stale ? "b".repeat(64) : revision} : { revision: stale ? "b".repeat(64) : revision, path: document.blocks.find(block => block.block === "table")!.rows[1].cells[column].path }} onStateChange={setState} /></div><svg aria-hidden="true" data-testid="document-view-connectors" style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none",overflow:"hidden"}}>
-        {lines.map(line => <line key={line.key} data-path={line.key} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="var(--id-color-accent)" strokeWidth={2} />)}
-      </svg></div>
+      <div onWheelCapture={() => {manualList.current = false;}} onKeyDownCapture={() => {manualList.current = false;}} onPointerDownCapture={() => {manualList.current = false;}} style={{width:narrow?260:undefined,flex:narrow?"0 1 260px":"2 1 320px",minWidth:0,maxWidth:"100%"}}><ui.DocumentView path={path} scale={scale} height={480} reloadKey={reloadKey} onVisibleBlockChange={followSource} onBlockClick={followSource} target={following ? {...following,revision:stale ? "b".repeat(64) : revision} : { revision: stale ? "b".repeat(64) : revision, path: document.blocks.find(block => block.block === "table")!.rows[1].cells[column].path }} onStateChange={setState} /></div></div>
+    </ui.ScreenLayout>
+  </DocumentViewScope.Provider>;
+}
+
+const samplePassages = [
+  "Check the water level before switching on the pump.",
+  "Set the flow control to its lowest setting. Open the inlet valve slowly and wait until the pressure gauge holds steady.",
+  "Record the flow rate after two minutes.",
+  "Close the inlet valve before disconnecting the test line.",
+];
+
+export function LinkedDocumentViewExample() {
+  const { i18n } = useTranslation();
+  const korean = i18n.resolvedLanguage === "ko";
+  const [large, setLarge] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [selected, select] = useState<string>();
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (!viewport) return;
+    const measure = () => setWidth(viewport.clientWidth);
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport, { box: "content-box" });
+    measure();
+    return () => observer.disconnect();
+  }, [viewport]);
+  const sample = useMemo(() => {
+    const passages = korean ? [
+      "펌프를 켜기 전에 수위를 확인하세요.",
+      "유량 조절기를 가장 낮게 설정하세요. 흡입 밸브를 천천히 열고 압력계 표시가 안정될 때까지 기다리세요.",
+      "2분 뒤 유량을 기록하세요.",
+      "시험용 배관을 분리하기 전에 흡입 밸브를 닫으세요.",
+    ] : samplePassages;
+    const body = Array.from({ length: large ? 1200 : 24 }, (_, index) =>
+      `${index + 1} · ${passages[index % passages.length]}`).join("\n\n");
+    const title = korean ? "펌프 검사 절차" : "Pump inspection procedure";
+    const source = `---\nlitzio: 1\ntitle: ${title}\n---\n\n${body}\n`;
+    const samplePath = large ? "/example/large-procedure.md" : "/example/procedure.md";
+    const document = getEditableDocument(parse(source));
+    const client: HostClient = { assertCurrent() {}, url: value => value, crossOrigin: undefined,
+      async request() { return Response.json({ kind: "native", path: samplePath, source, document, revision }); } };
+    return { document, samplePath, client };
+  }, [large, korean]);
+  const pitch = 64 * scale, inset = 16 * scale, height = 48 * scale;
+  const items = useMemo<ScreenLinkedDocumentItem[]>(() => sample.document.blocks.map((block, index) => ({
+    id: String(index + 1),
+    label: korean ? `원본 구역 ${index + 1}` : `Source section ${index + 1}`,
+    path: block.path,
+    boxes: [{ left: inset, top: inset + pitch * index, width: width - 2 * inset, height }],
+    colorToken: index % 3 === 1 ? "--id-color-warning" : "--id-color-info",
+  })), [sample, korean, inset, pitch, width, height]);
+  return <DocumentViewScope.Provider value={{ client: sample.client, roots: ["/example"] }}>
+    <ui.ScreenLayout>
+      <ui.Toolbar>
+        <ui.Button aria-pressed={scale !== 1} onClick={() => setScale(scale === 1 ? .75 : 1)}>{korean ? "원본 배율" : "Source scale"} {scale}</ui.Button>
+        <ui.Button aria-pressed={stale} onClick={() => setStale(!stale)}>{korean ? "다른 저장본 연결" : "Use another revision"}</ui.Button>
+        <ui.Button aria-pressed={large} onClick={() => { select(undefined); setLarge(!large); }}>{korean ? "1,200개 블록" : "1,200 blocks"}</ui.Button>
+      </ui.Toolbar>
+      <ui.LinkedDocumentView document={{ path: sample.samplePath }}
+        sourceLabel={korean ? "원본 자료" : "Source material"} sourceRef={setViewport} sourceScale={scale}
+        revision={stale ? "b".repeat(64) : revision} items={items} selectedId={selected} onSelect={select}
+        source={<div style={{ position: "relative", height: 2 * inset + pitch * items.length }}>
+          {items.map(item => <ui.Button key={item.id} data-linked-item={item.id} aria-pressed={selected === item.id}
+            style={{ position: "absolute", ...item.boxes[0], justifyContent: "start",
+              borderInlineStartWidth: "var(--space-1)", borderInlineStartColor: `var(${item.colorToken})` }}>{item.label}</ui.Button>)}
+        </div>} />
     </ui.ScreenLayout>
   </DocumentViewScope.Provider>;
 }

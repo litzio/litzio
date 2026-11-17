@@ -87,7 +87,11 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
     const clicked = () => selection(true);
     const schedule = () => { if (!active) return; cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
     const observer = new ResizeObserver(schedule);
-    const mutations = new MutationObserver(schedule);
+    const mutations = new MutationObserver(records => {
+      // Block gutter controls and outlines are positioned overlays. Their hover
+      // changes do not move the measured document blocks.
+      if (records.some(({ target }) => !(target instanceof Element && target.closest(".block-gutter")))) schedule();
+    });
     if (observeLayout) {
       observer.observe(element);
       mutations.observe(element, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "hidden"] });

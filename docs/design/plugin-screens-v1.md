@@ -37,7 +37,7 @@ DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 
 행이 없는 DataTable의 빈 안내는 표와 같은 폭을 쓰며, 한 열의 좁은 표에서도 안내 문구가 줄바꿈된다. 빈 안내의 문구와 status 역할은 유지한다.
 플러그인 내용 영역(screen-layout)의 h2는 type-section-title, h3·h4는 type-item-name과 기존 간격 토큰으로 소제목 위계를 표현한다. 화면 틀 제목과 템플릿 갤러리의 제목 규칙은 유지한다.
 
-제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
+제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서에는 DocumentView를, 자료와 문서 블록을 대응해서 볼 때는 [LinkedDocumentView](#자료와-문서-블록의-연결-띠)를 사용한다.
 
 플러그인 부품 갤러리 1440px 수동 비교: Select [밝음 전](assets/plugin-screen-controls-1717/before-select-light.png)·[후](assets/plugin-screen-controls-1717/after-select-light.png), [어두움 전](assets/plugin-screen-controls-1717/before-select-dark.png)·[후](assets/plugin-screen-controls-1717/after-select-dark.png). ContextMenu [밝음](assets/plugin-screen-controls-1717/menu-light.png)·[어두움](assets/plugin-screen-controls-1717/menu-dark.png). 소유자 시각 승인은 포함하지 않는다.
 
@@ -81,7 +81,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 - `target.highlight?: boolean`: 기본 true는 대상을 강조하고 보이는 영역을 벗어나면 이동한다. false는 강조 없이 대상 시작을 보기 위쪽에 맞춘다(문서 끝의 스크롤 한도 내에서). 이미 보이는 대상도 정렬하며 레이아웃 변화에도 사용자 스크롤 전까지 정렬을 유지한다.
 - `onVisibleBlockChange?({revision,path})`: 사용자가 wheel·세로 스크롤 키·스크롤바로 직접 움직여 맨 위에 보이는 최상위 블록이 바뀌면 알린다. 스크롤 중에는 100ms보다 자주 호출하지 않고 멈추면 마지막 값을 한 번 더 알린다. target 이동·다시 읽기·레이아웃 변화는 알리지 않는다.
 - `onBlockClick?({revision,path})`: 기본 포인터의 단순 클릭을 즉시 보고하고 최상위 블록 경로를 알린다. 더블클릭은 첫 클릭이 한 번 보고되고 두 번째 클릭은 보고되지 않는다. 표 셀은 표, 중첩 목록 항목은 최상위 목록 경로다. 끌어서 고르기·Shift+클릭·링크·참조·각주 번호는 보고하지 않고 기존 동작을 유지한다. 두 알림은 저장본 revision과 target revision이 다른 stale 상태에서 발생하지 않는다. 화면 코드가 알림으로 바깥 자료를 이동하고 highlight:false target으로 문서 보기를 따라오게 할 수 있다. 양쪽을 연결할 때 현재 사용자가 조작하는 영역은 화면 코드가 소유하고, 반대쪽의 늦은 마지막 알림이 그 조작을 덮지 않게 한다. target 변경은 저장본을 다시 읽지 않는다. reloadKey 변경은 보기를 다시 생성해 글자 선택을 끊을 수 있으므로 누른 블록 알림에는 바깥 자료의 이동만 연결하는 편이 안전하다.
-- `onVisibleBlockLayoutChange?(layout: ScreenDocumentViewLayout)`: `ScreenDocumentViewLayout = { revision?: string; height: number; blocks: { path: NodePath; top: number; bottom: number }[] }`. 보이는 영역과 교차하는 최상위 블록만 문서 순서로 알린다. top·bottom은 내부 보이는 영역의 위쪽 가장자리(테두리 안쪽)를 0으로 한 CSS px이며, 걸친 블록은 음수 또는 height보다 큰 값을 가진다. height는 보이는 영역의 clientHeight다. 사용자 스크롤·target 이동·그림/수식/글꼴 로딩·폭/높이 변경·재읽기의 배치 변경을 모두 반영한다. animation frame당 최대 한 번, 값이 바뀔 때만 알린다. 읽는 중·오류·stale에는 빈 blocks로 선을 지우며 저장본을 읽기 전에는 revision을 생략하고 영역이 없으면 height는 0이다. 같은 빈 상태는 반복하지 않는다. target-not-found라도 유효한 저장본의 위치는 보고한다. 화면 전체 좌표·가로 좌표·표 칸·중첩 블록은 제공하지 않는다. 화면 코드는 자기 wrapper ref로 요소 위치를 재고 SVG 연결선과 바깥 항목 끝점을 소유한다. [갤러리 최소 예제](../../apps/editor/src/dev/document-view-example.tsx)는 공통 Toolbar·Button·Status·DocumentView와 accent 토큰을 사용하며, 양 끝점이 보이고 두 칸이 나란할 때만 선을 그린다. 새 공통 표면이나 토큰 예외는 없다.
+- `onVisibleBlockLayoutChange?(layout: ScreenDocumentViewLayout)`: `ScreenDocumentViewLayout = { revision?: string; height: number; blocks: { path: NodePath; top: number; bottom: number }[] }`. 보이는 영역과 교차하는 최상위 블록만 문서 순서로 알린다. top·bottom은 내부 보이는 영역의 위쪽 가장자리(테두리 안쪽)를 0으로 한 CSS px이며, 걸친 블록은 음수 또는 height보다 큰 값을 가진다. height는 보이는 영역의 clientHeight다. 사용자 스크롤·target 이동·그림/수식/글꼴 로딩·폭/높이 변경·재읽기의 배치 변경을 모두 반영한다. animation frame당 최대 한 번, 값이 바뀔 때만 알린다. 읽는 중·오류·stale에는 빈 blocks를 알리며 저장본을 읽기 전에는 revision을 생략하고 영역이 없으면 height는 0이다. 같은 빈 상태는 반복하지 않는다. target-not-found라도 유효한 저장본의 위치는 보고한다. 화면 전체 좌표·가로 좌표·표 칸·중첩 블록은 제공하지 않는다. 대응 항목의 띠는 [LinkedDocumentView](#자료와-문서-블록의-연결-띠)를 사용한다.
 - `reloadKey?: string|number`: 값을 바꾸면 저장본을 다시 읽는다. target 변경이나 현재 문서를 여전히 포함하는 무관한 폴더 목록 변경은 다시 읽지 않는다. 현재 문서가 열린 폴더 범위에서 빠지면 요청을 취소하고 표시를 지운다. polling·자동 변경 추적·오래된 경로 자동 재대응은 없다. 새 저장본의 revision이 target과 다르면 stale-target으로 알리고 이동·강조하지 않는다.
 - `scale?: number`: 기본 1, 0.4~1 범위로 맞춘다(NaN은 1). 문서 보기 안의 문서에만 CSS zoom을 적용해 글자·그림·표·수식을 함께 줄이고 본문은 폭에 맞춰 다시 흐른다. 그림(Mermaid 포함)과 표는 배율 1의 가용 폭을 기준으로 줄이므로 넓은 그림이 축소 뒤에도 보기 폭을 채우지 않는다. transform 축소는 빈 여백과 레이아웃 크기를 남기므로 쓰지 않고, 글꼴 변수만 줄이는 방식은 그림·수식을 함께 줄이지 못하므로 쓰지 않는다. 강조는 축소 영역 밖에서 실제 CSS px로 그린다. 배율 변경 시 보던 최상위 블록을 유지하고, 다음 target 변경부터 다시 대상 이동을 따른다. 편집기 본체·저장본에는 영향이 없다.
 - `height?: number`: 내부 스크롤 영역 높이(px), 기본 480. 외부 폭·배치는 플러그인이 정한다. `label?:string`은 접근성 이름(기본 Document preview)이다.
@@ -95,8 +95,6 @@ SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편
 
 배율 갤러리(합성 자료·1440px): [밝음 1](assets/document-view-scale-1720/light-1-before-1440.png) · [밝음 0.5](assets/document-view-scale-1720/light-0.5-before-1440.png) · [어두움 1](assets/document-view-scale-1720/dark-1-before-1440.png) · [어두움 0.5](assets/document-view-scale-1720/dark-0.5-before-1440.png). [640px 한국어 밝음](assets/document-view-scale-1720/ko-light-640.png) · [어두움](assets/document-view-scale-1720/ko-dark-640.png). 그림 아래까지 스크롤한 표본: [밝음 1](assets/document-view-scale-1720/light-1-after-1440.png) · [밝음 0.5](assets/document-view-scale-1720/light-0.5-after-1440.png) · [어두움 1](assets/document-view-scale-1720/dark-1-after-1440.png) · [어두움 0.5](assets/document-view-scale-1720/dark-0.5-after-1440.png).
 
-연결선 갤러리(합성 자료·1440px): [밝음 스크롤 전](assets/document-view-layout-1709/light-before-1440.png) · [후](assets/document-view-layout-1709/light-after-1440.png) · [어두움 전](assets/document-view-layout-1709/dark-before-1440.png) · [후](assets/document-view-layout-1709/dark-after-1440.png).
-
 양방향 이동 갤러리(합성 자료·persistent Chrome): [1440 밝음 전](assets/document-view-scroll-1709/before-1440-light.png) · [1440 밝음 후](assets/document-view-scroll-1709/after-1440-light.png) · [1440 어두움 후](assets/document-view-scroll-1709/after-1440-dark.png) · [640 밝음](assets/document-view-scroll-1709/after-640-light.png) · [640 어두움](assets/document-view-scroll-1709/after-640-dark.png). 좁은 폭에서는 목록과 문서 보기를 세로로 배치한다. 두 영역을 나란히 비교할 때는 넓은 창을 권장한다. 공통 Toolbar·Button·Status·DocumentView를 재사용하며 새 표면·토큰은 없다. 소유자 시각 승인이나 실제 PDF 대조 검증은 포함하지 않는다.
 
 블록 호버의 합성 표본(1440px): [갤러리 변경 전](assets/document-view-hover-1712/before-1440-dark.png) · [갤러리](assets/document-view-hover-1712/after-1440-dark.png), [두 열 화면 변경 전](assets/document-view-hover-1712/before-plugin-1440-light.png) · [두 열 화면](assets/document-view-hover-1712/after-plugin-1440-light.png).
@@ -108,6 +106,24 @@ SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편
 12열 표 마지막 셀의 가로 이동·강조 표본: [1440 밝음](assets/plugin-document-view-targets-1592/wide-1440-light.png), [1440 어두움](assets/plugin-document-view-targets-1592/wide-1440-dark.png), [640 밝음](assets/plugin-document-view-targets-1592/wide-640-light.png), [640 어두움](assets/plugin-document-view-targets-1592/wide-640-dark.png). 표 안에서만 가로로 이동하고 바깥 문서 보기는 가로로 넘치지 않는다.
 
 각 DocumentView는 저장본을 따로 읽고 읽기 전용 DocumentEditor/Tiptap 인스턴스를 만든다. 한 화면에 여러 개를 동시에 mount하면 읽기·렌더링·레이아웃과 메모리 비용도 각각 든다. 현재 필요한 보기만 mount하도록 구성하는 것을 권장한다. 407블록의 고정 합성 표본과 단일 보기에서 최초 강조 약 1.45초(화면 코드 변경 감지 포함), 캐시가 있는 일반 재읽기 후 이동 169ms를 관측했다. 이는 성능 보장이나 여러 문서의 비교 측정이 아니다. 메모리·여러 보기 동시 표시의 응답성과 packaged Desktop에서의 동시 표시 동작은 검증하지 않았다.
+
+## 자료와 문서 블록의 연결 띠
+
+`ui.LinkedDocumentView({document,revision,source,sourceLabel,sourceRef?,sourceScale?,items,selectedId?,onSelect})`는 화면 코드가 그리는 자료 영역과 기존 DocumentView를 나란히 배치한다. `document`는 위 DocumentView props 전체를 받는다. `source`는 React 내용이며 이 부품이 스크롤 영역과 높이를 제공한다. `sourceLabel`은 자료 영역의 접근성 이름이고, `sourceRef`에는 그 스크롤 영역 요소(해제 시 null)가 전달된다. 필요하면 화면 코드가 ref로 자료의 스크롤을 읽거나 옮긴다.
+
+- `items`는 `{id,label,path,boxes,colorToken}` 배열이다. 각 항목에 고유한 문자열 `id`, 이름 `label`, 저장본의 최상위 Core NodePath와 한 개 이상의 상자를 전달한다. 상자 `{left,top,width,height}`는 테두리 안쪽의 스크롤 원점을 기준으로 배율이 이미 적용된 내용 CSS px다. 스크롤 위치는 빼지 않는다. `sourceScale`은 자료 쪽 윤곽의 확대 여백·선 두께·모서리 배율이며 기본값은 1이다. `colorToken`은 기본 띠에 쓸 `--id-color-*` 토큰 이름이다.
+- 화면은 자료의 이름 있는 선택 버튼에 `data-linked-item={id}`와 `aria-pressed={selectedId === id}`를 지정한다. 이 버튼의 클릭과 Enter/Space, 대응하는 문서 블록 클릭과 이름 있는 키보드 선택 버튼, 띠의 거터 클릭이 `onSelect(id)`를 호출한다. Tab은 문서 보기에서 현재 보이는 연결 블록의 버튼을 방문하고, 버튼이 포커스되면 블록 위에 표시한다. 다른 블록은 보기를 스크롤한 뒤 방문할 수 있다. 문서 블록에 여러 항목이 연결되면 그중 선택된 항목을, 없으면 배열의 첫 항목을 사용한다. 띠 자체는 접근성 트리에서 제외한다.
+- 선택 상태와 스크롤은 호출자가 제어한다. `selectedId`만 바꾸면 윤곽과 띠가 바뀐다. `document.target`, `sourceRef`, 기존 클릭·스크롤·배치 알림을 조합해 양쪽을 이동할 수 있다. 연결 상태는 저장본 `revision`과 일치할 때 활성화되며, 읽는 중·오류·stale target에서는 연결 띠와 선택 동작을 비운다.
+- 보이는 양쪽 상자 사이에 채움 띠를 그린다. 올림·키보드 focus·선택은 [블록 윤곽](editor-visual-language-v1.md#블록-윤곽과-연결-띠)을 양쪽에 표시한다. 한쪽만 보이는 활성 짝은 띠가 보이지 않는 쪽의 위·아래 가장자리를 가리킨다. 띠와 윤곽의 끝은 각 스크롤 영역의 보이는 높이에 맞춰 잘린다. 자료의 분류 표시는 화면 코드가 그리고 윤곽은 그 위에 그린다. 좁은 영역에서는 자료와 문서 보기를 세로로 놓으며, 각 영역의 선택은 계속 사용할 수 있다.
+
+[개발 갤러리의 Linked document view](../../apps/editor/src/dev/document-view-example.tsx)는 합성 자료의 공개 props와 앱의 Button·Toolbar를 사용한다.
+
+| 합성 갤러리 | 밝음 | 어두움 |
+| --- | --- | --- |
+| 1440px 선택 | [캡처](assets/linked-document-view-1709/after-1440-light-selected.png) | [캡처](assets/linked-document-view-1709/after-1440-dark-selected.png) |
+| 1440px 올림 | [캡처](assets/linked-document-view-1709/after-1440-light-hover.png) | [캡처](assets/linked-document-view-1709/after-1440-dark-hover.png) |
+| 1440px 화면 밖 짝 | [캡처](assets/linked-document-view-1709/after-1440-light-offscreen.png) | [캡처](assets/linked-document-view-1709/after-1440-dark-offscreen.png) |
+| 640px 한국어 | [캡처](assets/linked-document-view-1709/after-640-ko-light.png) | [캡처](assets/linked-document-view-1709/after-640-ko-dark.png) |
 
 ## 파일·폴더 선택과 문서 열기
 

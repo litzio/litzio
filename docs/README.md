@@ -55,7 +55,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | opening snapshot과 Save acknowledgement, 미저장 편집·초안·복구 보호, Visual/소스 비교 및 path 기반 탭·기억·복구 식별을 정의한다. |
 | [Filesystem Host boundary](design/filesystem-host-boundary-v1.md) | Implemented | Vite·Desktop·HTTP Host가 공유하는 파일·asset·folder 작업과 revision·공식 쓰기 경계를 정의한다. |
 | [플러그인 실행·제작 계약](design/plugin-stage1-v1.md) | Implemented | 플러그인 manifest·공개 작업·오류, Node 실행·신뢰·설치·reload·설정·secret·스킬과 CLI·비서 제작 절차를 정의한다. |
-| [플러그인 화면 코드](design/plugin-screens-v1.md) | Implemented | React 화면 코드·공통 부품·invoke·receipt, 공식 새 문서 저장·DocumentView·파일/폴더 선택·문서 탭 열기를 정의한다. 화면은 단일 연결의 고정 client와 열린 폴더 범위를 사용한다. |
+| [플러그인 화면 코드](design/plugin-screens-v1.md) | Implemented | React 화면 코드·공통 부품·invoke·receipt, 공식 새 문서 저장·DocumentView·연결 띠·파일/폴더 선택·문서 탭 열기를 정의한다. 화면은 단일 연결의 고정 client와 열린 폴더 범위를 사용한다. |
 | [HTTP Host](design/http-host-v1.md) | Implemented | daemon CLI·탐색·수명·상태·버전·Root와 HTTP/Origin·프록시 경계, Desktop의 로컬 연결을 정의한다. |
 | [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | Windows Electron/NSIS 패키징·Stable/Beta 업데이트·서명·게시와 로컬 daemon 연결·종료 보호를 정의한다. |
 | [Desktop app icon](design/app-icon-v1.md) | Implemented | 승인된 SVG 원본·크기별 ICO, 브랜드 통합·재생성과 픽셀 검사 및 Windows 검증 경계를 정의한다. |

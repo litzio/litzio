@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
 import type { ScreenDocumentViewProps, ScreenDocumentViewState } from "@litzio/plugin-sdk";
 import type { DocumentFileResponse } from "../../shared/document-protocol.ts";
 import type { HostClient } from "../host-client.ts";
@@ -24,8 +24,26 @@ function assertDocumentViewPath(path: string, roots: readonly string[]) {
   }
 }
 
+export type DocumentViewGeometry = {
+  viewport: HTMLDivElement;
+  paper: HTMLElement;
+  content: HTMLDivElement;
+  revision: string;
+  scale: number;
+  positions: ReadingPosition;
+};
+
+export function DocumentView(props: ScreenDocumentViewProps) {
+  return <DocumentViewSnapshot view={props} />;
+}
+
 /** Saved snapshots only. The existing reader owns admission, bibliography and its read timeout. */
-export function DocumentView({ path, target, reloadKey, scale = 1, height = 480, label = i18n.t("Document preview"), onStateChange, onVisibleBlockChange, onBlockClick, onVisibleBlockLayoutChange }: ScreenDocumentViewProps) {
+export function DocumentViewSnapshot({ view, onGeometry }: {
+  view: ScreenDocumentViewProps;
+  onGeometry?(geometry: DocumentViewGeometry | undefined): void;
+}) {
+  const { path, target, reloadKey, scale = 1, height = 480, label = i18n.t("Document preview"), onStateChange,
+    onVisibleBlockChange, onBlockClick, onVisibleBlockLayoutChange } = view;
   const previewScale = Number.isNaN(scale) ? 1 : Math.max(0.4, Math.min(1, scale));
   const scope = useContext(DocumentViewScope);
   let scopeProblem = "";
@@ -37,6 +55,7 @@ export function DocumentView({ path, target, reloadKey, scale = 1, height = 480,
   const [problem, setProblem] = useState("");
   const [positions, setPositions] = useState<ReadingPosition>();
   const viewport = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const notify = useRef(onStateChange); notify.current = onStateChange;
   const request = useMemo(() => ({}), [path, reloadKey, scope?.client, scopeProblem]);
   const file = snapshot?.request === request ? snapshot.file : undefined;
@@ -81,6 +100,14 @@ export function DocumentView({ path, target, reloadKey, scale = 1, height = 480,
   const cancelScroll = useDocumentViewInteractions(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
   const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, reloadKey]), selected, target?.highlight === false, cancelScroll, previewScale, positions);
   useDocumentViewLayout(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockLayoutChange);
+  useLayoutEffect(() => {
+    if (!onGeometry) return;
+    const element = viewport.current;
+    const paper = element?.querySelector<HTMLElement>(".document");
+    onGeometry(element && paper && content.current && positions && file && !stale && !problem
+      ? { viewport: element, paper, content: content.current, revision: file.revision, scale: previewScale, positions }
+      : undefined);
+  }, [file, stale, problem, positions, previewScale, onGeometry]);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
   return <section className="screen-document-view" aria-label={label} data-state={state}>
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
@@ -90,7 +117,7 @@ export function DocumentView({ path, target, reloadKey, scale = 1, height = 480,
         navigation.onKeyDownCapture(event);
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); event.stopPropagation(); }
       }}>
-        <div className="screen-document-view-content" style={{"--document-view-scale":previewScale} as CSSProperties}>
+        <div className="screen-document-view-content" ref={content} style={{"--document-view-scale":previewScale} as CSSProperties}>
           <DocumentEditor key={JSON.stringify([path, file.revision, reloadKey])} readOnly preview document={file.document} bibliography={file.bibliography}
             documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} />
           {clip ? <div className="screen-document-view-highlight-clip" style={{top:clip.top,left:clip.left,width:clip.width,height:clip.height}}>{highlight}</div> : highlight}
