@@ -3,13 +3,14 @@ import { allocateBlockPath } from "./block-locators.ts";
 import { closeHistory } from "@tiptap/pm/history";
 import type { Fragment } from "@tiptap/pm/model";
 import { NodeSelection, Selection, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
-import { ADMONITION_VARIANTS, type AdmonitionVariant, type FigureContent, type ListStyle, type ListDelimiter } from "@litzio/core";
+import { type AdmonitionVariant, type FigureContent, type ListStyle, type ListDelimiter } from "@litzio/core";
 import { sectionMarker, sectionRange, type SectionMarker } from "@litzio/core/section";
 import { isNewBlockPath } from "./tiptap-document.ts";
 import { referenceNumberText, NUMBERED_KINDS, type ReferenceTemplates } from "@litzio/core/numbering";
 import { addSectionLabel, hasSectionLabel } from "./cross-reference.tsx";
 import { endnoteLabel } from "./endnotes.ts";
 import { updateLabelProperties } from "./label-rename.ts";
+import { AUTHORABLE_ADMONITION_KINDS, admonitionAppearance, admonitionSearchTerms } from "./admonition-kinds.ts";
 import { blockMoveTarget, blockMoveBlockedHint, reorderBlock } from "./block-reorder.ts";
 
 // Editor commands for block insert/delete and table rows/columns. Each command is one engine
@@ -78,20 +79,13 @@ export const INSERT_COMMANDS: InsertCommand[] = [
     keywords: ["list", "numbered", "ordered", "ol"],
     run: (state, index, slash) => insertListAfter(state, index, true, slash),
   },
-  {
-    id: "note",
-    get label() { return i18n.t("Note"); },
+  ...AUTHORABLE_ADMONITION_KINDS.map((variant): InsertCommand => ({
+    id: variant,
+    get label() { return admonitionAppearance(variant).label; },
     get group() { return i18n.t("Blocks"); },
-    keywords: ["note", "admonition"],
-    run: (state, index, slash) => insertAdmonitionAfter(state, index, "note", slash),
-  },
-  {
-    id: "warning",
-    get label() { return i18n.t("Warning"); },
-    get group() { return i18n.t("Blocks"); },
-    keywords: ["warning", "admonition"],
-    run: (state, index, slash) => insertAdmonitionAfter(state, index, "warning", slash),
-  },
+    get keywords() { return admonitionSearchTerms(variant); },
+    run: (state, index, slash) => insertAdmonitionAfter(state, index, variant, slash),
+  })),
   {
     id: "quote",
     get label() { return i18n.t("Quote"); },
@@ -146,18 +140,6 @@ export const INSERT_COMMANDS: InsertCommand[] = [
   },
 ];
 
-/** Display names of MyST's standard admonition kinds, in menu order. */
-export const ADMONITION_LABELS: Record<AdmonitionVariant, string> = {
-  get note() { return i18n.t("Note"); }, get tip() { return i18n.t("Tip"); }, get hint() { return i18n.t("Hint"); }, get important() { return i18n.t("Important"); }, get seealso() { return i18n.t("See also"); },
-  get attention() { return i18n.t("Attention"); }, get caution() { return i18n.t("Caution"); }, get warning() { return i18n.t("Warning"); }, get danger() { return i18n.t("Danger"); }, get error() { return i18n.t("Error"); },
-};
-
-/** The visual tone of a kind: informational, cautionary or dangerous. */
-export function admonitionTone(variant: string): "note" | "warning" | "danger" {
-  if (variant === "danger" || variant === "error") return "danger";
-  return ["attention", "caution", "warning"].includes(variant) ? "warning" : "note";
-}
-
 const isTable = (state: EditorState, index: number) => state.doc.maybeChild(index)?.type.name === "table";
 const isEditableAdmonition = (state: EditorState, index: number) => {
   const node = state.doc.maybeChild(index);
@@ -193,13 +175,6 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
         : changeHeadingLevel(state, block, level),
     };
   }),
-  ...ADMONITION_VARIANTS.map((variant): BlockCommand => ({
-    id: `admonition-${variant}`,
-    get label() { return i18n.t("Change to {{kind}}", { kind: ADMONITION_LABELS[variant] }); },
-    applies: isEditableAdmonition,
-    enabled: (state, block) => isEditableAdmonition(state, block) && state.doc.child(block).attrs.variant !== variant,
-    run: (state, block) => changeAdmonitionVariant(state, block, variant),
-  })),
   {
     id: "table-row",
     get label() { return i18n.t("Add row below"); },
@@ -307,6 +282,13 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
       return reorderBlock(state, index, to);
     },
   })),
+  ...AUTHORABLE_ADMONITION_KINDS.map((variant): BlockCommand => ({
+    id: `admonition-${variant}`,
+    get label() { return admonitionAppearance(variant).label; },
+    applies: isEditableAdmonition,
+    enabled: (state, block) => isEditableAdmonition(state, block) && state.doc.child(block).attrs.variant !== variant,
+    run: (state, block) => changeAdmonitionVariant(state, block, variant),
+  })),
   {
     id: "delete",
     get label() { return i18n.t("Delete"); },
@@ -319,6 +301,7 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
 /** Block menu group of a block command, by what it acts on. */
 export function blockCommandGroup(id: string): string {
   if (id === "delete" || id.endsWith("-delete")) return i18n.t("Delete");
+  if (id.startsWith("admonition-")) return i18n.t("Type");
   if (id.startsWith("table-")) return i18n.t("Table");
   if (id.startsWith("section-")) return i18n.t("Section");
   return id.startsWith("move-") ? i18n.t("Block") : i18n.t("Turn into");
@@ -346,10 +329,8 @@ export function filterInsertCommands(query: string): InsertCommand[] {
 const KOREAN_SEARCH: Record<string, string[]> = {
   paragraph: ["문단", "텍스트"], "bulleted-list": ["목록", "글머리"], "numbered-list": ["번호", "목록"],
   ...Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`heading-${i + 1}`, ["제목", `제목 ${i + 1}`]])),
-  note: ["참고"], warning: ["경고"], quote: ["인용", "인용문"], divider: ["구분선"],
+  quote: ["인용", "인용문"], divider: ["구분선"],
   code: ["코드"], equation: ["수식"], figure: ["그림", "이미지"], table: ["표"],
-  tip: ["팁"], hint: ["힌트"], important: ["중요"], seealso: ["관련"], attention: ["주의"],
-  caution: ["주의"], danger: ["위험"], error: ["오류"],
 };
 
 /** An empty target paragraph is reused; otherwise a new paragraph follows the target block. */

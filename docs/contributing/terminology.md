@@ -17,6 +17,7 @@
 | 스킬 | 스킬 / Codex 스킬 | Skills / Codex skills | `skills`, `SKILL.md` 유지 | 스킬: 절차·안내, 도구와 구별 |
 | 서비스 프로세스 | 진단에서 백그라운드 서비스 | Background service | `daemon`, `litzio daemon ...` 유지 | daemon: 화면과 독립된 서비스 수명 |
 | 작업 제공 경계 | 진단에서 Host | Host | `Host`, `hostClient` 유지 | Host: 공용 작업·HTTP 제공 경계; daemon과 동의어 아님 |
+| MyST 알림 블록 | 알림 상자 | Callout | `admonition` 유지 | 알림 상자(Callout) |
 
 
 ## 바꾸지 않는 것

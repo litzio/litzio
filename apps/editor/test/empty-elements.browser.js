@@ -43,7 +43,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
     expect(await editor.locator('.quote').getAttribute('data-empty-prompt')).toBe(quote);
     expect(await editor.locator('li > p[data-empty-prompt]').evaluateAll(nodes => nodes.map(n=>n.getAttribute('data-empty-prompt')))).toEqual([item,item]);
   };
-  await prompts('Enter an equation','Enter admonition text','Enter a quote','Enter a list item');
+  await prompts('Enter an equation','Enter callout text','Enter a quote','Enter a list item');
   const read = async () => (await (await page.request.get(`${origin}/document/empty.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).text()).replaceAll('\r\n','\n');
   const save = async () => {
     await page.getByTestId('save').click();
@@ -74,13 +74,13 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   const spacedInserts = await typeSpaces();
   await save();
   const stored = await read();
-  expect(stored).not.toMatch(/Enter an|Enter a|Enter admonition/);
+  expect(stored).not.toMatch(/Enter an|Enter a|Enter callout/);
   expect(stored).toContain('$$\n$$');
   expect(stored).toContain(':::{note}\n:::');
   expect(await snapshot()).toEqual(spacedInserts); // Save acknowledgement must not replace the engine state.
   await reloadDocument(page);
   expect(await snapshot()).toEqual(empty);
-  await prompts('Enter an equation','Enter admonition text','Enter a quote','Enter a list item');
+  await prompts('Enter an equation','Enter callout text','Enter a quote','Enter a list item');
   // Repeat on persisted blocks to exercise Core's update operations as well.
   const spacedUpdates = await typeSpaces();
   await save();
@@ -88,7 +88,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   expect(await snapshot()).toEqual(spacedUpdates);
   await reloadDocument(page);
   expect(await snapshot()).toEqual(empty);
-  await prompts('Enter an equation','Enter admonition text','Enter a quote','Enter a list item');
+  await prompts('Enter an equation','Enter callout text','Enter a quote','Enter a list item');
   expect(await editor.getByTestId('equation-number').innerText()).toBe('(1)');
   // Direct typing removes only the prompt; Undo restores it and the original empty structure.
   await editor.evaluate(el => {
@@ -100,12 +100,12 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   expect(await editor.locator('.quote').getAttribute('data-empty-prompt')).toBe(null);
   await page.keyboard.press('ControlOrMeta+z');
   expect(await snapshot()).toEqual(empty);
-  await prompts('Enter an equation','Enter admonition text','Enter a quote','Enter a list item');
+  await prompts('Enter an equation','Enter callout text','Enter a quote','Enter a list item');
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   try {
     await page.getByTestId('ui-language').selectOption('ko');
     await page.locator('[data-tab-id="settings"] .document-tab-close').click();
-    await prompts('수식을 입력하세요','안내 내용을 입력하세요','인용문을 입력하세요','목록 항목을 입력하세요');
+    await prompts('수식을 입력하세요','알림 상자 내용을 입력하세요','인용문을 입력하세요','목록 항목을 입력하세요');
     expect(await snapshot()).toEqual(empty);
     expect(await read()).toBe(stored);
   } finally {

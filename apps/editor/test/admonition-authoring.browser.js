@@ -3,7 +3,7 @@
 // checks that variants, inline semantics, unsupported admonitions and surrounding blocks survive.
 // The file is a scratch copy under the repository's ignored tmp/ directory; prepare it first with
 // `pnpm browser:prepare` (see docs/test/TEST_GUIDE.md). The scenario writes that copy only.
-async (page, { openPath }) => {
+async (page, { openPath, expect, screenshots }) => {
   const problems = [];
   page.on('console', message => { if (message.type() === 'error') problems.push(message.text()); });
   await page.unrouteAll();
@@ -14,12 +14,14 @@ async (page, { openPath }) => {
   const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
-  const file = [root, 'tmp', 'admonition-authoring', 'authoring.md'].join(separator);
-  const markdown = async () => {
-    const response = await page.request.get(`${origin}/document/authoring.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
+  const fixture = name => [root, 'tmp', 'admonition-authoring', name].join(separator);
+  const file = fixture('authoring.md');
+  const source = async (path, name) => {
+    const response = await page.request.get(`${origin}/document/${name}?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } });
     if (response.status() !== 200) throw new Error(`Prepare ${file} first`);
-    return (await response.text()).replaceAll('\r\n', '\n');
+    return response.body();
   };
+  const markdown = async () => (await source(file, 'authoring.md')).toString().replaceAll('\r\n', '\n');
   const open = async () => {
     await page.reload();
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -27,6 +29,108 @@ async (page, { openPath }) => {
   };
   const editor = page.locator('[data-document-tab][data-active=true]').getByTestId('document-editor');
   const admonitions = () => editor.locator('aside[data-block="admonition"]');
+  const callouts = fixture('callouts.md');
+  const insertHere = editor.getByText('Try inserting here.', {exact:true});
+  if (screenshots) {
+    await openPath(page, callouts);
+    await page.setViewportSize({width:1440, height:1000});
+    await expect(admonitions()).toHaveCount(10);
+    const capture = async (theme, name) =>
+      page.screenshot({path:`tmp/1743/after-${theme}-${name}.png`, caret:'initial'});
+    for (const theme of ['light', 'dark']) {
+      await page.getByRole('button', {name:'Settings', exact:true}).click();
+      await page.getByTestId('theme').selectOption(theme);
+      await page.keyboard.press('Escape');
+      await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+      await page.evaluate(() => document.fonts.ready);
+      await admonitions().first().evaluate(node => node.scrollIntoView({block:'start'}));
+      await capture(theme, 'visible-kinds');
+      await admonitions().nth(5).evaluate(node => node.scrollIntoView({block:'start'}));
+      await capture(theme, 'other-kinds');
+      await admonitions().nth(5).hover();
+      await page.getByRole('button', {name:/Move .* block 6$/}).click();
+      await expect(page.getByRole('menu', {name:'Block actions'})).toBeVisible();
+      await capture(theme, 'block-menu');
+      await page.keyboard.press('Escape');
+      await insertHere.click();
+      await page.keyboard.press('End');
+      await page.keyboard.type(' /admonition');
+      await expect(page.getByRole('menu', {name:'Insert block'})).toBeVisible();
+      await capture(theme, 'slash-menu');
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Control+z');
+    }
+    await page.getByRole('button', {name:'Settings', exact:true}).click();
+    await page.getByTestId('theme').selectOption('light');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+  }
+
+  const kinds = ['Note', 'Tip', 'Important', 'Warning', 'Danger'];
+  const allKinds = [...kinds, 'Hint', 'See also', 'Attention', 'Caution', 'Error'];
+  const labels = () => admonitions().locator('.admonition-label');
+  const save = async () => {
+    await page.getByRole('button', {name:'Save', exact:true}).click();
+    await page.getByText('Saved', {exact:true}).filter({visible:true}).waitFor();
+  };
+  const editEnd = async () => {
+    await insertHere.click();
+    await page.keyboard.press('End');
+  };
+  const readCallouts = () => source(callouts, 'callouts.md');
+  const original = await readCallouts();
+  await openPath(page, callouts);
+  await expect(labels()).toHaveText(allKinds);
+  // Force a real write and then restore the trailing paragraph in a second write.
+  await editEnd();
+  await page.keyboard.type(' Temporary');
+  await save();
+  const changed = await readCallouts();
+  expect(changed.toString()).toBe(original.toString().replace('Try inserting here.', 'Try inserting here. Temporary'));
+  await editor.getByText('Try inserting here. Temporary', {exact:true}).click();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Shift+End');
+  await page.keyboard.type('Try inserting here.');
+  await save();
+  await page.reload();
+  await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  await openPath(page, callouts);
+  await expect(labels()).toHaveText(allKinds);
+  expect((await readCallouts()).equals(original)).toBe(true);
+
+  for (const [kind, query] of kinds.map((kind, index) => [kind, ['참고', 'tip', '중요', 'warning', 'danger'][index]])) {
+    await editEnd();
+    await page.keyboard.type(' /');
+    await page.keyboard.insertText(query);
+    const row = page.getByRole('menu', {name:'Insert block'}).getByRole('menuitem', {name:kind, exact:true});
+    await row.click();
+    await page.keyboard.type(`Inserted ${kind}.`);
+    const inserted = admonitions().filter({hasText:`Inserted ${kind}.`});
+    await expect(inserted).toHaveAttribute('data-variant', kind.toLowerCase());
+    await expect(inserted.locator('.admonition-label')).toHaveText(kind);
+  }
+  await admonitions().nth(5).hover();
+  const handle = page.getByRole('button', {name:'Move Callout block 6', exact:true});
+  await handle.focus();
+  await page.keyboard.press('Enter');
+  const menu = page.getByRole('menu', {name:'Block actions'});
+  await expect(menu.getByRole('separator', {name:'Type'})).toBeVisible();
+  const choices = menu.getByRole('menuitemradio');
+  await expect(choices).toHaveText(['Hint', ...kinds]);
+  await expect(choices.first()).toBeDisabled();
+  await expect(choices.first()).toBeChecked();
+  await expect(menu.getByRole('menuitem', {name:'Move up'})).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  const note = menu.getByRole('menuitemradio', {name:'Note'});
+  await expect(note).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(admonitions().nth(5).locator('.admonition-label')).toHaveText('Note');
+  await save();
+  const edited = (await readCallouts()).toString();
+  expect(edited).not.toContain(':::{hint}');
+  for (const kind of kinds) expect(edited).toContain(`:::{${kind.toLowerCase()}}\nInserted ${kind}.\n:::`);
+
   const selectText = async needle => {
     await page.evaluate(needle => {
       const instance = document.querySelector('[data-document-tab][data-active=true] .ProseMirror').editor;

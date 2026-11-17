@@ -271,6 +271,8 @@ captures under `tmp/read-view-849/`. Its browser uses the checkout's persistent 
 
 `ui-language`는 한국어·영어 전환 시 같은 편집기·탭·selection·미저장 내용·속성 초안 보존, Undo/Redo, 표시 중인 오류의 언어 전환, 한국어 UI에서 실제 Save → Reload 및 페이지 재실행 후 언어 설정 유지를 검사한다. `pnpm browser:test ui-language --screenshots`는 동일한 Settings의 영어/한국어 및 375px 한국어 화면을 `tmp/256/`에 저장한다. 기존 영어 시나리오는 재사용 profile의 브라우저 locale을 `en-US`로 고정하며, 언어 시나리오는 종료 시 영어 preference를 복원한다. 초기 언어 정책·저장 실패·번역 키/매개변수·복수형·양 언어 명령 검색은 Editor 테스트에서 검증한다.
 
+`pnpm browser:test admonition-authoring`은 알림 상자 열 종류의 이름표와 원문 바이트 보존, 슬래시 검색으로 다섯 종류 삽입, 블록 메뉴에서 현재 값의 표시와 키보드 변경을 검사한다. `--screenshots`는 1440px 밝은·어두운 테마의 메뉴와 본문을 `tmp/1743/`에 저장한다. [검토용 캡처](../reviews/assets/1743-callout-kinds/light-visible-kinds.webp)는 문서 영역을 담는다.
+
 The `cross-reference` record-removal wait and #407 observation are retained in [Cross-reference regression history](../reviews/verification-history-2026-11.md#cross-reference-regression-history-407).
 
 #409에서 clean 전환은 동기식 세션·세대 표식을 남기고, 복구 목록 읽기가 500ms 기록 턴보다 먼저여도 그 세대의 오래된 기록을 정리한다. 위 `cross-reference`의 제거 대기는 실제 IndexedDB 기록 부재를 확인하는 가치가 있어 유지한다. 즉시 Reload의 제품 회귀는 `document-tabs`가 **같은 browser turn의 Undo → Reload**로 검사하며, 그 사이 삭제 대기·Save를 넣지 않는다. 브라우저 탭 닫기 뒤 재열기에서도 제안이 없어야 하고, 일부 편집만 Undo해 실제 미저장 내용이 남으면 제안과 기록이 유지되어야 한다. `recovery-storage`는 clean 표식 후 disposal, 다른 세션과 기존 v1 기록 보존, IndexedDB가 밀린 사이 새 입력이 온 경우의 live snapshot 보존, 표식 접근 실패 시 기존 기록과 경고를 검사한다. 또한 더 최신 dirty 기록을 커밋한 뒤 이전 clean 표식만 되살려, 두 저장소의 비원자적 crash flush가 새 작업을 지우지 않는지 검사한다. 기존 `recovery`의 다른 창 Save/외부 revision 충돌 검사는 그대로 유지한다.

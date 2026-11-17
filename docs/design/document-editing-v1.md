@@ -33,7 +33,7 @@ Empty equations retain their official numbers. Apply may clear an equation; Canc
 restores its applied value (including empty) and never deletes the block. New equations still
 auto-open their form. Changed property drafts remain excluded from Save until Apply.
 
-Empty elements show localized guidance: “Enter admonition text”, “Enter a quote”,
+Empty elements show localized guidance: “Enter callout text”, “Enter a quote”,
 “Enter a list item” and “Enter an equation”. Text surfaces use view-only decorations/NodeView
 attributes and CSS generated text; the atomic equation uses a noneditable NodeView surface.
 These prompts use the Figure empty-state subtle text and small sans-serif type tokens,

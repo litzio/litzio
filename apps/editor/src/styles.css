@@ -1502,8 +1502,9 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 }
 
 .admonition {
+  --callout-color: var(--id-color-info);
   padding: var(--space-3) var(--space-4);
-  border-left: var(--size-document-side-rule) solid var(--id-color-info);
+  border-left: var(--size-document-side-rule) solid var(--callout-color);
   border-radius: var(--id-radius-lg);
   background: var(--id-color-surface-info);
   font-family: var(--font-family-sans);
@@ -1512,30 +1513,38 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 }
 
 .admonition-warning {
-  border-left-color: var(--id-color-warning);
+  --callout-color: var(--id-color-warning);
   background: var(--id-color-surface-warning);
 }
 
-.admonition-note {
-  border-left-color: var(--id-color-info);
-  background: var(--id-color-surface-info);
+.admonition-tip {
+  --callout-color: var(--id-color-success);
+}
+
+.admonition-important {
+  --callout-color: var(--id-color-accent-violet);
+}
+
+.admonition-danger {
+  --callout-color: var(--id-color-danger);
+  background: var(--id-color-surface-danger);
 }
 
 .admonition-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0 0 var(--space-1);
-  color: var(--id-color-info);
+  color: var(--callout-color);
   font-weight: var(--font-weight-semibold);
   text-transform: capitalize;
 }
 
-.admonition-warning .admonition-label { color: var(--id-color-warning); }
-
-.admonition-danger {
-  border-left-color: var(--id-color-danger);
-  background: var(--id-color-surface-danger);
+.admonition-label svg {
+  flex: none;
+  width: var(--size-icon-slot);
+  height: var(--size-icon-slot);
 }
-
-.admonition-danger .admonition-label { color: var(--id-color-danger); }
 
 .admonition-body {
   font-family: var(--font-family-document);

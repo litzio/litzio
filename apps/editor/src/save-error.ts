@@ -104,7 +104,7 @@ function blockKind(type: string): string {
   if (i18n.resolvedLanguage !== "ko") return type;
   const names: Record<string, MessageKey> = { paragraph: "Paragraph", heading: "Heading", table: "Table", equation: "Equation", figure: "Figure",
     blockquote: "Quote", quote: "Quote", bulletList: "Lists", orderedList: "Numbered list", codeBlock: "Code block",
-    footnoteDefinition: "Endnote", footnote: "Endnote", admonition: "Admonition", divider: "Divider", horizontalRule: "Divider", labelTarget: "Section label" };
+    footnoteDefinition: "Endnote", footnote: "Endnote", admonition: "Callout", divider: "Divider", horizontalRule: "Divider", labelTarget: "Section label" };
   return names[type] ? i18n.t(names[type]) : type;
 }
 

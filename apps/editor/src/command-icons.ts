@@ -27,7 +27,6 @@ import {
   Heading6,
   Image,
   Workflow,
-  Info,
   List,
   ListOrdered,
   Minus,
@@ -35,9 +34,10 @@ import {
   Quote,
   Sigma,
   Table,
-  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import { isAdmonitionVariant } from "@litzio/core";
+import { admonitionAppearance } from "./admonition-kinds.ts";
 
 const INSERT_ICONS: Record<string, LucideIcon> = {
   paragraph: Pilcrow,
@@ -49,8 +49,6 @@ const INSERT_ICONS: Record<string, LucideIcon> = {
   "heading-6": Heading6,
   "bulleted-list": List,
   "numbered-list": ListOrdered,
-  note: Info,
-  warning: TriangleAlert,
   quote: Quote,
   divider: Minus,
   "code-block": Code,
@@ -63,6 +61,7 @@ const INSERT_ICONS: Record<string, LucideIcon> = {
 
 /** The icon the insert menu shows for an insert command or a reference item. */
 export function insertCommandIcon(id: string): LucideIcon | undefined {
+  if (isAdmonitionVariant(id)) return admonitionAppearance(id).icon;
   return id.startsWith("reference:") ? Bookmark : id === "citation" || id.startsWith("citation:") ? BookOpen : INSERT_ICONS[id];
 }
 
@@ -81,7 +80,5 @@ const BLOCK_ICONS: Record<string, LucideIcon> = {
 export function blockCommandAppearance(id: string): { icon: LucideIcon | undefined; danger: boolean } {
   const danger = id === "delete" || id.endsWith("-delete");
   const kind = id.replace(/^heading-level-/, "heading-").replace(/^admonition-/, "");
-  const admonitionIcon = ["danger", "error", "attention", "caution"].includes(kind) ? TriangleAlert
-    : ["tip", "hint", "important", "seealso"].includes(kind) ? Info : undefined;
-  return { icon: danger ? Trash2 : BLOCK_ICONS[id] ?? insertCommandIcon(kind) ?? admonitionIcon, danger };
+  return { icon: danger ? Trash2 : BLOCK_ICONS[id] ?? insertCommandIcon(kind), danger };
 }
