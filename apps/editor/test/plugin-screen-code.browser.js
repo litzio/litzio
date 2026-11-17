@@ -10,7 +10,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
       React.createElement(ui.Row,{label:'문서 작업'},React.createElement(ui.Button,null,'열기'),React.createElement(ui.Button,null,'검사')),
       React.createElement(ui.Status,{tone:'progress',variant:'plain',label:'처리 중'}));}}`;
   let emptyMode = false;
-  let documentMode = false, documentPath = "", documentRevision = "", tableCell = [], lastPath = [], complexPath = [], definitionPath = [], callPath = [];
+  let documentMode = false, documentPath = "", documentRevision = "", tableCell = [], firstCell = [], firstPath = [], lastPath = [], complexPath = [], definitionPath = [], callPath = [];
   let operationFailure = false;
   const baselineCode = () => `export default function(React){return function Screen({ui,invoke,saveDocument,confirm}) {const [selected,setSelected]=React.useState(),[choice,setChoice]=React.useState('all');const [value,setValue]=React.useState('Ready');React.useEffect(()=>()=>{if(${cleanup})throw Error('Fixture cleanup failure');},[]);if(${crash})throw Error('Fixture screen failure');return React.createElement(ui.ScreenLayout,{title:'Measurements'},React.createElement(ui.Toolbar,null,React.createElement('label',null,'Threshold',React.createElement(ui.Input,{'aria-label':'Threshold',defaultValue:15})),React.createElement(ui.Select,{label:'Display',value:choice,onValueChange:setChoice,options:[{value:'all',label:'All'},{value:'recent',label:'Recent'}]}),React.createElement(ui.Button,{variant:'destructive',onClick:()=>confirm({title:'Clear measurements?',message:'Remove loaded values.',confirmLabel:'Clear'}).then(v=>setValue(String(v))).catch(e=>{window.__confirmationAborted=e.name;setValue(e.name)})},'Clear measurements'),React.createElement(ui.Button,{onClick:()=>invoke('measurements',{}).then(v=>setValue(JSON.stringify(v))).catch(e=>setValue(e.code+': '+e.message))},'Load measurements'),React.createElement(ui.Button,{variant:'default',onClick:()=>saveDocument({name:'screen-result.md',authoring:{title:'Saved measurements',inputs:[{key:'values',blocks:[{kind:'table',label:'values',caption:[{kind:'strong',children:[{kind:'text',text:'Measured values'}]}],rows:[Array.from({length:12},(_,i)=>'Column '+(i+1)),[...Array.from({length:11},(_,i)=>'Source '+(i+1)),[{kind:'math',value:'18'}]],[...Array.from({length:11},(_,i)=>'Other '+(i+1)),'24']]},{kind:'figure',imageAsset:'chart',imageAlt:'Chart',caption:'Saved chart'},{kind:'equation',latex:'E=mc^2',label:'energy'},{kind:'paragraph',content:[{kind:'text',text:'See '},{kind:'reference',role:'eq',label:'energy'}]},{kind:'equation',latex:'a^2+b^2=c^2',label:'simple'},{kind:'footnote',label:'evidence',text:'Definition after the body.'},{kind:'figure',imageAsset:'tall',imageAlt:'Delayed height',caption:'Late image'},...Array.from({length:400},(_,i)=>i===90?{kind:'equation',latex:${JSON.stringify(complexLatex)},label:'complex'}:i===110?{kind:'paragraph',content:[{kind:'text',text:'Evidence call '},{kind:'footnote',label:'evidence'}]}:({kind:'paragraph',text:'Fixed sample block '+i+' — Context makes this paragraph wrap when the comparison pane becomes narrow.'}))]}]},images:${JSON.stringify(images)},open:true}).then(v=>setValue('Saved')).catch(e=>setValue(e.message))},'Save document')),React.createElement(ui.Toolbar,null,React.createElement(ui.SummaryCard,{label:'Count',value:5,description:'Loaded measurements'}),React.createElement(ui.SummaryCard,{label:'Total',value:80})),React.createElement(ui.Chart,{title:'Measurements',data:[10,18,12,24,16].map((value,i)=>({time:'00:0'+i,value})),xKey:'time',yKey:'value'}),React.createElement(ui.DataTable,{title:'Measurements',rowKey:'time',selectedKey:selected,onSelectRow:r=>setSelected(r.time),columns:['time','value'],fields:{time:{type:'string',linkField:'url'},value:{type:'number'}},rows:[10,18,12,24,16].map((value,i)=>({time:'00:0'+i,value,url:'https://example.test/'+i}))}),React.createElement('details',null,React.createElement('summary',null,'Details'),React.createElement('output',{'data-revision':${revision}},value)));}}`;
   let interactions = false, actionPath = '';
@@ -18,7 +18,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   const frameCode = () => `export default function(React){return function Screen({ui}) {const [step,setStep]=React.useState(0);return React.createElement(ui.ScreenLayout,{width:'narrow',description:'Convert source PDFs into readable results.',status:React.createElement(ui.Status,{tone:step===1?'progress':'ok',label:step===1?'Converting':'Service connected'}),actions:step>0&&React.createElement(ui.Button,{variant:step===2?'default':'outline',onClick:()=>setStep(step===1?2:0)},step===1?'Finish conversion':'Convert another PDF')},React.createElement(ui.Steps,{steps:['Choose files','Convert','Result'],current:step}),step===0?React.createElement(ui.EmptyState,{title:'Choose PDFs to convert',description:'Choose a source inside the opened folder.',action:React.createElement(ui.Button,{variant:'default',onClick:()=>setStep(1)},'Choose PDF')}):step===1?React.createElement(ui.Progress,{value:0.65,label:'Converting source.pdf — 27 of 42 pages'}):React.createElement(ui.SummaryCard,{label:'Converted documents',value:2,description:'Results are ready to inspect.'}),React.createElement('details',null,React.createElement('summary',null,'Source details'),...Array.from({length:60},(_,i)=>React.createElement('p',{key:i},'Source details '+(i+1)))));}}`;
   let probeMode = true;
   const probeCode = () => `export default function(React){return function Screen({ui}) {const [value,setValue]=React.useState('Ready');return React.createElement(ui.ScreenLayout,null,React.createElement(ui.ContextMenu,{trigger:React.createElement(ui.Button,null,'Menu target'),actions:[{id:'blocked',label:'Unavailable action',icon:null,disabled:true,disabledReason:'Not available yet',run:()=>setValue('Unexpected')},{id:'run',label:'Run action',icon:null,run:()=>setValue('Done')}] }),React.createElement('output',null,value));}}`;
-  const code = () => probeMode ? probeCode() : sharedMode ? sharedCode() : frameMode ? frameCode() : emptyMode ? `export default function(React){return function Screen({ui}){return React.createElement(ui.ScreenLayout,null,React.createElement('section',null,React.createElement('h3',null,'Selected measurement'),React.createElement('p',null,'Details of the selected measurement.')),React.createElement(ui.DataTable,{title:'Empty measurements',columns:['Value'],rows:[]}));}}` : documentMode ? `export default function(React){return function Screen({ui}) { const [scale,setScale]=React.useState(1),[key,setKey]=React.useState(0),[target,setTarget]=React.useState({revision:${JSON.stringify(documentRevision)},path:${JSON.stringify(complexPath)}}),[state,setState]=React.useState(),[shown,setShown]=React.useState(true),[narrow,setNarrow]=React.useState(false),[requestedPath,setPath]=React.useState(${JSON.stringify(documentPath)});return React.createElement(ui.ScreenLayout,{description:"Synthetic document comparison"},React.createElement(ui.Toolbar,null,React.createElement(ui.Button,{onClick:()=>setScale(value=>value===1?0.5:1)},"Toggle preview scale"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:${JSON.stringify(documentRevision)},path:${JSON.stringify(tableCell)}})},"Go to table cell"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(lastPath)}})},"Go to last block"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(complexPath)}})},"Go to complex equation"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(definitionPath)}})},"Go to endnote definition"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(callPath)}})},"Go to endnote call"),React.createElement(ui.Button,{onClick:()=>setNarrow(value=>!value)},"Toggle narrow preview"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(callPath)},highlight:false})},"Follow call without highlight"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:[9999]})},"Unknown target"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:"old",path:${JSON.stringify(tableCell)}})},"Use stale target"),React.createElement(ui.Button,{onClick:()=>setKey(k=>k+1)},"Read again"),React.createElement(ui.Button,{onClick:()=>setShown(s=>!s)},"Toggle preview"),React.createElement(ui.Button,{onClick:()=>setPath(${JSON.stringify(documentPath)}+".missing.md")},"Missing document"),React.createElement(ui.Button,{onClick:()=>setPath("/outside/not-open.md")},"Outside folder"),React.createElement(ui.Button,{onClick:()=>setPath(${JSON.stringify(documentPath)})},"Original document"),React.createElement("output",null,({loading:"Loading",ready:"Ready",error:"Failed","stale-target":"Saved document changed","target-not-found":"Target not found"})[state?.state]??"Ready")),React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:"var(--space-4)"}},React.createElement("section",{style:{flex:"1 1 320px",minWidth:0}},React.createElement("h2",null,"Source material"),React.createElement("p",null,"Synthetic source for comparison. Source display is owned by the plugin.")),shown&&React.createElement("div",{style:{flex:narrow?"0 1 260px":"1 1 320px",minWidth:0}},React.createElement(ui.DocumentView,{path:requestedPath,scale,reloadKey:key,target,onStateChange:setState,height:480,onVisibleBlockLayoutChange:value=>(globalThis.__viewLayouts??=[]).push(value),onVisibleBlockChange:value=>(globalThis.__viewScroll??=[]).push({...value,time:performance.now()}),onBlockClick:value=>(globalThis.__viewClicks??=[]).push(value)}))));}}` : !interactions ? baselineCode() : `export default function(React){return function Screen({ui,pickPath,openDocument,saveDocument}) {
+  const code = () => probeMode ? probeCode() : sharedMode ? sharedCode() : frameMode ? frameCode() : emptyMode ? `export default function(React){return function Screen({ui}){return React.createElement(ui.ScreenLayout,null,React.createElement('section',null,React.createElement('h3',null,'Selected measurement'),React.createElement('p',null,'Details of the selected measurement.')),React.createElement(ui.DataTable,{title:'Empty measurements',columns:['Value'],rows:[]}));}}` : documentMode ? `export default function(React){return function Screen({ui}) { const [scale,setScale]=React.useState(1),[key,setKey]=React.useState(0),[target,setTarget]=React.useState({revision:${JSON.stringify(documentRevision)},path:${JSON.stringify(complexPath)}}),[state,setState]=React.useState(),[shown,setShown]=React.useState(true),[narrow,setNarrow]=React.useState(false),[requestedPath,setPath]=React.useState(${JSON.stringify(documentPath)});return React.createElement(ui.ScreenLayout,{description:"Synthetic document comparison"},React.createElement(ui.Toolbar,null,React.createElement(ui.Button,{onClick:()=>setScale(value=>value===1?0.5:1)},"Toggle preview scale"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:${JSON.stringify(documentRevision)},path:${JSON.stringify(tableCell)}})},"Go to table cell"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(lastPath)}})},"Go to last block"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(complexPath)}})},"Go to complex equation"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(definitionPath)}})},"Go to endnote definition"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(callPath)}})},"Go to endnote call"),React.createElement(ui.Button,{onClick:()=>setNarrow(value=>!value)},"Toggle narrow preview"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(callPath)},highlight:false})},"Follow call without highlight"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:[9999]})},"Unknown target"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:"old",path:${JSON.stringify(tableCell)}})},"Use stale target"),React.createElement(ui.Button,{onClick:()=>setKey(k=>k+1)},"Read again"),React.createElement(ui.Button,{onClick:()=>setShown(s=>!s)},"Toggle preview"),React.createElement(ui.Button,{onClick:()=>setPath(${JSON.stringify(documentPath)}+".missing.md")},"Missing document"),React.createElement(ui.Button,{onClick:()=>setPath("/outside/not-open.md")},"Outside folder"),React.createElement(ui.Button,{onClick:()=>setPath(${JSON.stringify(documentPath)})},"Original document"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(firstPath)}})},"Go to first block"),React.createElement(ui.Button,{onClick:()=>setTarget({revision:state?.revision,path:${JSON.stringify(firstCell)}})},"Go to first cell"),React.createElement("output",null,({loading:"Loading",ready:"Ready",error:"Failed","stale-target":"Saved document changed","target-not-found":"Target not found"})[state?.state]??"Ready")),React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:"var(--space-4)"}},React.createElement("section",{style:{flex:"1 1 320px",minWidth:0}},React.createElement("h2",null,"Source material"),React.createElement("p",null,"Synthetic source for comparison. Source display is owned by the plugin.")),shown&&React.createElement("div",{style:{flex:narrow?"0 1 260px":"1 1 320px",minWidth:0}},React.createElement(ui.DocumentView,{path:requestedPath,scale,reloadKey:key,target,onStateChange:setState,height:480,onVisibleBlockLayoutChange:value=>(globalThis.__viewLayouts??=[]).push(value),onVisibleBlockChange:value=>(globalThis.__viewScroll??=[]).push({...value,time:performance.now()}),onBlockClick:value=>(globalThis.__viewClicks??=[]).push(value)}))));}}` : !interactions ? baselineCode() : `export default function(React){return function Screen({ui,pickPath,openDocument,saveDocument}) {
     const [path,setPath]=React.useState(${JSON.stringify(actionPath)}),[result,setResult]=React.useState('Ready');
     const firstSave=React.useRef(saveDocument);const run=promise=>promise.then(value=>setResult(JSON.stringify(value))).catch(error=>setResult(error.name+': '+error.message));
     return React.createElement(ui.ScreenLayout,{description:'Select a source or destination inside the opened folders.'},
@@ -231,8 +231,10 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   const inspected = pluginFixture.cli(['inspect',documentPath]);
   // These are the CLI's actual Core NodePaths, passed to the plugin unchanged.
   tableCell = inspected.nodes.find(node=>node.type==='cell'&&node.text==='18').path;
+  firstCell = inspected.nodes.find(node=>node.type==='cell'&&node.text==='Source 1').path;
   const response = await page.request.get(page.url().split('/').slice(0,3).join('/')+'/api/document?path='+encodeURIComponent(documentPath),{headers:{Connection:'close'}});
   const saved = await response.json(); documentRevision=saved.revision;
+  firstPath = saved.document.blocks[0].path;
   expect(inspected.revision).toBe(saved.revision);
   lastPath = inspected.nodes.filter(node=>node.type==='paragraph').at(-1).path;
   complexPath=inspected.nodes.find(node=>node.type==='equation'&&node.label==='complex').path;
@@ -267,6 +269,35 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     await expect.poll(()=>highlight.evaluate(node=>node.offsetTop)).toBeGreaterThan(initialTop+480);
     await expect.poll(inViewport).toBe(true);afterImageMs=Date.now()-released;
   } finally {releaseTall();await page.unroute('**/*'+tallName+'*',delayTall);}
+  await withBlockHover(page, async () => {
+    const equation = preview.locator('.equation').last();
+    await equation.hover();
+    const hover = preview.getByTestId('block-hover-outline');
+    await expect(hover).toBeVisible();
+    await expect.poll(() => highlight.evaluate(node => {
+      const rect = node.getBoundingClientRect();
+      const hovered = node.closest('.screen-document-view').querySelector('.block-hover-outline');
+      const hoverRect = hovered.getBoundingClientRect();
+      const stroke = getComputedStyle(node, '::after');
+      const hoverStroke = getComputedStyle(hovered);
+      const painted = [rect.top + parseFloat(stroke.top), rect.right - parseFloat(stroke.right),
+        rect.bottom - parseFloat(stroke.bottom), rect.left + parseFloat(stroke.left)];
+      return stroke.content !== 'none' && stroke.borderRadius === hoverStroke.borderRadius
+        && stroke.boxShadow !== hoverStroke.boxShadow
+        && painted.every((edge, i) => Math.abs(edge - [hoverRect.top, hoverRect.right, hoverRect.bottom, hoverRect.left][i]) < 1);
+    })).toBe(true);
+  });
+  if (screenshots) {
+    const sidebar = page.locator('.sidebar');
+    const capture = async theme => page.screenshot({path:`tmp/document-view-block-1440-${theme}.png`,mask:[sidebar],
+      maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
+    await capture('light');
+    await sidebar.getByRole('button',{name:'Color mode: Light',exact:true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+    await capture('dark');
+    await sidebar.getByRole('button',{name:'Color mode: Dark',exact:true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  }
   // The plugin owns a two-column layout; hover must use the preview's compact paper inset.
   await withBlockHover(page, async () => {
     const paragraph=preview.locator('.tiptap > p').filter({hasText:'Fixed sample block 399'});
@@ -342,8 +373,68 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await page.setViewportSize({width:640,height:1000});await expect.poll(inViewport).toBe(true);
   if(screenshots) await page.screenshot({path:'tmp/document-view-wide-640-dark.png',mask:[page.locator('.sidebar')],maskColor:await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).backgroundColor)});
   await page.setViewportSize({width:1440,height:1000});
+  if (screenshots) {
+    const sidebar = page.locator('.sidebar');
+    await workspace.getByRole('button',{name:'Go to first cell',exact:true}).click();
+    await expect.poll(cellIsVisible).toBe(true);
+    for (const theme of ['dark', 'light']) {
+      for (const width of [1440,640]) {
+        await page.setViewportSize({width,height:1000});
+        await expect.poll(cellIsVisible).toBe(true);
+        await page.screenshot({path:`tmp/document-view-first-cell-${width}-${theme}.png`,mask:[sidebar],
+          maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
+      }
+      await sidebar.getByRole('button',{name:`Color mode: ${theme === 'dark' ? 'Dark' : 'Light'}`,exact:true}).click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme',theme === 'dark' ? 'light' : 'dark');
+    }
+    await page.setViewportSize({width:1440,height:1000});
+    await openPath(page,documentPath);
+    const editor = page.locator('.tiptap:visible');
+    const cell = editor.locator('table tr').nth(1).locator('td').last();
+    const equation = editor.locator('.equation').last();
+    const capture = async (kind, theme) => page.screenshot({path:`tmp/editor-${kind}-1440-${theme}.png`,mask:[sidebar],
+      maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
+    for (const theme of ['dark', 'light']) {
+      await equation.getByTestId('equation-preview').click();
+      await expect(equation).toHaveAttribute('data-selected','true');
+      await capture('block', theme);
+      await cell.scrollIntoViewIfNeeded();
+      // Place the caret inside the math-only cell, where clicking can select the formula atom.
+      await cell.evaluate(node => {
+        const editor = node.closest('.tiptap').editor;
+        editor.chain().focus().setTextSelection(editor.view.posAtDOM(node, 0)).run();
+      });
+      await expect(cell).toHaveAttribute('data-current-cell','true');
+      await capture('cell', theme);
+      await sidebar.getByRole('button',{name:`Color mode: ${theme === 'dark' ? 'Dark' : 'Light'}`,exact:true}).click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme',theme === 'dark' ? 'light' : 'dark');
+    }
+    await sidebar.getByRole('button',{name:'Measurements',exact:true}).click();
+    await workspace.getByRole('button',{name:'Go to table cell',exact:true}).click();
+    await expect.poll(cellIsVisible).toBe(true);
+  }
   await page.locator('.sidebar').getByRole('button',{name:'Color mode: Dark',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  const tableCellPaint = await highlight.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.outlineStyle, style.outlineWidth, style.outlineOffset, style.backgroundColor];
+  });
+  expect(tableCellPaint).toEqual(['solid', '2px', '-2px', 'rgba(0, 0, 0, 0)']);
+  await workspace.getByRole('button',{name:'Go to first block',exact:true}).click();
+  await expect(highlight).toHaveAttribute('data-target-kind','block');
+  await expect.poll(() => highlight.evaluate(node => {
+    const view = node.closest('.screen-document-view-scroll');
+    const clip = view.getBoundingClientRect();
+    const block = node.getBoundingClientRect();
+    const outline = getComputedStyle(node, '::after');
+    return block.top + parseFloat(outline.top) >= clip.top + view.clientTop
+      && block.left + parseFloat(outline.left) >= clip.left + view.clientLeft;
+  })).toBe(true);
+  if (screenshots) {
+    const sidebar = page.locator('.sidebar');
+    await page.screenshot({path:'tmp/document-view-first-block-1440-light.png',mask:[sidebar],
+      maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
+  }
   await workspace.getByRole('button',{name:'Go to complex equation',exact:true}).click();await expect.poll(inViewport).toBe(true);
   const rereadStarted=Date.now();
   const reread=page.waitForResponse(response=>response.request().method()==='GET'&&response.url().includes('/api/document?')&&decodeURIComponent(response.url()).includes(documentPath));
