@@ -1,6 +1,7 @@
 import { ScreenFrame } from "../components/ui/task-header.tsx";
 import { PluginScreenCode, ScreenBoundary } from "./PluginScreenCode.tsx";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { desktopConnection } from "../desktop-connection.ts";
 import { hostConnection, type HostClient } from "../host-client.ts";
 import { viewRequest, type ViewScreen, type ViewResult } from "./view-api.ts";
 import { Notice } from "../ui/primitives.tsx";
@@ -48,7 +49,8 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("plugins-changed", refresh); };
   }, [client, owner, current, canReadCatalog, screen.id]);
   const contribution = catalogClient === client ? catalog?.screens?.find(s => s.plugin === owner && s.id === screen.id) : undefined;
-  const active = current && !!contribution;
+  const keepOnProbeFailure = desktopConnection.get().version?.screenInstanceGuard === true;
+  const active = current && !!contribution && (canReadCatalog || keepOnProbeFailure);
   return <div className="view-workspace task-surface" data-testid="view-workspace">
     <ScreenFrame title={screen.title}>
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}

@@ -6,30 +6,37 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   expect(health.ok()).toBe(true);
   const { instanceId, productVersion, screenInstanceGuard } = await health.json();
   await page.addInitScript(({ instanceId, productVersion, screenInstanceGuard }) => {
+    const legacy = sessionStorage.getItem("fixture-legacy-daemon") === "true";
     window.litzioDesktop = {
-      hostConnection: async () => ({ url: location.origin, instanceId, productVersion, screenInstanceGuard, desktopVersion: productVersion }),
+      hostConnection: async () => ({
+        url: location.origin, instanceId: legacy ? "legacy-instance" : instanceId, productVersion,
+        screenInstanceGuard: legacy ? undefined : screenInstanceGuard, desktopVersion: productVersion,
+      }),
       info: async () => ({ version: productVersion, channel: "stable", updatesSupported: false, update: { phase: "idle" }, seenUpdate: null }),
       startup: async () => ({}), checkDaemon: async () => {},
       setTheme: async () => false, setWindowBackground: async () => {}, setOpenedFolders: async () => {},
       onUpdateState: () => () => {}, onRestartCheck: () => () => {}, reportPendingWork: () => {},
     };
   }, { instanceId, productVersion, screenInstanceGuard });
-  const code = `export default function(React) {
+  const code = legacy => `export default function(React) {
     return function Screen({ ui, saveDocument }) {
       const [status, setStatus] = React.useState("Ready");
-      async function save() {
+      async function save(name) {
         setStatus("Saving sample");
         try {
-          const result = await saveDocument({ name: "slow-save.md", authoring: { title: "Slow save sample", inputs: [] } });
+          const result = await saveDocument({ name, authoring: { title: "Slow save sample", inputs: [] } });
           setStatus(result.revision ? "Sample saved" : "Missing revision");
         } catch (error) { setStatus(error.name); }
       }
       return React.createElement(ui.ScreenLayout, { status: React.createElement(ui.Status, { tone: "neutral", label: status }),
-        actions: React.createElement(ui.Button, { onClick: save }, "Save sample") });
+        actions: React.createElement(React.Fragment, null,
+          React.createElement(ui.Button, { onClick: () => save(${JSON.stringify(legacy ? "legacy-save.md" : "slow-save.md")}) }, "Save sample"),
+          ${legacy ? 'React.createElement(ui.Button, { onClick: () => save("replacement-save.md") }, "Save after replacement")' : "null"}) });
     };
   }`;
+  let legacy = false;
   await page.route("**/api/plugin-screens", route => route.fulfill({ json: {
-    screens: [{ plugin: "fixture.slow", id: "main", entry: "screen.jsx", title: "Slow save", primary: true, code, codeRevision: "1" }],
+    screens: [{ plugin: "fixture.slow", id: "main", entry: "screen.jsx", title: "Slow save", primary: true, code: code(legacy), codeRevision: "1" }],
     receipt: { outcome: "success" },
   } }));
   await page.reload();
@@ -93,4 +100,54 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   } }), { times: 1 });
   await expect(workspace.getByText("Unavailable", { exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(workspace.getByRole("button", { name: "Save sample" })).toHaveCount(0);
+
+  // Report a legacy daemon at this origin, then hold observations until the real
+  // replacement Host would have received any write from the old screen.
+  legacy = true;
+  let holdHealth = false;
+  let releaseHealth;
+  const legacyHealthGate = new Promise(resolve => { releaseHealth = resolve; });
+  const legacyHealth = async route => {
+    if (!holdHealth) return route.fulfill({ json: { protocolVersion: "4", productVersion, instanceId: "legacy-instance" } });
+    await legacyHealthGate;
+    await route.continue();
+  };
+  await page.route("**/daemon/health", legacyHealth);
+  await page.evaluate(() => sessionStorage.setItem("fixture-legacy-daemon", "true"));
+  try {
+    await page.reload();
+    await page.locator(".sidebar").getByRole("button", { name: "Slow save", exact: true }).click();
+    await workspace.getByRole("button", { name: "Save sample" }).click();
+    await expect(workspace.getByText("Sample saved", { exact: true })).toBeVisible();
+    const oldSave = workspace.getByRole("button", { name: "Save after replacement" });
+    await expect(oldSave).toBeVisible();
+
+    holdHealth = true;
+    await expect(hostStatus).toHaveText("Unreachable", { timeout: 12_000 });
+    // Confirm the new instance at the same address independently of the editor.
+    const replacement = await page.request.get(origin + "/daemon/health", {
+      headers: { Connection: "close", "X-Litzio-Protocol": "4" },
+    });
+    expect(replacement.ok()).toBe(true);
+    expect((await replacement.json()).instanceId).toBe(instanceId);
+    let replacementWrite = false;
+    page.on("request", request => {
+      if (request.url() === origin + "/api/document" && request.method() === "PUT") replacementWrite = true;
+    });
+    if (await oldSave.isVisible()) {
+      const written = page.waitForResponse(response => response.url() === origin + "/api/document" && response.request().method() === "PUT");
+      await oldSave.click();
+      await (await written).finished();
+      await expect(workspace.getByText("Sample saved", { exact: true })).toBeVisible();
+    }
+    const saved = await page.request.get(origin + "/api/document?path=" +
+      encodeURIComponent(pluginFixture.folder + "/replacement-save.md"), { headers: { Connection: "close" } });
+    expect(saved.ok(), "a legacy screen must not create a document on the replacement Host").toBe(false);
+    await expect(workspace.getByText("Unavailable", { exact: true })).toBeVisible();
+    await expect(oldSave).toHaveCount(0);
+    expect(replacementWrite).toBe(false);
+  } finally {
+    releaseHealth();
+    await page.unroute("**/daemon/health", legacyHealth);
+  }
 }
