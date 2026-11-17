@@ -221,8 +221,8 @@ button {
 }
 .document-settings .shared-row > .settings-label { grid-column: 1; }
 .document-settings .shared-row > .settings-row-control { grid-column: 2; justify-content: flex-start; text-align: start; flex-wrap: nowrap; min-height: var(--size-control); }
-.document-settings .settings-field-control { width: 100%; justify-content: flex-start; min-height: var(--size-control); align-items: center; }
-.document-settings .settings-field-control > .settings-select { width: 100%; }
+.document-settings .settings-field-control { width: var(--layout-reading-preview-width); max-width: 100%; justify-content: flex-start; min-height: var(--size-control); align-items: center; }
+.document-settings .shared-row .settings-select { width: var(--layout-reading-preview-width); max-width: 100%; }
 .document-settings-bibliography { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .form-hint { margin: 0; color: var(--id-color-text-subtle); font-size: var(--font-size-xs); line-height: var(--line-height-meta); overflow-wrap: anywhere; }
 

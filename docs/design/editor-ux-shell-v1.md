@@ -382,7 +382,7 @@ before the title. Its one-line summary shows current settings and connected bibl
 A document with status always shows a shared `Status` indicator (Draft / In review / Approved),
 including when collapsed or read-only; a document without status has no indicator.
 Expanded settings use `SettingsRow`, `SettingsSelect` and `SettingsSwitch` in two aligned
-property columns with equal row heights and control starts. Status offers None / Draft /
+property columns with equal row heights and control starts. The three selects share a 20rem preferred width (the existing `--layout-reading-preview-width` token) and shrink to the available right column. Status offers None / Draft /
 In review / Approved. Heading numbering is one switch. Caption numbering offers Automatic /
 Fixed, with a disabled Mixed current option when appropriate. Reference style choices include
 actual Figure/Table/Equation examples. The bibliography filename precedes its Connect button.

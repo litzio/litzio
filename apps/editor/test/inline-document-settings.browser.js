@@ -159,9 +159,20 @@ async (page, { openPath, reloadDocument, expect, screenshots, withBlockHover }) 
         await capture('collapsed');
         await trigger.click(); await body().waitFor();
         const geometry=await body().evaluate(n=>{
-          const r=n.getBoundingClientRect();return {left:r.left,right:r.right,overflow:n.scrollWidth>n.clientWidth,controls:[...n.querySelectorAll('button,input,select')].map(c=>{const b=c.getBoundingClientRect();return {left:b.left,right:b.right};})};
+          const r=n.getBoundingClientRect(), root=getComputedStyle(document.documentElement);
+          const preferred=parseFloat(root.getPropertyValue('--layout-reading-preview-width'))*parseFloat(root.fontSize);
+          const ctx=document.createElement('canvas').getContext('2d');
+          const selects=[...n.querySelectorAll('select')].map(s=>{
+            const css=getComputedStyle(s), box=s.getBoundingClientRect();
+            ctx.font=`${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
+            return {left:box.left,width:box.width,expected:Math.min(preferred,s.parentElement.getBoundingClientRect().width),
+              required:Math.max(...[...s.options].map(o=>ctx.measureText(o.text).width))+parseFloat(css.paddingLeft)+parseFloat(css.paddingRight)+2};
+          });
+          return {selects,switchLeft:n.querySelector('[role=switch]').getBoundingClientRect().left,left:r.left,right:r.right,overflow:n.scrollWidth>n.clientWidth,controls:[...n.querySelectorAll('button,input,select')].map(c=>{const b=c.getBoundingClientRect();return {left:b.left,right:b.right};})};
         });
         assert(geometry.left>=0&&geometry.right<=width&&!geometry.overflow&&geometry.controls.every(c=>c.left>=geometry.left&&c.right<=geometry.right),'Expanded settings must fit at '+JSON.stringify({language,theme,background,width,geometry}));
+        assert(geometry.selects.length>0 && geometry.selects.every(s=>Math.abs(s.width-s.expected)<0.5 && Math.abs(s.width-geometry.selects[0].width)<0.5 && Math.abs(s.left-geometry.switchLeft)<0.5), 'Document selects share a bounded width and the switch axis: '+JSON.stringify(geometry));
+        assert(geometry.selects.every(s=>s.required<=s.width), 'English/Korean choices fit the select including control padding: '+JSON.stringify(geometry));
         await capture('expanded');
         await trigger.focus();await page.keyboard.press('Escape');await body().waitFor({state:'hidden'});
       }
