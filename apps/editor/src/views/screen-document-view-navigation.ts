@@ -3,7 +3,7 @@ import type { ReadingPosition } from "../document-reading.ts";
 
 /** The preview owns scrolling; the renderer only reports snapshot geometry. */
 export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | null>, request: object, identity: string,
-  selected: false | ReadingPosition["blocks"][number] | ReadingPosition["cells"][number] | undefined) {
+  selected: false | ReadingPosition["blocks"][number] | ReadingPosition["cells"][number] | undefined, alignStart = false, onProgrammaticScroll?: () => void) {
   const manual = useRef(false), first = useRef(true);
   useLayoutEffect(() => { manual.current = false; first.current = true; }, [request, identity]);
   useLayoutEffect(() => {
@@ -13,17 +13,21 @@ export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | n
     // Keep it visible without moving an already-visible target on every report.
     const visibleHeight = Math.min(selected.height, Math.max(0, element.clientHeight - 32));
     const outside = selected.top < element.scrollTop + 16 || selected.top + visibleHeight > element.scrollTop + element.clientHeight - 16;
-    if (first.current || outside) element.scrollTo({ top: Math.max(0, selected.top - 16) });
+    if (alignStart || first.current || outside) {
+      onProgrammaticScroll?.();
+      element.scrollTo({ top: Math.max(0, selected.top - (alignStart ? 0 : 16)) });
+    }
     if ("clip" in selected) {
       // Tables own horizontal scrolling. Never pan the preview or its plugin screen.
       const scroller = element.querySelector<HTMLElement>(`.table-block[data-source-path="${JSON.parse(selected.table).join(",")}"] .table-scroll`);
       const visibleWidth = Math.min(selected.width, Math.max(0, selected.clip.width - 32));
       if (scroller && (selected.left < selected.clip.left + 16 || selected.left + visibleWidth > selected.clip.left + selected.clip.width - 16)) {
+        onProgrammaticScroll?.();
         scroller.scrollBy({ left: selected.left - selected.clip.left - 16 });
       }
     }
     first.current = false;
-  }, [viewport, request, identity, selected]);
+  }, [viewport, request, identity, selected, alignStart, onProgrammaticScroll]);
   const pause = () => { manual.current = true; };
   return {
     onWheelCapture: pause,
