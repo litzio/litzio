@@ -28,6 +28,8 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명·상태·동작을 머리에, 내용을 본문에 그린다. 본문은 기본 전체 폭이며 narrow를 선택하면 기존 읽기 폭으로 가운데 정렬한다.
 
+ui.ContextMenu는 기존 공통 ContextMenu를 사용한다. trigger는 focus 가능한 ReactElement, actions는 `{id,label,icon,visible?,disabled?,disabledReason?,danger?,run}` 배열이며 전체 메뉴의 disabled도 받는다. icon은 ReactNode이고 글자만 쓰면 null로 둔다. 비활성 이유는 기존 hover·keyboard focus tooltip을 쓴다. 구분선·하위 메뉴는 지원하지 않는다. 우클릭·Shift+F10·메뉴 키로 열고 Esc·바깥 클릭으로 닫는다. 항목 실행 후 명시적으로 다른 곳으로 focus를 옮기지 않았으면 trigger로 복귀한다. 메뉴는 주 동작의 유일한 진입점이 아니며 같은 동작을 화면 버튼에도 둔다.
+
 ui.Button의 변형은 outline/default/ghost/destructive다. 생략 변형은 outline이며 주된 동작 하나에만 default를 명시한다. 과거 secondary 입력은 오류 없이 outline으로 그린다. Toolbar는 이름표가 달린 입력칸과 버튼을 아래쪽에 맞춘다. 요약 카드는 조작용과 별도의 Toolbar에 묶으며 같은 높이를 쓴다. DataTable은 공용 기본 밀도를 쓰며 폭은 내용에 맞추되 부모 폭을 넘으면 내부 가로 스크롤을 사용한다. 표 전체의 최소 폭은 두지 않고 셀은 기존 이름표 폭과 space-6의 합을 최소 폭, reading-preview-width를 최대 폭으로 사용한다. 긴 값은 셀 안에서 줄바꿈하며 fields의 number 열은 머리와 셀 모두 오른쪽 정렬한다. 정렬·필터 동작은 유지한다. 브라우저 기본 radio·checkbox·range·progress는 앱 루트의 포인트 색을 상속한다.
 
 DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 단추가 있어도 값과 시작선(숫자는 끝선)이 같다. 스크롤 상자 전체에는 focus 테두리를 그리지 않고, 행 선택 표는 현재 선택 행(없으면 첫 행), 그 밖의 표는 현재 칸에 표시한다. 링크·정렬·필터의 키보드 동작은 유지한다. 진행 문구·그래프 값은 본문, 축 이름·개수는 보조, 입력 이름표·그래프 제목·빈 상태 제목은 항목 이름 역할을 쓴다.
@@ -36,6 +38,8 @@ DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 
 플러그인 내용 영역(screen-layout)의 h2는 type-section-title, h3·h4는 type-item-name과 기존 간격 토큰으로 소제목 위계를 표현한다. 화면 틀 제목과 템플릿 갤러리의 제목 규칙은 유지한다.
 
 제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서 표시는 아래 DocumentView를 제공한다. 원본 대조·검수 틀은 제공하지 않는다.
+
+플러그인 부품 갤러리 1440px 수동 비교: Select [밝음 전](assets/plugin-screen-controls-1717/before-select-light.png)·[후](assets/plugin-screen-controls-1717/after-select-light.png), [어두움 전](assets/plugin-screen-controls-1717/before-select-dark.png)·[후](assets/plugin-screen-controls-1717/after-select-dark.png). ContextMenu [밝음](assets/plugin-screen-controls-1717/menu-light.png)·[어두움](assets/plugin-screen-controls-1717/menu-dark.png). 소유자 시각 승인은 포함하지 않는다.
 
 대표 시각 비교(합성 플러그인, Windows persistent Chrome):
 
@@ -48,7 +52,7 @@ DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 
 
 같은 조건의 템플릿 갤러리: [Before](assets/plugin-screen-consistency-1663/before-consistency-gallery.png), [After](assets/plugin-screen-consistency-1663/after-consistency-gallery.png). 캡처는 수동 비교 근거이며 실제 AI 제작·소유자 시각 승인은 포함하지 않는다.
 
-ui.Select는 label/value/onValueChange/options({value,label}[])와 선택적인 disabled/placeholder를 받는 단일 선택이다. SettingsSelect와 같은 SelectControl·스타일을 쓰고 이름표는 입력칸처럼 위에 둔다.
+ui.Select는 label/value/onValueChange/options({value,label}[])와 선택적인 disabled/placeholder를 받는 단일 선택이다. SettingsSelect와 같은 SelectControl·스타일을 쓰고 이름표는 기본적으로 입력칸처럼 위에 둔다. hideLabel?:boolean은 필수 label을 접근성 이름으로 유지하면서 시각적으로만 숨긴다. 버튼과 나란한 도구 줄(Toolbar·ScreenLayout actions)에서만 쓰며 설정·폼에서는 이름을 보인다. 값이 없으면 placeholder로 무엇을 고르는지 알린다.
 
 ui.DataTable의 rowKey는 행 식별 field다. onSelectRow(row)가 있을 때만 행을 클릭하거나 focus 후 Enter/Space로 선택한다. selectedKey(string|number)는 호출자가 소유하며 정렬·필터·페이지가 바꾸지 않는다. 선택 행은 aria-selected와 기존 선택 표면 토큰, hover는 hover 표면 토큰으로 표시한다. 셀 링크는 행 선택을 일으키지 않는다.
 

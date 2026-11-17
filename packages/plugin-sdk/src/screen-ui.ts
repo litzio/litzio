@@ -28,7 +28,7 @@ export interface ScreenChartProps {
   kind?: "line" | "bar"; baseline?: number; showValues?: boolean; emptyMessage?: string;
 }
 export interface ScreenSelectProps {
-  label: string; value: string; onValueChange(value: string): void;
+  label: string; hideLabel?: boolean; value: string; onValueChange(value: string): void;
   options: {value: string; label: string}[]; disabled?: boolean; placeholder?: string;
 }
 export interface ScreenSliderProps {
@@ -38,10 +38,11 @@ export interface ScreenSliderProps {
 export interface ScreenSummaryProps { label: string; value: string | number; description?: string }
 /** Shared by the client binding and bundled authoring guidance. No renderer dependency. */
 export const SCREEN_UI = {
+  ContextMenu: 'trigger:ReactElement (focusable target), actions:{id:string,label:string,icon:ReactNode (null for text only),visible?:boolean,disabled?:boolean,disabledReason?:string,danger?:boolean,run():void}[], disabled?:boolean. Shared target menu: right-click, Shift+F10 or ContextMenu key; Escape/outside closes. After an action, restores trigger focus unless the action moved focus elsewhere. No separators or submenus.',
   DocumentView: 'path:string inside this screen\'s opened folders; target?:{revision:string,path:Core NodePath,highlight?:boolean}; reloadKey?:string|number (change to reread saved file); height?:number (480px); label?:string; onStateChange?:({state,revision?,message?})=>void. States: loading/ready/error/stale-target/target-not-found. onVisibleBlockChange?:({revision,path})=>void (user vertical scrolling only, at most every 100ms plus final settled value); onBlockClick?:({revision,path})=>void (simple primary click reported immediately; double-click reports first click once, not second; no drag selection, Shift+click, links, references or footnote numbers). Both report top-level Core paths and suppress stale snapshots. highlight:false aligns the target start to the viewport top without a highlight, including already visible targets. Programmatic movement and layout changes never emit scroll reports. Actual read-only Litzio renderer. Block and exact table-cell navigation/highlight. Endnote definition paths reveal the definition; a paragraph path containing its call reveals that paragraph. Layout changes (math, image/font loading, width) keep the target visible until the user scrolls inside the view. A new path/revision/reloadKey resumes following. A mismatched revision never navigates/highlights. No editing, save, polling or tab interaction.',
   Button: 'Standard button props; variant outline (when omitted)/default (explicit primary)/ghost/destructive, size default/sm/icon.',
   Input: 'Standard input props; wrap in a visible label.',
-  Select: 'label:string, value:string, onValueChange(value:string), options:{value:string,label:string}[], optional disabled:boolean, placeholder:string. Single selection with label above the control.',
+  Select: 'label:string, value:string, onValueChange(value:string), options:{value:string,label:string}[], optional disabled:boolean, placeholder:string. Single selection with label above the control by default. hideLabel?:boolean visually hides the required accessible label for inline toolbar buttons.',
   Notice: 'children, optional tone="error"; catch async/event failures here.',
   DataTable: 'title:string, rows:object[], columns:string[], optional labels:{field:"Label"}, fields:{field:{type:"number"}}, rowKey:string (identity field), selectedKey?:string|number, onSelectRow?:(row)=>void. With onSelectRow, click or focus a row and press Enter/Space to select; links do not select. Caller owns selectedKey across sorting/filtering/pages.',
   Row: 'label:ReactNode, description?:ReactNode, children:ReactNode, kind?:"item"|"fact" (item by default). Name left, values/controls right; stacks in narrow containers. fact is a semantic definition pair; use code for paths/identifiers.',
@@ -68,7 +69,8 @@ Design rules:
 - Button defaults to outline; use variant="default" for only the screen's one main action.
 - Use destructive buttons and confirm() for dangerous actions; do not build inline confirmation buttons.
 - Choose files with pickPath; do not use native file inputs.
-- Use ui.Select for choices instead of native select.
+- Use ui.Select for choices instead of native select. hideLabel is only for toolbars alongside buttons; show labels in settings/forms. When no value is selected, supply a placeholder describing the choice.
+- Menus are never the only entry to a main action; provide the same action as a screen button.
 - Use ui.DataTable row selection for picking an item; do not stack buttons.
 - Use shared parts for headings and summaries. Keep ordinary values and prose normal.
 - Use ui.DataTable at default density, fitting content within the screen width; declare numeric columns with fields type:"number".

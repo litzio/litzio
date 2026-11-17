@@ -246,6 +246,7 @@ async (page, { expect, screenshots, withBlockHover }) => {
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   await page.setViewportSize({width:1440,height:1000});
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
+  await expect(page.getByRole('combobox',{name:'Target measurement',exact:true})).toBeVisible();
   const taskHeader = await page.locator('.task-header').evaluate(n => { const s = getComputedStyle(n); return { paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, paddingLeft: s.paddingLeft, border: s.borderBottom }; });
   expect(taskHeader.paddingTop).toBe(taskHeader.paddingLeft);
   expect(taskHeader.paddingBottom).toBe(taskHeader.paddingTop);

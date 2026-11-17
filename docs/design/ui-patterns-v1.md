@@ -144,6 +144,8 @@ Mermaid 종류 배지는 metadata 서체·text 대비·muted 표면을 사용하
 
 ## P10 메뉴와 선택 도구
 
+ContextMenu 항목 실행 뒤 닫힐 때 focus가 메뉴 안이나 body에 남아 있으면 trigger로 복귀한다. 동작이 메뉴 밖 입력칸·대화상자 등으로 focus를 옮겼으면 유지한다. 사라졌거나 focus를 받을 수 없는 trigger에는 복귀하지 않는다. 항목 실행 없는 Esc·바깥 클릭의 닫기 동작은 기존 공통 부품을 따른다.
+
 - **현재 기준:** [CommandMenu](../../apps/editor/src/CommandMenu.tsx)와 [공용 메뉴 행](editor-ux-shell-v1.md#unified-action-menus-516)을 유지한다. 같은 action의 icon·문구·disabled 이유를 맞춘다. 값 선택에는 current check, 서식에는 pressed, 실행에는 동사를 쓴다. 검색 active와 선택된 값은 구별한다.
 
 - **목적·사용/비사용:** 동작·값 선택·검색을 구별한다. combobox·tree·toolbar를 모양 때문에 하나의 menu로 합치지 않는다.

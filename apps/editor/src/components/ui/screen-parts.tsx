@@ -6,9 +6,9 @@ import "./screen-parts.css";
 import { createPortal } from "react-dom";
 import { TaskHeaderSlots } from "./task-header.tsx";
 import { SelectControl, SettingsProgress } from "./settings.tsx";
-export function Select({ label, ...props }: ScreenSelectProps) {
+export function Select({ label, hideLabel = false, ...props }: ScreenSelectProps) {
   const id = useId();
-  return <label className="screen-select" htmlFor={id}><span className="type-item-name">{label}</span><SelectControl id={id} {...props} /></label>;
+  return <label className="screen-select" htmlFor={id}><span className={hideLabel ? "sr-only" : "type-item-name"}>{label}</span><SelectControl id={id} {...props} /></label>;
 }
 
 export function ScreenLayout({ description, status, actions, width = "full", children }: { title?: string; description?: string; status?: ReactNode; actions?: ReactNode; width?: "full" | "narrow"; children: ReactNode }) {
