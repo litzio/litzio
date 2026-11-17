@@ -23,7 +23,7 @@ H1–H6. See [document title](document-editing-v1.md#document-title-255).
 
 `updateHeadingNumbering(document, enabled)` updates only heading settings in native frontmatter with the existing YAML library, preserving reference templates and other admitted metadata. `HeadingNumbering` and `headingNumbers` expose the editor-neutral display rule. Editor headings and Outline call the same rule; one ProseMirror document attribute participates in Undo/Redo. Save applies the Core operation without changing snapshot paths. Metadata is hidden from the body, never inserted as an editor block.
 
-In the inline Document settings block above the title (#580), Number headings belongs to Saved in this document. The block starts collapsed; the command center expands and focuses it. It is disabled without a document, during pending work and in Source. Wide document is a separate TopBar toggle and device preference. Source is read-only. Supported top-level headings advance counters; unsupported nested structures never enter a native document.
+In the inline Document settings block above the title (#580), Number headings uses a shared switch in the two-column property table. The block starts collapsed; the command center expands and focuses it. It is disabled without a document, during pending work and in Source. Wide document is a separate TopBar toggle and device preference. Source is read-only. Supported top-level headings advance counters; unsupported nested structures never enter a native document.
 
 CLI: `litzio update-heading-numbering <file> --enabled true|false`. `inspect --format json` reports computed `headingNumber` values. Figure/equation numbering is independent.
 
@@ -83,21 +83,7 @@ mixes modes or duplicates numbers; they never prevent Save, format or CLI edits.
 
 ### Document-wide conversion (#892)
 
-Verification: Core 350 tests, CLI 83 tests, Editor 384 tests, typecheck/build and
-`numbering-mode` browser scenario (batch Undo, individual fix and Save/Reload).
-Manual captures use base `5e43b4c58e2de9f187e003d4a297ef013f0818b8`, the same
-scratch `fixed.md`, checkout-owned persistent Chrome, Vite port 5892, DPR 1 and
-loaded Pretendard fonts. English/light and Korean/dark at 1440×1000 / 640×1000:
-[before wide](assets/numbering-mode-892/numbering-mode-before-1440-en.png) /
-[after wide](assets/numbering-mode-892/numbering-mode-after-1440-en.png),
-[before narrow](assets/numbering-mode-892/numbering-mode-before-640-ko.png) /
-[after narrow](assets/numbering-mode-892/numbering-mode-after-640-ko.png).
-The existing settings rows and reference-style controls provide the comparison
-pattern. Vertical alignment, padding, Korean wrapping and viewport fit were
-visually reviewed; captures are manual evidence, separate from behavior assertions.
-
-
-Document settings show Core's inferred Automatic / Fixed / Mixed caption numbering mode.
+Document settings use a shared select for Core's inferred Automatic / Fixed / Mixed caption numbering mode. Mixed is a disabled current-value option; choosing Automatic or Fixed converts all targets in one history step.
 No frontmatter option is added. Mixed numbering remains intentional and savable, for
 example for appendices; missing-number notifications explain this and offer **Fix current
 number**, which fills that target from its current applied display number.

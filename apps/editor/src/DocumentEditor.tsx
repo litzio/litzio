@@ -379,6 +379,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     setBlockMenu(null);
   }, [editor, readOnly]);
   const settings = useEditorState({ editor, selector: ({ editor: current }) => current ? {
+    status: (current.state.doc.attrs.status ?? null) as NonNullable<EditableDocument["status"]> | null,
     numberingMode: editorNumberingReport(current.state.doc).mode,
     headingNumbering: Boolean(current.state.doc.attrs.headingNumbering),
     referenceTemplates: current.state.doc.attrs.referenceTemplates as ReferenceTemplates | null,
@@ -929,6 +930,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       }}>
       {settings && !readOnly ? <DocumentSettings ref={documentSettings} {...settings} expanded={settingsExpanded}
         onExpandedChange={value => onSettingsExpandedChange?.(value)} disabled={settingsDisabled}
+        onStatusChange={status => {
+          if (!editor.isEditable || settingsDisabled) return;
+          editor.view.dispatch(closeHistory(editor.state.tr).setDocAttribute("status", status));
+          editor.view.dispatch(closeHistory(editor.state.tr));
+        }}
         onNumberingModeChange={mode => changeEditorNumbering(editor, mode)}
         onToggleHeadingNumbering={toggleHeadingNumbering} onReferenceStyleChange={setReferenceStyle}
         onConnectBibliography={target => bibliographyControls.current?.connect(target)} /> : null}

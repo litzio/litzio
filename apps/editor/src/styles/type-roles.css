@@ -34,7 +34,7 @@
   color: var(--id-color-text-muted);
   border-bottom: var(--border-width) solid var(--id-color-border-subtle);
 }
-.task-surface .screen-layout :where(h3, h4):not(:where(.screen-document-view *)), .type-item-name, .template-card-name, .document-start-product, .form-field > span, .overlay-title, .screen-toolbar > label, .ui-notice strong, .ui-notice :is(h1,h2,h3,h4), .document-settings-row > label, .form-label, .settings-heading {
+.task-surface .screen-layout :where(h3, h4):not(:where(.screen-document-view *)), .type-item-name, .template-card-name, .document-start-product, .form-field > span, .overlay-title, .screen-toolbar > label, .ui-notice strong, .ui-notice :is(h1,h2,h3,h4), .form-label, .settings-heading {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--id-color-text);
@@ -49,13 +49,13 @@
   font-weight: var(--font-weight-normal);
   color: var(--id-color-text);
 }
-.type-helper, .folder-picker-meta, .folder-picker-date, .folder-picker-size, .folder-picker-types, .folder-picker-copy-note, .document-start-folder-path, .command-menu-hint, .command-center-result-detail, .command-center-footer, .command-center-dialog kbd, .command-center-trigger kbd, .command-center-trigger .document-path, .command-center-trigger .document-path *, .notification-context, .notification-count, .document-settings-values, .document-settings-preview, .template-card-badge, .template-preview-description, .data-table-toolbar > [role="status"], .screen-chart .recharts-cartesian-axis-tick-value, .screen-chart .recharts-reference-line {
+.type-helper, .folder-picker-meta, .folder-picker-date, .folder-picker-size, .folder-picker-types, .folder-picker-copy-note, .document-start-folder-path, .command-menu-hint, .command-center-result-detail, .command-center-footer, .command-center-dialog kbd, .command-center-trigger kbd, .command-center-trigger .document-path, .command-center-trigger .document-path *, .notification-context, .notification-count, .document-settings-values, .template-card-badge, .template-preview-description, .data-table-toolbar > [role="status"], .screen-chart .recharts-cartesian-axis-tick-value, .screen-chart .recharts-reference-line {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-normal);
   color: var(--id-color-text-muted);
 }
 /* Color belongs to the control's interaction state. */
-.type-control, .command-center-result, .command-menu-item, .table-tools button, .table-action-bar, .document-settings-option, .document-settings .document-settings-summary, .document-start-folder, .folder-picker-place {
+.type-control, .command-center-result, .command-menu-item, .table-tools button, .table-action-bar, .document-settings .document-settings-summary, .document-start-folder, .folder-picker-place {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
 }

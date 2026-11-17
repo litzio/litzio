@@ -130,6 +130,8 @@ export type SupportedEdits = {
   bibliography?: string[];
   /** Default document policy: numbered H1-H6 body sections; false disables heading numbers. */
   headingNumbering?: boolean;
+  /** Optional document review state; null removes it through the Core operation. */
+  status?: import("@litzio/core").DocumentStatus | null;
   referenceTemplates?: import("@litzio/core").ReferenceTemplateUpdate;
   order?: OrderItem[];
   headings?: HeadingEdit[];

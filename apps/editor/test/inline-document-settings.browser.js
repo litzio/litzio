@@ -1,5 +1,5 @@
 // Unique UI contract: per-tab expansion, external-content isolation, keyboard controls and notation previews.
-async (page, { openPath, screenshots, withBlockHover }) => {
+async (page, { openPath, reloadDocument, expect, screenshots, withBlockHover }) => {
   const assert = (ok, reason) => { if (!ok) throw Error(reason); };
   const active = () => page.locator('[data-document-tab][data-active=true]');
   const editor = () => active().locator('.document-editor');
@@ -73,22 +73,52 @@ async (page, { openPath, screenshots, withBlockHover }) => {
   await disclosure().focus(); await page.keyboard.press('Enter');
   await body().waitFor();
   await page.keyboard.press('Tab');
-  assert(await active().getByRole('checkbox',{name:'Number headings',exact:true}).evaluate(n=>n===document.activeElement),'Tab enters the numbering control');
+  assert(await active().getByRole('combobox',{name:'Status',exact:true}).evaluate(n=>n===document.activeElement),'Tab enters status');
   await page.keyboard.press('Tab');
-  assert(await active().getByRole('button',{name:'Make all fixed',exact:true}).evaluate(n=>n===document.activeElement),'Tab reaches caption numbering conversion');
-  await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
-  const menu = page.getByRole('menu',{name:'Reference style',exact:true});
-  await menu.and(page.locator(':focus-within')).waitFor();
-  assert((await menu.getByRole('menuitemradio',{name:'Concise',exact:true}).innerText()).includes('Fig. 1 · Table 1 · (1)'), 'Concise offers actual notation previews');
-  assert((await menu.getByRole('menuitemradio',{name:'Korean',exact:true}).innerText()).includes('그림 1 · 표 1 · 식 (1)'), 'Korean offers actual notation previews');
-  await page.keyboard.press('Escape'); await menu.waitFor({state:'detached'});
-  assert(await disclosure().getAttribute('aria-expanded')==='true','Menu Escape must not collapse the block');
-  await active().getByRole('button',{name:'Reference style',exact:true}).and(page.locator(':focus')).waitFor();
+  assert(await active().getByRole('switch',{name:'Number headings',exact:true}).evaluate(n=>n===document.activeElement),'Tab enters heading numbering');
+  await page.keyboard.press('Tab');
+  assert(await active().getByRole('combobox',{name:'Caption numbering',exact:true}).evaluate(n=>n===document.activeElement),'Tab reaches caption numbering');
+  await page.keyboard.press('Tab');
+  const notation = active().getByRole('combobox',{name:'Reference style',exact:true});
+  assert(await notation.evaluate(n=>n===document.activeElement),'Tab reaches reference style');
+  assert((await notation.locator('option[value="concise"]').innerText()).includes('Fig. 1 · Table 1 · (1)'), 'Concise offers actual notation previews');
+  assert((await notation.locator('option[value="korean"]').innerText()).includes('그림 1 · 표 1 · 식 (1)'), 'Korean offers actual notation previews');
   await page.keyboard.press('Escape'); await body().waitFor({state:'hidden'});
   assert(await state()===original,'Expanding, keyboard navigation and collapsing preserve selection and history');
   assert(await editor().locator('.document-settings').count()===0,'Settings never enter ProseMirror content');
-  // Source preserves the tab-session expansion while hiding all document settings UI.
+  // The public settings path owns document metadata, history, dirty state and Core Save replay.
   await disclosure().click();
+  const status = active().getByRole('combobox',{name:'Status',exact:true});
+  const mark = () => active().locator('.document-settings-summary .screen-status');
+  await expect(mark()).toHaveCount(0);
+  await status.selectOption('draft');
+  await expect(page.getByTestId('status')).toHaveAttribute('title','Unsaved changes');
+  await expect(mark()).toHaveText('Draft');
+  await status.selectOption('review');
+  await editor().evaluate(n=>n.editor.commands.undo());
+  await expect(status).toHaveValue('draft');
+  await editor().evaluate(n=>n.editor.commands.redo());
+  await expect(status).toHaveValue('review');
+  await status.selectOption('approved');
+  await disclosure().click();
+  await expect(mark()).toHaveText('Approved');
+  await editor().evaluate(n=>n.editor.setEditable(false));
+  await expect(mark()).toHaveText('Approved');
+  await expect(active().locator('.document-settings').locator('select,input,button')).toHaveCount(0);
+  await editor().evaluate(n=>n.editor.setEditable(true));
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.getByText('Saved',{exact:true}).filter({visible:true}).waitFor();
+  await reloadDocument(page);
+  await expect(mark()).toHaveText('Approved');
+  await disclosure().click();
+  await status.selectOption('');
+  await expect(mark()).toHaveCount(0);
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.getByText('Saved',{exact:true}).filter({visible:true}).waitFor();
+  await reloadDocument(page);
+  await expect(mark()).toHaveCount(0);
+  // Source preserves the tab-session expansion while hiding all document settings UI.
+  if(await disclosure().getAttribute('aria-expanded') !== 'true') await disclosure().click();
   await page.getByTestId('view-source').click(); await active().getByTestId('source-view').waitFor();
   assert(await page.getByRole('button',{name:'Document settings',exact:true}).count()===0,'Source omits inline settings');
   await page.getByTestId('view-visual').click(); await body().waitFor();
@@ -129,15 +159,10 @@ async (page, { openPath, screenshots, withBlockHover }) => {
         await capture('collapsed');
         await trigger.click(); await body().waitFor();
         const geometry=await body().evaluate(n=>{
-          const r=n.getBoundingClientRect();return {left:r.left,right:r.right,overflow:n.scrollWidth>n.clientWidth,controls:[...n.querySelectorAll('button,input')].map(c=>{const b=c.getBoundingClientRect();return {left:b.left,right:b.right};})};
+          const r=n.getBoundingClientRect();return {left:r.left,right:r.right,overflow:n.scrollWidth>n.clientWidth,controls:[...n.querySelectorAll('button,input,select')].map(c=>{const b=c.getBoundingClientRect();return {left:b.left,right:b.right};})};
         });
         assert(geometry.left>=0&&geometry.right<=width&&!geometry.overflow&&geometry.controls.every(c=>c.left>=geometry.left&&c.right<=geometry.right),'Expanded settings must fit at '+JSON.stringify({language,theme,background,width,geometry}));
         await capture('expanded');
-        await active().getByRole('button',{name:language==='en'?'Reference style':'상호 참조 표기',exact:true}).click();
-        const popup=page.getByRole('menu'); await popup.and(page.locator(':focus-within')).waitFor();
-        const r=await popup.boundingBox();assert(r.x>=0&&r.x+r.width<=width,'Preview menu must fit the supported viewport');
-        await capture('menu');
-        await page.keyboard.press('Escape');await popup.waitFor({state:'detached'});
         await trigger.focus();await page.keyboard.press('Escape');await body().waitFor({state:'hidden'});
       }
     }

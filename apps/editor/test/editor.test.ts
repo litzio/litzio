@@ -1227,7 +1227,7 @@ test("Host opens unsupported Markdown as text while native Save stays fail-close
       for (const invalid of [null, {}, { ...valid, path: undefined }, { ...valid, revision: undefined },
         { ...valid, revision: 123 }, { ...valid, base: undefined }, { ...valid, base: { source: 123 } },
         { ...valid, base: { source: snapshot, savedEdits: "invalid" } }, { ...valid, paragraphs: {} },
-        { ...valid, title: 42 }, { ...valid, headingNumbering: "yes" }]) {
+        { ...valid, status: "unknown" }, { ...valid, status: 42 }, { ...valid, title: 42 }, { ...valid, headingNumbering: "yes" }]) {
         const rejected = await fetch(`http://127.0.0.1:${port}/api/${endpoint}`, {
           method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(invalid),
         });
@@ -1243,11 +1243,13 @@ test("Host opens unsupported Markdown as text while native Save stays fail-close
         revision: loadDocumentFile(writable).revision,
         base: { source: readFileSync(writable, "utf8") },
         title: "HTTP title",
+        status: "review",
         paragraphs: [{ path: [2], content: [{ kind: "text", text: "Changed." }] }],
       }),
     });
     assert.equal(saved.status, 200);
     assert.equal(loadDocumentFile(writable).document.title, "HTTP title");
+    assert.equal(loadDocumentFile(writable).document.status, "review");
     assert.deepEqual(await saved.json(), { revision: documentRevision(readFileSync(writable, "utf8")) });
   } finally {
     server.closeAllConnections();
@@ -2281,6 +2283,7 @@ test("restore keeps schema-valid unsaveable content and rejects lossy or corrupt
     assert.throws(() => saveEdits(input, collectSupportedEdits(model, restored.editorDocument)));
   }
   for (const mutate of [
+    (doc: TiptapJSON) => { doc.attrs!.status = "unknown"; },
     (doc: TiptapJSON) => { doc.attrs!.title = 42; },
     (doc: TiptapJSON) => { doc.attrs!.headingNumbering = "invalid"; },
     (doc: TiptapJSON) => { doc.content![0].attrs!.level = "two"; },

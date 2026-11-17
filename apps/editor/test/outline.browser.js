@@ -266,7 +266,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
     sectionMoves, sectionUndo, sectionRedo, sectionDeleted, sectionSaved };
   // Numbering is a document setting and uses the same counters in the page and outline.
   await page.getByRole('button', {name:'Document settings', exact:true}).click();
-  const toggle = page.getByRole('checkbox', {name:'Number headings', exact:true});
+  const toggle = page.getByRole('switch', {name:'Number headings', exact:true});
   await toggle.click();
   await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor h2')?.getAttribute('data-heading-number') === '1.1' &&
     document.querySelectorAll('[data-testid="outline"] button')[1]?.textContent.startsWith('1.1 '));

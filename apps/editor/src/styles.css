@@ -32,7 +32,7 @@ button {
 /* UI prose shares Korean eojeol wrapping across the shell, portals and embedded forms.
  * Draft status is a sibling of those forms inside the editor, so owns a prose boundary too.
  * Low specificity leaves each surface's existing nowrap/ellipsis and overflow rules in charge. */
-:where(.app-shell, .ui-portal, .block-properties-form, .ui-notice, .draft-status, .form-hint, .display-hint) {
+:where(.app-shell, .ui-portal, .block-properties-form, .ui-notice, .draft-status, .form-hint) {
   word-break: var(--word-break-document);
   overflow-wrap: anywhere;
 }
@@ -211,37 +211,20 @@ button {
   white-space: nowrap;
 }
 .document-settings-values::before { content: "·"; margin-right: var(--space-2); }
-.document-settings-group { margin: 0; padding: 0; min-width: 0; border: 0; }
-.document-settings-row {
-  display: grid;
+.document-settings-summary > span:has(.screen-status) { flex-shrink: 0; }
+.document-settings .shared-row.settings-row {
   grid-template-columns: var(--layout-document-settings-label-width) minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
   padding-block: var(--space-2);
+  align-items: center;
+  min-height: calc(var(--size-control) + var(--space-4));
+  border: 0;
 }
-.document-settings-row > :first-child { padding-top: var(--space-1); overflow-wrap: anywhere; }
-.document-settings-control { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
-.caption-numbering-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.document-settings-row > label { min-height: var(--size-control-compact); cursor: pointer; }
-.document-settings-control input { width: var(--size-icon-slot); height: var(--size-icon-slot); }
-.document-settings-control input:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
-.document-settings-control button { max-width: 100%; white-space: normal; height: auto; min-height: var(--size-control-compact); }
-.document-settings-group:disabled { color: var(--id-color-text-subtle); }
-.display-hint, .form-hint { margin: 0; color: var(--id-color-text-subtle); font-size: var(--font-size-xs); line-height: var(--line-height-meta); overflow-wrap: anywhere; }
-.document-settings-option {
-  display: flex; align-items: center; gap: var(--space-2);
-  min-height: var(--size-control); padding: var(--space-1) var(--space-2);
-  border-radius: var(--id-radius-sm); font-size: var(--font-size-sm);
-  line-height: var(--line-height-label); cursor: default; outline: none;
-}
-.document-settings-option[data-highlighted] { background: var(--id-color-surface-hover); }
-.document-settings-option[data-checked] { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); }
-.document-settings-option:focus-visible { box-shadow: var(--focus-ring-inset); }
-.document-settings-option svg { width: var(--size-icon-slot); height: var(--size-icon-slot); flex: none; }
-.document-settings-preview { margin-left: var(--space-4); font-size: var(--font-size-xs); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
-@media (width <= 60rem) {
-  .document-settings-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
-}
+.document-settings .shared-row > .settings-label { grid-column: 1; }
+.document-settings .shared-row > .settings-row-control { grid-column: 2; justify-content: flex-start; text-align: start; flex-wrap: nowrap; min-height: var(--size-control); }
+.document-settings .settings-field-control { width: 100%; justify-content: flex-start; min-height: var(--size-control); align-items: center; }
+.document-settings .settings-field-control > .settings-select { width: 100%; }
+.document-settings-bibliography { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.form-hint { margin: 0; color: var(--id-color-text-subtle); font-size: var(--font-size-xs); line-height: var(--line-height-meta); overflow-wrap: anywhere; }
 
 
 /* Without a chosen folder, the sidebar offers to choose one; a single file opens as before. */
@@ -3259,7 +3242,7 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 /* Shared controls; document blocks and handles remain immediate. */
 :where([data-slot="button"]:not(.document-editor *), .sidebar-folder-header,
 .sidebar-tree-item, .document-outline-item, .document-tab, .command-center-result,
-.document-settings-option, .command-menu-item, .settings-select, .settings-switch, .settings-switch::before, [role="menuitem"], [role="option"]:not(.document-editor *),
+.command-menu-item, .settings-select, .settings-switch, .settings-switch::before, [role="menuitem"], [role="option"]:not(.document-editor *),
 .screen-steps li, .screen-step-number) {
   transition-property: background-color, color, border-color;
   transition-duration: var(--duration-fast);

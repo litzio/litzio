@@ -1,5 +1,6 @@
 import { figureCaptionContent } from "@litzio/core/figure";
 import {
+  updateDocumentStatus,
   endnotesInPlace,
   citationReport,
   getEditableDocument,
@@ -531,6 +532,7 @@ export function saveEdits(
   }
   if (edits.title !== undefined) document = updateDocumentTitle(document, edits.title);
   if (edits.headingNumbering !== undefined) document = updateHeadingNumbering(document, edits.headingNumbering);
+  if (edits.status !== undefined) document = updateDocumentStatus(document, edits.status);
   if (edits.referenceTemplates !== undefined) document = updateReferenceTemplates(document, edits.referenceTemplates);
   if (edits.bibliography !== undefined && JSON.stringify(edits.bibliography) !== JSON.stringify(citationReport(document).bibliography)) {
     document = updateBibliography(document, edits.bibliography);
