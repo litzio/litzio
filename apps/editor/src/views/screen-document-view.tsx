@@ -9,6 +9,7 @@ import type { ReadingPosition } from "../document-reading.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 import "./screen-document-view.css";
+import { useDocumentViewInteractions } from "./screen-document-view-interactions.ts";
 import { useDocumentViewNavigation } from "./screen-document-view-navigation.ts";
 
 /** App-owned binding, never a plugin-supplied Host or root override. */
@@ -23,7 +24,7 @@ function assertDocumentViewPath(path: string, roots: readonly string[]) {
 }
 
 /** Saved snapshots only. The existing reader owns admission, bibliography and its read timeout. */
-export function DocumentView({ path, target, reloadKey, height = 480, label = i18n.t("Document preview"), onStateChange }: ScreenDocumentViewProps) {
+export function DocumentView({ path, target, reloadKey, height = 480, label = i18n.t("Document preview"), onStateChange, onVisibleBlockChange, onBlockClick }: ScreenDocumentViewProps) {
   const scope = useContext(DocumentViewScope);
   let scopeProblem = "";
   try {
@@ -67,9 +68,10 @@ export function DocumentView({ path, target, reloadKey, height = 480, label = i1
   useEffect(() => { notify.current?.({ state, ...(file ? { revision: file.revision } : {}), ...(message ? { message } : {}) }); }, [state, file, message]);
   const selected = !stale && location;
   const clip = selected && "clip" in selected ? selected.clip : undefined;
-  const highlight = selected ? <div className="screen-document-view-highlight" data-testid="document-view-highlight" data-target-kind={cell ? "cell" : "block"} aria-hidden="true"
+  const highlight = selected && target?.highlight !== false ? <div className="screen-document-view-highlight" data-testid="document-view-highlight" data-target-kind={cell ? "cell" : "block"} aria-hidden="true"
     style={{ top: selected.top - (clip?.top ?? 0), height: selected.height, ...(cell ? {left:selected.left - (clip?.left ?? 0),width:selected.width} : {}) }} /> : null;
-  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, reloadKey]), selected);
+  const cancelScroll = useDocumentViewInteractions(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
+  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, reloadKey]), selected, target?.highlight === false, cancelScroll);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
   return <section className="screen-document-view" aria-label={label} data-state={state}>
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
