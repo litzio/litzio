@@ -546,8 +546,10 @@ async (page, { expect, screenshots, withBlockHover }) => {
   await expect.poll(()=>sourcePassages.evaluate(node=>node.scrollTop)).toBeGreaterThan(sourcePosition);
   await sourcePassages.focus();await page.keyboard.press('Home');
   await expect.poll(()=>sourcePassages.evaluate(node=>node.scrollTop)).toBe(0);
+  await page.waitForTimeout(250); // A previous pane's settled report cannot reclaim the source after Home.
+  expect(await sourcePassages.evaluate(node=>node.scrollTop)).toBe(0);
   await documentView.getByText('Nested source item',{exact:true}).click();
-  await expect.poll(()=>sourcePassages.evaluate(node=>node.scrollTop)).toBeGreaterThan(1000);
+  await expect.poll(()=>sourcePassages.evaluate(node=>node.scrollHeight-node.clientHeight-node.scrollTop)).toBe(0);
   await page.getByRole('button',{name:'Toggle stale target',exact:true}).click();
   await expect(page.locator('.screen-document-view')).toHaveAttribute('data-state','stale-target');
   await expect(page.getByTestId('document-view-highlight')).toHaveCount(0);

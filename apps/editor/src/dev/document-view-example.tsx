@@ -22,10 +22,11 @@ export function DocumentViewExample() {
   const list = useRef<HTMLDivElement>(null), manualList = useRef(false);
   const [following, setFollowing] = useState<ScreenDocumentViewProps["target"]>();
   const followSource = ({path: blockPath}: {path: readonly number[]}) => {
-    manualList.current = false;
+    // The latest user input wins over a delayed settled report from the other pane.
+    if (manualList.current) return;
     const index = document.blocks.findIndex(block => JSON.stringify(block.path) === JSON.stringify(blockPath));
     const item = list.current?.children[index] as HTMLElement | undefined;
-    if (item && list.current) list.current.scrollTop = item.offsetTop - list.current.offsetTop;
+    if (item && list.current) list.current.scrollTop = item.offsetTop;
   };
   const [state, setState] = useState<ScreenDocumentViewState>();
   return <DocumentViewScope.Provider value={{ client, roots: extraFolder ? ["/example", "/unrelated"] : ["/example"] }}>
@@ -48,10 +49,10 @@ export function DocumentViewExample() {
           if(block) setFollowing({revision,path:block.path,highlight:false});
         }}>
         {document.blocks.map((block,index) => <div key={JSON.stringify(block.path)} style={{minHeight:120,padding:"var(--space-3)"}}>
-          <ui.Button onClick={() => setFollowing({revision,path:block.path,highlight:false})}>Source block {index+1}</ui.Button>
+          <ui.Button onClick={() => { manualList.current = true; setFollowing({revision,path:block.path,highlight:false}); }}>Source block {index+1}</ui.Button>
         </div>)}
       </div>
-      <div style={{width:narrow?260:undefined,flex:narrow?"0 1 260px":"2 1 320px",minWidth:0,maxWidth:"100%"}}><ui.DocumentView path={path} height={480} reloadKey={reloadKey} onVisibleBlockChange={followSource} onBlockClick={followSource} target={following ? {...following,revision:stale ? "b".repeat(64) : revision} : { revision: stale ? "b".repeat(64) : revision, path: document.blocks.find(block => block.block === "table")!.rows[1].cells[column].path }} onStateChange={setState} /></div></div>
+      <div onWheelCapture={() => {manualList.current = false;}} onKeyDownCapture={() => {manualList.current = false;}} onPointerDownCapture={() => {manualList.current = false;}} style={{width:narrow?260:undefined,flex:narrow?"0 1 260px":"2 1 320px",minWidth:0,maxWidth:"100%"}}><ui.DocumentView path={path} height={480} reloadKey={reloadKey} onVisibleBlockChange={followSource} onBlockClick={followSource} target={following ? {...following,revision:stale ? "b".repeat(64) : revision} : { revision: stale ? "b".repeat(64) : revision, path: document.blocks.find(block => block.block === "table")!.rows[1].cells[column].path }} onStateChange={setState} /></div></div>
     </ui.ScreenLayout>
   </DocumentViewScope.Provider>;
 }
