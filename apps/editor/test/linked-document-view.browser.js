@@ -12,7 +12,7 @@ async (page, { expect, screenshots }) => {
   const band = id => bands.and(page.locator(`[data-id="${id}"]`));
   await expect(band(2)).toHaveAttribute('data-emphasis','quiet');
   await expect(band(2)).toHaveCSS('stroke','none');
-  await expect(band(2)).toHaveCSS('fill-opacity','0.025');
+  await expect(band(2)).toHaveCSS('fill-opacity','0.07');
   await expect(band(16)).toHaveCount(0);
 
   await linkedItem(2).hover();

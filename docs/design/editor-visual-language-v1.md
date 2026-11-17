@@ -198,7 +198,7 @@ Clean available Save is ghost, unsaved is accent, unavailable muted without hove
 | 블록 위에 올림 | `--id-color-block-hover-outline` | — |
 | 블록 선택·편집·문서 보기의 대상 | `--id-color-interaction` | — |
 | 저장 거부 블록 | `--id-color-danger` | — |
-| 연결된 짝의 기본 표시 | — | 항목별 `--id-color-*`, `--opacity-linked-band-quiet` |
+| 연결된 짝의 기본 표시 | — | 항목별 `--id-color-*`, 밝음·어두움 모두 `--opacity-linked-band-quiet` 7%. 띠가 겹쳐도 구별할 수 있고 선택·올림의 포인트 색과 자료·문서 글자가 먼저 보이는 농도다. |
 | 연결된 짝에 올림·키보드 focus | `--id-color-interaction` | `--id-color-interaction`, `--opacity-linked-band-hover` |
 | 연결된 짝을 선택 | `--id-color-interaction` | `--id-color-interaction`, `--opacity-linked-band-selected` |
 
