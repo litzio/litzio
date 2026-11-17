@@ -54,7 +54,7 @@ export type CliIntegrationState = {
   unsupported?: boolean;
 };
 
-export type HostConnection = { url: string; productVersion: string; desktopVersion: string };
+export type HostConnection = { url: string; instanceId: string; productVersion: string; desktopVersion: string; screenInstanceGuard?: true };
 
 export type DesktopBridge = {
   resetPlan?(): Promise<import("./app-reset.ts").AppResetPlan>;
@@ -66,7 +66,7 @@ export type DesktopBridge = {
   openInBrowser(): Promise<void>;
   daemonInfo(): Promise<{ state: "running" | "unreachable"; url: string; productVersion: string; protocolVersion: string; launcher: "desktop" | "cli-start" | "cli-run"; pid: number; startedAt: string; daemonHome: string; executable: string; log?: string; roots: readonly string[]; nonLoopback: boolean }>;
   stopDaemon(): Promise<boolean>;
-  checkDaemon(): Promise<void>;
+  checkDaemon(): Promise<void | { problem: string; ended: boolean }>;
   reconnectDaemon(): Promise<HostConnection>;
   /** OS folder action capability; only Host-listed roots can be synchronized. */
   setOpenedFolders(roots: string[]): Promise<void>;

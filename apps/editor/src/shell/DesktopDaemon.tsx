@@ -20,19 +20,24 @@ function connectionMessage(problem = "") {
 export function DesktopMenu({ desktop }: { desktop: DesktopBridge }) {
   const connection = useSyncExternalStore(desktopConnection.subscribe, desktopConnection.get);
   const [problem, setProblem] = useState("");
+  const checkingConnection = !!connection.version && connection.phase !== "connecting" && !connection.ended;
   useEffect(() => {
-    if (connection.phase !== "connected") return;
+    if (!checkingConnection) return;
     let active = true, checking = false;
+    const isCurrent = () => active && desktopConnection.get().version === connection.version && desktopConnection.get().phase !== "connecting";
     const check = async () => {
       if (checking) return;
       checking = true;
-      try { await desktop.checkDaemon(); } catch (error) { if (active) disconnectDesktop(String(error)); }
+      try {
+        const failure = await desktop.checkDaemon();
+        if (isCurrent() && failure) disconnectDesktop(failure.problem, failure.ended);
+      } catch (error) { if (isCurrent()) disconnectDesktop(String(error)); }
       finally { checking = false; }
     };
     void check();
     const timer = setInterval(() => { void check(); }, 5000);
     return () => { active = false; clearInterval(timer); };
-  }, [desktop, connection.phase]);
+  }, [desktop, connection.version, checkingConnection]);
   const busy = connection.phase === "connecting";
   // Keep the same notice through reconnect; its disappearance acknowledges success.
   useNotifications([
@@ -48,7 +53,7 @@ export function DesktopMenu({ desktop }: { desktop: DesktopBridge }) {
   return <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Desktop menu")} />}><Ellipsis /></DropdownMenuTrigger>
     <DropdownMenuContent align="start">
       <DropdownMenuItem onClick={() => { void desktop.openInBrowser().catch(error => setProblem(String(error))); }}>{i18n.t("Open in browser")}</DropdownMenuItem>
-      <DropdownMenuItem onClick={() => { void desktop.stopDaemon().then(stopped => { if (stopped) disconnectDesktop(); }).catch(error => setProblem(String(error))); }}>{i18n.t("Stop daemon")}</DropdownMenuItem>
+      <DropdownMenuItem onClick={() => { void desktop.stopDaemon().then(stopped => { if (stopped) disconnectDesktop(undefined, true); }).catch(error => setProblem(String(error))); }}>{i18n.t("Stop daemon")}</DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>;
 }

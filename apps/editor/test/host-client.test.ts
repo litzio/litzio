@@ -106,9 +106,11 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   Object.defineProperty(globalThis, "window", { configurable: true, value: { litzioDesktop: {} } });
   t.after(() => { if (previous) Object.defineProperty(globalThis, "window", previous); else Reflect.deleteProperty(globalThis, "window"); });
   const requests: string[] = [];
+  const screenInstances: (string | null)[] = [];
   let finish: ((value: Response) => void) | undefined;
-  t.mock.method(globalThis, "fetch", (url: string) => {
+  t.mock.method(globalThis, "fetch", (url: string, init?: RequestInit) => {
     requests.push(url);
+    if (url.endsWith("/screen")) screenInstances.push(new Headers(init?.headers).get("x-litzio-host-instance"));
     if (url.endsWith("/save")) return new Promise<Response>(resolve => { finish = resolve; });
     return Promise.resolve(Response.json({ fileDeletion: "trash", path: "assets/a.png", rollbackToken: "first-receipt", revision: "saved" }));
   });
@@ -140,6 +142,20 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   assert.equal(requests.filter(url => url.endsWith("/save")).join(), "http://first/save");
   assert.ok(requests.includes("http://second/next"));
   assert.equal(client.url("/image"), "http://first/image");
+
+  module.setDesktopHost("http://second", "first-instance", true);
+  const screen = module.hostConnection.getScreenClient()!;
+  await screen.request("/screen");
+  module.hostConnection.endScreenConnection();
+  await assert.rejects(screen.request("/screen"), /connection changed/);
+  module.setDesktopHost("http://second", "first-instance", true);
+  assert.equal(module.hostConnection.getScreenClient(), screen);
+  module.setDesktopHost("http://second", "replacement-instance", true);
+  await assert.rejects(screen.request("/screen"), /connection changed/);
+  await module.hostConnection.getScreenClient()!.request("/screen");
+  module.setDesktopHost("http://second", "older-instance");
+  await module.hostConnection.getScreenClient()!.request("/screen");
+  assert.deepEqual(screenInstances, ["first-instance", "replacement-instance", null]);
 });
 
 test("local connection rechecks health, rejects protocol, warns product and recovers without writes", async t => {

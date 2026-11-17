@@ -234,10 +234,16 @@ function EditorApp() {
     window.addEventListener("open-plugin-screen", open); return () => window.removeEventListener("open-plugin-screen", open);
   });
   function openScreen(screen: ViewScreen) {
+    const client = hostConnection.getScreenClient();
+    if (!client) return;
     if (sidebarOverlay) closeSidebar();
     const id = `screen-${screen.plugin}-${screen.id}`;
-    const next = {id,client:getHostClient(),root:openedFolderPaths[0]??"",screen,label:screen.title};
-    setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous,next]);
+    const next = {id,client,root:openedFolderPaths[0]??"",screen,label:screen.title};
+    setViewTabs(previous => {
+      const existing = previous.find(tab => tab.id === id);
+      if (!existing) return [...previous, next];
+      return existing.client === client ? previous : previous.map(tab => tab === existing ? next : tab);
+    });
     placeTab(id);
   }
 
