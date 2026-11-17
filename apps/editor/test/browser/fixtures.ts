@@ -21,15 +21,17 @@ const FIXTURE_DIR = fileURLToPath(new URL("./fixtures/", import.meta.url));
 export const SOURCE_DIRS = [DOCUMENT_DIR, FIXTURE_DIR, path.join(REPOSITORY_ROOT, "apps/editor/samples")];
 
 function syntheticPdf(): Buffer {
-  const stream = "BT /F1 24 Tf 50 700 Td (Selectable PDF text) Tj ET";
+  const stream = "BT /F1 24 Tf 50 700 Td (Selectable PDF text) Tj ET q 80 0 0 40 50 600 cm /Im0 Do Q";
   const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
-    ...[3, 4].map(() => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>"),
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+    ...[3, 4].map(() => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> /XObject << /Im0 7 0 R >> >> /Contents 6 0 R >>"),
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    // One black CCITT Group 4 row exercises the external no-WASM decoder.
+    "<< /Type /XObject /Subtype /Image /Width 8 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter [/ASCIIHexDecode /CCITTFaxDecode] /DecodeParms [null << /K -1 /Columns 8 /Rows 1 >>] /Length 7 >>\nstream\n26a280>\nendstream"];
   let output = "%PDF-1.7\n";
   const offsets = [0];
   objects.forEach((object, index) => { offsets.push(output.length); output += `${index + 1} 0 obj\n${object}\nendobj\n`; });
   const xref = output.length;
-  output += `xref\n0 7\n0000000000 65535 f \n${offsets.slice(1).map(offset => String(offset).padStart(10, "0") + " 00000 n \n").join("")}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  output += `xref\n0 8\n0000000000 65535 f \n${offsets.slice(1).map(offset => String(offset).padStart(10, "0") + " 00000 n \n").join("")}trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(output);
 }
 
