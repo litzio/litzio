@@ -32,7 +32,7 @@ export function PdfViewer({ client, root, path, active }: { client: HostClient; 
         if (!response.ok) throw Error();
         const data = new Uint8Array(await response.arrayBuffer());
         if (controller.signal.aborted) return;
-        task = getDocument({ data, cMapUrl: new URL("/pdf-assets/cmaps/", location.href).href, cMapPacked: true, standardFontDataUrl: new URL("/pdf-assets/standard_fonts/", location.href).href, enableXfa: false, isEvalSupported: false, useWasm: false, useWorkerFetch: false, disableAutoFetch: true });
+        task = getDocument({ data, cMapUrl: new URL("/pdf-assets/cmaps/", location.href).href, cMapPacked: true, standardFontDataUrl: new URL("/pdf-assets/standard_fonts/", location.href).href, wasmUrl: new URL("/pdf-assets/wasm/", location.href).href, enableXfa: false, useWasm: false, useWorkerFetch: false, disableAutoFetch: true });
         task.onPassword = () => { if (!controller.signal.aborted) setError("password"); void task?.destroy(); };
         const document = await task.promise;
         if (!controller.signal.aborted) setPdf(document);

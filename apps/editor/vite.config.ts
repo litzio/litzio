@@ -28,16 +28,21 @@ export default defineConfig({
       name: "pdf-font-assets",
       configureServer(server) {
         server.middlewares.use("/pdf-assets/", (req, res, next) => {
-          const match = /^\/(cmaps|standard_fonts)\/([\w.-]+)$/.exec(req.url ?? "");
+          const match = /^\/(cmaps|standard_fonts|wasm)\/([\w.-]+)$/.exec(req.url ?? "");
           if (!match) return next();
-          try { res.end(readFileSync(new URL(`./node_modules/pdfjs-dist/${match[1]}/${match[2]}`, import.meta.url))); }
+          try {
+            const data = readFileSync(new URL(`./node_modules/pdfjs-dist/${match[1]}/${match[2]}`, import.meta.url));
+            if (match[2]!.endsWith(".js")) res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+            res.end(data);
+          }
           catch { next(); }
         });
       },
       generateBundle() {
-        for (const directory of ["cmaps", "standard_fonts"]) {
+        for (const directory of ["cmaps", "standard_fonts", "wasm"]) {
           const base = new URL(`./node_modules/pdfjs-dist/${directory}/`, import.meta.url);
-          for (const name of readdirSync(base)) this.emitFile({ type: "asset", fileName: `pdf-assets/${directory}/${name}`, source: readFileSync(new URL(name, base)) });
+          // WASM stays disabled; pdf.js loads its JS image decoders from wasmUrl.
+          for (const name of readdirSync(base).filter(name => directory !== "wasm" || name.endsWith("_nowasm_fallback.js") || name.startsWith("LICENSE_"))) this.emitFile({ type: "asset", fileName: `pdf-assets/${directory}/${name}`, source: readFileSync(new URL(name, base)) });
         }
       },
     },

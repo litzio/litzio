@@ -134,6 +134,11 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
   const pdf = page.locator('.pdf-viewer');
   await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
   await expect(pdf.getByRole('spinbutton',{name:'Page',exact:true})).toHaveValue('1');
+  // Text-only PDFs miss decoder asset failures: require the CCITT image's black center.
+  await expect.poll(() => pdf.locator('canvas').first().evaluate(canvas => {
+    const pixel = canvas.getContext('2d').getImageData(Math.round(canvas.width * 90 / 612), Math.round(canvas.height * 172 / 792), 1, 1).data;
+    return [...pixel];
+  })).toEqual([0, 0, 0, 255]);
   const sheet = pdf.locator('.pdf-page').first();
   const beforeZoom = await sheet.evaluate(el => el.getBoundingClientRect().width);
   await pdf.getByRole('button',{name:'Zoom in',exact:true}).click();
