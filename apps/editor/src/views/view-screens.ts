@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
-import { hostConnection, getHostClient } from "../host-client.ts";
+import { hostConnection } from "../host-client.ts";
 import { viewRequest, type ViewScreen } from "./view-api.ts";
 export function useViewScreens() {
   const [entries, setEntries] = useState<ViewScreen[]>([]);
   useEffect(() => {
     let controller: AbortController;
+    const availableClient = () => hostConnection.get().state === "connected" ? hostConnection.getScreenClient() : undefined;
     const refresh = () => {
       controller?.abort(); controller = new AbortController();
       const signal = controller.signal;
-      if (hostConnection.get().state !== "connected") { setEntries([]); return; }
-      const client = getHostClient();
+      const client = availableClient();
+      if (!client) { setEntries([]); return; }
       void viewRequest(client, { action: "screens", screenCode: false }, signal).then(value => {
         if (!signal.aborted) setEntries(value.screens ?? []);
       }).catch(() => { if (!signal.aborted) setEntries([]); });
     };
-    let previous = hostConnection.get().state;
+    let previous = availableClient();
     const unsubscribe = hostConnection.subscribe(() => {
-      const next = hostConnection.get().state;
+      const next = availableClient();
       if (next !== previous) { previous = next; refresh(); }
     });
     const onVisible = () => { if (document.visibilityState === "visible") refresh(); };

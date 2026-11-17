@@ -8,7 +8,7 @@ export { DAEMON_PROTOCOL };
 export type DaemonIdentity = { pid: number; startedAt: string; instanceId: string };
 export type DaemonLauncher = "desktop" | "cli-start" | "cli-run";
 export type DaemonDetails = { processStartedAt: string; daemonHome: string; executable: string; log?: string; roots: readonly string[]; nonLoopback: boolean };
-export type DaemonHealth = DaemonIdentity & DaemonDetails & { launcher: DaemonLauncher; productVersion: string; protocolVersion: string; identity?: { runAs: string } };
+export type DaemonHealth = DaemonIdentity & DaemonDetails & { launcher: DaemonLauncher; productVersion: string; protocolVersion: string; identity?: { runAs: string }; screenInstanceGuard?: true };
 export type DaemonControl = { health: DaemonHealth; stop(): void };
 export const sameInstance = (a: DaemonIdentity, b: DaemonIdentity) => a.pid === b.pid && a.startedAt === b.startedAt && a.instanceId === b.instanceId;
 function reply(res: ServerResponse, status: number, data: unknown) {
@@ -23,7 +23,7 @@ export async function daemonRequest(req: IncomingMessage, res: ServerResponse, u
     reply(res, 409, { error: "Daemon protocol mismatch. Stop with the CLI version matching the running daemon, or Ctrl+C in its foreground terminal; then start the desired version. Do not kill by PID alone.", protocolVersion: control.health.protocolVersion }); return true;
   }
   if (!url.pathname.startsWith("/daemon/")) return false;
-  if (url.pathname === "/daemon/health" && req.method === "GET") { reply(res, 200, { ...control.health, identity: hostIdentity() }); return true; }
+  if (url.pathname === "/daemon/health" && req.method === "GET") { reply(res, 200, { ...control.health, identity: hostIdentity(), screenInstanceGuard: true }); return true; }
   if (url.pathname === "/daemon/stop" && req.method === "POST") {
     let body: unknown;
     try { body = JSON.parse((await readRequestBody(req, 4096)).toString("utf8")); }

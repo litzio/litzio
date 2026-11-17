@@ -1,4 +1,5 @@
 import { DESKTOP_ORIGIN } from "../shared/desktop-origin.ts";
+import { DAEMON_INSTANCE_HEADER } from "../shared/daemon-version.ts";
 import { createHostServices } from "./host-services.ts";
 import { randomBytes } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
@@ -107,12 +108,15 @@ export async function startHttpHost(options: HttpHostOptions) {
       const method = req.headers["access-control-request-method"];
       const headers = String(req.headers["access-control-request-headers"] ?? "").toLowerCase().split(",").map(value => value.trim()).filter(Boolean);
       const health = !!options.daemon && url.pathname === "/daemon/health" && !url.search;
-      if (!method || (health && (method !== "GET" || headers.some(value => value !== "x-litzio-protocol"))) || !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method) ||
-          headers.some(value => !["content-type", "x-litzio-protocol"].includes(value)) || !(api || media || health)) {
+      const allowedHeaders = health ? ["x-litzio-protocol"] : ["content-type", "x-litzio-protocol"];
+      if (api && options.daemon) allowedHeaders.push(DAEMON_INSTANCE_HEADER);
+      if (!method || (health && method !== "GET") || !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method) ||
+          headers.some(value => !allowedHeaders.includes(value)) || !(api || media || health)) {
         return json(res, 403, "Preflight is not allowed.");
       }
       res.setHeader("Access-Control-Allow-Methods", health ? "GET" : "GET, HEAD, POST, PUT, PATCH, DELETE");
-      res.setHeader("Access-Control-Allow-Headers", health ? "X-Litzio-Protocol" : "Content-Type, X-Litzio-Protocol");
+      const names = health ? "X-Litzio-Protocol" : "Content-Type, X-Litzio-Protocol";
+      res.setHeader("Access-Control-Allow-Headers", api && options.daemon ? `${names}, ${DAEMON_INSTANCE_HEADER}` : names);
       res.statusCode = 204; res.end(); return;
     }
     if ((req.method === "GET" || req.method === "HEAD") && (Number(req.headers["content-length"]) > 0 || req.headers["transfer-encoding"])) {
@@ -122,6 +126,10 @@ export async function startHttpHost(options: HttpHostOptions) {
       return json(res, 415, "Expected application/json.");
     }
     if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
+    const instanceId = req.headers[DAEMON_INSTANCE_HEADER];
+    if (api && instanceId !== undefined && instanceId !== options.daemon?.health.instanceId) {
+      return json(res, 409, "The Host connection changed. Reopen the screen on the current Host.");
+    }
     if (url.pathname === "/api/app-reset/paths") {
       if (req.method !== "GET" || url.search) return json(res, 405, "Use GET without a query.");
       res.setHeader("Content-Type", "application/json; charset=utf-8");

@@ -108,6 +108,17 @@ async function checkDaemon(): Promise<void> {
   catch (error) { trayStatus(false); throw error; }
 }
 
+async function observeDaemon() {
+  const record = daemon.record;
+  try { await checkDaemon(); }
+  catch (error) {
+    let ended = false;
+    try { ended = !!record && processStart(record.pid) !== record.processStartedAt; }
+    catch { /* An inconclusive OS check does not end the screen connection. */ }
+    return { problem: String(error), ended };
+  }
+}
+
 function closeDaemon(): Promise<void> {
   updates?.stop();
   return daemonShutdown ??= daemon?.close() ?? Promise.resolve();
@@ -247,7 +258,8 @@ async function installUpdate(): Promise<RestartCheck> {
 
 async function hostConnection() {
   await initialConnection;
-  return { url: daemon.record.url, productVersion: daemon.health.productVersion, desktopVersion: app.getVersion() };
+  const { instanceId, productVersion, screenInstanceGuard } = daemon.health;
+  return { url: daemon.record.url, instanceId, productVersion, screenInstanceGuard, desktopVersion: app.getVersion() };
 }
 
 async function resetPlan() {
@@ -354,7 +366,7 @@ function registerIpc(): void {
     if (!window || dialog.showMessageBoxSync(window, { type: "warning", message: "Stop daemon?", detail: "Connected tabs will disconnect and ongoing work will stop.", buttons: ["Cancel", "Stop"], defaultId: 0, cancelId: 0, noLink: true }) !== 1) return false;
     await daemon.stopExplicitly(); trayStatus(false); return true;
   });
-  handle("desktop:daemon-check", () => checkDaemon());
+  handle("desktop:daemon-check", () => observeDaemon());
   handle("desktop:daemon-reconnect", async () => {
     initialConnection = daemon.connect();
     try { const connection = await hostConnection(); trayStatus(true); return connection; }

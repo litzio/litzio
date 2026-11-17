@@ -1,7 +1,8 @@
 import { ScreenFrame } from "../components/ui/task-header.tsx";
 import { PluginScreenCode, ScreenBoundary } from "./PluginScreenCode.tsx";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { hostConnection, getHostClient, type HostClient } from "../host-client.ts";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { desktopConnection } from "../desktop-connection.ts";
+import { hostConnection, type HostClient } from "../host-client.ts";
 import { viewRequest, type ViewScreen, type ViewResult } from "./view-api.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
@@ -13,13 +14,15 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
   onOpenDocument?(path: string, signal: AbortSignal): Promise<ScreenOpenDocumentResult>;
 }) {
   useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
-  const connected = hostConnection.get().state === "connected";
+  const current = hostConnection.getScreenClient() === client;
+  const canReadCatalog = current && hostConnection.get().state === "connected";
   const [catalogClient, setCatalogClient] = useState<HostClient>();
   const [catalog, setCatalog] = useState<ViewResult>();
   const [problem, setProblem] = useState("");
   useEffect(() => {
+    if (!current) { setCatalog(undefined); setProblem(""); }
+    if (!canReadCatalog) return;
     const controller = new AbortController();
-    if (!connected) return () => controller.abort();
     let revision: string | undefined;
     let request = 0;
     let timer: ReturnType<typeof setTimeout>;
@@ -44,9 +47,10 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
     refresh(); window.addEventListener("plugins-changed", refresh);
     if (screen.entry) timer = setTimeout(observe, 2000);
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("plugins-changed", refresh); };
-  }, [client, owner, connected, screen.id]);
+  }, [client, owner, current, canReadCatalog, screen.id]);
   const contribution = catalogClient === client ? catalog?.screens?.find(s => s.plugin === owner && s.id === screen.id) : undefined;
-  const active = connected && !!contribution;
+  const keepOnProbeFailure = desktopConnection.get().version?.screenInstanceGuard === true;
+  const active = current && !!contribution && (canReadCatalog || keepOnProbeFailure);
   return <div className="view-workspace task-surface" data-testid="view-workspace">
     <ScreenFrame title={screen.title}>
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}

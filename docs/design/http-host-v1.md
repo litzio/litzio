@@ -73,8 +73,8 @@ NotificationCenter에 원인과 CLI 안내, 수동 Reconnect가 남는다. 재�
 
 TCP Host authority 목록은 그대로다. UI Origin은 **정확히 `litzio://app` 하나**만 추가한다.
 API/media의 cross-site 거부 예외와 `Access-Control-Allow-Origin`은 그 Origin에만 적용한다.
-OPTIONS는 API/media의 GET/HEAD/POST/PUT/PATCH/DELETE와 Content-Type/X-Litzio-Protocol만
-허용한다. daemon health의 한정 GET/protocol preflight는 위 Desktop local daemon CSP 절을 따른다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
+OPTIONS는 API/media의 GET/HEAD/POST/PUT/PATCH/DELETE와 Content-Type/X-Litzio-Protocol을
+허용한다. daemon API의 Desktop 플러그인 화면 요청에는 `X-Litzio-Host-Instance`도 허용한다. daemon health의 `screenInstanceGuard: true`를 확인한 Desktop이 이 헤더를 보낸다. 값은 daemon의 인스턴스 ID와 같아야 하며, 다르면 작업을 실행하기 전에 409로 거절한다. daemon health의 한정 GET/protocol preflight는 위 Desktop local daemon CSP 절을 따른다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
 Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 UI와 Host origin이 다른 경우에만 anonymous CORS를 사용한다. 같은-origin 브라우저 이미지는 기존 로딩 방식을 유지한다.
 허용 Origin의 CORS 응답만 CORP cross-origin이며 나머지는 same-origin이다. Origin 없는
 cross-site API/media, lookalike/foreign/null origin과 잘못된 TCP Host는 계속 거부한다.

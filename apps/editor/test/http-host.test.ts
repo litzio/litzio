@@ -14,6 +14,7 @@ import test, { after, type TestContext } from "node:test";
 import { documentRevision, loadDocumentFile } from "../server/document-api.ts";
 import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
+import { DAEMON_INSTANCE_HEADER } from "../shared/daemon-version.ts";
 import { daemonRpc, inspectDaemon, stopDaemon, type DaemonRecord } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { trashFile } from "../server/os-trash.ts";
@@ -361,7 +362,7 @@ test("daemon checks protocol/product versions and only stops its own instance", 
   assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "incompatible" })).status, 409);
   assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "3" })).status, 409, "pre-assistant daemon protocol must be refused before connection");
   const warnings: string[] = [], record = { ...health, url };
-  assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), { ...health, identity: hostIdentity() });
+  assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), { ...health, identity: hostIdentity(), screenInstanceGuard: true });
   const runAs = hostIdentity().runAs;
   if (process.platform === "win32") assert.match(runAs, /^[^\\]+\\[^\\]+$/);
   assert.equal(runAs.split("\\").at(-1)!.toLowerCase(), userInfo().username.toLowerCase());
@@ -888,7 +889,7 @@ test("background folder disappearance is an availability result; manual errors a
 
 
 test("only the bundled Desktop origin receives CORS API/media access and bounded preflight", async t => {
-  const { send, url, a } = await fixture(t, undefined, true);
+  const { send, url, a, health } = await fixture(t, undefined, true);
   const headers = { Origin: "litzio://app", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors" };
   const query = new URLSearchParams({ path: path.join(a, "document.md") });
   const loaded = await send(`/api/document?${query}`, "GET", undefined, headers);
@@ -916,6 +917,16 @@ test("only the bundled Desktop origin receives CORS API/media access and bounded
   for (const invalid of [{ "Access-Control-Request-Method": "POST" }, { "Access-Control-Request-Headers": "content-type" }, { "Access-Control-Request-Headers": "x-arbitrary" }, { Origin: "https://foreign.example" }]) assert.equal((await send("/daemon/health", "OPTIONS", undefined, { ...healthPreflight, ...invalid })).status, 403);
   const preflight = { ...headers, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" };
   assert.equal((await send("/api/document", "OPTIONS", undefined, preflight)).status, 204);
+  const creationPreflight = await send("/api/document", "OPTIONS", undefined, {
+    ...preflight, "Access-Control-Request-Method": "PUT", "Access-Control-Request-Headers": `content-type, ${DAEMON_INSTANCE_HEADER}`,
+  });
+  assert.equal(creationPreflight.status, 204);
+  assert.ok(creationPreflight.headers.get("access-control-allow-headers")?.includes(DAEMON_INSTANCE_HEADER));
+  const newFile = path.join(a, "screen-result.md");
+  const creation = { path: newFile, authoring: { title: "Screen result", inputs: [] } };
+  assert.equal((await send("/api/document", "PUT", creation, { ...headers, [DAEMON_INSTANCE_HEADER]: "old-instance" })).status, 409);
+  assert.equal(fs.existsSync(newFile), false);
+  assert.equal((await send("/api/document", "PUT", creation, { ...headers, [DAEMON_INSTANCE_HEADER]: health.instanceId })).status, 201);
   for (const invalid of [{ "Access-Control-Request-Headers": "x-arbitrary" }, { "Access-Control-Request-Method": "TRACE" }]) {
     assert.equal((await send("/api/document", "OPTIONS", undefined, { ...preflight, ...invalid })).status, 403);
   }

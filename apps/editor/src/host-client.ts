@@ -1,4 +1,4 @@
-import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
+import { DAEMON_INSTANCE_HEADER, DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { createHostClient, HostConnectionChangedError, type HostClient } from "./host-transport.ts";
 export { createHostClient, HostConnectionChangedError, type HostClient } from "./host-transport.ts";
 
@@ -18,12 +18,45 @@ export function createHostConnection(client = createHostClient("/")) {
   let revision = 0;
   const notify = () => { revision++; for (const listener of listeners) listener(); };
   const runtime: HostRuntime = { client, state: "connecting" };
+  // Screen lifetime follows the verified instance. HTTP observations can fail while it is still alive.
+  let screenConnection: { client: HostClient; instanceId: string; active: boolean } | undefined;
+  const activeScreenClient = () => screenConnection?.active ? screenConnection.client : undefined;
+  const endScreenConnection = () => {
+    if (!screenConnection?.active) return;
+    screenConnection.active = false;
+    notify();
+  };
   let productVersion: string | undefined;
   let attempt: object;
   return {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     snapshot: () => revision,
     get: () => runtime,
+    getScreenClient: () => typeof window !== "undefined" && window.litzioDesktop ? activeScreenClient() : runtime.client,
+    endScreenConnection,
+    bindScreenConnection(instanceId: string, guardInstance: boolean) {
+      const { client } = runtime;
+      if (screenConnection?.instanceId === instanceId && screenConnection.client.url("/") === client.url("/")) {
+        screenConnection.active = true;
+        return;
+      }
+      const bound: HostClient = {
+        url: client.url,
+        get crossOrigin() { return client.crossOrigin; },
+        assertCurrent() {
+          if (activeScreenClient() !== bound) throw new HostConnectionChangedError();
+          client.assertCurrent();
+        },
+        async request(path, init) {
+          bound.assertCurrent();
+          if (!guardInstance) return client.request(path, init);
+          const headers = new Headers(init?.headers);
+          headers.set(DAEMON_INSTANCE_HEADER, instanceId);
+          return client.request(path, { ...init, headers });
+        },
+      };
+      screenConnection = { client: bound, instanceId, active: true };
+    },
     async connect(version?: string, background = false): Promise<void> {
       productVersion = version ?? productVersion;
       const expectedProduct = productVersion;
@@ -46,6 +79,7 @@ export function createHostConnection(client = createHostClient("/")) {
           if (body.protocolVersion !== DAEMON_PROTOCOL) throw new HostProtocolMismatch("Host protocol mismatch.");
           if (typeof body.productVersion !== "string") throw new Error("Invalid health response.");
           if (attempt !== current) return;
+          if (screenConnection?.active && typeof body.instanceId === "string" && body.instanceId !== screenConnection.instanceId) endScreenConnection();
           if (body.productVersion !== expectedProduct) runtime.warning = `Host product ${body.productVersion}, client ${expectedProduct}`;
         }
         const response = await request("/api/host-capabilities");
@@ -61,6 +95,7 @@ export function createHostConnection(client = createHostClient("/")) {
         runtime.identity = undefined;
         runtime.failure = error instanceof HostProtocolMismatch ? "protocol-mismatch" : "unreachable";
         runtime.reason = error instanceof Error ? error.message : String(error);
+        if (error instanceof HostProtocolMismatch) endScreenConnection();
       } }
       if (attempt === current) notify();
     },
@@ -96,10 +131,11 @@ function bindLocalConnection(): HostClient {
   };
 }
 hostConnection.get().client = bindLocalConnection();
-export function setDesktopHost(origin: string): void {
+export function setDesktopHost(origin: string, instanceId?: string, guardInstance = false): void {
   connectedLocal = createHostClient(origin);
   release?.(connectedLocal);
   hostConnection.get().client = bindLocalConnection();
+  if (instanceId !== undefined) hostConnection.bindScreenConnection(instanceId, guardInstance);
   void hostConnection.connect();
 }
 export const getHostClient = (): HostClient => hostConnection.get().client;

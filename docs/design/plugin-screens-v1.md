@@ -6,7 +6,11 @@
 
 ## 연결 수명
 
-화면 목록과 진입 대상은 단일 연결이다. 화면을 열 때 client를 캡처하며 다른 연결로 자동 전환하지 않는다. 연결 주소가 바뀐 뒤 기존 invoke·saveDocument는 전송 전에 거절한다. 화면/tab의 기존 id/key는 유지하고 다시 그리는 것만으로 다른 client를 선택하지 않는다. 열린 폴더 범위와 새 문서 저장의 안전 조건은 유지한다.
+화면 목록과 진입 대상은 단일 연결이다. 화면을 열 때 client를 캡처하며 탭을 다시 그려도 다른 client를 선택하지 않는다. Desktop 화면은 검증한 daemon 인스턴스에 고정된다. 주소가 같아도 Host 교체를 확인한 뒤 이전 화면 client는 전송을 거절한다. 인스턴스 확인을 지원하는 daemon은 교체를 관측하기 전에 도착한 이전 인스턴스의 API 요청도 거절한다. 새 Host에 연결한 뒤에는 진입점에서 화면을 다시 열어 그 Host의 client를 선택한다. 화면/tab의 기존 id/key와 열린 폴더 범위는 유지한다.
+
+인스턴스 검사를 지원하는 Desktop daemon(`screenInstanceGuard: true`)에서는 연결 확인이 실패해 상태가 끊김으로 표시되는 동안에도 이미 열린 화면과 진행 중 요청을 유지한다. 요청은 자신의 결과로 끝난다. 인스턴스 검사를 지원하지 않는 daemon에서는 연결 확인이 실패하면 화면을 내리고 화면의 진행 중 요청을 취소한다. daemon 종료나 교체가 확인되거나 사용자가 다시 연결을 시작하면 화면을 내린다. 같은 daemon에 다시 연결되면 새로 화면 코드를 읽어 실행한다.
+
+연결 확인 시간 초과 중 저장을 기다리는 1440px 합성 화면은 [밝은 테마](assets/plugin-screen-connection-1738/after-1440-light.png)와 [어두운 테마](assets/plugin-screen-connection-1738/after-1440-dark.png)에서 확인할 수 있다.
 
 다른 클라이언트에서 플러그인을 설치·활성화·비활성화·제거·reload한 뒤 창에 다시 focus하거나 창이 다시 보이게 되면 기존 화면 목록을 다시 읽어 사이드바를 갱신한다(#1490). 같은 창의 변경은 기존 plugins-changed 통로로 갱신한다. 새 주기 조회는 추가하지 않는다. 열린 화면의 기존 2초 revision 확인과 비활성화·제거 시 Unavailable 표시는 유지한다.
 
@@ -18,7 +22,7 @@
 
 Host는 검증·reload 시 esbuild로 artifact 내부 의존성을 번들한다. 실행 시 npm 설치나 원격 import 해석을 하지 않는다. 활성 plugin만 화면 코드와 artifact digest revision을 제공한다. 대상 Host의 `/api/plugin-screens`는 화면 목록/코드만 반환하고 선언형 catalog·validate·query 실행 API는 없다. 클라이언트는 CSP script-src의 blob 모듈로 실행한다. 샌드박스·iframe·권한 모델·서명·버전 협상은 만들지 않는다.
 
-`invoke(localOperationId,input)`는 자기 plugin과 해당 화면의 HostClient에 고정한다. 공개 작업은 schema·effect·receipt를 공유하고 화면 전용 handler는 JSON을 전달한다. Core 문서 의미나 공식 저장을 화면에서 우회하지 않는다. disable·reload·Host 교체·연결 해제 시 이전 화면을 내리고 새 revision을 받는다. 열린 화면은 2초마다 코드 없이 revision을 확인하며 변경 시 새 코드를 받는다. 파일 감시·자동 reload는 아니다. import/render/cleanup 오류는 해당 화면에서 격리한다. async/event 오류는 작성자가 catch해 Notice로 표시한다.
+`invoke(localOperationId,input)`는 자기 plugin과 해당 화면의 HostClient에 고정한다. 공개 작업은 schema·effect·receipt를 공유하고 화면 전용 handler는 JSON을 전달한다. Core 문서 의미나 공식 저장을 화면에서 우회하지 않는다. disable·reload 및 위 연결 수명 조건에 따라 이전 화면을 내린다. 열린 화면은 연결 확인이 정상일 때 2초마다 코드 없이 revision을 확인하며 변경 시 새 코드를 받는다. 파일 감시·자동 reload는 아니다. import/render/cleanup 오류는 해당 화면에서 격리한다. async/event 오류는 작성자가 catch해 Notice로 표시한다.
 
 invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명시적 PluginPublicError일 때), errorKind, inputIssues, receipt를 덧붙인다. 예: `invoke("lookup", input).catch(e => setError(e.code ? e.code + ": " + e.message : e.message))`. Notice의 자식 텍스트로 표시하고 innerHTML로 삽입하지 않는다. 입력 진단의 필드 경로·이유와 공개 오류의 code/message 제한은 [실행 계약](plugin-stage1-v1.md#호출자에게-전달하는-실패-1634)을 따른다. 성공 반환값은 계속 result이며 receipt를 씌우지 않는다. 실패 receipt가 uncertain이면 대상을 확인한 뒤 재시도 여부를 결정한다.
 
