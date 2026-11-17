@@ -83,7 +83,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
     const root=document.documentElement;
     // The narrow layout deliberately unmounts the closed Outline; its desktop coverage stays required.
     const selectors=[...(innerWidth>=1424?['.document-outline-item']:[]),'.sidebar-tree-item','[data-testid="save"]','.object-tools > button:first-child','.object-tools > button:first-child','.folder-picker-crumb',
-      '.table-row-handle','.table-column-handle','.table-extend','.table-action-bar button',
+      '.table-row-handle','.table-column-handle','.table-action-bar button',
       '.code-language','.block-metadata','.label-target-edit','.cross-reference-edit','[role="dialog"]',
       // Caption/table families stay UI-owned; their sizes have separate document tokens.
       '.caption','.table'];

@@ -198,7 +198,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     if (!geometry.above || !geometry.reachable || !geometry.independent || !geometry.onlyProperties)
       throw new Error(`Whole-table Properties must sit alone on the upper metadata row outside the scroller: ${JSON.stringify(geometry)}`);
   };
-  // Direct handles/append buttons preserve the native caret and history. The menu can
+  // Direct handles preserve the native caret and history. The menu can
   // target B while the caret remains in A; its portal must not be clipped by local scroll.
   const initial = tables.first();
   const restingBounds = await initial.boundingBox();
@@ -222,7 +222,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   result.afterTableProseClickable = await initial.evaluate(block=>block.closest('.document-editor').editor.state.selection.$from.parent.textContent==='Trailing paragraph');
   await initial.locator('td').first().click();
   await initial.getByLabel('Table caption',{exact:true}).click();
-  result.captionClickableBesideAppend = await initial.evaluate(block=>block.closest('.document-editor').editor.state.selection.$from.parent.type.name==='tableCaption');
+  result.captionClickable = await initial.evaluate(block=>block.closest('.document-editor').editor.state.selection.$from.parent.type.name==='tableCaption');
   // A separate prose edit makes deletion its own native history group, without a timer.
   await page.getByText('Intro paragraph.',{exact:true}).filter({visible:true}).click();
   await page.keyboard.press('End');
@@ -375,18 +375,15 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   result.activeCell = await initial.locator('[data-current-cell="true"]').innerText() === 'U' &&
     await initial.getByRole('button', {name:'Row 2 actions', exact:true}).getAttribute('aria-pressed') === 'true' &&
     await initial.getByRole('button', {name:'Column A actions', exact:true}).getAttribute('aria-pressed') === 'true';
-  // Upper Edit clears the grid/column handles; Append row remains below the caption.
+  // Upper Properties clears the grid and column handles.
   // The table starts on the text axis and row handles clear the block handle.
   result.toolsDoNotOverlapEdit = await initial.evaluate(block => {
     const edit = block.querySelector('[aria-label="Table properties"]').getBoundingClientRect();
     const tableElement = block.querySelector('table');
     const table = tableElement.getBoundingClientRect();
-    const gridBottom = tableElement.rows[tableElement.rows.length - 1].getBoundingClientRect().bottom;
     const row = block.querySelector('.table-row-handle').getBoundingClientRect();
     const handle = document.querySelector('.block-controls.visible .block-handle')?.getBoundingClientRect();
-    const caption = block.querySelector('.table-caption').getBoundingClientRect();
-    const append = block.querySelector('[aria-label="Append row"]').getBoundingClientRect();
-    return edit.bottom <= table.top && append.top >= Math.max(gridBottom, caption.bottom) && Math.abs(table.left - block.getBoundingClientRect().left) < 0.5 && row.right <= table.left + 8 &&
+    return edit.bottom <= table.top && Math.abs(table.left - block.getBoundingClientRect().left) < 0.5 && row.right <= table.left + 8 &&
       (!handle || handle.bottom <= row.top || row.bottom <= handle.top || handle.right <= row.left);
   });
   await initial.locator('th').first().click();
@@ -398,24 +395,29 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   result.menuTargetIsNotSelection = await initial.evaluate((b,caret)=>JSON.stringify(b.closest('.document-editor').editor.state.selection.toJSON())===caret && [...b.querySelector('table').rows[1].cells].every(c=>c.hasAttribute('data-table-menu-target')) && !b.querySelector('table').rows[0].querySelector('[data-table-menu-target]'), menuCaret);
   await page.getByRole('menu', {name:'Row 2 actions', exact:true}).getByRole('menuitem', {name:'Add row below', exact:true}).click();
   result.handleTargetsRow = JSON.stringify(await grid(initial)) === JSON.stringify([['#Name', '#Value'], ['U', 'AC'], ['', '']]);
-  await page.keyboard.press('Control+z');
-  await initial.getByRole('button', {name:'Append row', exact:true}).click();
-  result.appendRowFocus = (await grid(initial)).length === 3 && await page.evaluate(() => {
+  result.rowMenuReturnsFocus = (await grid(initial)).length === 3 && await page.evaluate(() => {
     const editor = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
     return editor.view.hasFocus() && editor.state.selection.$from.index(1) === 2;
   });
-  await initial.getByRole('button', {name:'Append column', exact:true}).click();
-  result.appendColumnFocus = (await grid(initial))[0].length === 3 && await page.evaluate(() => {
+  const addColumnAtEnd = async () => {
+    const handle = initial.locator('.table-column-handle').last();
+    const name = await handle.getAttribute('aria-label');
+    await handle.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('menu', {name, exact:true}).getByRole('menuitem', {name:'Add column right', exact:true}).click();
+  };
+  await addColumnAtEnd();
+  result.columnMenuReturnsFocus = (await grid(initial))[0].length === 3 && await page.evaluate(() => {
     const editor = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
     return editor.view.hasFocus() && editor.state.selection.$from.index(2) === 2;
   });
   await page.keyboard.press('Control+z');
-  result.appendUndo = (await grid(initial))[0].length === 2 && (await grid(initial)).length === 3;
+  result.additionsUndo = (await grid(initial))[0].length === 2 && (await grid(initial)).length === 3;
   await page.keyboard.press('Control+Shift+z');
-  result.appendRedo = (await grid(initial))[0].length === 3;
+  result.additionsRedo = (await grid(initial))[0].length === 3;
   await page.keyboard.press('Control+z');
   await page.keyboard.press('Control+z');
-  result.appendUndoRestores = JSON.stringify(await grid(initial)) === JSON.stringify([['#Name', '#Value'], ['U', 'AC']]);
+  result.additionsUndoRestores = JSON.stringify(await grid(initial)) === JSON.stringify([['#Name', '#Value'], ['U', 'AC']]);
   await initial.locator('td', {hasText:/^AC$/}).click();
   await initial.getByRole('button', {name:'Column B actions', exact:true}).click();
   const columnMenu = page.getByRole('menu', {name:'Column B actions', exact:true});
@@ -464,7 +466,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   let appendedColumns = 0;
   while (!await initial.locator('.table-scroll').evaluate(s=>s.scrollWidth>s.clientWidth)) {
     if (++appendedColumns > 32) throw Error('Table fixture did not reach horizontal overflow');
-    await initial.getByRole('button', {name:'Append column', exact:true}).click();
+    await addColumnAtEnd();
   }
   await initial.locator('.table-scroll').evaluate(scroll => { scroll.scrollLeft = 0; });
   await assertTopActions(initial);
@@ -476,11 +478,9 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.keyboard.press('Enter');
   const narrowGeometry = async () => initial.evaluate(block => {
     const table = block.querySelector('table');
-    const caption = block.querySelector('.table-caption').getBoundingClientRect();
     const actions = block.querySelector('.table-action-bar').getBoundingClientRect();
-    const append = block.querySelector('[aria-label="Append row"]').getBoundingClientRect();
     const handles = [...block.querySelectorAll('.table-column-handle')];
-    return { actions: actions.bottom <= table.getBoundingClientRect().top, append: append.top >= caption.bottom,
+    return { actions: actions.bottom <= table.getBoundingClientRect().top,
       scroll: block.querySelector('.table-scroll').scrollWidth > block.querySelector('.table-scroll').clientWidth,
       columns: handles.every((handle, i) => getComputedStyle(handle).opacity === '0' || Math.abs(handle.getBoundingClientRect().left + handle.getBoundingClientRect().width/2 - table.rows[0].cells[i].getBoundingClientRect().left - table.rows[0].cells[i].getBoundingClientRect().width/2) < 1),
       rows: [...block.querySelectorAll('.table-row-handle')].every((handle, i) => {
@@ -490,7 +490,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
       }),
       document: document.documentElement.scrollWidth <= innerWidth };
   });
-  await expect.poll(narrowGeometry).toEqual({actions:true,append:true,scroll:true,columns:true,rows:true,document:true});
+  await expect.poll(narrowGeometry).toEqual({actions:true,scroll:true,columns:true,rows:true,document:true});
   result.narrowGeometry = true;
   result.menuWithinViewport = await page.getByRole('menu', {name:lastColumnName, exact:true}).evaluate(menu => {
     const r = menu.getBoundingClientRect();

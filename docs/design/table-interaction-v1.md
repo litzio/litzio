@@ -15,20 +15,18 @@ Every table displays its official Core number, including the empty caption surfa
 (`Table N.` by default). Caption/Label changes retain that number, and canonical Save
 writes a `{table}` directive even when both are absent (#584; [format contract](table-caption-v1.md)).
 
-- Scope: active-cell outline, matching row/column handles, append buttons and a contextual menu on existing Markdown tables.
+- Scope: active-cell outline, matching row/column handles and a contextual menu on existing Markdown tables.
 - Reuse the Editor table commands and Core save operations. Handles and selection indicators are UI only; they never enter Markdown or document attributes.
 - Row/column handles address a specific row/column independently of caret focus. The first row remains the header; the last column cannot be deleted.
-- Row and column menus offer existing add, move, delete and column alignment commands. There is no whole-table menu: Properties opens label and number, and table deletion uses the block menu or Delete/Backspace on the selected table.
+- Add rows or columns from the row/column handle menus or the cell context menu. The handle menus also offer move, delete and column alignment commands. There is no whole-table menu: Properties opens label and number, and table deletion uses the block menu or Delete/Backspace on the selected table.
 - Row/column/table menus use the [unified action rows](editor-ux-shell-v1.md#unified-action-menus-516): action-specific 16px line icons, labels and group separators, with danger-token text/icons and enabled danger hover on deletion. Existing explicit targets, disabled restrictions, keyboard focus and deletion paths remain unchanged.
 - Explicit table deletion (block-menu Delete, and Delete/Backspace on a selected table node) takes effect without confirmation. The existing MessageArea shows `Table deleted` / `표를 삭제했습니다` with `Undo` / `되돌리기`, politely announced without taking editor focus. Its action runs the same editor Undo as Ctrl+Z, restoring the complete table, caption and label in one history step and returning editor focus.
 - The deletion notice and action expire on the next document change (including typing, keyboard Undo/Redo or an appended transaction such as deferred endnote placement), Save, Reload, Source preview request start, tab switch or the existing five-second temporary-notice timeout. Source revokes the action before its request is pending, so it cannot change a hidden Visual document or outlive the Markdown snapshot; returning to Visual does not revive it. A stale action cannot undo a newer edit or another tab. Further typing starts a separate history step. Deleting a referenced table uses this deletion notice; the existing unresolved reference display remains until Undo restores the table. Other block deletion notices are unchanged.
 - Keep the native engine caret, history and Tab navigation. One structural action is one undo step; after adding, focus moves into the new cell.
 - Ctrl/Cmd+A first selects the current cell's inline content; a consecutive second press selects the document. Empty cells stay local on the first press. See [scoped selection](document-editing-v1.md#select-all-within-an-editing-surface-723). Already complete nonempty cell selections expand immediately; the shared expansion policy switch can keep selection local (#751).
 - Tab in the last cell of an editable table appends a row and focuses its first cell using the same Add row below command and Core Save path. Shift+Tab in the first cell still enters preceding prose; Enter leaves the table; final-row ArrowDown enters the caption, including its always available empty input surface (#577). ArrowUp from the caption returns to the final grid cell. Tab does not act during IME composition or add rows in read-only tables.
-- Editable tables reserve exactly the same content space as read-only tables (#1481). Hover alone never reveals tools. The caret inside a grid cell, or keyboard focus on this table's tools, reveals the matching row/column handles and the append bars. An open menu keeps its target visible and hides both append bars. The small visible faces sit on the top/left grid borders; actual pointer targets remain at least compact-control size. Horizontal scrolling uses an outside overlay; a row handle beside clipped content stays entirely outside the viewport. The column handle follows its column and hides when the column is offscreen. Scroll, resize and structural edits refresh measured geometry.
+- Editable tables reserve exactly the same content space as read-only tables (#1481). Hover alone never reveals tools. The caret inside a grid cell, or keyboard focus on this table's tools, reveals the matching row/column handles. An open menu keeps its target visible. The small visible faces sit on the top/left grid borders; actual pointer targets remain at least compact-control size. Horizontal scrolling uses an outside overlay; a row handle beside clipped content stays entirely outside the viewport. The column handle follows its column and hides when the column is offscreen. Scroll, resize and structural edits refresh measured geometry.
 - Existing native Tab order is retained, including every row/column entry point. Keyboard focus reveals that entry point without changing the engine caret. Column discovery scrolls its cell into view; Enter opens the existing explicit-target menu and Escape returns to the trigger. Hidden controls reject pointer input. Upper Properties and metadata remain outside horizontal scrolling. The block handle is named Move table block; row/column controls have localized Row/Column actions names and matching tooltips.
-- Only the long edge append bars have an equivalent-path target-size exception. Their short hit axis uses the available gap without intercepting neighboring caption/prose; the visible face is at least the table-bar token (8px). Row/column menu buttons keep their normal compact-control targets. The same additions remain available in full-size menu items and keyboard paths (including last-cell Tab), so the exception does not remove an accessible operation.
-- The row bar first tries the grid/caption gap, then the gap below the caption. Both need the bar and token clearance on each side. The normal 8px caption gap, including an empty caption placeholder, is too small and uses the below-caption gap. A larger caption gap can contain the bar. Only gaps smaller than the visible face plus clearance hide it; the row menu/Tab remain. The column bar sits outside the horizontal scroll viewport, uses its available right-side gap and hides below the face-plus-clearance threshold (12px at the default tokens). Browsers without CSS anchor positioning hide only the column append bar through `@supports`; existing Add column remains available in the column menu. Neither bar reserves document space or intercepts adjacent text.
 - Menu target emphasis is display-only: it is not row/column selection and changes neither the caret, clipboard nor command target. Actual row/column selection is not implemented. Revisit only when a concrete multi-cell selection/copy requirement arises; no custom selection engine is introduced.
 - Excluded: multiple-cell selection, merging, formulas, resizing and new document semantics. Unsupported cells reject native admission.
 - Completion: pointer and keyboard operation; fixed header/last-column restrictions; focus-safe menu targets; Undo/Redo; Save/Reload with content, alignment, captions and labels retained; narrow-layout geometry.
@@ -50,8 +48,7 @@ each word of Generation Including DER stay intact. Empty cells retain a 28px
 cell minimum with clickable padding. Several columns containing
 very long unbroken strings can still require local scrolling; CSS cannot identify
 which strings are natural words. No per-content classification is introduced. Editing and Read share this presentation. Row/column handles follow
-measured cells, upper Properties and metadata remain outside horizontal scrolling,
-and Append row remains after the caption. No Core, CLI or serialization changes.
+measured cells, upper Properties and metadata remain outside horizontal scrolling.
 
 ### Verification and captures
 
@@ -70,26 +67,7 @@ Local checks: 33 targeted unit/fixture/token tests; Editor typecheck/build;
 `table-authoring`, `table-cell-editing`, `layout-rules`, `quiet-document`;
 docs and whitespace checks. Platform/packaging checks belong to CI.
 
-Manual captures use the existing persistent Chrome runner at 127.0.0.1:5292,
-DPR 1, bundled Pretendard, 1440×1000 Light/English and 640×1000 Dark/Korean.
-The [capture script](assets/table-wrap-897/capture.browser.js) uses an exact copy
-of NIST Table 1 plus a separate Korean/URL supplement; wide captures use the
-small authoring fixture with seven appended columns. Self-review covered cell
-padding/vertical centering, current-cell outline, table hover boundary, measured
-handles, upper controls, caption/Append row, local scrolling and directional fades.
-The renewed After captures and [capture metadata](assets/table-wrap-897/capture-metadata.json)
-record viewport, theme, browser, scroll geometry and SHA-256 hashes of sources,
-fixtures, capture script and PNGs. These historical #897 captures precede #901: Table 1 now fits at 640px. Capture traversal is manual evidence, not an extra automated regression pass.
-
-| State | Before | After |
-| --- | --- | --- |
-| Table 1, 1440px | [PNG](assets/table-wrap-897/before-1440.png) | [PNG](assets/table-wrap-897/after-1440.png) |
-| Table 1, 640px Dark/Korean | [PNG](assets/table-wrap-897/before-640.png) | [PNG](assets/table-wrap-897/after-640.png) |
-| Korean/URL, 1440px | — | [PNG](assets/table-wrap-897/after-1440-korean.png) |
-| Korean/URL, 640px | — | [PNG](assets/table-wrap-897/after-640-korean.png) |
-| Read, 640px | — | [PNG](assets/table-wrap-897/after-640-read.png) |
-| Wide table, 1440px | — | [Start](assets/table-wrap-897/after-1440-wide-start.png) · [End](assets/table-wrap-897/after-1440-wide-end.png) |
-| Wide table, 640px | — | [Start](assets/table-wrap-897/after-640-wide-start.png) · [End](assets/table-wrap-897/after-640-wide-end.png) |
+See [cell wrapping in the read-only comparison](assets/table-wrap-897/after-1440-compare.png) and [Read mode](assets/table-wrap-897/after-640-read.png).
 
 ## Property entry (#557)
 
@@ -121,7 +99,7 @@ whole-table menu and no standalone Delete button: the block menu leads with Prop
 keeps Delete. The #791 target-wide `MetadataProperties` popover, draft lifecycle,
 selection, deletion command and one-step Undo remain unchanged; no Core/CLI operation is added.
 
-The compact-control-height number/label row is document content, retained in every display. No additional column-handle or append-row space is reserved in Edit or Read (#1481). Showing, hiding and opening tools never changes the document's height or width. Upper Properties shares the metadata row; grid handles use the outside overlay. Caption gaps and ordinary block margins remain unchanged.
+The compact-control-height number/label row is document content, retained in every display. The handles reserve no space in Edit or Read (#1481). Showing, hiding and opening tools never changes the document's height or width. Upper Properties shares the metadata row; grid handles use the outside overlay. Caption gaps and ordinary block margins remain unchanged. See the [editable table with a caption](assets/table-tools-1746/after.png).
 
 Read-only displays (Read mode, DocumentView, comparisons and previews) keep the #1635 behavior: no tools or tool space, and the visible number/label row remains.
 
@@ -134,18 +112,6 @@ restrictions, deletion Undo and real Save/Reload. Existing caption, layout and q
 checks retain their behavioral assertions with the new entry points. Other interface
 regressions run in required CI.
 
-Manual comparison uses the same seven-column scratch table and caption, persistent Windows
-Chrome at `http://127.0.0.1:5293`, DPR 1, 100% zoom and loaded Pretendard. The 1440×900
-captures are English/Light; 640×900 captures are Korean/Dark. The baseline is the unchanged
-product commit above; After uses this PR's product. [Capture script](assets/table-tools-793/capture.browser.js)
-and [environment/file hashes](assets/table-tools-793/capture-metadata.json) make the states reproducible.
-Screenshots are manual visual evidence, not additional automated test passes. Self-review
-checked vertical alignment, padding, Korean text, viewport/panel edges and horizontal scrolling.
-The [640px property popover](assets/table-tools-793/after-640-properties.png),
-[Figure tools](assets/table-tools-793/after-figure-comparison.png) and
-[Equation tools](assets/table-tools-793/after-equation-comparison.png) were compared too;
-Equation source and the shared metadata popover were not changed.
-
 Local verification: 46 targeted Editor unit tests, workspace typecheck, Editor build,
 `table-authoring table-caption layout-rules quiet-document`, docs and whitespace checks.
 CI then caught metadata pointer interception by the later grid padding; a metadata z-index
@@ -153,19 +119,9 @@ restores the existing single/double-click/Enter contract (`property-drafts` and
 `table-authoring` pass locally). Its reserved row also pushed the short settings fixture
 1.0625px beyond the paper minimum; that position-only test uses a taller viewport while
 retaining unchanged paper/content size, zero transactions, reading-line crossing and
-row/column alignment assertions (`inline-document-settings`). After PNGs predate only
-the pointer-layer correction; it does not change pixels or geometry.
+row/column alignment assertions (`inline-document-settings`).
 Broader interface/platform regressions belong to required CI. The existing D08 tracking
 row remains linked to #793; issue closure owns its progress state.
-
-| State | Before | After |
-| --- | --- | --- |
-| 1440px | [PNG](assets/table-tools-793/before-1440.png) | [PNG](assets/table-tools-793/after-1440.png) |
-| 640px Korean/Dark | [PNG](assets/table-tools-793/before-640.png) | [PNG](assets/table-tools-793/after-640.png) |
-| 1440px scrolled | [PNG](assets/table-tools-793/before-1440-scrolled.png) | [PNG](assets/table-tools-793/after-1440-scrolled.png) |
-| 640px scrolled | [PNG](assets/table-tools-793/before-640-scrolled.png) | [PNG](assets/table-tools-793/after-640-scrolled.png) |
-| 1440px More | [PNG](assets/table-tools-793/before-1440-menu.png) | [PNG](assets/table-tools-793/after-1440-menu.png) |
-| 640px More | [PNG](assets/table-tools-793/before-640-menu.png) | [PNG](assets/table-tools-793/after-640-menu.png) |
 
 ## Light handle work record (#517)
 
@@ -498,31 +454,6 @@ A second Linux run showed the same 2px overflow despite the smaller minimum: the
 remaining bound is the sum of intact word widths and padding. Narrow scrollers
 (at most 30rem) therefore use 8px inline cell padding; wide tables retain 12px.
 The empty-cell minimum stays 28px and ordinary words remain intact.
-
-### Cursor tools verification (#1481)
-
-The existing table-authoring scenario retains native Tab order, menu target restrictions, Undo/Redo, last-cell Tab, Save/Reload and deletion notice coverage. It also checks that the neighboring paragraph and caption remain clickable while the row bar is active, and that menu emphasis leaves the engine selection unchanged. The horizontal-scroll fixture grows until it actually overflows; removing the old gutter allows more columns to fit, so a fixed old column count no longer exercises that risk.
-
-The [manual capture body](assets/table-cursor-1481/capture.browser.js) uses the [synthetic fixture](assets/table-cursor-1481/sample.txt), copied to the runner scratch folder as sample.md. Temporarily replace quiet-document's body with it, run `pnpm browser:test quiet-document --screenshots`, then restore the original scenario. The [measurements](assets/table-cursor-1481/measurements.json) compare block height, width and document-relative offsets before/after tool entry and menus, and test pointer-target intersections against visible cell text ranges clipped to the scroll viewport. The wide screenshot deliberately forces a 1200px presentation width; that fixture change is excluded from the unchanged-layout comparison. A real overflow fixture remains in table-authoring.
-
-| 1440px state | Light | Dark |
-| --- | --- | --- |
-| Caret outside, hover alone hidden | [PNG](assets/table-cursor-1481/light-outside.png) | [PNG](assets/table-cursor-1481/dark-outside.png) |
-| Caret inside | [PNG](assets/table-cursor-1481/light-inside.png) | [PNG](assets/table-cursor-1481/dark-inside.png) |
-| Row target menu | [PNG](assets/table-cursor-1481/light-row-menu.png) | [PNG](assets/table-cursor-1481/dark-row-menu.png) |
-| Column target menu | [PNG](assets/table-cursor-1481/light-column-menu.png) | [PNG](assets/table-cursor-1481/dark-column-menu.png) |
-| Packed narrow headers | [PNG](assets/table-cursor-1481/light-dense-header.png) | [PNG](assets/table-cursor-1481/dark-dense-header.png) |
-| Horizontally scrolled wide table | [PNG](assets/table-cursor-1481/light-wide-scroll.png) | [PNG](assets/table-cursor-1481/dark-wide-scroll.png) |
-
-Self-review found no cell-text intersections or document size/offset changes from tool entry/menu display in these synthetic states. Native Edit/More click remains usable beside the first narrow column handle. Target emphasis is visible without native row/column selection. Menus retain their existing intentional overlap with neighboring document content. Tool opacity has no visibility animation; captures do not prove absence of flicker on every device. First/last blocks and empty caption surfaces are included. Merged cells and nested tables are outside the current schema/admission contract and were not added. This evidence is browser fixture verification, not installed Desktop acceptance.
-
-#### Position-only shell layout regression
-
-The initial capture checker tested collisions and block dimensions but did not require the append bars to be next to the grid. It therefore missed two misplaced Light captures. The new shared [actual-target verifier](../../apps/editor/test/browser/table-tool-geometry.ts) rejects the old code with `append column edge: 1212 expected 1084`.
-
-Two review failures exposed stale viewport coordinates: panel docking moved a constant-width table by 128px; expanding Document settings above a short table moved it by 184px without resizing the paper/editor/table. Observing more sizes cannot cover position-only movement. Row/column handles and the row bar use absolute coordinates inside the table block's existing overlay, outside its horizontal scroller. The column bar uses native CSS anchor positioning against the existing horizontal scroll viewport, with the compact content-row token as its top offset and measured internal grid height. No additional anchor element is inserted into the editable document. The browser follows that anchor during position-only layout changes; fixed paint avoids contributing overflow to the document text column. Measurements remain only for internal row/column geometry, horizontal scroll offsets and available neighbor-free append space. No viewport-position cache, new observer or animation-frame tracking is used. An unavailable column bar is absent from layout, so even its hidden icon cannot enlarge document scrollWidth. Browsers without the required CSS anchor positioning support hide only the column append bar through `@supports`; the existing column-menu addition remains available.
-
-The dedicated `table-tool-placement` scenario verifies both append-bar rectangles and both row/column handle rectangles against actual visible grid bounds and shared spacing tokens. Its 36 states cover Light/Dark, ordinary/dense-header/horizontally-scrolled tables, expanded/collapsed Sidebar, and 1440→640→1440 viewport changes, with no caret re-click after movement. It also verifies settings expansion/collapse at 1440×1600 with unchanged paper/editor/table dimensions, preceding-paragraph height changes, and native document scrolling. The capture body calls the same verifier before photographing inside/dense/scroll states. Re-recorded eligible captures all place the column bar 4px beyond the visible scroll edge; the two bad Light PNGs have been replaced. Normal target movement is never accepted merely because it does not overlap text. The column-bar center must also hit the actual button, guarding against visually painted but unclickable clipped overflow; the existing authoring test clicks both append bars.
 
 ### Native selection boundary correction (#1481)
 

@@ -48,7 +48,7 @@ last cell. Enter leaves the table. Emptying a caption removes its persistent con
 
 The grid-to-caption gap uses the same adjustable `--space-document-caption` as Figures
 (#721). Native caption padding owns that gap; the inner caption adds no second margin.
-Whole-table tools, row/column handles, append bars and horizontal scrolling follow
+Whole-table tools, row/column handles and horizontal scrolling follow
 the [Table interaction contract](table-interaction-v1.md#whole-table-tools-793).
 
 Every numbered empty caption surface shows its official `Table N.` and, while the selection is outside,
@@ -185,7 +185,7 @@ The former 44px came from the bottom tool reservation introduced in `86ad8f31`;
 `f443766c` moved it into native caption padding. Reducing that padding alone would
 put Edit/Table actions/Delete over the caption. The bottom tools now measure the
 native table including its caption, with their reserved space after it. This retains
-the existing below-table action bar beside Append row rather than covering cells or
+the existing below-table action bar rather than covering cells or
 caption input. Row handles and horizontal-scroll geometry are unchanged.
 
 The existing `table-caption` browser scenario compares real Table and image Figure

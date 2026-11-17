@@ -134,7 +134,7 @@ Enter/Space·클릭 펼치기/접기를 제공하고 `aria-expanded`/`aria-contr
 ## P09 metadata와 블록 도구
 
 - **목적·사용/비사용:** 짧은 속성과 구조 작업의 진입을 구분한다. 표의 행·열 선택 도구나 미주 복귀 번호를 일반 metadata 도구로 대체하지 않는다.
-- **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView의 객체 도구 줄(P03)과 높이를 차지하지 않는 metadata. [표 #793](table-interaction-v1.md#whole-table-tools-793)은 가로 스크롤 밖 상단 행에 속성 버튼과 metadata를 둔다. 표 전용 기타 메뉴는 없으며 삭제는 다른 객체처럼 블록 메뉴와 선택 뒤 Delete로 한다. 표는 앞 문단·열 핸들과 겹치지 않도록 상단 행의 공간을 항상 확보하며 도구 표시로 본문 높이를 바꾸지 않는다. 행·열·Append와 caption 간격은 유지한다. 본문 폭 원문 폼은 속성 팝오버와 별도 표면이다(#788).
+- **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView의 객체 도구 줄(P03)과 높이를 차지하지 않는 metadata. [표 #793](table-interaction-v1.md#whole-table-tools-793)은 가로 스크롤 밖 상단 행에 속성 버튼과 metadata를 둔다. 표 전용 기타 메뉴는 없으며 삭제는 다른 객체처럼 블록 메뉴와 선택 뒤 Delete로 한다. 표는 앞 문단·열 핸들과 겹치지 않도록 상단 행의 공간을 항상 확보하며 도구 표시로 본문 높이를 바꾸지 않는다. 행·열 손잡이를 표시해도 캡션 간격은 유지한다. 본문 폭 원문 폼은 속성 팝오버와 별도 표면이다(#788).
 - **사용처:** U01–U06 그림·수식·표·미주, U11 절 label, U18 블록/표 구조 도구.
 - **본문 진입 (#223):** 본문 우클릭과 편집기 안 Shift+F10·메뉴 키도 U18의 기존 여백 핸들 블록 메뉴를 연다. 표·그림·수식도 같은 항목·명령·Undo/Redo를 쓰고, 그 앞에 객체 도구 줄과 같은 이름의 속성·내용 항목이 온다([본문 메뉴 계약](editor-ux-shell-v1.md#body-block-context-menu-223)).
 

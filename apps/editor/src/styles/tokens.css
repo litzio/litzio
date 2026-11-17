@@ -47,7 +47,6 @@
   /* Minimum clickable cell measure; short columns shrink to their words. */
   /* Table tool visible faces; pointer targets retain compact-control dimensions. */
   --size-table-tool-face: 0.75rem;
-  --size-table-tool-bar: 0.5rem;
   --space-table-tool-edge: 0.25rem;
   --size-table-cell-min-width: var(--size-control-compact);
   /* Limit a long identifier's intrinsic claim; cqi resolves against the table scroller. */

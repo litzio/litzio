@@ -72,13 +72,12 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
         const caption = rect('.table-caption .caption');
         const figure = block.closest('.document-editor').querySelector('[data-block="figure"]');
         const figureGap = figure.querySelector('figcaption').getBoundingClientRect().top - figure.querySelector('img').getBoundingClientRect().bottom;
-        const actions = rect('.table-action-bar'), append = rect('[aria-label="Append row"]');
+        const actions = rect('.table-action-bar');
         const scroll = rect('.table-scroll');
         return Math.abs(caption.top - row.bottom - figureGap) < 1 && figureGap > 0 &&
-          actions.bottom <= native.getBoundingClientRect().top && (append.top >= caption.bottom || (append.top >= row.bottom && append.bottom <= caption.top)) &&
-          append.height >= 8 &&
+          actions.bottom <= native.getBoundingClientRect().top &&
           scroll.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth;
-      }), `Shared caption gap and unobscured upper actions/Append row at ${width}px (${gap || 'default'})`).toBe(true);
+      }), `Shared caption gap and unobscured upper actions at ${width}px (${gap || 'default'})`).toBe(true);
     }
   }
   await editor.evaluate(element => element.style.removeProperty('--space-document-caption'));
