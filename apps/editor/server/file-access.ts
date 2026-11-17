@@ -105,8 +105,9 @@ export class RootAccess {
     return this.entries.some(entry => within(entry, entry.real, real));
   }
 
-  /** Check before any filesystem I/O; an absent leaf is allowed only beneath an existing parent. */
-  resolve(value: string, create = false): string {
+  /** Check before writes; authored creation may explicitly allow missing parents,
+   * still requiring the nearest existing physical ancestor within a pinned Root. */
+  resolve(value: string, create = false, missingParents = false): string {
     const target = locator(value);
     if (!this.entries.some(entry => inside(entry.path, target) || inside(entry.real, target))) throw new FileAccessError();
     this.currentRoots();
@@ -124,9 +125,9 @@ export class RootAccess {
       if (!create || (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       try { fs.lstatSync(target); throw new FileAccessError("A new file cannot replace a symlink."); }
       catch (leafError) { if ((leafError as NodeJS.ErrnoException).code !== "ENOENT") throw leafError; }
-      const parent = realPath(path.dirname(target));
+      const parent = missingParents ? realParent(target) : realPath(path.dirname(target));
       if (!fs.statSync(parent).isDirectory()) throw new FileAccessError("Parent must be an existing directory.");
-      real = path.join(parent, path.basename(target));
+      real = missingParents ? parent : path.join(parent, path.basename(target));
     }
     if (!this.contains(real)) throw new FileAccessError();
     // Keep the locator: existing per-document media/asset rules must still see symlinks.

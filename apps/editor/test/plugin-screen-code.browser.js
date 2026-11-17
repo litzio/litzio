@@ -508,12 +508,14 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   }
   await dialog.getByTestId('folder-open').click();await expect(output).toContainText('"kind":"folder"');
   await page.setViewportSize({width:1440,height:1000});
+  // Saving a new descendant uses the shared Host parent creation path.
+  await field.fill(childFolder+'/new/nested');
   // A successful creation keeps its receipt when the subsequent root/open preflight fails.
   await page.route('**/api/folder?root=*',route=>route.fulfill({status:403,json:{error:'Fixture opening refused'}}),{times:1});
   let creations=0;const countCreate=request=>{if(request.method()==='PUT'&&request.url().split('?')[0].endsWith('/api/document'))creations++;};page.on('request',countCreate);
   await workspace.getByRole('button',{name:'Save child',exact:true}).click();
   await expect(output).toContainText('"opening":{"status":"refused"');await expect(output).toContainText('"revision":');expect(creations).toBe(1);page.off('request',countCreate);
-  await field.fill(inRoot('fixture','output','screen-child.md'));await workspace.getByRole('button',{name:'Open existing',exact:true}).click();
+  await field.fill(inRoot('fixture','output','new','nested','screen-child.md'));await workspace.getByRole('button',{name:'Open existing',exact:true}).click();
   await expect(page.locator('.tiptap:visible')).toContainText('Created in a selected subfolder.');
   await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
   await page.locator('.sidebar').getByRole('button',{name:'More actions',exact:true}).first().click();

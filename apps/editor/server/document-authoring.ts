@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { authorDocument, parse, serialize, updateMediaReferences } from "@litzio/core";
 import { createHash } from "node:crypto";
 import { authoredDocumentRequestSchema } from "@litzio/plugin-sdk";
@@ -49,22 +50,57 @@ export async function regenerateAuthoredDocumentFile(file: string, raw: unknown,
 }
 
 async function publishAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess, beforePublish: () => void, revision?: string) {
-  file = path.resolve(accessPath(file, access, true));
+  file = path.resolve(access ? access.resolve(file, true, revision === undefined) : accessPath(file, access, true));
   if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
-  accessPath(path.dirname(file), access);
   beforePublish();
   const { input, images } = validatedAuthoringRequest(raw);
-  const bindings: Record<string, string> = Object.create(null);
-  // Completed image files can be reused by another CLI/Host process immediately.
-  // Retain them on failure; only unpublished temporary files are request-owned.
-  for (const image of images) {
-    bindings[image.key] = createDocumentImageAsset(file, image.mime, image.bytes, access).path;
+  const created: { directory: string; owner: fs.BigIntStats }[] = [];
+  try {
+    const missing: string[] = [];
+    for (let directory = path.dirname(file); !fs.existsSync(directory); directory = path.dirname(directory)) {
+      if (path.dirname(directory) === directory) fs.statSync(directory); // An unavailable drive/root cannot be created.
+      missing.unshift(directory);
+    }
+    if (revision !== undefined && missing.length) throw new Error("Parent must be an existing directory.");
+    for (const directory of missing) {
+      try {
+        fs.mkdirSync(accessPath(directory, access, true));
+        created.push({ directory, owner: fs.lstatSync(directory, { bigint: true }) });
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+      accessPath(directory, access);
+    }
+    accessPath(path.dirname(file), access);
+    if (images.length) {
+      const directory = path.join(path.dirname(file), "assets");
+      try {
+        fs.mkdirSync(accessPath(directory, access, true));
+        created.push({ directory, owner: fs.lstatSync(directory, { bigint: true }) });
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+    }
+    const bindings: Record<string, string> = Object.create(null);
+    // Completed image files can be reused by another CLI/Host process immediately.
+    // Retain them on failure; only unpublished temporary files are request-owned.
+    for (const image of images) {
+      bindings[image.key] = createDocumentImageAsset(file, image.mime, image.bytes, access, revision === undefined ? image.key : undefined).path;
+    }
+    const authored = await authorDocument(input.authoring, bindings);
+    beforePublish();
+    if (revision !== undefined) {
+      commitFile(accessPath(file, access), authored.source, revision);
+      return { path: file, revision: authored.documentRevision, inputs: authored.inputs };
+    }
+    return { ...createDocumentSourceFile(file, authored.source, access), inputs: authored.inputs };
+  } catch (error) {
+    // Only remove this request's unchanged, empty directories. Completed shared
+    // assets (and anything another writer placed here) deliberately keep them alive.
+    for (const { directory, owner } of created.reverse()) {
+      try {
+        const current = fs.lstatSync(accessPath(directory, access), { bigint: true });
+        if (!current.isSymbolicLink() && current.dev === owner.dev && current.ino === owner.ino && current.birthtimeMs === owner.birthtimeMs) fs.rmdirSync(directory);
+      } catch (cleanup) {
+        if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes((cleanup as NodeJS.ErrnoException).code ?? "")) throw new Error("Document creation failed; folder cleanup failed.", { cause: error });
+      }
+    }
+    throw error;
   }
-  const authored = await authorDocument(input.authoring, bindings);
-  beforePublish();
-  if (revision !== undefined) {
-    commitFile(accessPath(file, access), authored.source, revision);
-    return { path: file, revision: authored.documentRevision, inputs: authored.inputs };
-  }
-  return { ...createDocumentSourceFile(file, authored.source, access), inputs: authored.inputs };
 }
