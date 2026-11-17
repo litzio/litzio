@@ -41,8 +41,25 @@ index 0000000000000000000000000000000000000000..964ffb76e42ac5d437ee4c67d81a5c84
 +    return true;
 +  }, {alt: ['paragraph', 'reference', 'blockquote']});
 +}
+diff --git a/dist/myst.d.ts b/dist/myst.d.ts
+index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..389c7ecd1e2e32b7c87878e24f3137d134245656 100644
+--- a/dist/myst.d.ts
++++ b/dist/myst.d.ts
+@@ -1,10 +1,12 @@
+ import MarkdownIt from 'markdown-it';
++import type { VFile } from 'vfile';
+ import type { Plugin } from 'unified';
+ import type { AllOptions } from './fromMarkdown.js';
+ import type { GenericParent } from 'myst-common';
+ type Options = Partial<AllOptions>;
+ export declare const defaultOptions: Omit<AllOptions, 'vfile'>;
+ export declare function createTokenizer(opts?: Options): MarkdownIt;
++export declare function createMystParser(opts?: Omit<Options, 'vfile'>): (content: string, vfile: VFile) => GenericParent;
+ export declare function mystParse(content: string, opts?: Options): GenericParent;
+ /**
+  * MyST Parser as a Unified Plugin
 diff --git a/dist/myst.js b/dist/myst.js
-index 616f80d64a4416d560136b43e62951fb72966de5..6ae55df6d92b11703ad7ff900d7602949442d58f 100644
+index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f52084d8af9c 100644
 --- a/dist/myst.js
 +++ b/dist/myst.js
 @@ -1,4 +1,5 @@
@@ -51,14 +68,50 @@ index 616f80d64a4416d560136b43e62951fb72966de5..6ae55df6d92b11703ad7ff900d760294
  import { defaultDirectives } from 'myst-directives';
  import { defaultRoles } from 'myst-roles';
  import { VFile } from 'vfile';
-@@ -77,6 +78,7 @@ export function createTokenizer(opts) {
+@@ -77,16 +78,39 @@ export function createTokenizer(opts) {
          tokenizer.use(deflistPlugin);
      if (extensions.tasklist)
          tokenizer.use(tasklistPlugin);
 +    if (extensions.attrs_block) tokenizer.use(listStylePlugin);
      return tokenizer;
  }
- export function mystParse(content, opts) {
+-export function mystParse(content, opts) {
++/** Reuse parser setup while giving each top-level or nested parse fresh rule state. */
++export function createMystParser(opts) {
++    const tokenizer = createTokenizer(opts);
++    // markdown-it-myst's nested tokenizer temporarily changes core and block rules.
++    // It can re-enable rules disabled by configuration, including smartquotes.
++    const rules = [tokenizer.core.ruler, tokenizer.block.ruler].flatMap(ruler =>
++        ruler.__rules__.map(rule => ({ ruler, rule, enabled: rule.enabled })));
++    const tokenize = (content, env) => {
++        try {
++            return tokenizer.parse(content, env);
++        } finally {
++            for (const { ruler, rule, enabled } of rules) {
++                if (rule.enabled !== enabled) {
++                    if (enabled) ruler.enable(rule.name);
++                    else ruler.disable(rule.name);
++                }
++            }
++        }
++    };
++    return (content, vfile) => mystParse(content, { ...opts, vfile }, tokenize);
++}
++
++export function mystParse(content, opts, tokenize) {
+     const { vfile } = opts || {};
+     const parsedOpts = parseOptions(opts);
+-    const tokenizer = createTokenizer(parsedOpts);
+-    const tree = tokensToMyst(content, tokenizer.parse(content, { vfile }), parsedOpts.mdast);
++    const parseTokens = tokenize ?? ((source, env) => createTokenizer(parsedOpts).parse(source, env));
++    const tree = tokensToMyst(content, parseTokens(content, { vfile }), parsedOpts.mdast);
+     applyDirectives(tree, parsedOpts.directives, parsedOpts.vfile, {
+         parseMyst: (source, offset = 0) => {
+-            const mdast = mystParse(source, opts);
++            const mdast = mystParse(source, opts, tokenize);
+             // Fix-up the node's (global) position offsets
+             visit(mdast, (node) => {
+                 if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
 index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..8776b6521852eef1eedf0d98b88ed40914b365fd 100644
 --- a/dist/tokensToMyst.js

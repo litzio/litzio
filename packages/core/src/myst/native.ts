@@ -13,7 +13,7 @@ import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { parse as parseTree } from "./parse.ts";
 import { isDivider, supportedQuoteContent } from "./quote.ts";
 import { supportedTargetLabel } from "./reference.ts";
-import { serialize as serializeTree } from "./serialize.ts";
+import { repeatRoundTrip, roundTrip, serialize as serializeTree } from "./serialize.ts";
 import { tableCellContent, tableOf, tableCaptionParagraph, isNativeTableSource } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 import { NUMBERED_KINDS, referenceTemplatesError, type NumberedKind } from "../numbering.ts";
@@ -164,10 +164,25 @@ export function parseNativeDocument(source: string): MystDocument {
 }
 
 export function serializeNativeDocument(document: MystDocument): string {
+  return roundTripNativeDocument(document).markdown;
+}
+
+function roundTripNativeDocument(document: MystDocument) {
   assertNativeDocument(document);
-  const markdown = serializeTree(document);
-  assertNativeDocument(parseTree(markdown));
-  return markdown;
+  const result = roundTrip(document);
+  assertNativeDocument(result.reparsed);
+  return result;
+}
+
+/** The authored source must be native and stable through a second canonical write. */
+export function canonicalNativeSnapshot(document: MystDocument) {
+  const result = roundTripNativeDocument(document);
+  const repeated = repeatRoundTrip(result);
+  if (repeated.markdown !== result.markdown) {
+    assertNativeDocument(repeated.reparsed);
+    throw new Error();
+  }
+  return result;
 }
 
 export function createDocument(): MystDocument {

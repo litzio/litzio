@@ -35,13 +35,17 @@ export class SemanticLossError extends DocumentWriteError {
  * are completed, and an empty equation is checked without its unrepresentable fixed option.
  * The operation result retains that option. Only the final canonical write rejects it. */
 export function serializeFor(document: MystDocument, failure: string): string {
+  return roundTripFor(document, failure).markdown;
+}
+
+export function roundTripFor(document: MystDocument, failure: string): RoundTrip {
   try {
     let check = document;
     if (document.children.some(node => node.type === "math" && node.value === "" && node.enumerator !== undefined)) {
       check = cloneDocument(document);
       for (const node of check.children) if (node.type === "math" && node.value === "") delete node.enumerator;
     }
-    return serialize(completeFootnotes(check));
+    return roundTrip(completeFootnotes(check));
   } catch (error) {
     if (error instanceof SemanticLossError) throw new Error(`${failure} (${error.detail})`, { cause: error });
     throw error;
@@ -56,6 +60,18 @@ export function serializeFor(document: MystDocument, failure: string): string {
  * them (`endnotePlacement`); parse reads them back in that order, so writing is idempotent.
  */
 export function serialize(document: MystDocument): string {
+  return roundTrip(document).markdown;
+}
+
+type RoundTrip = { markdown: string; reparsed: MystDocument; fingerprint: ReturnType<typeof semanticFingerprint> };
+
+/** Check the second serialization in full, reusing the parse only for identical bytes. */
+export function repeatRoundTrip(result: RoundTrip): RoundTrip {
+  return roundTrip(result.reparsed, result);
+}
+
+/** Return the same parsed snapshot that passed canonical semantic comparison. */
+export function roundTrip(document: MystDocument, previous?: RoundTrip): RoundTrip {
   assertUnicode(document);
   // The fingerprint would also catch these, but not name the footnote.
   const footnotes = footnoteWriteIssue(document);
@@ -114,11 +130,17 @@ export function serialize(document: MystDocument): string {
   assertNoSerializationDiagnostics(file, document);
   // Normalize the complete output, including preserved source, before semantic verification.
   const markdown = `${frontMatter}${String(file.result ?? "").trimEnd()}\n`.replace(/\r\n?/g, "\n");
-  const difference = semanticDifferenceIssue(expected, semanticFingerprint(parse(markdown)));
+  const result = previous?.markdown === markdown ? previous : parsedRoundTrip(markdown);
+  const difference = semanticDifferenceIssue(expected, result.fingerprint);
   if (difference) throw new SemanticLossError(difference.reason, {
     ...(difference.blockIndex !== undefined ? { path: blockPaths[difference.blockIndex] } : {}),
   });
-  return markdown;
+  return result;
+}
+
+function parsedRoundTrip(markdown: string): RoundTrip {
+  const reparsed = parse(markdown);
+  return { markdown, reparsed, fingerprint: semanticFingerprint(reparsed) };
 }
 
 /** Write one flow node with myst-to-md, for a directive whose body Litzio writes itself. */
