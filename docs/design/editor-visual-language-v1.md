@@ -119,7 +119,7 @@ References read like links without box/fill: content-link color, underline on ho
 | Settings | Task-tab frame follows [DESIGN.md — Layout](../../DESIGN.md#layout); category navigation and content columns use subtle separators, without popup corners/shadow or a floating close button |
 | Start without a document | Canvas with product mark/title, muted explanation and surface cards with subtle edges; never paper |
 | Figure/Equation rest | Transparent; captions remain readable; metadata reserves no space |
-| Callout | Kind surface and side rule, no full outline |
+| Callout | Kind icon, label, surface and side rule, no full outline. Note uses Info and info, Tip uses Lightbulb and success, Important uses Star and violet accent, Warning uses TriangleAlert and warning, Danger uses ShieldAlert and danger. Hint follows Tip. See also follows Note. Attention and Caution follow Warning. Error follows Danger. |
 | Source editing forms | Equation/Mermaid full-column code-style source and preview; inline math uses its wrapping popover |
 
 Settings → Appearance & language, the footer toggle beside Settings, and two Command Center choices share Light / Dark (#1042). With no saved choice, startup resolves the OS theme once and stores that explicit choice. Later OS changes do not change it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles. Images retain original pixels; KaTeX inherits text.

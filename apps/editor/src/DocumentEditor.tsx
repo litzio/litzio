@@ -40,6 +40,7 @@ import { blockMoveBlockedHint } from "./block-reorder.ts";
 import { DocumentTitle } from "./document-title.tsx";
 import { CommandMenu, type CommandMenuItem } from "./CommandMenu.tsx";
 import { insertCommandIcon, blockCommandAppearance } from "./command-icons.ts";
+import { admonitionAppearance } from "./admonition-kinds.ts";
 import { OBJECT_ACTION, type ObjectAction } from "./node-views/shared.ts";
 import { insertReference, referenceCommandItems, referenceOfCommand, ReferenceForm, referencesBrokenByDeletion, referenceTargets, isResolved, type ReferenceTarget } from "./cross-reference.tsx";
 import { ENDNOTE_COMMAND, ENDNOTE_DRAFT_CLOSED, canEditEndnoteAt, endnoteAt, endnoteCommandItems, endnoteEditingKey, endnoteEditorToken, insertEndnote, setEndnoteEditing } from "./endnotes.ts";
@@ -51,7 +52,7 @@ import { REFERENCE_STYLES, type ReferenceStyle } from "./reference-style.ts";
 import type { ReferenceTemplates } from "@litzio/core/numbering";
 import { defaultHeadingNumbering } from "@litzio/core/numbering";
 import { labelKey } from "@litzio/core/label";
-import { LIST_STYLES, type EditableDocument, type ListStyle, type ListDelimiter } from "@litzio/core";
+import { LIST_STYLES, isAdmonitionVariant, type EditableDocument, type ListStyle, type ListDelimiter } from "@litzio/core";
 import {
   DocumentPathContext,
   createEditorExtensions,
@@ -825,6 +826,32 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     return [{ id: "object-properties", label: i18n.t("Properties") }, ...(content ? [content] : [])]
       .map(item => ({ ...item, group: i18n.t("Properties"), icon: blockCommandAppearance(item.id).icon }));
   };
+
+  const blockMenuItems = (index: number): CommandMenuItem[] => {
+    const node = editor.state.doc.child(index);
+    const variant = node.type.name === "admonition" ? String(node.attrs.variant) : "";
+    const items = BLOCK_COMMANDS.filter(command => (command.applies?.(editor.state, index) ?? true) &&
+      command.id !== `heading-level-${node.attrs.level}`).map((command): CommandMenuItem => ({
+      id: command.id,
+      label: command.label,
+      group: blockCommandGroup(command.id),
+      ...blockCommandAppearance(command.id),
+      checked: command.id.startsWith("admonition-") ? command.id === `admonition-${variant}` : undefined,
+      disabled: !command.enabled(editor.state, index) ||
+        (command.id.startsWith("move-") && !!moveBlockedHint(index)),
+      disabledReason: command.id.startsWith("move-")
+        // Fixed blocks stay fixed; an actionable draft takes priority over a boundary.
+        ? blockMoveBlockedHint(editor.state, index) ?? moveBlockedHint(index) ??
+          command.rejection?.(editor.state, index) : undefined,
+    }));
+    if (isAdmonitionVariant(variant) && !items.some(item => item.checked)) {
+      const id = `admonition-${variant}`;
+      const { label, icon } = admonitionAppearance(variant);
+      const group = blockCommandGroup(id);
+      items.splice(items.findIndex(item => item.group === group), 0, { id, label, icon, group, checked: true, disabled: true });
+    }
+    return items;
+  };
   const runObjectAction = (id: string, index: number) => {
     setBlockMenu(null);
     let position = 0;
@@ -1059,19 +1086,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           label={i18n.t("Block actions")}
           items={[...objectMenuItems(blockMenu.index), ...(editor.state.doc.child(blockMenu.index).type.name === "orderedList"
             ? [{ id: "list-format", label: i18n.t("List format"), group: i18n.t("Lists"), icon: insertCommandIcon("numbered-list") }] : []),
-            ...BLOCK_COMMANDS.filter(command => (command.applies?.(editor.state, blockMenu.index) ?? true) &&
-              command.id !== `heading-level-${editor.state.doc.child(blockMenu.index).attrs.level}`).map(command => ({
-            id: command.id,
-            label: command.label,
-            group: blockCommandGroup(command.id),
-            ...blockCommandAppearance(command.id),
-            disabled: !command.enabled(editor.state, blockMenu.index) ||
-              (command.id.startsWith("move-") && !!moveBlockedHint(blockMenu.index)),
-            disabledReason: command.id.startsWith("move-")
-              // Fixed blocks stay fixed; an actionable draft takes priority over a boundary.
-              ? blockMoveBlockedHint(editor.state, blockMenu.index) ?? moveBlockedHint(blockMenu.index) ??
-                command.rejection?.(editor.state, blockMenu.index) : undefined,
-          })), ...(editor.state.doc.child(blockMenu.index).type.name === "table" ? [{
+            ...blockMenuItems(blockMenu.index), ...(editor.state.doc.child(blockMenu.index).type.name === "table" ? [{
             id: "table-wrap", label: i18n.t("This document’s tables: wrap long text"),
             group: i18n.t("View"), checked: tableWrap, checkRole: "checkbox" as const,
           }] : [])]}

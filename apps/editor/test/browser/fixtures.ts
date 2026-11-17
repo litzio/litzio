@@ -314,7 +314,12 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       "# Power\n\nBefore the equation.\n\n```{math}\n:label: eq-power\nP = VI \\cos \\varphi\n```\n\nAfter the equation.\n") }],
     scenarios: ["equation-node-selection-typing"],
   },
-  "admonition-authoring": { files: [fixture("authoring.md")], scenarios: ["admonition-authoring"] },
+  "admonition-authoring": { files: [fixture("authoring.md"), {
+    name: "callouts.md",
+    create: () => nativeSource(
+      ["note", "tip", "important", "warning", "danger", "hint", "seealso", "attention", "caution", "error"]
+        .map(kind => `:::{${kind}}\nExample content.\n:::`).join("\n\n") + "\n\nTry inserting here.\n"),
+  }], scenarios: ["admonition-authoring"] },
   "list-authoring": { files: [fixture("lists.md")], scenarios: ["list-authoring"] },
   "list-format": { files: [fixture("list-format.md")], scenarios: ["list-format"] },
   "structural-block-authoring": { files: [fixture("structural-block-authoring.md")], scenarios: ["structural-block-authoring"] },
