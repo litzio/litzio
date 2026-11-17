@@ -1,3 +1,4 @@
+import { DOCUMENT_STATUSES, type DocumentStatus } from "@litzio/core";
 import { referenceTemplatesError } from "@litzio/core/numbering";
 import type { Schema } from "@tiptap/pm/model";
 import { reserveBlockPaths } from "./block-locators.ts";
@@ -48,6 +49,7 @@ export function prepareEditorSnapshot(schema: Schema, opening: TiptapJSON, snaps
     };
     checkAttrs(node.attrs, node.type.spec.attrs);
     if (node.attrs.title !== null && typeof node.attrs.title !== "string") throw new Error("Invalid editor attribute title");
+    if (node.attrs.status !== null && !DOCUMENT_STATUSES.includes(node.attrs.status as DocumentStatus)) throw new Error("Invalid editor attribute status");
     const bibliography = node.attrs.bibliography;
     if (bibliography !== null && (!Array.isArray(bibliography) || !bibliography.every((value: unknown) => typeof value === "string"))) {
       throw new Error("Invalid editor attribute bibliography");

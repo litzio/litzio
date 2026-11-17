@@ -1,7 +1,7 @@
 # Editor UX Shell v1
 
 - Status: Implemented
-- Last verified: 2026-11-16 — DESIGN.md와 중복·검증 기록을 정리하고 관련 표현을 코드와 정적 대조했다. 제품·브라우저 실행 재검증 없음.
+- Last verified: 2026-11-17 — 문서 설정의 대상 unit·browser, 상태 Save/Reload·Undo/Redo·읽기 전용, 1440px·640px 영어/한국어·밝음/어두움 캡처를 확인했다. 다른 Shell 계약 전체의 실행 재검증은 포함하지 않는다.
 
 - Scope: existing Editor interactions. [Visual Language](editor-visual-language-v1.md) and [Layout Rules v1](editor-layout-rules-v1.md) define presentation and geometry.
 
@@ -376,25 +376,28 @@ The rename dialog names unsaved referring tabs and asks the user to save them. [
 ## Document settings placement (#554)
 
 The Sidebar browses opened folders and documents. Under #580's owner decision, the
-existing heading numbering, reference style and bibliography connection live in a
+document status, heading numbering, caption numbering, reference style and bibliography connection live in a
 collapsed **Document settings / 문서 설정** block at the very top of the paper,
-before the title. Its one-line summary shows heading numbering, reference style and
-connected bibliography filenames. Expanding shows grouped field rows with labels,
-controls and short descriptions. Reference style offers actual Figure/Table/Equation
-examples in each choice, including Korean. The body renders a field list and has no
-placement dependency; bibliography uses a dedicated renderer within that list. This
-is an Editor UI structure, not a Core field registry or #606 metadata implementation.
+before the title. Its one-line summary shows current settings and connected bibliography filenames.
+A document with status always shows a shared `Status` indicator (Draft / In review / Approved),
+including when collapsed or read-only; a document without status has no indicator.
+Expanded settings use `SettingsRow`, `SettingsSelect` and `SettingsSwitch` in two aligned
+property columns with equal row heights and control starts. The three selects share a 20rem preferred width (the existing `--layout-reading-preview-width` token) and shrink to the available right column. Status offers None / Draft /
+In review / Approved. Heading numbering is one switch. Caption numbering offers Automatic /
+Fixed, with a disabled Mixed current option when appropriate. Reference style choices include
+actual Figure/Table/Equation examples. The bibliography filename precedes its Connect button.
+There are no persistent helper descriptions; mixed numbering guidance is available on hover/focus.
+The document-specific column alignment reuses existing tokens and controls.
 
 The block is outside ProseMirror content, like Add a title. It cannot enter document
-text, Copy, caret navigation or Undo. Opening/collapsing it leaves document state,
-selection, history and property drafts intact. Enter/Space operates the disclosure;
-Tab reaches each control; menu arrow keys select a style; Escape within the block
-collapses it and focuses its disclosure. A menu first handles its own Escape.
+text, Copy or caret navigation. Opening/collapsing leaves document state, selection,
+history and property drafts intact. Enter/Space operates the disclosure; Tab reaches
+each control; native select keyboard navigation chooses values; Escape within the block
+collapses it and focuses its disclosure. Native choice popups handle their own Escape.
 Expansion starts collapsed for each newly opened tab and lasts only for that tab's
-session; tab switches and Visual/Source switches preserve it, without writing a
-preference or document setting. Read-only documents show only the value summary;
-the start screen and Source show no block. Pending work disables field controls,
-including choices in an already-open portaled reference-style menu.
+session; tab switches and Visual/Source switches preserve it without storage.
+Read-only documents show only the summary and status; the start screen and Source show no block.
+Pending work disables all field controls.
 
 The TopBar Document settings button and its modal are removed. Command center
 `Document settings…` closes its overlay, scrolls to the block, expands it and focuses
@@ -405,12 +408,27 @@ Connect button after selection or dismissal. The existing References-region conn
 and the command-center `Connect bibliography…` item remain available.
 
 Settings still use the same editor/Core operations, dirty indication, Save and save
-failure handling. No Core/CLI operation, file format or device preference changes.
+failure handling. Status changes use the existing editor snapshot/SupportedEdits path and Core `updateDocumentStatus` at Save, including removal with null. Each status change is one Undo/Redo step; it does not restrict editing. Core/CLI status semantics follow [Document support](document-support-v1.md). No device preference changes.
 Wide document belongs to the tab-row actions, folding into ⋯ at narrow widths (#695).
 The title strip stays 40px at all supported widths; search retains #556's reduction order
 before becoming icon-only.
 
 The gutter geometry observes the document-settings block as well as paper/editor sizes; Outline reschedules its reading reporter when that block resizes. Inline text menus dismiss on outside interaction; property popovers retain their DOM anchors.
+
+Current document settings examples:
+[expanded English/light](assets/document-settings-1721/after-draft-en-light-1440-expanded.png),
+[collapsed English/light](assets/document-settings-1721/after-draft-en-light-1440-collapsed.png),
+[expanded Korean/dark](assets/document-settings-1721/after-draft-ko-dark-1440-expanded.png),
+[collapsed Korean/dark](assets/document-settings-1721/after-draft-ko-dark-1440-collapsed.png),
+[no status](assets/document-settings-1721/after-none-en-light-1440-expanded.png),
+[no status collapsed](assets/document-settings-1721/after-none-en-light-1440-collapsed.png),
+[no status Korean/dark](assets/document-settings-1721/after-none-ko-dark-1440-expanded.png),
+[no status Korean/dark collapsed](assets/document-settings-1721/after-none-ko-dark-1440-collapsed.png),
+[640px](assets/document-settings-1721/after-draft-ko-dark-640-expanded.png),
+[640px collapsed](assets/document-settings-1721/after-draft-ko-dark-640-collapsed.png),
+[640px no status](assets/document-settings-1721/after-none-ko-dark-640-expanded.png),
+[640px no status collapsed](assets/document-settings-1721/after-none-ko-dark-640-collapsed.png),
+[bibliography connection](assets/document-settings-1721/after-bibliography-ko-dark-640.png).
 
 ## Dedicated Settings screen (#594)
 

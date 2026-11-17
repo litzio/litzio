@@ -190,7 +190,7 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
     await page.getByRole('button',{name:'Save',exact:true}).click();
     await page.locator('[data-testid="status"][data-operation="saving"]').waitFor();
     await page.getByRole('button',{name:'Document settings',exact:true}).click();
-    if (!await page.getByRole('checkbox',{name:'Number headings',exact:true}).isDisabled() ||
+    if (!await page.getByRole('switch', {name:'Number headings',exact:true}).isDisabled() ||
       !await page.getByRole('button', {name:'File actions', exact:true}).isDisabled()) {
       throw new Error('Saving allowed a numbering change or Reload');
     }

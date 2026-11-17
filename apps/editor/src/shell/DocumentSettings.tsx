@@ -1,13 +1,14 @@
 import { forwardRef, useId, useImperativeHandle, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, Check } from "lucide-react";
-import { Menu } from "@base-ui/react/menu";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { DOCUMENT_STATUSES, type DocumentStatus } from "@litzio/core";
 import { DEFAULT_REFERENCE_TEMPLATES, type ReferenceTemplates } from "@litzio/core/numbering";
 import { Button } from "@/components/ui/button.tsx";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
+import { SettingsRow, SettingsSelect, SettingsSwitch, SelectControl } from "@/components/ui/settings.tsx";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
+import { Status } from "@/components/ui/status.tsx";
 import { i18n } from "../i18n.ts";
 import { REFERENCE_STYLES, referenceStyle, type ReferenceStyle } from "../reference-style.ts";
-import { DisplaySettings, type SettingsGroup } from "./DisplaySettings.tsx";
 
 export type DocumentSettingsHandle = { reveal(): void };
 type Props = {
@@ -16,6 +17,8 @@ type Props = {
   readOnly: boolean;
   disabled: boolean;
   headingNumbering: boolean;
+  status: DocumentStatus | null;
+  onStatusChange(status: DocumentStatus | null): void;
   numberingMode: "automatic" | "fixed" | "mixed";
   onNumberingModeChange(mode: "automatic" | "fixed"): void;
   referenceTemplates: ReferenceTemplates | null;
@@ -38,9 +41,12 @@ export const DocumentSettings = forwardRef<DocumentSettingsHandle, Props>(functi
   const trigger = useRef<HTMLButtonElement>(null);
   const readonlySummary = useRef<HTMLParagraphElement>(null);
   const bodyId = useId();
+  const captionId = useId();
+  const statusId = useId();
   const style = referenceStyle(referenceTemplates);
   const styleLabel = i18n.t(style === "custom" ? "Custom" : REFERENCE_STYLES[style].label);
   const summary = [i18n.t(headingNumbering ? "Numbered headings" : "Unnumbered headings"),
+    i18n.t("{{mode}} captions", {mode: i18n.t(props.numberingMode === "mixed" ? "Mixed" : props.numberingMode === "fixed" ? "Fixed" : "Automatic")}),
     i18n.t("{{style}} references", { style: styleLabel }), ...bibliography].join(" · ");
   useImperativeHandle(ref, () => ({ reveal() {
     if (!readOnly) onExpandedChange(true);
@@ -48,50 +54,47 @@ export const DocumentSettings = forwardRef<DocumentSettingsHandle, Props>(functi
     block.current?.scrollIntoView({ block: "start" });
     target?.focus({ preventScroll: true });
   } }));
-  const groups: SettingsGroup[] = [{ label: i18n.t("Saved in this document"), fields: [
-    { id: "numbering", label: i18n.t("Number headings"), summary: i18n.t("Numbers H1–H6 body sections. Save to keep changes."),
-      control: { kind: "checkbox", checked: headingNumbering, onChange: props.onToggleHeadingNumbering } },
-    { id: "caption-numbering", label: i18n.t("Caption numbering"),
-      summary: i18n.t("Automatic and fixed numbers may be mixed intentionally, for example in appendices."),
-      control: { kind: "custom", render: descriptionId => <div aria-describedby={descriptionId}>
-        <p data-testid="numbering-mode">{i18n.t(props.numberingMode === "mixed" ? "Mixed" : props.numberingMode === "fixed" ? "Fixed" : "Automatic")}</p>
-        <div className="caption-numbering-actions">{(["automatic", "fixed"] as const).map(mode => <Button key={mode} variant="outline" size="sm" disabled={disabled || props.numberingMode === mode}
-          onClick={() => props.onNumberingModeChange(mode)}>{i18n.t(mode === "automatic" ? "Make all automatic" : "Make all fixed")}</Button>)}</div>
-      </div> } },
-    { id: "references", label: i18n.t("Reference style"), summary: preview(referenceTemplates ?? {}),
-      control: { kind: "custom", render: descriptionId => <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="outline" size="sm" disabled={disabled} aria-label={i18n.t("Reference style")}
-          aria-describedby={descriptionId} />}>
-          {styleLabel}<ChevronDown aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent aria-label={i18n.t("Reference style")}>
-          <Menu.RadioGroup value={style} onValueChange={value => props.onReferenceStyleChange(value as ReferenceStyle)}>
-            {Object.entries(REFERENCE_STYLES).map(([key, option]) => <Menu.RadioItem key={key} value={key} disabled={disabled} closeOnClick
-              className="document-settings-option" aria-label={i18n.t(option.label)}>
-              <Check aria-hidden="true" className={key === style ? "" : "invisible"} />
-              <span>{i18n.t(option.label)}</span><span className="document-settings-preview">{preview(option.templates)}</span>
-            </Menu.RadioItem>)}
-          </Menu.RadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu> } },
-    ...(bibliography.length > 0 ? [{ id: "bibliography", label: i18n.t("Bibliography"), summary: bibliography.join(" · "),
-      control: { kind: "custom" as const, render: (descriptionId: string) => <Button variant="outline" size="sm" disabled={disabled}
-        aria-describedby={descriptionId} onClick={event => props.onConnectBibliography(event.currentTarget)}>{i18n.t("Connect bibliography…")}</Button> } }] : []),
-  ] }];
+  const statusLabels = { draft: "Draft", review: "In review", approved: "Approved" } as const;
+  const statusMark = props.status ? <span id={statusId}><Status tone={props.status === "approved" ? "ok" : props.status === "review" ? "warning" : "neutral"}
+    label={i18n.t(statusLabels[props.status])} /></span> : null;
+  const fields = <div className="display-settings">
+    <SettingsSelect label={i18n.t("Status")} value={props.status ?? ""} disabled={disabled}
+      options={[{value: "", label: i18n.t("None")}, ...DOCUMENT_STATUSES.map(value => ({value, label: i18n.t(statusLabels[value])}))]}
+      onChange={value => props.onStatusChange(value ? value as DocumentStatus : null)} />
+    <SettingsSwitch label={i18n.t("Number headings")} checked={headingNumbering} disabled={disabled} onChange={props.onToggleHeadingNumbering} />
+    <SettingsRow label={<label htmlFor={captionId}>{i18n.t("Caption numbering")}</label>}>
+      <Tooltip><TooltipTrigger render={<SelectControl id={captionId} value={props.numberingMode} disabled={disabled}
+        aria-describedby={`${captionId}-hint`}
+        options={[...(props.numberingMode === "mixed" ? [{value: "mixed", label: i18n.t("Mixed"), disabled: true}] : []),
+          {value: "automatic", label: i18n.t("Automatic")}, {value: "fixed", label: i18n.t("Fixed")}]}
+        onValueChange={value => props.onNumberingModeChange(value as "automatic" | "fixed")} />} />
+        <TooltipContent>{i18n.t("Automatic and fixed numbers may be mixed intentionally, for example in appendices.")}</TooltipContent>
+      </Tooltip>
+      <span id={`${captionId}-hint`} className="sr-only">{i18n.t("Automatic and fixed numbers may be mixed intentionally, for example in appendices.")}</span>
+    </SettingsRow>
+    <SettingsSelect label={i18n.t("Reference style")} value={style} disabled={disabled}
+      options={[...(style === "custom" ? [{value: "custom", label: `${i18n.t("Custom")} · ${preview(referenceTemplates ?? {})}`, disabled: true}] : []),
+        ...Object.entries(REFERENCE_STYLES).map(([value, option]) => ({value, label: `${i18n.t(option.label)} · ${preview(option.templates)}`}))]}
+      onChange={value => props.onReferenceStyleChange(value as ReferenceStyle)} />
+    {bibliography.length > 0 ? <SettingsRow label={i18n.t("Bibliography")}>
+      <span className="document-settings-bibliography" title={bibliography.join(" · ")}>{bibliography.map(file => file.split(/[\\/]/u).at(-1)).join(" · ")}</span>
+      <Button variant="outline" disabled={disabled} aria-label={i18n.t("Connect bibliography…")} onClick={event => props.onConnectBibliography(event.currentTarget)}>{i18n.t("Connect")}</Button>
+    </SettingsRow> : null}
+  </div>;
   return <section ref={block} className="document-settings" aria-label={i18n.t("Document settings")}
     onKeyDown={event => {
       if (event.key === "Escape" && expanded && !event.defaultPrevented) {
         event.preventDefault(); event.stopPropagation(); onExpandedChange(false); trigger.current?.focus();
       }
     }}>
-    {readOnly ? <p ref={readonlySummary} tabIndex={-1} className="document-settings-summary"><span>{i18n.t("Document settings")}</span><span className="document-settings-values" title={summary}>{summary}</span></p> : <Button ref={trigger}
+    {readOnly ? <p ref={readonlySummary} tabIndex={-1} className="document-settings-summary"><span>{i18n.t("Document settings")}</span>{statusMark}<span className="document-settings-values" title={summary}>{summary}</span></p> : <Button ref={trigger}
       variant="ghost" size="sm" className="document-settings-summary" aria-label={i18n.t("Document settings")}
-      aria-expanded={expanded} aria-controls={bodyId} onClick={() => onExpandedChange(!expanded)}>
+      aria-describedby={props.status ? statusId : undefined} aria-expanded={expanded} aria-controls={bodyId} onClick={() => onExpandedChange(!expanded)}>
       {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-      <span>{i18n.t("Document settings")}</span><span className="document-settings-values" title={summary}>{expanded ? i18n.t("Saved in this document") : summary}</span>
+      <span>{i18n.t("Document settings")}</span>{statusMark}<span className="document-settings-values" title={summary}>{summary}</span>
     </Button>}
     {!readOnly ? <div id={bodyId} hidden={!expanded}>
-      <DisplaySettings groups={groups} disabled={disabled} />
+      {fields}
     </div> : null}
   </section>;
 });

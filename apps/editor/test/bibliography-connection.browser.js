@@ -183,15 +183,10 @@ async (page, { openPath, reloadDocument, waitForEditorFocus, bibliographyFixture
     const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); committed(); await held; await route.fulfill({ response });
   });
   if (await settings.getAttribute('aria-expanded') !== 'true') await settings.click();
-  await page.getByRole('button',{name:'Reference style',exact:true}).click();
-  await page.getByRole('menu',{name:'Reference style',exact:true}).and(page.locator(':focus-within')).waitFor();
+  await page.getByRole('combobox', {name:'Reference style',exact:true}).focus();
   await page.keyboard.press('Control+s'); await disk;
-  const styleMenu = page.getByRole('menu',{name:'Reference style',exact:true});
-  if (await styleMenu.count()) {
-    assert(await styleMenu.getByRole('menuitemradio').evaluateAll(items => items.length > 0 && items.every(n => n.getAttribute('aria-disabled') === 'true')), 'An already-open notation menu cannot change settings during Save');
-    await page.keyboard.press('Escape'); await styleMenu.waitFor({state:'detached'});
-  }
-  assert(await page.getByRole('checkbox',{name:'Number headings',exact:true}).isDisabled(), 'Document settings cannot change during Save');
+  assert(await page.getByRole('combobox', {name:'Reference style',exact:true}).isDisabled(), 'Reference style cannot change during Save');
+  assert(await page.getByRole('switch', {name:'Number headings',exact:true}).isDisabled(), 'Document settings cannot change during Save');
   await page.keyboard.press('Control+/');
   await page.getByRole('combobox', { name: 'Search documents and commands', exact: true }).fill('> Connect bibliography');
   assert(await page.getByRole('option', { name: 'Connect bibliography…', exact: true }).getAttribute('aria-disabled') === 'true', 'Command cannot connect during Save');

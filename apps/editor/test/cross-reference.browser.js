@@ -180,8 +180,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   await expect(secondEquation.locator('.block-kind')).toHaveText('수식 (2) · eq-b');
   await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('en'));
   await page.getByRole('button', {name:'Document settings',exact:true}).click();
-  await page.getByRole('button', {name:'Reference style',exact:true}).click();
-  await page.getByRole('menuitemradio', {name:'Korean',exact:true}).click();
+  await page.getByRole('combobox', {name:'Reference style',exact:true}).selectOption('korean');
   await page.keyboard.press('Escape');
   for (const language of ['en','ko']) {
     await page.evaluate(async language => (await import('/src/i18n.ts')).i18n.changeLanguage(language), language);
@@ -210,7 +209,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
     }
     await page.setViewportSize({width:1280, height:720});
   }
-  expect(await page.getByRole('button', {name:'Reference style', exact:true}).count()).toBe(1);
+  expect(await page.getByRole('combobox', {name:'Reference style', exact:true}).count()).toBe(1);
   await page.keyboard.press('Escape');
   await page.getByRole('region', {name:'Document settings',exact:true}).locator('.display-settings').waitFor({state:'hidden'});
 
@@ -524,9 +523,9 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   expect(await readCaptionLabels()).toEqual(['Figure 1. ', 'Table 1. ']);
   await page.getByRole('button', {name:'Document settings', exact:true}).click();
   if (screenshots) await page.screenshot({path:'tmp/reference-templates-display.png'});
-  const templates = page.getByRole('button', {name:'Reference style', exact:true});
-  await templates.click();
-  await page.getByRole('menuitemradio',{name:'Korean',exact:true}).click();
+  const templates = page.getByRole('combobox', {name:'Reference style', exact:true});
+  await templates.focus();
+  await templates.selectOption('korean');
   await templates.and(page.locator(':focus')).waitFor();
   await page.keyboard.press('Escape');
   await page.getByRole('region', {name:'Document settings',exact:true}).locator('.display-settings').waitFor({state:'hidden'});
@@ -560,9 +559,9 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   await expect(page.getByRole('dialog', {name:'표 1 properties', exact:true})).toBeVisible();
   await page.getByTestId('table-label').press('Escape');
   await page.getByRole('button', {name:'Document settings', exact:true}).click();
-  expect(await templates.innerText()).toBe('Korean');
-  await templates.click();
-  await page.getByRole('menuitemradio',{name:'Default',exact:true}).click();
+  await expect(templates).toHaveValue('korean');
+  await templates.focus();
+  await templates.selectOption('default');
   await templates.and(page.locator(':focus')).waitFor();
   await page.keyboard.press('Escape');
   await page.getByRole('region', {name:'Document settings',exact:true}).locator('.display-settings').waitFor({state:'hidden'});

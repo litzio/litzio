@@ -51,7 +51,7 @@ async (page, { openFolderPicker, openPath }) => {
     await requested;
     const disclosure = page.getByRole('button', {name:'Document settings', exact:true});
     if (await disclosure.getAttribute('aria-expanded') !== 'true') await disclosure.click();
-    result.settingsBlockedWhilePending = await page.getByRole('checkbox',{name:'Number headings',exact:true}).isDisabled();
+    result.settingsBlockedWhilePending = await page.getByRole('switch', {name:'Number headings',exact:true}).isDisabled();
     await otherDocument.click();
     await page.getByTestId('error').getByText('Wait for the current operation to finish.', {exact:true}).waitFor();
     result.openBlockedWhilePending = await currentFile() === documentA;

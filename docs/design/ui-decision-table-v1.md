@@ -2,6 +2,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 문서 설정 (#1721) | 문서 위의 기존 접힘 구역 | SettingsRow·SettingsSelect·SettingsSwitch·Status·Button | 상태 표시·변경, 같은 높이의 두 열 속성 표, 선택지 안 참조 미리보기 | [문서 설정](editor-ux-shell-v1.md#document-settings-placement-554) | 기존 토큰으로 문서 전용 왼쪽 조작 축을 맞춤; 새 공통 부품·토큰 없음 |
 | Host 폴더·파일·이미지 선택 (#1676) | 공통 모달 | FolderDialog·Dialog·Button·Input·Lucide·기존 토큰 | 한 번 클릭 선택, 두 번 클릭 이동/확정, 위치 기록·정렬·목록 키보드·선택 footer | [선택 창 계약](folder-picker-v1.md) | 단일 선택 listbox 유지. 이미지 미리보기는 오른쪽, 새 이름은 목록 안의 행 |
 | 표의 행·열을 조작한다 (#1481) | 표 테두리의 현재 행·열 손잡이, 바깥 추가 막대 | 기존 Button·Popover·CommandMenu·명시 대상 명령 | caret/도구 키보드 focus 때 표시, hover만은 숨김. 메뉴 중 추가 막대 숨김. 표시용 대상 강조는 선택이 아님 | [표 상호작용](table-interaction-v1.md) | 내용 크기 불변, 긴 추가 막대만 동등 경로의 짧은 축 예외, caption 틈 우선·부족하면 아래 틈, 우측 공간 부족 시 기존 열 메뉴 |
 | 짧은 속성 팝오버의 preview가 늦게 완성된다 (#1626) | 기존 대상 부착 metadata | MetadataProperties·Base UI·기존 compact Button/토큰 | 대상 가까운 동작 행에 Done, 반대쪽 intrinsic preview; 최대 크기로 방향 선택, 렌더만으로 flip하지 않음 | 그림·Mermaid·표·수식·절 label, [공통 계약](figure-authoring-v1.md#stable-metadata-actions-1626) | DOM/Tab은 시각 순서. 고정 preview 틀·pointerdown 제출 없음. 긴 원문은 기존 별도 폼 |

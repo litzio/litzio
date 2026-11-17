@@ -804,7 +804,7 @@ export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: U
 
 const DocumentNumbering = Extension.create({
   name: "documentNumbering",
-  addGlobalAttributes() { return [{ types: ["doc"], attributes: { title: { default: null, rendered: false }, headingNumbering: { default: null, rendered: false }, referenceTemplates: { default: null, rendered: false }, bibliography: { default: null, rendered: false } } }]; },
+  addGlobalAttributes() { return [{ types: ["doc"], attributes: { status: { default: null, rendered: false }, title: { default: null, rendered: false }, headingNumbering: { default: null, rendered: false }, referenceTemplates: { default: null, rendered: false }, bibliography: { default: null, rendered: false } } }]; },
   addProseMirrorPlugins() {
     return [new Plugin({ props: { decorations(state) {
       const blocks: { block: string; level?: number }[] = [];

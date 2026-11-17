@@ -76,7 +76,7 @@ async (page, { showNotifications }) => {
     result.settingsOutsideContent = await page.locator('.ProseMirror .document-settings').count() === 0;
     result.noTopBarSettings = await page.locator('.top-bar').getByRole('button',{name:'Document settings',exact:true}).count() === 0;
     await page.keyboard.press('Tab');
-    result.documentSettingsKeyboardEntry = await isFocused(page.getByRole('checkbox', {name:'Number headings', exact:true}));
+    result.documentSettingsKeyboardEntry = await isFocused(page.getByRole('combobox', {name:'Status', exact:true}));
     await page.keyboard.press('Escape'); await settingsDialog.waitFor({state:'hidden'});
     result.documentSettingsEscapeReturnsFocus = await isFocused(settings);
     await page.getByRole('button',{name:'Collapse Explorer'}).click();

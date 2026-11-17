@@ -13,7 +13,6 @@ import { createOutlineStore } from "../src/outline.ts";
 import { createDocumentSessionLifetime } from "../src/document-session.ts";
 import { readCollapsedFolderSections, readOpenTabs, visibleRecentFolders, writeCollapsedFolderSections, writeOpenTabs } from "../src/preferences.ts";
 import { DocumentPanel } from "../src/shell/DocumentPanel.tsx";
-import { DisplaySettings } from "../src/shell/DisplaySettings.tsx";
 import { DocumentSettings } from "../src/shell/DocumentSettings.tsx";
 import { documentLocation, splitDocumentPath, unquotePath } from "../src/shell/document-path.ts";
 import { MessageArea, SaveErrorContent } from "../src/shell/MessageArea.tsx";
@@ -689,29 +688,20 @@ test("document panel offers navigation lists, and the TopBar Outline toggle show
   }
 });
 
-test("document settings renders grouped fields independently of placement", () => {
-  const html = renderToStaticMarkup(<DisplaySettings disabled={false} groups={[{label: "Behavior", fields: [
-    {id: "numbers", label: "Number headings", summary: "Save to keep changes", control: {kind: "checkbox", checked: true, onChange: noop}},
-    {id: "resource", label: "Bibliography", summary: "refs.bib", control: {kind: "custom", render: id => <button aria-describedby={id}>Connect</button>}},
-  ]}]} />);
-  assert.match(html, /<legend[^>]*>Behavior/);
-  assert.match(html, /checked=""/);
-  assert.match(html, /refs.bib/);
-  assert.match(html, /aria-describedby=/);
-});
-
 test("document settings summarizes current values and readonly has no editable controls", () => {
-  const props = {expanded: false, onExpandedChange: noop, readOnly: false, disabled: false, headingNumbering: true,
+  const props = {status: null, onStatusChange: noop, expanded: false, onExpandedChange: noop, readOnly: false, disabled: false, headingNumbering: true,
     referenceTemplates: {figure: "Fig. %s", table: "Table %s", equation: "(%s)"}, bibliography: ["refs.bib"],
     onToggleHeadingNumbering: noop, onReferenceStyleChange: noop, onConnectBibliography: noop};
   const html = renderToStaticMarkup(<DocumentSettings numberingMode="automatic" onNumberingModeChange={() => {}} {...props} />);
   assert.match(html, /aria-expanded="false"/);
-  assert.match(html, /Numbered headings · Concise references · refs.bib/);
+  assert.match(html, /Numbered headings · Automatic captions · Concise references · refs.bib/);
   const readonly = renderToStaticMarkup(<DocumentSettings numberingMode="automatic" onNumberingModeChange={() => {}} {...props} readOnly />);
-  assert.doesNotMatch(readonly, /aria-expanded=|<input|<button/);
-  assert.match(readonly, /Numbered headings · Concise references · refs.bib/);
+  assert.doesNotMatch(readonly, /aria-expanded=|<input|<button|<select/);
+  const reviewed = renderToStaticMarkup(<DocumentSettings {...props} status="review" readOnly numberingMode="automatic" onNumberingModeChange={noop} />);
+  assert.match(reviewed, /In review/);
+  assert.match(readonly, /Numbered headings · Automatic captions · Concise references · refs.bib/);
   const unconnected = renderToStaticMarkup(<DocumentSettings numberingMode="automatic" onNumberingModeChange={() => {}} {...props} bibliography={[]} />);
-  assert.match(unconnected, /Numbered headings · Concise references/);
+  assert.match(unconnected, /Numbered headings · Automatic captions · Concise references/);
   assert.doesNotMatch(unconnected, /Bibliography|Connect bibliography|No bibliography connected/);
 });
 
