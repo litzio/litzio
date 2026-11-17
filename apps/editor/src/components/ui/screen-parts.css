@@ -1,4 +1,16 @@
 .screen-layout { display: grid; gap: var(--space-4); min-width: 0; width: 100%; color: var(--id-color-text); font-size: var(--font-size-sm); }
+.task-surface:has(> .screen-layout[data-fill-height]) {
+  display: flex;
+  flex-direction: column;
+  padding-block-end: 0;
+}
+.task-surface:has(> .screen-layout[data-fill-height]) > .task-header { flex: none; }
+.task-surface > .screen-layout[data-fill-height] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: var(--layout-screen-fill-min-height);
+}
 .screen-description { margin: 0; color: var(--id-color-text-muted); }
 .screen-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); min-width: 0; }
 .screen-toolbar > button { width: auto; }
