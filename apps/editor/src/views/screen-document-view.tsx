@@ -109,11 +109,12 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
       : undefined);
   }, [file, stale, problem, positions, previewScale, onGeometry]);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
-  return <section className="screen-document-view" aria-label={label} data-state={state}>
+  const fillHeight = height === "fill";
+  return <section className="screen-document-view" aria-label={label} data-state={state} data-fill-height={fillHeight || undefined}>
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
     {!file && !problem ? <p role="status">{i18n.t("Loading document…")}</p> : null}
     {file && scope && !problem ? <HostClientContext.Provider value={scope.client}>
-      <div className="screen-document-view-scroll" ref={viewport} role="region" aria-label={label + " content"} tabIndex={0} style={{ height }} {...navigation} onKeyDownCapture={event => {
+      <div className="screen-document-view-scroll" ref={viewport} role="region" aria-label={label + " content"} tabIndex={0} style={fillHeight ? undefined : { height }} {...navigation} onKeyDownCapture={event => {
         navigation.onKeyDownCapture(event);
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); event.stopPropagation(); }
       }}>

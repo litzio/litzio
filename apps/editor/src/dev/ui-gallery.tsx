@@ -147,7 +147,7 @@ export function UiGallery() {
     </div>
     {visible("Shared parts") ? <SharedPartsExample /> : null}
     {visible("Screen parts") ? <><h2 className="task-surface-title">Screen parts</h2><ScreenFrameExample /><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
-    {visible("Document view") ? <><h2 className="task-surface-title">Document view</h2><DocumentViewExample /></> : null}
+    {visible("Document view") ? <DocumentViewExample /> : null}
     {visible("Linked document view") ? <><h2 className="task-surface-title">Linked document view</h2><LinkedDocumentViewExample /></> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}

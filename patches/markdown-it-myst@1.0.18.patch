@@ -1,0 +1,31 @@
+diff --git a/dist/directives.js b/dist/directives.js
+index 2826097bd0b9f8f67118b91043f0c59c5078b23d..5a111cb0b6b5df06e1701d313b305d646b95eb25 100644
+--- a/dist/directives.js
++++ b/dist/directives.js
+@@ -3,8 +3,7 @@ import { nestedPartToTokens } from './nestedParse.js';
+ import { stateError, stateWarn } from './utils.js';
+ import { inlineOptionsToTokens } from './inlineAttributes.js';
+ const COLON_OPTION_REGEX = /^:(?<option>[^:\s]+?):(\s*(?<value>.*)){0,1}\s*$/;
+-function computeBlockTightness(src, map) {
+-    const lines = src.split('\n');
++function computeBlockTightness(lines, map) {
+     const tightBefore = typeof map?.[0] === 'number' && map[0] > 0 ? lines[map[0] - 1].trim() !== '' : false;
+     const tightAfter = typeof map?.[1] === 'number' && map[1] < lines.length ? lines[map[1]].trim() !== '' : false;
+     const tight = tightBefore && tightAfter ? true : tightBefore ? 'before' : tightAfter ? 'after' : false;
+@@ -27,6 +26,7 @@ function replaceFences(state) {
+ /** Run all directives, replacing the original token */
+ function runDirectives(state) {
+     const finalTokens = [];
++    let lines;
+     for (const token of state.tokens) {
+         if (token.type === 'directive') {
+             try {
+@@ -50,7 +50,7 @@ function runDirectives(state) {
+                     arg,
+                     options: getDirectiveOptions([...inlineOptions, ...(options ?? [])]),
+                     // Tightness is computed for all directives (are they separated by a newline before/after)
+-                    tight: computeBlockTightness(state.src, token.map),
++                    tight: computeBlockTightness(lines ??= state.src.split('\n'), token.map),
+                 };
+                 const startLineNumber = map ? map[0] : 0;
+                 const argTokens = directiveArgToTokens(arg, startLineNumber, state);

@@ -11,10 +11,10 @@ export function Select({ label, hideLabel = false, ...props }: ScreenSelectProps
   return <label className="screen-select" htmlFor={id}><span className={hideLabel ? "sr-only" : "type-item-name"}>{label}</span><SelectControl id={id} {...props} /></label>;
 }
 
-export function ScreenLayout({ description, status, actions, width = "full", children }: { title?: string; description?: string; status?: ReactNode; actions?: ReactNode; width?: "full" | "narrow"; children: ReactNode }) {
+export function ScreenLayout({ description, status, actions, width = "full", fillHeight = false, children }: { title?: string; description?: string; status?: ReactNode; actions?: ReactNode; width?: "full" | "narrow"; fillHeight?: boolean; children: ReactNode }) {
   const slots = useContext(TaskHeaderSlots);
   const descriptionNode = description && <p className="screen-description">{description}</p>;
-  return <>{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width}>{!slots && <>{descriptionNode}{status}{actions}</>}{children}</section></>;
+  return <>{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width} data-fill-height={fillHeight || undefined}>{!slots && <>{descriptionNode}{status}{actions}</>}{children}</section></>;
 }
 export { Status } from "./status.tsx";
 export function Steps({steps, current}: {steps: string[]; current: number}) {

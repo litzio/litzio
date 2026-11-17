@@ -1,6 +1,8 @@
 import { parseDocument } from "yaml";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createMystParser, mystParse } from "myst-parser";
+import { VFile } from "vfile";
 import { SemanticLossError } from "../src/myst/serialize.ts";
 import {
   getEditableDocument,
@@ -42,6 +44,36 @@ function texts(document: MystDocument): string[] {
       : block.block === "table" ? block.rows.flatMap((row) => row.cells.map((cell) => cell.text)).join("|")
       : "text" in block ? block.text : "");
 }
+
+test("directive parsing does not split the full source once per directive", t => {
+  const directive = ":::{note}\nNote body.\n:::\n";
+  const countFullSourceSplits = (count: number) => {
+    const source = Array.from({ length: count }, () => directive).join("\n");
+    let splits = 0;
+    const split = String.prototype.split;
+    const mock = t.mock.method(String.prototype, "split", function (this: string, separator: unknown, limit?: number) {
+      if (this === source && separator === "\n") splits++;
+      return Reflect.apply(split, this, [separator, limit]);
+    });
+    try {
+      assert.equal(getEditableDocument(parse(source)).blocks.length, count);
+      return splits;
+    } finally {
+      mock.mock.restore();
+    }
+  };
+  assert.equal(countFullSourceSplits(32), countFullSourceSplits(1));
+});
+
+test("a nested directive does not enable a disabled rule for the next parse", () => {
+  const options = { extensions: { tables: false } };
+  const parseMyst = createMystParser(options);
+  parseMyst(":::{figure} ./image.png\n:label: example\n\nA caption.\n:::\n", new VFile());
+  const table = "| H |\n| --- |\n| V |\n";
+  const expected = mystParse(table, options);
+  assert.equal(expected.children[0]?.type, "paragraph");
+  assert.deepEqual(parseMyst(table, new VFile()), expected);
+});
 
 test("straight quotes in source are the user's text, not typographic quotes", () => {
   const source = `${APOSTROPHE}\n\n${QUOTED}\n`;

@@ -4,7 +4,7 @@ import { authorDocument, parse, serialize, updateMediaReferences } from "@litzio
 import { createHash } from "node:crypto";
 import { authoredDocumentRequestSchema } from "@litzio/plugin-sdk";
 import { commitFile } from "@litzio/file-commit";
-import { createDocumentSourceFile } from "./document-create.ts";
+import { createDocumentFromAuthoring, createDocumentSourceFile } from "./document-create.ts";
 import { createDocumentImageAsset } from "./asset-api.ts";
 import { validateImage } from "./image-validation.ts";
 import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
@@ -83,13 +83,11 @@ async function publishAuthoredDocumentFile(file: string, raw: unknown, access: F
     for (const image of images) {
       bindings[image.key] = createDocumentImageAsset(file, image.mime, image.bytes, access, revision === undefined ? image.key : undefined).path;
     }
+    if (revision === undefined) return await createDocumentFromAuthoring(file, input.authoring, bindings, access, beforePublish);
     const authored = await authorDocument(input.authoring, bindings);
     beforePublish();
-    if (revision !== undefined) {
-      commitFile(accessPath(file, access), authored.source, revision);
-      return { path: file, revision: authored.documentRevision, inputs: authored.inputs };
-    }
-    return { ...createDocumentSourceFile(file, authored.source, access), inputs: authored.inputs };
+    commitFile(accessPath(file, access), authored.source, revision);
+    return { path: file, revision: authored.documentRevision, inputs: authored.inputs };
   } catch (error) {
     // Only remove this request's unchanged, empty directories. Completed shared
     // assets (and anything another writer placed here) deliberately keep them alive.

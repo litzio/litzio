@@ -45,7 +45,7 @@ import { nextFootnoteLabel, planEndnoteLifecycle, planNumberingChange } from "./
 import { canonicalCitation, type CitationContent } from "./citation.ts";
 import { FRONT_MATTER_FIELD } from "./myst/constants.ts";
 import { parse } from "./myst/parse.ts";
-import { serialize, serializeFor } from "./myst/serialize.ts";
+import { repeatRoundTrip, roundTripFor, serialize, serializeFor } from "./myst/serialize.ts";
 import { DocumentDiagnosticError, DocumentWriteError } from "./write-error.ts";
 import {
   createTableNode, insertTableColumnNode, insertTableRowNode, moveTableColumnNode, moveTableRowNode, removeTableColumnNode, removeTableRowNode,
@@ -210,7 +210,7 @@ function assertCanonicalBlockBoundaries(document: MystDocument): void {
   // Completed definitions may contain synthetic self-references. Compare parser block
   // boundaries directly; these temporary nodes are not native authoring content.
   const expectedBlocks = endnotePlacement(complete);
-  const reloadedBlocks = parse(serializeFor(document, BOUNDARY_FAILURE)).children;
+  const reloadedBlocks = roundTripFor(document, BOUNDARY_FAILURE).reparsed.children;
   if (
     reloadedBlocks.length !== expectedBlocks.length ||
     reloadedBlocks.some((block, index) => !(tableOf(block) && tableOf(expectedBlocks[index])) &&
@@ -259,15 +259,15 @@ export function insertHeading(document: MystDocument, index: number, level: numb
   const heading: MystNode = { type: "heading", depth: level, children: inlineContentToNodes(content) };
   assertInlineBlockRoundTrip(heading);
   const next = insertBlock(document, index, heading);
-  const markdown = serializeFor(next, HEADING_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(next, HEADING_FAILURE);
+  const { markdown, reparsed } = result;
   const reparsedHeading = reparsed.children[bodyIndex(next, index)];
   const projected = reparsedHeading && projectInlineContent(reparsedHeading);
   if (
     reparsedHeading?.type !== "heading" ||
     Number(reparsedHeading.depth) !== level ||
     !projected || !sameInlineContent(content, projected) ||
-    serialize(reparsed) !== markdown
+    repeatRoundTrip(result).markdown !== markdown
   ) {
     throw new DocumentDiagnosticError("round-trip-mismatch", HEADING_FAILURE);
   }
@@ -313,8 +313,8 @@ export function insertAdmonition(
     children: normalizedContent.length ? [{ type: "paragraph", children: inlineContentToNodes(normalizedContent) }] : [],
   };
   const next = insertBlock(document, index, admonition);
-  const markdown = serializeFor(next, ADMONITION_INSERTION_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(next, ADMONITION_INSERTION_FAILURE);
+  const { markdown, reparsed } = result;
   const inserted = reparsed.children[bodyIndex(next, index)];
   const insertedContent = inserted && supportedAdmonitionContent(inserted);
   if (
@@ -322,7 +322,7 @@ export function insertAdmonition(
     inserted.kind !== variant ||
     !insertedContent ||
     !sameInlineContent(normalizedContent, insertedContent) ||
-    serialize(reparsed) !== markdown
+    repeatRoundTrip(result).markdown !== markdown
   ) {
     throw new DocumentDiagnosticError("round-trip-mismatch", ADMONITION_INSERTION_FAILURE);
   }
@@ -353,11 +353,11 @@ export function updateQuoteInlineContent(document: MystDocument, path: NodePath,
 }
 
 function assertQuoteRoundTrip(document: MystDocument, index: number, content: InlineContent[]): void {
-  const markdown = serializeFor(document, QUOTE_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(document, QUOTE_FAILURE);
+  const { markdown, reparsed } = result;
   const quote = reparsed.children[bodyIndex(document, index)];
   const projected = quote && supportedQuoteContent(quote);
-  if (!projected || !sameInlineContent(content, projected) || serialize(reparsed) !== markdown) {
+  if (!projected || !sameInlineContent(content, projected) || repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", QUOTE_FAILURE);
   }
   assertCanonicalBlockBoundaries(document);
@@ -517,12 +517,12 @@ function assertFootnoteRoundTrip(document: MystDocument, label: string, content:
   // MyST keeps only referenced definitions; check one that has no reference yet with one after it.
   const check = footnoteReferences(document).includes(label) ? document : insertBlock(document, document.children.length,
     { type: "paragraph", children: [{ type: "footnoteReference", identifier: labelIdentifier(label), label }] });
-  const markdown = serializeFor(check, FOOTNOTE_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(check, FOOTNOTE_FAILURE);
+  const { markdown, reparsed } = result;
   // Canonical write places a definition by its references, so find it by its label.
   const definition = reparsed.children.find(node => node.type === "footnoteDefinition" && node.label === label);
   const projected = definition && supportedFootnoteContent(definition);
-  if (!projected || definition.label !== label || !sameInlineContent(content, projected) || serialize(reparsed) !== markdown) {
+  if (!projected || definition.label !== label || !sameInlineContent(content, projected) || repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", FOOTNOTE_FAILURE);
   }
   assertCanonicalBlockBoundaries(check);
@@ -595,12 +595,12 @@ function assertListRoundTrip(document: MystDocument, index: number, list: ListCo
   // Session edits may introduce references before their definitions. Compare against the
   // same completed snapshot serializeFor checks; final writes still require real definitions.
   const complete = completeFootnotes(document);
-  const markdown = serializeFor(complete, LIST_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(complete, LIST_FAILURE);
+  const { markdown, reparsed } = result;
   const reloaded = reparsed.children[bodyIndex(document, index)];
   const content = reloaded && supportedListContent(reloaded);
   if (reparsed.children.length !== complete.children.length || !content || !sameList(content, list) ||
-      serialize(reparsed) !== markdown) {
+      repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", LIST_FAILURE);
   }
 }
@@ -658,12 +658,12 @@ function assertCodeBlockContent(content: CodeBlockContent): void {
 function assertCodeBlockRoundTrip(document: MystDocument, index: number, content: CodeBlockContent): void {
   // Match serializeFor's intermediate snapshot, as in the list and Figure checks.
   const complete = completeFootnotes(document);
-  const markdown = serializeFor(complete, CODE_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(complete, CODE_FAILURE);
+  const { markdown, reparsed } = result;
   const reloaded = reparsed.children[bodyIndex(document, index)];
   const block = reloaded && supportedCodeBlock(reloaded);
   if (reparsed.children.length !== complete.children.length || !block || block.language !== content.language ||
-      block.code !== content.code || serialize(reparsed) !== markdown) {
+      block.code !== content.code || repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", CODE_FAILURE);
   }
 }
@@ -770,14 +770,14 @@ function tableCellInput(cell: TableCellInput): InlineContent[] {
 // serialize() rejects any semantic change; also require a stable canonical form in which every
 // editable cell of the table keeps its inline content (typed `$x$` text must not become math).
 function assertStableTable(document: MystDocument, index: number, failure: string): void {
-  const markdown = serializeFor(document, failure);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(document, failure);
+  const { markdown, reparsed } = result;
   const cells = (block: MystNode | undefined) => (tableOf(block)?.children ?? []).map((row) => (row.children ?? []).map(tableCellContent));
   const reloaded = reparsed.children[bodyIndex(document, index)];
   const before = cells(document.children[index]);
   const after = cells(reloaded);
   const caption = (block: MystNode) => tableCaptionContent(block);
-  if (serialize(reparsed) !== markdown || !tableOf(reloaded) ||
+  if (repeatRoundTrip(result).markdown !== markdown || !tableOf(reloaded) ||
       // The full semantic guard above admits the GFM-to-directive canonical wrapper change.
       !sameInlineContent(caption(document.children[index]), caption(reloaded)) || after.length !== before.length ||
       before.some((row, rowIndex) => row.length !== after[rowIndex].length || row.some((content, column) => {
@@ -1082,10 +1082,10 @@ function newLabelIdentifier(document: MystDocument, kind: "Equation" | "Figure" 
 }
 
 function assertLabelRoundTrip(document: MystDocument, index: number, label: string, failure: string): void {
-  const markdown = serializeFor(document, failure);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(document, failure);
+  const { markdown, reparsed } = result;
   const reloaded = reparsed.children[bodyIndex(document, index)];
-  if (reloaded?.type !== document.children[index].type || (reloaded.label ?? "") !== label || serialize(reparsed) !== markdown) {
+  if (reloaded?.type !== document.children[index].type || (reloaded.label ?? "") !== label || repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", failure);
   }
 }
@@ -1251,8 +1251,8 @@ function assertEquationRoundTrip(
   identifier: string | undefined,
   latex: string,
 ): void {
-  const markdown = serializeFor(document, EQUATION_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(document, EQUATION_FAILURE);
+  const { markdown, reparsed } = result;
   const equation = getNode(reparsed, [bodyIndex(document, path[0]), ...path.slice(1)]);
   if (
     equation.type !== "math" ||
@@ -1262,7 +1262,7 @@ function assertEquationRoundTrip(
   ) {
     throw new DocumentDiagnosticError("round-trip-mismatch", EQUATION_FAILURE);
   }
-  if (serialize(reparsed) !== markdown) {
+  if (repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", "Equation LaTeX change is not canonical after round-trip");
   }
 }

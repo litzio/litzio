@@ -1,4 +1,4 @@
-import { mystParse } from "myst-parser";
+import { createMystParser } from "myst-parser";
 import {
   containerChildrenTransform,
   liftMystDirectivesAndRolesTransform,
@@ -28,12 +28,13 @@ import { assertUnicode } from "./unicode.ts";
 // Keep MyST's HTML recognition: disabling it would admit unsupported HTML as text.
 // The pinned markdown-it patch bounds unterminated inline HTML scans instead.
 export const OPTIONS = { extensions: { smartquotes: false, citations: false, attrs_block: true } };
+const parseMyst = createMystParser(OPTIONS);
 
 export function parse(source: string): MystDocument {
   assertUnicode(source);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
   const file = new VFile();
-  const document = mystParse(text, { ...OPTIONS, vfile: file }) as MystDocument;
+  const document = parseMyst(text, file) as MystDocument;
   markFrontMatter(document, text);
   retainTableSource(document, file);
   retainMermaidOptions(document, file);
