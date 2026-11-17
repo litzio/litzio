@@ -128,6 +128,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       const rects = rectangles();
       const hostRect = host.getBoundingClientRect();
       const top = hostRect.top;
+      const scale = Number(getComputedStyle(host).zoom) || 1;
       let blockPos = 0;
       const next = rects.map((rect, index) => {
         const node = editor.state.doc.child(index);
@@ -136,7 +137,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
         const endnote = endnoteLabel(node) !== undefined;
         const headingElement = node.type.name === "heading" ? editor.view.nodeDOM(pos) : null;
         const heading = headingElement instanceof HTMLElement
-          ? { level: Number(node.attrs.level), center: rect.top - top + parseFloat(getComputedStyle(headingElement).lineHeight) / 2 }
+          ? { level: Number(node.attrs.level), center: (rect.top - top) / scale + parseFloat(getComputedStyle(headingElement).lineHeight) / 2 }
           : undefined;
         const location = saveLocations.find(location => location.index === index);
         const element = location?.cell ? editor.view.nodeDOM(pos) : null;
@@ -146,9 +147,9 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
         const scrollRect = element instanceof HTMLElement ? element.querySelector(".table-scroll")?.getBoundingClientRect() : undefined;
         const left = cellRect ? Math.max(cellRect.left, scrollRect?.left ?? cellRect.left) : 0;
         const right = cellRect ? Math.min(cellRect.right, scrollRect?.right ?? cellRect.right) : 0;
-        const cell = cellRect && right > left ? { top: cellRect.top - top, left: left - hostRect.left,
-          width: right - left, height: cellRect.height } : undefined;
-        return {top: rect.top - top, height: rect.height, endnote, heading,
+        const cell = cellRect && right > left ? { top: (cellRect.top - top) / scale, left: (left - hostRect.left) / scale,
+          width: (right - left) / scale, height: cellRect.height / scale } : undefined;
+        return {top: (rect.top - top) / scale, height: rect.height / scale, endnote, heading,
           cell,
           sourcePath: String(node.attrs.sourcePath ?? ""),
           name: endnote ? "endnote" : node.type.name.replace(/Block$/, "").toLowerCase()};

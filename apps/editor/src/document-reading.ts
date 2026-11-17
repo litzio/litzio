@@ -39,8 +39,9 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
         blocks.push({ key, ...geometry(dom) });
         const scroller = node.type.name === "table" ? dom.querySelector<HTMLElement>(".table-scroll") : null;
         const scrollRect = scroller && geometry(scroller);
-        const clip = scroller && scrollRect ? { left: scrollRect.left + scroller.clientLeft, top: scrollRect.top + scroller.clientTop,
-          width: scroller.clientWidth, height: scroller.clientHeight } : undefined;
+        const scale = scroller && scrollRect ? scrollRect.width / scroller.offsetWidth : 1;
+        const clip = scroller && scrollRect ? { left: scrollRect.left + scroller.clientLeft * scale, top: scrollRect.top + scroller.clientTop * scale,
+          width: scroller.clientWidth * scale, height: scroller.clientHeight * scale } : undefined;
         if (clip) node.forEach((row, rowOffset) => {
           if (row.type.name !== "tableRow") return;
           row.forEach((cell, cellOffset) => {
