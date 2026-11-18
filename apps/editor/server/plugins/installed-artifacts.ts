@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { cpSync, lstatSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { cp, lstat } from "node:fs/promises";
 import path from "node:path";
 import { canonicalFilePath, inside } from "../file-access.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
 
 export const installationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const includeSourceFile = (file: string) => path.basename(file).toLowerCase() !== ".git";
+// Dependency changes show in package.json and the lockfile; hashing node_modules would stall the Host.
+const digestSourceFile = (file: string) => includeSourceFile(file) && path.basename(file).toLowerCase() !== "node_modules";
 
 /** Resolve aliases in the existing prefix even when a registered source has gone missing. */
 function canonicalRecordedPath(directory: string): string {
@@ -47,7 +50,11 @@ export class InstalledArtifacts {
     return directory;
   }
 
-  copy(source: string) {
+  /** Install and update check share this rule: the recorded source digest skips .git and node_modules. */
+  sourceDigest(source: string): string { return artifactDigest(source, digestSourceFile); }
+
+  /** Asynchronous so a large node_modules does not stop the Host from serving other requests. */
+  async copy(source: string) {
     mkdirSync(path.dirname(this.location), { recursive: true });
     const root = this.root();
     if (inside(root, source) || inside(source, root)) throw new Error("Plugin source overlaps Host artifact storage");
@@ -56,14 +63,14 @@ export class InstalledArtifacts {
     mkdirSync(root, { recursive: true });
     mkdirSync(directory);
     try {
-      cpSync(source, directory, { recursive: true, filter: file => {
+      await cp(source, directory, { recursive: true, filter: async file => {
         if (!includeSourceFile(file)) return false;
-        const entry = lstatSync(file);
+        const entry = await lstat(file);
         if (!entry.isDirectory() && !entry.isFile()) throw new Error("Artifact must contain real files, not linked dependencies");
         return true;
       } });
-      const sourceDigest = artifactDigest(directory);
-      if (artifactDigest(source, includeSourceFile) !== sourceDigest) throw new Error("Plugin source changed while copying");
+      const sourceDigest = this.sourceDigest(directory);
+      if (this.sourceDigest(source) !== sourceDigest) throw new Error("Plugin source changed while copying");
       return { installationId, directory, sourceDigest };
     } catch (error) {
       this.remove(installationId);

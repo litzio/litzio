@@ -3124,6 +3124,12 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   const sent = bodies.length;
   for (const args of [["trust", "local.greeting"], ["enable", "local.greeting", "--trust"]]) assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.equal(bodies.length, sent, "missing registration cannot dispatch consent");
+  for (const args of [["check-updates"], ["check-updates", "local.greeting"], ["update", "local.greeting"]]) {
+    assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1, "a failure receipt exits with failure");
+  }
+  assert.deepEqual(bodies.slice(sent), [{ action: "check-updates" }, { action: "check-updates", id: "local.greeting" }, { action: "update", id: "local.greeting" }]);
+  assert.equal(await runCliAsync(["plugins", "update", "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.equal(bodies.length, sent + 3, "update without a plugin ID is not dispatched");
 
 });
 

@@ -67,7 +67,7 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("register"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("trust"), id, registrationId: z.uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/).optional() }),
   z.strictObject({ action: z.literal("unregister"), id }),
-  z.strictObject({ action: z.literal("reload"), id }), z.strictObject({ action: z.literal("enable"), id, registrationId: z.uuid().optional(), trust: z.boolean().optional() }), z.strictObject({ action: z.literal("disable"), id }),
+  z.strictObject({ action: z.literal("reload"), id }), z.strictObject({ action: z.literal("check-updates"), id: id.optional() }), z.strictObject({ action: z.literal("update"), id }), z.strictObject({ action: z.literal("enable"), id, registrationId: z.uuid().optional(), trust: z.boolean().optional() }), z.strictObject({ action: z.literal("disable"), id }),
   z.strictObject({ action: z.literal("settings"), id, settings: z.record(z.string(), z.unknown()).optional() }),
 ]);
 export type PluginManagementInput = z.infer<typeof pluginManagementSchema>;
