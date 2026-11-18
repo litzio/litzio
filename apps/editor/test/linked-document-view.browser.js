@@ -219,9 +219,8 @@ async (page, { expect, screenshots }) => {
   };
   if (screenshots) await captureThemes('branches');
   await branchToggle.click();
-  await sourcePane.hover();
-  const scrollIntoBox = await linkedItem(2).evaluate(node => node.offsetTop+12);
-  await page.mouse.wheel(0,scrollIntoBox);
+  // Set the partially clipped position exactly, regardless of native wheel granularity.
+  await linkedItem(2).evaluate(node => node.closest('.linked-document-source').scrollTo(0,node.offsetTop+12));
   await expect.poll(() => band(2).evaluate(path => {
     const host = path.closest('.linked-document-panes');
     const pane = host.querySelector('.linked-document-source');
@@ -236,8 +235,7 @@ async (page, { expect, screenshots }) => {
   })).toBe(true);
   await expect.poll(clipping).toBe(true);
   if (screenshots) await captureThemes('clipped');
-  await sourcePane.hover();
-  await page.mouse.wheel(0,-scrollIntoBox);
+  await sourcePane.evaluate(pane => pane.scrollTo(0,0));
 
   await linkedPreview.locator('.tiptap > p').first().click();
   await expect(linkedItem(1)).toHaveAttribute('aria-pressed','true');
