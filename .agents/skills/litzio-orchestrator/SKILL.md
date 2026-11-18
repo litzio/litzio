@@ -127,7 +127,7 @@ node <skill>/scripts/pr-gate.mjs --pr <N> --enqueue --note-file <note.md>  # 기
 ```
 
 - **대기열에서만 도는 검사를 먼저 대조한다.** PR CI는 Windows Desktop package·update·uninstall과 HTTP 일부를 건너뛰고, `pr-gate`는 건너뛴 job을 통과로 센다. `pr-gate`의 성공은 PR 검사의 성공이며 merge_group 전용 검사의 성공이 아니다. 화면의 문구·role·구조·test id나 CLI 출력을 바꾼 PR은 넣기 전에 오케스트레이터가 `apps/desktop/test/packaged/`와 `http-plugins`·`http-host` 시나리오에서 그 화면을 다루는 줄을 직접 읽고 PR head의 소스와 대조한다. 지운 이름을 검색하는 것만으로는 남아 있는 요소에 대한 기다림(role, 순서, 저장 대기)을 잡지 못한다. 작업자의 "검색해 보니 없음" 보고로 대신하지 않는다. 대조한 파일과 결과를 기록 댓글에 쓰고, 충돌 해결로 head가 바뀌면 다시 한다.
-- **넣기 전에 대기열에 있는 PR과의 충돌을 확인한다.** `pr-gate`의 충돌 검사는 지금의 master만 본다. 대기열에 이미 다른 PR이 있으면 `git merge-tree --write-tree --name-only origin/<앞 PR의 브랜치> origin/<이 PR의 브랜치>`로 두 PR이 서로 충돌하는지 본다. 충돌하면 넣지 말고 앞 PR의 병합을 기다린 뒤 master를 병합해 풀게 한다. 버전 줄만이 아니라 계약 문서와 공용 검사 파일도 같은 자리를 고치기 쉽다. 같은 파일을 고칠 것이 보이는 PR들은 처음부터 순서를 정해 하나씩 올리거나 한 PR로 묶는다.
+- `pr-gate`는 master 대기열에 있는 다른 PR과의 충돌을 확인하며, 충돌하거나 대기열을 확인할 수 없으면 enqueue하지 않는다. 충돌하면 앞 PR의 병합을 기다린 뒤 master를 병합해 풀게 한다. 같은 파일(계약 문서·공용 검사 파일 포함)을 고칠 것이 보이는 PR들은 처음부터 순서를 정해 하나씩 올리거나 한 PR로 묶는다.
 - 스크립트는 저장소, PR head와 원격 브랜치 일치, Draft 여부, 충돌, PR의 필수 CI 성공, 미해결 review thread 0, 저장소 validator의 AI trailer, 기록 파일의 리뷰 판정 줄을 확인한다. 하나라도 실패하면 enqueue하지 않는다. Draft PR은 `gh pr ready <N>`로 바꾼 뒤 다시 확인한다.
 - 기록 댓글의 첫 줄은 `독립 리뷰: APPROVE <head>` 또는 `독립 리뷰: 생략 — <5절 기준에 비춘 사유>`다. 스크립트는 이 줄이 없는 기록 파일로는 넣지 않는다. 다음 줄에 `작업자: <모델> <추론 강도> / 리뷰어: <모델> <추론 강도 또는 없음>`을 쓴다(모델 비교의 자료다. 같은 PR에 작업자가 여럿이었으면 모두 쓴다). 이어서 오케스트레이터가 확인한 것을 쓴다.
 - 승인 뒤 head가 바뀐 경우에는 CONTRIBUTING 5단계를 따른다.
