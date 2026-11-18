@@ -8,7 +8,9 @@ import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigestAsync } from "./artifact-digest.mjs";
 import { InstalledArtifacts } from "./installed-artifacts.ts";
-import { readPluginRegistrations, type InstalledPlugin, type PluginRegistration } from "./plugin-registrations.ts";
+import { readPluginRegistrations, type GitHubRegistration, type InstalledPlugin, type PluginRegistration } from "./plugin-registrations.ts";
+import { GitHubSource, GitHubSourceError, type GitHubTarget } from "./github-source.ts";
+import { rm } from "node:fs/promises";
 import { PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../../shared/plugin-registration-error.ts";
 import { publicOperationError, publicOperationResult, publicInputIssues, safePluginValue } from "./operation-result.ts";
 import { assertNoPluginSecrets } from "./secret-redaction.ts";
@@ -18,7 +20,7 @@ import path from "node:path";
 import { accessPath, canonicalFilePath, inside, RootAccess, FileAccessError, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess } from "./plugin-process.ts";
-import { healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
+import { parseGitHubSource, type GitHubTrack, healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
@@ -27,6 +29,7 @@ import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store
 type ManifestIssue = { path: PropertyKey[]; code: string; message: string; issues?: ManifestIssue[] };
 type ValidationDiagnostic = { file: string; line: number | null; column: number | null; kind: string; path?: string; message?: string; code?: string };
 function validationDiagnostics(error: unknown, file: string): ValidationDiagnostic[] {
+  if (error instanceof GitHubSourceError) return [{ file: "GitHub source", line: null, column: null, kind: "GitHub source unavailable", path: "source", message: error.message, code: "github_source" }];
   if (error instanceof AssistantSkillValidationError) return [{ file: error.file, line: null, column: null, kind: "Assistant skill validation failed", path: error.field, message: error.message, code: "invalid_skill" }];
   if (file === "artifact directory") {
     const code = error instanceof FileAccessError ? "outside_plugin_scope" : (error as NodeJS.ErrnoException)?.code;
@@ -74,8 +77,23 @@ function assertStoredSettings(manifest: PluginManifest, settings: Record<string,
 type Artifact = { manifest: PluginManifest; digest: string; entry: string; icon?: ReturnType<typeof readPluginIcon> };
 /** structuredClone would turn the icon Buffer into a plain Uint8Array; nothing mutates the bytes. */
 const copyArtifact = ({ icon, ...rest }: Artifact): Artifact => ({ ...structuredClone(rest), ...(icon ? { icon } : {}) });
-/** Last local source comparison. Memory only: every check reads the source again. */
-type UpdateCheck = { currentVersion: string | null; sourceVersion: string | null; available: boolean; error?: string };
+/** Last source comparison. Memory only: every check reads the source again. */
+type UpdateCheck = { currentVersion: string | null; sourceVersion: string | null; available: boolean; track?: GitHubTrack; error?: string };
+/** What the record names as its source; local paths stay inside the Host. */
+const sourceSummary = (record: InstalledPlugin) => record.github
+  ? { kind: "github" as const, url: record.github.url, ...(record.github.path !== undefined ? { path: record.github.path } : {}), ...(record.github.track ? { track: record.github.track } : {}), local: !!record.sourceDirectory }
+  : { kind: "local" as const };
+/**
+ * A local folder whose manifest names a GitHub repository is checked and updated from
+ * GitHub. Its applied tree stays known only while the folder holds that same content.
+ */
+function localOrigin(sourceDirectory: string, manifest: PluginManifest, previous: PluginRegistration | undefined, sourceDigest: string): Pick<InstalledPlugin, "sourceDirectory" | "github"> {
+  if (!manifest.repository) return { sourceDirectory };
+  const kept = previous && "installationId" in previous && previous.github?.url === manifest.repository ? previous : undefined;
+  const same = kept?.github?.commit && kept.sourceDigest === sourceDigest;
+  return { sourceDirectory, github: { url: manifest.repository, ...(kept?.github?.track ? { track: kept.github.track } : {}),
+    ...(same ? { path: kept.github!.path, commit: kept.github!.commit, tree: kept.github!.tree } : {}) } };
+}
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
 export class PluginHost {
   private installed: Record<string, PluginRegistration>;
@@ -101,7 +119,9 @@ export class PluginHost {
   skillDisplayName(file: string) { return this.assistantSkills.displayName(file); }
   readonly authoringDirectory: string;
   private authoringRoot?: RootAccess;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; } = {}) {
+  private github: GitHubSource;
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource } = {}) {
+    this.github = options.github ?? new GitHubSource();
     this.copies = new InstalledArtifacts(file);
     this.cli = options.cli === null ? undefined : options.cli ?? availableHostCli();
     this.assistantSkills = new PluginAssistantSkills(options.assistantDirectory ?? path.join(path.dirname(file), "assistant"));
@@ -219,7 +239,7 @@ export class PluginHost {
     try { this.assistantSkills.clear(); } catch { skillCleanupFailed = true; }
     if (registrations) {
       const retained = new Set(Object.values(registrations).flatMap(record => "installationId" in record ? [record.installationId] : []));
-      const sources = Object.values(registrations).map(record => "sourceDirectory" in record ? record.sourceDirectory : record.directory);
+      const sources = Object.values(registrations).flatMap(record => "installationId" in record ? record.sourceDirectory ? [record.sourceDirectory] : [] : [record.directory]);
       try { this.copies.cleanOrphans(retained, sources); }
       catch { console.warn("Unable to inspect Host plugin artifact storage for cleanup"); }
     }
@@ -261,8 +281,8 @@ export class PluginHost {
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
         return { id, registrationId: r.registrationId, name: m.name, description: m.description, version: m.version ?? null, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: !!current,
-          iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest, update };
-      } catch (e) { return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, update, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : this.errors.get(id) ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) }; }
+          iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest, update, source: sourceSummary(r) };
+      } catch (e) { return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, update, source: sourceSummary(r), error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : this.errors.get(id) ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) }; }
     }));
   }
   private async enable(id: string) {
@@ -347,10 +367,57 @@ export class PluginHost {
     this.serial = run.catch(() => {}); return run;
   }
   private record(id: string) { if (!Object.hasOwn(this.installed, id)) throw new Error("Plugin is not registered"); return this.installed[id]!; }
-  private sourceDirectory(record: InstalledPlugin, creationScope: FileAccess = LOCAL_FILE_ACCESS) {
+  private sourceDirectory(record: InstalledPlugin & { sourceDirectory: string }, creationScope: FileAccess = LOCAL_FILE_ACCESS) {
     const directory = this.artifactDirectory(record.sourceDirectory, creationScope);
     if (path.relative(record.sourceDirectory, directory) !== "") throw new Error("Plugin source directory changed");
     return directory;
+  }
+  /** Host-owned extraction folder beside the registration file, never inside installed copies. */
+  private staging() { return path.join(path.resolve(`${this.file}.staging`), randomUUID()); }
+  private npmData() {
+    // Absolute here: npm resolves relative --cache and --logs-dir against the project folder.
+    const npmFolder = path.resolve(path.dirname(this.file), "plugin-npm");
+    return { cache: path.join(npmFolder, "cache"), logs: path.join(npmFolder, "logs") };
+  }
+  /** A downloaded plugin brings its node_modules, or a lockfile that npm ci reproduces without scripts. */
+  private async prepareDependencies(directory: string) {
+    const packageFile = path.join(directory, "package.json");
+    if (!existsSync(packageFile) || existsSync(path.join(directory, "node_modules"))) return;
+    if (!Object.keys((readArtifactJson(packageFile) as { dependencies?: Record<string, string> }).dependencies ?? {}).length) return;
+    if (!["package-lock.json", "npm-shrinkwrap.json"].some(file => existsSync(path.join(directory, file)))) {
+      throw new GitHubSourceError("This plugin declares dependencies without package-lock.json. Ask its author to commit the lockfile.");
+    }
+    try { await installScreenDependencies(directory, this.npmData(), "ci"); }
+    catch (error) { throw new GitHubSourceError(error instanceof Error ? error.message : "Package download failed."); }
+  }
+  /**
+   * Download one commit's plugin folder into Host staging, prepare dependencies, then use
+   * the same apply path as a local folder. Staging is removed whether or not it applies.
+   */
+  private async applyGitHub(action: "register" | "install" | "reload" | "update", github: Pick<GitHubRegistration, "url" | "track">, expectedId?: string,
+    options: { sourceDirectory?: string; pinned?: GitHubTarget; inspecting?: (file: string) => void } = {}) {
+    const location = await this.github.locate(github.url);
+    const target = options.pinned ?? await this.github.target(location, github.track);
+    const staging = this.staging();
+    try {
+      await this.github.download(location, target.commit, staging);
+      if (!existsSync(path.join(staging, "litzio-plugin.json"))) throw new GitHubSourceError("No litzio-plugin.json in this GitHub folder.");
+      await this.prepareDependencies(staging);
+      return await this.applySource(action, staging, expectedId, options.inspecting, {
+        ...(options.sourceDirectory ? { sourceDirectory: options.sourceDirectory } : {}),
+        github: { url: github.url, path: location.path, track: target.track, commit: target.commit, tree: target.tree },
+      });
+    } finally { await rm(staging, { recursive: true, force: true }); }
+  }
+  /** A repository or parent folder address names one plugin only when exactly one folder below it has a manifest. */
+  private async githubPlugin(source: string) {
+    const location = await this.github.locate(source);
+    const { plugins } = await this.github.plugins(location);
+    const candidates = plugins.filter(plugin => !plugin.error);
+    const exact = candidates.find(plugin => plugin.path === location.path);
+    if (exact) return { source: parseGitHubSource(source)!.tree.length ? source : exact.source, plugins: [] };
+    if (candidates.length === 1) return { source: candidates[0]!.source, plugins: [] };
+    return { source: undefined, plugins: candidates };
   }
   /** New content means the source differs from what this registration last applied, whatever its version text says. */
   private async checkUpdate(id: string): Promise<UpdateCheck> {
@@ -359,8 +426,18 @@ export class PluginHost {
     let currentVersion: string | null = null;
     try { currentVersion = (await this.installedArtifact(record)).manifest.version ?? null; } catch { /* list reports the installed copy */ }
     let check: UpdateCheck;
+    if (record.github) {
+      // Even a local installation follows its manifest repository for updates.
+      try {
+        const target = await this.github.target(await this.github.locate(record.github.url), record.github.track);
+        check = { currentVersion, sourceVersion: target.version, available: target.tree !== record.github.tree, track: target.track };
+      } catch (error) { check = { currentVersion, sourceVersion: null, available: false, error: error instanceof GitHubSourceError ? error.message : "GitHub update check failed." }; }
+      this.updates.set(id, { installationId: record.installationId, check });
+      return check;
+    }
     try {
-      const directory = this.sourceDirectory(record);
+      if (!record.sourceDirectory) throw new Error(PLUGIN_SOURCE_UNAVAILABLE);
+      const directory = this.sourceDirectory({ ...record, sourceDirectory: record.sourceDirectory });
       const available = this.copies.sourceDigest(directory) !== record.sourceDigest;
       let sourceVersion: string | null = null;
       try { sourceVersion = validateManifest(readArtifactJson(path.join(directory, "litzio-plugin.json"))).version ?? null; } catch { /* update reports diagnostics */ }
@@ -401,7 +478,7 @@ export class PluginHost {
   }
   /** Stage the same local snapshot for folder registration, install, reload and update. */
   private async applySource(action: "register" | "install" | "reload" | "update", sourceDirectory: string, expectedId?: string,
-    inspecting: (file: string) => void = () => {}) {
+    inspecting: (file: string) => void = () => {}, origin?: Pick<InstalledPlugin, "sourceDirectory" | "github">) {
     const copy = await this.copies.copy(sourceDirectory);
     let applied = false;
     try {
@@ -435,8 +512,8 @@ export class PluginHost {
       // Update keeps the registration's trust and on/off state; install and reload enable it.
       const kept = action === "update" ? previous : undefined;
       const active = kept ? kept.enabled && !!kept.trusted : action !== "register";
-      const record = { registrationId: (active || kept?.trusted) && previous && "installationId" in previous ? previous.registrationId : randomUUID(),
-        installationId: copy.installationId, sourceDirectory, sourceDigest: copy.sourceDigest,
+      const record: InstalledPlugin = { registrationId: (active || kept?.trusted) && previous && "installationId" in previous ? previous.registrationId : randomUUID(),
+        installationId: copy.installationId, ...(origin ?? localOrigin(sourceDirectory, manifest, previous, copy.sourceDigest)), sourceDigest: copy.sourceDigest,
         digest: artifact.digest, trusted: kept ? !!kept.trusted : active, enabled: active, settings: previous?.settings ?? {}, operationNames };
       if (active) await this.activate(record, copy.directory, artifact, previous, true);
       else {
@@ -506,18 +583,30 @@ export class PluginHost {
       return { ...publicOperationError(error, op.effect, secrets), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { template?: "greet" | "screen" | "chart"; id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
+  invoke(action: string, args: { template?: "greet" | "screen" | "chart"; id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string; source?: string; track?: GitHubTrack } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action === "screen-invoke") return this.invokeOperation(args.operation!, args.input, undefined, args.plugin);
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));
+    if (action === "source-plugins") return this.github.locate(args.source!).then(location => this.github.plugins(location)).then(found => ({ ...found,
+      receipt: { requestId: randomUUID(), operation: "plugins.source-plugins", version: 1, scope: "host", outcome: "success" } }));
     const run = this.serial.then(async () => {
       let id = args.id!;
       const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
       if (action === "install") {
         let file = "artifact directory";
         try {
+          if (args.source) {
+            file = "GitHub source";
+            const chosen = await this.githubPlugin(args.source);
+            if (!chosen.source) return { valid: false, plugins: chosen.plugins, errors: [{ file, line: null, column: null, kind: "GitHub source unavailable", path: "source", code: "github_source",
+              message: chosen.plugins.length ? "This address holds several plugins. Install one with its folder address from plugins[].source." : "No litzio-plugin.json under this GitHub address." }], receipt: receipt("failure") };
+            const result = await this.applyGitHub("install", { url: chosen.source, track: args.track }, undefined, { inspecting: current => { file = current; } });
+            id = result.id;
+            if (result.errors) return { id, valid: false, errors: result.errors, receipt: receipt("failure") };
+            return { id, plugins: await this.list(), receipt: receipt("success") };
+          }
           const requested = args.directory ?? path.join(this.authoringAccess().roots[0]!, id);
           const directory = this.artifactDirectory(requested, creationScope);
           const result = await this.applySource("install", directory, args.id, current => { file = current; });
@@ -541,9 +630,7 @@ export class PluginHost {
         const outside = (file: string) => this.copies.assertOutside(file);
         if (action === "bundle") return { ...bundleScreens(directory, outside), receipt: receipt("success") };
         // Litzio chooses these npm write locations; other npm settings in the target folder are its author's.
-        // Absolute here: npm resolves relative --cache and --logs-dir against the project folder.
-        const npmFolder = path.resolve(path.dirname(this.file), "plugin-npm");
-        const npmData = { cache: path.join(npmFolder, "cache"), logs: path.join(npmFolder, "logs") };
+        const npmData = this.npmData();
         for (const file of [path.join(directory, "node_modules"), path.join(directory, "package-lock.json"), npmData.cache, npmData.logs]) outside(file);
         return { ...await installScreenDependencies(directory, npmData), receipt: receipt("success") };
       }
@@ -566,6 +653,12 @@ export class PluginHost {
         return { updates, plugins: await this.list(), receipt: receipt(updates.some(update => update.error) ? "failure" : "success") };
       }
       if (action === "register") {
+        if (args.source) {
+          const chosen = await this.githubPlugin(args.source);
+          if (!chosen.source) throw new GitHubSourceError(chosen.plugins.length ? "This address holds several plugins. Choose one." : "No litzio-plugin.json under this GitHub address.");
+          ({ id } = await this.applyGitHub("register", { url: chosen.source, track: args.track }));
+          return { id, plugins: await this.list(), receipt: receipt("success") };
+        }
         const directory = this.artifactDirectory(args.directory!, creationScope);
         ({ id } = await this.applySource("register", directory));
         return { id, plugins: await this.list(), receipt: receipt("success") };
@@ -609,7 +702,13 @@ export class PluginHost {
         else if (action === "reload" || action === "update") {
           if (!("installationId" in r)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
           // The pinned source may disappear or become invalid without affecting the running copy.
-          await this.applySource(action, this.sourceDirectory(r, creationScope), id);
+          // Reload rereads the folder it was added from; update follows GitHub whenever the record names it.
+          if (r.sourceDirectory && (action === "reload" || !r.github)) await this.applySource(action, this.sourceDirectory({ ...r, sourceDirectory: r.sourceDirectory }, creationScope), id);
+          else if (r.github) {
+            const { commit, tree, track } = r.github;
+            await this.applyGitHub(action, r.github, id, { sourceDirectory: r.sourceDirectory,
+              ...(action === "reload" && commit && tree && track ? { pinned: { commit, tree, track, version: null } } : {}) });
+          } else throw new Error(PLUGIN_SOURCE_UNAVAILABLE);
           return { id, plugins: await this.list(), receipt: receipt("success") };
         }
         else if (action === "disable") { r.enabled = false; this.save(); await this.disable(id); }

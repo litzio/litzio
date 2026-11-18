@@ -7,6 +7,8 @@ test('code identity declares settings, connection secrets, skills and public ope
  assert.equal(m.settingsSchema.properties!==undefined,true);assert.equal(m.secrets[0]?.id,'token');assert.equal(m.contributes.skills[0]?.id,'guide');assert.equal(m.contributes.operations[0]?.assistant,true);assert.equal(m.contributes.screens[0]?.entry,'screen.jsx');
  assert.equal(validateManifest(card).version,undefined);
  assert.equal(validateManifest({...card,version:'November preview'}).version,'November preview');
+ for(const repository of ['https://github.com/acme/tools','https://github.com/acme/tools.git/','https://github.com/acme/tools/tree/main/plugins/alpha','https://github.com/acme/tools/tree/feat/x/plugins/alpha'])assert.equal(validateManifest({...card,repository}).repository,repository);
+ for(const repository of ['http://github.com/acme/tools','https://gitlab.com/acme/tools','https://github.com/acme','https://github.com/acme/tools/blob/main/a','https://github.com/acme/tools/tree','https://github.com/acme/tools/tree/main/../x','https://token@github.com/acme/tools','https://github.com/acme/tools?ref=main'])assert.throws(()=>validateManifest({...card,repository}),/public GitHub address/,repository);
 });
 test('manifest rejects obsolete syntax, escapes, duplicate declarations and invalid schemas before execution',()=>{
  for(const version of ['', '  ', '1\n2', '1\r2', '1\u20282', 1])assert.throws(()=>validateManifest({...card,version}));

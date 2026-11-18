@@ -34,6 +34,22 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.getByRole("dialog").getByRole("button", { name: "Trust and enable", exact: true }).click();
   await expect(toggle).toBeEnabled();
   await expect(external.getByRole("switch")).toBeChecked();
+  await expect(external.getByText(/^Version 0\.1\.0 · Local folder/)).toBeVisible();
+  // A public GitHub repository: find its plugin folders, choose one and its track, then add it like a folder.
+  await page.getByRole("button", { name: "Add from GitHub…", exact: true }).click();
+  const github = page.getByRole("dialog", { name: "Add plugin from GitHub", exact: true });
+  await github.getByRole("textbox", { name: "GitHub address", exact: true }).fill("https://github.com/litzio-fixtures/plugins");
+  await github.getByRole("button", { name: "Find", exact: true }).click();
+  await expect(github.getByRole("radio")).toHaveCount(2);
+  await expect(github.getByRole("button", { name: "Release", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await github.getByRole("radio", { name: /^Beta fixture/ }).check();
+  await expect(github.getByRole("button", { name: "Release", exact: true })).toBeDisabled();
+  await expect(github.getByRole("button", { name: "Branch", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await github.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(github).toHaveCount(0);
+  const remote = page.getByRole("region", { name: "Beta fixture", exact: true });
+  await expect(remote.getByText("Version 0.2.0 · GitHub litzio-fixtures/plugins/plugins/beta · Branch", { exact: true })).toBeVisible();
+  await expect(remote.getByRole("switch", { name: "Enable Beta fixture", exact: true })).not.toBeChecked();
   await expect(external.getByRole("button", { name: "Vite fixture", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Open view ·/ })).toHaveCount(0);
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
@@ -60,6 +76,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await expect(page.locator('[data-slot=tooltip-content][data-open]')).toHaveCount(0);
       await page.getByTestId('settings-dialog').screenshot({path:`docs/design/assets/settings-parts-1685/plugin-list-${width}-${theme}.png`});
     }
+    await page.setViewportSize({width:1440,height:1100});
+    await page.evaluate(async()=>{const {applyTheme}=await import('/src/theme.ts');await applyTheme('light',false);});
+    await page.mouse.move(0,0);
+    await page.getByTestId('settings-dialog').screenshot({path:'docs/design/assets/plugin-github-install-1750/after-1440-light.png'});
     await external.getByRole('button',{name:'Vite fixture 설정',exact:true}).click();
     await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('en');});
     await page.setViewportSize({width:1440,height:1000});

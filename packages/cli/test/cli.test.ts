@@ -3130,6 +3130,14 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
   assert.deepEqual(bodies.slice(sent), [{ action: "check-updates" }, { action: "check-updates", id: "local.greeting" }, { action: "update", id: "local.greeting" }]);
   assert.equal(await runCliAsync(["plugins", "update", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.equal(bodies.length, sent + 3, "update without a plugin ID is not dispatched");
+  const github = "https://github.com/acme/tools/tree/main/plugins/alpha";
+  for (const args of [["install", github], ["install", github, "--track", "release"], ["register", github, "--track", "branch"], ["source-plugins", "https://github.com/acme/tools"]]) {
+    assert.equal(await runCliAsync(["plugins", ...args, "--host", "http://127.0.0.1:5180", "--json"]), 1, "a failure receipt exits with failure");
+  }
+  assert.deepEqual(bodies.slice(sent + 3), [{ action: "install", source: github }, { action: "install", source: github, track: "release" },
+    { action: "register", source: github, track: "branch" }, { action: "source-plugins", source: "https://github.com/acme/tools" }]);
+  assert.equal(await runCliAsync(["plugins", "install", github, "--track", "latest", "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.equal(bodies.length, sent + 7, "an unknown track is not dispatched");
 
 });
 

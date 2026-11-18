@@ -20,6 +20,8 @@ SDK 0.10.0은 Core의 `updateDocumentStatus`, `DocumentStatus`, `DOCUMENT_STATUS
 
 `version`은 공백만으로 이루어지지 않은 한 줄 문자열이며 SDK가 검증한다. 버전 형식과 순서는 작성자가 정한다. 기존 artifact는 필드를 생략할 수 있으며 설정 목록에 ‘버전 없음’, `plugins list`에 `version: null`로 표시한다. scaffold의 기본값은 `0.1.0`이다.
 
+선택 `repository`는 공개 GitHub 주소다. 저장소 주소(`https://github.com/<owner>/<repo>`)나 하위 폴더 주소(`https://github.com/<owner>/<repo>/tree/<ref>/<폴더>`)만 받으며 SDK가 형식을 검증한다. 로컬 폴더로 설치한 플러그인도 이 칸이 있으면 업데이트 확인·적용은 GitHub 기준이다([GitHub 출처](#github-출처)).
+
 선택 선언에는 `description`, `operations`, `settingsSchema`, `secrets`, `skills`, `healthCheck`도 있다. 공개 작업은 id·version·effect(read/write)·scope·assistant·inputSchema·outputSchema를 선언한다. 생략 기본값은 version 1, read, host, assistant false, 빈 schema다. 화면 전용 handler는 공개 작업 선언 없이 자기 화면의 invoke로 호출한다. 비서는 assistant:true 읽기와 healthCheck만 호출한다. 외부 CLI의 공개 invoke와 같은 입력·출력 검증 및 receipt를 사용한다.
 
 아이콘은 제공된 이름 또는 artifact 내부 SVG/PNG다(확장자 대소문자 무관, 최대 64 KiB·가로/세로 1–256px). WebP 등 다른 형식은 거부한다. SDK의 공통 형식 정의를 manifest 검증과 Host 로더가 함께 사용한다. host/screen/icon의 절대 경로·URL·상위 탈출을 거부하며 파일은 artifact 안에서 해석한다. 화면 소스와 SDK handler 검증은 설치 시 실행 전에 수행한다. 스키마의 외부 참조·중복 작업/secret/skill ID를 거부한다. SDK는 Editor/React 엔진에 의존하지 않는다.
@@ -122,7 +124,23 @@ Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 dige
 
 `plugins check-updates [id]`는 전체 또는 한 등록의 로컬 출처를 읽어 등록별 `{id, currentVersion, sourceVersion, available, error?}`를 돌려준다. 설치 때와 같은 규칙으로 계산한 원본 출처 digest가 등록의 출처 digest와 다르면 `available`이다. 버전 순서는 비교하지 않으며, 버전이 같아도 내용이 다르면 새 내용이다. 원본 폴더가 없거나 읽을 수 없으면 그 등록의 `error`로 알리고 설치본은 그대로 동작한다. 구형 등록은 원본 폴더에서 다시 추가하라는 `error`다. 확인 오류가 하나라도 있으면 receipt는 failure다. 마지막 확인 결과는 Host 메모리에만 두며 `list`의 `update`로 보인다. 그 설치본이 바뀌거나 Host가 다시 시작하면 사라진다. 확인은 출처를 매번 다시 읽고, 등록 파일에는 적용한 출처 digest만 남긴다.
 
-`plugins update <id>`는 `reload`와 같은 적용 경로로 로컬 출처를 다시 복사한다. 등록 ID·신뢰·켜짐 상태·설정·비밀값을 유지한다. 꺼진 플러그인은 검증한 새 판으로 바꾸되 꺼진 채로 둔다. 켜짐 여부와 관계없이 저장된 설정이 새 판의 settingsSchema에 맞지 않으면 실패하고 기존 판과 등록을 유지한다. 신뢰하지 않은 등록은 새 registrationId를 받아 다음 신뢰 확인이 새 판을 대상으로 한다. 실패하면 기존 판과 확인 결과를 유지한다. 관리 작업은 순서대로 처리하므로 동시에 들어온 확인과 업데이트도 한 순서로 관찰된다.
+`plugins update <id>`는 `reload`와 같은 적용 경로로 출처를 다시 적용한다. 로컬 출처는 원본 폴더를 다시 복사하고, GitHub 출처는 아래 절차로 받는다. 등록 ID·신뢰·켜짐 상태·설정·비밀값을 유지한다. 꺼진 플러그인은 검증한 새 판으로 바꾸되 꺼진 채로 둔다. 켜짐 여부와 관계없이 저장된 설정이 새 판의 settingsSchema에 맞지 않으면 실패하고 기존 판과 등록을 유지한다. 신뢰하지 않은 등록은 새 registrationId를 받아 다음 신뢰 확인이 새 판을 대상으로 한다. 실패하면 기존 판과 확인 결과를 유지한다. 관리 작업은 순서대로 처리하므로 동시에 들어온 확인과 업데이트도 한 순서로 관찰된다.
+
+### GitHub 출처
+
+설정의 [GitHub에서 추가…]와 `plugins register <github 주소> [--track release|branch]`는 폴더 등록과 같이 비활성으로 등록하고, `plugins install <github 주소> [--track …]`은 등록·신뢰·활성을 한 작업으로 한다. 공개 저장소만 인증 없이 읽는다. 저장소·참조·폴더가 없거나 비공개면 찾을 수 없다는 오류, GitHub 요청 한도면 한도 오류를 낸다. `plugins source-plugins <github 주소>`는 그 주소 아래에서 `litzio-plugin.json`이 있는 폴더(`node_modules` 제외)를 주소의 브랜치 또는 기본 브랜치에서 찾아 폴더별 `{path, source, id, name, version, release}`를 돌려준다. `release`는 최신 정식 Release에 같은 manifest가 있는지다. 하위 폴더 주소가 플러그인 하나를 가리키거나 그 아래에 플러그인이 하나뿐이면 설치하고, 여럿이면 설치는 failure와 `plugins[].source` 목록을 돌려준다. 설정 화면은 목록에서 고르게 한다.
+
+추적 방식은 등록마다 `release`(GitHub 최신 정식 Release; 초안·프리릴리스·태그만 있는 것은 세지 않는다) 또는 `branch`(주소의 ref, 없으면 기본 브랜치 HEAD)다. 지정하지 않으면 그 플러그인 폴더를 담은 정식 Release가 있을 때 `release`, 없으면 `branch`다. `/tree/<ref>/<폴더>`의 ref와 폴더 경계는 GitHub에 ref로 존재하는 가장 짧은 앞부분으로 정한다.
+
+새 버전은 추적 대상 커밋에서 **그 플러그인 폴더의 Git tree SHA**가 등록의 값과 다를 때만이다. 같은 저장소의 다른 플러그인 폴더 변경이나 Release는 새 버전이 아니다. 원격 manifest의 `version`은 `sourceVersion`으로 보이며 순서는 비교하지 않는다. 확인 결과는 로컬과 같은 모양에 실제 추적 방식 `track`을 더한다.
+
+적용은 대상 커밋의 tarball을 받아 그 폴더만 등록 파일 옆 Host 전용 staging에 풀고(링크 항목은 거부), 의존성을 준비한 뒤 로컬 폴더와 같은 복사·검증·전환 경로를 쓴다. 폴더에 `node_modules`가 있으면 npm을 건너뛴다. `package.json`에 의존성이 있고 `package-lock.json`(또는 `npm-shrinkwrap.json`)이 있으면 앱에 실은 npm으로 `npm ci --ignore-scripts --omit=optional`을 실행한다. 의존성이 있는데 lockfile이 없으면 거부한다. 레지스트리 접속 실패는 npm 오류 코드와 함께 알린다. staging은 성공·실패 모두 지운다. 받기·npm·검증·기동이 실패하면 기존 판이 계속 작업을 받는다. 같은 등록의 업데이트는 등록에 저장한 같은 저장소·폴더에서만 받으므로 신뢰를 다시 묻지 않고 설정·비밀값·켜짐 상태를 유지한다. 되돌리기는 없다. `reload`는 등록에 기록한 커밋을 다시 받아 같은 내용을 다시 적용한다.
+
+등록 기록은 GitHub 출처의 주소·폴더·추적 방식과 적용한 커밋·tree SHA를 둔다. `plugins list`는 출처를 `source: {kind:"local"}` 또는 `{kind:"github", url, path?, track?, local}`로 보이며 로컬 경로는 내보내지 않는다. 설정 목록은 버전 옆에 `로컬 폴더` 또는 `GitHub <owner>/<repo>/<폴더> · 릴리스|브랜치`를 보인다.
+
+manifest에 `repository`가 있는 로컬 설치는 원본 폴더와 GitHub 주소를 함께 기록한다. 확인과 [업데이트]는 GitHub 기준이고, 업데이트 뒤에도 원본 폴더 기록은 남아 `reload`는 원본 폴더를 다시 복사한다. 적용한 GitHub tree SHA는 설치본의 출처 digest가 그 GitHub 내용과 같을 때만 유지한다. 로컬 내용으로 다시 읽어 출처 digest가 달라지면 tree SHA를 지워, 다음 확인은 GitHub 내용을 새 내용으로 보인다. 추적 방식을 정하지 않은 로컬 설치는 확인마다 기본 규칙으로 정하고 처음 GitHub 업데이트를 적용할 때 기록한다. 이렇게 한 이유는 로컬 폴더의 Git tree SHA를 줄바꿈 변환·미추적 파일과 무관하게 계산할 수 없어서, 확인할 수 없는 일치를 가정하지 않고 설치본 내용이 GitHub에서 받은 것과 같다는 사실(출처 digest)만 근거로 쓰기 위해서다.
+
+시험·격리 Host는 `LITZIO_GITHUB_API_URL`로 GitHub API 주소를 바꿀 수 있다. 기본은 `https://api.github.com`이다.
 
 Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한다. 비활성화는 새 요청을 차단한 뒤 이미 접수한 호출과 status 관찰을 drain하고 dispose한다. 종료는 모든 child를 닫으며 하나의 실패로 다른 child 정리를 건너뛰지 않는다. 실패한 후보와 제거한 등록의 복사본은 정리한다. Host는 시작 시 정상적으로 읽고 형식을 검증한 등록 파일을 기준으로 전용 저장소의 미등록 복사본을 정리한다. 등록이 가리키는 설치본과 원본은 실제 경로로 비교하며, 그 경로와 상위·하위 경로를 보존한다. 등록 파일이 없으면 시작 시 복사본을 보존한다. 등록 파일을 읽을 수 없거나 형식이 잘못되면 등록 파일 복원을 안내하고 시작을 중단한다. 사용자 출처 폴더는 유지한다. 화면/daemon/문서의 수명을 섞지 않는다.
 
@@ -155,7 +173,7 @@ ADR-0020의 secret 절은 argv·로그·비서 결과·뷰에 PAT를 남기지 �
 
 ## 제작과 설치
 
-CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `validate`, `dependencies`, `bundle`, `install`, `list`, `register`, `trust`, `enable`, `disable`, `reload`, `check-updates`, `update`, `unregister`, `settings`, secret 상태/삭제는 공용 Host 작업이다. 명시적 --host를 사용한다. query/file 제작 템플릿은 없다. 공개 작업 호출은 `operation invoke <id> --input <json-file> --host <origin> --json`이다. 승인되고 셸·네트워크 및 CLI guard가 허용하는 비서는 공개 쓰기 작업도 CLI로 실행할 수 있다. 전용 `invoke_plugin_operation` 도구는 assistant:true 읽기·healthCheck만 제공하며 쓰기를 허용하지 않는다. scope:folder 작업은 아직 지원하지 않는다.
+CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `validate`, `dependencies`, `bundle`, `install`, `list`, `register`, `source-plugins`, `trust`, `enable`, `disable`, `reload`, `check-updates`, `update`, `unregister`, `settings`, secret 상태/삭제는 공용 Host 작업이다. 명시적 --host를 사용한다. query/file 제작 템플릿은 없다. 공개 작업 호출은 `operation invoke <id> --input <json-file> --host <origin> --json`이다. 승인되고 셸·네트워크 및 CLI guard가 허용하는 비서는 공개 쓰기 작업도 CLI로 실행할 수 있다. 전용 `invoke_plugin_operation` 도구는 assistant:true 읽기·healthCheck만 제공하며 쓰기를 허용하지 않는다. scope:folder 작업은 아직 지원하지 않는다.
 
 loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정규화된 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 비서는 이를 `--host`에 명시한다. CLI의 필수 주소 검증·실패 시 재실행 금지는 유지한다. origin이 없는 환경에서는 부모의 값을 상속하지 않으며 주소가 없다고 보고하고 중단한다. 연결 수명은 [비서 계약](main-agent-v1.md)을 따른다.
 
@@ -163,7 +181,7 @@ loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정
 
 제작 폴더 안의 artifact는 설정된 경로와 scaffold가 반환한 canonical 경로 모두로 validate/install/dependencies/bundle할 수 있다. 경로가 허용된 제작 폴더 아래인지 확인한 뒤 Windows 8.3 이름·부모 alias를 canonical 경로로 해석하고, 고정 root 및 요청 쓰기 범위를 다시 검사한다. alias가 범위 밖을 가리키거나 root가 바뀌면 거부한다. validate/install의 디렉터리 단계 거부는 `file:"artifact directory"`, `path:"directory"`와 접근 범위·존재·권한·root/link 조건을 설명하는 안전한 진단을 반환하며 OS 오류의 절대 경로를 노출하지 않는다.
 
-npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 출처 복사에서 `.git`은 제외하고 실제 파일로 준비된 `node_modules`는 로컬 번들과 Node 런타임 import를 위해 포함한다. 링크는 거부한다. 의존성이 준비되어 있으면 설치본에서 번들하며, 의존성 폴더 없이 배포한 패키지는 동봉한 번들을 사용한다. 설치·다시 읽기는 네트워크에서 패키지를 내려받지 않는다. 레지스트리·프록시는 제작 중 의존성 설치에서 기존 npm 설정을 사용한다. npm 캐시·로그는 명령줄 인자로 Host 데이터 폴더의 `plugin-npm` 아래에 두어 프로젝트·사용자 npmrc보다 우선한다.
+npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 출처 복사에서 `.git`은 제외하고 실제 파일로 준비된 `node_modules`는 로컬 번들과 Node 런타임 import를 위해 포함한다. 링크는 거부한다. 의존성이 준비되어 있으면 설치본에서 번들하며, 의존성 폴더 없이 배포한 패키지는 동봉한 번들을 사용한다. 로컬 폴더의 설치·다시 읽기는 네트워크에서 패키지를 내려받지 않는다. GitHub 출처는 lockfile로 의존성을 준비한다([GitHub 출처](#github-출처)). 레지스트리·프록시는 제작 중 의존성 설치에서 기존 npm 설정을 사용한다. npm 캐시·로그는 명령줄 인자로 Host 데이터 폴더의 `plugin-npm` 아래에 두어 프로젝트·사용자 npmrc보다 우선한다.
 
 ## 검증 경계
 

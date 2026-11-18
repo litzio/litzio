@@ -15,6 +15,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { PluginHost } from "../server/plugins/plugin-host.ts";
+import { GitHubSource } from "../server/plugins/github-source.ts";
+import { FakeGitHub } from "./fake-github.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
 
 
@@ -231,6 +233,110 @@ test("local source update check compares applied source content and update keeps
     assert.equal(await read(), "third");
     assert.equal((await host.list())[0]!.version, "0.4.0");
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("GitHub sources list plugins, follow release or branch by folder tree and keep the installed copy on failure", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-github-"));
+  const state = path.join(root, "state.json"), staging = `${state}.staging`;
+  const github = new FakeGitHub(), repo = github.repository("acme", "tools");
+  const plugin = (name: string, label: string, version: string, extra: Record<string, string> = {}, packageJson: object = { type: "module" }) => ({
+    [`plugins/${name}/litzio-plugin.json`]: JSON.stringify({ id: `acme.${name}`, name, version, entry: "host.js", screen: "screen.jsx", operations: [{ id: "read" }],
+      settingsSchema: { type: "object", properties: { label: { type: "string" } }, additionalProperties: false } }),
+    [`plugins/${name}/package.json`]: JSON.stringify(packageJson),
+    [`plugins/${name}/screen.jsx`]: "export default function Screen(){return null}",
+    [`plugins/${name}/host.js`]: extra.host ?? `export function activate(c) { return { operations: { read: () => ${JSON.stringify(label)} + (c.settings.label ?? "") }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`,
+    ...Object.fromEntries(Object.entries(extra).filter(([file]) => file !== "host").map(([file, content]) => [`plugins/${name}/${file}`, content])),
+  });
+  const base = { "README.md": "tools", ...plugin("beta", "beta-1", "1.0.0") };
+  const first = repo.push("main", { ...base, ...plugin("alpha", "alpha-1", "0.1.0") });
+  const alphaUrl = "https://github.com/acme/tools/tree/main/plugins/alpha", betaUrl = "https://github.com/acme/tools/tree/main/plugins/beta";
+  const host = new PluginHost(state, { github: new GitHubSource(await github.start()) });
+  const read = async (id: string) => ((await host.invokeOperation(`${id}.read`, {})) as { result?: unknown }).result;
+  const check = async () => Object.fromEntries(((await host.invoke("check-updates", {})) as any).updates.map((update: any) => [update.id, update]));
+  const leftovers = () => existsSync(staging) ? fs.readdirSync(staging) : [];
+  try {
+    await host.start();
+    // A repository address lists every plugin folder; install needs one folder.
+    const listed = await host.invoke("source-plugins", { source: "https://github.com/acme/tools" }) as any;
+    assert.deepEqual(listed.plugins.map((p: any) => [p.id, p.source, p.version, p.release]), [["acme.alpha", alphaUrl, "0.1.0", false], ["acme.beta", betaUrl, "1.0.0", false]]);
+    const ambiguous = await host.invoke("install", { source: "https://github.com/acme/tools" }) as any;
+    assert.equal(ambiguous.receipt.outcome, "failure"); assert.equal(ambiguous.plugins.length, 2);
+    await assert.rejects(host.invoke("install", { source: alphaUrl, track: "release" }).then((value: any) => { if (value.receipt.outcome !== "success") throw new Error(value.errors[0].message); }), /no formal GitHub release/);
+
+    // Tags and prereleases are not formal releases; the default falls back to the branch.
+    repo.tag("v0.1.0", first); repo.release("v0.1.0", { prerelease: true });
+    assert.equal(((await host.invoke("install", { source: betaUrl })) as any).receipt.outcome, "success");
+    repo.release("v0.1.0-final"); repo.tag("v0.1.0-final", first);
+    assert.equal(((await host.invoke("install", { source: alphaUrl })) as any).receipt.outcome, "success");
+    const sources = Object.fromEntries((await host.list()).map(p => [p.id, (p as any).source]));
+    assert.deepEqual(sources["acme.alpha"], { kind: "github", url: alphaUrl, path: "plugins/alpha", track: "release", local: false });
+    assert.deepEqual(sources["acme.beta"], { kind: "github", url: betaUrl, path: "plugins/beta", track: "branch", local: false });
+    assert.deepEqual(Object.values(await check()).map((u: any) => u.available), [false, false]);
+
+    // Another plugin's change and release never count for this folder.
+    const second = repo.push("main", { ...base, ...plugin("alpha", "alpha-1", "0.1.0"), ...plugin("beta", "beta-2", "2.0.0") });
+    repo.tag("v2", second); repo.release("v2");
+    let updates = await check();
+    assert.deepEqual([updates["acme.alpha"].available, updates["acme.beta"].available, updates["acme.beta"].sourceVersion], [false, true, "2.0.0"]);
+    const third = repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-2", "2.0.0") });
+    repo.tag("v3-rc", third); repo.release("v3-rc", { prerelease: true });
+    assert.equal((await check())["acme.alpha"].available, false, "a prerelease is not the latest release");
+    repo.tag("v3", third); repo.release("v3");
+    updates = await check();
+    assert.deepEqual(updates["acme.alpha"], { id: "acme.alpha", currentVersion: "0.1.0", sourceVersion: "0.2.0", available: true, track: "release" });
+
+    // Updating keeps trust, registration and settings without asking again.
+    await host.invoke("settings", { id: "acme.alpha", settings: { label: "+kept" } });
+    const before = (await host.list()).find(p => p.id === "acme.alpha")!;
+    await host.invoke("update", { id: "acme.alpha" });
+    const after = (await host.list()).find(p => p.id === "acme.alpha")!;
+    assert.deepEqual([after.version, after.trusted, after.registrationId, after.settings], ["0.2.0", true, before.registrationId, { label: "+kept" }]);
+    assert.equal(await read("acme.alpha"), "alpha-2+kept");
+    assert.equal((await check())["acme.alpha"].available, false);
+
+    // Download, dependency and preparation failures leave the running copy in place.
+    repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", {}, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
+    await assert.rejects(host.invoke("update", { id: "acme.beta" }), /without package-lock\.json/);
+    repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", { "package-lock.json": JSON.stringify({ name: "beta", lockfileVersion: 3, requires: true,
+      packages: { "": { dependencies: { "left-pad": "1.3.0" } }, "node_modules/left-pad": { version: "1.3.0", resolved: "http://127.0.0.1:9/left-pad-1.3.0.tgz", integrity: "sha512-AAAA" } } }) }, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
+    await assert.rejects(host.invoke("update", { id: "acme.beta" }), /Package download failed/);
+    repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", { host: "export function activate( {" }) });
+    await assert.rejects(host.invoke("update", { id: "acme.beta" }));
+    github.failures.set(/\/tarball\//, { status: 500 });
+    await assert.rejects(host.invoke("update", { id: "acme.beta" }), /GitHub request failed/);
+    github.failures.clear();
+    assert.equal(await read("acme.beta"), "beta-1");
+    assert.deepEqual(leftovers(), [], "staging is removed after every attempt");
+
+    // Shipped node_modules skip npm entirely.
+    repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-4", "4.0.0", {
+      host: `import pad from "left-pad"; export function activate() { return { operations: { read: () => pad("beta-4", 7) }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`,
+      "node_modules/left-pad/package.json": JSON.stringify({ name: "left-pad", type: "module", main: "index.js" }),
+      "node_modules/left-pad/index.js": "export default (value, length) => value.padStart(length);" }, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
+    await host.invoke("update", { id: "acme.beta" });
+    assert.equal(await read("acme.beta"), " beta-4");
+
+    github.failures.set(/releases\/latest/, { status: 403, headers: { "x-ratelimit-remaining": "0" } });
+    assert.equal((await check())["acme.alpha"].error, "GitHub rate limit reached. Try again later.");
+    github.failures.clear();
+
+    // A local folder whose manifest names a repository checks and updates from GitHub; reload rereads the folder.
+    const local = lifecycleFixture(root, "acme.gamma", `export function activate() { return { operations: { read: () => "local" }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`);
+    const manifest = JSON.parse(readFileSync(path.join(local, "litzio-plugin.json"), "utf8"));
+    writeFileSync(path.join(local, "litzio-plugin.json"), JSON.stringify({ ...manifest, version: "0.0.1", operations: [{ id: "read" }], repository: "https://github.com/acme/tools/tree/main/plugins/gamma" }));
+    repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-4", "4.0.0"), ...plugin("gamma", "remote", "1.0.0") });
+    assert.equal(((await host.invoke("install", { directory: local })) as any).receipt.outcome, "success");
+    assert.deepEqual((await check())["acme.gamma"], { id: "acme.gamma", currentVersion: "0.0.1", sourceVersion: "1.0.0", available: true, track: "branch" });
+    await host.invoke("update", { id: "acme.gamma" });
+    assert.equal(await read("acme.gamma"), "remote");
+    assert.equal((await check())["acme.gamma"].available, false);
+    const gamma = JSON.parse(readFileSync(state, "utf8"))["acme.gamma"];
+    assert.equal(gamma.sourceDirectory, canonicalFilePath(local)); assert.equal(gamma.github.track, "branch");
+    await host.invoke("reload", { id: "acme.gamma" });
+    assert.equal(await read("acme.gamma"), "local");
+    assert.equal((await check())["acme.gamma"].available, true, "the local copy is not the applied GitHub tree");
+    assert.deepEqual(leftovers(), []);
+  } finally { await host.close(); await github.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 test("large dependency trees do not stall public operations, list, update checks or Host start", async () => {
