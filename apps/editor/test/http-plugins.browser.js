@@ -56,7 +56,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await route.fulfill({ response, json: value });
   });
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
-  await expect(page.locator('section[aria-label="Drive fixture"] .settings-description').first()).toHaveText("Version 1.2.3 · Refreshed during plugin draft");
+  await expect(page.locator('section[aria-label="Drive fixture"] .settings-description').first()).toHaveText("Version 1.2.3 · Local folder · Refreshed during plugin draft");
   await expect(page.getByTestId("folder-path")).toHaveValue(pluginFixture.directory);
   await expect(page.getByTestId("folder-path")).toBeFocused();
   await page.unrouteAll({ behavior: "wait" });

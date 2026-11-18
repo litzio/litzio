@@ -22,6 +22,9 @@ import { ResetGuard } from "../server/reset-guard.ts";
 import { resetHostPaths } from "../server/app-reset.ts";
 import { CodexAppServer } from "../server/codex-app-server.ts";
 import { brand } from "../../../brand.ts";
+import { FakeGitHub } from "./fake-github.ts";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { DESKTOP_ORIGIN } from "../shared/desktop-origin.ts";
 
 const isolatedData = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-unit-data-"));
@@ -1007,4 +1010,38 @@ test("Copilot MCP discovery and calls cross the real daemon Origin gate", async 
   }
   await client.close();
   await send("/api/assistant/conversations", "POST", { action: "interrupt", id: conversation.id });
+});
+
+test("plugins CLI installs a GitHub folder, checks it and updates it over a real Host", async t => {
+  const github = new FakeGitHub(), repo = github.repository("acme", "tools");
+  const files = (label: string, version: string) => ({
+    "plugins/alpha/litzio-plugin.json": JSON.stringify({ id: "acme.alpha", name: "Alpha", version, entry: "host.mjs", screen: "screen.jsx", operations: [{ id: "read", outputSchema: { type: "string" } }] }),
+    "plugins/alpha/screen.jsx": "export default function Screen(){return null}",
+    "plugins/alpha/host.mjs": `export function activate(){return {operations:{read:()=>${JSON.stringify(label)}},status:()=>({available:true,message:'Ready'}),dispose(){}}}`,
+  });
+  repo.push("main", files("first", "0.1.0"));
+  process.env.LITZIO_GITHUB_API_URL = await github.start();
+  t.after(async () => { delete process.env.LITZIO_GITHUB_API_URL; await github.close(); });
+  const { url, send } = await fixture(t, undefined, true);
+  // The built CLI is not required here: tsx runs the same entry with its exit code and JSON output.
+  const cli = async (...args: string[]) => {
+    try {
+      const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "plugins", ...args, "--host", url, "--json"], { windowsHide: true });
+      return { code: 0, value: JSON.parse(stdout) };
+    } catch (error) { return { code: (error as { code: number }).code, value: JSON.parse((error as { stdout: string }).stdout) }; }
+  };
+  const read = async () => (await (await send("/api/plugins", "POST", { action: "invoke", operation: "acme.alpha.read", input: {} })).json()).result;
+  const source = "https://github.com/acme/tools/tree/main/plugins/alpha";
+  const refused = await cli("install", source, "--track", "release");
+  assert.equal(refused.code, 1); assert.match(refused.value.errors[0].message, /no formal GitHub release/);
+  assert.equal((await cli("install", source)).code, 0);
+  assert.equal(await read(), "first");
+  repo.push("main", files("second", "0.2.0"));
+  assert.deepEqual((await cli("check-updates")).value.updates, [{ id: "acme.alpha", currentVersion: "0.1.0", sourceVersion: "0.2.0", available: true, track: "branch" }]);
+  github.failures.set(/\/tarball\//, { status: 500 });
+  assert.equal((await cli("update", "acme.alpha")).code, 1, "a failed download exits with failure");
+  github.failures.clear();
+  assert.equal(await read(), "first");
+  assert.equal((await cli("update", "acme.alpha")).code, 0);
+  assert.equal(await read(), "second");
 });

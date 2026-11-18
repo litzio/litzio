@@ -48,9 +48,13 @@ if (process.env.LITZIO_BROWSER_HOST === "http") {
     if ((message as { ready?: boolean }).ready) ready(`http://127.0.0.1:${port}`);
   });
 } else {
+  // The in-process Host reads GitHub plugin sources from this local fake, never the public API.
+  const { browserGitHub } = await import("../fake-github.ts");
+  const github = await browserGitHub();
+  process.env.LITZIO_GITHUB_API_URL = github.url;
   const { createServer } = await import("vite");
   const server = await createServer({ root: path.join(REPOSITORY_ROOT, "apps/editor"), server: { host: "127.0.0.1", port: 0, strictPort: true } });
-  const stop = () => { void server.close().catch(error => { console.error(error); process.exitCode = 1; }); };
+  const stop = () => { void Promise.all([server.close(), github.close()]).catch(error => { console.error(error); process.exitCode = 1; }); };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
   await server.listen();

@@ -3,3 +3,11 @@
 .plugin-secret-form { display: grid; gap: var(--space-2); }
 
 .plugin-settings-dialog[data-slot="dialog-content"] { max-width: min(var(--layout-settings-content-width), calc(100vw - 2rem)); }
+
+.plugin-github-address { display: flex; gap: var(--space-2); align-items: center; }
+.plugin-github-address > input { flex: 1; min-width: 0; }
+.plugin-github-choices { display: grid; gap: var(--space-1); border: 0; margin: 0; padding: 0; min-width: 0; }
+.plugin-github-choice { display: flex; align-items: center; gap: var(--space-2); padding-block: var(--space-1); cursor: pointer; min-width: 0; }
+.plugin-github-choice input { flex-shrink: 0; }
+.plugin-github-choice .settings-description { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin-github-track { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
