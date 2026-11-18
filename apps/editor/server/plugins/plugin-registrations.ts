@@ -39,11 +39,14 @@ const installed = z.strictObject({
   github: github.optional(),
   sourceDigest: digest,
 }).refine(record => !!record.sourceDirectory || !!record.github?.commit, "A registration needs a local folder or an applied GitHub commit");
-const legacy = z.strictObject({ ...fields, directory });
-const registry = z.record(z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/), z.union([installed, legacy]));
+const legacy = z.strictObject({ ...fields, directory, enabledChoice: z.boolean().optional() });
+// 0.0.2 also persisted bundled registrations, even when bundle verification left an empty digest.
+const legacyBundled = legacy.extend({ bundled: z.literal(true), digest: z.union([digest, z.literal("")]) });
+const legacyRegistration = z.union([legacy, legacyBundled]);
+const registry = z.record(z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/), z.union([installed, legacyRegistration]));
 export type InstalledPlugin = z.infer<typeof installed>;
 export type GitHubRegistration = z.infer<typeof github>;
-export type PluginRegistration = InstalledPlugin | z.infer<typeof legacy>;
+export type PluginRegistration = InstalledPlugin | z.infer<typeof legacyRegistration>;
 
 /** A missing file provides no evidence about which copies are safe to delete. */
 export function readPluginRegistrations(file: string): Record<string, PluginRegistration> | undefined {
