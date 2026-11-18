@@ -1,10 +1,22 @@
 import { createInterface } from "node:readline";
+import { spawn } from "node:child_process";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 const log = process.argv[2];
 if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, startedAt: Date.now(), args: process.argv.slice(3), hostOrigin: process.env.LITZIO_HOST_ORIGIN ?? null }) + "\n");
 process.once("exit", () => {
   if (log && existsSync(log)) appendFileSync(log, JSON.stringify({ exitedPid: process.pid, exitedAt: Date.now() }) + "\n");
 });
+if (process.argv.includes("--fixture-exit-once") && !existsSync(log + ".exit")) { writeFileSync(log + ".exit", "exit"); process.exit(3); }
+let hangInitialize = false;
+if (process.argv.includes("--fixture-orphan-stdout-once") && !existsSync(log + ".orphan")) {
+  writeFileSync(log + ".orphan", "orphan");
+  // A detached descendant outside the stopped tree keeps this ACP stdout open
+  // after the fixture exits, so the Host cannot confirm termination.
+  const orphan = spawn(process.execPath, ["-e", "setTimeout(() => {}, 120000)"], { stdio: ["ignore", "inherit", "ignore"], detached: true });
+  orphan.unref();
+  appendFileSync(log, JSON.stringify({ orphanPid: orphan.pid }) + "\n");
+  hangInitialize = process.argv.includes("--fixture-hang-initialize");
+}
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
 const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", currentValue: "off", options: ["on", "off"].map(value => ({ value, name: value })) },
   ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model", "max-only"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
@@ -27,9 +39,10 @@ createInterface({ input: process.stdin }).on("line", line => {
   }
   const { id, method, params } = request;
   const reply = result => send({ id, result });
-  if (method === "initialize") reply({ protocolVersion: 1, agentCapabilities: { loadSession: true }, agentInfo: { name: "fake-copilot", version: "1" } });
+  if (method === "initialize") { if (!hangInitialize) reply({ protocolVersion: 1, agentCapabilities: { loadSession: true }, agentInfo: { name: "fake-copilot", version: "1" } }); }
   else if (method === "session/new") {
-    if (process.argv.includes("--fixture-session-error")) { send({ id, error: { code: -32000, message: "Copilot session fixture failure", data: { token: "must-not-be-displayed" } } }); return; }
+    if (process.argv.includes("--fixture-session-error") || process.argv.includes("--fixture-session-error-once") && !existsSync(log + ".session")) {
+      if (log) writeFileSync(log + ".session", "failed"); send({ id, error: { code: -32000, message: "Copilot session fixture failure", data: { token: "must-not-be-displayed" } } }); return; }
     const sessionId = `copilot-${process.pid}-${++session}`;
     loaded.add(sessionId);
     reply({ sessionId, ...sessionState() });
