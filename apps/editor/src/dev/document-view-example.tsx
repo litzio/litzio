@@ -77,6 +77,7 @@ export function LinkedDocumentViewExample() {
   const [fillHeight, setFillHeight] = useState(false);
   const [scale, setScale] = useState(1);
   const [selected, select] = useState<string>();
+  const [target, setTarget] = useState<ScreenDocumentViewProps["target"]>();
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
@@ -129,15 +130,18 @@ export function LinkedDocumentViewExample() {
       <ui.Toolbar>
         <ui.Button aria-pressed={scale !== 1} onClick={() => setScale(scale === 1 ? .75 : 1)}>{korean ? "원본 배율" : "Source scale"} {scale}</ui.Button>
         <ui.Button aria-pressed={stale} onClick={() => setStale(!stale)}>{korean ? "다른 저장본 연결" : "Use another revision"}</ui.Button>
-        <ui.Button aria-pressed={large} onClick={() => { select(undefined); setLarge(!large); }}>{korean ? "1,200개 블록" : "1,200 blocks"}</ui.Button>
+        <ui.Button aria-pressed={large} onClick={() => { select(undefined); setTarget(undefined); setLarge(!large); }}>{korean ? "1,200개 블록" : "1,200 blocks"}</ui.Button>
         <ui.Button aria-pressed={branches} onClick={() => setBranches(!branches)}>{korean ? "원본 구역 합류" : "Source branches"}</ui.Button>
       </ui.Toolbar>
-      <ui.LinkedDocumentView document={{ path: sample.samplePath, height: fillHeight ? "fill" : undefined }}
+      <ui.LinkedDocumentView document={{ path: sample.samplePath, height: fillHeight ? "fill" : undefined, target }}
         sourceLabel={korean ? "원본 자료" : "Source material"} sourceRef={setViewport} sourceScale={scale}
         revision={stale ? "b".repeat(64) : revision} items={items} selectedId={selected} onSelect={select}
         source={<div style={{ position: "relative", height: 2 * inset + pitch * sample.document.blocks.length + (branches ? 2 * branchPitch : 0) }}>
           {items.flatMap(item => item.boxes.map((box, index) => <ui.Button key={`${item.id}:${index}`} data-linked-item={item.id}
             aria-pressed={selected === item.id}
+            // Bring the document pair level with the chosen box: visible top = content top - scrollTop.
+            // request counts choices, so choosing the same box again after scrolling realigns it.
+            onClick={() => { if (!stale) setTarget(previous => ({ revision, path: item.path, highlight: false, top: box.top - (viewport?.scrollTop ?? 0), request: Number(previous?.request ?? 0) + 1 })); }}
             style={{ position: "absolute", ...box, justifyContent: "start",
               borderInlineStartWidth: "var(--space-1)", borderInlineStartColor: `var(${item.colorToken})` }}>
             {index ? `${item.label} (${index + 1})` : item.label}</ui.Button>))}
