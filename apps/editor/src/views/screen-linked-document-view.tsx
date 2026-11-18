@@ -81,17 +81,19 @@ function viewportRect(element: HTMLElement, host: DOMRect): Rect {
     width: element.clientWidth, height: element.clientHeight };
 }
 
-function scrollbarRects(pane: HTMLElement, viewport: Rect): Rect[] {
+function scrollbarRects(pane: HTMLElement, viewport: Rect) {
   // Both panes use the same border on every edge. clientLeft includes any
   // scrollbar on the left, while clientWidth and clientHeight exclude them.
   const border = pane.clientTop;
   const left = pane.clientLeft - border;
   const width = pane.offsetWidth - 2 * border;
-  return [
+  const vertical = [
     { left: viewport.left - left, top: viewport.top, width: left, height: viewport.height },
     { left: viewport.left + viewport.width, top: viewport.top, width: width - left - viewport.width, height: viewport.height },
-    { left: viewport.left - left, top: viewport.top + viewport.height, width, height: pane.offsetHeight - 2 * border - viewport.height },
   ].filter(rect => rect.width > 0 && rect.height > 0);
+  const horizontal = { left: viewport.left - left, top: viewport.top + viewport.height,
+    width, height: pane.offsetHeight - 2 * border - viewport.height };
+  return { vertical, horizontal };
 }
 
 function rectPath({ left, top, width, height }: Rect) {
@@ -111,6 +113,7 @@ type Drawing = {
   documentViewport: Rect;
   gutter: Rect;
   paintPath: string;
+  hitPath: string;
 };
 
 function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, onSelect }: {
@@ -154,11 +157,12 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
       const gutterLeft = leftPane.getBoundingClientRect().right - hostBox.left;
       const gutterRight = rightPane.getBoundingClientRect().left - hostBox.left;
       const gutter = { left: gutterLeft, top: 0, width: Math.max(0, gutterRight - gutterLeft), height: hostBox.height };
-      const paintPath = [
-        { left: 0, top: 0, width: hostBox.width, height: hostBox.height },
-        ...scrollbarRects(leftPane, sourceViewport),
-        ...scrollbarRects(rightPane, documentViewport),
-      ].map(rectPath).join(" ");
+      const sourceScrollbars = scrollbarRects(leftPane, sourceViewport);
+      const documentScrollbars = scrollbarRects(rightPane, documentViewport);
+      const paintPath = rectPath({ left: 0, top: 0, width: hostBox.width, height: hostBox.height })
+        + [sourceScrollbars.horizontal, documentScrollbars.horizontal]
+          .filter(rect => rect.height > 0).map(rectPath).join("");
+      const hitPath = paintPath + [...sourceScrollbars.vertical, ...documentScrollbars.vertical].map(rectPath).join("");
       const { width: inline, height: block } = tokens.getBoundingClientRect();
       const focus = document.activeElement;
       const focusId = focus?.matches(":focus-visible") ? linkedId(focus, root, "data-linked-item") : undefined;
@@ -243,7 +247,7 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
       }
       setDrawing({ bands: [...bands.filter(band => band.emphasis === "quiet"), ...bands.filter(band => band.emphasis !== "quiet")],
         fused, left, right: fused ? right.filter(outline => outline.key !== selectedPath) : right,
-        actions, sourceViewport, documentViewport, gutter, paintPath });
+        actions, sourceViewport, documentViewport, gutter, paintPath, hitPath });
     };
     const queue = () => { if (!frame) frame = requestAnimationFrame(draw); };
     const move = (event: PointerEvent) => {
@@ -274,7 +278,9 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
     {drawing && geometry && <>
       <svg className="linked-document-bands" aria-hidden="true">
         <defs>
-          <clipPath id={hitClip}><rect x={drawing.gutter.left} y={drawing.gutter.top} width={drawing.gutter.width} height={drawing.gutter.height} /></clipPath>
+          <clipPath id={hitClip}>
+            <path d={drawing.hitPath} clipRule="evenodd" />
+          </clipPath>
           <clipPath id={paintClip}>
             <path d={drawing.paintPath} clipRule="evenodd" />
           </clipPath>

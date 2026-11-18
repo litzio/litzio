@@ -203,7 +203,7 @@ Clean available Save is ghost, unsaved is accent, unavailable muted without hove
 | 연결된 짝에 올림·키보드 focus | `--id-color-interaction` | `--id-color-interaction`, `--opacity-linked-band-hover`. 올린 짝과 키보드 focus가 있는 짝이 다르면 두 짝을 같은 상태로 강조한다. |
 | 나란히 보이는 짝을 선택 | `--id-color-interaction`으로 블록과 띠를 하나의 윤곽으로 표시 | 블록과 띠 전체에 `--id-color-interaction`, `--opacity-linked-band-selected`를 한 번 적용 |
 
-띠는 각 블록 윤곽에서 해당 스크롤 영역의 보이는 가장자리까지 수평으로 이어지고, 두 칸 사이에서만 휜다. 스크롤바 위는 비운다. 기본·올림·키보드 focus 상태의 띠와 화면 밖 짝을 가리키는 띠에는 외곽선이 없다. 선택 색은 올림과 겹쳐도 유지한다.
+띠는 각 블록 윤곽에서 해당 스크롤 영역의 보이는 가장자리까지 수평으로 이어지고, 두 칸 사이에서만 휜다. 세로 스크롤바 위로는 띠를 이어 그리고, 가로 스크롤바 위에는 그리지 않는다. 띠는 스크롤바 조작을 가로채지 않는다. 기본·올림·키보드 focus 상태의 띠와 화면 밖 짝을 가리키는 띠에는 외곽선이 없다. 선택 색은 올림과 겹쳐도 유지한다.
 
 ## Adjustable values and preferences
 
