@@ -122,7 +122,7 @@ Enter/Space·클릭 펼치기/접기를 제공하고 `aria-expanded`/`aria-contr
 
 계정·한도는 Context 링의 hover/keyboard-focus Tooltip과 AI Settings에서 같은 부품으로 표시한다. 날짜는 당일이면 시각만, 그 외에는 숫자 월/일과 시각으로 표시하고 연도·초를 생략한다. 로그인 방법과 기간은 지역화한다. 한도 행은 max-w-md Tooltip 안에서 한 줄을 유지한다. 조회 실패는 Tooltip의 짧은 Unavailable이며 전송을 막거나 대화 오류로 보내지 않는다. 성공한 빈 응답은 No usage information으로 표시한다. 개별 잔여량·과금 경고도 같은 짧은 표현을 사용하며 과금 경고는 기존 대비 면 안의 bold text로 표시한다.
 
-비서 설정의 공급자 행은 공용 plain Status로 마지막 연결 상태를 표시하고, 마지막 확인 시각은 hover/keyboard-focus Tooltip에 둔다. 확인 중 모델이 이미 있으면 계속 선택할 수 있다. 기존 `assistant` 브라우저 시나리오가 진단을 보류한 채 모델 설정과 비서 입력을 조작할 수 있는지 검증한다.
+비서 설정의 공급자 행은 공용 plain Status로 마지막 연결 상태를 표시하고, 마지막 확인 시각은 hover/keyboard-focus Tooltip에 둔다. 다시 열면 마지막 결과를 표시하면서 재확인한다. 확인 중 모델이 이미 있으면 계속 선택할 수 있으며, 새 목록에 선택한 모델이 없으면 다른 모델을 고르도록 안내한다. 기존 `assistant` 브라우저 시나리오가 진단을 보류한 채 모델 설정과 비서 입력을 조작할 수 있는지 검증한다.
 
 ## P08 읽기 미리보기
 

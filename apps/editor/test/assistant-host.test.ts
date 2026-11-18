@@ -140,6 +140,35 @@ test("unavailable provider rejects new work with a reason; settings do not close
   t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
   const settings = { ...await host.invoke("settings"), model: "gpt-6.1-sol", reasoningEffort: "medium" };
   await host.invoke("configure", settings);
+  const cachedArgs = { provider: "codex", cache: "prefer" };
+  await t.test("reopening observes logout and login on the same Host", async t => {
+    let now = Date.now(), signedIn = true;
+    t.mock.method(Date, "now", () => now);
+    const checks = t.mock.method(connection, "diagnostics", async () => ({
+      provider: "codex" as const, connected: true, path: null, version: null, checkedAt: now,
+      account: signedIn ? { type: "chatgpt" } : null,
+    }));
+    await host.invoke("assistantDiagnostics", { provider: "codex" });
+    for (const next of [false, true]) {
+      now += 3_001;
+      signedIn = next;
+      assert.equal(Boolean((await host.invoke("assistantDiagnostics", cachedArgs)).account), !next);
+      const count = checks.mock.callCount();
+      assert.equal(count, next ? 3 : 2, "opening starts its own background recheck");
+      const refreshed = await host.invoke("assistantDiagnostics", { ...cachedArgs, cache: "revalidate" });
+      assert.equal(Boolean(refreshed.account), next);
+      assert.equal(checks.mock.callCount(), count, "the view joins the background recheck");
+    }
+    await host.invoke("assistantDiagnostics", { ...cachedArgs, cache: "revalidate" });
+    assert.equal(checks.mock.callCount(), 3, "a recently completed check is reused");
+  });
+  await t.test("a removed model invalidates the list on rejected send", async t => {
+    const initial = await host.invoke("assistantModels", cachedArgs);
+    const replacement = { ...initial.models[0], id: "replacement", model: "replacement" };
+    t.mock.method(connection, "models", async () => ({ ...initial, models: [replacement] }));
+    await assert.rejects(host.invoke("assistantConversation", { action: "send", message: "Removed model", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }), /Invalid AI model/);
+    assert.deepEqual((await host.invoke("assistantModels", cachedArgs)).models, [replacement]);
+  });
   const conversation = await host.invoke("assistantConversation", { action: "send", message: "Question", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort });
   const id = conversation.id, turn = conversation.turns[0];
   await connection.client.request("fixture/async-question", { threadId: id, itemId: "provider-switch-question", questions: [{ title: "Choose before switching", options: ["A", "B"] }] });

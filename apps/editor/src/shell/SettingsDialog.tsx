@@ -117,6 +117,7 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 
 type SettingsDialogProps = {
   onAssistantSaved(): void;
+  assistantProviderRevision: number;
   theme: ThemePreference;
   themeProblem: boolean;
   onThemeChange(theme: ThemePreference): void;
@@ -134,7 +135,7 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
@@ -183,7 +184,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
               {category === "plugins" ? <PluginSettings /> : null}
-              {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} /> : null}
+              {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} providerReadRevision={assistantProviderRevision} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} testId="theme"
                   value={theme} onChange={value => {

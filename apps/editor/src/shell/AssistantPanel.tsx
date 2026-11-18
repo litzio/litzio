@@ -1,7 +1,7 @@
 import type { HostClient } from "../host-client.ts";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
-import { createAssistantRequest } from "../assistant-api.ts";
+import { createAssistantRequest, observeAssistantProvider } from "../assistant-api.ts";
 import { useHostClient } from "../host-context.tsx";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
@@ -34,6 +34,7 @@ export type AssistantLocalSubmission = { provider: AssistantSettings["provider"]
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+  providerReadRevision: number; onProviderRecheck(): void;
   onUndoChange(path: string, undo: () => Promise<unknown>): Promise<boolean>;
   onOpen(path: string, client: HostClient): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }, client: HostClient): Promise<boolean>;
   referenceRequest?: { path: string };
@@ -41,7 +42,7 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed }: Props) {
+export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, settingsRevision, providerReadRevision, onProviderRecheck, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed }: Props) {
   useTranslation();
   const client = useHostClient();
   const conversationKey = `${brand.storagePrefix}.assistantConversation.v2`;
@@ -77,13 +78,13 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const pendingImageUploads = useRef(0);
   const busy = useRef(false);
   const submissionScope = useRef(0);
-  const catalogRevision = useRef(0);
   const leaveSubmissionScope = () => { submissionScope.current++; };
   // Navigation hides other owners' rows without discarding their only local copy.
   const visibleSubmissions = submissions.filter(value => value.provider === provider &&
     (conversation ? (value.conversationId ?? value.receipt.conversationId) === conversation.id : value.conversationId === undefined));
   const submitted = useRef(visibleSubmissions); submitted.current = visibleSubmissions;
   const applySubmission = (result: AssistantSubmissionResult, updateConversation = true) => {
+    if (result.submission.status === "rejected") onProviderRecheck();
     setSubmissions(previous => {
       return previous.map(value => value.receipt.id === result.submission.id ? { ...value,
         conversationId: value.conversationId ?? result.submission.conversationId ?? result.conversation?.id,
@@ -192,15 +193,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         setConversation(resumed); rememberConversation(conversationKey, resumed.id);
       }
       setReady(true);
-      const revision = catalogRevision.current;
-      try {
-        const next = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selectedProvider}&cache=prefer`);
-        if (!alive || revision !== catalogRevision.current) return;
-        setModels(next);
-        if (!resumed && !current.current && !models) setMode(next.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
-      } catch (error) {
-        if (alive && revision === catalogRevision.current) setProblem((error as Error).message);
-      }
     }).catch(error => { if (alive) setSetup(error.message); });
     return () => {
       alive = false; initialFocus.current = false;
@@ -208,16 +200,21 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     };
   }, [open, settingsRevision]);
   useEffect(() => {
-    setProviderProblem("");
     if (!open || !ready) return;
     let alive = true;
-    void request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${provider}&cache=prefer`).then(value => {
+    void observeAssistantProvider(request<AiModels>, ASSISTANT.modelsRoute, provider, value => {
+      if (!alive) return;
+      setModels(value);
+      if (!current.current) setMode(previous => previous || (value.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""));
+    }).catch(error => { if (alive) setProblem(error.message); });
+    void observeAssistantProvider(request<AssistantDiagnostics>, ASSISTANT.diagnosticsRoute, provider, value => {
       if (!alive) return;
       if (!value.connected) setProviderProblem(value.error ?? "Codex CLI is unavailable on the Host.");
       else if (provider === "codex" && !value.account) setProviderProblem("Sign in to Codex to start a conversation.");
+      else setProviderProblem("");
     }).catch(error => { if (alive) setProviderProblem(error.message); });
     return () => { alive = false; };
-  }, [open, ready, provider]);
+  }, [open, ready, provider, providerReadRevision]);
   // Hiding the panel is not a provider/scope change: a late send reply still belongs here.
   useEffect(() => () => {
     providerVersion.current++; busy.current = false; setPending(false);
@@ -622,8 +619,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
             void run(async isCurrent => {
               const catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selected}&cache=prefer`);
               if (!isCurrent()) return;
-              catalogRevision.current++;
               leaveSubmissionScope(); setProvider(selected); setModels(catalog);
+              setProviderProblem("");
               const first = catalog.models.find(model => selected === settings?.provider && model.model === settings.model) ?? catalog.models[0]; setModel(first?.model ?? ""); setEffort(selected === settings?.provider ? settings.reasoningEffort : first?.defaultReasoningEffort ?? "");
               setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
               setReferences(previous => previous.filter(file => file.kind !== "skill")); setMention(null); setHistory(null);

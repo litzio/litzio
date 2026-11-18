@@ -1505,6 +1505,37 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(selected.id).not.toBe(previousConversation);
   await expect(panel.getByText('Accepted before observation', { exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  const replacement = { ...copilotModels[0], id: 'replacement', model: 'replacement', displayName: 'Replacement model' };
+  let releaseProviderRecheck;
+  const providerRecheckGate = new Promise(resolve => { releaseProviderRecheck = resolve; });
+  await page.route('**/api/assistant/models?provider=copilot&cache=revalidate', async route => {
+    await providerRecheckGate;
+    await route.fulfill({ json: { provider: 'copilot', copilot: copilotOptions, models: [replacement], updatedAt: 1793590000001 } });
+  });
+  await page.route('**/api/assistant/diagnostics?provider=codex&cache=revalidate', async route => {
+    await providerRecheckGate;
+    await route.fulfill({ json: { provider: 'codex', connected: true, account: null, checkedAt: 1793590000001 } });
+  });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
+  const codexRow = page.getByRole('button', { name: 'Codex models', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]');
+  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).first().click();
+  const defaultModel = page.getByLabel('Model', { exact: true });
+  try {
+    await expect(codexRow).toContainText('Available');
+    await expect(defaultModel).toHaveValue(settings.model);
+    await expect(message).toBeEnabled();
+    await page.getByLabel('AI default language', { exact: true }).selectOption('ko');
+  } finally { releaseProviderRecheck(); }
+  await expect(codexRow).toContainText('Login required');
+  await expect(panel.getByText('Choose a model and reasoning effort from the available list.', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('AI default language', { exact: true })).toHaveValue('ko');
+  await expect(defaultModel).toHaveValue(settings.model);
+  await expect(defaultModel.locator('option[value="replacement"]')).toHaveCount(1);
+  await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Replacement model', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toHaveText('Replacement model');
   // Restore preferences for the other stable scenarios.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation.v2'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };

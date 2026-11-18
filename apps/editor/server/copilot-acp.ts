@@ -16,7 +16,8 @@ export class CopilotAcp extends EventEmitter {
   private closed = false;
   private stopping?: Promise<void>;
   private diagnostic?: CopilotAcp;
-  private diagnosis?: Promise<string | null>;
+  private diagnosis?: Promise<{ version: string | null; session: NewSessionResponse }>;
+  private lastInspection?: { session: NewSessionResponse; completedAt: number };
   private probe?: Promise<Awaited<ReturnType<ClientSideConnection["newSession"]>>>;
   version: string | null = null;
   loadSession = false;
@@ -124,15 +125,23 @@ export class CopilotAcp extends EventEmitter {
     finally { clearTimeout(timer); this.off("disconnected", onDisconnect); }
   }
   /** Independent probe: diagnostics must never disconnect an admitted turn. */
-  diagnose(): Promise<string | null> {
+  async diagnose(): Promise<string | null> { return (await this.inspect()).version; }
+  recentlyInspectedSession(): NewSessionResponse | undefined {
+    if (this.lastInspection && Date.now() - this.lastInspection.completedAt < 3_000) return this.lastInspection.session;
+  }
+  inspect(): Promise<{ version: string | null; session: NewSessionResponse }> {
     if (this.closed) return Promise.reject(new Error("Copilot ACP is closed."));
     if (this.diagnosis) return this.diagnosis;
     const probe = this.diagnostic = new CopilotAcp(this.cwd, this.options);
     probe.reasoningEffort = this.reasoningEffort; probe.fullAccess = this.fullAccess;
+    this.lastInspection = undefined;
     return this.diagnosis = (async () => {
-      try { await probe.catalog(); return probe.version; }
-      finally { try { await probe.close(); } finally { this.diagnostic = undefined; this.diagnosis = undefined; } }
-    })();
+      try { return { session: await probe.catalog(), version: probe.version }; }
+      finally { await probe.close(); }
+    })().then(value => {
+      this.lastInspection = { session: value.session, completedAt: Date.now() };
+      return value;
+    }).finally(() => { this.diagnostic = undefined; this.diagnosis = undefined; });
   }
   close() {
     this.closed = true;

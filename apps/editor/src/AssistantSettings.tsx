@@ -3,6 +3,7 @@ import { Status } from "./components/ui/status.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { AssistantAccount, AssistantRateLimits } from "./AssistantAccountUsage.tsx";
 import { useHostClient } from "./host-context.tsx";
+import { observeAssistantProvider } from "./assistant-api.ts";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ASSISTANT, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
 import "./assistant-settings.css";
@@ -28,14 +29,15 @@ function createRequest(client: ReturnType<typeof useHostClient>) { return async 
  const value = await response.json(); if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`); return value;
 }; }
 
-export function AssistantSettings({ onSaved }: { onSaved(): void }) {
+export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved(): void; providerReadRevision: number }) {
     const request = createRequest(useHostClient());
     const [settings, setSettings] = useState<AssistantSettings>();
     const [storedSettings, setStoredSettings] = useState<AssistantSettings>();
     const [inspecting, setInspecting] = useState<AiProvider>("codex");
     const [catalogs, setCatalogs] = useState<Partial<Record<AiProvider, AiModels>>>({});
     const models = catalogs[inspecting];
-    const setModels = (value: AiModels | undefined) => { if (value) setCatalogs(current => ({ ...current, [value.provider]: value })); };
+    const setModels = (value: AiModels) => setCatalogs(current => (current[value.provider]?.updatedAt ?? 0) > value.updatedAt
+      ? current : { ...current, [value.provider]: value });
     const [environment, setEnvironment] = useState<AssistantEnvironment>();
     const [view, setView] = useState<"settings" | "diagnostics">("settings");
     const [dialog, setDialog] = useState(false), [search, setSearch] = useState("");
@@ -47,7 +49,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
     const [problem, setProblem] = useState("");
     const focus = useRef<HTMLElement | null>(null), alive = useRef(true);
     const t = (key: string) => i18n.t(key as MessageKey);
-    const get = <T,>(route: string, provider?: AiProvider, preferCached = true) => request<T>(route + (provider ? `?provider=${provider}${preferCached ? "&cache=prefer" : ""}` : ""));
+    const get = <T,>(route: string, provider?: AiProvider) => request<T>(route + (provider ? `?provider=${provider}` : ""));
     const save = (next: AssistantSettings) => {
       latest.current = next; setSettings(next); setBusy(true); setProblem("");
       const version = ++revision.current;
@@ -60,12 +62,19 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
         finally { if (alive.current && version === revision.current) setBusy(false); }
       });
     };
-    const loadModels = (provider: AiProvider, preferCached = true) =>
-      get<AiModels>(ASSISTANT.modelsRoute, provider, preferCached).then(value => { if (alive.current) setModels(value); });
-    const loadDiagnostics = (provider: AiProvider, preferCached = true) =>
-      get<AssistantDiagnostics>(ASSISTANT.diagnosticsRoute, provider, preferCached).then(value => {
-        if (alive.current) setConnections(current => ({ ...current, [provider]: value }));
-      });
+    const loadModels = (provider: AiProvider, preferCached = true) => {
+      const update = (value: AiModels) => { if (alive.current) setModels(value); };
+      return preferCached ? observeAssistantProvider(request<AiModels>, ASSISTANT.modelsRoute, provider, update)
+        : get<AiModels>(ASSISTANT.modelsRoute, provider).then(update);
+    };
+    const loadDiagnostics = (provider: AiProvider, preferCached = true) => {
+      const update = (value: AssistantDiagnostics) => {
+        if (alive.current) setConnections(current => (current[provider]?.checkedAt ?? 0) > value.checkedAt
+          ? current : { ...current, [provider]: value });
+      };
+      return preferCached ? observeAssistantProvider(request<AssistantDiagnostics>, ASSISTANT.diagnosticsRoute, provider, update)
+        : get<AssistantDiagnostics>(ASSISTANT.diagnosticsRoute, provider).then(update);
+    };
     const report = (error: Error) => { if (alive.current) setProblem(error.message); };
     const refresh = async () => {
       setLoading(true); setProblem("");
@@ -92,11 +101,15 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
         if (!alive.current) return;
         next = { ...next, responseLanguage: next.responseLanguage ?? (navigator.language.startsWith("ko") ? "ko" : navigator.language.startsWith("ja") ? "ja" : "en") };
         latest.current = next; setSettings(next); setStoredSettings(next); setInspecting(next.provider);
-        void loadModels(next.provider).catch(report);
-        for (const provider of ["codex", "copilot"] as const) void loadDiagnostics(provider).catch(report);
       }).catch(report);
       return () => { alive.current = false; };
     }, []);
+    const savedProvider = storedSettings?.provider;
+    useEffect(() => {
+      if (!savedProvider) return;
+      void loadModels(savedProvider).catch(report);
+      for (const provider of ["codex", "copilot"] as const) void loadDiagnostics(provider).catch(report);
+    }, [savedProvider, providerReadRevision]);
     const copilot = inspecting === "copilot", providerName = copilot ? "GitHub Copilot" : "Codex";
     const defaultModels = settings ? catalogs[settings.provider] : undefined;
     const model = defaultModels?.models.find(item => item.model === settings?.model);
@@ -156,7 +169,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
           onChange={value => { save({ ...latest.current!, responseLanguage: value as AssistantSettings["responseLanguage"] }); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
 
-        {models && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
+        {defaultModels && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
 
         </Section>
         <Section title={t("Common working environment")}>

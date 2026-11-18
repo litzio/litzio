@@ -219,6 +219,7 @@ function EditorApp() {
   const assistantAvailable = true;
   const [assistantSubmissions, setAssistantSubmissions] = useState<AssistantLocalSubmission[]>([]);
   const [assistantSettingsRevision, setAssistantSettingsRevision] = useState(0);
+  const [assistantProviderRevision, setAssistantProviderRevision] = useState(0);
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
     if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
@@ -1440,7 +1441,7 @@ function EditorApp() {
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("settings")} onPointerDownCapture={() => focusDocument("settings")}>
-            <SettingsDialog onAssistantSaved={() => setAssistantSettingsRevision(value => value + 1)}
+            <SettingsDialog onAssistantSaved={() => setAssistantSettingsRevision(value => value + 1)} assistantProviderRevision={assistantProviderRevision}
                 theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
                 category={settingsCategory}
                 highlightUpdate={highlightUpdate}
@@ -1472,7 +1473,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t(undoConfirmation.edit ? "Undo change?" : "Undo document creation?")} description={i18n.t(undoConfirmation.edit ? "Restore “{{name}}” and discard unsaved changes and recovery records?" : "“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t(undoConfirmation.edit ? "Restore and discard changes" : "Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel key="local" onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel key="local" onStatus={setAssistantStatus} submissions={assistantSubmissions} setSubmissions={setAssistantSubmissions} settingsRevision={assistantSettingsRevision} providerReadRevision={assistantProviderRevision} onProviderRecheck={() => setAssistantProviderRevision(value => value + 1)} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async (path, client) => { const message = await openFile(path, "", navigation.focused, client); if (message) throw new Error(message); }}
         onUndoChange={async (path, undo) => {
