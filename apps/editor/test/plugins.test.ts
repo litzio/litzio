@@ -313,6 +313,13 @@ test("authoring and management actions refuse installed copies", async () => {
     try { await host.invoke("dependencies", { directory: linkedDependencies }); }
     finally { for (const [name, value] of launcherEnv) process.env[name] = value; }
     assert.deepEqual(contents(), copied);
+    // A relative Host data folder still keeps npm logs in the Host folder, not the project.
+    const working = process.cwd(); process.chdir(root);
+    const relativeHost = new PluginHost("relative-state.json");
+    try { await relativeHost.invoke("dependencies", { directory: linkedDependencies }); }
+    finally { await relativeHost.close(); process.chdir(working); }
+    assert.equal(existsSync(path.join(linkedDependencies, "plugin-npm")), false);
+    assert.ok(existsSync(path.join(root, "plugin-npm", "logs")));
     assert.equal(existsSync(path.join(copy, "screen.bundle.js")), false);
     const [after] = await host.list();
     assert.deepEqual([after!.digest, after!.running, after!.error], [before!.digest, true, undefined]);

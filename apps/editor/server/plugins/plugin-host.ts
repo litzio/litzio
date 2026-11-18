@@ -541,7 +541,9 @@ export class PluginHost {
         const outside = (file: string) => this.copies.assertOutside(file);
         if (action === "bundle") return { ...bundleScreens(directory, outside), receipt: receipt("success") };
         // Litzio chooses these npm write locations; other npm settings in the target folder are its author's.
-        const npmData = { cache: path.join(path.dirname(this.file), "plugin-npm", "cache"), logs: path.join(path.dirname(this.file), "plugin-npm", "logs") };
+        // Absolute here: npm resolves relative --cache and --logs-dir against the project folder.
+        const npmFolder = path.resolve(path.dirname(this.file), "plugin-npm");
+        const npmData = { cache: path.join(npmFolder, "cache"), logs: path.join(npmFolder, "logs") };
         for (const file of [path.join(directory, "node_modules"), path.join(directory, "package-lock.json"), npmData.cache, npmData.logs]) outside(file);
         return { ...await installScreenDependencies(directory, npmData), receipt: receipt("success") };
       }
