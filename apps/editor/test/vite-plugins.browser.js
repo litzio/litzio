@@ -27,6 +27,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(input).not.toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
   const external = page.getByRole("region", { name: "Vite fixture", exact: true });
+  await expect(external.getByText(/^Version 0\.1\.0/)).toBeVisible();
   const toggle = external.getByRole("switch", { name: "Enable Vite fixture", exact: true });
   await expect(toggle).toBeEnabled();
   await external.getByRole("switch").click();

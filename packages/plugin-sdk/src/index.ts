@@ -26,7 +26,8 @@ export function pluginIconMime(icon: string) {
  const extension = icon.slice(icon.lastIndexOf(".")).toLowerCase();
  return Object.hasOwn(PLUGIN_ICON_MIME_TYPES, extension) ? PLUGIN_ICON_MIME_TYPES[extension as keyof typeof PLUGIN_ICON_MIME_TYPES] : undefined;
 }
-const cardSchema = z.strictObject({id,name:z.string().min(1),description:z.string().optional(),icon:z.string().min(1).default("LayoutDashboard"),entry:z.string().min(1),screen:z.string().min(1),operations:z.array(operation).default([]),settingsSchema:schema.default({type:"object",additionalProperties:false}),secrets:z.array(secret).default([]),skills:z.array(skill).default([]),healthCheck:id.optional()});
+const manifestVersion = z.string().refine(value => value.trim().length > 0 && !/[\r\n\v\f\u0085\u2028\u2029]/u.test(value), "Expected a non-empty single-line version");
+const cardSchema = z.strictObject({id,name:z.string().min(1),version:manifestVersion.optional(),description:z.string().optional(),icon:z.string().min(1).default("LayoutDashboard"),entry:z.string().min(1),screen:z.string().min(1),operations:z.array(operation).default([]),settingsSchema:schema.default({type:"object",additionalProperties:false}),secrets:z.array(secret).default([]),skills:z.array(skill).default([]),healthCheck:id.optional()});
 export function validateManifest(input:unknown) {
  const card=cardSchema.parse(input);
  for(const file of [card.entry,card.screen]) if(/^(?:[a-z]+:|[/\\])/i.test(file)||file.split(/[/\\]/).includes(".."))throw new Error("Entry must stay inside package");
@@ -36,7 +37,7 @@ export function validateManifest(input:unknown) {
  compileSchema(card.settingsSchema);
  for(const op of card.operations){compileOperationInputSchema(op.inputSchema);compileSchema(op.outputSchema);}
  if(card.healthCheck){const op=card.operations.find(op=>op.id===card.healthCheck);if(!op||op.effect!=="read"||op.scope!=="host"||!compileSchema(op.inputSchema)({}))throw new Error("Health check must be a host read accepting empty input");}
- return {id:card.id,name:card.name,description:card.description,entry:card.entry,icon:SCREEN_ICONS.includes(card.icon as any)?undefined:card.icon,settingsSchema:card.settingsSchema,secrets:card.secrets,
+ return {id:card.id,name:card.name,version:card.version,description:card.description,entry:card.entry,icon:SCREEN_ICONS.includes(card.icon as any)?undefined:card.icon,settingsSchema:card.settingsSchema,secrets:card.secrets,
  contributes:{operations:card.operations,healthCheck:card.healthCheck,skills:card.skills,screens:[{id:"main",title:card.name,icon:SCREEN_ICONS.includes(card.icon as any)?card.icon:"LayoutDashboard",entry:card.screen,primary:true}]}};
 }
 export type PluginManifest=ReturnType<typeof validateManifest>;

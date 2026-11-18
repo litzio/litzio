@@ -6,7 +6,7 @@ import {authoringTemplate} from "./authoring-templates.ts";
 export function scaffoldPlugin(directory:string,id:string,access:FileAccess=LOCAL_FILE_ACCESS,creationScope:FileAccess=LOCAL_FILE_ACCESS,template:"greet"|"screen"|"chart"="greet",expectedDirectory?:string){
  if(!["greet","screen","chart"].includes(template))throw new Error("Unknown plugin template");
  const example=template==="greet"?undefined:authoringTemplate(id,template);
- const card={id,name:example?"측정값":"인사말 예제",icon:example?"ChartColumn":"LayoutDashboard",entry:"host.mjs",screen:"screen.jsx",operations:example?[]:[{id:"greet",assistant:true,inputSchema:{type:"object",properties:{name:{type:"string"}},required:["name"],additionalProperties:false},outputSchema:{type:"object",properties:{greeting:{type:"string"}},required:["greeting"],additionalProperties:false}}]};
+ const card={id,version:"0.1.0",name:example?"측정값":"인사말 예제",icon:example?"ChartColumn":"LayoutDashboard",entry:"host.mjs",screen:"screen.jsx",operations:example?[]:[{id:"greet",assistant:true,inputSchema:{type:"object",properties:{name:{type:"string"}},required:["name"],additionalProperties:false},outputSchema:{type:"object",properties:{greeting:{type:"string"}},required:["greeting"],additionalProperties:false}}]};
  validateManifest(card);
   if (!path.isAbsolute(directory)) throw new Error("Use an absolute directory on the target Host");
   // Require a new directory; no pre-existing files are ever overwritten.

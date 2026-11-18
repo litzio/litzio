@@ -45,7 +45,7 @@ export function PluginSettings() {
       onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
     {error || problem && !current && !trust ? <Notice tone="error">{error || problem}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
-      <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={plugin.description}>
+      <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={[plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version"), plugin.description].filter(Boolean).join(" · ")}>
         <PluginState tone={plugin.error ? "error" : plugin.enabled && !plugin.running ? "warning" : plugin.running ? "ok" : "neutral"} label={i18n.t(plugin.error ? "Plugin error" : plugin.enabled && !plugin.running ? "Plugin unavailable" : plugin.running ? "Running" : "Installed")} detail={plugin.error} />
           <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("{{name}} settings", { name: plugin.name ?? plugin.id })} onClick={() => setSelected(plugin.id)} />}><Settings aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Settings")}</TooltipContent></Tooltip>
           <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled} disabled={busy} onChange={event => { if (event.target.checked && !plugin.trusted) setTrust(plugin); else void run(event.target.checked ? "enable" : "disable", { id: plugin.id }); }} />
@@ -67,7 +67,7 @@ export function PluginSettings() {
     </Dialog>
     {removing && current ? <DangerConfirmation
       title={i18n.t("Remove {{name}}?", { name: current.name ?? current.id })}
-      description={i18n.t("The plugin will be disabled and its settings and secrets deleted. Its folder stays on disk. Adding it again requires trust confirmation.")}
+      description={i18n.t("The plugin will be disabled and its settings and secrets deleted. Its source folder stays on disk. Adding it again requires trust confirmation.")}
       action={i18n.t("Remove")} pending={busy} error={problem} returnFocus={removeButton}
       onClose={() => setRemoving(false)} onConfirm={async () => {
         setBusy(true); setProblem("");

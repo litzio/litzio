@@ -2,6 +2,7 @@ import { PLUGIN_CLI_SOURCE, PLUGIN_CLI_OPERATION, verifyPluginCli } from "../../
 import { availableHostCli, hostCli } from "../server/host-cli.ts";
 import {writeCodePluginManifest} from "../../../test/helpers/code-plugin.ts";
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import { syncBuiltinESMExports } from "node:module";
 import { canonicalFilePath } from "../server/file-access.ts";
 
@@ -18,6 +19,12 @@ import { executePluginTool } from "../server/assistant-plugin-tools.ts";
 
 
 import { PluginAssistantSkills } from "../server/plugins/assistant-skills.ts";
+import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
+
+function registeredCopy(state: string, id: string) {
+  const record = JSON.parse(readFileSync(state, "utf8"))[id];
+  return path.join(`${state}.artifacts`, record.installationId);
+}
 
 // Host lifecycle and public-operation tests stay in-process.
 // HTTP plugin scenarios cover browser registration/settings/secret integration.
@@ -101,6 +108,8 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     await host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } });
     assert.equal((await host.list())[0]!.trusted, true);
     assert.equal((await host.list())[0]?.running, true);
+    assert.equal((await host.invokeOperation("fixture.lifecycle.read", {})).result, "recovered");
+    await host.invoke("reload", { id: manifest.id });
     assert.equal((await host.invokeOperation("fixture.lifecycle.read", {})).result, "recovered");
     await host.invoke("disable", { id: manifest.id });
     const { statSync, utimesSync } = await import("node:fs");
@@ -246,13 +255,16 @@ test("missing artifact affects only its registration; unregister records activit
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-missing-plugin-")), host = new PluginHost(path.join(root, "state.json"));
   try {
     const a = lifecycleFixture(root, "fixture.a"), b = lifecycleFixture(root, "fixture.b");
-    await host.invoke("register", { directory: a }); rmSync(a, { recursive: true });
+    await host.invoke("register", { directory: a });
+    rmSync(registeredCopy(path.join(root, "state.json"), "fixture.a"), { recursive: true });
     await host.invoke("register", { directory: b });
+    const copy = registeredCopy(path.join(root, "state.json"), "fixture.b");
     assert.match((await host.list()).find(p => p.id === "fixture.a")!.error!, /artifact missing/);
     await executePluginTool(host, { action: "unregister", id: "fixture.a" }, () => {});
     await host.invoke("unregister", { id: "fixture.b" });
     assert.equal((await host.list()).length, 0);
     assert.doesNotThrow(() => readFileSync(path.join(b, "host.js")));
+    assert.equal(existsSync(copy), false);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 test("disable drains admitted status observations and their late results cannot restore contributions", async () => {
@@ -480,11 +492,11 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
       mkdirSync(target, { recursive: true }); writeFileSync(path.join(target, "partial.txt"), "Partial copy");
       throw Object.assign(new Error("simulated ENOSPC during skill copy"), { code: "ENOSPC" });
     }) as typeof fs.cpSync); syncBuiltinESMExports();
-    try { await host.invoke("enable", { id: "fixture.reload" }); }
+    try { await assert.rejects(host.invoke("enable", { id: "fixture.reload" }), /skill copy/); }
     finally { copyFault.mock.restore(); syncBuiltinESMExports(); }
-    const degraded = (await host.list())[0]!;
-    assert.equal(degraded.running, true); assert.match(degraded.error!, /skill/i);
-    assert.equal((await host.invokeOperation("fixture.reload.read", {})).result, "available");
+    const inactive = (await host.list())[0]!;
+    assert.equal(inactive.running, false); assert.match(inactive.error!, /skill/i);
+    await assert.rejects(host.invokeOperation("fixture.reload.read", {}), /unavailable/);
     assert.equal(existsSync(installedSkill), false);
     await host.invoke("reload", { id: "fixture.reload" });
     assert.equal((await host.list())[0]!.error, undefined);
@@ -511,8 +523,9 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     assert.match(second, /^second:/); assert.notEqual(first.split(':')[1], second.split(':')[1]);
     writeFileSync(path.join(directory, "host.js"), "throw new Error('private error')");
     await trust(); await assert.rejects(host.invoke("reload", { id: "fixture.reload" }), /request failed/);
-    assert.equal((await host.list())[0]!.running, false);
-    assert.equal(existsSync(installedSkill), false, "failed activation cannot retain instructions");
+    assert.equal((await host.list())[0]!.status!.message, second);
+    assert.equal((await host.invokeOperation("fixture.reload.read", {})).result, "available");
+    assert.match(readFileSync(path.join(installedSkill, "SKILL.md"), "utf8"), /Updated procedure/);
     writeFileSync(path.join(directory, "host.js"), code("recovered"));
     await trust(); await host.invoke("reload", { id: "fixture.reload" });
     assert.match((await host.list())[0]!.status!.message, /^recovered:/);
@@ -638,7 +651,7 @@ test("a stalled write times out as uncertain; failed disposal can recover on the
     await host.invoke("register", {directory});
     await host.invoke("trust", {id:'fixture.timeout',registrationId:(await host.list())[0]!.registrationId});
     await host.invoke("enable", {id:'fixture.timeout'});
-    await assert.rejects(host.invoke("reload", {id:'fixture.timeout'}), /disposal failed/);
+    await assert.rejects(host.invoke("disable", {id:'fixture.timeout'}), /disposal failed/);
     assert.equal((await host.list())[0]!.running, false);
     await host.invoke("reload", {id:'fixture.timeout'});
     const result = await host.invokeOperation('fixture.timeout.write', {});
@@ -827,18 +840,20 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
     // This reaches the runtime resolver and proves that realpath, not lexical path, is checked.
     const alias = path.join(root, "host-source-alias");
     symlinkSync(path.dirname(target), alias, process.platform === "win32" ? "junction" : "dir");
+    // The next installation uses a sibling directory at the same depth.
+    const copy = registeredCopy(path.join(root, "state.json"), id);
     const attempts = [
-      path.relative(directory, target).replaceAll("\\", "/"),
+      path.relative(copy, target).replaceAll("\\", "/"),
       pathToFileURL(target).href,
       pathToFileURL(path.join(alias, "label.ts")).href,
-      path.relative(directory, path.join(alias, "label.ts")).replaceAll("\\", "/"),
+      path.relative(copy, path.join(alias, "label.ts")).replaceAll("\\", "/"),
       ...(process.platform === "win32" ? [pathToFileURL(target.toUpperCase()).href] : []),
     ];
     for (const specifier of attempts) {
       writeFileSync(entry, `import ${JSON.stringify(specifier)};\n` + source);
       await trust();
       await assert.rejects(host.invoke("reload", { id }), /request failed/, specifier);
-      assert.equal((await host.list())[0]!.running, false);
+      assert.match((await host.list())[0]!.status!.message, /okay\/local\/dependency$/);
     }
     writeFileSync(entry, `import {createRequire} from 'node:module'; createRequire(import.meta.url)(${JSON.stringify(target)});\n` + source);
     await trust(); await assert.rejects(host.invoke("reload", { id }), /request failed/);
@@ -1002,6 +1017,8 @@ test("authoring aliases share canonical validation/install paths and retain writ
     }
     if (existsSync(expected)) rmdirSync(expected);
     if (existsSync(path.join(root, "state.json"))) rmSync(path.join(root, "state.json"));
+    const storage = path.join(root, "state.json.artifacts");
+    if (existsSync(storage)) rmSync(storage, { recursive: true });
     for (const folder of [documents, data, root]) rmdirSync(folder);
   });
   assert.equal(host.authoringPath(), expected);
@@ -1081,7 +1098,8 @@ test("validation diagnostics never expose source values through Host, assistant,
     writeFileSync(manifestPath, JSON.stringify(invalid));
     await check("litzio-plugin.json");
     const diagnostics: any = await host.invoke("validate", { directory });
-    assert.deepEqual((await host.list())[0]!.errors, diagnostics.errors);
+    const failed = await host.invoke("install", { directory }) as { errors: unknown };
+    assert.deepEqual(failed.errors, diagnostics.errors);
     assert.ok(diagnostics.errors.some((e: any) => e.path === "name" && e.code === "invalid_type" && /string/.test(e.message)));
     writeFileSync(path.join(directory, "litzio-plugin.json"), `{ "token": "${secret}", broken }`);
     await check("litzio-plugin.json");
@@ -1224,10 +1242,10 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
     assert.equal(host.icon(manifest.id, digest).mime, "image/svg+xml");
     assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
     writeFileSync(icon, svg.replace('blue', 'red'));
+    assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
+    writeFileSync(path.join(registeredCopy(path.join(root, "state.json"), manifest.id), "icon.svg"), svg.replace('blue', 'red'));
     assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
-    const updatedDigest = (await host.list())[0]!.digest!;
-    assert.equal((await host.list())[0]!.iconDigest, updatedDigest);
-    assert.equal(host.icon(manifest.id, updatedDigest).mime, "image/svg+xml");
+    assert.equal((await host.list())[0]!.iconDigest, undefined);
     rmSync(icon); const linked = path.join(directory, "linked");
     symlinkSync(directory, linked, "junction");
     await assert.rejects(host.invoke("register", { directory }), /linked/);
@@ -1342,7 +1360,7 @@ test("screen code is active-only, reloads local JSX, reports compiler failures a
     const validation: any = await host.invoke("validate", { directory });
     assert.equal(validation.valid, false); assert.equal(validation.errors[0].file, "screen.jsx"); assert.ok(validation.errors[0].line);
     await assert.rejects(host.invoke("reload", { id: "fixture.screen" }), /screen.jsx/);
-    assert.deepEqual(host.viewScreens(), []); assert.match((await host.list())[0]!.error!, /screen.jsx/);
+    assert.deepEqual(host.viewScreens(), []); assert.equal((await host.list())[0]!.enabled, false);
   } finally { await host.close(); }
 });
 
@@ -1365,9 +1383,11 @@ test("screen dependency bundle stays offline and shares the app React instance",
 });
 
 
-test("install uses authoring ID in opened folders, repeats edits and refuses private CLI calls", async () => {
+test("install uses the authoring ID, preserves the active copy on failure and refuses private CLI calls", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-install-"));
-  const host = new PluginHost(path.join(root, "state.json"), { authoringDirectory: path.join(root, "plugins") });
+  const state = path.join(root, "state.json");
+  const options = { authoringDirectory: path.join(root, "plugins") };
+  let host = new PluginHost(state, options);
   const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
   const id = "local.install";
   try {
@@ -1376,7 +1396,15 @@ test("install uses authoring ID in opened folders, repeats edits and refuses pri
     const directory = created.result.directory;
     const entry = path.join(directory,"host.mjs");
     const manifestFile = path.join(directory,"litzio-plugin.json");
-    const manifest = {...JSON.parse(readFileSync(manifestFile,"utf8")),icon:"icon.PNG"};
+    const manifest = {...JSON.parse(readFileSync(manifestFile,"utf8")),icon:"icon.PNG",
+      operations: [{ id: "snapshot", outputSchema: { type: "array" } }],
+      skills: [{ id: "review", directory: "skills/review" }] };
+    const skillSource = path.join(directory, "skills", "review");
+    mkdirSync(skillSource, { recursive: true });
+    const skillFile = path.join(skillSource, "SKILL.md");
+    const activeSkill = path.join(root, "assistant", ".agents", "skills", "litzio-plugin-local--install---review", "SKILL.md");
+    const skill = (text: string) => `---\nname: Review\ndescription: Review measurements\n---\n${text}\n`;
+    writeFileSync(skillFile, skill("Original procedure"));
     writeFileSync(manifestFile,JSON.stringify({...manifest,icon:"icon.webp"}));
     writeFileSync(path.join(directory,"icon.webp"),Buffer.from("UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA","base64"));
     for (const action of ["validate","install"]) {
@@ -1385,22 +1413,45 @@ test("install uses authoring ID in opened folders, repeats edits and refuses pri
     writeFileSync(manifestFile,JSON.stringify(manifest));
     writeFileSync(path.join(directory,manifest.icon),Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=","base64"));
     assert.equal(validateManifest(manifest).icon,"icon.PNG");
+    writeFileSync(entry,readFileSync(entry,"utf8")
+      .replace('message: "Ready"','message: String(process.pid)')
+      .replace("measurements: ()", "snapshot: () => [10, 18, 12, 24], measurements: ()"));
     assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
-    writeFileSync(entry,readFileSync(entry,"utf8").replace('message: "Ready"','message: String(process.pid)'));
+    mkdirSync(path.join(directory, ".git"));
+    writeFileSync(path.join(directory, ".git", "config"), "Not part of the artifact");
+    writeFileSync(path.join(directory, "screen.bundle.js"), "// stale local bundle");
     const installed: any = await executePluginTool(host,{action:"install",id},()=>{},scope);
     assert.equal(installed.error, undefined, JSON.stringify(installed));
     assert.equal((await host.list())[0]!.running, true);
+    assert.equal((await host.list())[0]!.version, "0.1.0");
+    const originalCopy = registeredCopy(state, id);
+    assert.equal(existsSync(path.join(originalCopy, ".git")), false);
+    assert.equal(readFileSync(path.join(directory, "screen.bundle.js"), "utf8"), "// stale local bundle");
+    const saved = JSON.parse(readFileSync(state, "utf8"))[id];
+    assert.equal(saved.sourceDirectory, canonicalFilePath(directory));
+    assert.equal(saved.sourceDigest, artifactDigest(directory, file => path.basename(file) !== ".git"));
+    assert.equal(saved.digest, artifactDigest(originalCopy));
+    assert.notEqual(saved.digest, saved.sourceDigest);
     assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/png");
     const first = host.viewScreens()[0]!.codeRevision;
     await assert.rejects(host.invokeOperation(`${id}.measurements`,{}), /unavailable/);
     await assert.rejects(host.invokeAssistantOperation(`${id}.measurements`,{}));
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[10,18,12,24]);
     await assert.rejects(host.invoke("screen-invoke",{plugin:"other",operation:`${id}.measurements`,input:{}}));
-    writeFileSync(entry,readFileSync(entry,"utf8").replace("10, 18, 12, 24","20, 30"));
+    writeFileSync(entry,readFileSync(entry,"utf8").replaceAll("10, 18, 12, 24","20, 30"));
+    assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[10,18,12,24]);
+    const read = async () => {
+      const result = await host.invokeOperation(`${id}.snapshot`, {});
+      assert.equal(result.receipt.outcome, "success");
+      return result.result;
+    };
+    assert.deepEqual(await read(), [10, 18, 12, 24]);
     writeFileSync(manifestFile,JSON.stringify({...manifest,icon:"icon.SVG"}));
     writeFileSync(path.join(directory,"icon.SVG"),'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>');
     assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
-    assert.equal((await host.invoke("install",{id}) as any).receipt.outcome,"success");
+    assert.equal((await host.invoke("reload",{id}) as any).receipt.outcome,"success");
+    assert.deepEqual(await read(), [20, 30]);
+    assert.equal(existsSync(originalCopy), false);
     assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/svg+xml");
     assert.notEqual(host.viewScreens()[0]!.codeRevision,first);
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[20,30]);
@@ -1409,25 +1460,67 @@ test("install uses authoring ID in opened folders, repeats edits and refuses pri
     const workingSource = readFileSync(entry,"utf8");
     const beforeInstall = await host.list();
     const beforeScreens = host.viewScreens();
-    const beforeState = readFileSync(path.join(root,"state.json"),"utf8");
+    const beforeState = readFileSync(state,"utf8");
     writeFileSync(entry,workingSource.replace("export function activate(context) {", "export function activate(context) { throw new Error('Activation failed');"));
     assert.equal((await host.invoke("validate",{directory}) as any).valid,true);
     const activationFailed: any = await host.invoke("install",{id});
     assert.equal(activationFailed.receipt.outcome,"failure");
     assert.deepEqual((await host.list()).map(item=>[item.id,item.enabled,item.running,item.registrationId,item.status?.message]),beforeInstall.map(item=>[item.id,item.enabled,item.running,item.registrationId,item.status?.message]));
     assert.deepEqual(host.viewScreens(),beforeScreens);
-    assert.equal(readFileSync(path.join(root,"state.json"),"utf8"),beforeState);
-    writeFileSync(entry,workingSource.replace("20, 30","40, 50"));
-    assert.equal((await host.invoke("install",{id}) as any).receipt.outcome,"success");
+    assert.equal(readFileSync(state,"utf8"),beforeState);
+    assert.deepEqual(await read(), [20, 30]);
+    writeFileSync(entry,workingSource.replaceAll("20, 30","40, 50"));
+    writeFileSync(skillFile, skill("New procedure"));
+    const copy = fs.cpSync;
+    const failSkillCopy = t.mock.method(fs, "cpSync", ((from, to, options) => {
+      if (String(to).includes(".litzio-plugin-skills-")) throw new Error("Fixture skill staging failed");
+      return copy(from, to, options);
+    }) as typeof fs.cpSync);
+    syncBuiltinESMExports();
+    try { assert.equal((await host.invoke("install", { id }) as any).receipt.outcome, "failure"); }
+    finally { failSkillCopy.mock.restore(); syncBuiltinESMExports(); }
+    assert.deepEqual(await read(), [20, 30]);
+    assert.match(readFileSync(activeSkill, "utf8"), /Original procedure/);
+    assert.equal(readFileSync(state, "utf8"), beforeState);
+    const rename = fs.renameSync;
+    const failSave = t.mock.method(fs, "renameSync", ((from, to) => {
+      if (to === state) throw new Error("Fixture registration save failed");
+      return rename(from, to);
+    }) as typeof fs.renameSync);
+    syncBuiltinESMExports();
+    try { assert.equal((await host.invoke("install", { id }) as any).receipt.outcome, "failure"); }
+    finally { failSave.mock.restore(); syncBuiltinESMExports(); }
+    assert.deepEqual(await read(), [20, 30]);
+    assert.match(readFileSync(activeSkill, "utf8"), /Original procedure/);
+    assert.equal(readFileSync(state, "utf8"), beforeState);
+    assert.equal((await executePluginTool(host,{action:"install",id},()=>{},scope)).activity.outcome,"success");
+    assert.match(readFileSync(activeSkill, "utf8"), /New procedure/);
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[40,50]);
     assert.notEqual(host.viewScreens().find(screen=>screen.plugin===id)!.codeRevision,beforeScreens.find(screen=>screen.plugin===id)!.codeRevision);
     assert.deepEqual(host.viewScreens().find(screen=>screen.plugin==="local.other"),beforeScreens.find(screen=>screen.plugin==="local.other"));
     writeFileSync(path.join(directory,"screen.jsx"),"export default function Screen(){return <div>}");
     const failed: any = await host.invoke("install",{id});
     assert.equal(failed.receipt.outcome,"failure");assert.equal(failed.errors[0].file,"screen.jsx");assert.ok(failed.errors[0].line);
+    await assert.rejects(host.invoke("reload", { id }), /screen.jsx/);
+    assert.deepEqual(await read(), [40, 50]);
+    const installedCopy = registeredCopy(state, id);
+    const storage = path.dirname(installedCopy);
+    assert.deepEqual(new Set(fs.readdirSync(storage)), new Set([path.basename(installedCopy), path.basename(registeredCopy(state, "local.other"))]));
+    const orphan = path.join(storage, randomUUID());
+    mkdirSync(orphan);
+    writeFileSync(path.join(orphan, "incomplete"), "Interrupted install");
+    await host.close();
+    host = new PluginHost(state, options);
+    await host.start();
+    assert.equal(existsSync(orphan), false);
+    assert.deepEqual(await read(), [40, 50]);
+    assert.match(readFileSync(activeSkill, "utf8"), /New procedure/);
     const refused = await executePluginTool(host,{action:"install",id},()=>{},{...scope,permissionMode:"read-only"});
     assert.equal(refused.errorKind,"forbidden");
-  } finally {await host.close();}
+    await host.invoke("unregister", { id });
+    assert.equal(existsSync(installedCopy), false);
+    assert.equal(existsSync(entry), true);
+  } finally {await host.close(); rmSync(root, { recursive: true, force: true });}
 });
 
 
