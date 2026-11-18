@@ -35,7 +35,7 @@ export class CopilotAcp extends EventEmitter {
   async connect() {
     await this.stopping;
     if (this.closed) return Promise.reject(new Error("Copilot ACP is closed."));
-    return this.ready ??= this.initialize().catch(async error => { await this.stop(); this.ready = undefined; throw error; });
+    return this.ready ??= this.initialize().catch(async error => { try { await this.stop(); } finally { this.ready = undefined; } throw error; });
   }
   private async initialize() {
     const bin = this.executable; if (!bin) throw new Error("Copilot CLI is unavailable on the Host.");
@@ -67,8 +67,7 @@ export class CopilotAcp extends EventEmitter {
       if (this.child !== child) return;
       this.child = undefined; if (initialized) this.ready = undefined; this.probe = undefined;
       this.sessions.clear(); this.loadSession = false; this.version = null;
-      this.stopping = stopAgentProcess(child);
-      void this.stopping.catch(() => {});
+      this.retire(child);
       this.emit("disconnected", message);
     };
     child.on("error", error => disconnected(error.message));
@@ -111,7 +110,7 @@ export class CopilotAcp extends EventEmitter {
           reject(new Error("Copilot ACP request timed out."));
           // Late creation/load leaves session ownership uncertain. Retire the
           // transport, including other active turns, without replaying work.
-          if (discardOnTimeout) { this.stopping = stopAgentProcess(this.child); void this.stopping.catch(() => {}); }
+          if (discardOnTimeout) this.retire(this.child);
         }, this.options.timeoutMs ?? 15000);
       })]);
     }
@@ -151,6 +150,12 @@ export class CopilotAcp extends EventEmitter {
     })();
   }
   private async stop() { await this.stopping; await stopAgentProcess(this.child); }
+  private retire(child?: ChildProcessWithoutNullStreams) {
+    // An unconfirmed termination fails only callers already waiting on it.
+    // The next explicit attempt starts a new process instead of repeating it.
+    const stopping = this.stopping = stopAgentProcess(child);
+    void stopping.catch(() => { if (this.stopping === stopping) this.stopping = undefined; });
+  }
 }
 
 export const COPILOT_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];

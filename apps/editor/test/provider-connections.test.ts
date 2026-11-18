@@ -1277,6 +1277,34 @@ test("Copilot resolved spawn failure reconnects the same owner", async t => {
   assert.ok((await connection.copilot.catalog()).sessionId);
 });
 
+test("Copilot unconfirmed termination of a retired process does not block the next connection", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-retire-")), fixture = fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url));
+  const owners: ProviderConnections[] = [], logs = ["initialize", "stream"].map(name => path.join(root, `${name}.jsonl`));
+  const orphan = (log: string): number => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(row => row.orphanPid).orphanPid;
+  t.after(async () => {
+    for (const log of logs) try { process.kill(orphan(log)); } catch { /* Absent or already stopped by the scenario. */ }
+    await Promise.all(owners.map(owner => owner.close())); rmSync(root, { recursive: true, force: true });
+  });
+  // Initialization timeout and transport loss each retire a process whose
+  // stdout stays open, so its termination check fails after the stop deadline.
+  await Promise.all([true, false].map(async hangInitialize => {
+    const log = logs[hangInitialize ? 0 : 1]!;
+    const connection = new ProviderConnections(path.join(root, hangInitialize ? "initialize" : "stream"), undefined, { bin: process.execPath, args: [fixture, log, "--fixture-orphan-stdout-once", ...(hangInitialize ? ["--fixture-hang-initialize"] : [])], timeoutMs: 2000 });
+    owners.push(connection); connection.environment();
+    const acp = connection.copilot;
+    if (!hangInitialize) {
+      await acp.catalog();
+      const lost = new Promise(resolve => acp.once("disconnected", resolve));
+      (acp as unknown as { child: import("node:child_process").ChildProcessWithoutNullStreams }).child.stdin.emit("error", new Error("Fixture pipe failure"));
+      await lost;
+    }
+    await assert.rejects(acp.connect(), /Could not confirm agent termination/);
+    process.kill(orphan(log));
+    assert.equal((await connection.diagnostics("copilot")).connected, true);
+    assert.ok((await acp.catalog()).sessionId);
+  }));
+});
+
 test("Copilot late session load cannot trap explicit resume on an already loaded session", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-late-load-")), log = path.join(root, "rpc.jsonl"), cwd = path.join(root, "assistant");
   const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-delay-load-once"] };
