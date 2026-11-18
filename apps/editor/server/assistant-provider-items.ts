@@ -4,6 +4,14 @@ import { displayToolResult } from "./assistant-conversation-display.ts";
 export const CONTEXT = "Litzio read-only context (JSON):\n";
 export const QUESTION_ANSWER_CONTEXT = "Litzio question answers (JSON):\n";
 
+export function questionAnswerFrom(message: string): AssistantConversationItem["questionAnswer"] {
+  if (!message.startsWith(QUESTION_ANSWER_CONTEXT)) return;
+  try {
+    const reply = JSON.parse(message.slice(QUESTION_ANSWER_CONTEXT.length));
+    if (reply && ["string", "number"].includes(typeof reply.requestId) && typeof reply.turnId === "string" && reply.answers && typeof reply.answers === "object" && !Array.isArray(reply.answers) && Object.values(reply.answers).every((answer: any) => answer && Array.isArray(answer.answers) && answer.answers.length === 1 && typeof answer.answers[0] === "string")) return reply;
+  } catch { /* Ordinary text stays readable. */ }
+}
+
 // Bounded display payload per step.
 export function boundedWork(text: string) {
   return { detail: text.slice(0, 16_000), truncated: text.length > 16_000 };
@@ -32,13 +40,7 @@ export function itemFrom(item: any, userMessageSource: AssistantConversationItem
       text.push(part.text);
     }
     const message = text.join("\n");
-    let questionAnswer: AssistantConversationItem["questionAnswer"];
-    if (message.startsWith(QUESTION_ANSWER_CONTEXT)) {
-      try {
-        const reply = JSON.parse(message.slice(QUESTION_ANSWER_CONTEXT.length));
-        if (reply && ["string", "number"].includes(typeof reply.requestId) && typeof reply.turnId === "string" && reply.answers && typeof reply.answers === "object" && !Array.isArray(reply.answers) && Object.values(reply.answers).every((answer: any) => answer && Array.isArray(answer.answers) && answer.answers.length === 1 && typeof answer.answers[0] === "string")) questionAnswer = reply;
-      } catch { /* Ordinary text stays readable. */ }
-    }
+    const questionAnswer = questionAnswerFrom(message);
     return { id: item.id, kind: "user", userMessageSource, ...(submissionId ? { submissionId } : {}), ...(questionAnswer ? { questionAnswer } : {}), text: message, references };
   }
   if (item.type === "agentMessage" && item.delivery === "async" && item.questions != null) {

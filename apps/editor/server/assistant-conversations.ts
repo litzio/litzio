@@ -1,6 +1,6 @@
 import { AssistantConversationIndex, type ConversationIndexEntry } from "./assistant-conversation-index.ts";
 import { checkedReferences } from "./assistant-references.ts";
-import { CONTEXT, QUESTION_ANSWER_CONTEXT, boundedWork, itemFrom, pluginOperationItem, turnFrom } from "./assistant-provider-items.ts";
+import { CONTEXT, QUESTION_ANSWER_CONTEXT, boundedWork, itemFrom, pluginOperationItem, questionAnswerFrom, turnFrom } from "./assistant-provider-items.ts";
 export { conversationForDisplay } from "./assistant-conversation-display.ts";
 import { AssistantAttachments } from "./assistant-attachments.ts";
 import { AssistantFileChanges } from "./assistant-file-changes.ts";
@@ -188,6 +188,13 @@ export class AssistantConversations {
     const pending = conversation.turns.flatMap(turn => turn.items).map(item => item.question).filter(q => q?.status === "pending");
     conversation.userInput = pending.find(q => q?.delivery === "blocking") ?? pending[0];
   }
+  private validateQuestionAnswer(item: AssistantConversationItem, questions: (AssistantQuestionRecord | undefined)[]) {
+    const reply = item.questionAnswer;
+    if (!reply) return;
+    const question = questions.find(q => q?.turnId === reply.turnId && q.requestId === reply.requestId);
+    if (question && validQuestionAnswers(question, reply.answers)) return question;
+    delete item.questionAnswer;
+  }
   private restoreQuestions(conversation: AssistantConversation, saved: ConversationIndexEntry["questions"]) {
     for (const record of saved ?? []) {
       const turn = conversation.turns.find(turn => turn.id === record.question.turnId);
@@ -198,12 +205,20 @@ export class AssistantConversations {
       if (item.question?.delivery === "blocking" && item.question.status === "pending") item.question.status = "expired";
       if (item.question?.status === "sending") item.question.status = "unknown";
     }
-    for (const item of conversation.turns.flatMap(turn => turn.items)) {
+    const questions = conversation.turns.flatMap(turn => turn.items.map(item => item.question));
+    // ACP replay provides message content but does not retain the Host's original turn IDs.
+    const copilotRecords = conversation.provider === "copilot" ? saved ?? [] : [];
+    for (const turn of conversation.turns) for (const item of turn.items.slice()) {
       const reply = item.questionAnswer;
       if (!reply || item.userMessageSource !== "provider-history") continue;
-      const question = conversation.turns.find(turn => turn.id === reply.turnId)?.items.find(item => item.question?.requestId === reply.requestId)?.question;
-      if (question && validQuestionAnswers(question, reply.answers)) { question.status = "answered"; question.answers = recordedAnswers(question, reply.answers); delete question.error; }
-      else delete item.questionAnswer;
+      const record = copilotRecords.find(({ question }) => question.turnId === reply.turnId && question.requestId === reply.requestId);
+      const question = this.validateQuestionAnswer(item, [...questions, record?.question]);
+      if (!question) continue;
+      question.status = "answered"; question.answers = recordedAnswers(question, reply.answers); delete question.error;
+      if (record && !questions.includes(question)) {
+        turn.items.push({ id: record.itemId, kind: "question", text: record.text, question });
+        questions.push(question);
+      }
     }
     for (const turn of conversation.turns) if (turn.status !== "inProgress") this.expireQuestion(conversation, turn.id);
     this.refreshQuestion(conversation);
@@ -542,6 +557,12 @@ export class AssistantConversations {
       references = checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode, this.attachments, conversation?.id);
       const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), document: input.document ? { path: input.document.path } : null,  references };
       const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
+      const questionAnswer = questionAnswerFrom(input.message);
+      if (questionAnswer) {
+        const item = turn.items[0]!;
+        item.questionAnswer = questionAnswer;
+        this.validateQuestionAnswer(item, conversation.turns.flatMap(turn => turn.items.map(item => item.question)));
+      }
       this.dispatch(input, conversation);
       conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
       conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
@@ -696,9 +717,7 @@ export class AssistantConversations {
       }
       if (item) {
         if (item.questionAnswer) {
-          const reply = item.questionAnswer;
-          const origin = conversation.turns.find(t => t.id === reply.turnId)?.items.find(i => i.question?.requestId === reply.requestId)?.question;
-          if (!origin || !validQuestionAnswers(origin, reply.answers)) delete item.questionAnswer;
+          this.validateQuestionAnswer(item, conversation.turns.flatMap(turn => turn.items.map(item => item.question)));
         }
         const index = turn.items.findIndex(value => value.id === item.id);
         if (index < 0) turn.items.push(item);
