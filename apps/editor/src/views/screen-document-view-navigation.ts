@@ -3,11 +3,9 @@ import type { ReadingPosition } from "../document-reading.ts";
 
 /** The preview owns scrolling; the renderer only reports snapshot geometry. */
 export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | null>, request: object, identity: string,
-  selected: false | ReadingPosition["blocks"][number] | ReadingPosition["cells"][number] | undefined, alignStart = false, onProgrammaticScroll?: () => void, scale = 1, positions?: ReadingPosition, alignTop?: number, alignRequest?: object) {
+  selected: false | ReadingPosition["blocks"][number] | ReadingPosition["cells"][number] | undefined, alignStart = false, onProgrammaticScroll?: () => void, scale = 1, positions?: ReadingPosition, alignTop?: number) {
   const manual = useRef(false);
   useLayoutEffect(() => { manual.current = false; }, [request, identity]);
-  // A new target object with top is a fresh request, even with equal values after the user scrolled.
-  useLayoutEffect(() => { if (alignRequest) manual.current = false; }, [alignRequest]);
   const scrollTop = useRef(0);
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -42,16 +40,24 @@ export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | n
     // Highlighted targets keep their position whenever they are already visible.
     const visibleHeight = Math.min(selected.height, Math.max(0, element.clientHeight - 32));
     const outside = selected.top < element.scrollTop + 16 || selected.top + visibleHeight > element.scrollTop + element.clientHeight - 16;
+    let resize: ResizeObserver | undefined;
     if (alignTop !== undefined) {
-      // Same origin as onVisibleBlockLayoutChange: the viewport's visible content edge.
-      const origin = element.querySelector(".document");
-      const offset = origin ? origin.getBoundingClientRect().top - element.getBoundingClientRect().top - element.clientTop + element.scrollTop : 0;
-      const goal = Math.max(0, Math.min(element.scrollHeight - element.clientHeight, selected.top + offset - alignTop));
-      // Within one small spacing step (--space-2, 8px) a move reads as a twitch, not a placement.
-      if (Math.abs(goal - element.scrollTop) > 8) {
-        onProgrammaticScroll?.();
-        element.scrollTo({ top: goal });
-      }
+      const align = () => {
+        if (manual.current) return;
+        // Same origin as onVisibleBlockLayoutChange: the viewport's visible content edge.
+        const origin = element.querySelector(".document");
+        const offset = origin ? origin.getBoundingClientRect().top - element.getBoundingClientRect().top - element.clientTop + element.scrollTop : 0;
+        const goal = Math.max(0, Math.min(element.scrollHeight - element.clientHeight, selected.top + offset - alignTop));
+        // Within one small spacing step (--space-2, 8px) a move reads as a twitch, not a placement.
+        if (Math.abs(goal - element.scrollTop) > 8) {
+          onProgrammaticScroll?.();
+          element.scrollTo({ top: goal });
+        }
+      };
+      align();
+      // A viewport height change moves the scroll limits without a renderer layout report.
+      resize = new ResizeObserver(align);
+      resize.observe(element);
     } else if (alignStart || outside) {
       onProgrammaticScroll?.();
       element.scrollTo({ top: Math.max(0, selected.top - (alignStart ? 0 : 16)) });
@@ -65,7 +71,8 @@ export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | n
         scroller.scrollBy({ left: (selected.left - selected.clip.left - 16) / scale });
       }
     }
-  }, [viewport, request, identity, selected, alignStart, onProgrammaticScroll, scale, alignTop, alignRequest]);
+    return () => resize?.disconnect();
+  }, [viewport, request, identity, selected, alignStart, onProgrammaticScroll, scale, alignTop]);
   const pause = () => { manual.current = true; anchor.current = undefined; };
   return {
     onWheelCapture: pause,

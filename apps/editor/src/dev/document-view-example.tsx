@@ -140,7 +140,8 @@ export function LinkedDocumentViewExample() {
           {items.flatMap(item => item.boxes.map((box, index) => <ui.Button key={`${item.id}:${index}`} data-linked-item={item.id}
             aria-pressed={selected === item.id}
             // Bring the document pair level with the chosen box: visible top = content top - scrollTop.
-            onClick={() => { if (!stale) setTarget({ revision, path: item.path, highlight: false, top: box.top - (viewport?.scrollTop ?? 0) }); }}
+            // request counts choices, so choosing the same box again after scrolling realigns it.
+            onClick={() => { if (!stale) setTarget(previous => ({ revision, path: item.path, highlight: false, top: box.top - (viewport?.scrollTop ?? 0), request: Number(previous?.request ?? 0) + 1 })); }}
             style={{ position: "absolute", ...box, justifyContent: "start",
               borderInlineStartWidth: "var(--space-1)", borderInlineStartColor: `var(${item.colorToken})` }}>
             {index ? `${item.label} (${index + 1})` : item.label}</ui.Button>))}

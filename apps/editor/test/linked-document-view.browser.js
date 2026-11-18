@@ -367,7 +367,7 @@ async (page, { expect, screenshots }) => {
   await linkedItem(10).click();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   expect((await documentScroll()).top).toBe(settled);
-  // After the user scrolls the document, choosing the same box again realigns it.
+  // After the user scrolls the document, choosing the same box again (a new request) realigns it.
   await linkedPreview.hover();
   await page.mouse.wheel(0,200);
   await expect.poll(() => levelGap(10)).toBeGreaterThan(8);
@@ -385,6 +385,29 @@ async (page, { expect, screenshots }) => {
     const view = await documentScroll();
     return Math.abs(view.top - view.end) < 1 && await documentTop(24) > await sourceTop(24) + 8;
   }).toBe(true);
+  // While held, the placement follows viewport height changes; user scrolling releases it.
+  const fillToggle = page.getByRole('button',{name:'Fill available height',exact:true});
+  await fillToggle.click();
+  await expect.poll(async () => (await documentScroll()).height).toBeGreaterThan(480);
+  await expect.poll(async () => { const view = await documentScroll(); return Math.abs(view.top - view.end) < 1; }).toBe(true);
+  await page.setViewportSize({width:1440,height:700});
+  await expect.poll(async () => {
+    const view = await documentScroll(), top = await documentTop(24);
+    return view.height < 480 && Math.abs(view.top - view.end) < 1 && top >= 0 && top < view.height;
+  }).toBe(true);
+  await page.setViewportSize({width:1440,height:1000});
+  await expect.poll(async () => (await documentScroll()).height).toBeGreaterThan(480);
+  await linkedPreview.hover();
+  await page.mouse.wheel(0,-200);
+  await expect.poll(async () => { const view = await documentScroll(); return view.end - view.top; }).toBeGreaterThan(100);
+  const released = (await documentScroll()).top;
+  await page.setViewportSize({width:1440,height:700});
+  await expect.poll(async () => (await documentScroll()).height).toBeLessThan(480);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect((await documentScroll()).top).toBe(released);
+  await page.setViewportSize({width:1440,height:1000});
+  await fillToggle.click();
+  await expect.poll(async () => (await documentScroll()).height).toBeLessThanOrEqual(480);
   await sourcePane.evaluate((pane, height) => { pane.firstElementChild.style.height = height; }, sourceContent);
   // Source scale 0.75 keeps the same visible-pixel contract.
   await page.getByRole('button',{name:'Source scale 1',exact:true}).click();
