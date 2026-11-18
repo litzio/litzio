@@ -303,6 +303,16 @@ test("authoring and management actions refuse installed copies", async () => {
     symlinkSync(copy, path.join(linkedDependencies, "node_modules"), "junction");
     await assert.rejects(host.invoke("dependencies", { directory: linkedDependencies }), /belong to the Host/);
     rmSync(path.join(linkedDependencies, "node_modules"));
+    // A project npmrc cache cannot redirect npm's cache and logs into a copy; this project needs no network.
+    const contents = () => fs.readdirSync(copy, { recursive: true }).map(String).sort();
+    const copied = contents();
+    writeFileSync(path.join(linkedDependencies, ".npmrc"), `cache=${path.join(copy, "npm-cache").replaceAll("\\", "/")}\n`);
+    // npm/pnpm launchers export cache settings that would mask the project npmrc.
+    const launcherEnv = Object.entries(process.env).filter(([name]) => /^npm_config_(cache|logs_dir)$/i.test(name));
+    for (const [name] of launcherEnv) delete process.env[name];
+    try { await host.invoke("dependencies", { directory: linkedDependencies }); }
+    finally { for (const [name, value] of launcherEnv) process.env[name] = value; }
+    assert.deepEqual(contents(), copied);
     assert.equal(existsSync(path.join(copy, "screen.bundle.js")), false);
     const [after] = await host.list();
     assert.deepEqual([after!.digest, after!.running, after!.error], [before!.digest, true, undefined]);

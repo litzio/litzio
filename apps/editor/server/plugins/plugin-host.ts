@@ -539,8 +539,11 @@ export class PluginHost {
         const directory = this.artifactDirectory(args.directory!, creationScope);
         // The target folder is outside installed copies; the files written there must be too.
         const outside = (file: string) => this.copies.assertOutside(file);
-        if (action === "dependencies") for (const name of ["node_modules", "package-lock.json"]) outside(path.join(directory, name));
-        return { ...(action === "dependencies" ? await installScreenDependencies(directory) : bundleScreens(directory, outside)), receipt: receipt("success") };
+        if (action === "bundle") return { ...bundleScreens(directory, outside), receipt: receipt("success") };
+        // Litzio chooses these npm write locations; other npm settings in the target folder are its author's.
+        const npmData = { cache: path.join(path.dirname(this.file), "plugin-npm", "cache"), logs: path.join(path.dirname(this.file), "plugin-npm", "logs") };
+        for (const file of [path.join(directory, "node_modules"), path.join(directory, "package-lock.json"), npmData.cache, npmData.logs]) outside(file);
+        return { ...await installScreenDependencies(directory, npmData), receipt: receipt("success") };
       }
       if (action === "validate") {
         const errors: ValidationDiagnostic[] = []; let manifestId: string | undefined;
