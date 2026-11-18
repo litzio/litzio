@@ -1277,6 +1277,21 @@ test("Copilot resolved spawn failure reconnects the same owner", async t => {
   assert.ok((await connection.copilot.catalog()).sessionId);
 });
 
+test("Copilot exit before initialization and a rejected session recover on the next request", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-transient-")), log = path.join(root, "rpc.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-exit-once", "--fixture-session-error-once"], timeoutMs: 2000 });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  connection.environment();
+  await assert.rejects(connection.copilot.connect(), /Copilot ACP (exited|stream closed)/);
+  const client = await connection.copilot.connect();
+  // A provider error response such as missing sign-in keeps the process; the
+  // catalog is not cached, so the same connection succeeds once it is resolved.
+  await assert.rejects(connection.copilot.catalog(), /Copilot session fixture failure/);
+  assert.ok((await connection.copilot.catalog()).sessionId);
+  assert.equal(await connection.copilot.connect(), client);
+  assert.equal((await connection.diagnostics("copilot")).connected, true);
+});
+
 test("Copilot unconfirmed termination of a retired process does not block the next connection", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-retire-")), fixture = fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url));
   const owners: ProviderConnections[] = [], logs = ["initialize", "stream"].map(name => path.join(root, `${name}.jsonl`));

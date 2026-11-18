@@ -6,6 +6,7 @@ if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, startedAt: Date.
 process.once("exit", () => {
   if (log && existsSync(log)) appendFileSync(log, JSON.stringify({ exitedPid: process.pid, exitedAt: Date.now() }) + "\n");
 });
+if (process.argv.includes("--fixture-exit-once") && !existsSync(log + ".exit")) { writeFileSync(log + ".exit", "exit"); process.exit(3); }
 let hangInitialize = false;
 if (process.argv.includes("--fixture-orphan-stdout-once") && !existsSync(log + ".orphan")) {
   writeFileSync(log + ".orphan", "orphan");
@@ -40,7 +41,8 @@ createInterface({ input: process.stdin }).on("line", line => {
   const reply = result => send({ id, result });
   if (method === "initialize") { if (!hangInitialize) reply({ protocolVersion: 1, agentCapabilities: { loadSession: true }, agentInfo: { name: "fake-copilot", version: "1" } }); }
   else if (method === "session/new") {
-    if (process.argv.includes("--fixture-session-error")) { send({ id, error: { code: -32000, message: "Copilot session fixture failure", data: { token: "must-not-be-displayed" } } }); return; }
+    if (process.argv.includes("--fixture-session-error") || process.argv.includes("--fixture-session-error-once") && !existsSync(log + ".session")) {
+      if (log) writeFileSync(log + ".session", "failed"); send({ id, error: { code: -32000, message: "Copilot session fixture failure", data: { token: "must-not-be-displayed" } } }); return; }
     const sessionId = `copilot-${process.pid}-${++session}`;
     loaded.add(sessionId);
     reply({ sessionId, ...sessionState() });
