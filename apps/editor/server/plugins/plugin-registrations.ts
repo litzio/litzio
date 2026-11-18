@@ -21,10 +21,16 @@ const fields = {
  */
 const github = z.strictObject({
   url: z.string().refine(value => !!parseGitHubSource(value)),
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  /** Pinned once resolved: the address's ref (absent: default branch), plugin folder and track. */
+  ref: z.string().min(1).optional(),
   path: z.string().optional(),
   track: z.enum(GITHUB_TRACKS).optional(),
   commit: gitSha.optional(),
   tree: gitSha.optional(),
+  /** A reloaded local manifest that names another GitHub source; updates wait for a new trusted registration. */
+  moved: z.string().optional(),
 });
 const installed = z.strictObject({
   ...fields,

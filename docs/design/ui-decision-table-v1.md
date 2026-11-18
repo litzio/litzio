@@ -3,6 +3,7 @@
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
 | 공개 GitHub 주소에서 플러그인을 추가한다 (#1750) | Plugins 목록 머리의 [GitHub에서 추가…]와 Dialog | outline sm Button·Dialog·Input·native radio·ChoiceGroup(릴리스/브랜치)·FieldError·Tooltip | 주소 입력 → [찾기] → 플러그인 고르기 → 따라갈 대상 → [추가]; 정식 Release에 없는 플러그인은 릴리스 비활성; 추가 뒤 행 설명에 `GitHub <저장소/폴더> · 릴리스|브랜치`, 로컬은 `로컬 폴더` | [플러그인 설정 패턴](ui-patterns-v1.md#플러그인-설정) | 새 부품·토큰 없음. 폴더 선택 창은 단일 선택 listbox 계약(#1676)이라 주소 입력을 섞지 않고 같은 줄의 별도 Dialog로 연다. 따라갈 대상 설명은 Tooltip |
+| 플러그인 하나의 업데이트를 확인·적용한다 (#1750) | 행 ⚙ 설정 Dialog의 동작 줄([제거] 왼쪽) | outline sm Button(업데이트 확인·업데이트)·Status plain·Info Tooltip | 그 등록만 확인, 결과(최신·새 버전/새 내용·확인 오류)를 같은 줄에 보이고 새 내용이면 [업데이트] | [플러그인 설정 패턴](ui-patterns-v1.md#플러그인-설정) | 새 부품·토큰 없음. 목록 머리의 전체 확인과 행의 [업데이트]는 그대로 |
 | 플러그인의 출처 업데이트를 확인·적용한다 (#1750) | Plugins 목록 머리와 기존 행 | outline sm Button(업데이트 확인·업데이트)·Status plain·Info Tooltip | 머리에서 전체 확인, 새 내용이 있는 행만 버전 아래 경고 상태와 오른쪽 [업데이트], 설치·원본 버전과 실패 사유는 Tooltip, 모두 최신이면 버튼 옆 정상 상태 | [플러그인 설정 패턴](ui-patterns-v1.md#플러그인-설정) | 새 부품·토큰 없음. 앱 업데이트의 Status·버튼 관례를 따르며 행마다 있을 수 있어 채운 버튼 대신 테두리 |
 | 문서 설정 (#1721) | 문서 위의 기존 접힘 구역 | SettingsRow·SettingsSelect·SettingsSwitch·Status·Button | 상태 표시·변경, 같은 높이의 두 열 속성 표, 선택지 안 참조 미리보기 | [문서 설정](editor-ux-shell-v1.md#document-settings-placement-554) | 기존 토큰으로 문서 전용 왼쪽 조작 축을 맞춤; 새 공통 부품·토큰 없음 |
 | Host 폴더·파일·이미지 선택 (#1676) | 공통 모달 | FolderDialog·Dialog·Button·Input·Lucide·기존 토큰 | 한 번 클릭 선택, 두 번 클릭 이동/확정, 위치 기록·정렬·목록 키보드·선택 footer | [선택 창 계약](folder-picker-v1.md) | 단일 선택 listbox 유지. 이미지 미리보기는 오른쪽, 새 이름은 목록 안의 행 |

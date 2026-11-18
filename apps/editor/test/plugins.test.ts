@@ -339,6 +339,86 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
   } finally { await host.close(); await github.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("GitHub folders resolve once by address or plugin ID, then stay pinned to that source", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-github-pin-"));
+  const state = path.join(root, "state.json");
+  const github = new FakeGitHub(), repo = github.repository("acme", "tools");
+  const plugin = (folder: string, id: string, label: string, version = "1.0.0") => ({
+    [`${folder}/litzio-plugin.json`]: JSON.stringify({ id, name: id, version, entry: "host.js", screen: "screen.jsx", operations: [{ id: "read" }] }),
+    [`${folder}/screen.jsx`]: "export default function Screen(){return null}",
+    [`${folder}/host.js`]: `export function activate() { return { operations: { read: () => ${JSON.stringify(label)} }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`,
+  });
+  const host = new PluginHost(state, { github: new GitHubSource(await github.start()) });
+  const read = async (id: string) => ((await host.invokeOperation(`${id}.read`, {})) as { result?: unknown }).result;
+  const check = async (id: string) => ((await host.invoke("check-updates", { id })) as any).updates[0];
+  const installed = async (args: Record<string, unknown>) => { const value = await host.invoke("install", args) as any; assert.equal(value.receipt.outcome, "success", JSON.stringify(value.errors)); return value; };
+  try {
+    await host.start();
+    // An exact folder is checked in the track's own tree: a release-only folder installs,
+    // and a truncated repository listing does not matter.
+    const released = repo.push("main", plugin("plugins/old", "acme.old", "old-release"));
+    repo.tag("v1", released); repo.release("v1");
+    repo.push("main", plugin("plugins/alpha", "acme.alpha", "alpha-1"));
+    github.truncated = true;
+    await installed({ source: "https://github.com/acme/tools/tree/main/plugins/old", track: "release" });
+    assert.equal(await read("acme.old"), "old-release");
+    await installed({ source: "https://github.com/acme/tools/tree/main/plugins/alpha" });
+    const parent = await host.invoke("install", { source: "https://github.com/acme/tools" }) as any;
+    assert.equal(parent.receipt.outcome, "failure"); assert.match(parent.errors[0].message, /exact plugin folder address/);
+    github.truncated = false;
+
+    // Listed addresses encode the ref and folder, so each one registers the folder it named.
+    repo.push("topic/work", plugin("plugins/with space #", "acme.spaced", "spaced"));
+    const listed = await host.invoke("source-plugins", { source: "https://github.com/acme/tools/tree/topic/work" }) as any;
+    assert.equal(listed.plugins.length, 1);
+    await host.invoke("register", { source: listed.plugins[0].source });
+    assert.deepEqual((await host.list()).find(p => p.id === "acme.spaced")!.source, { kind: "github", url: listed.plugins[0].source, path: "plugins/with space #", track: "branch", local: false });
+
+    // The resolved ref and folder are pinned: a later branch named like the ref's prefix does not move the source.
+    const single = github.repository("acme", "single");
+    single.push("feat/x", plugin("plugins/solo", "acme.solo", "solo-1"));
+    await installed({ source: "https://github.com/acme/single/tree/feat/x/plugins/solo" });
+    single.push("feat", plugin("x/plugins/solo", "acme.solo", "impostor", "9.0.0"));
+    single.push("feat/x", plugin("plugins/solo", "acme.solo", "solo-2", "2.0.0"));
+    assert.deepEqual(await check("acme.solo"), { id: "acme.solo", currentVersion: "1.0.0", sourceVersion: "2.0.0", available: true, track: "branch" });
+    await host.invoke("update", { id: "acme.solo" });
+    assert.equal(await read("acme.solo"), "solo-2");
+
+    // A local manifest naming the repository root finds the folder with its plugin ID for check and update.
+    const shared = github.repository("acme", "shared");
+    shared.push("main", { ...plugin("plugins/gamma", "acme.gamma", "remote"), ...plugin("plugins/delta", "acme.delta", "delta") });
+    const local = path.join(root, "gamma"); mkdirSync(local);
+    for (const [file, content] of Object.entries(plugin("", "acme.gamma", "local", "0.1.0"))) writeFileSync(path.join(local, file.slice(1)), content);
+    const manifestFile = path.join(local, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, repository: "https://github.com/acme/shared" }));
+    await installed({ directory: local });
+    assert.deepEqual(await check("acme.gamma"), { id: "acme.gamma", currentVersion: "0.1.0", sourceVersion: "1.0.0", available: true, track: "branch" });
+    await host.invoke("update", { id: "acme.gamma" });
+    assert.equal(await read("acme.gamma"), "remote");
+    assert.equal(JSON.parse(readFileSync(state, "utf8"))["acme.gamma"].github.path, "plugins/gamma");
+
+    // A reload whose manifest names another source keeps running but stops GitHub updates until it is added again.
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, repository: "https://github.com/acme/tools/tree/main/plugins/alpha" }));
+    await host.invoke("reload", { id: "acme.gamma" });
+    assert.equal(await read("acme.gamma"), "local");
+    assert.equal((await check("acme.gamma")).error, "This plugin now names another GitHub source. Add it again to confirm trust.");
+    await assert.rejects(host.invoke("update", { id: "acme.gamma" }), /names another GitHub source/);
+    assert.equal(await read("acme.gamma"), "local");
+    // Owner and repository compare without case, as GitHub does.
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, repository: "https://github.com/Acme/Shared" }));
+    await host.invoke("reload", { id: "acme.gamma" });
+    assert.equal((await check("acme.gamma")).available, true);
+
+    const twice = github.repository("acme", "twice");
+    twice.push("main", { ...plugin("a", "acme.twice", "a"), ...plugin("b", "acme.twice", "b") });
+    const other = path.join(root, "twice"); mkdirSync(other);
+    for (const [file, content] of Object.entries(plugin("", "acme.twice", "local"))) writeFileSync(path.join(other, file.slice(1)), content);
+    writeFileSync(path.join(other, "litzio-plugin.json"), JSON.stringify({ ...JSON.parse(readFileSync(path.join(other, "litzio-plugin.json"), "utf8")), repository: "https://github.com/acme/twice" }));
+    await installed({ directory: other });
+    assert.match((await check("acme.twice")).error, /Several folders .* exact folder address/);
+  } finally { await host.close(); await github.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("large dependency trees do not stall public operations, list, update checks or Host start", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-large-source-"));
   const id = "fixture.large", state = path.join(root, "state.json");

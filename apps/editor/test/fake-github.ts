@@ -20,6 +20,10 @@ export class FakeGitHub {
   /** Routes requested, for asserting what a check needed. */
   readonly requests: string[] = [];
   failures = new Map<RegExp, { status: number; headers?: Record<string, string> }>();
+  /** GitHub truncates recursive trees of large repositories. */
+  truncated = false;
+  /** Runs after each archive is served, so a fixture can publish the next commit. */
+  onTarball?: () => void;
   url = "";
 
   private store(object: GitObject, body: Buffer) {
@@ -99,7 +103,7 @@ export class FakeGitHub {
         const child = this.objects.get(entry.sha);
         return searchParams.get("recursive") && child?.type === "tree" ? [own, ...list(child.entries, `${own.path}/`)] : [own];
       });
-      return json({ sha: rest[1], tree: list(object.entries, ""), truncated: false });
+      return json({ sha: rest[1], tree: list(object.entries, ""), truncated: !!searchParams.get("recursive") && this.truncated });
     }
     if (kind === "git" && rest[0] === "blobs") {
       const object = this.objects.get(rest[1]!);
@@ -116,6 +120,7 @@ export class FakeGitHub {
         }
         const chunks: Buffer[] = [];
         for await (const chunk of c({ gzip: true, cwd: work, portable: true }, [top])) chunks.push(Buffer.from(chunk as Buffer));
+        this.onTarball?.();
         return { status: 200, body: Buffer.concat(chunks), type: "application/gzip" };
       } finally { rmSync(work, { recursive: true, force: true }); }
     }
@@ -134,6 +139,8 @@ export async function browserGitHub() {
   const released = repo.push("main", plugin("alpha", "Alpha fixture", "1.0.0"));
   repo.tag("v1.0.0", released); repo.release("v1.0.0");
   repo.push("main", { ...plugin("alpha", "Alpha fixture", "1.0.0"), ...plugin("beta", "Beta fixture", "0.2.0") });
+  // The first installed copy is immediately behind the branch, so a check finds a new version.
+  github.onTarball = () => { github.onTarball = undefined; repo.push("main", { ...plugin("alpha", "Alpha fixture", "1.0.0"), ...plugin("beta", "Beta fixture", "0.3.0") }); };
   await github.start();
   return github;
 }

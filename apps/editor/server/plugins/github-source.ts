@@ -8,7 +8,7 @@ import { parseGitHubSource, validateManifest, type GitHubTrack } from "@litzio/p
 /** A public GitHub plugin folder. `ref` is the branch, tag or commit named in the address. */
 export type GitHubLocation = { owner: string; repo: string; ref?: string; path: string };
 /** What a track points at now: the commit to download and that plugin folder's Git tree. */
-export type GitHubTarget = { track: GitHubTrack; commit: string; tree: string; tag?: string; version: string | null };
+export type GitHubTarget = { track: GitHubTrack; commit: string; tree: string; tag?: string; id?: string; version: string | null };
 export type GitHubPlugin = { path: string; source: string; id?: string; name?: string; version?: string | null; release: boolean; error?: string };
 
 export class GitHubSourceError extends Error { override name = "GitHubSourceError"; }
@@ -95,25 +95,53 @@ export class GitHubSource {
     const folder = await this.folder(location, root);
     const manifest = folder?.entries.find(entry => entry.path === "litzio-plugin.json" && entry.type === "blob");
     if (!folder || !manifest) return undefined;
-    let version: string | null = null;
-    try { version = (await this.manifest(location, manifest.sha)).version ?? null; } catch { /* applying reports manifest diagnostics */ }
-    return { track, commit, tree: folder.sha, ...(tag ? { tag } : {}), version };
+    let id: string | undefined, version: string | null = null;
+    try { const value = await this.manifest(location, manifest.sha); id = value.id; version = value.version ?? null; } catch { /* applying reports manifest diagnostics */ }
+    return { track, commit, tree: folder.sha, ...(tag ? { tag } : {}), ...(id ? { id } : {}), version };
   }
-
-  /**
-   * The current target of a track. Without a track, a formal release that contains
-   * this plugin is preferred; otherwise the address's branch, or the default branch.
-   */
-  async target(location: GitHubLocation, track?: GitHubTrack): Promise<GitHubTarget> {
+  /** A target, or why this exact folder has no plugin on the track. */
+  private async lookup(location: GitHubLocation, track?: GitHubTrack): Promise<GitHubTarget | string> {
     if (track !== "branch") {
       const tag = await this.latestRelease(location);
       const released = tag ? await this.at(location, "release", tag, tag) : undefined;
       if (released) return released;
-      if (track === "release") throw new GitHubSourceError(tag ? "The latest GitHub release does not contain this plugin folder." : "This repository has no formal GitHub release. Track the branch instead.");
+      if (track === "release") return tag ? "The latest GitHub release does not contain this plugin folder." : "This repository has no formal GitHub release. Track the branch instead.";
     }
-    const target = await this.at(location, "branch", location.ref ?? await this.defaultBranch(location));
-    if (!target) throw new GitHubSourceError("No litzio-plugin.json in this GitHub folder.");
+    return await this.at(location, "branch", location.ref ?? await this.defaultBranch(location)) ?? "No litzio-plugin.json in this GitHub folder.";
+  }
+
+  /**
+   * The current target of a track in a known plugin folder. Without a track, a formal
+   * release that contains the folder is preferred; otherwise the address's branch or the default branch.
+   */
+  async target(location: GitHubLocation, track?: GitHubTrack): Promise<GitHubTarget> {
+    const target = await this.lookup(location, track);
+    if (typeof target === "string") throw new GitHubSourceError(target);
     return target;
+  }
+
+  /**
+   * The one folder-resolution path for install, check and update. A folder address is
+   * checked directly in the chosen track's tree, so a release-only folder resolves and a
+   * large repository needs no listing. Only a repository or parent address is listed; it
+   * names one plugin when exactly one folder below it (with `id`, that ID) has a manifest.
+   */
+  async resolve(address: string, options: { track?: GitHubTrack; id?: string } = {}): Promise<{ location: GitHubLocation; target: GitHubTarget } | { location: GitHubLocation; candidates: GitHubPlugin[] }> {
+    const location = await this.locate(address);
+    const exact = await this.lookup(location, options.track);
+    if (typeof exact !== "string") {
+      if (options.id && exact.id !== options.id) throw new GitHubSourceError("The plugin at this GitHub address has a different ID.");
+      return { location, target: exact };
+    }
+    const { plugins } = await this.plugins(location);
+    const candidates = plugins.filter(plugin => !plugin.error && plugin.path !== location.path && (!options.id || plugin.id === options.id));
+    if (!candidates.length) throw new GitHubSourceError(options.id && plugins.length ? "No folder with this plugin ID at this GitHub address. Use its exact folder address." : exact);
+    if (candidates.length > 1) {
+      if (options.id) throw new GitHubSourceError("Several folders at this GitHub address hold this plugin. Use its exact folder address.");
+      return { location, candidates };
+    }
+    const folder = { ...location, path: candidates[0]!.path };
+    return { location: folder, target: await this.target(folder, options.track) };
   }
 
   /** Plugin folders on the address's branch (or the default branch), marking those in the latest formal release. */
@@ -121,7 +149,7 @@ export class GitHubSource {
     const ref = location.ref ?? await this.defaultBranch(location);
     const listed = async (sha: string) => {
       const { tree, truncated } = await this.tree(location, sha, true);
-      if (truncated) throw new GitHubSourceError("This repository is too large to list. Enter the plugin folder address.");
+      if (truncated) throw new GitHubSourceError("This repository is too large to list. Use the exact plugin folder address.");
       const prefix = location.path ? `${location.path}/` : "";
       return tree.filter(entry => entry.type === "blob" && (entry.path === `${prefix}litzio-plugin.json` || entry.path.startsWith(prefix) && entry.path.endsWith("/litzio-plugin.json")) &&
         !entry.path.split("/").includes("node_modules"));
@@ -131,7 +159,9 @@ export class GitHubSource {
     const released = new Set(tag ? (await listed((await this.commit(location, tag)).root)).map(entry => entry.path) : []);
     const plugins = await Promise.all(found.map(async entry => {
       const folder = path.posix.dirname(entry.path), folderPath = folder === "." ? "" : folder;
-      const source = `https://github.com/${location.owner}/${location.repo}${location.ref || folderPath ? `/tree/${ref}${folderPath ? `/${folderPath}` : ""}` : ""}`;
+      // Each ref and folder segment is encoded, so the address resolves back to this folder.
+      const tree = [...ref.split("/"), ...folderPath ? folderPath.split("/") : []].map(encodeURIComponent).join("/");
+      const source = `https://github.com/${location.owner}/${location.repo}${location.ref || folderPath ? `/tree/${tree}` : ""}`;
       const base = { path: folderPath, source, release: released.has(entry.path) };
       try { const manifest = await this.manifest(location, entry.sha); return { ...base, id: manifest.id, name: manifest.name, version: manifest.version ?? null }; }
       catch (error) { if (error instanceof GitHubSourceError) throw error; return { ...base, error: "Invalid litzio-plugin.json" }; }

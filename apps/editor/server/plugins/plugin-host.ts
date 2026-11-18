@@ -9,9 +9,9 @@ import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigestAsync } from "./artifact-digest.mjs";
 import { InstalledArtifacts } from "./installed-artifacts.ts";
 import { readPluginRegistrations, type GitHubRegistration, type InstalledPlugin, type PluginRegistration } from "./plugin-registrations.ts";
-import { GitHubSource, GitHubSourceError, type GitHubTarget } from "./github-source.ts";
+import { GitHubSource, GitHubSourceError, type GitHubLocation, type GitHubTarget } from "./github-source.ts";
 import { rm } from "node:fs/promises";
-import { PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../../shared/plugin-registration-error.ts";
+import { PLUGIN_SOURCE_MOVED, PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../../shared/plugin-registration-error.ts";
 import { publicOperationError, publicOperationResult, publicInputIssues, safePluginValue } from "./operation-result.ts";
 import { assertNoPluginSecrets } from "./secret-redaction.ts";
 import { randomUUID } from "node:crypto";
@@ -83,16 +83,21 @@ type UpdateCheck = { currentVersion: string | null; sourceVersion: string | null
 const sourceSummary = (record: InstalledPlugin) => record.github
   ? { kind: "github" as const, url: record.github.url, ...(record.github.path !== undefined ? { path: record.github.path } : {}), ...(record.github.track ? { track: record.github.track } : {}), local: !!record.sourceDirectory }
   : { kind: "local" as const };
+/** Same GitHub source: owner and repository ignore case like GitHub; ref and folder do not. */
+const sourceKey = (url: string) => { const { owner, repo, tree } = parseGitHubSource(url)!; return [owner.toLowerCase(), repo.toLowerCase(), ...tree].join("/"); };
 /**
  * A local folder whose manifest names a GitHub repository is checked and updated from
- * GitHub. Its applied tree stays known only while the folder holds that same content.
+ * GitHub. A kept registration keeps its pinned GitHub source; if the folder now names
+ * another one, GitHub updates stop until the plugin is added again and trusted.
+ * The applied tree stays known only while the folder holds that same content.
  */
-function localOrigin(sourceDirectory: string, manifest: PluginManifest, previous: PluginRegistration | undefined, sourceDigest: string): Pick<InstalledPlugin, "sourceDirectory" | "github"> {
+function localOrigin(sourceDirectory: string, manifest: PluginManifest, kept: InstalledPlugin | undefined, sourceDigest: string): Pick<InstalledPlugin, "sourceDirectory" | "github"> {
   if (!manifest.repository) return { sourceDirectory };
-  const kept = previous && "installationId" in previous && previous.github?.url === manifest.repository ? previous : undefined;
-  const same = kept?.github?.commit && kept.sourceDigest === sourceDigest;
-  return { sourceDirectory, github: { url: manifest.repository, ...(kept?.github?.track ? { track: kept.github.track } : {}),
-    ...(same ? { path: kept.github!.path, commit: kept.github!.commit, tree: kept.github!.tree } : {}) } };
+  const pinned = kept?.github;
+  if (!pinned) { const { owner, repo } = parseGitHubSource(manifest.repository)!; return { sourceDirectory, github: { url: manifest.repository, owner, repo } }; }
+  const { moved: _moved, commit, tree, ...source } = pinned;
+  return { sourceDirectory, github: { ...source, ...(commit && tree && kept.sourceDigest === sourceDigest ? { commit, tree } : {}),
+    ...(sourceKey(manifest.repository) !== sourceKey(pinned.url) ? { moved: manifest.repository } : {}) } };
 }
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
 export class PluginHost {
@@ -394,10 +399,8 @@ export class PluginHost {
    * Download one commit's plugin folder into Host staging, prepare dependencies, then use
    * the same apply path as a local folder. Staging is removed whether or not it applies.
    */
-  private async applyGitHub(action: "register" | "install" | "reload" | "update", github: Pick<GitHubRegistration, "url" | "track">, expectedId?: string,
-    options: { sourceDirectory?: string; pinned?: GitHubTarget; inspecting?: (file: string) => void } = {}) {
-    const location = await this.github.locate(github.url);
-    const target = options.pinned ?? await this.github.target(location, github.track);
+  private async applyGitHub(action: "register" | "install" | "reload" | "update", url: string, { location, target }: { location: GitHubLocation; target: Pick<GitHubTarget, "commit" | "tree" | "track"> },
+    expectedId?: string, options: { sourceDirectory?: string; inspecting?: (file: string) => void } = {}) {
     const staging = this.staging();
     try {
       await this.github.download(location, target.commit, staging);
@@ -405,19 +408,21 @@ export class PluginHost {
       await this.prepareDependencies(staging);
       return await this.applySource(action, staging, expectedId, options.inspecting, {
         ...(options.sourceDirectory ? { sourceDirectory: options.sourceDirectory } : {}),
-        github: { url: github.url, path: location.path, track: target.track, commit: target.commit, tree: target.tree },
+        // The resolved repository, folder and track are pinned; checks and updates never re-resolve the address.
+        github: { url, owner: location.owner, repo: location.repo, ...(location.ref !== undefined ? { ref: location.ref } : {}), path: location.path, track: target.track, commit: target.commit, tree: target.tree },
       });
     } finally { await rm(staging, { recursive: true, force: true }); }
   }
-  /** A repository or parent folder address names one plugin only when exactly one folder below it has a manifest. */
-  private async githubPlugin(source: string) {
-    const location = await this.github.locate(source);
-    const { plugins } = await this.github.plugins(location);
-    const candidates = plugins.filter(plugin => !plugin.error);
-    const exact = candidates.find(plugin => plugin.path === location.path);
-    if (exact) return { source: parseGitHubSource(source)!.tree.length ? source : exact.source, plugins: [] };
-    if (candidates.length === 1) return { source: candidates[0]!.source, plugins: [] };
-    return { source: undefined, plugins: candidates };
+  /** The pinned folder, or for a local manifest not yet applied from GitHub, its repository resolved by this plugin ID. */
+  private async githubTarget(id: string, github: GitHubRegistration) {
+    if (github.moved) throw new GitHubSourceError(PLUGIN_SOURCE_MOVED);
+    if (github.path === undefined) {
+      const resolved = await this.github.resolve(github.url, { track: github.track, id });
+      if ("candidates" in resolved) throw new GitHubSourceError("Several folders at this GitHub address hold this plugin. Use its exact folder address.");
+      return resolved;
+    }
+    const location = { owner: github.owner, repo: github.repo, ...(github.ref !== undefined ? { ref: github.ref } : {}), path: github.path };
+    return { location, target: await this.github.target(location, github.track) };
   }
   /** New content means the source differs from what this registration last applied, whatever its version text says. */
   private async checkUpdate(id: string): Promise<UpdateCheck> {
@@ -429,7 +434,7 @@ export class PluginHost {
     if (record.github) {
       // Even a local installation follows its manifest repository for updates.
       try {
-        const target = await this.github.target(await this.github.locate(record.github.url), record.github.track);
+        const { target } = await this.githubTarget(id, record.github);
         check = { currentVersion, sourceVersion: target.version, available: target.tree !== record.github.tree, track: target.track };
       } catch (error) { check = { currentVersion, sourceVersion: null, available: false, error: error instanceof GitHubSourceError ? error.message : "GitHub update check failed." }; }
       this.updates.set(id, { installationId: record.installationId, check });
@@ -513,7 +518,7 @@ export class PluginHost {
       const kept = action === "update" ? previous : undefined;
       const active = kept ? kept.enabled && !!kept.trusted : action !== "register";
       const record: InstalledPlugin = { registrationId: (active || kept?.trusted) && previous && "installationId" in previous ? previous.registrationId : randomUUID(),
-        installationId: copy.installationId, ...(origin ?? localOrigin(sourceDirectory, manifest, previous, copy.sourceDigest)), sourceDigest: copy.sourceDigest,
+        installationId: copy.installationId, ...(origin ?? localOrigin(sourceDirectory, manifest, (action === "reload" || action === "update") && previous && "installationId" in previous ? previous : undefined, copy.sourceDigest)), sourceDigest: copy.sourceDigest,
         digest: artifact.digest, trusted: kept ? !!kept.trusted : active, enabled: active, settings: previous?.settings ?? {}, operationNames };
       if (active) await this.activate(record, copy.directory, artifact, previous, true);
       else {
@@ -599,10 +604,10 @@ export class PluginHost {
         try {
           if (args.source) {
             file = "GitHub source";
-            const chosen = await this.githubPlugin(args.source);
-            if (!chosen.source) return { valid: false, plugins: chosen.plugins, errors: [{ file, line: null, column: null, kind: "GitHub source unavailable", path: "source", code: "github_source",
-              message: chosen.plugins.length ? "This address holds several plugins. Install one with its folder address from plugins[].source." : "No litzio-plugin.json under this GitHub address." }], receipt: receipt("failure") };
-            const result = await this.applyGitHub("install", { url: chosen.source, track: args.track }, undefined, { inspecting: current => { file = current; } });
+            const resolved = await this.github.resolve(args.source, { track: args.track });
+            if ("candidates" in resolved) return { valid: false, plugins: resolved.candidates, errors: [{ file, line: null, column: null, kind: "GitHub source unavailable", path: "source", code: "github_source",
+              message: "This address holds several plugins. Install one with its folder address from plugins[].source." }], receipt: receipt("failure") };
+            const result = await this.applyGitHub("install", args.source, resolved, undefined, { inspecting: current => { file = current; } });
             id = result.id;
             if (result.errors) return { id, valid: false, errors: result.errors, receipt: receipt("failure") };
             return { id, plugins: await this.list(), receipt: receipt("success") };
@@ -654,9 +659,9 @@ export class PluginHost {
       }
       if (action === "register") {
         if (args.source) {
-          const chosen = await this.githubPlugin(args.source);
-          if (!chosen.source) throw new GitHubSourceError(chosen.plugins.length ? "This address holds several plugins. Choose one." : "No litzio-plugin.json under this GitHub address.");
-          ({ id } = await this.applyGitHub("register", { url: chosen.source, track: args.track }));
+          const resolved = await this.github.resolve(args.source, { track: args.track });
+          if ("candidates" in resolved) throw new GitHubSourceError("This address holds several plugins. Choose one.");
+          ({ id } = await this.applyGitHub("register", args.source, resolved));
           return { id, plugins: await this.list(), receipt: receipt("success") };
         }
         const directory = this.artifactDirectory(args.directory!, creationScope);
@@ -705,9 +710,12 @@ export class PluginHost {
           // Reload rereads the folder it was added from; update follows GitHub whenever the record names it.
           if (r.sourceDirectory && (action === "reload" || !r.github)) await this.applySource(action, this.sourceDirectory({ ...r, sourceDirectory: r.sourceDirectory }, creationScope), id);
           else if (r.github) {
-            const { commit, tree, track } = r.github;
-            await this.applyGitHub(action, r.github, id, { sourceDirectory: r.sourceDirectory,
-              ...(action === "reload" && commit && tree && track ? { pinned: { commit, tree, track, version: null } } : {}) });
+            const { commit, tree, track, path: folder } = r.github;
+            // Reload of a GitHub-only registration downloads the commit it applied again.
+            const resolved = action === "reload" && commit && tree && track && folder !== undefined
+              ? { location: { owner: r.github.owner, repo: r.github.repo, ...(r.github.ref !== undefined ? { ref: r.github.ref } : {}), path: folder }, target: { commit, tree, track } }
+              : await this.githubTarget(id, r.github);
+            await this.applyGitHub(action, r.github.url, resolved, id, { sourceDirectory: r.sourceDirectory });
           } else throw new Error(PLUGIN_SOURCE_UNAVAILABLE);
           return { id, plugins: await this.list(), receipt: receipt("success") };
         }

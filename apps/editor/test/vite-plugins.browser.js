@@ -41,6 +41,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await github.getByRole("textbox", { name: "GitHub address", exact: true }).fill("https://github.com/litzio-fixtures/plugins");
   await github.getByRole("button", { name: "Find", exact: true }).click();
   await expect(github.getByRole("radio")).toHaveCount(2);
+  // Editing the address discards the previous result, so Add cannot register another address's folder.
+  const address = github.getByRole("textbox", { name: "GitHub address", exact: true });
+  await address.fill("https://github.com/litzio-fixtures/other");
+  await expect(github.getByRole("radio")).toHaveCount(0);
+  await expect(github.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
+  await address.fill("https://github.com/litzio-fixtures/plugins");
+  await github.getByRole("button", { name: "Find", exact: true }).click();
+  await expect(github.getByRole("radio")).toHaveCount(2);
   await expect(github.getByRole("button", { name: "Release", exact: true })).toHaveAttribute("aria-pressed", "true");
   await github.getByRole("radio", { name: /^Beta fixture/ }).check();
   await expect(github.getByRole("button", { name: "Release", exact: true })).toBeDisabled();
@@ -50,6 +58,25 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const remote = page.getByRole("region", { name: "Beta fixture", exact: true });
   await expect(remote.getByText("Version 0.2.0 · GitHub litzio-fixtures/plugins/plugins/beta · Branch", { exact: true })).toBeVisible();
   await expect(remote.getByRole("switch", { name: "Enable Beta fixture", exact: true })).not.toBeChecked();
+  // One plugin's settings check only that plugin and can apply its update in place.
+  await remote.getByRole("button", { name: "Beta fixture settings", exact: true }).click();
+  const betaSettings = page.getByRole("dialog", { name: "Beta fixture", exact: true });
+  await betaSettings.getByRole("button", { name: "Check for updates", exact: true }).click();
+  await expect(betaSettings.getByRole("status").filter({ hasText: "Update available" })).toBeVisible();
+  if (screenshots) {
+    await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('ko');});
+    await page.setViewportSize({width:1440,height:1100});
+    await page.mouse.move(0,0);
+    await betaSettings.screenshot({path:'docs/design/assets/plugin-github-install-1750/plugin-check-1440-light.png'});
+    await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('en');});
+  }
+  await betaSettings.getByRole("button", { name: "Update", exact: true }).click();
+  await expect(betaSettings.getByRole("button", { name: "Update", exact: true })).toHaveCount(0);
+  await betaSettings.getByRole("button", { name: "Check for updates", exact: true }).click();
+  await expect(betaSettings.getByRole("status").filter({ hasText: "Up to date" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(betaSettings).toHaveCount(0);
+  await expect(remote.getByText(/^Version 0\.3\.0 · GitHub/)).toBeVisible();
   await expect(external.getByRole("button", { name: "Vite fixture", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Open view ·/ })).toHaveCount(0);
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();

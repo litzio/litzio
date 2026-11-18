@@ -21,7 +21,7 @@ import { usePlugins, type Plugin } from "./plugin-state.ts";
 
 export function PluginSettings() {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
-  const [removing, setRemoving] = useState(false), [checked, setChecked] = useState(false), [checking, setChecking] = useState(false), [fromGitHub, setFromGitHub] = useState(false);
+  const [removing, setRemoving] = useState(false), [checked, setChecked] = useState(false), [checking, setChecking] = useState(false), [fromGitHub, setFromGitHub] = useState(false), [checkedOne, setCheckedOne] = useState<string>(), [checkingOne, setCheckingOne] = useState(false);
   const githubButton = useRef<HTMLButtonElement>(null);
   const removeButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
@@ -71,7 +71,12 @@ export function PluginSettings() {
         </DialogHeader>
         {current && problem ? <Notice tone="error">{problem}</Notice> : null}
         {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
-        {current ? <div className="settings-actions"><Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button></div> : null}
+        {current ? <div className="settings-actions">
+          {checkedOne === current.id && !busy ? <PluginUpdateState plugin={current} upToDate /> : null}
+          {current.update?.available ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run("update", { id: current.id })}>{i18n.t("Update")}</Button> : null}
+          <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setCheckedOne(undefined); setCheckingOne(true); await run("check-updates", { id: current.id }); setCheckingOne(false); setCheckedOne(current.id); }}>{i18n.t(checkingOne ? "Checking…" : "Check for updates")}</Button>
+          <Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button>
+        </div> : null}
         <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
       </DialogContent>
     </Dialog>
@@ -97,8 +102,9 @@ function sourceLabel(plugin: Plugin) {
   return [`GitHub ${parsed?.owner}/${parsed?.repo}${folder ? `/${folder}` : ""}`, track ? i18n.t(track === "release" ? "Release" : "Branch") : undefined].filter(Boolean).join(" · ");
 }
 /** Last source check; the installed copy keeps running until Update succeeds. */
-function PluginUpdateState({ plugin }: { plugin: Plugin }) {
+function PluginUpdateState({ plugin, upToDate = false }: { plugin: Plugin; upToDate?: boolean }) {
   const update = plugin.update, github = plugin.source?.kind === "github";
+  if (upToDate && update && !update.available && !update.error) return <PluginState tone="ok" label={i18n.t("Up to date")} />;
   if (update?.error) return <div><PluginState tone="error" label={i18n.t("Update check failed")} detail={github ? i18n.t(update.error, update.error) : i18n.t(PLUGIN_SOURCE_UNAVAILABLE)} /></div>;
   if (!update?.available) return null;
   const versions = update.currentVersion && update.sourceVersion ? i18n.t(github ? "Installed {{current}} → GitHub {{source}}" : "Installed {{current}} → source {{source}}", { current: update.currentVersion, source: update.sourceVersion })
@@ -131,7 +137,7 @@ function GitHubPluginDialog({ open, returnFocus, onClose, add }: { open: boolean
       <DialogHeader><DialogTitle>{i18n.t("Add plugin from GitHub")}</DialogTitle><DialogDescription>{i18n.t("Public repository or plugin folder address")}</DialogDescription></DialogHeader>
       <form className="plugin-github-address" onSubmit={event => { event.preventDefault(); if (address.trim() && !pending) void find(); }}>
         <Input aria-label={i18n.t("GitHub address")} placeholder="https://github.com/owner/repo" value={address} disabled={pending} spellCheck={false} autoComplete="off"
-          aria-invalid={!!problem} aria-describedby={problem ? `${id}-problem` : undefined} onChange={event => { setAddress(event.target.value); setProblem(""); }} />
+          aria-invalid={!!problem} aria-describedby={problem ? `${id}-problem` : undefined} onChange={event => { setAddress(event.target.value); setProblem(""); setFound(undefined); setChosen(undefined); }} />
         <Button type="submit" size="sm" variant="outline" disabled={pending || !address.trim()}>{i18n.t(pending && !found ? "Finding…" : "Find")}</Button>
       </form>
       {problem ? <FieldError id={`${id}-problem`}>{problem}</FieldError> : null}
