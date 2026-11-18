@@ -638,6 +638,22 @@ test("malformed output, process loss and request timeout reject without replay",
   } finally { await client.close(); }
 });
 
+test("Codex unconfirmed termination after a failed initialization does not block the next connection", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "codex-retire-")), log = path.join(root, "rpc.jsonl");
+  const orphan = (): number => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).find(row => row.orphanPid).orphanPid;
+  const client = new CodexAppServer(root, { bin: process.execPath, args: [fakeServer, log, "orphan-hang-initialize-once"], timeoutMs: 2000 });
+  t.after(async () => {
+    try { process.kill(orphan()); } catch { /* Absent or already stopped by the scenario. */ }
+    await client.close(); rmSync(root, { recursive: true, force: true });
+  });
+  // Initialization times out and the stopped process keeps its stdout open,
+  // so its termination check fails after the stop deadline.
+  await assert.rejects(client.connect(), /Could not confirm agent termination/);
+  process.kill(orphan());
+  await client.connect();
+  assert.ok((await client.request("model/list")).data.length);
+});
+
 test("installed CLI launcher paths with spaces support version diagnostics and reject old Codex before app-server launch", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "codex launcher ")), log = path.join(root, "rpc.jsonl");
   const bin = path.join(root, process.platform === "win32" ? "codex.cmd" : "codex");
