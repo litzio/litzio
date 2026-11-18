@@ -30,7 +30,8 @@ function validationDiagnostics(error: unknown, file: string): ValidationDiagnost
   if (error instanceof AssistantSkillValidationError) return [{ file: error.file, line: null, column: null, kind: "Assistant skill validation failed", path: error.field, message: error.message, code: "invalid_skill" }];
   if (file === "artifact directory") {
     const code = error instanceof FileAccessError ? "outside_plugin_scope" : (error as NodeJS.ErrnoException)?.code;
-    const message = error instanceof FileAccessError
+    const message = code === "installed_copy" ? (error as Error).message
+      : error instanceof FileAccessError
       ? "Expected a directory inside the pinned plugin authoring folder or allowed Host folders, and the active write scope."
       : code === "ENOENT" || code === "ENOTDIR" ? "Expected an existing plugin directory; a directory or parent is missing."
       : code === "EACCES" || code === "EPERM" ? "Expected a readable plugin directory; filesystem access was denied."
@@ -70,7 +71,9 @@ function readArtifactJson(file: string): unknown {
 function assertStoredSettings(manifest: PluginManifest, settings: Record<string, unknown>) {
   if (!compileSchema(manifest.settingsSchema)(settings)) throw new Error("Stored settings do not satisfy this artifact schema");
 }
-type Artifact = { manifest: PluginManifest; digest: string; entry: string };
+type Artifact = { manifest: PluginManifest; digest: string; entry: string; icon?: ReturnType<typeof readPluginIcon> };
+/** structuredClone would turn the icon Buffer into a plain Uint8Array; nothing mutates the bytes. */
+const copyArtifact = ({ icon, ...rest }: Artifact): Artifact => ({ ...structuredClone(rest), ...(icon ? { icon } : {}) });
 /** Last local source comparison. Memory only: every check reads the source again. */
 type UpdateCheck = { currentVersion: string | null; sourceVersion: string | null; available: boolean; error?: string };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
@@ -146,7 +149,9 @@ export class PluginHost {
     const authored = inside(this.authoringDirectory, requested) || expected !== undefined && inside(expected, requested);
     const access = authored ? this.authoringAccess() : this.access;
     const directory = accessPath(authored ? canonicalFilePath(requested) : requested, access);
-    return accessPath(canonicalFilePath(directory), creationScope);
+    const canonical = canonicalFilePath(directory);
+    this.copies.assertOutside(canonical);
+    return accessPath(canonical, creationScope);
   }
   private save(records = this.installed) {
     mkdirSync(path.dirname(this.file), { recursive: true });
@@ -175,14 +180,15 @@ export class PluginHost {
     const cached = this.artifacts.get(directory);
     if (cached?.digest === digest) {
       for (const file of ["litzio-plugin.json", "package.json", "host entry"]) inspecting(file);
-      return structuredClone(cached);
+      return copyArtifact(cached);
     }
     this.artifacts.delete(directory);
     inspecting("litzio-plugin.json");
     const manifest = validateManifest(readArtifactJson(path.join(directory, "litzio-plugin.json")));
     if (manifest.contributes.skills.length) inspecting("assistant skill");
     validateAssistantSkills(directory, manifest);
-    if (manifest.icon) { inspecting(manifest.icon); readPluginIcon(directory, manifest.icon); }
+    let icon: Artifact["icon"];
+    if (manifest.icon) { inspecting(manifest.icon); icon = readPluginIcon(directory, manifest.icon); }
     for (const screen of manifest.contributes.screens) if (screen.entry) { inspecting(screen.entry); compileScreen(directory, screen.entry); }
     inspecting("package.json");
     inspecting("host entry");
@@ -190,15 +196,15 @@ export class PluginHost {
     if (path.relative(directory, entry).startsWith("..") || !statSync(entry).isFile()) throw new Error("Invalid entry");
     compileSchema(manifest.settingsSchema);
     for (const op of manifest.contributes.operations) { compileSchema(op.inputSchema); compileSchema(op.outputSchema); }
-    this.artifacts.set(directory, { manifest, digest, entry });
-    return structuredClone({ manifest, digest, entry });
+    this.artifacts.set(directory, { manifest, digest, entry, icon });
+    return copyArtifact({ manifest, digest, entry, icon });
   }
   /** Only the Host writes installed copies, so calls reuse the digest checked when the copy was loaded. */
   private async installedArtifact(record: PluginRegistration, inspecting: (file: string) => void = () => {}) {
     const directory = realpathSync(this.installedDirectory(record)), cached = this.artifacts.get(directory);
     if (!cached) return this.artifact(directory, inspecting);
     for (const file of ["litzio-plugin.json", "package.json", "host entry"]) inspecting(file);
-    return structuredClone(cached);
+    return copyArtifact(cached);
   }
   private assertOperationNamesAvailable(id: string, names: string[]) {
     const requested = new Set(names);
@@ -236,8 +242,9 @@ export class PluginHost {
   }
   async icon(id: string, digest: string) {
     const record = this.record(id), artifact = await this.installedArtifact(record);
-    if (artifact.manifest.id !== id || artifact.digest !== record.digest || record.digest !== digest || !artifact.manifest.icon || !record.trusted) throw new Error("Plugin icon unavailable");
-    return readPluginIcon(this.installedDirectory(record), artifact.manifest.icon);
+    if (artifact.manifest.id !== id || artifact.digest !== record.digest || record.digest !== digest || !artifact.icon || !record.trusted) throw new Error("Plugin icon unavailable");
+    // Serve the bytes checked when the copy was loaded; the disk may have changed since.
+    return artifact.icon;
   }
   async list() {
     return Promise.all(Object.entries(this.installed).map(async ([id, r]) => {
@@ -525,6 +532,7 @@ export class PluginHost {
         const access = args.directory === undefined ? this.authoringAccess(true) : this.access;
         const expected = args.directory === undefined ? path.join(access!.roots[0]!, id) : undefined;
         const directory = args.directory ?? expected!;
+        this.copies.assertOutside(directory);
         return { ...scaffoldPlugin(directory, id, access, creationScope, args.template, expected), receipt: receipt("success") };
       }
       if (action === "bundle" || action === "dependencies") {

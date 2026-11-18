@@ -273,6 +273,34 @@ test("large dependency trees do not stall public operations, list, update checks
   } finally { clearInterval(probe); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("authoring and management actions refuse installed copies", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-installed-target-"));
+  const state = path.join(root, "state.json"), id = "fixture.installed-target";
+  const host = new PluginHost(state);
+  const alias = path.join(root, "alias");
+  try {
+    await host.start();
+    await host.invoke("install", { directory: lifecycleFixture(root, id) });
+    const copy = registeredCopy(state, id), [before] = await host.list();
+    symlinkSync(copy, alias, "junction");
+    const targets = [copy, alias, ...(process.platform === "win32" ? [copy.toUpperCase()] : [])];
+    for (const directory of targets) {
+      for (const action of ["bundle", "dependencies"] as const) {
+        await assert.rejects(host.invoke(action, { directory }), /belong to the Host/, `${action} ${directory}`);
+      }
+      await assert.rejects(host.invoke("scaffold", { directory: path.join(directory, "new"), id: "local.inside" }), /belong to the Host/);
+      for (const action of ["validate", "install"] as const) {
+        const reply = await host.invoke(action, { directory }) as any;
+        assert.equal(reply.errors[0].code, "installed_copy", `${action} ${directory}`);
+      }
+      await assert.rejects(host.invoke("register", { directory }), /belong to the Host/);
+    }
+    assert.equal(existsSync(path.join(copy, "screen.bundle.js")), false);
+    const [after] = await host.list();
+    assert.deepEqual([after!.digest, after!.running, after!.error], [before!.digest, true, undefined]);
+  } finally { await host.close(); rmSync(alias, { force: true }); rmSync(root, { recursive: true, force: true }); }
+});
+
 // Host lifecycle and public-operation tests stay in-process.
 // HTTP plugin scenarios cover browser registration/settings/secret integration.
 
@@ -1491,8 +1519,9 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
     assert.equal((await host.icon(manifest.id, digest)).bytes.toString(), svg);
     writeFileSync(icon, svg.replace('blue', 'red'));
     assert.equal((await host.icon(manifest.id, digest)).bytes.toString(), svg);
-    // The installed copy is checked when a Host loads it, not on every icon request.
+    // The installed copy is checked when a Host loads it; requests serve the bytes checked then.
     writeFileSync(path.join(registeredCopy(path.join(root, "state.json"), manifest.id), "icon.svg"), svg.replace('blue', 'red'));
+    assert.equal((await host.icon(manifest.id, digest)).bytes.toString(), svg);
     await host.close(); host = new PluginHost(path.join(root, "state.json")); await host.start();
     await assert.rejects(host.icon(manifest.id, digest), /unavailable/);
     assert.equal((await host.list())[0]!.iconDigest, undefined);

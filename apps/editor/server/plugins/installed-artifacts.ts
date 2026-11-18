@@ -50,6 +50,14 @@ export class InstalledArtifacts {
     return directory;
   }
 
+  /** Authoring and management work never targets installed copies; only Host loading writes there. */
+  assertOutside(directory: string) {
+    const storage = path.join(canonicalRecordedPath(path.dirname(this.location)), path.basename(this.location));
+    if (inside(storage, canonicalRecordedPath(path.resolve(directory)))) {
+      throw Object.assign(new Error("Installed plugin copies belong to the Host; use the plugin source folder"), { code: "installed_copy" });
+    }
+  }
+
   /** Install and update check share this rule: the recorded source digest skips .git and node_modules. */
   sourceDigest(source: string): string { return artifactDigest(source, digestSourceFile); }
 
