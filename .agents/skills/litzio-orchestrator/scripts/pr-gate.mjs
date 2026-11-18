@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Check that a Litzio PR can enter the merge queue; optionally comment and enqueue it.
 // Usage: node pr-gate.mjs --pr <N> [--enqueue --note-file <file>]
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -10,6 +10,58 @@ const REPO = 'litzio/litzio';
 const run = (command, args, options = {}) => execFileSync(command, args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...options }).trim();
 const gh = args => run('gh', args);
 const git = args => run('git', args);
+
+export function mergeConflictFiles({ status, stdout, stderr, error }) {
+  if (status === 0) return [];
+  if (status !== 1) throw new Error(`git merge-tree failed: ${error?.message ?? stderr?.trim() ?? status}`);
+
+  // With -z, Git writes the tree OID, the conflict paths, then an empty field before messages.
+  const fields = stdout.split('\0');
+  const end = fields.indexOf('', 1);
+  if (end < 2) throw new Error('git merge-tree did not return conflict paths');
+  return fields.slice(1, end);
+}
+
+function queueConflictProblems(pr, head) {
+  let queued;
+  try {
+    const pages = JSON.parse(gh(['api', 'graphql', '--paginate', '--slurp', '-f',
+      'query=query($endCursor:String){repository(owner:"litzio",name:"litzio"){mergeQueue(branch:"master"){entries(first:100,after:$endCursor){nodes{pullRequest{number headRefOid}} pageInfo{hasNextPage endCursor}}}}}']));
+    queued = pages.flatMap(page => page.data.repository.mergeQueue.entries.nodes)
+      .map(entry => entry.pullRequest).filter(entry => entry.number !== pr);
+  } catch (error) {
+    const problem = `merge queue lookup failed: ${error.message}`;
+    console.error(problem);
+    return [problem];
+  }
+
+  if (!queued.length) {
+    console.error('merge queue: no other PRs on master');
+    return [];
+  }
+
+  const labels = queued.map(entry => `#${entry.number}`).join(', ');
+  const problems = [];
+  try {
+    git(['fetch', '-q', '--no-tags', '--no-write-fetch-head', 'origin', ...queued.map(entry => entry.headRefOid)]);
+  } catch (error) {
+    const problem = `merge queue: could not fetch heads for ${labels}: ${error.message}`;
+    console.error(problem);
+    return [problem];
+  }
+
+  for (const entry of queued) {
+    try {
+      const files = mergeConflictFiles(spawnSync('git',
+        ['merge-tree', '--write-tree', '--name-only', '-z', entry.headRefOid, head], { encoding: 'utf8' }));
+      if (files.length) problems.push(`merge queue conflict with PR #${entry.number}: ${files.join(', ')}`);
+    } catch (error) {
+      problems.push(`merge queue check failed for PR #${entry.number}: ${error.message}`);
+    }
+  }
+  console.error(`merge queue: compared against ${labels} (${problems.length ? 'blocked' : 'no conflicts'})`);
+  return problems;
+}
 
 export function ciProblems(checks) {
   const problems = [];
@@ -73,6 +125,7 @@ else {
   try { validateRange(base, view.headRefOid, root); } catch (error) { problems.push(`provenance: ${error.message}`); }
 }
 
+problems.push(...queueConflictProblems(pr, view.headRefOid));
 console.log(JSON.stringify({ pr, head: view.headRefOid, checks: checks.length, unresolved, problems }, null, 2));
 if (problems.length) process.exit(1);
 if (!enqueue) process.exit(0);
