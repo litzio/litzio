@@ -5,6 +5,7 @@
 .screen-document-view[data-fill-height] > .screen-document-view-scroll { flex: 1; min-height: 0; }
 .screen-document-view[data-fill-height] > .screen-document-view-scroll:focus-visible { outline-offset: -2px; }
 .screen-document-view-content { position: relative; min-width: 0; }
+.screen-document-view-actions { position: absolute; inset: 0; pointer-events: none; }
 /* Keep shared block outlines on the compact preview paper's content axis. */
 .screen-document-view-content > .document { zoom: var(--document-view-scale, 1); --layout-document-gutter: var(--space-5); --layout-document-inline-padding: var(--space-5); min-height: 0; padding: var(--space-5); border-radius: 0; box-shadow: none; overflow-wrap: anywhere; }
 .screen-document-view-highlight {

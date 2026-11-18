@@ -37,6 +37,9 @@
   /* Expand only the overlay; keep the gutter handles and neighboring blocks clear. */
   --space-block-hover-inline: var(--space-2);
   --space-block-hover-block: var(--space-1);
+  --opacity-linked-band-quiet: .07;
+  --opacity-linked-band-selected: .12;
+  --opacity-linked-band-hover: .16;
   /* Out-of-flow heading depth: shared metadata type and subdued theme role. */
   --font-size-heading-level: var(--font-size-xs);
   --id-color-heading-level: var(--id-color-text-subtle);

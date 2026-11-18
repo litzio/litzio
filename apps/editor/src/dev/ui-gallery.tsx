@@ -2,7 +2,7 @@ import { SharedPartsExample } from "./shared-parts-example.tsx";
 import { ScreenFrameExample } from "./screen-frame-example.tsx";
 import { ScreenPartsExample } from "./screen-parts-example.tsx";
 import { ScreenPathExample } from "./screen-path-example.tsx";
-import { DocumentViewExample } from "./document-view-example.tsx";
+import { DocumentViewExample, LinkedDocumentViewExample } from "./document-view-example.tsx";
 import {TableInteractionExample} from "./data-table-example.tsx";
 import { useRef, useState } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
@@ -129,7 +129,7 @@ export function UiGallery() {
     <div className="ui-gallery-body">
     <aside className="ui-gallery-navigation settings-navigation">
       <nav aria-label="Gallery elements">
-        {["Controls", "Surfaces", "Menus", "Notifications", "Tables", "Screen parts", "Shared parts", "Document view"].map(value =>
+        {["Controls", "Surfaces", "Menus", "Notifications", "Tables", "Screen parts", "Shared parts", "Document view", "Linked document view"].map(value =>
           <Button key={value} variant="ghost" size="sm" aria-current={category === value ? "page" : undefined}
             onClick={() => setCategory(value)}>{value}</Button>)}
       </nav>
@@ -148,6 +148,7 @@ export function UiGallery() {
     {visible("Shared parts") ? <SharedPartsExample /> : null}
     {visible("Screen parts") ? <><h2 className="task-surface-title">Screen parts</h2><ScreenFrameExample /><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
     {visible("Document view") ? <DocumentViewExample /> : null}
+    {visible("Linked document view") ? <LinkedDocumentViewExample /> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}

@@ -133,6 +133,8 @@ Enter/Space·클릭 펼치기/접기를 제공하고 `aria-expanded`/`aria-contr
 
 ## P09 metadata와 블록 도구
 
+편집기 본문과 읽기 전용 문서 보기는 같은 블록 윤곽으로 블록의 범위를 표시한다. `ui.LinkedDocumentView`는 문서 보기와 자료 영역 양쪽의 대응 항목에 같은 윤곽을 적용한다. [상태 색](editor-visual-language-v1.md#블록-윤곽과-연결-띠)과 [배치 기준](editor-layout-rules-v1.md#alignment-and-ownership)을 따른다.
+
 - **목적·사용/비사용:** 짧은 속성과 구조 작업의 진입을 구분한다. 표의 행·열 선택 도구나 미주 복귀 번호를 일반 metadata 도구로 대체하지 않는다.
 - **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView의 객체 도구 줄(P03)과 높이를 차지하지 않는 metadata. [표 #793](table-interaction-v1.md#whole-table-tools-793)은 가로 스크롤 밖 상단 행에 속성 버튼과 metadata를 둔다. 표 전용 기타 메뉴는 없으며 삭제는 다른 객체처럼 블록 메뉴와 선택 뒤 Delete로 한다. 표는 앞 문단·열 핸들과 겹치지 않도록 상단 행의 공간을 항상 확보하며 도구 표시로 본문 높이를 바꾸지 않는다. 행·열 손잡이를 표시해도 캡션 간격은 유지한다. 본문 폭 원문 폼은 속성 팝오버와 별도 표면이다(#788).
 - **사용처:** U01–U06 그림·수식·표·미주, U11 절 label, U18 블록/표 구조 도구.

@@ -173,7 +173,7 @@ These are independent axes. Visual interactions never write document attributes.
 | Current segments | Shared view toggles use a pressed track, raised themed `surface`, `text`, 600 semibold and `--shadow-segment`, without control edge/marker. Inactive text is muted, normal text on hover, without a hover face. Hidden semibold labels reserve width. |
 | Current tab/group | Document tabs stay flat with normal current text and an inset bottom accent marker; inactive is muted. Neutral hover preserves the marker; focus is independent. In split groups the focused group's tab-row adds selected-surface fill alongside active tab markers. |
 | Pressed/open | Menu-open controls retain neutral pressed fill. Wide document/Outline on toggles use selected face/icon (selected-hover on hover), without marker/control boundary. Expanded Sidebar Collapse keeps transparent rest rather than a persistent pressed face. |
-| Selected | One chosen-accent block outline and visible Edit; selection opens no properties. Figure/Equation/Table/endnote outlines share hover's expanded rectangle/inset stroke/outer radius and paint above hover. No content border/padding. Mermaid's existing kind badge also reflects selection (#846). |
+| Selected | The [block outline](#블록-윤곽과-연결-띠) and visible Edit; selection opens no properties. Mermaid's existing kind badge also reflects selection (#846). |
 | Editing | Form/outline persist independently of selection. Typing hides no selected/editing outline. Completion/focus return follows feature contracts and [P04](ui-patterns-v1.md#p04-적용취소완료). |
 | Dirty/invalid | Notices distinguish applied Save content from unapplied form input; errors preserve values. Labels/helpers/errors remain associated. Invalid field boundaries coexist with focus; operation failure does not mislabel a valid field. |
 | Save refusal | Danger block/cell strokes and localized Cannot save badge identify the cause. They paint above selection/hover in the document's isolated stacking context below the header, without interactive hit targets. The danger message gives localized cause/action and collapsed keyboard-accessible Technical details retaining the original diagnostic. [Save](editing-session-save-v1.md#refused-block-highlighting-and-navigation-578-phase-1) owns lifetime/navigation. |
@@ -188,6 +188,21 @@ Document input, IME composition and document-changing keydown commands suppress 
 Buttons use the solid 2px outer `--focus-ring`; list/menu rows, tab-group controls, checkboxes and table tools use `--focus-ring-inset`. Both use opaque `border-focus` (chosen accent). Current/error/pressed faces remain visible alongside focus. Primary controls separate accent face from ring with an inner surface boundary. Figure metadata's quiet filled fields are an explicit exception to always-visible field boundaries; [P05](ui-patterns-v1.md#p05-입력칸placeholder위계) tracks other current form differences.
 
 Clean available Save is ghost, unsaved is accent, unavailable muted without hover. Saving preserves position/width/name while a spinner overlays a transparent label. The fixed status slot conveys unsaved/saved/operation/failure with localized text/tooltip; clean Ready is blank. Settings' unseen-update dot uses accent with localized tooltip/name; About actions use selected fill/interaction outline without animation. [Shell](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695) and [Desktop](../reviews/desktop-distribution-history-2026-11.md#settings-update-cue-verification-665) own the operations.
+
+### 블록 윤곽과 연결 띠
+
+윤곽은 채움 없는 안쪽 선이며, 모서리와 여백은 [배치 규칙](editor-layout-rules-v1.md#alignment-and-ownership)을 따른다.
+
+| 상태 | 윤곽 색 | 연결 띠 채움 |
+| --- | --- | --- |
+| 블록 위에 올림 | `--id-color-block-hover-outline` | — |
+| 블록 선택·편집·문서 보기의 대상 | `--id-color-interaction` | — |
+| 저장 거부 블록 | `--id-color-danger` | — |
+| 연결된 짝의 기본 표시 | — | 항목별 `--id-color-*`, 밝음·어두움 모두 `--opacity-linked-band-quiet` 7%. 띠가 겹쳐도 구별할 수 있고 선택·올림의 포인트 색과 자료·문서 글자가 먼저 보이는 농도다. |
+| 연결된 짝에 올림·키보드 focus | `--id-color-interaction` | `--id-color-interaction`, `--opacity-linked-band-hover`. 올린 짝과 키보드 focus가 있는 짝이 다르면 두 짝을 같은 상태로 강조한다. |
+| 연결된 짝을 선택 | `--id-color-interaction` | `--id-color-interaction`, `--opacity-linked-band-selected` |
+
+연결 띠에는 외곽선이 없다. 선택 색은 올림과 겹쳐도 유지한다.
 
 ## Adjustable values and preferences
 

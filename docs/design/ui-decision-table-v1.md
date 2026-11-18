@@ -109,6 +109,7 @@ UI 원칙과 화면 종류별 바탕·여백은 [DESIGN.md](../../DESIGN.md)를 
 | Desktop 연결·진단·종료 | DesktopMenu의 NotificationCenter·Button·DropdownMenu, About의 SettingsRow·details, main의 native 종료 확인 | [Desktop 로컬 연결](desktop-distribution-v1.md#desktop-local-connection), [공유 daemon](desktop-distribution-v1.md#shared-daemon-desktop) |
 | 저장·복구 비교 | VisualCompare·DocumentEditor Read NodeView·ChoiceGroup·Button·Tooltip; unchanged-run disclosure만 ProseMirror decoration 소유 native button 예외. editor 위치 mapping 안에 유지 | [저장 비교](editing-session-save-v1.md#pre-save-visual-comparison-1201), [복구 비교](editing-session-save-v1.md#recovery-visual-comparison-1201) |
 | PDF 읽기 | task tab·DocumentTabs·Button·Tooltip·Input·Notice. 원본 종이는 테마와 무관하게 흰색 PDF paper 역할 | [Shell PDF](editor-ux-shell-v1.md#read-only-pdf-tabs-1337), [Host](filesystem-host-boundary-v1.md#pdf-byte-preview-1337) |
+| 자료와 문서 블록 대조 | 플러그인 `ui.LinkedDocumentView`와 기존 DocumentView·Button·블록 윤곽. 자료 내용과 분류 표시는 화면 코드가 제공 | [연결 띠 계약](plugin-screens-v1.md#자료와-문서-블록의-연결-띠) |
 | 템플릿 목록·미리보기 | task tab·카드·읽기 Popover·이름 Dialog, metadata 편집 폼과 구별 | [템플릿 갤러리](document-templates-v1.md#editor-gallery-phase-2) |
 
 ### 갤러리 탐색과 네이티브 목록

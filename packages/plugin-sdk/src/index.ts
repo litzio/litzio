@@ -106,3 +106,4 @@ export { validatePluginSource } from "./authoring.ts";
 export { SCREEN_UI, SCREEN_UI_GUIDANCE } from "./screen-ui.ts";
 export type { ScreenConfirmInput, ScreenPickPathInput, ScreenPickedPath, ScreenOpenDocumentResult } from "./screen-actions.ts";
 export type { ScreenChartProps, ScreenSelectProps, ScreenSliderProps, ScreenSummaryProps, ScreenDocumentViewProps, ScreenDocumentViewLayout, ScreenDocumentViewState } from "./screen-ui.ts";
+export type { ScreenLinkedDocumentItem, ScreenLinkedDocumentViewProps } from "./screen-ui.ts";

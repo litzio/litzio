@@ -2646,6 +2646,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 }
 
 :is(.figure, .equation, .table-block, .footnote-definition):is([data-selected="true"], [data-editing="true"])::after,
+.linked-document-outline::after,
 .screen-document-view-highlight[data-target-kind="block"]::after {
   /* The same outer rectangle and inset stroke as hover; selection paints above it. */
   content: "";
