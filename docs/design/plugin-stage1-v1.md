@@ -116,7 +116,7 @@ export function activate(context) {
 
 설정의 [플러그인 추가…]와 `plugins register <폴더>`는 Host 전용 복사본을 검증하고 비활성 상태로 등록한다. 처음 켤 때 목록의 registrationId를 확인하고 등록 단위를 신뢰한다. 등록 교체·제거 후 재추가에는 다시 확인한다. `plugins install <폴더 또는 제작 ID>`는 복사본의 검증·등록·신뢰·활성을 하나의 Host 작업으로 수행한다. 비서 관리도 같은 작업을 사용하며 활동에는 metadata만 남긴다.
 
-Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 digest(`.git`·`node_modules` 제외; 의존성 변화는 `package.json`·lockfile로 드러난다)와 번들 후 실행본 digest를 등록 기록에 둔다. 원본 복사는 비동기 파일 작업이다. 실행·화면·아이콘·스킬은 설치본을 사용한다. 원본을 수정하거나 삭제해도 기존 판을 사용하며 실행본 digest가 달라지면 다시 읽기를 요구한다. 설정과 비밀값 변경은 설치본으로 인스턴스를 다시 시작한다.
+Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 digest(`.git`·`node_modules` 제외; 의존성 변화는 `package.json`·lockfile로 드러난다)와 번들 후 실행본 digest를 등록 기록에 둔다. 원본 복사는 비동기 파일 작업이다. 실행·화면·아이콘·스킬은 설치본을 사용한다. 원본을 수정하거나 삭제해도 기존 판을 사용한다. 설치본은 Host만 쓰므로 실행본 digest(`node_modules` 포함)는 Host가 설치본을 불러올 때(Host 시작, 켜기, 설치·다시 읽기·업데이트 적용, 꺼진 등록을 처음 표시할 때) 비동기 파일 작업으로 확인하고, 공개 작업 호출·`list`·아이콘 등은 그 결과를 쓴다. 불러올 때 등록 값과 다르면 다시 읽기를 요구한다. 설정과 비밀값 변경은 설치본으로 인스턴스를 다시 시작한다.
 
 `plugins reload <id>`는 등록된 로컬 출처를 다시 복사한다. 후보의 검증·기동·status 확인·스킬 준비가 끝나고 등록이 아직 같을 때 전환한다. 준비나 등록 저장에 실패하면 오류를 보고하고 기존 판의 등록·작업·화면·스킬을 유지한다. 성공하면 등록·신뢰·설정·비밀값을 보존하고 새 호출을 새 판에 연결한다. 이전 판이 받은 호출과 status 관찰은 drain한 뒤 dispose하고 이전 복사본을 정리한다.
 
@@ -151,7 +151,7 @@ HTTP·CLI JSON·비서 도구는 기존 `{errorKind,error,receipt}`를 유지하
 
 ADR-0020의 secret 절은 argv·로그·비서 결과·뷰에 PAT를 남기지 않고 외부 API 오류 응답을 Host에서 정리하도록 한다. 변경 전 child catch는 자격 증명 유출을 막기 위해 예외 문구·스택을 버리고 허용된 kind만 IPC로 보냈다. Host publicOperationError가 kind를 고정 문구로 바꿨고 HTTP는 결과를 그대로 전달했다. CLI는 두 모드 모두 JSON, 화면 invoke는 error 문자열만 가진 Error, 비서 도구는 공통 실패 결과를 받았다. 입력 schema 거부는 상세 없이 `Invalid operation input` 예외였고 HTTP 400으로 전달됐다. 비서는 이 예외를 다시 일반 실패로 가렸다.
 
-이제 명시적 공개 오류만 위 예외 경로를 추가한다. 표식 없는 예외와 출력 schema 불일치는 계속 `Plugin operation failed. Check plugin settings and the target.`다. 프로세스 종료도 같은 일반 실패이며 RPC timeout은 `Operation timed out. Check the service connection.`다. write는 기존처럼 `Check the target before retrying a write.` 안내가 붙는다. 기존 PluginOperationError(kind)의 auth/forbidden/not_found/unavailable 등 Host 고정 문구는 유지한다. 비활성·미등록은 `Operation unavailable or plugin disabled`, artifact 변경·미신뢰는 `Artifact changed; reload the plugin`으로 거부하며 전용 비서 도구의 admission 거부는 기존 unavailable/forbidden 안내를 유지한다. timeout·crash·출력 실패의 receipt와 종료 코드는 바꾸지 않는다. 비서의 최종 publication adapter는 기존대로 failed를 unavailable, refused outcome을 failure로 정규화하고 code/message/inputIssues는 보존한다.
+이제 명시적 공개 오류만 위 예외 경로를 추가한다. 표식 없는 예외와 출력 schema 불일치는 계속 `Plugin operation failed. Check plugin settings and the target.`다. 프로세스 종료도 같은 일반 실패이며 RPC timeout은 `Operation timed out. Check the service connection.`다. write는 기존처럼 `Check the target before retrying a write.` 안내가 붙는다. 기존 PluginOperationError(kind)의 auth/forbidden/not_found/unavailable 등 Host 고정 문구는 유지한다. 비활성·미등록은 `Operation unavailable or plugin disabled`, 불러올 때 확인한 artifact 변경·미신뢰는 `Artifact changed; reload the plugin`으로 거부하며 전용 비서 도구의 admission 거부는 기존 unavailable/forbidden 안내를 유지한다. timeout·crash·출력 실패의 receipt와 종료 코드는 바꾸지 않는다. 비서의 최종 publication adapter는 기존대로 failed를 unavailable, refused outcome을 failure로 정규화하고 code/message/inputIssues는 보존한다.
 
 ## 제작과 설치
 

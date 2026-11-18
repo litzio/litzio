@@ -415,7 +415,7 @@ export async function handleDocumentRequest(
     if (url.startsWith("/api/")) {
     try {
       if (url === "/api/plugins/icon" && req.method === "GET" && services?.plugins) {
-        const icon = services.plugins.host.icon(query.get("id") ?? "", query.get("digest") ?? "");
+        const icon = await services.plugins.host.icon(query.get("id") ?? "", query.get("digest") ?? "");
         res.setHeader("Content-Type", icon.mime);
         res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Content-Disposition", "attachment");

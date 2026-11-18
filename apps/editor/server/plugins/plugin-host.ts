@@ -6,7 +6,7 @@ import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { AssistantSkillValidationError, PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
-import { artifactDigest } from "./artifact-digest.mjs";
+import { artifactDigestAsync } from "./artifact-digest.mjs";
 import { InstalledArtifacts } from "./installed-artifacts.ts";
 import { readPluginRegistrations, type InstalledPlugin, type PluginRegistration } from "./plugin-registrations.ts";
 import { PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../../shared/plugin-registration-error.ts";
@@ -168,9 +168,10 @@ export class PluginHost {
     try { this.artifacts.delete(this.installedDirectory(record)); } catch { /* unavailable copy */ }
     this.copies.remove(record.installationId);
   }
-  private artifact(directory: string, inspecting: (file: string) => void = () => {}) {
+  /** Loading reads the whole artifact, including node_modules, without holding the event loop. */
+  private async artifact(directory: string, inspecting: (file: string) => void = () => {}) {
     directory = realpathSync(directory);
-    const digest = artifactDigest(directory);
+    const digest = await artifactDigestAsync(directory);
     const cached = this.artifacts.get(directory);
     if (cached?.digest === digest) {
       for (const file of ["litzio-plugin.json", "package.json", "host entry"]) inspecting(file);
@@ -191,6 +192,13 @@ export class PluginHost {
     for (const op of manifest.contributes.operations) { compileSchema(op.inputSchema); compileSchema(op.outputSchema); }
     this.artifacts.set(directory, { manifest, digest, entry });
     return structuredClone({ manifest, digest, entry });
+  }
+  /** Only the Host writes installed copies, so calls reuse the digest checked when the copy was loaded. */
+  private async installedArtifact(record: PluginRegistration, inspecting: (file: string) => void = () => {}) {
+    const directory = realpathSync(this.installedDirectory(record)), cached = this.artifacts.get(directory);
+    if (!cached) return this.artifact(directory, inspecting);
+    for (const file of ["litzio-plugin.json", "package.json", "host entry"]) inspecting(file);
+    return structuredClone(cached);
   }
   private assertOperationNamesAvailable(id: string, names: string[]) {
     const requested = new Set(names);
@@ -226,8 +234,8 @@ export class PluginHost {
     const result = statusSchema.parse(safePluginValue(await live.instance.status(), secrets));
     return result;
   }
-  icon(id: string, digest: string) {
-    const record = this.record(id), artifact = this.artifact(this.installedDirectory(record));
+  async icon(id: string, digest: string) {
+    const record = this.record(id), artifact = await this.installedArtifact(record);
     if (artifact.manifest.id !== id || artifact.digest !== record.digest || record.digest !== digest || !artifact.manifest.icon || !record.trusted) throw new Error("Plugin icon unavailable");
     return readPluginIcon(this.installedDirectory(record), artifact.manifest.icon);
   }
@@ -239,7 +247,7 @@ export class PluginHost {
       const last = this.updates.get(id), update = last?.installationId === r.installationId ? last.check : undefined;
       let file = "artifact directory";
       try {
-        const { manifest: m, digest } = this.artifact(this.installedDirectory(r), current => { file = current; }), live = this.loaded.get(id);
+        const { manifest: m, digest } = await this.installedArtifact(r, current => { file = current; }), live = this.loaded.get(id);
         if (m.id !== id || digest !== r.digest) {
           return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, status: null, error: "Artifact changed; reload the plugin" };
         }
@@ -253,7 +261,7 @@ export class PluginHost {
   private async enable(id: string) {
     const previous = this.record(id);
     if (!("installationId" in previous)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
-    const directory = this.installedDirectory(previous), artifact = this.artifact(directory);
+    const directory = this.installedDirectory(previous), artifact = await this.artifact(directory);
     if (artifact.manifest.id !== id) throw new Error("Artifact ID changed");
     if (!previous.trusted) throw new Error("Explicit plugin trust is required");
     if (artifact.digest !== previous.digest) throw new Error("Artifact changed; reload the plugin");
@@ -292,8 +300,8 @@ export class PluginHost {
       }
     }
   }
-  private declaredSecret(id: string, name: string) {
-    const m = this.artifact(this.installedDirectory(this.record(id))).manifest;
+  private async declaredSecret(id: string, name: string) {
+    const m = (await this.installedArtifact(this.record(id))).manifest;
     if (!m.secrets.some(s => s.id === name)) throw new Error("Undeclared plugin secret");
     return m;
   }
@@ -320,7 +328,7 @@ export class PluginHost {
   setSecret(id: string, name: string, value: string): Promise<unknown> {
     const run = this.serial.then(async () => {
       if (this.closed) throw new Error("Plugin Host is closing");
-      this.declaredSecret(id, name);
+      await this.declaredSecret(id, name);
       if (!this.secrets.supported) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
       if (typeof value !== "string" || !value.length || Buffer.byteLength(value) > 16384) throw new Error("Invalid secret input");
       await this.changeConfiguration(id, async () => {
@@ -338,11 +346,11 @@ export class PluginHost {
     return directory;
   }
   /** New content means the source differs from what this registration last applied, whatever its version text says. */
-  private checkUpdate(id: string): UpdateCheck {
+  private async checkUpdate(id: string): Promise<UpdateCheck> {
     const record = this.record(id);
     if (!("installationId" in record)) return { currentVersion: null, sourceVersion: null, available: false, error: PLUGIN_SOURCE_READD_REQUIRED };
     let currentVersion: string | null = null;
-    try { currentVersion = this.artifact(this.installedDirectory(record)).manifest.version ?? null; } catch { /* list reports the installed copy */ }
+    try { currentVersion = (await this.installedArtifact(record)).manifest.version ?? null; } catch { /* list reports the installed copy */ }
     let check: UpdateCheck;
     try {
       const directory = this.sourceDirectory(record);
@@ -409,7 +417,7 @@ export class PluginHost {
       if (screens.length && (dependencies ? existsSync(path.join(copy.directory, "node_modules")) : hasBundle)) {
         bundleScreens(copy.directory);
       }
-      const artifact = this.artifact(copy.directory, inspecting);
+      const artifact = await this.artifact(copy.directory, inspecting);
       inspecting(artifact.manifest.entry);
       if (action === "install") {
         const errors = validatePluginSource(readFileSync(artifact.entry, "utf8"), artifact.manifest).map(issue => ({ file: artifact.manifest.entry, ...issue }));
@@ -470,9 +478,9 @@ export class PluginHost {
       (local && live?.manifest.contributes.screens.some(screen => screen.entry) && Object.hasOwn(live.instance.operations, local) ?
         { id: local, version: 1, effect: "write" as const, scope: "host", assistant: false, inputSchema: {}, outputSchema: {} } : undefined);
     if (!live || !op) throw new Error("Operation unavailable or plugin disabled");
-    if (this.disabling.has(live.manifest.id)) throw new Error("Plugin is stopping");
     const record = this.record(live.manifest.id);
-    if (!record.trusted || artifactDigest(this.installedDirectory(record)) !== record.digest) throw new Error("Artifact changed; reload the plugin");
+    if (!record.trusted || (await this.installedArtifact(record)).digest !== record.digest) throw new Error("Artifact changed; reload the plugin");
+    if (this.disabling.has(live.manifest.id) || this.loaded.get(live.manifest.id) !== live) throw new Error("Plugin is stopping");
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
     const requestId = randomUUID();
     const validate = compileSchema(op.inputSchema);
@@ -528,7 +536,7 @@ export class PluginHost {
         let file = "artifact directory";
         try {
           const directory = this.artifactDirectory(args.directory!);
-          const a = this.artifact(directory, current => { file = current; }); manifestId = a.manifest.id;
+          const a = await this.artifact(directory, current => { file = current; }); manifestId = a.manifest.id;
           errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: "host entry", ...issue })));
         } catch (error) {
           errors.push(...validationDiagnostics(error, file));
@@ -537,7 +545,8 @@ export class PluginHost {
       }
       if (action === "check-updates") {
         const ids = args.id === undefined ? Object.keys(this.installed) : [args.id];
-        const updates = ids.map(id => ({ id, ...this.checkUpdate(id) }));
+        const updates = [];
+        for (const id of ids) updates.push({ id, ...await this.checkUpdate(id) });
         return { updates, plugins: await this.list(), receipt: receipt(updates.some(update => update.error) ? "failure" : "success") };
       }
       if (action === "register") {
@@ -561,20 +570,20 @@ export class PluginHost {
           this.removeCopy(r);
           return { id, plugins: await this.list(), receipt: receipt("success") };
         } else if (action === "secret-status") {
-          return { id, secrets: await this.secretStatus(id, this.artifact(this.installedDirectory(r)).manifest), receipt: { requestId: randomUUID(), operation: "plugins.secret-status", version: 1, scope: "host", outcome: "success" } };
+          return { id, secrets: await this.secretStatus(id, (await this.installedArtifact(r)).manifest), receipt: { requestId: randomUUID(), operation: "plugins.secret-status", version: 1, scope: "host", outcome: "success" } };
         } else if (action === "secret-delete") {
-          this.declaredSecret(id, args.name!);
+          await this.declaredSecret(id, args.name!);
           await this.changeConfiguration(id, async () => {
             await this.secrets.delete(id, args.name!);
             if (!r.enabled) this.redactionSecrets.get(id)?.delete(args.name!);
           });
         } else if (action === "trust") {
-          const a = this.artifact(this.installedDirectory(r));
+          const a = await this.installedArtifact(r);
           if (a.manifest.id !== id || a.digest !== r.digest || args.digest !== undefined && args.digest !== a.digest) throw new Error("Artifact digest does not match");
           r.trusted = true;
         } else if (action === "enable") {
           if (args.trust) {
-            if (this.artifact(this.installedDirectory(r)).manifest.id !== id) throw new Error("Artifact ID changed");
+            if ((await this.installedArtifact(r)).manifest.id !== id) throw new Error("Artifact ID changed");
             r.trusted = true;
           }
           this.save();
@@ -589,8 +598,8 @@ export class PluginHost {
         }
         else if (action === "disable") { r.enabled = false; this.save(); await this.disable(id); }
         else if (action === "settings") {
-          if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, this.artifact(this.installedDirectory(r)).manifest), settings: r.settings, settingsSchema: this.artifact(this.installedDirectory(r)).manifest.settingsSchema };
-          const m = this.artifact(this.installedDirectory(r)).manifest;
+          if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, (await this.installedArtifact(r)).manifest), settings: r.settings, settingsSchema: (await this.installedArtifact(r)).manifest.settingsSchema };
+          const m = (await this.installedArtifact(r)).manifest;
           const validate = compileSchema(m.settingsSchema);
           if (!validate(args.settings)) {
             const properties = m.settingsSchema.properties as Record<string, { title?: string }> | undefined;
