@@ -19,6 +19,7 @@ export class FakeGitHub {
   private server?: Server;
   /** Routes requested, for asserting what a check needed. */
   readonly requests: string[] = [];
+  readonly authorization: (string | undefined)[] = [];
   failures = new Map<RegExp, { status: number; headers?: Record<string, string> }>();
   /** GitHub truncates recursive trees of large repositories. */
   truncated = false;
@@ -65,6 +66,7 @@ export class FakeGitHub {
 
   async start() {
     this.server = createServer((request, response) => {
+      this.authorization.push(request.headers.authorization);
       void this.handle(request.url ?? "/").then(result => {
         response.writeHead(result.status, { "Content-Type": result.type ?? "application/json", ...result.headers });
         response.end(result.body);
@@ -133,6 +135,9 @@ export class FakeGitHub {
 /** Browser fixture: two plugin folders, with only Alpha in the latest formal release. */
 export async function browserGitHub() {
   const github = new FakeGitHub(), repo = github.repository("litzio-fixtures", "plugins");
+  github.failures.set(/^\/repos\/litzio-fixtures\/rate-limited$/, {
+    status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1893456000" },
+  });
   const plugin = (folder: string, name: string, version: string) => ({
     [`plugins/${folder}/litzio-plugin.json`]: JSON.stringify({ id: `fixture.${folder}`, name, version, entry: "host.mjs", screen: "screen.jsx" }),
     [`plugins/${folder}/screen.jsx`]: "export default function Screen(){return null}",

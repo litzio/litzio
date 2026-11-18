@@ -250,7 +250,16 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
   const base = { "README.md": "tools", ...plugin("beta", "beta-1", "1.0.0") };
   const first = repo.push("main", { ...base, ...plugin("alpha", "alpha-1", "0.1.0") });
   const alphaUrl = "https://github.com/acme/tools/tree/main/plugins/alpha", betaUrl = "https://github.com/acme/tools/tree/main/plugins/beta";
-  const host = new PluginHost(state, { github: new GitHubSource(await github.start()) });
+  const credentials: NodeJS.ProcessEnv = { GH_TOKEN: "fixture-primary-token", GITHUB_TOKEN: "fixture-secondary-token" };
+  let cliCalls = 0, cliFailure = false;
+  const host = new PluginHost(state, { github: new GitHubSource(await github.start(), {
+    env: credentials,
+    async cliToken() {
+      cliCalls++;
+      if (cliFailure) throw new Error("simulated missing or signed-out gh");
+      return "fixture-cli-token\n";
+    },
+  }) });
   const read = async (id: string) => ((await host.invokeOperation(`${id}.read`, {})) as { result?: unknown }).result;
   const check = async () => Object.fromEntries(((await host.invoke("check-updates", {})) as any).updates.map((update: any) => [update.id, update]));
   const leftovers = () => existsSync(staging) ? fs.readdirSync(staging) : [];
@@ -258,8 +267,15 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
     await host.start();
     // A repository address lists every plugin folder; install needs one folder.
     const listed = await host.invoke("source-plugins", { source: "https://github.com/acme/tools" }) as any;
+    assert.deepEqual([...new Set(github.authorization.splice(0))], ["Bearer fixture-primary-token"]);
+    assert.equal(cliCalls, 0);
+    assert.doesNotMatch(JSON.stringify(listed), /fixture-primary-token/);
+    delete credentials.GH_TOKEN;
     assert.deepEqual(listed.plugins.map((p: any) => [p.id, p.source, p.version, p.release]), [["acme.alpha", alphaUrl, "0.1.0", false], ["acme.beta", betaUrl, "1.0.0", false]]);
     const ambiguous = await host.invoke("install", { source: "https://github.com/acme/tools" }) as any;
+    assert.deepEqual([...new Set(github.authorization.splice(0))], ["Bearer fixture-secondary-token"]);
+    assert.equal(cliCalls, 0);
+    delete credentials.GITHUB_TOKEN;
     assert.equal(ambiguous.receipt.outcome, "failure"); assert.equal(ambiguous.plugins.length, 2);
     await assert.rejects(host.invoke("install", { source: alphaUrl, track: "release" }).then((value: any) => { if (value.receipt.outcome !== "success") throw new Error(value.errors[0].message); }), /no formal GitHub release/);
 
@@ -271,7 +287,13 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
     const sources = Object.fromEntries((await host.list()).map(p => [p.id, (p as any).source]));
     assert.deepEqual(sources["acme.alpha"], { kind: "github", url: alphaUrl, path: "plugins/alpha", track: "release", local: false });
     assert.deepEqual(sources["acme.beta"], { kind: "github", url: betaUrl, path: "plugins/beta", track: "branch", local: false });
-    assert.deepEqual(Object.values(await check()).map((u: any) => u.available), [false, false]);
+    github.authorization.length = 0;
+    const callsBeforeCheck = cliCalls;
+    const checked = await host.invoke("check-updates", {}) as any;
+    assert.deepEqual(checked.updates.map((update: any) => update.available), [false, false]);
+    assert.equal(cliCalls, callsBeforeCheck + 1);
+    assert.deepEqual([...new Set(github.authorization.splice(0))], ["Bearer fixture-cli-token"]);
+    assert.doesNotMatch(JSON.stringify(checked), /fixture-cli-token/);
 
     // Another plugin's change and release never count for this folder.
     const second = repo.push("main", { ...base, ...plugin("alpha", "alpha-1", "0.1.0"), ...plugin("beta", "beta-2", "2.0.0") });
@@ -316,9 +338,36 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
     await host.invoke("update", { id: "acme.beta" });
     assert.equal(await read("acme.beta"), " beta-4");
 
-    github.failures.set(/releases\/latest/, { status: 403, headers: { "x-ratelimit-remaining": "0" } });
-    assert.equal((await check())["acme.alpha"].error, "GitHub rate limit reached. Try again later.");
+    github.failures.set(/releases\/latest/, { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1893456000" } });
+    assert.doesNotMatch((await check())["acme.alpha"].error, /GH_TOKEN/);
+    cliFailure = true;
+    github.authorization.length = 0;
+    const limited = await host.invoke("check-updates", {}) as any;
+    assert.equal(limited.receipt.outcome, "failure");
+    const reset = new Date(1893456000 * 1000).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "long" });
+    assert.equal(limited.updates.find((update: any) => update.id === "acme.alpha").error, `GitHub rate limit reached. Try again after ${reset}. Sign in with GitHub CLI or set GH_TOKEN to raise the limit.`);
+    assert.deepEqual([...new Set(github.authorization.splice(0))], [undefined]);
+    assert.doesNotMatch(JSON.stringify(limited), /fixture-\w+-token/);
     github.failures.clear();
+
+    cliFailure = false;
+    github.failures.set(/commits\//, { status: 401 });
+    const rejected = await host.invoke("install", { source: alphaUrl }) as any;
+    assert.equal(rejected.receipt.outcome, "failure");
+    assert.match(rejected.errors[0].message, /GitHub rejected the token/);
+    assert.doesNotMatch(JSON.stringify(rejected), /fixture-cli-token/);
+    github.failures.clear();
+
+    const archive = new FakeGitHub();
+    try {
+      github.failures.set(/tarball\//, { status: 302, headers: { location: `${await archive.start()}/archive` } });
+      github.authorization.length = 0;
+      const start = cliCalls;
+      await assert.rejects(host.invoke("update", { id: "acme.alpha" }), /not found/);
+      assert.equal(cliCalls, start + 1);
+      assert.equal(github.authorization.at(-1), "Bearer fixture-cli-token");
+      assert.deepEqual(archive.authorization, [undefined]);
+    } finally { github.failures.clear(); await archive.close(); }
 
     // A local folder whose manifest names a repository checks and updates from GitHub; reload rereads the folder.
     const local = lifecycleFixture(root, "acme.gamma", `export function activate() { return { operations: { read: () => "local" }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`);

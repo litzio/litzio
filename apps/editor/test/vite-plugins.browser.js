@@ -38,6 +38,50 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   // A public GitHub repository: find its plugin folders, choose one and its track, then add it like a folder.
   await page.getByRole("button", { name: "Add from GitHub…", exact: true }).click();
   const github = page.getByRole("dialog", { name: "Add plugin from GitHub", exact: true });
+  const captureRateLimit = async label => {
+    await page.screenshot({
+      path: `tmp/github-rate-limit-1773/${label}-1440.png`,
+      mask: [page.locator(".sidebar-host-account, .document-path, .sidebar-folder-name, .document-start-folder-path")],
+    });
+  };
+  if (screenshots) {
+    // Reproduce the previous Host message in the same dialog for visual comparison.
+    const legacy = "GitHub 요청 한도에 도달했습니다. 잠시 뒤 다시 시도하세요.";
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.evaluate(async () => { const { i18n } = await import("/src/i18n.ts"); await i18n.changeLanguage("ko"); });
+    await page.route("**/api/plugins", route => route.fulfill({ status: 400, json: { error: legacy } }), { times: 1 });
+    await page.getByRole("dialog").getByRole("textbox").fill("https://github.com/litzio-fixtures/rate-limited");
+    await page.getByRole("textbox", { name: "GitHub 주소" }).press("Enter");
+    await expect(page.getByRole("alert")).toHaveText(legacy);
+    await captureRateLimit("before-light");
+    await page.evaluate(async () => { const { i18n } = await import("/src/i18n.ts"); await i18n.changeLanguage("en"); });
+  }
+  await github.getByRole("textbox", { name: "GitHub address", exact: true }).fill("https://github.com/litzio-fixtures/rate-limited");
+  await github.getByRole("button", { name: "Find", exact: true }).click();
+  const rateError = github.getByRole("alert");
+  const loginHint = "Sign in with GitHub CLI or set GH_TOKEN to raise the limit.";
+  await expect(rateError).toContainText("GitHub rate limit reached. Try again after");
+  await expect(github.getByText(loginHint, { exact: true })).toHaveCount(0);
+  await page.keyboard.press("Tab");
+  const rateDetails = github.getByRole("button", { name: "Plugin status details" });
+  await expect(rateDetails).toBeFocused();
+  await expect(rateDetails).toHaveAccessibleDescription(loginHint);
+  await expect(page.getByText(loginHint, { exact: true })).toBeVisible();
+  if (screenshots) {
+    await page.evaluate(async () => { const { i18n } = await import("/src/i18n.ts"); await i18n.changeLanguage("ko"); });
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(async theme => { const { applyTheme } = await import("/src/theme.ts"); await applyTheme(theme, false); }, theme);
+      await expect(page.getByRole("dialog").getByRole("alert")).toContainText("GitHub 요청 한도에 도달했습니다.");
+      await captureRateLimit(`after-${theme}`);
+    }
+    await page.evaluate(async () => {
+      const { i18n } = await import("/src/i18n.ts");
+      const { applyTheme } = await import("/src/theme.ts");
+      await applyTheme("light", false);
+      await i18n.changeLanguage("en");
+    });
+  }
   await github.getByRole("textbox", { name: "GitHub address", exact: true }).fill("https://github.com/litzio-fixtures/plugins");
   await github.getByRole("button", { name: "Find", exact: true }).click();
   await expect(github.getByRole("radio")).toHaveCount(2);
