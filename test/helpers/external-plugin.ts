@@ -76,7 +76,12 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
       const refused = await fetch(url + "/api/plugins", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reload", id }) });
       assert.equal(refused.status, 400, await refused.text());
-      assert.equal((await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id).running, false);
+      const retained = (await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id);
+      assert.equal(retained.running, true);
+      assert.equal(retained.digest, current.digest);
+      const retainedCall = await manage({ action: "screen-invoke", plugin: id, operation: `${id}.run`, input: { args: ["--version"] } });
+      assert.equal(retainedCall.receipt.outcome, "success");
+      assert.equal(retainedCall.result.status, 0);
     }
   } finally { await manage({ action: "unregister", id }); }
 }
