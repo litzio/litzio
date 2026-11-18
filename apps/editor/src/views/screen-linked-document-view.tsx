@@ -4,7 +4,7 @@ import type { ScreenLinkedDocumentItem, ScreenLinkedDocumentViewProps } from "@l
 import { Button } from "../components/ui/button.tsx";
 import { useTranslation } from "react-i18next";
 import { DocumentViewSnapshot, type DocumentViewGeometry } from "./screen-document-view.tsx";
-import { expand, intersects, linkedBand, type Band, type Rect } from "./screen-linked-document-geometry.ts";
+import { expand, fusedLinkPaths, intersects, linkedBand, type Band, type Rect } from "./screen-linked-document-geometry.ts";
 import "./screen-linked-document-view.css";
 
 type LinkedProps = ScreenLinkedDocumentViewProps<ReactNode>;
@@ -103,6 +103,7 @@ type BlockAction = { key: string; item: ScreenLinkedDocumentItem; style: CSSProp
 
 type Drawing = {
   bands: Band[];
+  fused?: ReturnType<typeof fusedLinkPaths>;
   left: Outline[];
   right: Outline[];
   actions: BlockAction[];
@@ -123,10 +124,14 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
 }) {
   const hitClip = useId();
   const paintClip = useId();
+  const fusedClip = useId();
+  const fusedBorder = useId();
   const [drawing, setDrawing] = useState<Drawing>();
   const probe = useRef<HTMLSpanElement>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const blockIndex = useMemo(() => new Map(geometry?.positions.blocks.map(block => [block.key, block])), [geometry?.positions]);
+  const selected = selectedId === undefined ? undefined : index.byId.get(selectedId);
+  const selectedPath = selected && JSON.stringify(selected.path);
   useLayoutEffect(() => {
     if (!host.current || !source.current || !geometry || !probe.current) {
       setDrawing(undefined);
@@ -171,6 +176,8 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
       }
       const active = new Set([selectedId, hovered, focusId]);
       const bands: Band[] = [];
+      const fusedSources: Rect[] = [];
+      let fusedTarget: Rect | undefined;
       const left: Outline[] = [];
       const right: Outline[] = [];
       const actions: BlockAction[] = [];
@@ -215,14 +222,28 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
         item.boxes.forEach((rect, boxIndex) => {
           const from = { ...rect, left: sourceOrigin.left + rect.left, top: sourceOrigin.top + rect.top };
           const fromOutline = expand(from, inline * sourceScale, block * sourceScale);
-          if (emphasis !== "quiet" && intersects(fromOutline, sourceViewport)) left.push({ ...from, key: JSON.stringify([item.id, boxIndex]) });
-          if (!gutter.width) return;
-          const band = linkedBand(item, boxIndex, fromOutline, toOutline, sourceViewport, documentViewport, emphasis);
+          const band = gutter.width ? linkedBand(item, boxIndex, fromOutline, toOutline,
+            sourceViewport, documentViewport, gutter, emphasis, key === selectedPath) : undefined;
           if (band) bands.push(band);
+          if (band?.fused) {
+            fusedSources.push(fromOutline);
+            fusedTarget = toOutline;
+          } else if (emphasis !== "quiet" && intersects(fromOutline, sourceViewport)) {
+            left.push({ ...from, key: JSON.stringify([item.id, boxIndex]) });
+          }
         });
       }
+      let fused: Drawing["fused"];
+      if (fusedTarget) {
+        const style = getComputedStyle(tokens);
+        const radius = parseFloat(style.borderTopLeftRadius), stroke = parseFloat(style.outlineWidth);
+        fused = fusedLinkPaths(fusedSources, fusedTarget, sourceViewport, documentViewport, gutter,
+          { radius: radius * sourceScale, stroke: stroke * sourceScale },
+          { radius: radius * scale, stroke: stroke * scale });
+      }
       setDrawing({ bands: [...bands.filter(band => band.emphasis === "quiet"), ...bands.filter(band => band.emphasis !== "quiet")],
-        left, right, actions, sourceViewport, documentViewport, gutter, paintPath });
+        fused, left, right: fused ? right.filter(outline => outline.key !== selectedPath) : right,
+        actions, sourceViewport, documentViewport, gutter, paintPath });
     };
     const queue = () => { if (!frame) frame = requestAnimationFrame(draw); };
     const move = (event: PointerEvent) => {
@@ -247,7 +268,7 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
       root.removeEventListener("focusin", queue);
       root.removeEventListener("focusout", queue);
     };
-  }, [host, source, geometry, index, blockIndex, sourceScale, selectedId]);
+  }, [host, source, geometry, index, blockIndex, sourceScale, selectedId, selectedPath]);
   return <>
     <span className="linked-document-outline-measure" ref={probe} aria-hidden="true" />
     {drawing && geometry && <>
@@ -257,10 +278,30 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
           <clipPath id={paintClip}>
             <path d={drawing.paintPath} clipRule="evenodd" />
           </clipPath>
+          {drawing.fused && <>
+            <clipPath id={fusedClip}>
+              <rect x={drawing.sourceViewport.left} y={drawing.sourceViewport.top}
+                width={drawing.sourceViewport.width} height={drawing.sourceViewport.height} />
+              <rect x={drawing.sourceViewport.left + drawing.sourceViewport.width} y={0}
+                width={drawing.documentViewport.left - drawing.sourceViewport.left - drawing.sourceViewport.width}
+                height={drawing.gutter.height} />
+              <rect x={drawing.documentViewport.left} y={drawing.documentViewport.top}
+                width={drawing.documentViewport.width} height={drawing.documentViewport.height} />
+            </clipPath>
+            <mask id={fusedBorder} x={0} y={0} width="100%" height="100%" maskUnits="userSpaceOnUse">
+              <rect width="100%" height="100%" fill="white" />
+              <path d={drawing.fused.inner} fill="black" />
+            </mask>
+          </>}
         </defs>
         <g clipPath={`url(#${paintClip})`}>
           {drawing.bands.map(band => <path key={band.key} data-testid="linked-document-band" data-emphasis={band.emphasis}
+            visibility={band.fused ? "hidden" : undefined}
             data-direction={band.direction} data-id={band.id} d={band.path} style={{ "--band-item-color": band.color } as CSSProperties} />)}
+          {drawing.fused && <g clipPath={`url(#${fusedClip})`}>
+            <path className="linked-document-fused-fill" d={drawing.fused.outer} />
+            <path className="linked-document-fused-border" d={drawing.fused.outer} mask={`url(#${fusedBorder})`} />
+          </g>}
         </g>
         <g clipPath={`url(#${hitClip})`}>
           {drawing.bands.map(band => <path key={band.key} className="linked-document-band-hit" data-linked-band={band.id}

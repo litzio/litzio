@@ -3,7 +3,7 @@
 .linked-document-narrow-hint { display: none; }
 .linked-document-panes {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: var(--space-12);
   position: relative;
@@ -30,6 +30,8 @@
   position: absolute;
   width: var(--space-block-hover-inline);
   height: var(--space-block-hover-block);
+  border-radius: var(--id-radius-block-hover);
+  outline: var(--size-block-hover-outline) solid;
   visibility: hidden;
   pointer-events: none;
 }
@@ -45,10 +47,12 @@
   fill: var(--band-item-color);
   fill-opacity: var(--opacity-linked-band-quiet);
 }
-.linked-document-bands [data-emphasis="selected"] {
+.linked-document-bands [data-emphasis="selected"],
+.linked-document-fused-fill {
   fill: var(--id-color-interaction);
   fill-opacity: var(--opacity-linked-band-selected);
 }
+.linked-document-fused-border { fill: var(--id-color-interaction); }
 .linked-document-bands [data-emphasis="hover"] {
   fill: var(--id-color-interaction);
   fill-opacity: var(--opacity-linked-band-hover);

@@ -115,23 +115,25 @@ SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편
 
 ## 자료와 문서 블록의 연결 띠
 
-`ui.LinkedDocumentView({document,revision,source,sourceLabel,sourceRef?,sourceScale?,items,selectedId?,onSelect})`는 화면 코드가 그리는 자료 영역과 기존 DocumentView를 나란히 배치한다. `document`는 위 DocumentView props 전체를 받는다. `source`는 React 내용이며 이 부품이 스크롤 영역과 높이를 제공한다. `sourceLabel`은 자료 영역의 접근성 이름이고, `sourceRef`에는 그 스크롤 영역 요소(해제 시 null)가 전달된다. 필요하면 화면 코드가 ref로 자료의 스크롤을 읽거나 옮긴다.
+`ui.LinkedDocumentView({document,revision,source,sourceLabel,sourceRef?,sourceScale?,items,selectedId?,onSelect})`는 화면 코드가 그리는 자료 영역과 기존 DocumentView를 같은 너비로 나란히 배치한다. `document`는 위 DocumentView props 전체를 받는다. `source`는 React 내용이며 이 부품이 스크롤 영역과 높이를 제공한다. `sourceLabel`은 자료 영역의 접근성 이름이고, `sourceRef`에는 그 스크롤 영역 요소(해제 시 null)가 전달된다. 필요하면 화면 코드가 ref로 자료의 스크롤을 읽거나 옮긴다.
 
 `document.height: "fill"`을 넘기고 부모가 높이를 정하면 두 영역이 그 높이를 채운다. `<ui.ScreenLayout fillHeight>`의 본문에 바로 두면 도구 줄 아래 남은 높이를 사용한다. 좁은 영역의 세로 배치에서는 남은 높이를 두 스크롤 영역이 나눈다. 부모 높이 변경으로 보이는 끝점이 바뀌면 띠도 다시 그린다.
 
 - `items`는 `{id,label,path,boxes,colorToken}` 배열이다. 각 항목에 고유한 문자열 `id`, 이름 `label`, 저장본의 최상위 Core NodePath와 한 개 이상의 상자를 전달한다. 상자 `{left,top,width,height}`는 테두리 안쪽의 스크롤 원점을 기준으로 배율이 이미 적용된 내용 CSS px다. 스크롤 위치는 빼지 않는다. `sourceScale`은 자료 쪽 윤곽의 확대 여백·선 두께·모서리 배율이며 기본값은 1이다. `colorToken`은 기본 띠에 쓸 `--id-color-*` 토큰 이름이다.
 - 화면은 자료의 이름 있는 선택 버튼에 `data-linked-item={id}`와 `aria-pressed={selectedId === id}`를 지정한다. 이 버튼의 클릭과 Enter/Space, 대응하는 문서 블록 클릭과 이름 있는 키보드 선택 버튼, 띠의 거터 클릭이 `onSelect(id)`를 호출한다. Tab은 문서 보기에서 현재 보이는 연결 블록의 버튼을 방문하고, 버튼이 포커스되면 블록 위에 표시한다. 다른 블록은 보기를 스크롤한 뒤 방문할 수 있다. 문서 블록에 여러 항목이 연결되면 그중 선택된 항목을, 없으면 배열의 첫 항목을 사용한다. 띠 자체는 접근성 트리에서 제외한다.
 - 선택 상태와 스크롤은 호출자가 제어한다. `selectedId`만 바꾸면 윤곽과 띠가 바뀐다. `document.target`, `sourceRef`, 기존 클릭·스크롤·배치 알림을 조합해 양쪽을 이동할 수 있다. 연결 상태는 저장본 `revision`과 일치할 때 활성화되며, 읽는 중·오류·stale target에서는 연결 띠와 선택 동작을 비운다.
-- 보이는 양쪽 상자 사이에 채움 띠를 그린다. 올림·키보드 focus·선택은 [블록 윤곽](editor-visual-language-v1.md#블록-윤곽과-연결-띠)을 양쪽에 표시한다. 한쪽만 보이는 활성 짝은 띠가 보이지 않는 쪽의 위·아래 가장자리를 가리킨다. 띠와 윤곽의 끝은 각 스크롤 영역의 보이는 높이에 맞춰 잘린다. 자료의 분류 표시는 화면 코드가 그리고 윤곽은 그 위에 그린다. 좁은 영역에서는 자료와 문서 보기를 세로로 놓으며, 각 영역의 선택은 계속 사용할 수 있다.
+- 보이는 양쪽 상자 사이에 채움 띠를 그린다. 띠는 상자 윤곽에서 각 스크롤 영역의 보이는 가장자리까지 수평으로 연결되고, 두 칸 사이에서만 휜다. 스크롤바 위에는 그리지 않는다. 올림과 키보드 focus는 [블록 윤곽](editor-visual-language-v1.md#블록-윤곽과-연결-띠)을 양쪽에 표시한다. 나란히 보이는 짝을 선택하면 해당 문서 블록에 연결된 보이는 자료 상자와 띠를 한 번 채우고 바깥을 하나의 윤곽으로 감싼다. 한쪽만 보이는 활성 짝은 띠가 보이지 않는 쪽의 위·아래 가장자리를 가리킨다. 띠와 윤곽의 끝은 각 스크롤 영역의 보이는 높이에 맞춰 잘린다. 자료의 분류 표시는 화면 코드가 그리고 윤곽은 그 위에 그린다. 좁은 영역에서는 자료와 문서 보기를 세로로 놓고 각 영역에 선택 윤곽을 표시한다.
 
 [개발 갤러리의 Linked document view](../../apps/editor/src/dev/document-view-example.tsx)는 합성 자료의 공개 props와 앱의 Button·Toolbar를 사용한다.
 
 | 합성 갤러리 | 밝음 | 어두움 |
 | --- | --- | --- |
-| 1440px 선택 | [캡처](assets/linked-document-view-1709/after-1440-light-selected.png) | [캡처](assets/linked-document-view-1709/after-1440-dark-selected.png) |
+| 1440px 선택 | [캡처](assets/linked-document-view-1749/after-1440-light-selected.png) | [캡처](assets/linked-document-view-1749/after-1440-dark-selected.png) |
+| 1440px 여러 자료 상자 선택 | [캡처](assets/linked-document-view-1749/after-1440-light-branches.png) | [캡처](assets/linked-document-view-1749/after-1440-dark-branches.png) |
+| 1440px 자료 상자가 일부 잘린 선택 | [캡처](assets/linked-document-view-1749/after-1440-light-clipped.png) | [캡처](assets/linked-document-view-1749/after-1440-dark-clipped.png) |
 | 1440px 올림 | [캡처](assets/linked-document-view-1709/after-1440-light-hover.png) | [캡처](assets/linked-document-view-1709/after-1440-dark-hover.png) |
 | 1440px 화면 밖 짝 | [캡처](assets/linked-document-view-1709/after-1440-light-offscreen.png) | [캡처](assets/linked-document-view-1709/after-1440-dark-offscreen.png) |
-| 640px 한국어 | [캡처](assets/linked-document-view-1709/after-640-ko-light.png) | [캡처](assets/linked-document-view-1709/after-640-ko-dark.png) |
+| 640px 한국어 | [캡처](assets/linked-document-view-1749/after-640-ko-light.png) | [캡처](assets/linked-document-view-1749/after-640-ko-dark.png) |
 
 ## 파일·폴더 선택과 문서 열기
 
