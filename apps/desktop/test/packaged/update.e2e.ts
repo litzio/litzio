@@ -512,6 +512,16 @@ test("installs per user, then updates from Settings only after the open document
 });
 
 
+function publishedLogTail(file: string): string {
+  try { return readFileSync(file, "utf8").split(/\r?\n/).slice(-80).join("\n"); }
+  catch { return `${path.basename(file)} unavailable`; }
+}
+
+function redactPublishedDiagnostic(diagnostic: string): string {
+  return diagnostic.replaceAll(os.homedir(), "<user-home>")
+    .replace(/([A-Z]:[\\/]+Users[\\/]+)[^\\/\s"']+/gi, "$1<user>");
+}
+
 // The old installer comes from GitHub; only the candidate is built. Rebuilding the old
 // version here would miss installer bootstrap defects. Release verification runs this as a separate early step.
 // beta.9 and earlier assets were withdrawn on 2026-11-12 for CVE-2026-111497.
@@ -573,14 +583,8 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
         radios: [...document.querySelectorAll<HTMLInputElement>('input[name="release-channel"]')]
           .map(node => ({ value: node.value, checked: node.checked, disabled: node.matches(":disabled") })),
       })).catch(cause => ({ unavailable: String(cause) }));
-      let desktopLog: string;
-      try {
-        desktopLog = readFileSync(path.join(appData, "logs/desktop.log"), "utf8").split(/\r?\n/).slice(-80).join("\n");
-      } catch { desktopLog = "desktop.log unavailable"; }
-      const diagnostic = `${String(error)}\nChannel selection: ${JSON.stringify(screen)}\ndesktop.log (tail):\n${desktopLog}`
-        .replaceAll(os.homedir(), "<user-home>")
-        .replace(/([A-Z]:[\\/]+Users[\\/]+)[^\\/\s"']+/gi, "$1<user>");
-      throw new Error(diagnostic);
+      const desktopLog = publishedLogTail(path.join(appData, "logs/desktop.log"));
+      throw new Error(redactPublishedDiagnostic(`${String(error)}\nChannel selection: ${JSON.stringify(screen)}\ndesktop.log (tail):\n${desktopLog}`));
     }
     await page.waitForFunction(() => window.litzioDesktop?.info().then(info => info.channel === "beta"));
     await oldApp.close(); oldApp = undefined;
@@ -597,7 +601,12 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     const log = path.join(appData, "logs/desktop.log");
     const deadline = Date.now() + 30_000;
     while (!(readDaemonRecord(daemonDirectory("beta"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
-      if (Date.now() >= deadline) throw new Error(`Updated 0.0.2 Stable app/daemon did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
+      if (Date.now() >= deadline) {
+        const daemonLog = path.join(daemonDirectory("beta"), "daemon.log");
+        throw new Error(redactPublishedDiagnostic(
+          `Updated 0.0.2 Stable app/daemon did not start\ndesktop.log (tail):\n${publishedLogTail(log)}\nBeta daemon.log (tail):\n${publishedLogTail(daemonLog)}`,
+        ));
+      }
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     desktopRecord("beta", NEW);

@@ -102,6 +102,32 @@ test("owning HTTP listener pins assistant CLI operations across Hosts, turns and
   assert.ok(fs.existsSync(hosts[0].marker)); assert.equal(fs.existsSync(hosts[1].marker), false);
 });
 
+test("HTTP Host starts with a 0.0.2 bundled plugin registration and reports how to recover it", async t => {
+  const settings = process.env.LITZIO_PLUGINS_SETTINGS_FILE!;
+  const editorDir = fs.mkdtempSync(path.join(isolatedData, "legacy-editor-"));
+  fs.writeFileSync(path.join(editorDir, "index.html"), "<!doctype html><title>Editor</title>");
+  const id = "community.docling";
+  const registrationId = randomUUID();
+  const legacy = JSON.stringify({ [id]: {
+    registrationId, directory: path.join(isolatedData, "old-install", "docling"),
+    digest: "a".repeat(64), bundled: true, enabledChoice: true, enabled: true, trusted: true,
+    settings: {}, operationNames: [`${id}.convert-pdf`],
+  } });
+  fs.writeFileSync(settings, legacy);
+  t.after(() => fs.unlinkSync(settings));
+
+  const host = await startHttpHost({ roots: [], editorDir, port: 0 });
+  try {
+    const response = await fetch(host.url + "/api/plugins");
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { plugins: [{
+      id, registrationId, installed: true, enabled: false, running: false, status: null,
+      error: "Add this plugin again from its source folder.",
+    }] });
+    assert.equal(fs.readFileSync(settings, "utf8"), legacy);
+  } finally { await host.close(); }
+});
+
 test("reset inspection pins Host paths and its lifetime gate refuses offline deletion while serving", async t => {
   const { send } = await fixture(t);
   const expected = resetHostPaths(), previous = process.env.LITZIO_ASSISTANT_CWD;
