@@ -537,7 +537,10 @@ export class PluginHost {
       }
       if (action === "bundle" || action === "dependencies") {
         const directory = this.artifactDirectory(args.directory!, creationScope);
-        return { ...(action === "dependencies" ? await installScreenDependencies(directory) : bundleScreens(directory)), receipt: receipt("success") };
+        // The target folder is outside installed copies; the files written there must be too.
+        const outside = (file: string) => this.copies.assertOutside(file);
+        if (action === "dependencies") for (const name of ["node_modules", "package-lock.json"]) outside(path.join(directory, name));
+        return { ...(action === "dependencies" ? await installScreenDependencies(directory) : bundleScreens(directory, outside)), receipt: receipt("success") };
       }
       if (action === "validate") {
         const errors: ValidationDiagnostic[] = []; let manifestId: string | undefined;

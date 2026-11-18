@@ -295,6 +295,14 @@ test("authoring and management actions refuse installed copies", async () => {
       }
       await assert.rejects(host.invoke("register", { directory }), /belong to the Host/);
     }
+    // A target outside storage must not write into a copy through manifest paths or dependency links.
+    writeFileSync(path.join(root, "litzio-plugin.json"), JSON.stringify({ screen: path.relative(root, path.join(copy, "screen.jsx")) }));
+    await assert.rejects(host.invoke("bundle", { directory: root }), /belong to the Host/);
+    const linkedDependencies = path.join(root, "linked-dependencies"); mkdirSync(linkedDependencies);
+    writeFileSync(path.join(linkedDependencies, "package.json"), JSON.stringify({ dependencies: {} }));
+    symlinkSync(copy, path.join(linkedDependencies, "node_modules"), "junction");
+    await assert.rejects(host.invoke("dependencies", { directory: linkedDependencies }), /belong to the Host/);
+    rmSync(path.join(linkedDependencies, "node_modules"));
     assert.equal(existsSync(path.join(copy, "screen.bundle.js")), false);
     const [after] = await host.list();
     assert.deepEqual([after!.digest, after!.running, after!.error], [before!.digest, true, undefined]);

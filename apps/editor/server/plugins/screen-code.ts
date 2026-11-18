@@ -27,13 +27,15 @@ export function compileScreen(directory: string, entry: string, authoring = fals
 }
 
 
-export function bundleScreens(directory: string) {
+/** `outsideInstalledCopies` sees each screen input and bundle output before anything is written. */
+export function bundleScreens(directory: string, outsideInstalledCopies: (file: string) => void = () => {}) {
   const manifest = JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8"));
   const started = Date.now();
   const files = [];
   for (const screen of manifest.screen ? [{entry: manifest.screen}] : manifest.contributes?.screens ?? []) if (screen.entry) {
-    const source = compileScreen(directory, screen.entry, true);
     const file = screen.entry.replace(/\.[^.]+$/, ".bundle.js");
+    outsideInstalledCopies(path.join(directory, screen.entry)); outsideInstalledCopies(path.join(directory, file));
+    const source = compileScreen(directory, screen.entry, true);
     writeFileSync(path.join(directory, file), source);
     files.push({ file, bytes: Buffer.byteLength(source) });
   }
