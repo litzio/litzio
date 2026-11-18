@@ -4,13 +4,23 @@ import { fileURLToPath } from "node:url";
 import { checkEditorEngineBoundary } from "./editor-engine-boundary.ts";
 import { checkSourceImportBoundary } from "./source-import-boundary.ts";
 const root = fileURLToPath(new URL("../", import.meta.url));
-for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared", "apps/desktop/src", "packages/cli/src", "packages/core/src", "packages/file-commit/src"]) {
+const sourceRoots = ["apps/editor/server", "apps/editor/shared"];
+for (const group of ["apps", "packages"]) {
+  for (const entry of fs.readdirSync(path.join(root, group), { withFileTypes: true })) {
+    const base = `${group}/${entry.name}/src`;
+    if (entry.isDirectory() && fs.existsSync(path.join(root, base))) sourceRoots.push(base);
+  }
+}
+// Plugin SDK bypass is guarded by the resolve hook in plugin-process.ts and its import-boundary test in plugins.test.ts.
+for (const base of sourceRoots) {
   for (const file of fs.readdirSync(path.join(root, base), { recursive: true }).filter(name => /\.tsx?$/.test(name))) {
+    const relativeFile = path.posix.join(base, file.split(path.sep).join("/"));
+    if (relativeFile.split("/").includes("test")) continue;
     const source = fs.readFileSync(path.join(root, base, file), "utf8");
-    checkEditorEngineBoundary(`${base}/${file}`, source);
     if (base === "apps/editor/src" && file !== "host-transport.ts" && /\bfetch\s*\(/.test(source)) throw new Error(`Editor HTTP must use Host client: ${file}`);
-    if (/@litzio\/(?:plugin-api|docling|ai-agent)/.test(source)) throw new Error(`Removed plugin dependency: ${base}/${file}`);
-    checkSourceImportBoundary(path.posix.join(base, file.split(path.sep).join("/")), source);
+    if (base !== "packages/plugin-sdk/src" && /@litzio\/(?:plugin-api|docling|ai-agent)/.test(source)) throw new Error(`Removed plugin dependency: ${base}/${file}`);
+    checkSourceImportBoundary(relativeFile, source);
+    checkEditorEngineBoundary(relativeFile, source);
   }
 }
 console.log("Core and official application boundaries passed.");
@@ -33,15 +43,3 @@ for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared
   }
 }
 if (obsoletePublicName.test(fs.readFileSync(path.join(root, "README.md"), "utf8"))) throw new Error("Obsolete assistant public name: README.md");
-
-// SDK remains UI-neutral; plugins depend on the SDK, never application internals.
-for (const base of ["packages/plugin-sdk/src"]) {
-  for (const file of fs.readdirSync(path.join(root, base), { recursive: true }).filter(name => /\.tsx?$/.test(name))) {
-    const source = fs.readFileSync(path.join(root, base, file), "utf8");
-    checkSourceImportBoundary(path.posix.join(base, file.split(path.sep).join("/")), source);
-    for (const match of source.matchAll(/from\s*["']([^"']+)["']/g)) {
-      if (base.startsWith("plugins/") && match[1]!.startsWith("@litzio/") && match[1] !== "@litzio/plugin-sdk") throw new Error(`Plugin bypasses SDK: ${base}/${file}`);
-      if (base.startsWith("plugins/") && match[1]!.startsWith(".") && !path.resolve(root, base, path.dirname(file), match[1]!).startsWith(path.join(root, base) + path.sep)) throw new Error(`Plugin imports internal source: ${base}/${file}`);
-    }
-  }
-}

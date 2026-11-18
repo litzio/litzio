@@ -35,6 +35,7 @@ pnpm --filter @litzio/editor build
 - Editor는 Markdown 의미를 따로 구현하지 않고 Core의 read model과 operation을 사용한다. CLI도 얇은 인터페이스로 유지한다.
 - Tiptap/ProseMirror 타입과 문서 모델은 `apps/editor` 안에 둔다. 하나의 문서 편집 상태를 사용한다.
 - `apps/editor/server`의 stateless 파일 handler는 Vite, Desktop, HTTP Host가 공유한다. 제품 backend나 장기 persistence 결정으로 확대하지 않는다.
+- `pnpm boundaries:check`는 제품 소스의 상대 import를 같은 패키지로 제한한다. CLI와 Desktop은 [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 `apps/editor/server`와 `apps/editor/shared`를 재사용할 수 있고, 루트의 공용 `brand.ts`는 모든 패키지에서 참조할 수 있다. Editor의 server와 shared는 화면 소스(`apps/editor/src`)를 참조하지 않는다.
 - 지원하지 않는 의미를 보존할 수 없으면 공식 write path는 fail-closed로 거부한다.
 
 상세 제약은 [AGENTS.md](AGENTS.md#architectural-constraints)와 [ADRs](docs/README.md#architecture-decisions)가 기준이다.
