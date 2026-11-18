@@ -90,7 +90,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(workspace.locator('li[aria-current="step"]')).toHaveText('1Choose files');
   await page.setViewportSize({width:1440,height:1000});
   const body=workspace.locator('.screen-layout');
-  expect(await body.evaluate(n=>{const r=n.getBoundingClientRect(),p=n.parentElement.getBoundingClientRect();return r.width<p.width && Math.abs((r.left+r.right)-(p.left+p.right))<2;})).toBe(true);
+  await expect.poll(()=>body.evaluate(n=>{const r=n.getBoundingClientRect(),p=n.parentElement.getBoundingClientRect();return r.width<p.width && Math.abs((r.left+r.right)-(p.left+p.right))<2;})).toBe(true);
   await workspace.getByRole('button',{name:'Choose PDF',exact:true}).click();
   await expect(workspace.locator('.task-header').getByRole('button',{name:'Finish conversion'})).toBeVisible();
   await expect(workspace.locator('li[aria-current="step"]')).toHaveText('2Convert');
@@ -98,13 +98,13 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await workspace.getByText('Source details',{exact:true}).click();
   await workspace.hover(); await page.mouse.wheel(0,600);
   await expect.poll(()=>workspace.evaluate(n=>n.scrollTop>0)).toBe(true);
-  expect(await workspace.locator('.task-header').evaluate(n=>{const h=n.getBoundingClientRect(),p=n.closest('.task-surface').getBoundingClientRect();return h.top<=p.top && h.bottom>p.top && h.bottom<p.bottom;})).toBe(true);
+  await expect.poll(()=>workspace.locator('.task-header').evaluate(n=>{const h=n.getBoundingClientRect(),p=n.closest('.task-surface').getBoundingClientRect();return h.top<=p.top && h.bottom>p.top && h.bottom<p.bottom;})).toBe(true);
   if(screenshots) await page.screenshot({path:'tmp/frame-scrolled.png',mask:[page.locator('.sidebar')],maskColor:await page.locator('.sidebar').evaluate(n=>getComputedStyle(n).backgroundColor)});
   await workspace.evaluate(n=>n.scrollTop=0);
   await workspace.getByText('Source details',{exact:true}).click();
   await page.setViewportSize({width:640,height:1000});
   await expect.poll(()=>workspace.evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
-  expect(await workspace.locator('.task-header').evaluate(n=>{const h=n.querySelector('.task-header-heading').getBoundingClientRect(),a=n.querySelector('.task-header-trailing').getBoundingClientRect();return a.top>=h.bottom;})).toBe(true);
+  await expect.poll(()=>workspace.locator('.task-header').evaluate(n=>{const h=n.querySelector('.task-header-heading').getBoundingClientRect(),a=n.querySelector('.task-header-trailing').getBoundingClientRect();return a.top>=h.bottom;})).toBe(true);
   if(screenshots) for(const [width,theme] of [[1440,'light'],[1440,'dark'],[640,'light']]) {
     await page.setViewportSize({width,height:1000});await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
     await workspace.getByRole('button',{name:'Finish conversion'}).click();
@@ -352,8 +352,8 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await workspace.getByRole('button',{name:'Toggle narrow preview',exact:true}).click();
   await expect.poll(()=>preview.evaluate(node=>node.clientWidth)).toBeLessThanOrEqual(260);
   await expect.poll(()=>tableScroll.evaluate(node=>node.scrollLeft)).toBe(0);
-  expect(await preview.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
   await expect.poll(()=>highlight.evaluate(node=>{const clip=node.parentElement.getBoundingClientRect(),s=node.closest('.screen-document-view').querySelector('.table-scroll').getBoundingClientRect();return Math.max(...['left','right','top'].map(key=>Math.abs(clip[key]-s[key])));})).toBeLessThan(2);
+  await expect.poll(()=>preview.evaluate(node=>node.scrollWidth<=node.clientWidth+1), {message:'Narrow document preview has no horizontal overflow after the table highlight reflows'}).toBe(true);
   expect(await tableScroll.evaluate(node=>node.scrollLeft)).toBe(0);
   await workspace.getByRole('button',{name:'Toggle narrow preview',exact:true}).click();
   await workspace.getByRole('button',{name:'Go to last block',exact:true}).click();
