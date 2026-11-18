@@ -192,6 +192,7 @@ Clean available Save is ghost, unsaved is accent, unavailable muted without hove
 ### 블록 윤곽과 연결 띠
 
 윤곽은 채움 없는 안쪽 선이며, 모서리와 여백은 [배치 규칙](editor-layout-rules-v1.md#alignment-and-ownership)을 따른다.
+나란히 보이는 짝을 선택하면 양쪽 블록에서 띠를 향한 변이 열리고, 띠의 위·아래 곡선이 윤곽으로 이어진다.
 
 | 상태 | 윤곽 색 | 연결 띠 채움 |
 | --- | --- | --- |
@@ -200,9 +201,9 @@ Clean available Save is ghost, unsaved is accent, unavailable muted without hove
 | 저장 거부 블록 | `--id-color-danger` | — |
 | 연결된 짝의 기본 표시 | — | 항목별 `--id-color-*`, 밝음·어두움 모두 `--opacity-linked-band-quiet` 7%. 띠가 겹쳐도 구별할 수 있고 선택·올림의 포인트 색과 자료·문서 글자가 먼저 보이는 농도다. |
 | 연결된 짝에 올림·키보드 focus | `--id-color-interaction` | `--id-color-interaction`, `--opacity-linked-band-hover`. 올린 짝과 키보드 focus가 있는 짝이 다르면 두 짝을 같은 상태로 강조한다. |
-| 연결된 짝을 선택 | `--id-color-interaction` | `--id-color-interaction`, `--opacity-linked-band-selected` |
+| 나란히 보이는 짝을 선택 | `--id-color-interaction`으로 블록과 띠를 하나의 윤곽으로 표시 | 블록과 띠 전체에 `--id-color-interaction`, `--opacity-linked-band-selected`를 한 번 적용 |
 
-연결 띠에는 외곽선이 없다. 선택 색은 올림과 겹쳐도 유지한다.
+기본·올림·키보드 focus 상태의 띠와 화면 밖 짝을 가리키는 띠에는 외곽선이 없다. 선택 색은 올림과 겹쳐도 유지한다.
 
 ## Adjustable values and preferences
 

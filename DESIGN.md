@@ -145,7 +145,7 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 작은 내용·컨트롤·팝오버·대화상자의 모서리 역할을 구분한다.
 종이는 `--id-radius-paper`를 쓴다. 표면의 역할을 화면별 둥글기 취향으로 바꾸지 않는다.
 
-문서 블록의 올림·선택·대응은 편집기, 문서 보기, 플러그인 화면의 자료 쪽 모두 같은 [블록 윤곽 토큰](docs/design/editor-visual-language-v1.md#블록-윤곽과-연결-띠)을 쓰고 상태는 색으로만 구분한다.
+문서 블록의 올림·선택·대응은 편집기, 문서 보기, 플러그인 화면의 자료 쪽 모두 같은 [블록 윤곽 토큰](docs/design/editor-visual-language-v1.md#블록-윤곽과-연결-띠)을 쓴다. 나란히 보이는 짝을 선택하면 양쪽 윤곽이 연결 띠를 따라 이어진다.
 
 `--size-control`은 기본 컨트롤, `--size-control-compact`는 조밀한 도구,
 `--size-icon-slot`은 아이콘 칸이다. 보이는 아이콘 크기로 클릭 영역을 줄이지 않는다.

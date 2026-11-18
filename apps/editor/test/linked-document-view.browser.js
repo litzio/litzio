@@ -10,6 +10,52 @@ async (page, { expect, screenshots }) => {
   const linkedItem = id => sourcePane.getByRole('button', {name:`Source section ${id}`, exact:true});
   const bands = page.getByTestId('linked-document-band');
   const band = id => bands.and(page.locator(`[data-id="${id}"]`));
+  const fused = page.locator('.linked-document-fused-fill');
+  const alignedEdges = () => fused.evaluate(path => {
+    const host = path.closest('.linked-document-panes');
+    const origin = host.getBoundingClientRect();
+    const pane = host.querySelector('.linked-document-source');
+    const source = pane.querySelector('[data-linked-item="2"]');
+    const box = source.getBoundingClientRect();
+    const block = host.querySelectorAll('.tiptap > p')[1].getBoundingClientRect();
+    const pad = host.querySelector('.linked-document-outline-measure').getBoundingClientRect();
+    const scale = .75;
+    const contains = (x,y) => path.isPointInFill(new DOMPoint(x-origin.left,y-origin.top));
+    const aligned = (x,top,bottom) => contains(x,top+1) && contains(x,bottom-1) &&
+      !contains(x,top-1) && !contains(x,bottom+1);
+    return aligned(box.right+pad.width*scale-2,box.top-pad.height*scale,box.bottom+pad.height*scale) &&
+      aligned(block.left-pad.width+2,block.top-pad.height,block.bottom+pad.height);
+  });
+  const clipping = () => fused.evaluate(path => {
+    const host = path.closest('.linked-document-panes');
+    const source = host.querySelector('.linked-document-source');
+    const preview = host.querySelector('.screen-document-view-scroll');
+    const clip = group => document.getElementById(group.getAttribute('clip-path').slice(5,-1));
+    const [sourceClip,,documentClip] = clip(path.parentElement).children;
+    const paint = clip(path.parentElement.parentElement).firstElementChild;
+    const canvas = path.ownerSVGElement.getBoundingClientRect();
+    const matchesViewport = (rect, pane) => {
+      const box = pane.getBoundingClientRect();
+      const {x,y,width,height} = rect.getBBox();
+      return Math.abs(x + canvas.left - box.left - pane.clientLeft) < 1 &&
+        Math.abs(y + canvas.top - box.top - pane.clientTop) < 1 &&
+        width === pane.clientWidth && height === pane.clientHeight;
+    };
+    const outline = new Path2D(paint.getAttribute('d'));
+    const context = document.createElement('canvas').getContext('2d');
+    const contains = (x,y) => context.isPointInPath(outline,x,y,'evenodd');
+    const excludesScrollbars = (pane, rect) => {
+      const {x,y,width,height} = rect.getBBox();
+      const vertical = pane.offsetWidth - 2*pane.clientTop - pane.clientWidth;
+      const left = pane.clientLeft - pane.clientTop;
+      const horizontal = pane.offsetHeight - 2*pane.clientTop - pane.clientHeight;
+      return (!left || !contains(x-left/2,y+height/2)) &&
+        (vertical === left || !contains(x+width+(vertical-left)/2,y+height/2)) &&
+        (!horizontal || !contains(x+width/2,y+height+horizontal/2));
+    };
+    return paint.getAttribute('clip-rule') === 'evenodd' && matchesViewport(sourceClip,source) &&
+      matchesViewport(documentClip,preview) && excludesScrollbars(source,sourceClip) && excludesScrollbars(preview,documentClip);
+  });
   await expect(band(2)).toHaveAttribute('data-emphasis','quiet');
   await expect(band(2)).toHaveCSS('stroke','none');
   const quietOpacity = await band(2).evaluate(path => Number(getComputedStyle(path).getPropertyValue('--opacity-linked-band-quiet')));
@@ -18,6 +64,8 @@ async (page, { expect, screenshots }) => {
 
   await linkedItem(2).hover();
   await expect(band(2)).toHaveAttribute('data-emphasis','hover');
+  await expect(band(2)).toHaveCSS('stroke','none');
+  await expect(fused).toHaveCount(0);
   await sourcePane.focus();
   await page.keyboard.press('Tab');
   await expect(linkedItem(1)).toBeFocused();
@@ -48,6 +96,7 @@ async (page, { expect, screenshots }) => {
   await page.mouse.click(gutterPoint.x,gutterPoint.y);
   await expect(linkedItem(2)).toHaveAttribute('aria-pressed','true');
   await expect(band(2)).toHaveAttribute('data-emphasis','selected');
+  await expect(fused).toBeVisible();
 
   await page.getByRole('button',{name:'Source scale 1',exact:true}).click();
   await expect.poll(() => band(2).evaluate(path => {
@@ -66,6 +115,8 @@ async (page, { expect, screenshots }) => {
       origin.top+d[9]-(block.bottom+pad.height),
     ].map(Math.abs));
   })).toBeLessThan(1);
+  await expect.poll(alignedEdges).toBe(true);
+  await expect.poll(clipping).toBe(true);
   if (screenshots) {
     await page.getByRole('button',{name:'Light',exact:true}).click();
     await expect(band(2)).toHaveAttribute('data-emphasis','selected');
@@ -76,6 +127,54 @@ async (page, { expect, screenshots }) => {
     await expect(band(3)).toHaveAttribute('data-emphasis','hover');
     await page.screenshot({path:'tmp/linked-document-view/after-1440-dark-hover.png'});
   }
+
+  const branchToggle = page.getByRole('button',{name:'Source branches',exact:true});
+  await branchToggle.click();
+  await expect(band(2)).toHaveCount(2);
+  await expect(band('2-detail')).toHaveCount(1);
+  await expect(band('2-detail')).toHaveCSS('visibility','hidden');
+  await expect(fused).toHaveCount(1);
+  const selectedOpacity = await fused.evaluate(path => Number(getComputedStyle(path).getPropertyValue('--opacity-linked-band-selected')));
+  await expect(fused).toHaveCSS('fill-opacity',String(selectedOpacity));
+  await expect.poll(() => fused.evaluate(path => {
+    const host = path.closest('.linked-document-panes');
+    const branches = [...host.querySelectorAll('[data-testid="linked-document-band"]')].filter(band =>
+      ['2','2-detail'].includes(band.dataset.id));
+    const first = branches[0].getAttribute('d').match(/-?(?:\d*\.)?\d+/g).map(Number);
+    const overlap = new DOMPoint(first[6]-2,(first[7]+first[9])/2);
+    const border = path.nextElementSibling;
+    const inner = document.getElementById(border.getAttribute('mask').slice(5,-1)).lastElementChild;
+    return branches.length === 3 && branches.every(band => band.isPointInFill(overlap) &&
+      getComputedStyle(band).visibility === 'hidden') && path.isPointInFill(overlap) && inner.isPointInFill(overlap);
+  })).toBe(true);
+  const captureThemes = async state => {
+    for (const theme of ['light','dark']) {
+      await page.getByRole('button',{name:theme==='light'?'Light':'Dark',exact:true}).click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+      await page.screenshot({path:`tmp/linked-document-view/after-1440-${theme}-${state}.png`});
+    }
+  };
+  if (screenshots) await captureThemes('branches');
+  await branchToggle.click();
+  await sourcePane.hover();
+  const scrollIntoBox = await linkedItem(2).evaluate(node => node.offsetTop+12);
+  await page.mouse.wheel(0,scrollIntoBox);
+  await expect.poll(() => band(2).evaluate(path => {
+    const host = path.closest('.linked-document-panes');
+    const pane = host.querySelector('.linked-document-source');
+    const source = pane.querySelector('[data-linked-item="2"]').getBoundingClientRect();
+    const viewportTop = pane.getBoundingClientRect().top + pane.clientTop;
+    const start = path.getPointAtLength(0);
+    const fill = host.querySelector('.linked-document-fused-fill');
+    return source.top < viewportTop && source.bottom > viewportTop &&
+      Math.abs(start.y + host.getBoundingClientRect().top - viewportTop) < 1 &&
+      fill?.isPointInFill(new DOMPoint(start.x+2,start.y+1)) &&
+      !fill.isPointInFill(new DOMPoint(start.x+2,start.y-1));
+  })).toBe(true);
+  await expect.poll(clipping).toBe(true);
+  if (screenshots) await captureThemes('clipped');
+  await sourcePane.hover();
+  await page.mouse.wheel(0,-scrollIntoBox);
 
   await linkedPreview.locator('.tiptap > p').first().click();
   await expect(linkedItem(1)).toHaveAttribute('aria-pressed','true');
@@ -92,6 +191,7 @@ async (page, { expect, screenshots }) => {
   await linkedPreview.hover();
   await page.mouse.wheel(0,400);
   await expect(band(1)).toHaveAttribute('data-direction','document-above');
+  await expect(fused).toHaveCount(0);
   await expect(band(2)).toHaveCount(0);
   if (screenshots) {
     await page.getByRole('button',{name:'Dark',exact:true}).click();
@@ -123,11 +223,18 @@ async (page, { expect, screenshots }) => {
     return geometry.fitted && Math.abs(geometry.source - geometry.view) < 2 && geometry.view > 480;
   }).toBe(true);
   await expect(band(9)).toBeAttached();
+  await linkedItem(2).click();
+  await linkedPreview.hover();
+  await page.mouse.wheel(0,-400);
+  await expect(fused).toBeVisible();
+  await expect.poll(clipping).toBe(true);
   await page.setViewportSize({width:1440,height:700});
   await expect.poll(async () => {
     const geometry = await fillGeometry();
     return geometry.fitted && Math.abs(geometry.source - geometry.view) < 2 && geometry.view < 480;
   }).toBe(true);
+  await expect.poll(alignedEdges).toBe(true);
+  await expect.poll(clipping).toBe(true);
   await expect(band(9)).toHaveCount(0);
   await page.setViewportSize({width:1440,height:1000});
   await expect(band(9)).toBeAttached();
@@ -137,6 +244,7 @@ async (page, { expect, screenshots }) => {
     return geometry.fitted && geometry.stacked && Math.abs(geometry.source - geometry.view) < 2 &&
       geometry.source > 0 && geometry.view > 0;
   }).toBe(true);
+  await expect(fused).toHaveCount(0);
   await fill.click();
 
   await page.setViewportSize({width:640,height:1000});
@@ -144,6 +252,8 @@ async (page, { expect, screenshots }) => {
   await expect(bands).toHaveCount(0);
   await linkedItem(2).click();
   await expect(linkedItem(2)).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('.linked-document-outline[data-side="source"]')).toBeVisible();
+  await expect(page.locator('.linked-document-outline[data-side="document"]')).toBeVisible();
   expect(await linkedPreview.evaluate(node=> {
     const source = node.closest('.linked-document-panes').querySelector('.linked-document-source');
     return source.getBoundingClientRect().bottom <= node.getBoundingClientRect().top &&
@@ -155,6 +265,8 @@ async (page, { expect, screenshots }) => {
     await page.getByRole('button',{name:'1,200 blocks',exact:true}).click();
     await expect(linkedPreview.locator('.tiptap > p')).toHaveCount(1200);
     await expect(band(2)).toBeAttached();
+    await linkedItem(2).click();
+    await expect(fused).toBeVisible();
     await page.evaluate(async () => {
       await document.fonts.ready;
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));

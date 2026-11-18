@@ -72,6 +72,7 @@ export function LinkedDocumentViewExample() {
   const { i18n } = useTranslation();
   const korean = i18n.resolvedLanguage === "ko";
   const [large, setLarge] = useState(false);
+  const [branches, setBranches] = useState(false);
   const [stale, setStale] = useState(false);
   const [fillHeight, setFillHeight] = useState(false);
   const [scale, setScale] = useState(1);
@@ -104,13 +105,21 @@ export function LinkedDocumentViewExample() {
     return { document, samplePath, client };
   }, [large, korean]);
   const pitch = 64 * scale, inset = 16 * scale, height = 48 * scale;
-  const items = useMemo<ScreenLinkedDocumentItem[]>(() => sample.document.blocks.map((block, index) => ({
-    id: String(index + 1),
-    label: korean ? `원본 구역 ${index + 1}` : `Source section ${index + 1}`,
-    path: block.path,
-    boxes: [{ left: inset, top: inset + pitch * index, width: width - 2 * inset, height }],
-    colorToken: index % 3 === 1 ? "--id-color-warning" : "--id-color-info",
-  })), [sample, korean, inset, pitch, width, height]);
+  const branchPitch = 96 * scale;
+  const items = useMemo<ScreenLinkedDocumentItem[]>(() => sample.document.blocks.flatMap((block, index) => {
+    const top = inset + pitch * index + (branches && index > 1 ? 2 * branchPitch : 0);
+    const box = { left: inset, top, width: width - 2 * inset, height };
+    const item: ScreenLinkedDocumentItem = {
+      id: String(index + 1),
+      label: korean ? `원본 구역 ${index + 1}` : `Source section ${index + 1}`,
+      path: block.path,
+      boxes: branches && index === 1 ? [box, { ...box, top: top + branchPitch }] : [box],
+      colorToken: index % 3 === 1 ? "--id-color-warning" : "--id-color-info",
+    };
+    if (!branches || index !== 1) return [item];
+    return [item, { ...item, id: "2-detail", label: korean ? "원본 구역 2 상세" : "Source section 2 detail",
+      boxes: [{ ...box, top: top + 2 * branchPitch }] }];
+  }), [sample, korean, inset, pitch, width, height, branches, branchPitch]);
   return <DocumentViewScope.Provider value={{ client: sample.client, roots: ["/example"] }}>
     <div className="task-surface gallery-document-view"><ScreenFrame title={korean ? "문서 블록 대조" : "Linked document view"}>
     <ui.ScreenLayout fillHeight={fillHeight} actions={<ui.Button aria-pressed={fillHeight} onClick={() => setFillHeight(value => !value)}>
@@ -120,14 +129,17 @@ export function LinkedDocumentViewExample() {
         <ui.Button aria-pressed={scale !== 1} onClick={() => setScale(scale === 1 ? .75 : 1)}>{korean ? "원본 배율" : "Source scale"} {scale}</ui.Button>
         <ui.Button aria-pressed={stale} onClick={() => setStale(!stale)}>{korean ? "다른 저장본 연결" : "Use another revision"}</ui.Button>
         <ui.Button aria-pressed={large} onClick={() => { select(undefined); setLarge(!large); }}>{korean ? "1,200개 블록" : "1,200 blocks"}</ui.Button>
+        <ui.Button aria-pressed={branches} onClick={() => setBranches(!branches)}>{korean ? "원본 구역 합류" : "Source branches"}</ui.Button>
       </ui.Toolbar>
       <ui.LinkedDocumentView document={{ path: sample.samplePath, height: fillHeight ? "fill" : undefined }}
         sourceLabel={korean ? "원본 자료" : "Source material"} sourceRef={setViewport} sourceScale={scale}
         revision={stale ? "b".repeat(64) : revision} items={items} selectedId={selected} onSelect={select}
-        source={<div style={{ position: "relative", height: 2 * inset + pitch * items.length }}>
-          {items.map(item => <ui.Button key={item.id} data-linked-item={item.id} aria-pressed={selected === item.id}
-            style={{ position: "absolute", ...item.boxes[0], justifyContent: "start",
-              borderInlineStartWidth: "var(--space-1)", borderInlineStartColor: `var(${item.colorToken})` }}>{item.label}</ui.Button>)}
+        source={<div style={{ position: "relative", height: 2 * inset + pitch * sample.document.blocks.length + (branches ? 2 * branchPitch : 0) }}>
+          {items.flatMap(item => item.boxes.map((box, index) => <ui.Button key={`${item.id}:${index}`} data-linked-item={item.id}
+            aria-pressed={selected === item.id}
+            style={{ position: "absolute", ...box, justifyContent: "start",
+              borderInlineStartWidth: "var(--space-1)", borderInlineStartColor: `var(${item.colorToken})` }}>
+            {index ? `${item.label} (${index + 1})` : item.label}</ui.Button>))}
         </div>} />
     </ui.ScreenLayout></ScreenFrame></div>
   </DocumentViewScope.Provider>;
