@@ -12,12 +12,25 @@ async (page, { expect, screenshots }) => {
   const band = id => bands.and(page.locator(`[data-id="${id}"]`));
   await expect(band(2)).toHaveAttribute('data-emphasis','quiet');
   await expect(band(2)).toHaveCSS('stroke','none');
-  await expect(band(2)).toHaveCSS('fill-opacity','0.07');
+  const quietOpacity = await band(2).evaluate(path => Number(getComputedStyle(path).getPropertyValue('--opacity-linked-band-quiet')));
+  await expect(band(2)).toHaveCSS('fill-opacity', String(quietOpacity));
   await expect(band(16)).toHaveCount(0);
 
   await linkedItem(2).hover();
   await expect(band(2)).toHaveAttribute('data-emphasis','hover');
+  await sourcePane.focus();
+  await page.keyboard.press('Tab');
+  await expect(linkedItem(1)).toBeFocused();
+  await expect(band(1)).toHaveAttribute('data-emphasis','hover');
+  await expect(band(2)).toHaveAttribute('data-emphasis','hover');
+
   await linkedPreview.locator('.tiptap > p').nth(1).hover();
+  await expect(band(2)).toHaveAttribute('data-emphasis','hover');
+  await linkedPreview.focus();
+  const matchingAction = linkedPreview.getByRole('button',{name:'Source section 1',exact:true});
+  await page.keyboard.press('Tab');
+  await expect(matchingAction).toBeFocused();
+  await expect(band(1)).toHaveAttribute('data-emphasis','hover');
   await expect(band(2)).toHaveAttribute('data-emphasis','hover');
   if (screenshots) {
     await page.getByRole('button',{name:'Light',exact:true}).click();
@@ -70,7 +83,6 @@ async (page, { expect, screenshots }) => {
   await page.keyboard.press('Space');
   await expect(linkedItem(2)).toHaveAttribute('aria-pressed','true');
   await linkedPreview.focus();
-  const matchingAction = linkedPreview.getByRole('button',{name:'Source section 1',exact:true});
   await page.keyboard.press('Tab');
   await expect(matchingAction).toBeFocused();
   await expect(matchingAction).toHaveCSS('opacity','1');

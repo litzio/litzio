@@ -81,6 +81,23 @@ function viewportRect(element: HTMLElement, host: DOMRect): Rect {
     width: element.clientWidth, height: element.clientHeight };
 }
 
+function scrollbarRects(pane: HTMLElement, viewport: Rect): Rect[] {
+  // Both panes use the same border on every edge. clientLeft includes any
+  // scrollbar on the left, while clientWidth and clientHeight exclude them.
+  const border = pane.clientTop;
+  const left = pane.clientLeft - border;
+  const width = pane.offsetWidth - 2 * border;
+  return [
+    { left: viewport.left - left, top: viewport.top, width: left, height: viewport.height },
+    { left: viewport.left + viewport.width, top: viewport.top, width: width - left - viewport.width, height: viewport.height },
+    { left: viewport.left - left, top: viewport.top + viewport.height, width, height: pane.offsetHeight - 2 * border - viewport.height },
+  ].filter(rect => rect.width > 0 && rect.height > 0);
+}
+
+function rectPath({ left, top, width, height }: Rect) {
+  return `M${left},${top}h${width}v${height}h${-width}Z`;
+}
+
 type Outline = Rect & { key: string };
 type BlockAction = { key: string; item: ScreenLinkedDocumentItem; style: CSSProperties };
 
@@ -92,7 +109,7 @@ type Drawing = {
   sourceViewport: Rect;
   documentViewport: Rect;
   gutter: Rect;
-  scrollbar: Rect;
+  paintPath: string;
 };
 
 function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, onSelect }: {
@@ -132,9 +149,11 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
       const gutterLeft = leftPane.getBoundingClientRect().right - hostBox.left;
       const gutterRight = rightPane.getBoundingClientRect().left - hostBox.left;
       const gutter = { left: gutterLeft, top: 0, width: Math.max(0, gutterRight - gutterLeft), height: hostBox.height };
-      const scrollbarLeft = sourceViewport.left + sourceViewport.width;
-      const scrollbar = { left: scrollbarLeft, top: sourceViewport.top,
-        width: Math.max(0, gutterLeft - leftPane.clientLeft - scrollbarLeft), height: sourceViewport.height };
+      const paintPath = [
+        { left: 0, top: 0, width: hostBox.width, height: hostBox.height },
+        ...scrollbarRects(leftPane, sourceViewport),
+        ...scrollbarRects(rightPane, documentViewport),
+      ].map(rectPath).join(" ");
       const { width: inline, height: block } = tokens.getBoundingClientRect();
       const focus = document.activeElement;
       const focusId = focus?.matches(":focus-visible") ? linkedId(focus, root, "data-linked-item") : undefined;
@@ -150,7 +169,7 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
         const group = key && index.byPath.get(key);
         if (group) hovered = (group.find(item => item.id === selectedId) ?? group[0]).id;
       }
-      const active = new Set([selectedId, hovered ?? focusId]);
+      const active = new Set([selectedId, hovered, focusId]);
       const bands: Band[] = [];
       const left: Outline[] = [];
       const right: Outline[] = [];
@@ -203,7 +222,7 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
         });
       }
       setDrawing({ bands: [...bands.filter(band => band.emphasis === "quiet"), ...bands.filter(band => band.emphasis !== "quiet")],
-        left, right, actions, sourceViewport, documentViewport, gutter, scrollbar });
+        left, right, actions, sourceViewport, documentViewport, gutter, paintPath });
     };
     const queue = () => { if (!frame) frame = requestAnimationFrame(draw); };
     const move = (event: PointerEvent) => {
@@ -236,10 +255,7 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
         <defs>
           <clipPath id={hitClip}><rect x={drawing.gutter.left} y={drawing.gutter.top} width={drawing.gutter.width} height={drawing.gutter.height} /></clipPath>
           <clipPath id={paintClip}>
-            <rect width={drawing.scrollbar.left} height="100%" />
-            <rect x={drawing.scrollbar.left + drawing.scrollbar.width} width="100%" height="100%" />
-            <rect y="0" width="100%" height={drawing.scrollbar.top} />
-            <rect y={drawing.scrollbar.top + drawing.scrollbar.height} width="100%" height="100%" />
+            <path d={drawing.paintPath} clipRule="evenodd" />
           </clipPath>
         </defs>
         <g clipPath={`url(#${paintClip})`}>
