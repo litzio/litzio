@@ -370,6 +370,13 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     assert.deepEqual(await find("https://github.com/acme/tools/tree/main/plugins/alpha"), [["acme.alpha", false, true]]);
     github.truncated = false;
     assert.deepEqual(await find("https://github.com/acme/tools/tree/main/plugins/old"), [["acme.old", true, false]]);
+    // A repository address still lists every plugin, including one at its root.
+    const atRoot = Object.fromEntries(Object.entries(plugin("", "acme.root", "root")).map(([file, content]) => [file.slice(1), content]));
+    github.repository("acme", "mixed").push("main", { ...atRoot, ...plugin("plugins/nested", "acme.nested", "nested") });
+    assert.deepEqual(await find("https://github.com/acme/mixed"), [["acme.root", false, true], ["acme.nested", false, true]]);
+    // A broken manifest at an exact folder is refused like install would, with its reason.
+    github.repository("acme", "broken").push("main", { ...plugin("plugins/bad", "acme.bad", "bad"), "plugins/bad/litzio-plugin.json": "{" });
+    await assert.rejects(host.invoke("source-plugins", { source: "https://github.com/acme/broken/tree/main/plugins/bad" }), /Invalid litzio-plugin\.json: not valid JSON/);
 
     // Listed addresses encode the ref and folder, so each one registers the folder it named.
     repo.push("topic/work", plugin("plugins/with space #", "acme.spaced", "spaced"));

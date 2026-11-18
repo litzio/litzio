@@ -24,6 +24,8 @@ export class FakeGitHub {
   truncated = false;
   /** Runs after each archive is served, so a fixture can publish the next commit. */
   onTarball?: () => void;
+  /** Runs when a repository's own record is read, which a repository-address search does first. */
+  onRepository?: (name: string) => void;
   url = "";
 
   private store(object: GitObject, body: Buffer) {
@@ -85,7 +87,7 @@ export class FakeGitHub {
     if (!repo) return missing;
     const json = (value: unknown) => ({ status: 200, body: JSON.stringify(value) });
     const [kind, ...rest] = parts.slice(3);
-    if (kind === undefined) return json({ default_branch: repo.defaultBranch, private: false });
+    if (kind === undefined) { this.onRepository?.(`${parts[1]}/${parts[2]}`); return json({ default_branch: repo.defaultBranch, private: false }); }
     const commitOf = (ref: string) => repo.refs.get(ref) ?? (this.commits.has(ref) ? ref : undefined);
     if (kind === "commits") {
       const commit = commitOf(rest.join("/"));
@@ -138,9 +140,14 @@ export async function browserGitHub() {
   });
   const released = repo.push("main", plugin("alpha", "Alpha fixture", "1.0.0"));
   repo.tag("v1.0.0", released); repo.release("v1.0.0");
-  repo.push("main", { ...plugin("alpha", "Alpha fixture", "1.0.0"), ...plugin("beta", "Beta fixture", "0.2.0") });
-  // The first installed copy is immediately behind the branch, so a check finds a new version.
-  github.onTarball = () => { github.onTarball = undefined; repo.push("main", { ...plugin("alpha", "Alpha fixture", "1.0.0"), ...plugin("beta", "Beta fixture", "0.3.0") }); };
+  // Each scenario starts by searching the repository address, which restores Beta 0.2.0. The copy
+  // installed from it is then immediately behind the branch, so a check finds a new version.
+  const start = () => {
+    repo.push("main", { ...plugin("alpha", "Alpha fixture", "1.0.0"), ...plugin("beta", "Beta fixture", "0.2.0") });
+    github.onTarball = () => { github.onTarball = undefined; repo.push("main", { ...plugin("alpha", "Alpha fixture", "1.0.0"), ...plugin("beta", "Beta fixture", "0.3.0") }); };
+  };
+  start();
+  github.onRepository = name => { if (name === "litzio-fixtures/plugins") start(); };
   await github.start();
   return github;
 }

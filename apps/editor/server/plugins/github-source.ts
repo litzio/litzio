@@ -8,7 +8,7 @@ import { parseGitHubSource, validateManifest, type GitHubTrack } from "@litzio/p
 /** A public GitHub plugin folder. `ref` is the branch, tag or commit named in the address. */
 export type GitHubLocation = { owner: string; repo: string; ref?: string; path: string };
 /** What a track points at now: the commit to download and that plugin folder's Git tree. */
-export type GitHubTarget = { track: GitHubTrack; commit: string; tree: string; tag?: string; id?: string; name?: string; version: string | null };
+export type GitHubTarget = { track: GitHubTrack; commit: string; tree: string; tag?: string; id?: string; name?: string; version: string | null; invalid?: string };
 /** `release` and `branch` say which tracks can install this folder. */
 export type GitHubPlugin = { path: string; source: string; id?: string; name?: string; version?: string | null; release: boolean; branch: boolean; error?: string };
 /** Listing more manifests than this cannot prove which folder is the only one with an ID. */
@@ -98,9 +98,15 @@ export class GitHubSource {
     const folder = await this.folder(location, root);
     const manifest = folder?.entries.find(entry => entry.path === "litzio-plugin.json" && entry.type === "blob");
     if (!folder || !manifest) return undefined;
-    let id: string | undefined, name: string | undefined, version: string | null = null;
-    try { const value = await this.manifest(location, manifest.sha); id = value.id; name = value.name; version = value.version ?? null; } catch { /* applying reports manifest diagnostics */ }
-    return { track, commit, tree: folder.sha, ...(tag ? { tag } : {}), ...(id ? { id, name } : {}), version };
+    let id: string | undefined, name: string | undefined, version: string | null = null, invalid: string | undefined;
+    // Applying reports full diagnostics; searching only needs to know the manifest would be refused.
+    try { const value = await this.manifest(location, manifest.sha); id = value.id; name = value.name; version = value.version ?? null; }
+    catch (error) {
+      if (error instanceof GitHubSourceError) throw error;
+      const issue = (error as { issues?: { path: PropertyKey[]; message: string }[] }).issues?.[0];
+      invalid = `Invalid litzio-plugin.json: ${error instanceof SyntaxError ? "not valid JSON" : issue ? `${issue.path.join(".") || "$"}: ${issue.message}` : (error as Error).message}`;
+    }
+    return { track, commit, tree: folder.sha, ...(tag ? { tag } : {}), ...(id ? { id, name } : {}), version, ...(invalid ? { invalid } : {}) };
   }
   /** A target, or why this exact folder has no plugin on the track. */
   private async lookup(location: GitHubLocation, track?: GitHubTrack): Promise<GitHubTarget | string> {
@@ -155,11 +161,18 @@ export class GitHubSource {
    */
   async find(address: string): Promise<{ release?: string; plugins: GitHubPlugin[]; limited?: boolean }> {
     const location = await this.locate(address);
-    const release = await this.lookup(location, "release"), branch = await this.lookup(location, "branch");
-    const found = typeof release !== "string" ? release : typeof branch !== "string" ? branch : undefined;
-    if (!found) return this.plugins(location);
-    return { ...(typeof release !== "string" ? { release: release.tag } : {}), plugins: [{ path: location.path, source: address, ...(found.id ? { id: found.id, name: found.name } : {}),
-      version: found.version, release: typeof release !== "string", branch: typeof branch !== "string" }] };
+    // A repository address always lists, including a plugin at its root; only `/tree/<ref>/<folder>` is checked directly.
+    if (!parseGitHubSource(address)!.tree.length) return this.plugins(location);
+    const tracks = [await this.lookup(location, "release"), await this.lookup(location, "branch")];
+    const [release, branch] = tracks.map(target => typeof target !== "string" && !target.invalid ? target : undefined);
+    const found = release ?? branch;
+    if (!found) {
+      const invalid = tracks.find((target): target is GitHubTarget => typeof target !== "string" && !!target.invalid);
+      if (invalid) throw new GitHubSourceError(invalid.invalid!);
+      return this.plugins(location);
+    }
+    return { ...(release?.tag ? { release: release.tag } : {}), plugins: [{ path: location.path, source: address, ...(found.id ? { id: found.id, name: found.name } : {}),
+      version: found.version, release: !!release, branch: !!branch }] };
   }
 
   async plugins(location: GitHubLocation): Promise<{ release?: string; plugins: GitHubPlugin[]; limited?: boolean }> {
