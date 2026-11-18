@@ -4,7 +4,7 @@ import path from "node:path";
 import { canonicalFilePath, inside } from "../file-access.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
 
-const installationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+export const installationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const includeSourceFile = (file: string) => path.basename(file).toLowerCase() !== ".git";
 
 /** Private to the Host that owns the registration file. Source paths never enter cleanup. */

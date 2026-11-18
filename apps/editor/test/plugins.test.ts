@@ -26,6 +26,96 @@ function registeredCopy(state: string, id: string) {
   return path.join(`${state}.artifacts`, record.installationId);
 }
 
+test("startup preserves installed copies until it can read a valid registration file", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-registration-"));
+  const state = path.join(root, "state.json"), storage = `${state}.artifacts`, id = "fixture.retained";
+  let host: PluginHost | undefined;
+  try {
+    host = new PluginHost(state);
+    await host.start();
+    assert.equal(existsSync(storage), false, "a fresh Host has no copies to collect");
+    assert.equal(existsSync(state), false, "starting an empty Host must not create a cleanup authority");
+    await host.close();
+    host = new PluginHost(state);
+    const directory = lifecycleFixture(root, id, `export function activate() {
+      return { operations: { read: () => "retained" }, status: () => ({ available: true, message: "Ready" }), dispose() {} };
+    }`);
+    const manifestFile = path.join(directory, "litzio-plugin.json");
+    const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, operations: [{ id: "read" }] }));
+    assert.equal((await host.invoke("install", { directory }) as any).receipt.outcome, "success");
+    const valid = readFileSync(state, "utf8"), copy = registeredCopy(state, id);
+    await host.close();
+    for (const invalid of ["[]", "{", JSON.stringify({ [id]: { ...JSON.parse(valid)[id], installationId: "invalid" } })]) {
+      host = undefined;
+      writeFileSync(state, invalid);
+      try {
+        host = new PluginHost(state);
+        await host.start();
+      } catch (error) {
+        assert.match(String(error), /Unable to read plugin registrations/);
+      } finally {
+        await host?.close();
+      }
+      assert.equal(existsSync(copy), true, `installation must survive invalid registration: ${invalid}`);
+      assert.equal(readFileSync(state, "utf8"), invalid);
+    }
+    host = undefined;
+    rmSync(state);
+    host = new PluginHost(state);
+    await host.start();
+    await host.close();
+    assert.equal(existsSync(copy), true, "a missing registry cannot identify an orphan");
+    writeFileSync(state, valid);
+    host = new PluginHost(state);
+    const read = fs.readFileSync;
+    const unreadable = t.mock.method(fs, "readFileSync", ((file, options) => {
+      if (file === state) throw Object.assign(new Error("Fixture cannot read registrations"), { code: "EACCES" });
+      return read(file, options);
+    }) as typeof fs.readFileSync);
+    syncBuiltinESMExports();
+    try { await assert.rejects(host.start(), /Unable to read plugin registrations/); }
+    finally { unreadable.mock.restore(); syncBuiltinESMExports(); }
+    assert.equal(existsSync(copy), true);
+    assert.equal(readFileSync(state, "utf8"), valid);
+    await host.start();
+    assert.equal((await host.invokeOperation(`${id}.read`, {})).result, "retained");
+  } finally { await host?.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("legacy registrations show a recovery error and can be added again from the source", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-legacy-"));
+  const state = path.join(root, "state.json"), id = "fixture.legacy";
+  const directory = lifecycleFixture(root, id, `export function activate() {
+    return { operations: { read: () => "re-added" }, status: () => ({ available: true, message: "Ready" }), dispose() {} };
+  }`);
+  const manifestFile = path.join(directory, "litzio-plugin.json");
+  writeFileSync(manifestFile, JSON.stringify({ ...JSON.parse(readFileSync(manifestFile, "utf8")), operations: [{ id: "read" }] }));
+  const registrationId = randomUUID();
+  const source = artifactDigest(directory);
+  const legacy = JSON.stringify({ [id]: { registrationId, directory, digest: source, trusted: true, enabled: true, settings: {}, operationNames: [`${id}.read`] } });
+  writeFileSync(state, legacy);
+  const host = new PluginHost(state);
+  try {
+    await host.start();
+    const [entry] = await host.list();
+    assert.equal(entry!.enabled, false);
+    assert.equal(entry!.running, false);
+    assert.equal(entry!.error, "Add this plugin again from its source folder.");
+    assert.equal(readFileSync(state, "utf8"), legacy);
+    assert.equal(existsSync(`${state}.artifacts`), false);
+    await assert.rejects(host.invoke("reload", { id }), /Add this plugin again from its source folder/);
+    await host.invoke("register", { directory });
+    const [registered] = await host.list();
+    assert.notEqual(registered!.registrationId, registrationId);
+    assert.equal(registered!.trusted, false);
+    await host.invoke("enable", { id, registrationId: registered!.registrationId, trust: true });
+    assert.equal((await host.invokeOperation(`${id}.read`, {})).result, "re-added");
+    assert.equal(existsSync(registeredCopy(state, id)), true);
+    assert.equal(artifactDigest(directory), source);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
 // Host lifecycle and public-operation tests stay in-process.
 // HTTP plugin scenarios cover browser registration/settings/secret integration.
 
