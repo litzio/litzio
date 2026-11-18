@@ -1071,6 +1071,22 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   assert.notEqual(first.turns.at(-1)?.status, "inProgress");
   assert.equal(readFileSync(original, "utf8"), source);
 
+  const question = first.turns.at(-1)!.items.find(item => item.question?.requestId === first.userInput?.requestId)!.question!;
+  const answers = { "0": { answers: ["Summary"] } };
+  await conversations.answer(first.id, question.turnId, question.requestId, answers);
+  assert.equal(question.status, "answered");
+  const answerItem = first.turns.at(-1)!.items[0]!;
+  assert.deepEqual(answerItem.questionAnswer?.answers, answers);
+  await conversations.interrupt(first.id);
+  await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: first.id, modelId: "auto" }));
+  const unmatched = answerItem.text.replace(String(question.requestId), "unmatched-question");
+  await conversations.send({ ...input, id: first.id, message: unmatched }, settings);
+  const unmatchedItem = first.turns.at(-1)!.items[0]!;
+  assert.equal(unmatchedItem.questionAnswer, undefined);
+  assert.equal(unmatchedItem.text, unmatched);
+  await conversations.interrupt(first.id);
+  await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: first.id, modelId: "auto" }));
+
   const previousTurn = first.turns.at(-1)!.id;
   await conversations.send({ ...input, id: first.id, folders: [] }, { ...settings, permissionMode: "read-only" });
   assert.equal(rows().some(row => row.method === "session/load"), false, "a loaded session must not be loaded twice");
@@ -1092,7 +1108,23 @@ test("Copilot HTTP MCP reuses loaded sessions and isolates active turn scopes", 
   }
   assert.equal(rows().some(row => row.method === "session/load"), false);
   await connection.copilot.useLaunchSettings("medium", false);
-  await conversations.resume(first.id, settings);
+  await connection.copilot.useLaunchSettings(settings.reasoningEffort, false);
+  const replayClient = await connection.copilot.connect(), load = replayClient.loadSession.bind(replayClient);
+  const prompts = rows().filter(row => row.method === "session/prompt" && row.params.sessionId === first.id).map(row => row.params.prompt[0]);
+  assert.ok(prompts.some(prompt => prompt.text.includes(answerItem.text)), "the original answer remains in the provider prompt");
+  const replay = t.mock.method(replayClient, "loadSession", async (params: Parameters<typeof replayClient.loadSession>[0]) => {
+    const result = await load(params);
+    for (const content of prompts) connection.copilot.emit("update", { sessionId: params.sessionId, update: { sessionUpdate: "user_message_chunk", content } });
+    return result;
+  });
+  const reopened = await conversations.resume(first.id, settings);
+  replay.mock.restore();
+  const items = reopened.turns.flatMap(turn => turn.items);
+  assert.deepEqual(items.find(item => item.text === answerItem.text)?.questionAnswer?.answers, answers);
+  assert.ok(items.some(item => item.text === unmatched && !item.questionAnswer));
+  const restored = items.find(item => item.question?.requestId === question.requestId)?.question;
+  assert.equal(restored?.status, "answered");
+  assert.deepEqual(restored?.answers, answers);
   const idleUrl = endpoint();
   assert.notEqual(idleUrl, firstUrl, "process restart replaces the session endpoint");
   assert.equal((await fetch(firstUrl, { method: "POST" })).status, 403);

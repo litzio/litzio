@@ -20,6 +20,13 @@ async (page, { expect, brand, screenshots }) => {
         expect(body.displayClient).toBeUndefined();
         const q = conversation.turns.flatMap(t => t.items).find(i => i.question?.requestId === body.requestId).question;
         q.status = 'answered'; q.answers = body.answers; refreshInput();
+        if (q.delivery === 'async') {
+          const questionAnswer = { requestId: q.requestId, turnId: q.turnId, answers: body.answers };
+          conversation.turns.push({ id: `answer-${q.requestId}`, status: 'completed', items: [{
+            id: `user-${q.requestId}`, kind: 'user', userMessageSource: 'host', questionAnswer,
+            text: 'Litzio question answers (JSON):\n' + JSON.stringify(questionAnswer),
+          }] });
+        }
       }
       if (body.action === 'resume') resumes++;
       return r.fulfill({ json: conversation });
@@ -63,6 +70,7 @@ async (page, { expect, brand, screenshots }) => {
   if(screenshots) await pending.screenshot({path:'tmp/consistency-radio.png'});
   await pending.getByRole('button', { name: 'Submit answers' }).click();
   await expect(panel.locator('[data-question-status="answered"]')).toContainText('음식 탐방');
+  await expect(panel.getByText('Litzio question answers (JSON):', { exact: false })).toHaveCount(0);
   expect(await panel.locator('.assistant-question-answer').evaluate(el => getComputedStyle(el).fontWeight)).toBe(weights[0]);
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   addQuestion('host-question');
@@ -80,6 +88,7 @@ async (page, { expect, brand, screenshots }) => {
   await panel.getByRole('button', { name: /Travel planning/ }).click();
   await expect.poll(() => resumes).toBeGreaterThan(0);
   await expect(panel.locator('[data-question-status="answered"]').last()).toContainText('아이와 쉬는 시간을 넣어 주세요.');
+  await expect(panel.getByText('Litzio question answers (JSON):', { exact: false })).toHaveCount(0);
   await pending.getByRole('radio', { name: '음식 탐방', exact: true }).check();
   await pending.getByRole('button', { name: 'Submit answers' }).click();
   await expect(panel.locator('[data-question-status="answered"]')).toHaveCount(3);
