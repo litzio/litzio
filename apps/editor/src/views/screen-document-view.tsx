@@ -98,7 +98,8 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
       height: selected.height / previewScale,
     }} /> : null;
   const cancelScroll = useDocumentViewInteractions(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
-  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, reloadKey]), selected, target?.highlight === false, cancelScroll, previewScale, positions);
+  const alignTop = typeof target?.top === "number" && Number.isFinite(target.top) ? target.top : undefined;
+  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, target?.highlight, alignTop, reloadKey]), selected, target?.highlight === false, cancelScroll, previewScale, positions, alignTop);
   useDocumentViewLayout(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockLayoutChange);
   useLayoutEffect(() => {
     if (!onGeometry) return;

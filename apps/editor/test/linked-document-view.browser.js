@@ -124,11 +124,12 @@ async (page, { expect, screenshots }) => {
     await expect(band(2)).toHaveAttribute('data-emphasis','hover');
     await page.screenshot({path:'tmp/linked-document-view/after-1440-light-hover.png'});
   }
-  const gutterPoint = await band(2).evaluate(path => {
+  const gutterOf = () => band(2).evaluate(path => {
     const origin = path.ownerSVGElement.getBoundingClientRect();
     const d = path.getAttribute('d').match(/-?(?:\d*\.)?\d+/g).map(Number);
     return { x: origin.left+(d[2]+d[7])/2, y:origin.top+(d[1]+d[8]+d[10]+d[17])/4 };
   });
+  const gutterPoint = await gutterOf();
   await page.mouse.move(gutterPoint.x,gutterPoint.y);
   await expect(band(2)).toHaveAttribute('data-emphasis','hover');
   const sourceLead = await linkedItem(2).evaluate(button => {
@@ -145,7 +146,10 @@ async (page, { expect, screenshots }) => {
   await expect(fused).toBeVisible();
   await sourcePane.getByText('Source section 1', { exact: true }).click();
   await expect(linkedItem(1)).toHaveAttribute('aria-pressed','true');
-  await page.mouse.click(gutterPoint.x,gutterPoint.y);
+  // Choosing a source box moves the document pair level with it; aim at the redrawn band.
+  await expect.poll(() => bandEnds(1)).toBe(true);
+  const movedGutter = await gutterOf();
+  await page.mouse.click(movedGutter.x,movedGutter.y);
   await expect(linkedItem(2)).toHaveAttribute('aria-pressed','true');
 
   const scrollbar = await sourcePane.evaluate((pane, y) => {
@@ -320,6 +324,69 @@ async (page, { expect, screenshots }) => {
     return source.getBoundingClientRect().bottom <= node.getBoundingClientRect().top &&
       source.scrollWidth <= source.clientWidth + 1 && node.scrollWidth <= node.clientWidth + 1;
   })).toBe(true);
+
+  // Choosing a source box places its document pair at the same visible height (#1760).
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('button',{name:'Source scale 0.75',exact:true}).click();
+  await expect(bands.first()).toBeAttached();
+  const sourceTop = id => linkedItem(id).evaluate(node => {
+    const pane = node.closest('.linked-document-source');
+    return node.getBoundingClientRect().top - pane.getBoundingClientRect().top - pane.clientTop;
+  });
+  const documentTop = id => linkedPreview.evaluate((view, index) => view.querySelectorAll('.tiptap > p')[index].getBoundingClientRect().top -
+    view.getBoundingClientRect().top - view.clientTop, id - 1);
+  const levelGap = async id => Math.abs(await sourceTop(id) - await documentTop(id));
+  const showSource = (id, top) => linkedItem(id).evaluate((node, top) => node.closest('.linked-document-source').scrollTo(0, node.offsetTop - top), top);
+  const documentScroll = () => linkedPreview.evaluate(view => ({ top: view.scrollTop, end: view.scrollHeight - view.clientHeight, height: view.clientHeight }));
+  await linkedPreview.evaluate(view => view.scrollTo(0, 0));
+  await showSource(15, 120);
+  expect(await documentTop(15)).toBeGreaterThan((await documentScroll()).height);
+  await linkedItem(15).click();
+  await expect.poll(() => levelGap(15)).toBeLessThan(1);
+  await showSource(8, 100);
+  expect(await documentTop(8)).toBeLessThan(0);
+  await linkedItem(8).click();
+  await expect.poll(() => levelGap(8)).toBeLessThan(1);
+  await showSource(10, 300);
+  const insideTop = await documentTop(10);
+  expect(insideTop).toBeGreaterThan(0);
+  expect(insideTop).toBeLessThan((await documentScroll()).height);
+  expect(await levelGap(10)).toBeGreaterThan(8);
+  await linkedItem(10).click();
+  await expect(linkedItem(10)).toHaveAttribute('aria-pressed','true');
+  await expect.poll(() => levelGap(10)).toBeLessThan(1);
+  await expect(fused).toBeVisible();
+  if (screenshots) {
+    await page.getByRole('button',{name:'Light',exact:true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+    await page.screenshot({path:'tmp/linked-document-view/after-1440-light-level.png'});
+  }
+  // A difference within 8px does not move the document.
+  const settled = (await documentScroll()).top;
+  await sourcePane.evaluate(pane => { pane.scrollTop += 5; });
+  await linkedItem(10).click();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect((await documentScroll()).top).toBe(settled);
+  // The document end limits the movement; the source is extended so its last box can reach the top.
+  const sourceContent = await sourcePane.evaluate(pane => {
+    const content = pane.firstElementChild, height = content.style.height;
+    content.style.height = `${content.offsetHeight + 2000}px`;
+    return height;
+  });
+  await showSource(24, 16);
+  await linkedItem(24).click();
+  await expect.poll(async () => {
+    const view = await documentScroll();
+    return Math.abs(view.top - view.end) < 1 && await documentTop(24) > await sourceTop(24) + 8;
+  }).toBe(true);
+  await sourcePane.evaluate((pane, height) => { pane.firstElementChild.style.height = height; }, sourceContent);
+  // Source scale 0.75 keeps the same visible-pixel contract.
+  await page.getByRole('button',{name:'Source scale 1',exact:true}).click();
+  await showSource(12, 200);
+  await linkedItem(12).click();
+  await expect.poll(() => levelGap(12)).toBeLessThan(1);
+  await sourcePane.evaluate(pane => pane.scrollTo(0,0));
+  await linkedPreview.evaluate(view => view.scrollTo(0,0));
 
   if (screenshots) {
     await page.setViewportSize({width:1440,height:1000});
