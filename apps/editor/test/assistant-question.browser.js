@@ -4,7 +4,7 @@ async (page, { expect, brand, screenshots }) => {
   const approvalAnswers = [];
   const refreshInput = () => { conversation.userInput = conversation.turns.flatMap(t => t.items).map(i => i.question).find(q => q?.status === 'pending'); };
   await page.route('**/api/assistant/settings*', r => r.fulfill({ json: settings }));
-  await page.route('**/api/assistant/models*', r => r.fulfill({ json: { models: [{ id: 'luna', model: settings.model, displayName: 'GPT Luna', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
+  await page.route('**/api/assistant/models*', r => r.fulfill({ json: { provider: 'codex', models: [{ id: 'luna', model: settings.model, displayName: 'GPT Luna', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
   await page.route('**/api/assistant/diagnostics*', r => r.fulfill({ json: { connected: true, account: { type: 'chatgpt' } } }));
   await page.route('**/api/assistant/conversations*', async r => {
     if (r.request().method() === 'POST') {

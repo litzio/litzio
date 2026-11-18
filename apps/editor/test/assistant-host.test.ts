@@ -145,7 +145,23 @@ test("unavailable provider rejects new work with a reason; settings do not close
   await connection.client.request("fixture/async-question", { threadId: id, itemId: "provider-switch-question", questions: [{ title: "Choose before switching", options: ["A", "B"] }] });
   const pid = JSON.parse(readFileSync(log, "utf8").split("\n")[0]!).pid as number;
   assert.equal(typeof pid, "number");
-  t.mock.method(connection, "diagnostics", async (provider?: "codex" | "copilot") => ({ provider: provider ?? "codex", connected: false, path: null, version: null, checkedAt: Date.now(), error: "Fixture provider unavailable" }));
+  assert.equal((await host.invoke("assistantDiagnostics", { provider: "codex", cache: "prefer" })).connected, true);
+  let completeCheck!: () => void;
+  const gate = new Promise<void>(resolve => { completeCheck = resolve; });
+  const diagnostics = t.mock.method(connection, "diagnostics", async (provider?: "codex" | "copilot") => {
+    await gate;
+    return { provider: provider ?? "codex", connected: false, path: null, version: null, checkedAt: Date.now(), error: "Fixture provider unavailable" };
+  });
+  const cached = await host.invoke("assistantDiagnostics", { provider: "codex", cache: "prefer" });
+  assert.equal(cached.connected, true);
+  const first = host.invoke("assistantDiagnostics", { provider: "copilot", cache: "prefer" });
+  const second = host.invoke("assistantDiagnostics", { provider: "copilot", cache: "prefer" });
+  assert.equal(diagnostics.mock.callCount(), 1, "cold consumers share one check");
+  completeCheck();
+  assert.deepEqual(await first, await second);
+  await assert.rejects(host.invoke("assistantConversation", { action: "send", provider: "codex", message: "New work", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }), /AI provider codex is unavailable: Fixture provider unavailable/);
+  const refreshed = await host.invoke("assistantDiagnostics", { provider: "codex", cache: "prefer" });
+  assert.equal(refreshed.connected, false);
   await host.invoke("configure", { ...settings, permissionMode: "read-only" });
   assert.equal(conversation.userInput?.requestId, "provider-switch-question");
   t.mock.method(connection, "models", async () => ({ provider: "copilot" as const, updatedAt: Date.now(), models: [{ id: "auto", model: "auto", displayName: "Auto", description: "Fixture", defaultReasoningEffort: "medium", supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Fixture" }] }] }));

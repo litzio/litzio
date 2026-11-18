@@ -50,10 +50,11 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [changeComparison, setChangeComparison] = useState<{ path: string; load(signal: AbortSignal): Promise<Comparison> }>();
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AssistantSettings>();
-  const [models, setModels] = useState<AiModels>();
+  const [catalog, setModels] = useState<AiModels>();
   const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
   const [provider, setProvider] = useState<"codex" | "copilot">("codex");
+  const models = catalog?.provider === provider ? catalog : undefined;
   const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("full-access");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
@@ -67,6 +68,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [message, setMessage] = useState("");
   const [problem, setProblem] = useState("");
   const [setup, setSetup] = useState("");
+  const [providerProblem, setProviderProblem] = useState("");
   const [ready, setReady] = useState(false);
   const [actionPending, setPending] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -75,6 +77,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const pendingImageUploads = useRef(0);
   const busy = useRef(false);
   const submissionScope = useRef(0);
+  const catalogRevision = useRef(0);
   const leaveSubmissionScope = () => { submissionScope.current++; };
   // Navigation hides other owners' rows without discarding their only local copy.
   const visibleSubmissions = submissions.filter(value => value.provider === provider &&
@@ -163,13 +166,13 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   useEffect(() => {
     const refreshingSettings = initializedSettings.current !== settingsRevision;
     initializedSettings.current = settingsRevision;
-    if (!open) return;
+    if (!open) { setReady(false); return; }
     initialFocus.current = !refreshingSettings;
     // A later focus move belongs to the user or another UI, even if setup is slow.
     const cancelInitialFocus = () => { initialFocus.current = false; };
     document.addEventListener("focusin", cancelInitialFocus);
     let alive = true;
-    setReady(false); setSetup(""); setProblem(""); setHistory(null); setModels(undefined);
+    setReady(false); setSetup(""); setProblem(""); setHistory(null);
     void request<AssistantSettings>(ASSISTANT.settingsRoute).then(async value => {
       if (!alive) return;
       setSettings(value); if (value.provider === "copilot") setReferences(previous => previous.filter(file => file.kind !== "skill")); if (!current.current && (!settings || refreshingSettings)) defaults(value);
@@ -184,22 +187,37 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       }
       if (!alive) return;
       const selectedProvider = resumed?.provider ?? current.current?.provider ?? (!settings || refreshingSettings ? value.provider : provider);
-      const [catalog, diagnostics] = await Promise.all([request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selectedProvider}`), request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${selectedProvider}`)]);
-      if (!alive) return;
-      setModels(catalog);
       if (resumed) {
         if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setMode(resumed.copilot?.currentMode ?? ""); setProvider(selectedProvider); setPermissionMode(resumed.permissionMode ?? value.permissionMode); }
         setConversation(resumed); rememberConversation(conversationKey, resumed.id);
-      } else setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
-      if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
-      if (selectedProvider === "codex" && !diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
-      if (alive) setReady(true);
+      }
+      setReady(true);
+      const revision = catalogRevision.current;
+      try {
+        const next = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selectedProvider}&cache=prefer`);
+        if (!alive || revision !== catalogRevision.current) return;
+        setModels(next);
+        if (!resumed && !current.current && !models) setMode(next.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
+      } catch (error) {
+        if (alive && revision === catalogRevision.current) setProblem((error as Error).message);
+      }
     }).catch(error => { if (alive) setSetup(error.message); });
     return () => {
       alive = false; initialFocus.current = false;
       document.removeEventListener("focusin", cancelInitialFocus);
     };
   }, [open, settingsRevision]);
+  useEffect(() => {
+    setProviderProblem("");
+    if (!open || !ready) return;
+    let alive = true;
+    void request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${provider}&cache=prefer`).then(value => {
+      if (!alive) return;
+      if (!value.connected) setProviderProblem(value.error ?? "Codex CLI is unavailable on the Host.");
+      else if (provider === "codex" && !value.account) setProviderProblem("Sign in to Codex to start a conversation.");
+    }).catch(error => { if (alive) setProviderProblem(error.message); });
+    return () => { alive = false; };
+  }, [open, ready, provider]);
   // Hiding the panel is not a provider/scope change: a late send reply still belongs here.
   useEffect(() => () => {
     providerVersion.current++; busy.current = false; setPending(false);
@@ -280,7 +298,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); } finally { if (isCurrent()) { busy.current = false; setPending(false); } }
   };
   const send = () => run(async isCurrent => {
-    if (pendingImageUploads.current || !ready || active && provider === "copilot") return;
+    if (pendingImageUploads.current || !ready || !catalogModel || active && provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
@@ -532,7 +550,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
           {submissionActions(value)}
         </div>)}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><EmptyState title={i18n.t("Ask about your document")} description={i18n.t("With edit access, documents are edited directly.")} /></div> : null}
-      {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
+      {setup || providerProblem ? <div className="assistant-notice" role="status"><p>{i18n.t((setup || providerProblem) as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {conversation?.permissionFallback ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>{i18n.t("Opened folders")}</TooltipTrigger><TooltipContent>{i18n.t("Full access is not allowed in this environment. Continuing with Opened folders.")}</TooltipContent></Tooltip> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
     </div>
@@ -597,20 +615,18 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       <div className="assistant-controls">
         <AssistantChoice label={i18n.t("Provider")} value={provider === "copilot" ? "GitHub Copilot" : "Codex"}
           help={i18n.t(conversation ? "Provider is fixed after a conversation starts. Start a new conversation to change it." : "These choices apply only to this conversation. Defaults are in Assistant settings.")}
-          disabled={!!conversation || active || pending || !settings || !settings || !models && !setup} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={provider}
+          disabled={!!conversation || active || pending || !ready} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={provider}
           options={["codex", "copilot"].map(value => ({ value, label: value === "codex" ? "Codex" : "GitHub Copilot" }))}
           onSelect={selection => {
             const selected = selection as "codex" | "copilot";
             void run(async isCurrent => {
-              leaveSubmissionScope(); setReady(false);
-              try {
-                const [catalog, diagnostics] = await Promise.all([request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selected}`), request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${selected}`)]);
-                if (!isCurrent()) return;
-                setProvider(selected); setModels(catalog); setSetup(!diagnostics.connected ? diagnostics.error ?? "Codex CLI is unavailable on the Host." : selected === "codex" && !diagnostics.account ? "Sign in to Codex to start a conversation." : "");
-                const first = catalog.models.find(model => selected === settings?.provider && model.model === settings.model) ?? catalog.models[0]; setModel(first?.model ?? ""); setEffort(selected === settings?.provider ? settings.reasoningEffort : first?.defaultReasoningEffort ?? "");
-                setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
-                setReferences(previous => previous.filter(file => file.kind !== "skill")); setMention(null); setHistory(null);
-              } finally { if (isCurrent()) setReady(true); }
+              const catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selected}&cache=prefer`);
+              if (!isCurrent()) return;
+              catalogRevision.current++;
+              leaveSubmissionScope(); setProvider(selected); setModels(catalog);
+              const first = catalog.models.find(model => selected === settings?.provider && model.model === settings.model) ?? catalog.models[0]; setModel(first?.model ?? ""); setEffort(selected === settings?.provider ? settings.reasoningEffort : first?.defaultReasoningEffort ?? "");
+              setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
+              setReferences(previous => previous.filter(file => file.kind !== "skill")); setMention(null); setHistory(null);
             });
           }} />
 
