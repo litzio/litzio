@@ -767,6 +767,30 @@ test("authoring refuses broken connections, invalid nesting and ambiguous inputs
 });
 
 
+test("authoring keeps label conflict reasons and checks many labels without rebuilding the target index", async () => {
+  const conflict = (label: string) => `label ${JSON.stringify(label)} already names another target (including implicit heading IDs)`;
+  for (const [blocks, at, reason] of [
+    [[{ kind: "heading", level: 2, text: "Intro" }, { kind: "equation", latex: "y", label: "intro" }], 1, conflict("intro")],
+    [[{ kind: "target", label: "t" }, { kind: "heading", level: 2, text: "H" }, { kind: "equation", latex: "y", label: "t" }], 0, conflict("t")],
+    [[{ kind: "equation", latex: "x", label: "same" }, { kind: "equation", latex: "y", label: "same" }], 0, conflict("same")],
+    [[{ kind: "equation", latex: "y", label: "constructor" }], 0, 'MyST target lookup for "constructor" hits an inherited Object.prototype property and cannot process references'],
+  ] as const) await assert.rejects(authorDocument({ inputs: [{ key: "bad", blocks }] }), (error: any) => {
+    assert.deepEqual(error.diagnostics, [{ path: ["inputs", 0, "blocks", at], reason }]);
+    return true;
+  });
+  // Rebuilding the index per label made time grow with labels × document size (#1761).
+  const timed = async (count: number) => {
+    const blocks = Array.from({ length: count }, (_, i) => [{ kind: "equation", latex: `x_${i}`, label: `eq-${i}` },
+      { kind: "paragraph", content: [{ kind: "reference", role: "eq", label: `eq-${i}` }] }]).flat();
+    const started = performance.now();
+    await authorDocument({ inputs: [{ key: "labels", blocks }] });
+    return performance.now() - started;
+  };
+  await timed(50);
+  const ratio = await timed(400) / await timed(50);
+  assert.ok(ratio < 20, `400 labels took ${ratio.toFixed(1)}x the time of 50`);
+});
+
 test("structured authoring applies limits inside inline content and nested lists", () => {
   const parseInput = (blocks: unknown[]) => core.documentAuthoringSchema.safeParse({ inputs: [{ key: "limits", blocks }] });
   assert.equal(parseInput([{ kind: "paragraph", content: [{ kind: "strong", children: [{ kind: "text", text: "x".repeat(DOCUMENT_AUTHORING_LIMITS.string) }] }] }]).success, true);
