@@ -216,6 +216,45 @@ test("local source update check compares applied source content and update keeps
     assert.equal(disabled.trusted, true); assert.equal(disabled.registrationId, registrationId);
     await host.invoke("enable", { id });
     assert.equal(await read(), "third");
+
+    // A disabled update must not replace the copy with one its saved settings cannot start.
+    const settingsSchema = (type: string) => ({ type: "object", properties: { label: { type } }, additionalProperties: false });
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, version: "0.4.0", settingsSchema: settingsSchema("string"), operations: [{ id: "read" }] }));
+    await host.invoke("update", { id });
+    await host.invoke("settings", { id, settings: { label: "saved" } });
+    await host.invoke("disable", { id });
+    const before = record();
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, version: "0.5.0", settingsSchema: settingsSchema("boolean"), operations: [{ id: "read" }] }));
+    await assert.rejects(host.invoke("update", { id }), /Stored settings do not satisfy/);
+    assert.deepEqual(record(), before);
+    await host.invoke("enable", { id });
+    assert.equal(await read(), "third");
+    assert.equal((await host.list())[0]!.version, "0.4.0");
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("update check skips source node_modules so public operations keep responding", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-large-source-"));
+  const id = "fixture.large";
+  const directory = lifecycleFixture(root, id, `export function activate() { return { operations: { read: () => "ready" }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`);
+  const manifestFile = path.join(directory, "litzio-plugin.json");
+  writeFileSync(manifestFile, JSON.stringify({ ...JSON.parse(readFileSync(manifestFile, "utf8")), operations: [{ id: "read" }] }));
+  const host = new PluginHost(path.join(root, "state.json"));
+  try {
+    await host.start();
+    await host.invoke("install", { directory });
+    const modules = path.join(directory, "node_modules", "large");
+    for (let group = 0; group < 10; group++) {
+      mkdirSync(path.join(modules, String(group)), { recursive: true });
+      for (let file = 0; file < 500; file++) writeFileSync(path.join(modules, String(group), `${file}.js`), "x");
+    }
+    const checking = host.invoke("check-updates", { id });
+    const started = performance.now();
+    const reply = await host.invokeOperation(`${id}.read`, {});
+    const elapsed = performance.now() - started;
+    assert.equal((reply as { result?: unknown }).result, "ready");
+    assert.equal(((await checking) as any).updates[0].available, false, "dependency folders are not source content");
+    assert.ok(elapsed < 1500, `public operation waited ${Math.round(elapsed)} ms behind the update check`);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

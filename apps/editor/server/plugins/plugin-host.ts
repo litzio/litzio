@@ -67,6 +67,9 @@ function readArtifactJson(file: string): unknown {
 }
 
 
+function assertStoredSettings(manifest: PluginManifest, settings: Record<string, unknown>) {
+  if (!compileSchema(manifest.settingsSchema)(settings)) throw new Error("Stored settings do not satisfy this artifact schema");
+}
 type Artifact = { manifest: PluginManifest; digest: string; entry: string };
 /** Last local source comparison. Memory only: every check reads the source again. */
 type UpdateCheck = { currentVersion: string | null; sourceVersion: string | null; available: boolean; error?: string };
@@ -258,7 +261,7 @@ export class PluginHost {
   }
   private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false) {
     const { manifest } = artifact, { id } = manifest;
-    if (!compileSchema(manifest.settingsSchema)(record.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
+    assertStoredSettings(manifest, record.settings);
     const screens = Object.fromEntries(manifest.contributes.screens.filter(s => s.entry).map(s => [s.id, compileScreen(directory, s.entry!)]));
     const secrets = await this.runtimeSecrets(id, manifest);
     let candidate: PluginInstance | undefined;
@@ -384,7 +387,7 @@ export class PluginHost {
   /** Stage the same local snapshot for folder registration, install, reload and update. */
   private async applySource(action: "register" | "install" | "reload" | "update", sourceDirectory: string, expectedId?: string,
     inspecting: (file: string) => void = () => {}) {
-    const copy = this.copies.copy(sourceDirectory);
+    const copy = await this.copies.copy(sourceDirectory);
     let applied = false;
     try {
       inspecting("litzio-plugin.json");
@@ -422,6 +425,7 @@ export class PluginHost {
         digest: artifact.digest, trusted: kept ? !!kept.trusted : active, enabled: active, settings: previous?.settings ?? {}, operationNames };
       if (active) await this.activate(record, copy.directory, artifact, previous, true);
       else {
+        assertStoredSettings(manifest, record.settings);
         this.setRecord(id, record);
         this.errors.delete(id);
       }
