@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createInterface } from "node:readline";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -8,6 +8,14 @@ const [log, mode] = process.argv.slice(2);
 const record = value => { if (log) appendFileSync(log, JSON.stringify(value) + "\n"); };
 record({ pid: process.pid, cwd: process.cwd(), home: process.env.CODEX_HOME ?? null });
 const send = message => process.stdout.write(JSON.stringify(message) + "\n");
+let hangInitialize = false;
+if (mode === "orphan-hang-initialize-once" && !existsSync(log + ".orphan")) {
+  writeFileSync(log + ".orphan", "orphan");
+  // A detached descendant outside the stopped tree keeps this stdout open
+  // after the fixture exits, so the Host cannot confirm termination.
+  const orphan = spawn(process.execPath, ["-e", "setTimeout(() => {}, 120000)"], { stdio: ["ignore", "inherit", "ignore"], detached: true });
+  orphan.unref(); record({ orphanPid: orphan.pid }); hangInitialize = true;
+}
 const threadFile = path.join(process.cwd(), "fixture-threads.json");
 const threads = existsSync(threadFile) ? JSON.parse(readFileSync(threadFile, "utf8")) : {};
 const persist = () => writeFileSync(threadFile, JSON.stringify(threads));
@@ -142,8 +150,9 @@ createInterface({ input: process.stdin }).on("line", line => {
     for (const item of turn.items.filter(item => item.type === "agentMessage")) notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
     notify("turn/completed", { threadId: thread.id, turn }); persist(); send({ id, result: {} }); return;
   }
+  if (method === "initialize" && hangInitialize) return;
   const responses = {
-    initialize: { userAgent: "fixture" },
+    initialize:{ userAgent: "fixture" },
     "model/list": params?.cursor ? { data: [model("next-model", ["low"])], nextCursor: null } : { data: [model("gpt-6.1-sol", ["medium", "high"]), model("chosen-model", ["xhigh"])], nextCursor: "page-2" },
     "account/read": { account: mode === "logged-out" ? null : { type: "chatgpt", email: "fixture@example.invalid", planType: "plus" } },
     "account/rateLimits/read": { rateLimits: { primary: { usedPercent: 28, windowDurationMins: 300, resetsAt: 1900000000 }, secondary: null }, rateLimitsByLimitId: null },

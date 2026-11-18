@@ -50,7 +50,7 @@ export class CodexAppServer extends EventEmitter {
   }
   connect(): Promise<void> {
     if (this.closed) return Promise.reject(new Error("Codex app-server is closed."));
-    return this.ready ??= this.initialize().catch(async error => { await this.stop(); this.ready = undefined; throw error; });
+    return this.ready ??= this.initialize().catch(async error => { try { await this.stop(); } finally { this.ready = undefined; } throw error; });
   }
   private async initialize() {
     const bin = this.executable;
