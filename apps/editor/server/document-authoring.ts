@@ -1,13 +1,14 @@
 import path from "node:path";
 import fs from "node:fs";
-import { authorDocument, parse, serialize, updateMediaReferences } from "@litzio/core";
+import { parse, serialize, updateMediaReferences } from "@litzio/core";
 import { createHash } from "node:crypto";
 import { authoredDocumentRequestSchema } from "@litzio/plugin-sdk";
 import { commitFile } from "@litzio/file-commit";
 import { createDocumentFromAuthoring, createDocumentSourceFile } from "./document-create.ts";
-import { createDocumentImageAsset } from "./asset-api.ts";
+import { createDocumentImageAsset, documentImageMatches } from "./asset-api.ts";
 import { validateImage } from "./image-validation.ts";
-import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { authorDocumentInThread } from "./authoring-thread.ts";
+import { accessPath, canonicalFilePath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 
 /** Validate the same SDK image/key contract for file publication and embedded review snapshots. */
 export function validatedAuthoringRequest(raw: unknown) {
@@ -49,11 +50,39 @@ export async function regenerateAuthoredDocumentFile(file: string, raw: unknown,
   return publishAuthoredDocumentFile(file, raw, access, beforePublish, revision);
 }
 
+// Authoring computes off the main thread, so writes to one target path are taken
+// in arrival order: a later request cannot publish before an earlier one settles.
+// Other processes are still checked at publication (exclusive create, revision).
+const targetWrites = new Map<string, Promise<unknown>>();
+function inArrivalOrder<T>(file: string, task: () => Promise<T>): Promise<T> {
+  // The real target: junctions and other aliases of one file share a key. Missing
+  // folders (created by this request) join the real path of the nearest existing one.
+  let real: string | undefined, rest: string[] = [];
+  for (let at = file; real === undefined;) {
+    try { real = path.join(canonicalFilePath(at), ...rest); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" || path.dirname(at) === at) throw error;
+      rest = [path.basename(at), ...rest]; at = path.dirname(at);
+    }
+  }
+  const key = process.platform === "win32" ? real.toLowerCase() : real;
+  const result = (targetWrites.get(key) ?? Promise.resolve()).then(task);
+  const settled = result.then(() => {}, () => {});
+  targetWrites.set(key, settled);
+  void settled.then(() => { if (targetWrites.get(key) === settled) targetWrites.delete(key); });
+  return result;
+}
+
 async function publishAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess, beforePublish: () => void, revision?: string) {
   file = path.resolve(access ? access.resolve(file, true, revision === undefined) : accessPath(file, access, true));
   if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
   beforePublish();
   const { input, images } = validatedAuthoringRequest(raw);
+  return inArrivalOrder(file, () => publishInOrder(file, input, images, access, beforePublish, revision));
+}
+
+async function publishInOrder(file: string, input: ReturnType<typeof validatedAuthoringRequest>["input"], images: ReturnType<typeof validatedAuthoringRequest>["images"],
+  access: FileAccess, beforePublish: () => void, revision?: string) {
   const created: { directory: string; owner: fs.BigIntStats }[] = [];
   try {
     const missing: string[] = [];
@@ -83,9 +112,16 @@ async function publishAuthoredDocumentFile(file: string, raw: unknown, access: F
     for (const image of images) {
       bindings[image.key] = createDocumentImageAsset(file, image.mime, image.bytes, access, revision === undefined ? image.key : undefined).path;
     }
-    if (revision === undefined) return await createDocumentFromAuthoring(file, input.authoring, bindings, access, beforePublish);
-    const authored = await authorDocument(input.authoring, bindings);
-    beforePublish();
+    // Other requests run while the thread computes: right before the document is
+    // published, every figure it references must still be the bytes placed for it.
+    const checked = () => {
+      beforePublish();
+      for (const image of images) if (!documentImageMatches(file, bindings[image.key]!, image.bytes, access))
+        throw Object.assign(new Error("A figure image changed while the document was being built; the document was not saved."), { errorKind: "conflict" });
+    };
+    if (revision === undefined) return await createDocumentFromAuthoring(file, input.authoring, bindings, access, checked);
+    const authored = await authorDocumentInThread(input.authoring, bindings);
+    checked();
     commitFile(accessPath(file, access), authored.source, revision);
     return { path: file, revision: authored.documentRevision, inputs: authored.inputs };
   } catch (error) {
