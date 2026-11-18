@@ -1,3 +1,4 @@
+import { withoutGitHubTokens } from "./github-token.ts";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,7 +81,7 @@ process.on('message', async ({id, method, args}) => {
 export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: () => void, artifactDirectory = path.dirname(entry), cli?: PluginCli): Promise<PluginInstance> {
   const runtimeUrl = await hostSdkUrl();
   const child = spawn(process.execPath, ["--input-type=module", "--eval", bootstrap], {
-    stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true, env: { ...withoutGitHubTokens(process.env), ELECTRON_RUN_AS_NODE: "1" },
   });
   let sequence = 0, stopped = false, dead = false;
   const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();

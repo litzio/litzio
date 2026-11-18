@@ -1,3 +1,4 @@
+import { GITHUB_LOGIN_HINT, GITHUB_RATE_LIMIT, GITHUB_RETRY_AFTER, GITHUB_RETRY_LATER } from "../shared/github-source-error.ts";
 import { Row } from "./components/ui/row.tsx";
 import { Status } from "./components/ui/status.tsx";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
@@ -37,7 +38,7 @@ export function PluginSettings() {
       setProblem(i18n.t("The selected plugin is no longer available."));
     }
   }, [plugins, selected, trust, busy, error]);
-  const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
+  const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
@@ -53,7 +54,7 @@ export function PluginSettings() {
       browse={browse} places={places}
       onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
     <GitHubPluginDialog open={fromGitHub} returnFocus={githubButton} onClose={() => setFromGitHub(false)} add={async (source, track) => { await change("register", { source, track }); }} />
-    {error || problem && !current && !trust ? <Notice tone="error">{error || problem}</Notice> : null}
+    {error || problem && !current && !trust ? <Notice tone="error">{error || <GitHubError message={problem} />}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
       <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={<>{[plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version"), sourceLabel(plugin), plugin.description].filter(Boolean).join(" · ")}<PluginUpdateState plugin={plugin} /></>}>
         {plugin.update?.available ? <Button size="sm" variant="outline" disabled={busy} aria-label={i18n.t("Update {{name}}", { name: plugin.name ?? plugin.id })} onClick={() => void run("update", { id: plugin.id })}>{i18n.t("Update")}</Button> : null}
@@ -70,7 +71,7 @@ export function PluginSettings() {
           <DialogTitle>{current?.name ?? current?.id}</DialogTitle>
           <DialogDescription>{current?.description}</DialogDescription>
         </DialogHeader>
-        {current && problem ? <Notice tone="error">{problem}</Notice> : null}
+        {current && problem ? <Notice tone="error"><GitHubError message={problem} /></Notice> : null}
         {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
         {current ? <div className="settings-actions">
           {checking !== current.id ? <PluginUpdateState plugin={current} upToDate /> : null}
@@ -106,7 +107,10 @@ function sourceLabel(plugin: Plugin) {
 function PluginUpdateState({ plugin, upToDate = false }: { plugin: Plugin; upToDate?: boolean }) {
   const update = plugin.update, github = plugin.source?.kind === "github";
   if (upToDate && update && !update.available && !update.error) return <PluginState tone="ok" label={i18n.t("Up to date")} />;
-  if (update?.error) return <div><PluginState tone="error" label={i18n.t("Update check failed")} detail={github ? i18n.t(update.error, update.error) : i18n.t(PLUGIN_SOURCE_UNAVAILABLE)} /></div>;
+  if (update?.error) {
+    const { text, hint } = githubErrorText(github ? update.error : PLUGIN_SOURCE_UNAVAILABLE);
+    return <div><PluginState tone="error" label={i18n.t("Update check failed")} detail={hint ? `${text} ${hint}` : text} /></div>;
+  }
   if (!update?.available) return null;
   const versions = update.currentVersion && update.sourceVersion ? i18n.t(github ? "Installed {{current}} → GitHub {{source}}" : "Installed {{current}} → source {{source}}", { current: update.currentVersion, source: update.sourceVersion })
     : i18n.t(github ? "GitHub has new content for this plugin folder." : "The source folder changed after this plugin was applied.");
@@ -120,7 +124,7 @@ function GitHubPluginDialog({ open, returnFocus, onClose, add }: { open: boolean
   const [pending, setPending] = useState(false), [problem, setProblem] = useState("");
   useEffect(() => { if (open) { setAddress(""); setFound(undefined); setChosen(undefined); setProblem(""); } }, [open]);
   const choose = (plugin: GitHubPlugin) => { setChosen(plugin); setTrack(plugin.release ? "release" : "branch"); };
-  const failed = (error: unknown) => { const message = error instanceof Error ? error.message : String(error); setProblem(i18n.t(message, message)); };
+  const failed = (error: unknown) => setProblem(error instanceof Error ? error.message : String(error));
   const find = async () => {
     setPending(true); setProblem(""); setFound(undefined); setChosen(undefined);
     try {
@@ -141,7 +145,7 @@ function GitHubPluginDialog({ open, returnFocus, onClose, add }: { open: boolean
           aria-invalid={!!problem} aria-describedby={problem ? `${id}-problem` : undefined} onChange={event => { setAddress(event.target.value); setProblem(""); setFound(undefined); setChosen(undefined); }} />
         <Button type="submit" size="sm" variant="outline" disabled={pending || !address.trim()}>{i18n.t(pending && !found ? "Finding…" : "Find")}</Button>
       </form>
-      {problem ? <FieldError id={`${id}-problem`}>{problem}</FieldError> : null}
+      {problem ? <FieldError id={`${id}-problem`}><GitHubError message={problem} /></FieldError> : null}
       {found ? <fieldset className="plugin-github-choices" disabled={pending}>
         <legend className="sr-only">{i18n.t("Choose a plugin")}</legend>
         {found.map(plugin => <label key={plugin.source} className="plugin-github-choice" title={plugin.source}>
@@ -161,8 +165,26 @@ function GitHubPluginDialog({ open, returnFocus, onClose, add }: { open: boolean
     </DialogContent>
   </Dialog>;
 }
+function githubErrorText(message: string) {
+  if (!message.startsWith(GITHUB_RATE_LIMIT + " ")) return { text: i18n.t(message, message) };
+  const suffix = " " + GITHUB_LOGIN_HINT;
+  const hasHint = message.endsWith(suffix);
+  const retry = message.slice(GITHUB_RATE_LIMIT.length + 1, hasHint ? -suffix.length : undefined);
+  const prefix = GITHUB_RETRY_AFTER.split("{{time}}")[0]!;
+  const instruction = retry.startsWith(prefix)
+    ? i18n.t(GITHUB_RETRY_AFTER, { time: retry.slice(prefix.length, -1) })
+    : i18n.t(GITHUB_RETRY_LATER);
+  return { text: `${i18n.t(GITHUB_RATE_LIMIT)} ${instruction}`, hint: hasHint ? i18n.t(GITHUB_LOGIN_HINT) : undefined };
+}
+function PluginDetail({ children }: { children: string }) {
+  return <Tooltip><TooltipTrigger render={<Button type="button" size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin status details")} aria-description={children} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{children}</TooltipContent></Tooltip>;
+}
+function GitHubError({ message }: { message: string }) {
+  const { text, hint } = githubErrorText(message);
+  return <>{text}{hint ? <PluginDetail>{hint}</PluginDetail> : null}</>;
+}
 function PluginState({ tone, label, detail }: { tone: "ok" | "error" | "warning" | "neutral"; label: string; detail?: string }) {
-  return <span role="status"><Status variant="plain" tone={tone} label={label} />{detail ? <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin status details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip> : null}</span>;
+  return <span role="status"><Status variant="plain" tone={tone} label={label} />{detail ? <PluginDetail>{detail}</PluginDetail> : null}</span>;
 }
 /** Dialog-owned drafts; Host remains the owner of saved settings. */
 function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; change: (action: string, args: Record<string, unknown>) => Promise<void>; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {

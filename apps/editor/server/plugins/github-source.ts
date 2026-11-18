@@ -4,6 +4,8 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { x } from "tar";
 import { parseGitHubSource, validateManifest, type GitHubTrack } from "@litzio/plugin-sdk";
+import { GITHUB_LOGIN_HINT, GITHUB_RATE_LIMIT, GITHUB_RETRY_AFTER, GITHUB_RETRY_LATER, GITHUB_TOKEN_REJECTED } from "../../shared/github-source-error.ts";
+import { cliGitHubToken } from "./github-token.ts";
 
 /** A public GitHub plugin folder. `ref` is the branch, tag or commit named in the address. */
 export type GitHubLocation = { owner: string; repo: string; ref?: string; path: string };
@@ -21,20 +23,49 @@ type TreeEntry = { path: string; type: string; sha: string };
 const segments = (value: string) => value.split("/").map(encodeURIComponent).join("/");
 
 /**
- * Unauthenticated reads of public repositories. Tests and isolated Hosts may point
+ * Reads of public repositories. Tests and isolated Hosts may point
  * `LITZIO_GITHUB_API_URL` at a fake GitHub; the default is the public API.
  */
 export class GitHubSource {
-  constructor(private readonly api = process.env.LITZIO_GITHUB_API_URL || "https://api.github.com") {}
+  #token?: Promise<string | undefined>;
+
+  constructor(
+    private readonly api = process.env.LITZIO_GITHUB_API_URL || "https://api.github.com",
+    private readonly testCredentials?: { env: NodeJS.ProcessEnv; cliToken(): Promise<string | undefined> },
+  ) {}
+
+  forOperation() { return new GitHubSource(this.api, this.testCredentials); }
+
+  private async readToken() {
+    if (!this.testCredentials && new URL(this.api).origin !== "https://api.github.com") return undefined;
+    const env = this.testCredentials?.env ?? process.env;
+    const cliToken = this.testCredentials?.cliToken ?? cliGitHubToken;
+    return env.GH_TOKEN?.trim() || env.GITHUB_TOKEN?.trim() || (await cliToken().catch(() => undefined))?.trim() || undefined;
+  }
 
   private async request(route: string, timeout = 15_000) {
     let response: Response;
+    let token: string | undefined;
     try {
-      response = await fetch(`${this.api.replace(/\/+$/, "")}/${route}`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "litzio-plugin-host", "X-GitHub-Api-Version": "2022-11-28" }, signal: AbortSignal.timeout(timeout) });
+      token = await (this.#token ??= this.readToken());
+      const headers = new Headers({ Accept: "application/vnd.github+json", "User-Agent": "litzio-plugin-host", "X-GitHub-Api-Version": "2022-11-28" });
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      // Node fetch drops Authorization on cross-origin redirects, including codeload.github.com.
+      response = await fetch(`${this.api.replace(/\/+$/, "")}/${route}`, { headers, signal: AbortSignal.timeout(timeout) });
     } catch { throw new GitHubSourceError("Unable to reach GitHub. Check the network connection."); }
     if (response.ok) return response;
-    if ((response.status === 403 || response.status === 429) && (response.headers.get("x-ratelimit-remaining") === "0" || response.status === 429)) {
-      throw new GitHubSourceError("GitHub rate limit reached. Try again later.");
+    if (response.status === 401 && token) throw new GitHubSourceError(GITHUB_TOKEN_REJECTED);
+    const remaining = response.headers.get("x-ratelimit-remaining");
+    const retryAfter = response.headers.get("retry-after");
+    if (response.status === 429 || response.status === 403 && (remaining === "0" || retryAfter !== null)) {
+      const reset = response.headers.get("x-ratelimit-reset");
+      const retryAt = retryAfter && /^\d+$/.test(retryAfter) ? Date.now() + Number(retryAfter) * 1000
+        : reset && /^\d+$/.test(reset) ? Number(reset) * 1000 : NaN;
+      const date = new Date(retryAt);
+      const retry = Number.isFinite(date.getTime())
+        ? GITHUB_RETRY_AFTER.replace("{{time}}", date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "long" }))
+        : GITHUB_RETRY_LATER;
+      throw new GitHubSourceError(`${GITHUB_RATE_LIMIT} ${retry}${token ? "" : ` ${GITHUB_LOGIN_HINT}`}`);
     }
     if (response.status === 404 || response.status === 422) throw new GitHubSourceError(MISSING);
     throw new GitHubSourceError(`GitHub request failed (HTTP ${response.status}).`);

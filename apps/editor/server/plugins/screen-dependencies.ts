@@ -1,3 +1,4 @@
+import { withoutGitHubTokens } from "./github-token.ts";
 import { prepareScreenNpm } from "./screen-npm.ts";
 import { hostPaths } from "../host-paths.ts";
 import { spawn } from "node:child_process";
@@ -16,7 +17,7 @@ export async function installScreenDependencies(directory: string, npmData: { ca
   const npm = existsSync(archive) ? await prepareScreenNpm(archive, path.join(hostPaths().plugins, ".npm-cache")) : undefined;
   const entry = npm?.entry ?? path.join(path.dirname(createRequire(import.meta.url).resolve("npm/package.json")), "bin/npm-cli.js");
   return new Promise<{ installed: true; npm?: { extracted: boolean; milliseconds: number } }>((resolve, reject) => {
-    const child = spawn(process.execPath, [entry, ...(mode === "ci" ? ["ci", "--omit=optional"] : ["install", "--install-links", "--omit=dev"]), "--ignore-scripts", "--no-audit", "--no-fund", "--fetch-retries=0", "--fetch-timeout=30000", `--cache=${npmData.cache}`, `--logs-dir=${npmData.logs}`], { cwd: directory, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(process.execPath, [entry, ...(mode === "ci" ? ["ci", "--omit=optional"] : ["install", "--install-links", "--omit=dev"]), "--ignore-scripts", "--no-audit", "--no-fund", "--fetch-retries=0", "--fetch-timeout=30000", `--cache=${npmData.cache}`, `--logs-dir=${npmData.logs}`], { cwd: directory, env: { ...withoutGitHubTokens(process.env), ELECTRON_RUN_AS_NODE: "1" }, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
     let diagnostics = "";
     child.stderr.on("data", data => { diagnostics = (diagnostics + data).slice(-4096); });
     child.on("error", () => reject(new Error("Unable to start bundled npm with the Host runtime. Repair the Litzio installation.")));

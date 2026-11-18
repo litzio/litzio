@@ -128,7 +128,7 @@ Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 dige
 
 ### GitHub 출처
 
-설정의 [GitHub에서 추가…]와 `plugins register <github 주소> [--track release|branch]`는 폴더 등록과 같이 비활성으로 등록하고, `plugins install <github 주소> [--track …]`은 등록·신뢰·활성을 한 작업으로 한다. 공개 저장소만 인증 없이 읽는다. 저장소·참조·폴더가 없거나 비공개면 찾을 수 없다는 오류, GitHub 요청 한도면 한도 오류를 낸다. `plugins source-plugins <github 주소>`는 폴더별 `{path, source, id, name, version, release, branch}`를 돌려준다. `release`·`branch`는 그 추적으로 설치할 수 있는지다. `/tree/<ref>/<폴더>` 주소가 플러그인 폴더면 설치와 같이 Release 태그와 브랜치의 tree를 각각 직접 확인하고 manifest를 검증한다(목록이 잘려도, Release에만 남은 폴더도 답한다). manifest가 깨졌으면 그 이유를 오류로 돌려준다. 저장소 주소와 상위 폴더 주소는 루트에 manifest가 있어도 주소의 브랜치 또는 기본 브랜치에서 `litzio-plugin.json`이 있는 폴더(루트 포함, `node_modules` 제외)를 최대 50개 찾는다. `source`는 ref·폴더의 각 구성 요소를 인코딩한 주소라 그대로 등록·설치에 쓸 수 있다. 설정 화면은 목록에서 고르게 하며, 주소를 고치면 이전 결과와 선택을 비운다.
+설정의 [GitHub에서 추가…]와 `plugins register <github 주소> [--track release|branch]`는 폴더 등록과 같이 비활성으로 등록하고, `plugins install <github 주소> [--track …]`은 등록·신뢰·활성을 한 작업으로 한다. 공개 저장소를 지원한다. 저장소·참조·폴더를 찾을 수 없으면 출처 오류를 낸다. `plugins source-plugins <github 주소>`는 폴더별 `{path, source, id, name, version, release, branch}`를 돌려준다. `release`·`branch`는 그 추적으로 설치할 수 있는지다. `/tree/<ref>/<폴더>` 주소가 플러그인 폴더면 설치와 같이 Release 태그와 브랜치의 tree를 각각 직접 확인하고 manifest를 검증한다(목록이 잘려도, Release에만 남은 폴더도 답한다). manifest가 깨졌으면 그 이유를 오류로 돌려준다. 저장소 주소와 상위 폴더 주소는 루트에 manifest가 있어도 주소의 브랜치 또는 기본 브랜치에서 `litzio-plugin.json`이 있는 폴더(루트 포함, `node_modules` 제외)를 최대 50개 찾는다. `source`는 ref·폴더의 각 구성 요소를 인코딩한 주소라 그대로 등록·설치에 쓸 수 있다. 설정 화면은 목록에서 고르게 하며, 주소를 고치면 이전 결과와 선택을 비운다.
 
 폴더는 한 경로로 정한다. 주소가 플러그인 폴더면 저장소 목록 없이 선택한 추적 대상(Release 태그 또는 브랜치)의 tree에서 그 폴더의 `litzio-plugin.json`을 직접 확인한다. 그래서 최신 Release에만 남은 폴더도 `release`로 설치되고, 큰 저장소에서도 폴더 주소는 동작한다. 주소가 저장소·상위 폴더일 때만 주소의 브랜치(없으면 기본 브랜치) 재귀 목록에서 그 아래 플러그인 폴더를 찾는다. 하나면 그것을 쓰고, 여럿이면 설치는 failure와 `plugins[].source` 목록을 돌려준다. GitHub가 재귀 목록을 잘라 보내거나(`truncated`) manifest가 50개를 넘으면 유일한 폴더를 판단할 수 없으므로 정확한 폴더 주소를 쓰라는 오류다.
 
@@ -142,7 +142,11 @@ Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 dige
 
 manifest에 `repository`가 있는 로컬 설치는 원본 폴더와 GitHub 주소(owner/repo)를 함께 기록한다. 주소가 플러그인 폴더면 그 폴더를, 저장소·상위 폴더면 그 아래에서 플러그인 ID가 같은 폴더가 정확히 하나일 때 그것을 쓴다. 없거나 여럿이면 정확한 폴더 주소를 쓰라는 확인·업데이트 오류다. 처음 GitHub 업데이트를 적용할 때 ref·폴더·추적 방식을 고정한다. 그 뒤 로컬 다시 읽기로 manifest의 `repository`가 고정한 출처와 다른 곳(owner/repo는 대소문자 무시, ref·폴더는 그대로 비교)을 가리키면 설치본은 계속 동작하지만, 확인은 출처가 바뀌었으니 다시 추가해 신뢰를 확인하라는 `error`를 보이고 업데이트는 거부한다. manifest에서 `repository`를 지워 다시 읽어도 로컬 내용은 그대로 동작하고, 고정한 원격 출처 기록은 등록을 다시 추가할 때까지 남는다. 그 뒤 다른 출처가 나타나면 같은 규칙으로 거부한다. 다시 추가하면 새 등록으로 신뢰를 다시 묻는다. 확인과 [업데이트]는 GitHub 기준이고, 업데이트 뒤에도 원본 폴더 기록은 남아 `reload`는 원본 폴더를 다시 복사한다. 적용한 GitHub tree SHA는 설치본의 출처 digest가 그 GitHub 내용과 같을 때만 유지한다. 로컬 내용으로 다시 읽어 출처 digest가 달라지면 tree SHA를 지워, 다음 확인은 GitHub 내용을 새 내용으로 보인다. 추적 방식을 정하지 않은 로컬 설치는 확인마다 기본 규칙으로 정하고 처음 GitHub 업데이트를 적용할 때 기록한다. 이렇게 한 이유는 로컬 폴더의 Git tree SHA를 줄바꿈 변환·미추적 파일과 무관하게 계산할 수 없어서, 확인할 수 없는 일치를 가정하지 않고 설치본 내용이 GitHub에서 받은 것과 같다는 사실(출처 digest)만 근거로 쓰기 위해서다.
 
-시험·격리 Host는 `LITZIO_GITHUB_API_URL`로 GitHub API 주소를 바꿀 수 있다. 기본은 `https://api.github.com`이다.
+Host는 GitHub 요청이 필요한 작업마다 `GH_TOKEN`, `GITHUB_TOKEN`, `gh auth token --hostname github.com` 순서로 기존 인증 정보를 한 번 확인한다. GitHub CLI가 없거나 시간 제한 안에 토큰을 얻지 못하면 비로그인으로 요청한다. 토큰은 작업 수명 동안 Host의 `https://api.github.com` 요청에만 쓰며, tarball의 `codeload.github.com` 이동을 포함해 다른 origin으로 전달하지 않는다. Host는 토큰을 저장하지 않으며 로그·오류·공개 작업 결과·receipt·화면·비서 도구 결과에도 내보내지 않는다. 플러그인과 의존성 설치 프로세스는 `GH_TOKEN`과 `GITHUB_TOKEN`을 상속하지 않는다. 토큰을 사용한 요청이 401이면 인증 정보를 확인하라는 오류를 돌려준다.
+
+요청 한도 오류는 GitHub가 제공한 `X-RateLimit-Reset` 또는 `Retry-After`를 Host의 로컬 시각으로 알려 준다. 비로그인 요청에는 GitHub CLI 로그인 또는 `GH_TOKEN`으로 한도를 늘릴 수 있다는 안내를 더한다. 설정 화면에서는 이 안내를 hover와 키보드 focus로 볼 수 있다.
+
+시험·격리 Host는 `LITZIO_GITHUB_API_URL`로 GitHub API 주소를 바꿀 수 있다. 기본 GitHub API origin 이외에는 PC의 인증 정보를 사용하지 않는다.
 
 Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한다. 비활성화는 새 요청을 차단한 뒤 이미 접수한 호출과 status 관찰을 drain하고 dispose한다. 종료는 모든 child를 닫으며 하나의 실패로 다른 child 정리를 건너뛰지 않는다. 실패한 후보와 제거한 등록의 복사본은 정리한다. Host는 시작 시 정상적으로 읽고 형식을 검증한 등록 파일을 기준으로 전용 저장소의 미등록 복사본을 정리한다. 등록이 가리키는 설치본과 원본은 실제 경로로 비교하며, 그 경로와 상위·하위 경로를 보존한다. 등록 파일이 없으면 시작 시 복사본을 보존한다. 등록 파일을 읽을 수 없거나 형식이 잘못되면 등록 파일 복원을 안내하고 시작을 중단한다. 사용자 출처 폴더는 유지한다. 화면/daemon/문서의 수명을 섞지 않는다.
 

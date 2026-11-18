@@ -198,7 +198,7 @@ ContextMenu 항목 실행 뒤 닫힐 때 focus가 메뉴 안이나 body에 남�
 
 플러그인 목록은 공통 상태 점/톤과 톱니·스위치 배치를 사용하며 꺼진 플러그인도 정보·설정에 진입한다. 화면 진입은 사이드바이며 설정에 화면 이동 버튼이나 “동작 · 이름” 합성 라벨을 두지 않는다.
 
-목록은 이름 아래에 버전과 설명을 표시한다. 목록 머리의 [플러그인 추가…] 옆 테두리 [업데이트 확인]은 모든 등록의 로컬 출처를 확인한다. 새 내용이 있는 행은 버전 아래에 경고 Status plain(버전이 다르면 “새 버전 있음”, 같거나 없으면 “새 내용 있음”)과 설치·원본 버전 Tooltip을, 오른쪽 동작 맨 앞에 테두리 [업데이트]를 둔다. 확인 실패는 오류 Status와 사유 Tooltip이다. 모두 최신이면 확인 버튼 옆에 정상 Status “최신 버전”을 보인다. 설정 창은 이름·설명 → schema 선언 순서의 일반 설정 → secret → 연결 확인 → 제거 → 접힌 상세(신뢰·digest) 순서다. 일반 설정과 secret의 title은 label, description은 hover/keyboard-focus Tooltip이다. 목록의 실행 중·설치됨·오류·사용 불가는 Status plain으로 표시하고 켜짐은 기존 스위치로 조작한다. 폭은 settings-content-width와 viewport 양쪽 16px 여백을 사용한다.
+목록은 이름 아래에 버전과 설명을 표시한다. 목록 머리의 [플러그인 추가…] 옆 테두리 [업데이트 확인]은 모든 등록의 출처를 확인한다. 새 내용이 있는 행은 버전 아래에 경고 Status plain(버전이 다르면 “새 버전 있음”, 같거나 없으면 “새 내용 있음”)과 설치·원본 버전 Tooltip을, 오른쪽 동작 맨 앞에 테두리 [업데이트]를 둔다. 확인 실패는 오류 Status와 사유 Tooltip이다. 모두 최신이면 확인 버튼 옆에 정상 Status “최신 버전”을 보인다. 설정 창은 이름·설명 → schema 선언 순서의 일반 설정 → secret → 연결 확인 → 제거 → 접힌 상세(신뢰·digest) 순서다. 일반 설정과 secret의 title은 label, description은 hover/keyboard-focus Tooltip이다. 목록의 실행 중·설치됨·오류·사용 불가는 Status plain으로 표시하고 켜짐은 기존 스위치로 조작한다. 폭은 settings-content-width와 viewport 양쪽 16px 여백을 사용한다.
 
 일반 설정은 Dialog 안의 Row·Input·SettingsSwitch·FieldError를 사용한다. 필드별 저장 중·저장됨·실패를 가까이에 표시하고 실패 시 초안을 보존한다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하며 저장 실패·꺼짐·미실행이면 막고 이유를 Tooltip으로 보인다. secret은 password Input에 명시적으로 저장한 뒤 비우며 값을 재조회하거나 비서에 입력하지 않는다. 목록 갱신은 picker 초안·focus를 초기화하지 않으며 선택한 등록이 외부에서 제거될 때만 Dialog를 닫고 Notice를 보인다.
 
@@ -299,6 +299,8 @@ fixture 공급자로 한국어의 1440px 밝음·어두움과 640px 밝음을 �
 | 플러그인 설정 창 | [전](assets/settings-parts-1685/before-plugin-settings-1440-light.png) / [후](assets/settings-parts-1685/after-plugin-settings-1440-light.png) | [전](assets/settings-parts-1685/before-plugin-settings-1440-dark.png) / [후](assets/settings-parts-1685/after-plugin-settings-1440-dark.png) | [전](assets/settings-parts-1685/before-plugin-settings-640-light.png) / [후](assets/settings-parts-1685/after-plugin-settings-640-light.png) |
 
 플러그인 목록은 기존 Row의 이름 아래 설명 자리에 설치본 버전을 먼저 표시한다. 이어지는 설명과 오른쪽 Status·설정·스위치는 같은 Row 안에 둔다. [한국어 1440px 밝음 기준 화면](assets/plugin-installed-copy-1750/after-1440-light.png). 업데이트 확인 결과와 [업데이트]가 있는 행: [한국어 1440px 밝음](assets/plugin-local-update-1750/after-1440-light.png). 출처는 버전 다음에 `로컬 폴더` 또는 `GitHub <저장소/폴더> · 릴리스|브랜치`로 보인다. [GitHub에서 추가…]는 [플러그인 추가…] 옆에서 주소 입력·플러그인 고르기·따라갈 대상을 담은 Dialog를 연다: [한국어 1440px 밝음](assets/plugin-github-install-1750/after-1440-light.png). 행 ⚙ 설정 대화 상자의 [업데이트 확인]은 그 플러그인만 확인하고 결과와 [업데이트]를 [제거] 왼쪽에 둔다: [한국어 1440px 밝음](assets/plugin-github-install-1750/plugin-check-1440-light.png).
+
+GitHub 요청 한도에 도달하면 추가 Dialog의 FieldError가 재시도 시각을 표시하고, 업데이트 확인의 Status는 기존 Tooltip에 시각을 표시한다. 비로그인 요청의 로그인 안내는 Info Tooltip에서 hover와 키보드 focus로 볼 수 있다. [한국어 1440px 밝음](assets/plugin-github-rate-limit-1773/after-light-1440.png), [어두움](assets/plugin-github-rate-limit-1773/after-dark-1440.png).
 
 시작 화면의 복구 기록 목록: 1440 밝음 [전](assets/settings-parts-1685/before-recovery-list-1440-light.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-light.png), 1440 어두움 [전](assets/settings-parts-1685/before-recovery-list-1440-dark.png) / [후](assets/settings-parts-1685/after-recovery-list-1440-dark.png), 640 밝음 [전](assets/settings-parts-1685/before-recovery-list-640-light.png) / [후](assets/settings-parts-1685/after-recovery-list-640-light.png). 캡처의 로컬 경로는 가렸다.
 
