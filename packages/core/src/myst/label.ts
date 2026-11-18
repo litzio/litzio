@@ -12,18 +12,20 @@ export function labelIdentifier(label: string): string | undefined {
 }
 
 /**
- * Identifiers of the reference targets in a document, as MyST's target enumeration
- * sees them, except `except` when given. `(label)=` targets are not yet attached to their block
+ * Nodes carrying each reference target identifier, as MyST's target enumeration
+ * sees them. `(label)=` targets are not yet attached to their block
  * after parsing, so their label is normalized here the same way.
  */
-function targetIdentifiers(root: MystNode, except?: MystNode): Set<string> {
-  const identifiers = new Set<string>();
+function targetIdentifierNodes(root: MystNode): Map<string, MystNode[]> {
+  const identifiers = new Map<string, MystNode[]>();
   const visit = (node: MystNode) => {
-    if (node !== except) {
-      const identifier = node.type === "mystTarget"
-        ? typeof node.label === "string" ? labelIdentifier(node.label) : undefined
-        : isTargetIdentifierNode(node) && typeof node.identifier === "string" ? node.identifier : undefined;
-      if (identifier) identifiers.add(identifier);
+    const identifier = node.type === "mystTarget"
+      ? typeof node.label === "string" ? labelIdentifier(node.label) : undefined
+      : isTargetIdentifierNode(node) && typeof node.identifier === "string" ? node.identifier : undefined;
+    if (identifier) {
+      const nodes = identifiers.get(identifier) ?? [];
+      nodes.push(node);
+      identifiers.set(identifier, nodes);
     }
     node.children?.forEach(visit);
   };
@@ -33,23 +35,35 @@ function targetIdentifiers(root: MystNode, except?: MystNode): Set<string> {
 
 /** A label may keep its own target, but must not take any other target's identifier. */
 export function assertLabelAvailable(document: MystDocument, label: string, except?: NodePath): void {
-  const identifier = labelIdentifier(label);
-  if (!identifier) return; // Syntax/addressability validation belongs to the caller.
-  const current = except ? getNode(document, except) : undefined;
-  // Parsed targets attach to the following block during MyST enumeration.
-  const targetPath = current?.type === "mystTarget" && except?.length === 1 &&
-    document.children[except[0] + 1] ? [except[0] + 1] : except;
-  const targetKey = targetPath?.join(".");
-  const targets = referenceTargetIndex(document);
-  const reason = targets.lookup(identifier)?.reason;
-  if (reason) throw new DocumentWriteError(reason, { code: "invalid-label", action: "Choose a label whose normalized identifier is not an Object.prototype property." });
-  // Keep raw targets too: unattached or overridden explicit labels must remain reserved.
-  if (targetIdentifiers(document, current).has(identifier) ||
-      targets.candidates(identifier).some(node => !targetKey || targets.path(node)?.join(".") !== targetKey)) {
-    throw new DocumentWriteError(`label ${JSON.stringify(label)} already names another target (including implicit heading IDs)`, { code: "label-conflict",
-      action: "Choose a label not used by another target, including an unlabeled heading's automatic ID.",
-    });
-  }
+  labelAvailability(document)(label, except);
+}
+
+/**
+ * `assertLabelAvailable` for many labels of one unchanged document: the target index is built
+ * once, so checking every label costs one index plus a lookup per label.
+ */
+export function labelAvailability(document: MystDocument): (label: string, except?: NodePath) => void {
+  let index: { targets: ReturnType<typeof referenceTargetIndex>; raw: Map<string, MystNode[]> } | undefined;
+  return (label, except) => {
+    const identifier = labelIdentifier(label);
+    if (!identifier) return; // Syntax/addressability validation belongs to the caller.
+    const current = except ? getNode(document, except) : undefined;
+    // Parsed targets attach to the following block during MyST enumeration.
+    const targetPath = current?.type === "mystTarget" && except?.length === 1 &&
+      document.children[except[0] + 1] ? [except[0] + 1] : except;
+    const targetKey = targetPath?.join(".");
+    index ??= { targets: referenceTargetIndex(document), raw: targetIdentifierNodes(document) };
+    const { targets, raw } = index;
+    const reason = targets.lookup(identifier)?.reason;
+    if (reason) throw new DocumentWriteError(reason, { code: "invalid-label", action: "Choose a label whose normalized identifier is not an Object.prototype property." });
+    // Keep raw targets too: unattached or overridden explicit labels must remain reserved.
+    if ((raw.get(identifier) ?? []).some(node => node !== current) ||
+        targets.candidates(identifier).some(node => !targetKey || targets.path(node)?.join(".") !== targetKey)) {
+      throw new DocumentWriteError(`label ${JSON.stringify(label)} already names another target (including implicit heading IDs)`, { code: "label-conflict",
+        action: "Choose a label not used by another target, including an unlabeled heading's automatic ID.",
+      });
+    }
+  };
 }
 
 /**

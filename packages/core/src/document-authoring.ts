@@ -5,7 +5,7 @@ import { updateDocumentStatus } from "./myst/status.ts";
 import { updateDocumentTitle } from "./myst/title.ts";
 import * as operations from "./operations.ts";
 import { getEditableDocument } from "./editable.ts";
-import { assertLabelAvailable } from "./myst/label.ts";
+import { labelAvailability } from "./myst/label.ts";
 import { endnotePlacement, footnoteWriteIssue } from "./myst/footnote.ts";
 import { unresolvedReferences } from "./references.ts";
 import { writeIssueOf } from "./write-error.ts";
@@ -79,9 +79,11 @@ export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<
       locations.push([...location]);
       document.children.push(...nodes);
     }
+    // One target index serves every label: the document does not change while labels are checked.
+    const assertLabelAvailable = labelAvailability(document);
     for (const [index, node] of document.children.entries()) {
       location = locations[index - 1] ?? [];
-      if (typeof node.label === "string" && node.type !== "footnoteDefinition") assertLabelAvailable(document, node.label, [index]);
+      if (typeof node.label === "string" && node.type !== "footnoteDefinition") assertLabelAvailable(node.label, [index]);
     }
     const noteIssue = footnoteWriteIssue(document);
     if (noteIssue) {
