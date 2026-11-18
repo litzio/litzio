@@ -111,6 +111,14 @@ export function createDocumentImageAsset(locator: string, mime: string, bytes: B
   return publishImageAsset(locator, mime, bytes, Buffer.alloc(0), access, name, "drop", true);
 }
 
+/** The document's `./assets/…` reference is still a regular file with exactly these bytes (the reuse test: size and hash). */
+export function documentImageMatches(locator: string, reference: string, bytes: Buffer, access: FileAccess): boolean {
+  try {
+    const current = inspectAsset(path.join(path.dirname(locator), reference), undefined, access);
+    return current.owner.size === BigInt(bytes.length) && current.hash === createHash("sha256").update(bytes).digest("hex");
+  } catch { return false; }
+}
+
 /** Add-only Host operation. Imports bytes into the existing Editor asset format. */
 export function importDocumentImageAsset(document: string, source: string, access: FileAccess = LOCAL_FILE_ACCESS): { path: string; receipt: { outcome: "success" } } {
   if (typeof source !== "string" || !path.isAbsolute(source)) throw new AssetError("An absolute image source path is required.");

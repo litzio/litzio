@@ -21,7 +21,7 @@ function start() {
   worker.unref();
   const stop = (cause: unknown) => {
     if (current === thread) current = undefined;
-    for (const call of thread.pending.values()) call.reject(new Error("Document authoring stopped before completion; nothing was saved.", { cause }));
+    for (const call of thread.pending.values()) call.reject(new Error(`Document authoring stopped before completion; the document was not saved. ${cause instanceof Error ? cause.message : String(cause)}`, { cause }));
     thread.pending.clear();
   };
   worker.on("message", ({ id, result, error }: { id: number; result?: AuthoredDocument; error?: { code?: DocumentAuthoringError["code"]; diagnostics?: DocumentAuthoringError["diagnostics"]; message?: string } }) => {

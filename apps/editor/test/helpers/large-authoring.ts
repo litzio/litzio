@@ -69,21 +69,24 @@ export async function measureAuthoringSave(url: string, protocol: string, target
   const body = JSON.stringify({ path: target, ...request });
   const health: number[] = [], pending: Promise<unknown>[] = [], failures: string[] = [];
   const record = (label: string) => (error: Error & { cause?: { code?: string } }) => { failures.push(`${label}: ${error.cause?.code ?? error.message}`); };
-  let saved = false, smallReadBeforeSave = false;
+  // Only a read issued after the save request counts: it must overlap the computation.
+  let issued = false, saved = false, smallReadBeforeSave = false;
   const probe = () => {
-    const started = performance.now();
+    const started = performance.now(), duringSave = issued;
     pending.push(fetch(`${url}/daemon/health`, { headers: { "x-litzio-protocol": protocol } }).then(async response => {
       assert.equal(response.status, 200); await response.arrayBuffer();
       health.push(performance.now() - started);
     }).catch(record("health")));
     pending.push(fetch(`${url}/api/document?path=${encodeURIComponent(small)}`).then(async response => {
       assert.equal(response.status, 200); await response.arrayBuffer();
-      if (!saved) smallReadBeforeSave = true;
+      if (duringSave && !saved) smallReadBeforeSave = true;
     }).catch(record("small read")));
   };
   const timer = setInterval(probe, PROBE_INTERVAL_MS);
   probe();
-  const response = await fetch(`${url}/api/document`, { method: "PUT", headers: { "Content-Type": "application/json", Origin: url }, body });
+  const saving = fetch(`${url}/api/document`, { method: "PUT", headers: { "Content-Type": "application/json", Origin: url }, body });
+  issued = true;
+  const response = await saving;
   const receipt = await response.json() as { path: string; source: string; revision: string; identity: unknown; inputs: unknown };
   saved = true;
   clearInterval(timer);
@@ -94,7 +97,7 @@ export async function measureAuthoringSave(url: string, protocol: string, target
     assert.equal(response.status, 201, JSON.stringify(receipt));
     assert.deepEqual(failures, [], "probes failed while saving");
     assert.ok(maximum <= HEALTH_LIMIT_MS, `health max ${Math.round(maximum)} ms exceeds ${HEALTH_LIMIT_MS} ms`);
-    assert.ok(smallReadBeforeSave, "a small document read must succeed before the large save completes");
+    assert.ok(smallReadBeforeSave, "a small document read issued during the large save must succeed before it completes");
   };
   return { receipt, maximum, summary, check };
 }

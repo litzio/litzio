@@ -5,10 +5,10 @@ import { createHash } from "node:crypto";
 import { authoredDocumentRequestSchema } from "@litzio/plugin-sdk";
 import { commitFile } from "@litzio/file-commit";
 import { createDocumentFromAuthoring, createDocumentSourceFile } from "./document-create.ts";
-import { createDocumentImageAsset } from "./asset-api.ts";
+import { createDocumentImageAsset, documentImageMatches } from "./asset-api.ts";
 import { validateImage } from "./image-validation.ts";
 import { authorDocumentInThread } from "./authoring-thread.ts";
-import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { accessPath, canonicalFilePath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 
 /** Validate the same SDK image/key contract for file publication and embedded review snapshots. */
 export function validatedAuthoringRequest(raw: unknown) {
@@ -55,7 +55,17 @@ export async function regenerateAuthoredDocumentFile(file: string, raw: unknown,
 // Other processes are still checked at publication (exclusive create, revision).
 const targetWrites = new Map<string, Promise<unknown>>();
 function inArrivalOrder<T>(file: string, task: () => Promise<T>): Promise<T> {
-  const key = process.platform === "win32" ? file.toLowerCase() : file;
+  // The real target: junctions and other aliases of one file share a key. Missing
+  // folders (created by this request) join the real path of the nearest existing one.
+  let real: string | undefined, rest: string[] = [];
+  for (let at = file; real === undefined;) {
+    try { real = path.join(canonicalFilePath(at), ...rest); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" || path.dirname(at) === at) throw error;
+      rest = [path.basename(at), ...rest]; at = path.dirname(at);
+    }
+  }
+  const key = process.platform === "win32" ? real.toLowerCase() : real;
   const result = (targetWrites.get(key) ?? Promise.resolve()).then(task);
   const settled = result.then(() => {}, () => {});
   targetWrites.set(key, settled);
@@ -102,9 +112,16 @@ async function publishInOrder(file: string, input: ReturnType<typeof validatedAu
     for (const image of images) {
       bindings[image.key] = createDocumentImageAsset(file, image.mime, image.bytes, access, revision === undefined ? image.key : undefined).path;
     }
-    if (revision === undefined) return await createDocumentFromAuthoring(file, input.authoring, bindings, access, beforePublish);
+    // Other requests run while the thread computes: right before the document is
+    // published, every figure it references must still be the bytes placed for it.
+    const checked = () => {
+      beforePublish();
+      for (const image of images) if (!documentImageMatches(file, bindings[image.key]!, image.bytes, access))
+        throw Object.assign(new Error("A figure image changed while the document was being built; the document was not saved."), { errorKind: "conflict" });
+    };
+    if (revision === undefined) return await createDocumentFromAuthoring(file, input.authoring, bindings, access, checked);
     const authored = await authorDocumentInThread(input.authoring, bindings);
-    beforePublish();
+    checked();
     commitFile(accessPath(file, access), authored.source, revision);
     return { path: file, revision: authored.documentRevision, inputs: authored.inputs };
   } catch (error) {

@@ -65,11 +65,11 @@ test("authoring off the main thread never overwrites a concurrent writer or repo
   const medium = largeAuthoringRequest(300);
   const titled = (title: string) => ({ ...medium, authoring: { ...medium.authoring, title } });
   const whileComputing = () => new Promise(resolve => setImmediate(resolve));
+  // Writes to one target settle in arrival order: the earliest valid request wins.
   const settledSources = async (calls: Promise<{ revision: string }>[]) => {
     const outcomes = await Promise.allSettled(calls);
-    const fulfilled = outcomes.filter(outcome => outcome.status === "fulfilled");
-    assert.equal(fulfilled.length, 1, JSON.stringify(outcomes.map(outcome => outcome.status)));
-    return { winner: fulfilled[0]!.value, rejected: outcomes.find(outcome => outcome.status === "rejected")!.reason as Error };
+    assert.deepEqual(outcomes.map(outcome => outcome.status), ["fulfilled", "rejected"]);
+    return { winner: (outcomes[0] as PromiseFulfilledResult<{ revision: string }>).value, rejected: (outcomes[1] as PromiseRejectedResult).reason as Error };
   };
 
   // Same name, two creators in one Host: one publishes, the other is a conflict.
@@ -97,6 +97,26 @@ test("authoring off the main thread never overwrites a concurrent writer or repo
   await whileComputing(); fs.writeFileSync(external, edited);
   await assert.rejects(replacing, /changed after it was read/);
   assert.equal(fs.readFileSync(external, "utf8"), edited);
+
+  // A figure this save published or reused changes while it computes (for example a
+  // Host rename): the document would point at a missing image, so it is not published.
+  const renamedFigure = path.join(root, "figure-rename.md");
+  const renaming = createAuthoredDocumentFile(renamedFigure, medium);
+  await whileComputing(); fs.renameSync(path.join(root, "assets", "figure-1.png"), path.join(root, "assets", "renamed.png"));
+  await assert.rejects(renaming, (error: Error & { errorKind?: string }) => /figure image changed/.test(error.message) && error.errorKind === "conflict");
+  assert.equal(fs.existsSync(renamedFigure), false);
+
+  // A junction (or other alias) to the same folder is the same target: the earlier
+  // valid request still wins, behind a failing first request.
+  const physical = path.join(root, "physical"), alias = path.join(root, "alias");
+  fs.mkdirSync(physical); fs.symlinkSync(physical, alias, "junction");
+  const invalid = structuredClone(titled("Invalid")) as any;
+  invalid.authoring.inputs[0].blocks.push({ kind: "equation", latex: "x", enumerator: "bad\nnumber" });
+  const aliased = await Promise.allSettled([createAuthoredDocumentFile(path.join(physical, "order.md"), invalid),
+    createAuthoredDocumentFile(path.join(physical, "order.md"), titled("Earlier")), createAuthoredDocumentFile(path.join(alias, "order.md"), titled("Later"))]);
+  assert.deepEqual(aliased.map(outcome => outcome.status), ["rejected", "fulfilled", "rejected"]);
+  assert.match((aliased[2] as PromiseRejectedResult).reason.message, /file already exists/);
+  assert.equal(textRevision(fs.readFileSync(path.join(physical, "order.md"), "utf8")), (aliased[1] as PromiseFulfilledResult<{ revision: string }>).value.revision);
 
   // A thread that dies mid-call fails the pending call; the next call starts a new thread.
   const lost = path.join(root, "lost.md");

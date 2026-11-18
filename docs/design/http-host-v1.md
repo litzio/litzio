@@ -101,7 +101,7 @@ clients/jobs can be interrupted. Restart is explicit: stop, then start. Product 
 replace a running daemon. Desktop uses this daemon through the connection/owner-pipe path;
 plugin/AI lifetime follows [the plugin contract](plugin-stage1-v1.md) and [assistant contract](main-agent-v1.md).
 
-공용 문서 작성 경로(`createAuthoredDocumentFile`, 재생성 포함)의 Core 작성 계산은 Host 프로세스가 소유하는 Node `worker_threads` 작업 스레드 하나에서 실행한다. 주 스레드는 요청 받기·같은 실제 대상 경로에 대한 쓰기의 접수 순서·그림 경로 결정과 게시·파일 커밋(배타 생성, revision 확인)·health를 맡아, 큰 문서를 저장하는 동안에도 다른 요청과 `/daemon/health`에 응답한다. 다른 프로세스와의 경쟁은 계속 파일 게시 경계에서 검사한다. 작업 스레드는 호출이 대기하는 동안만 프로세스를 붙잡고 Host 프로세스와 함께 끝난다. 스레드가 실패하거나 종료되면 대기 중 호출은 오류로 끝나 아무것도 게시하지 않으며, 다음 호출이 새 스레드를 띄운다. 입력·결과·receipt와 Core 문서 의미는 같다.
+공용 문서 작성 경로(`createAuthoredDocumentFile`, 재생성 포함)의 Core 작성 계산은 Host 프로세스가 소유하는 Node `worker_threads` 작업 스레드 하나에서 실행한다. 주 스레드는 요청 받기·같은 실제 대상 경로에 대한 쓰기의 접수 순서·그림 경로 결정과 게시·파일 커밋(배타 생성, revision 확인)·health를 맡아, 큰 문서를 저장하는 동안에도 다른 요청과 `/daemon/health`에 응답한다. 다른 프로세스와의 경쟁은 계속 파일 게시 경계에서 검사한다. 작업 스레드는 호출이 대기하는 동안만 프로세스를 붙잡고 Host 프로세스와 함께 끝난다. 스레드가 실패하거나 종료되면 대기 중 호출은 오류로 끝나 문서를 게시하지 않으며(이미 게시한 공유 그림은 남을 수 있다), 다음 호출이 새 스레드를 띄운다. 계산하는 동안 같은 Host의 다른 요청이 그림을 바꿀 수 있으므로, 문서를 게시하기 직전에 이 저장이 참조하는 그림이 모두 같은 자리에 같은 내용(크기·SHA-256)으로 있는지 다시 확인하고 아니면 충돌 오류로 끝낸다. 같은 대상의 순서는 실제 경로(없는 파일은 가장 가까운 기존 상위 폴더의 실제 경로와 나머지 이름)로 판단해 junction 등 별칭도 같은 대상으로 본다. 입력·결과·receipt와 Core 문서 의미는 같다.
 
 ### Host and daemon terminology (#1139)
 
