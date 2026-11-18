@@ -129,6 +129,12 @@ CLI/Desktop `package`, `test:packaged`, release/artifact 검증, 설치·업데�
 
 quality의 제품 검사 생략은 [ci-execution-policy.mjs](scripts/ci-execution-policy.mjs)가 문서 allowlist와 정책 도구 allowlist를 합쳐 판정한다. 문서 allowlist는 [ci-quality-mode.mjs](scripts/ci-quality-mode.mjs)의 루트 `*.md`, `.github` 바로 아래 `*.md`, `docs/**`의 `md/png/jpg/jpeg/gif/svg/webp/ico/pdf/json`이다. 정책 도구 allowlist는 아래에 명시한 경로만 허용하며, 그 외 tooling·설정·제품 fixture Markdown은 전체 quality를 유지한다. `ci-quality-mode.mjs`의 `docs_only` 출력은 문서 전용 판정으로 유지하며 제품 단계는 changes의 `quality` 출력으로 선택한다. 삭제도 변경 경로에 포함하고 rename의 이전·이후 경로를 모두 검사한다. PR은 merge-base diff(`base...head`), merge group은 event payload의 전체 tree diff(`merge_group.base_sha..head_sha`)로 판정한다. diff를 계산할 수 없거나 경로가 비어 있으면 전체 실행한다. `master` push에는 경로만으로 생략을 적용하지 않는다.
 
+저장소 루트에서 예시 경로를 PR의 저장소 상대 변경 경로 목록으로 바꿔 실행한다. 출력은 CI job 단위까지만 고른다. 개별 테스트와 브라우저 시나리오는 위 표에서 선택한다.
+
+```bash
+node --input-type=module -e "import {selectJobs} from './scripts/ci-execution-policy.mjs'; console.log(selectJobs('pull_request', ['apps/editor/test/editor.test.ts']))"
+```
+
 정책 도구 allowlist와 확인한 실행 소비자는 다음과 같다. 이 경로들은 제품 빌드·테스트에서 import하거나 실행하지 않는다. CI quality의 항상 실행하는 문서·이슈·정책 검사는 그대로 유지한다.
 
 - `scripts/issues.mjs`, `scripts/issue-policy.mjs`, `scripts/issue-policy.test.mjs`, `scripts/check-issue-event.mjs`: 루트 `issues:*`·`issue:create`, 이슈 정책 테스트와 `.github/workflows/issue-policy.yml`이 소비한다.

@@ -197,6 +197,8 @@ Source view, editor history and drafts. No tab limit or automatic eviction is im
 
 ## Save acknowledgement
 
+검증 명령과 통과 조건은 [편집 세션과 저장 검증](../test/README.md#편집-세션과-저장-검증)을 따른다.
+
 Label property Apply (#374) uses Core's [label rename plan](section-references-v1.md#editor)
 against the live target/reference context and commits the properties and reference attributes in
 one engine transaction. Collection submits those final reference contents alongside label deltas.

@@ -224,6 +224,7 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 
 ## 검증
 
+자동 검증 명령과 통과 조건은 [비서 자동 검증](../test/README.md#비서-자동-검증)을 따른다.
 실제 AI 동작의 수락 기준과 실행법은 [비서 수락 시험](../test/README.md#비서-수락-시험-수동-측정)을 따른다.
 정적 문서·코드 대조, fixture 통과, 실제 AI 실행과 사람의 업무 수락은 각각 구분해 보고한다.
 #1589 칩 시각 확인: [1440 라이트](assets/assistant-paste-1589/light-1440-ko.png) · [1440 다크](assets/assistant-paste-1589/dark-1440-ko.png) · [640 다크](assets/assistant-paste-1589/dark-640-ko.png).

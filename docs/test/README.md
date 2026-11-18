@@ -58,30 +58,6 @@ runner는 원본 fixture의 scratch 사본을 준비한다. `file-actions`의 �
 
 ### Browser timeout policy
 
-`pnpm browser:test caption-selection` separates wrapper wiring from shared input
-contracts (#1009 F06). All four hit areas of each Figure variant, Table caption,
-code block and editable endnote retain triple-click selection, replacement and
-neighbor-preservation assertions with a representative character. The text hit area
-of image Figure, Table, code and endnote additionally checks Backspace, Delete and
-clipboard paste: 44 click/input cases replace the former 100-case product.
-Rich-caption drag replacement and native paragraph/cell triple clicks remain.
-
-The image Figure runs all six Chromium Korean composition endings (plain, Escape
-and Backspace with cancellation/commit). Mermaid, Table and pending Figure each
-retain commit and Escape cancellation, giving 12 paths instead of 28. Every path
-checks DOM/model/contentDOM consistency immediately after composition, two frames
-later, surrounding content and one-step Undo/Redo. Each of the four NodeViews saves
-and reloads both committed and cancelled content. CDP composition does not verify
-the Windows OS candidate UI; that remains a manual check in the
-[Test Guide](TEST_GUIDE.md).
-
-`table-authoring.test.ts` owns the shared whole-rich-caption `beforeinput` and
-composition-start transaction contract for Figure and Table: text/replacement
-input, backward/forward deletion, neighbor preservation and one-step Undo. Browser
-tests retain the real DOM range, wrapper event wiring, clipboard and native
-composition lifecycle risks that this headless test cannot prove. No new runner,
-retry or timeout override is used.
-
 The [shared config](../../apps/editor/test/browser/playwright.config.ts) limits each scenario to
 120 seconds and each action/wait or navigation to 15 seconds. Both persistent-context launch paths
 explicitly apply the configured defaults before creating pages: the worker session in
@@ -249,6 +225,30 @@ No broad `nodeReset` guard or #502 resolution is claimed.
 
 ### Scenario coverage
 
+`pnpm browser:test caption-selection` separates wrapper wiring from shared input
+contracts (#1009 F06). All four hit areas of each Figure variant, Table caption,
+code block and editable endnote retain triple-click selection, replacement and
+neighbor-preservation assertions with a representative character. The text hit area
+of image Figure, Table, code and endnote additionally checks Backspace, Delete and
+clipboard paste: 44 click/input cases replace the former 100-case product.
+Rich-caption drag replacement and native paragraph/cell triple clicks remain.
+
+The image Figure runs all six Chromium Korean composition endings (plain, Escape
+and Backspace with cancellation/commit). Mermaid, Table and pending Figure each
+retain commit and Escape cancellation, giving 12 paths instead of 28. Every path
+checks DOM/model/contentDOM consistency immediately after composition, two frames
+later, surrounding content and one-step Undo/Redo. Each of the four NodeViews saves
+and reloads both committed and cancelled content. CDP composition does not verify
+the Windows OS candidate UI; that remains a manual check in the
+[Test Guide](TEST_GUIDE.md).
+
+`table-authoring.test.ts` owns the shared whole-rich-caption `beforeinput` and
+composition-start transaction contract for Figure and Table: text/replacement
+input, backward/forward deletion, neighbor preservation and one-step Undo. Browser
+tests retain the real DOM range, wrapper event wiring, clipboard and native
+composition lifecycle risks that this headless test cannot prove. No new runner,
+retry or timeout override is used.
+
 `read-view` (#849) verifies native Read/Edit/Source controls and commands, blocked input,
 clipboard/drop/assets/history/Save/explicit transactions, retained source/metadata/inline
 and link drafts (including a late image-validation response), unchanged recovery/revision,
@@ -284,6 +284,13 @@ The `cross-reference` record-removal wait and #407 observation are retained in [
 `citations`는 세 명시적 role과 bibliography 선언이 있는 문서에서 실제 타이핑·인용 잘라내기/붙여넣기·Undo/Redo·번호 갱신·Save/Reload·반복 Save와 한국어/영어 상태 표시를 검증한다. `.bib` 요청이 없는지도 확인한다. 의미·경로 거부 규칙은 Core 테스트가 담당한다. `citations --screenshots`는 1440/375px 수동 검토 자료를 추가하며, 현재 계약과 대표 캡처는 [Citations](../design/citations-v1.md)에 있다. `citation-authoring`은 공통 폴더에서 연 문서에서 슬래시 검색 삽입, 인용 폼의 role·키 그룹·잘못된 키 거부·목록에 없는 키, Escape 취소·Apply·Remove, Undo/Redo, Save → Reload와 `.bib` 바이트 불변을 검증한다.
 
 `desktop-updates`는 mock bridge와 실제 Editor 상태로 Settings, notification, Draft/dirty/Save/Source/asset restart refusal을 검증한다. 키보드로 Settings를 열면 첫 언어 컨트롤의 실제 포커스를 기다린다. 대화상자 표시만으로 Base UI의 비동기 초기 포커스 완료를 가정하지 않으며, 검사에서 포커스를 강제로 이동하지 않는다. 포커스가 오지 않으면 5초 안에 실패한다(#342). `--screenshots`로 UI 비교를 저장할 수 있다. 업데이트 버전/feed/checksum은 Desktop의 real `NsisUpdater` + mock GitHub integration에서 검증하며 동일 의미 사례를 브라우저에 반복하지 않는다.
+
+## 편집 세션과 저장 검증
+
+- `pnpm browser:test save-session save-error`로 저장·다시 열기, 외부 변경 충돌, 저장 거부 뒤 미저장 편집 보존을 확인한다.
+- `pnpm --filter @litzio/editor exec tsx --test test/editor.test.ts test/http-host.test.ts`로 저장 응답의 revision과 충돌 시 원본 보존을 확인한다.
+- `pnpm --filter @litzio/cli exec tsx --test --test-name-pattern="preflight conflict" test/cli.test.ts`로 실제 쓰기와 dry run이 같은 충돌을 보고하고 외부 변경 바이트를 보존하는지 확인한다.
+- [Production HTTP regression](#production-http-regression)의 CLI 빌드와 `http-host` 시나리오로 실제 파일의 Save → Reload와 revision 충돌을 확인한다.
 
 ## Production HTTP regression
 
@@ -427,7 +434,11 @@ profile removal and another origin/device are outside that proof. The 500ms inte
 
 Past local execution, required CI and proof artifacts: [Host recovery execution history](../reviews/verification-history-2026-11.md#host-recovery-execution-history-296-pr3).
 
-## Official AI (#1150 ③)
+## 비서 자동 검증
+
+- `pnpm --filter @litzio/editor exec tsx --test test/assistant-host.test.ts test/provider-connections.test.ts test/http-host.test.ts`로 공유 HTTP/CLI 설정, 사용 불가 공급자 거부, 대화 보존, Host별 CLI 호출 고정과 공급자 종료를 확인한다. 공급자 대역을 사용한다.
+- `pnpm browser:test assistant assistant-result assistant-question`으로 설정·대화·도구 결과 표시, 문서 변경의 되돌리기와 질문 응답·이력 보존을 확인한다.
+- 실제 모델은 [비서 수락 시험](#비서-수락-시험-수동-측정)을 따른다.
 
 `assistant-result` waits for the tab Reload dialog's final focus on File actions after Undo
 before starting the result-card tooltip keyboard check. In queue run 43228142841, the
@@ -437,10 +448,9 @@ therefore traversed the toolbar instead of the path label. Console errors were e
 This readiness wait preserves the path tooltip, Undo and document assertions and their
 existing timeouts. The explicit Undo Reload is independent of automatic revision detection.
 
-`pnpm --filter @litzio/editor exec tsx --test test/assistant-host.test.ts test/provider-connections.test.ts` verifies direct daemon composition, shared HTTP/CLI settings, unavailable-provider refusal, retained conversations and owned process shutdown with fake app-server/ACP only. No paid model call is needed. `pnpm browser:test assistant assistant-result` checks settings, conversation and assistant tools; `pnpm browser:test assistant --screenshots` separately produces manual 1440/640px evidence.
+`pnpm browser:test assistant --screenshots` separately produces manual 1440/640px evidence.
 
-#1443 / #1530: `assistant-question` covers question DOM, post-turn answers and history
-case. Provider/Host tests own protocol, index persistence and explicit-Host CLI
+#1443 / #1530: Provider/Host tests own protocol, index persistence and explicit-Host CLI
 `assistant conversation` / `assistant answer`. Manual 1440/640px Light/Dark captures
 are separate from CI. The [historical real-call proof](../design/assets/assistant-question-1443/real-proof.json) retains the earlier acceptance evidence; current panel captures are linked from [UI patterns](../design/ui-patterns-v1.md#비서-패널-시각-확인-1686).
 
@@ -481,6 +491,13 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 수식 과제는 원문의 단일 역슬래시와 check를 별도로 확인하며 렌더링 정확성은 보장하지 않는다.
 작은 합성 fixture는 XLSX(openpyxl), PPTX(python-pptx), PDF(reportlab)로 만들었다.
 이 도구는 CI allowlist에 추가하지 않으며 기존 unknown-path CI 검사를 유지한다.
+
+## 플러그인 실행 검증
+
+- `pnpm --filter @litzio/editor exec tsx --test test/plugins.test.ts test/plugin-operation-errors.test.ts`로 신뢰 확인, reload, crash·timeout과 공개 오류의 비밀값 가림을 확인한다.
+- `pnpm browser:test vite-plugins`로 개발 Host에서 플러그인을 켜고 끌 때 화면 진입점이 나타나고 사라지는지 확인한다.
+- [Production HTTP regression](#production-http-regression)의 CLI 빌드 뒤 `pnpm browser:test http-plugins plugin-screen-code plugin-screen-connection`을 실행한다. CLI와 화면의 상태·설정이 일치하고 비밀값이 응답에 나타나지 않아야 한다. 화면 코드와 저장 검사는 아래를 따른다.
+- 배포 경계 변경은 [Production HTTP regression](#production-http-regression)의 아카이브 검사(`packages/cli/test/packaged.test.ts`)를 실행한다. 설치된 CLI가 동봉 SDK로 외부 플러그인을 실행하고 두 Root에서 저장해야 한다. Desktop 설치본의 CLI·플러그인 목록 확인은 CI의 `apps/desktop/test/packaged/cli.e2e.ts`에서 실행한다.
 
 ### 플러그인 화면 코드 (#1592)
 
