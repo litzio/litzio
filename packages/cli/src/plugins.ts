@@ -35,12 +35,13 @@ export async function pluginCli(args: string[]): Promise<number> {
       }
       if ((action === "trust" || body.trust) && !body.registrationId) throw new Error("Read plugins list and supply --registration <registrationId> to confirm that registration");
     }
-    else if (command === "plugins" && ["enable", "disable", "reload", "unregister"].includes(action!) && tokens.length === 3) body = { action, id };
+    else if (command === "plugins" && ["enable", "disable", "reload", "update", "unregister"].includes(action!) && tokens.length === 3) body = { action, id };
+    else if (command === "plugins" && action === "check-updates" && tokens.length <= 3) body = { action, ...(id ? { id } : {}) };
     else if (command === "plugins" && action === "secret-status" && tokens.length === 3) body = { action, id };
     else if (command === "plugins" && action === "secret-delete" && tokens.length === 4) body = { action, id, name: tokens[3] };
     else if (command === "plugins" && action === "settings" && tokens.length === 3) body = { action, id };
     else if (command === "plugins" && action === "settings" && tokens.length === 5 && tokens[3] === "--file") body = { action, id, settings: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
-    else throw new Error("plugins list|install <directory-or-id>|scaffold [directory] --id <id> [--template greet|screen|chart]|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|settings <id> --file <json-file> --host <origin> --json");
+    else throw new Error("plugins list|install <directory-or-id>|scaffold [directory] --id <id> [--template greet|screen|chart]|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|check-updates [id]|update <id>|settings <id> --file <json-file> --host <origin> --json");
     const health = await fetch(new URL("/daemon/health", origin), { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
     if (!health.ok || (await health.json()).protocolVersion !== DAEMON_PROTOCOL) throw new Error("Host protocol check failed");
     dispatched = true;

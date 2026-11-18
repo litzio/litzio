@@ -155,9 +155,30 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
   await readSnapshot("Original value");
   await page.bringToFront();
-  const reloaded = pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
-  expect(reloaded.receipt.operation).toBe("plugins.reload");
-  expect(reloaded.plugins.find(p => p.id === "fixture.drive").running).toBe(true);
+  // Settings finds the edited source and applies it to the same registration.
+  const driveRow = page.getByRole("region", { name: "Drive fixture", exact: true });
+  await page.getByRole("button", { name: "Check for updates", exact: true }).click();
+  await expect(driveRow.getByRole("status").filter({ hasText: "New content available" })).toBeVisible();
+  if (screenshots) {
+    for (const [width, theme] of [[1440, "light"], [1440, "dark"], [640, "light"]]) {
+      await page.evaluate(theme => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", theme); }, theme);
+      await page.setViewportSize({ width, height: 900 });
+      await page.reload();
+      await page.getByRole("button", { name: "설정", exact: true }).click();
+      await page.getByRole("button", { name: "플러그인", exact: true }).click();
+      await expect(driveRow.getByRole("status").filter({ hasText: "새 내용 있음" })).toBeVisible();
+      await page.getByTestId("settings-dialog").screenshot({ path: width === 1440 && theme === "light" ? "docs/design/assets/plugin-local-update-1750/after-1440-light.png" : `tmp/plugin-local-update-1750/after-${width}-${theme}.png` });
+    }
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload(); await openSettings();
+  }
+  const updated = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().postDataJSON()?.action === "update");
+  await driveRow.getByRole("button", { name: "Update Drive fixture", exact: true }).click();
+  expect((await (await updated).json()).receipt.operation).toBe("plugins.update");
+  await expect(driveRow.getByRole("button", { name: "Update Drive fixture", exact: true })).toHaveCount(0);
+  await expect(driveRow.getByRole("status")).toHaveText("Running");
+  expect(pluginFixture.cli(["plugins", "check-updates", "fixture.drive"]).updates[0].available).toBe(false);
   await returnToObserver();
   await expect(observer.getByText('Updated runtime fixture', { exact: true })).toBeVisible();
   await readSnapshot("Updated value");

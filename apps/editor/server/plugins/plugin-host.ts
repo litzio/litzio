@@ -9,7 +9,7 @@ import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
 import { InstalledArtifacts } from "./installed-artifacts.ts";
 import { readPluginRegistrations, type InstalledPlugin, type PluginRegistration } from "./plugin-registrations.ts";
-import { PLUGIN_SOURCE_READD_REQUIRED } from "../../shared/plugin-registration-error.ts";
+import { PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../../shared/plugin-registration-error.ts";
 import { publicOperationError, publicOperationResult, publicInputIssues, safePluginValue } from "./operation-result.ts";
 import { assertNoPluginSecrets } from "./secret-redaction.ts";
 import { randomUUID } from "node:crypto";
@@ -68,6 +68,8 @@ function readArtifactJson(file: string): unknown {
 
 
 type Artifact = { manifest: PluginManifest; digest: string; entry: string };
+/** Last local source comparison. Memory only: every check reads the source again. */
+type UpdateCheck = { currentVersion: string | null; sourceVersion: string | null; available: boolean; error?: string };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
 export class PluginHost {
   private installed: Record<string, PluginRegistration>;
@@ -76,6 +78,7 @@ export class PluginHost {
   private loaded = new Map<string, Loaded>();
   private processes = new Map<string, PluginInstance>();
   private errors = new Map<string, string>();
+  private updates = new Map<string, { installationId: string; check: UpdateCheck }>();
   private serial: Promise<unknown> = Promise.resolve();
   private closed = false;
   private disabling = new Set<string>();
@@ -230,6 +233,7 @@ export class PluginHost {
       if (!("installationId" in r)) {
         return { id, registrationId: r.registrationId, installed: true, enabled: false, running: false, status: null, error: PLUGIN_SOURCE_READD_REQUIRED };
       }
+      const last = this.updates.get(id), update = last?.installationId === r.installationId ? last.check : undefined;
       let file = "artifact directory";
       try {
         const { manifest: m, digest } = this.artifact(this.installedDirectory(r), current => { file = current; }), live = this.loaded.get(id);
@@ -239,8 +243,8 @@ export class PluginHost {
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
         return { id, registrationId: r.registrationId, name: m.name, description: m.description, version: m.version ?? null, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: !!current,
-          iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
-      } catch (e) { return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : this.errors.get(id) ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) }; }
+          iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest, update };
+      } catch (e) { return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, update, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : this.errors.get(id) ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) }; }
     }));
   }
   private async enable(id: string) {
@@ -325,6 +329,28 @@ export class PluginHost {
     this.serial = run.catch(() => {}); return run;
   }
   private record(id: string) { if (!Object.hasOwn(this.installed, id)) throw new Error("Plugin is not registered"); return this.installed[id]!; }
+  private sourceDirectory(record: InstalledPlugin, creationScope: FileAccess = LOCAL_FILE_ACCESS) {
+    const directory = this.artifactDirectory(record.sourceDirectory, creationScope);
+    if (path.relative(record.sourceDirectory, directory) !== "") throw new Error("Plugin source directory changed");
+    return directory;
+  }
+  /** New content means the source differs from what this registration last applied, whatever its version text says. */
+  private checkUpdate(id: string): UpdateCheck {
+    const record = this.record(id);
+    if (!("installationId" in record)) return { currentVersion: null, sourceVersion: null, available: false, error: PLUGIN_SOURCE_READD_REQUIRED };
+    let currentVersion: string | null = null;
+    try { currentVersion = this.artifact(this.installedDirectory(record)).manifest.version ?? null; } catch { /* list reports the installed copy */ }
+    let check: UpdateCheck;
+    try {
+      const directory = this.sourceDirectory(record);
+      const available = this.copies.sourceDigest(directory) !== record.sourceDigest;
+      let sourceVersion: string | null = null;
+      try { sourceVersion = validateManifest(readArtifactJson(path.join(directory, "litzio-plugin.json"))).version ?? null; } catch { /* update reports diagnostics */ }
+      check = { currentVersion, sourceVersion, available };
+    } catch { check = { currentVersion, sourceVersion: null, available: false, error: PLUGIN_SOURCE_UNAVAILABLE }; }
+    this.updates.set(id, { installationId: record.installationId, check });
+    return check;
+  }
   private async disable(id: string) {
     this.disabling.add(id);
     let skillCleanupError: unknown;
@@ -355,8 +381,8 @@ export class PluginHost {
       }
     } finally { this.disabling.delete(id); }
   }
-  /** Stage the same local snapshot for folder registration, install and reload. */
-  private async applySource(action: "register" | "install" | "reload", sourceDirectory: string, expectedId?: string,
+  /** Stage the same local snapshot for folder registration, install, reload and update. */
+  private async applySource(action: "register" | "install" | "reload" | "update", sourceDirectory: string, expectedId?: string,
     inspecting: (file: string) => void = () => {}) {
     const copy = this.copies.copy(sourceDirectory);
     let applied = false;
@@ -388,16 +414,19 @@ export class PluginHost {
       }
       const operationNames = manifest.contributes.operations.map(op => `${id}.${op.id}`);
       this.assertOperationNamesAvailable(id, operationNames);
-      const active = action !== "register";
-      const record = { registrationId: active && previous && "installationId" in previous ? previous.registrationId : randomUUID(),
+      // Update keeps the registration's trust and on/off state; install and reload enable it.
+      const kept = action === "update" ? previous : undefined;
+      const active = kept ? kept.enabled && !!kept.trusted : action !== "register";
+      const record = { registrationId: (active || kept?.trusted) && previous && "installationId" in previous ? previous.registrationId : randomUUID(),
         installationId: copy.installationId, sourceDirectory, sourceDigest: copy.sourceDigest,
-        digest: artifact.digest, trusted: active, enabled: active, settings: previous?.settings ?? {}, operationNames };
+        digest: artifact.digest, trusted: kept ? !!kept.trusted : active, enabled: active, settings: previous?.settings ?? {}, operationNames };
       if (active) await this.activate(record, copy.directory, artifact, previous, true);
       else {
         this.setRecord(id, record);
         this.errors.delete(id);
       }
       applied = true;
+      this.updates.delete(id);
       if (previous) this.removeCopy(previous);
       return { id };
     } finally {
@@ -502,6 +531,11 @@ export class PluginHost {
         }
         return { id: manifestId, valid: errors.length === 0, errors, limitations: "Static literal handlers only; computed output and activation behavior are checked at runtime.", receipt: receipt(errors.length ? "failure" : "success") };
       }
+      if (action === "check-updates") {
+        const ids = args.id === undefined ? Object.keys(this.installed) : [args.id];
+        const updates = ids.map(id => ({ id, ...this.checkUpdate(id) }));
+        return { updates, plugins: await this.list(), receipt: receipt(updates.some(update => update.error) ? "failure" : "success") };
+      }
       if (action === "register") {
         const directory = this.artifactDirectory(args.directory!, creationScope);
         ({ id } = await this.applySource("register", directory));
@@ -543,12 +577,10 @@ export class PluginHost {
           try { await this.enable(id); }
           catch (error) { this.errors.set(id, String(error)); throw error; }
         }
-        else if (action === "reload") {
+        else if (action === "reload" || action === "update") {
           if (!("installationId" in r)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
           // The pinned source may disappear or become invalid without affecting the running copy.
-          const directory = this.artifactDirectory(r.sourceDirectory, creationScope);
-          if (path.relative(r.sourceDirectory, directory) !== "") throw new Error("Plugin source directory changed");
-          await this.applySource("reload", directory, id);
+          await this.applySource(action, this.sourceDirectory(r, creationScope), id);
           return { id, plugins: await this.list(), receipt: receipt("success") };
         }
         else if (action === "disable") { r.enabled = false; this.save(); await this.disable(id); }

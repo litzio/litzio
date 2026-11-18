@@ -120,6 +120,10 @@ Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 dige
 
 `plugins reload <id>`는 등록된 로컬 출처를 다시 복사한다. 후보의 검증·기동·status 확인·스킬 준비가 끝나고 등록이 아직 같을 때 전환한다. 준비나 등록 저장에 실패하면 오류를 보고하고 기존 판의 등록·작업·화면·스킬을 유지한다. 성공하면 등록·신뢰·설정·비밀값을 보존하고 새 호출을 새 판에 연결한다. 이전 판이 받은 호출과 status 관찰은 drain한 뒤 dispose하고 이전 복사본을 정리한다.
 
+`plugins check-updates [id]`는 전체 또는 한 등록의 로컬 출처를 읽어 등록별 `{id, currentVersion, sourceVersion, available, error?}`를 돌려준다. 원본 내용 digest(`.git` 제외)가 등록의 출처 digest와 다르면 `available`이다. 버전 순서는 비교하지 않으며, 버전이 같아도 내용이 다르면 새 내용이다. 원본 폴더가 없거나 읽을 수 없으면 그 등록의 `error`로 알리고 설치본은 그대로 동작한다. 구형 등록은 원본 폴더에서 다시 추가하라는 `error`다. 확인 오류가 하나라도 있으면 receipt는 failure다. 마지막 확인 결과는 Host 메모리에만 두며 `list`의 `update`로 보인다. 그 설치본이 바뀌거나 Host가 다시 시작하면 사라진다. 확인은 출처를 매번 다시 읽고, 등록 파일에는 적용한 출처 digest만 남긴다.
+
+`plugins update <id>`는 `reload`와 같은 적용 경로로 로컬 출처를 다시 복사한다. 등록 ID·신뢰·켜짐 상태·설정·비밀값을 유지한다. 꺼진 플러그인은 검증한 새 판으로 바꾸되 꺼진 채로 둔다. 신뢰하지 않은 등록은 새 registrationId를 받아 다음 신뢰 확인이 새 판을 대상으로 한다. 실패하면 기존 판과 확인 결과를 유지한다. 관리 작업은 순서대로 처리하므로 동시에 들어온 확인과 업데이트도 한 순서로 관찰된다.
+
 Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한다. 비활성화는 새 요청을 차단한 뒤 이미 접수한 호출과 status 관찰을 drain하고 dispose한다. 종료는 모든 child를 닫으며 하나의 실패로 다른 child 정리를 건너뛰지 않는다. 실패한 후보와 제거한 등록의 복사본은 정리한다. Host는 시작 시 정상적으로 읽고 형식을 검증한 등록 파일을 기준으로 전용 저장소의 미등록 복사본을 정리한다. 등록이 가리키는 설치본과 원본은 실제 경로로 비교하며, 그 경로와 상위·하위 경로를 보존한다. 등록 파일이 없으면 시작 시 복사본을 보존한다. 등록 파일을 읽을 수 없거나 형식이 잘못되면 등록 파일 복원을 안내하고 시작을 중단한다. 사용자 출처 폴더는 유지한다. 화면/daemon/문서의 수명을 섞지 않는다.
 
 Host 설치본이 없는 구형 등록은 꺼진 상태와 원본 폴더에서 다시 추가하라는 오류로 표시한다. 원본 폴더를 다시 추가하고 처음 켤 때 새 등록의 신뢰를 확인한다.
@@ -151,7 +155,7 @@ ADR-0020의 secret 절은 argv·로그·비서 결과·뷰에 PAT를 남기지 �
 
 ## 제작과 설치
 
-CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `validate`, `dependencies`, `bundle`, `install`, `list`, `register`, `trust`, `enable`, `disable`, `reload`, `unregister`, `settings`, secret 상태/삭제는 공용 Host 작업이다. 명시적 --host를 사용한다. query/file 제작 템플릿은 없다. 공개 작업 호출은 `operation invoke <id> --input <json-file> --host <origin> --json`이다. 승인되고 셸·네트워크 및 CLI guard가 허용하는 비서는 공개 쓰기 작업도 CLI로 실행할 수 있다. 전용 `invoke_plugin_operation` 도구는 assistant:true 읽기·healthCheck만 제공하며 쓰기를 허용하지 않는다. scope:folder 작업은 아직 지원하지 않는다.
+CLI `plugins scaffold [directory] --id <id> --template greet|screen|chart`, `validate`, `dependencies`, `bundle`, `install`, `list`, `register`, `trust`, `enable`, `disable`, `reload`, `check-updates`, `update`, `unregister`, `settings`, secret 상태/삭제는 공용 Host 작업이다. 명시적 --host를 사용한다. query/file 제작 템플릿은 없다. 공개 작업 호출은 `operation invoke <id> --input <json-file> --host <origin> --json`이다. 승인되고 셸·네트워크 및 CLI guard가 허용하는 비서는 공개 쓰기 작업도 CLI로 실행할 수 있다. 전용 `invoke_plugin_operation` 도구는 assistant:true 읽기·healthCheck만 제공하며 쓰기를 허용하지 않는다. scope:folder 작업은 아직 지원하지 않는다.
 
 loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정규화된 origin을 비서 child의 `LITZIO_HOST_ORIGIN`으로 전달한다. 비서는 이를 `--host`에 명시한다. CLI의 필수 주소 검증·실패 시 재실행 금지는 유지한다. origin이 없는 환경에서는 부모의 값을 상속하지 않으며 주소가 없다고 보고하고 중단한다. 연결 수명은 [비서 계약](main-agent-v1.md)을 따른다.
 

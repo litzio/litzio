@@ -71,6 +71,9 @@ test("owning HTTP listener pins assistant CLI operations across Hosts, turns and
     assert.equal((await cli(["plugins", "list", "--json"])).plugins.find((plugin: { id: string }) => plugin.id === "fixture.target").version, "release candidate");
     // Real CLI install must keep serving after even a broken source edit.
     fs.writeFileSync(path.join(directory, "host.mjs"), "invalid plugin source ;");
+    assert.deepEqual((await cli(["plugins", "check-updates", "fixture.target", "--json"])).updates, [{ id: "fixture.target", currentVersion: "release candidate", sourceVersion: "release candidate", available: true }]);
+    const refused = await client.request("fixture/cli", { command: brand.cliCommand, args: ["plugins", "update", "fixture.target", "--json"], hostFromEnvironment: true });
+    assert.equal(refused.status, 1, "a refused update exits with failure; the operation loop below proves the installed copy still serves");
     hosts.push({ ...host, client, cli, marker, input, label });
   }
   assert.notEqual(hosts[0].url, hosts[1].url);

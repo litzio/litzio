@@ -2,7 +2,7 @@ import { Row } from "./components/ui/row.tsx";
 import { Status } from "./components/ui/status.tsx";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
-import { PLUGIN_SOURCE_READD_REQUIRED } from "../shared/plugin-registration-error.ts";
+import { PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../shared/plugin-registration-error.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
@@ -20,7 +20,7 @@ import { usePlugins, type Plugin } from "./plugin-state.ts";
 
 export function PluginSettings() {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
-  const [removing, setRemoving] = useState(false);
+  const [removing, setRemoving] = useState(false), [checked, setChecked] = useState(false), [checking, setChecking] = useState(false);
   const removeButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const client = useHostClient();
@@ -35,18 +35,23 @@ export function PluginSettings() {
       setProblem(i18n.t("The selected plugin is no longer available."));
     }
   }, [plugins, selected, trust, busy, error]);
-  const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
+  const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); setChecked(false); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
     </Notice>
-    <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
+    <div className="settings-actions">
+      <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
+      <Button size="sm" variant="outline" disabled={busy || !plugins.length} onClick={async () => { setChecking(true); await run("check-updates", {}); setChecked(true); setChecking(false); }}>{i18n.t(checking ? "Checking…" : "Check for updates")}</Button>
+      {checked && !checking && plugins.length && plugins.every(plugin => plugin.update && !plugin.update.available && !plugin.update.error) ? <PluginState tone="ok" label={i18n.t("Up to date")} /> : null}
+    </div>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} initialPath="" recent={[]}
       browse={browse} places={places}
-      onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
+      onClose={() => setChoosing(false)} onOpen={async directory => { try { setChecked(false); await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
     {error || problem && !current && !trust ? <Notice tone="error">{error || problem}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
-      <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={[plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version"), plugin.description].filter(Boolean).join(" · ")}>
+      <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={<>{[plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version"), plugin.description].filter(Boolean).join(" · ")}<PluginUpdateState plugin={plugin} /></>}>
+        {plugin.update?.available ? <Button size="sm" variant="outline" disabled={busy} aria-label={i18n.t("Update {{name}}", { name: plugin.name ?? plugin.id })} onClick={() => void run("update", { id: plugin.id })}>{i18n.t("Update")}</Button> : null}
         <PluginState tone={plugin.error ? "error" : plugin.enabled && !plugin.running ? "warning" : plugin.running ? "ok" : "neutral"} label={i18n.t(plugin.error ? "Plugin error" : plugin.enabled && !plugin.running ? "Plugin unavailable" : plugin.running ? "Running" : "Installed")} detail={plugin.error === PLUGIN_SOURCE_READD_REQUIRED ? i18n.t(PLUGIN_SOURCE_READD_REQUIRED) : plugin.error} />
           <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("{{name}} settings", { name: plugin.name ?? plugin.id })} onClick={() => setSelected(plugin.id)} />}><Settings aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Settings")}</TooltipContent></Tooltip>
           <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled} disabled={busy} onChange={event => { if (event.target.checked && !plugin.trusted) setTrust(plugin); else void run(event.target.checked ? "enable" : "disable", { id: plugin.id }); }} />
@@ -77,6 +82,14 @@ export function PluginSettings() {
         finally { setBusy(false); }
       }} /> : null}
   </section>;
+}
+/** Last local source check; the installed copy keeps running until Update succeeds. */
+function PluginUpdateState({ plugin }: { plugin: Plugin }) {
+  const update = plugin.update;
+  if (update?.error) return <div><PluginState tone="error" label={i18n.t("Update check failed")} detail={i18n.t(PLUGIN_SOURCE_UNAVAILABLE)} /></div>;
+  if (!update?.available) return null;
+  const versions = update.currentVersion && update.sourceVersion ? i18n.t("Installed {{current}} → source {{source}}", { current: update.currentVersion, source: update.sourceVersion }) : i18n.t("The source folder changed after this plugin was applied.");
+  return <div><PluginState tone="warning" label={i18n.t(update.sourceVersion && update.sourceVersion !== update.currentVersion ? "Update available" : "New content available")} detail={versions} /></div>;
 }
 function PluginState({ tone, label, detail }: { tone: "ok" | "error" | "warning" | "neutral"; label: string; detail?: string }) {
   return <span role="status"><Status variant="plain" tone={tone} label={label} />{detail ? <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin status details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip> : null}</span>;

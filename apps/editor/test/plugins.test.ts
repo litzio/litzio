@@ -139,6 +139,10 @@ test("legacy registrations show a recovery error and can be added again from the
     assert.equal(entry!.error, "Add this plugin again from its source folder.");
     assert.equal(readFileSync(state, "utf8"), legacy);
     assert.equal(existsSync(`${state}.artifacts`), false);
+    const legacyCheck = await host.invoke("check-updates", {}) as any;
+    assert.deepEqual(legacyCheck.updates, [{ id, currentVersion: null, sourceVersion: null, available: false, error: "Add this plugin again from its source folder." }]);
+    assert.equal(legacyCheck.receipt.outcome, "failure");
+    await assert.rejects(host.invoke("update", { id }), /Add this plugin again from its source folder/);
     await assert.rejects(host.invoke("reload", { id }), /Add this plugin again from its source folder/);
     await host.invoke("register", { directory });
     const [registered] = await host.list();
@@ -148,6 +152,70 @@ test("legacy registrations show a recovery error and can be added again from the
     assert.equal((await host.invokeOperation(`${id}.read`, {})).result, "re-added");
     assert.equal(existsSync(registeredCopy(state, id)), true);
     assert.equal(artifactDigest(directory), source);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("local source update check compares applied source content and update keeps the installed copy on failure", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-update-"));
+  const state = path.join(root, "state.json"), id = "fixture.update";
+  const code = (label: string) => `export function activate() { return { operations: { read: () => ${JSON.stringify(label)} }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`;
+  const directory = lifecycleFixture(root, id, code("first"));
+  const manifestFile = path.join(directory, "litzio-plugin.json");
+  const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+  const writeManifest = (version: string) => writeFileSync(manifestFile, JSON.stringify({ ...manifest, version, operations: [{ id: "read" }] }));
+  writeManifest("0.1.0");
+  // A distributed bundle is rebuilt inside the installed copy, so the running digest differs from the source digest.
+  writeFileSync(path.join(directory, "screen.bundle.js"), "export default function Screen(){return null}");
+  const host = new PluginHost(state);
+  const read = async () => ((await host.invokeOperation(`${id}.read`, {})) as { result?: unknown }).result;
+  const check = async () => { const value = await host.invoke("check-updates", { id }) as any; return { ...value.updates[0], outcome: value.receipt.outcome }; };
+  try {
+    await host.start();
+    await host.invoke("register", { directory });
+    const registrationId = (await host.list())[0]!.registrationId!;
+    await host.invoke("enable", { id, registrationId, trust: true });
+    const record = () => JSON.parse(readFileSync(state, "utf8"))[id];
+    assert.notEqual(record().digest, record().sourceDigest, "the installed copy holds a rebuilt bundle");
+    assert.deepEqual(await check(), { id, currentVersion: "0.1.0", sourceVersion: "0.1.0", available: false, outcome: "success" });
+
+    writeFileSync(path.join(directory, "host.js"), code("second")); writeManifest("0.2.0");
+    assert.deepEqual(await check(), { id, currentVersion: "0.1.0", sourceVersion: "0.2.0", available: true, outcome: "success" });
+    assert.deepEqual((await host.list())[0]!.update, { currentVersion: "0.1.0", sourceVersion: "0.2.0", available: true });
+    assert.equal(await read(), "first", "a pending update never changes the running copy");
+
+    // Management requests are serialized: concurrent checks and updates observe one order.
+    const [, first, second, after] = await Promise.all([host.invoke("check-updates", {}), host.invoke("update", { id }), host.invoke("update", { id }), host.invoke("check-updates", {})]) as any[];
+    assert.equal(first.receipt.operation, "plugins.update"); assert.equal(second.receipt.outcome, "success");
+    assert.equal(after.updates[0].available, false);
+    assert.equal(await read(), "second");
+    const listed = (await host.list())[0]!;
+    assert.equal(listed.version, "0.2.0"); assert.equal(listed.registrationId, registrationId); assert.equal(listed.trusted, true);
+    assert.equal(record().sourceDigest, artifactDigest(directory));
+
+    writeFileSync(path.join(directory, "host.js"), code("third"));
+    assert.deepEqual(await check(), { id, currentVersion: "0.2.0", sourceVersion: "0.2.0", available: true, outcome: "success" }, "content changes count without a version change");
+
+    const moved = path.join(root, "moved");
+    fs.renameSync(directory, moved);
+    assert.deepEqual(await check(), { id, currentVersion: "0.2.0", sourceVersion: null, available: false, error: "The plugin source folder is missing or unreadable.", outcome: "failure" });
+    await assert.rejects(host.invoke("update", { id }));
+    assert.equal(await read(), "second");
+    fs.renameSync(moved, directory);
+
+    writeFileSync(manifestFile, "{");
+    assert.deepEqual(await check(), { id, currentVersion: "0.2.0", sourceVersion: null, available: true, outcome: "success" });
+    await assert.rejects(host.invoke("update", { id }));
+    assert.equal(await read(), "second");
+    assert.equal((await host.list())[0]!.update?.available, true, "a failed update keeps the pending result");
+
+    writeManifest("0.3.0");
+    await host.invoke("disable", { id });
+    await host.invoke("update", { id });
+    const disabled = (await host.list())[0]!;
+    assert.equal(disabled.enabled, false); assert.equal(disabled.running, false); assert.equal(disabled.version, "0.3.0");
+    assert.equal(disabled.trusted, true); assert.equal(disabled.registrationId, registrationId);
+    await host.invoke("enable", { id });
+    assert.equal(await read(), "third");
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

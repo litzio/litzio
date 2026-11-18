@@ -47,6 +47,9 @@ export class InstalledArtifacts {
     return directory;
   }
 
+  /** The same content rule as copy(): compares a source with the digest recorded when it was applied. */
+  sourceDigest(source: string): string { return artifactDigest(source, includeSourceFile); }
+
   copy(source: string) {
     mkdirSync(path.dirname(this.location), { recursive: true });
     const root = this.root();
@@ -63,7 +66,7 @@ export class InstalledArtifacts {
         return true;
       } });
       const sourceDigest = artifactDigest(directory);
-      if (artifactDigest(source, includeSourceFile) !== sourceDigest) throw new Error("Plugin source changed while copying");
+      if (this.sourceDigest(source) !== sourceDigest) throw new Error("Plugin source changed while copying");
       return { installationId, directory, sourceDigest };
     } catch (error) {
       this.remove(installationId);
