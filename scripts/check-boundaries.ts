@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkEditorEngineBoundary } from "./editor-engine-boundary.ts";
+import { checkSourceImportBoundary } from "./source-import-boundary.ts";
 const root = fileURLToPath(new URL("../", import.meta.url));
 for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared", "apps/desktop/src", "packages/cli/src", "packages/core/src", "packages/file-commit/src"]) {
   for (const file of fs.readdirSync(path.join(root, base), { recursive: true }).filter(name => /\.tsx?$/.test(name))) {
@@ -9,11 +10,7 @@ for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared
     checkEditorEngineBoundary(`${base}/${file}`, source);
     if (base === "apps/editor/src" && file !== "host-transport.ts" && /\bfetch\s*\(/.test(source)) throw new Error(`Editor HTTP must use Host client: ${file}`);
     if (/@litzio\/(?:plugin-api|docling|ai-agent)/.test(source)) throw new Error(`Removed plugin dependency: ${base}/${file}`);
-    for (const match of source.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)) {
-      const specifier = match[1]!;
-      if (specifier.startsWith(".") && path.resolve(root, base, path.dirname(file), specifier).startsWith(path.join(root, "plugins") + path.sep)) throw new Error(`Application imports plugin source: ${base}/${file}`);
-    }
-    if (base === "packages/core/src" && /(?:from|import\()\s*["'](?:@tiptap|prosemirror|[^"']*apps\/editor)/.test(source)) throw new Error(`Core editor dependency: ${file}`);
+    checkSourceImportBoundary(path.posix.join(base, file.split(path.sep).join("/")), source);
   }
 }
 console.log("Core and official application boundaries passed.");
@@ -41,7 +38,7 @@ if (obsoletePublicName.test(fs.readFileSync(path.join(root, "README.md"), "utf8"
 for (const base of ["packages/plugin-sdk/src"]) {
   for (const file of fs.readdirSync(path.join(root, base), { recursive: true }).filter(name => /\.tsx?$/.test(name))) {
     const source = fs.readFileSync(path.join(root, base, file), "utf8");
-    if (/from\s*["'](?:react|@tiptap|prosemirror|[^"']*apps\/)/.test(source)) throw new Error(`Plugin SDK UI dependency: ${base}/${file}`);
+    checkSourceImportBoundary(path.posix.join(base, file.split(path.sep).join("/")), source);
     for (const match of source.matchAll(/from\s*["']([^"']+)["']/g)) {
       if (base.startsWith("plugins/") && match[1]!.startsWith("@litzio/") && match[1] !== "@litzio/plugin-sdk") throw new Error(`Plugin bypasses SDK: ${base}/${file}`);
       if (base.startsWith("plugins/") && match[1]!.startsWith(".") && !path.resolve(root, base, path.dirname(file), match[1]!).startsWith(path.join(root, base) + path.sep)) throw new Error(`Plugin imports internal source: ${base}/${file}`);
