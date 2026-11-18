@@ -90,7 +90,9 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 - 새 worktree를 만들기 전에 카운터가 3 이상이면 0으로 돌아올 때까지 기다린다.
 - 작업자는 실행 전 카운터가 5 이상이면 3 미만이 될 때까지 기다린다(최대 20분). 6 이상이면 중단하고 보고한다.
 
-리뷰어는 구현자의 worktree를 같이 쓴다. 이때 구현자에게는 브라우저와 서버 실행을 멈추라고 먼저 알린다(같은 profile을 동시에 쓰면 Chrome 기동이 실패하고 fixture가 덮어써진다).
+리뷰어는 구현자의 worktree를 같이 쓴다. 이때 구현자에게는 브라우저와 서버 실행을 멈추라고 먼저 알린다(같은 profile을 동시에 쓰면 Chrome 기동이 실패하고 fixture가 덮어써진다). 리뷰어가 도는 동안에는 구현자에게 수정·push를 맡기지 않는다. 리뷰 기준 파일이 바뀐다. 리뷰 중에 생긴 추가 요청은 리뷰가 끝난 뒤 리뷰 지적과 함께 넘긴다.
+
+다른 checkout(격리 시험 Host 등)의 브라우저 실행기가 `apps/editor/test/`에서만 시나리오를 읽으면, 작업자가 그 소스 트리에 임시 시나리오 파일을 두게 된다. 지시문에 "그 파일 하나만 두고, 끝나면 그 파일만 지워 `git status`를 깨끗이 한다"를 적고, 보고에서 `git status` 결과를 확인한다.
 
 ## 4. PR이 올라왔을 때
 
@@ -112,6 +114,7 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 - 리뷰어는 구현에 참여하지 않은 새 agent이고, 프롬프트는 [reviewer-prompt.md](references/reviewer-prompt.md)를 쓴다. 이 PR에서 특히 위험한 지점을 중점 확인 항목으로 구체적으로 적는다.
 - 리뷰 중 구현자가 head를 바꾸면 리뷰어에게 최종 head 기준으로 판정하라고 알린다.
 - `REQUEST_CHANGES`면 지적을 구현자에게 전달하고, 수정 후 같은 리뷰어 또는 새 리뷰어에게 재검토를 맡긴다.
+- 같은 종류의 우회 지적(예: 막은 경로 옆의 다른 경로)이 라운드마다 이어지면, 오케스트레이터가 보장 범위를 정해 계약 문장으로 고정한다. 예: "리치오가 정하는 쓰기 위치는 Host가 확인하고, 대상 폴더의 도구 설정이 바꾸는 위치는 작성자 책임이며 다음 불러오기 확인이 안전망이다." 재리뷰 지시에는 그 범위 밖 경로를 비차단 메모로 두라고 적는다. 범위를 정한 근거(남는 안전망, 사람이 실제로 낼 수 있는 순서인지)를 기록 댓글에 쓴다.
 
 ## 6. 병합
 
@@ -130,6 +133,7 @@ node <skill>/scripts/pr-gate.mjs --pr <N> --enqueue --note-file <note.md>  # 기
   - 위험 PR에서 제품 코드나 테스트 단언이 바뀌었으면 새 APPROVE를 받는다.
   - 충돌 해결, 문서만의 변경, 단언을 바꾸지 않는 테스트 대기 보완은 리뷰어를 다시 부르지 않는다. `git show --remerge-diff <merge>`와 추가 diff를 직접 확인하고, 새 head SHA로 확인 기록을 남긴다.
 - master가 움직였다는 이유만으로 PR에 master를 반영하지 않는다.
+- merge queue가 없는 다른 저장소(예: 플러그인 저장소)에서 `gh pr merge`로 병합할 때는 `gh pr view <N> --json state`가 `MERGED`인 것을 확인한 뒤에만 원격 브랜치를 지운다. 병합과 삭제를 `;`로 잇지 않는다. 충돌로 병합이 실패한 채 브랜치를 지우면 PR이 닫힌다.
 
 ### queue 감시와 실패 처리
 
