@@ -14,6 +14,8 @@ import { test } from "node:test";
 import { CliIntegration, type RegistryPath } from "../../src/cli-integration.ts";
 import { windowsCommand } from "../windows-command.ts";
 import { verifyPackagedCli } from "./cli-check.ts";
+import { DAEMON_PROTOCOL } from "../../../editor/server/daemon-protocol.ts";
+import { largeAuthoringRequest, measureAuthoringSave } from "../../../editor/test/helpers/large-authoring.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
@@ -80,6 +82,22 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
       assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
 
       assert.match(await response.text(), /<html/);
+
+      // #1763: the bundled authoring thread loads under RunAsNode and keeps the daemon
+      // answering during a large save; the thread does not outlive a daemon stop.
+      const host = `http://127.0.0.1:${address.port}`, small = path.join(folder, "small.md");
+      writeFileSync(small, "# Small\n");
+      const save = await measureAuthoringSave(host, DAEMON_PROTOCOL, path.join(folder, "large.md"), small, largeAuthoringRequest());
+      console.log(`packaged authoring save: ${save.summary}`);
+      save.check();
+      const identity = await (await fetch(`${host}/daemon/health`, { headers: { "x-litzio-protocol": DAEMON_PROTOCOL } })).json();
+      const exited = once(child, "exit");
+      const stop = await fetch(`${host}/daemon/stop`, { method: "POST", headers: { Origin: host, "Content-Type": "application/json", "x-litzio-protocol": DAEMON_PROTOCOL },
+        body: JSON.stringify({ pid: identity.pid, startedAt: identity.startedAt, instanceId: identity.instanceId, confirm: true }) });
+      assert.equal(stop.status, 200);
+      let deadline: NodeJS.Timeout | undefined;
+      try { await Promise.race([exited, new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error("The daemon did not exit after stop")), 15_000); })]); }
+      finally { clearTimeout(deadline); }
       assert.equal(errors, "");
     } finally {
       if (child.exitCode === null && child.pid) {

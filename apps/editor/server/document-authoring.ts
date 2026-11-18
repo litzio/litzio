@@ -1,12 +1,13 @@
 import path from "node:path";
 import fs from "node:fs";
-import { authorDocument, parse, serialize, updateMediaReferences } from "@litzio/core";
+import { parse, serialize, updateMediaReferences } from "@litzio/core";
 import { createHash } from "node:crypto";
 import { authoredDocumentRequestSchema } from "@litzio/plugin-sdk";
 import { commitFile } from "@litzio/file-commit";
 import { createDocumentFromAuthoring, createDocumentSourceFile } from "./document-create.ts";
 import { createDocumentImageAsset } from "./asset-api.ts";
 import { validateImage } from "./image-validation.ts";
+import { authorDocumentInThread } from "./authoring-thread.ts";
 import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 
 /** Validate the same SDK image/key contract for file publication and embedded review snapshots. */
@@ -49,11 +50,29 @@ export async function regenerateAuthoredDocumentFile(file: string, raw: unknown,
   return publishAuthoredDocumentFile(file, raw, access, beforePublish, revision);
 }
 
+// Authoring computes off the main thread, so writes to one target path are taken
+// in arrival order: a later request cannot publish before an earlier one settles.
+// Other processes are still checked at publication (exclusive create, revision).
+const targetWrites = new Map<string, Promise<unknown>>();
+function inArrivalOrder<T>(file: string, task: () => Promise<T>): Promise<T> {
+  const key = process.platform === "win32" ? file.toLowerCase() : file;
+  const result = (targetWrites.get(key) ?? Promise.resolve()).then(task);
+  const settled = result.then(() => {}, () => {});
+  targetWrites.set(key, settled);
+  void settled.then(() => { if (targetWrites.get(key) === settled) targetWrites.delete(key); });
+  return result;
+}
+
 async function publishAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess, beforePublish: () => void, revision?: string) {
   file = path.resolve(access ? access.resolve(file, true, revision === undefined) : accessPath(file, access, true));
   if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
   beforePublish();
   const { input, images } = validatedAuthoringRequest(raw);
+  return inArrivalOrder(file, () => publishInOrder(file, input, images, access, beforePublish, revision));
+}
+
+async function publishInOrder(file: string, input: ReturnType<typeof validatedAuthoringRequest>["input"], images: ReturnType<typeof validatedAuthoringRequest>["images"],
+  access: FileAccess, beforePublish: () => void, revision?: string) {
   const created: { directory: string; owner: fs.BigIntStats }[] = [];
   try {
     const missing: string[] = [];
@@ -84,7 +103,7 @@ async function publishAuthoredDocumentFile(file: string, raw: unknown, access: F
       bindings[image.key] = createDocumentImageAsset(file, image.mime, image.bytes, access, revision === undefined ? image.key : undefined).path;
     }
     if (revision === undefined) return await createDocumentFromAuthoring(file, input.authoring, bindings, access, beforePublish);
-    const authored = await authorDocument(input.authoring, bindings);
+    const authored = await authorDocumentInThread(input.authoring, bindings);
     beforePublish();
     commitFile(accessPath(file, access), authored.source, revision);
     return { path: file, revision: authored.documentRevision, inputs: authored.inputs };

@@ -1,10 +1,11 @@
 import { statSync } from "node:fs";
 import path from "node:path";
-import { authorDocument, parse, serialize } from "@litzio/core";
+import { parse, serialize } from "@litzio/core";
 import { createFile, textRevision } from "@litzio/file-commit";
 import { fileIdentity } from "../shared/file-operations.ts";
 import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { resolveDocumentPath } from "./document-path.ts";
+import { authorDocumentInThread } from "./authoring-thread.ts";
 
 /** Canonical admission before exclusive creation; receipt identifies the file actually written. */
 export function createDocumentSourceFile(requestedPath: string, source: string, access: FileAccess = LOCAL_FILE_ACCESS) {
@@ -15,7 +16,7 @@ export function createDocumentSourceFile(requestedPath: string, source: string, 
 export async function createDocumentFromAuthoring(
   requestedPath: string, raw: unknown, imageAssets: Readonly<Record<string, string>>, access: FileAccess, beforePublish: () => void,
 ) {
-  const authored = await authorDocument(raw, imageAssets);
+  const authored = await authorDocumentInThread(raw, imageAssets);
   beforePublish();
   return { ...publishDocumentSourceFile(requestedPath, authored.source, access), inputs: authored.inputs };
 }

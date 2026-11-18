@@ -22,6 +22,8 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 
 Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the shared lock/HTTP/asset path. A ready identity proves which generation it spawned. Actual Desktop exit disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop exit. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
 
+The shipped CLI bundle includes `authoring-worker.mjs` beside its chunks. Under RunAsNode the daemon runs shared document-authoring computation on that Host-owned worker thread while its main thread keeps request ordering, file commit and health, as in [HTTP Host](http-host-v1.md#shared-local-daemon). The thread ends with the daemon process.
+
 ### Close to tray (#1448)
 
 Ordinary close hides the existing BrowserWindow without unloading its renderer or disconnecting
