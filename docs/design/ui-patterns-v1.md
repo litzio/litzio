@@ -118,7 +118,7 @@ Enter/Space·클릭 펼치기/접기를 제공하고 `aria-expanded`/`aria-contr
 자연 해소·만료로 비면 센터는 접되, 센터 밖에서 편집 중인 focus는 유지한다.
 빈 센터 버튼을 직접 열면 #837의 빈 상태 안내를 계속 볼 수 있다.
 
-비서 상태·접수·질문은 [대화와 표시](main-agent-v1.md#대화와-표시), 계정·컨텍스트·사용량은 [질문과 사용량](main-agent-v1.md#질문과-사용량)을 따른다. 공급자 연결·설정 요청 실패는 입력 오류가 아닌 `Notice tone="error"`다. 진단의 일반 label/값은 UI 14/20, 경로·프로토콜은 mono metadata 12/16이다. Host 주소 설명은 12/18, About daemon 값·facts는 Row fact의 type-value-name·type-body를 쓴다. Host footer는 Settings와 같은 16px 슬롯·padding·8px 간격이며 6px 상태 점은 슬롯 중앙에 둔다. 읽기 전용 실행 계정도 Tab focus·Tooltip을 유지한다.
+비서 상태·접수·질문은 [대화와 표시](main-agent-v1.md#대화와-표시), 계정·컨텍스트·사용량은 [질문과 사용량](main-agent-v1.md#질문과-사용량)을 따른다. 공급자 연결·설정 요청 실패는 입력 오류가 아닌 `Notice tone="error"`다. 진단의 일반 label/값은 UI 14/20, 경로·프로토콜은 mono metadata 12/16이다. Host 주소 설명은 12/18, About daemon 값·facts는 Row fact의 type-value-name·type-body를 쓴다. Host footer는 Settings와 같은 16px 슬롯·padding·8px 간격이며 공통 Status 상태 점은 슬롯 중앙에 둔다. 읽기 전용 실행 계정 줄은 Tab focus·Tooltip 없이 보조기술 이름만 둔다.
 
 계정·한도는 Context 링의 hover/keyboard-focus Tooltip과 AI Settings에서 같은 부품으로 표시한다. 날짜는 당일이면 시각만, 그 외에는 숫자 월/일과 시각으로 표시하고 연도·초를 생략한다. 로그인 방법과 기간은 지역화한다. 한도 행은 max-w-md Tooltip 안에서 한 줄을 유지한다. 조회 실패는 Tooltip의 짧은 Unavailable이며 전송을 막거나 대화 오류로 보내지 않는다. 성공한 빈 응답은 No usage information으로 표시한다. 개별 잔여량·과금 경고도 같은 짧은 표현을 사용하며 과금 경고는 기존 대비 면 안의 bold text로 표시한다.
 

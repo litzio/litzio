@@ -14,6 +14,7 @@ async (page, { expect, screenshots, brand, openPath, assistantFixture }) => {
     const connection=()=>Promise.resolve({url:location.origin,productVersion:version,desktopVersion:version});
     window.litzioDesktop={hostConnection:connection,reconnectDaemon:connection,startup:async()=>({}),
       setTheme:async()=>true,setWindowBackground:async()=>{},reportPendingWork:()=>{},info:async()=>({version,channel:'beta',updatesSupported:false,update:{phase:'idle'},seenUpdate:null}),
+      daemonInfo:async()=>({state:'running',url:location.origin,launcher:'desktop',productVersion:version,protocolVersion:'1',pid:1,startedAt:'2026-11-18T00:00:00Z',daemonHome:'daemon-home',executable:'litzio',roots:[],nonLoopback:false}),cliIntegration:async()=>({status:'off'}),
       onUpdateState:()=>()=>{},onRestartCheck:()=>()=>{}};
   },{version:health.productVersion,prefix:brand.storagePrefix});
   await page.reload();
@@ -21,6 +22,23 @@ async (page, { expect, screenshots, brand, openPath, assistantFixture }) => {
   await expect(status).toHaveText('Connecting');release();
   await expect(status).toHaveText('Connected');
   await page.setViewportSize({width:1440,height:1000});
+  // The status dot shares the footer icon column, and the account row opens no hover surface over Settings.
+  const account=page.locator('.sidebar-host-account');
+  const footerColumn=()=>page.locator('.sidebar-footer').evaluate(footer=>{
+    const center=node=>{const box=node.getBoundingClientRect();return box.left+box.width/2;};
+    const icons=[...footer.querySelectorAll(':scope > button > svg, [data-open-settings] svg')].map(center);
+    return {icons,dot:center(footer.querySelector('.sidebar-host-account [data-status-indicator]'))};
+  });
+  const expectAligned=async()=>{const {icons,dot}=await footerColumn();expect(icons.length).toBeGreaterThan(0);for(const icon of icons) expect(Math.abs(icon-dot)).toBeLessThanOrEqual(1);};
+  await expect(account).toHaveAccessibleName('Background service · Run as: Fixture account');
+  await expectAligned();
+  await account.hover();await page.waitForTimeout(300);
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await expect(account).not.toHaveAttribute('title');
+  await page.getByRole('button',{name:'Collapse Explorer'}).click();
+  await expectAligned();
+  await page.getByRole('button',{name:'Expand Explorer'}).click();
+  await page.mouse.move(720,500);
   for(const theme of ['light','dark']) {
     await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.accent='plum';},theme);
     await expect(status).toHaveCSS('color',theme==='light'?'rgb(20, 115, 75)':'rgb(112, 212, 165)');
@@ -36,6 +54,11 @@ async (page, { expect, screenshots, brand, openPath, assistantFixture }) => {
   await expect(page.getByTestId('settings-dialog').getByRole('button',{name:'Hosts',exact:true})).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Appearance & language',exact:true})).toBeVisible();
   await capture('settings');
+  // The account row's former hover explanation lives with the background service facts.
+  await page.getByTestId('settings-dialog').getByRole('button',{name:'About & updates',exact:true}).click();
+  const runAs=page.getByTestId('settings-dialog').locator('dl').filter({has:page.getByText('Run as',{exact:true})});
+  await expect(runAs).toContainText('Fixture account');
+  await expect(runAs).toContainText("This Host performs file operations and assistant execution with this account's permissions.");
   await page.getByRole('button',{name:'Close Settings',exact:true}).click();
   await page.route('**/api/assistant/settings',route=>route.fulfill({json:{provider:'codex',model:'fixture',reasoningEffort:'low',permissionMode:'opened-folders'}}));
   await page.route('**/api/assistant/models*',route=>route.fulfill({json:{provider:'codex',models:[{id:'fixture',model:'fixture',displayName:'Fixture model',supportedReasoningEfforts:[{reasoningEffort:'low'}],defaultReasoningEffort:'low'}]}}));

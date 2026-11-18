@@ -8,6 +8,7 @@ import { Row } from "@/components/ui/row.tsx";
 import { Status } from "@/components/ui/status.tsx";
 import { connectDesktop, desktopConnection, disconnectDesktop } from "../desktop-connection.ts";
 import { i18n } from "../i18n.ts";
+import { hostConnection } from "../host-client.ts";
 
 // Native errors include Electron wrappers; unknown failures keep a neutral explanation.
 function connectionMessage(problem = "") {
@@ -76,9 +77,12 @@ export function DaemonStatus({ desktop, children }: { desktop: DesktopBridge; ch
     return () => { active = false; clearInterval(timer); };
   }, [desktop]);
   if (!info) return <>{children}</>;
+  const host = hostConnection.get();
+  const runAs = host.state === "connected" ? host.identity?.runAs : undefined;
   return <>
     <Row kind="fact" label={i18n.t("Status")}><Status variant="plain" tone={info.state === "running" ? "ok" : "error"} label={i18n.t(info.state === "running" ? "Running" : "Unreachable")} /><span className="type-helper">{i18n.t(info.launcher === "desktop" ? "Desktop" : info.launcher === "cli-start" ? "CLI (start)" : "CLI (run)")} · {info.productVersion}</span></Row>
     <Row kind="fact" label={i18n.t("Address")}><span className="break-all">{info.url}</span></Row>
+    {runAs ? <Row kind="fact" label={i18n.t("Run as")} description={i18n.t("This Host performs file operations and assistant execution with this account's permissions.")}><span className="break-all">{runAs}</span></Row> : null}
     {children}
     <details className="settings-section"><summary>{i18n.t("Details")}</summary>
 

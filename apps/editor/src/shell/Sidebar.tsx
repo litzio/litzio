@@ -2,7 +2,6 @@ import { ContextMenu } from "@/components/ui/context-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
-import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { hostConnection } from "../host-client.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
@@ -205,8 +204,8 @@ function HostAccount({ collapsed }: { collapsed: boolean }) {
   const account = runtime.state === "connected" ? runtime.identity?.runAs : undefined;
   const label = i18n.t("Background service");
   const text = account ?? label;
-  return <Tooltip><TooltipTrigger render={<div tabIndex={0} className="sidebar-host-account type-helper" aria-label={`${label} · ${i18n.t("Run as")}${account ? `: ${account}` : ""}`} />}>
+  return <div role="group" className="sidebar-host-account type-helper" aria-label={`${label} · ${i18n.t("Run as")}${account ? `: ${account}` : ""}`}>
     <HostStatus runtime={runtime} compact showDetails={false} iconOnly={!!account || collapsed} />
     {!collapsed && account ? <span className="sidebar-tree-name">{text}</span> : null}
-  </TooltipTrigger><TooltipContent><div><div>{label}{account ? ` · ${i18n.t("Run as")}: ${account}` : ""}</div>{account ? <div>{i18n.t("This Host performs file operations and assistant execution with this account's permissions.")}</div> : null}</div></TooltipContent></Tooltip>;
+  </div>;
 }
