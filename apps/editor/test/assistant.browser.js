@@ -15,7 +15,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const copilotModels = ['auto', 'copilot-model'].map(id => ({ id, model: id, displayName: id === 'auto' ? 'Auto' : 'Copilot fixture model', description: '', supportedReasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort })), defaultReasoningEffort: 'medium' }));
   let refreshes = 0, connectionAvailable = true;
   const settingsWrites = [];
-  let settingsGate, writeGate, failSave = false;
+  let settingsGate, writeGate, modelGate, failSave = false;
   await page.route('**/api/assistant/settings*', async route => {
     if (route.request().method() === 'GET') await settingsGate;
     if (route.request().method() === 'PUT') {
@@ -27,10 +27,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     }
     return route.fulfill({ json: settings });
   });
-  await page.route('**/api/assistant/models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : { fullAccessAllowed: false }), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
+  await page.route('**/api/assistant/models*', async route => { refreshes++; await modelGate; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : { fullAccessAllowed: false }), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
   await page.route('**/api/assistant/environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
+  let diagnosticGate;
   let summaryFail = false, summaryAccount = { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, summaryReads = 0, summaryLimits;
-  const diagnosticReply = route => {
+  const diagnosticReply = async route => {
+    await diagnosticGate;
     const summary = route.request().url().includes('summary=account-usage');
     if (summary) {
       summaryReads++;
@@ -72,10 +74,26 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const categories = page.getByRole('navigation', { name: /^(Settings categories|설정 분류)$/ });
+  let releaseDiagnostics;
+  diagnosticGate = new Promise(resolve => { releaseDiagnostics = resolve; });
   await categories.getByRole('button', { name: 'Assistant', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Assistant', exact: true }).last()).toBeVisible();
+  try {
+    await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toBeEnabled();
+    await expect(page.getByLabel('Model', { exact: true })).toBeEnabled();
+  }
+  finally { releaseDiagnostics(); diagnosticGate = undefined; }
   await expect(page.getByRole('button', { name: 'Codex models', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]')).toContainText('Available');
   await expect(page.getByRole('button', { name: 'Copilot models', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]')).toContainText('Available');
+  const codexStatus = page.getByRole('button', { name: 'Codex models', exact: true })
+    .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]').getByText('Available', { exact: true });
+  await codexStatus.hover();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Last checked');
+  if (screenshots) await page.screenshot({
+    path: 'tmp/1699-provider-settings-1440-light.png',
+    mask: [page.locator('.sidebar-host-account')],
+    maskColor: await page.locator('.sidebar').evaluate(node => getComputedStyle(node).backgroundColor),
+  });
   await page.getByRole('button', { name: 'Codex models', exact: true }).click();
   const modelDialog = page.getByRole('dialog', { name: 'Codex models', exact: true });
   await modelDialog.getByLabel('Search models', { exact: true }).fill('luna');
@@ -213,7 +231,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   let revealLost = false, receiptGate, releaseReceipt, receiptReads = 0;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, snapshotGateEntered = 0, answerGate;
   await page.unroute('**/api/assistant/diagnostics*');
-  await page.route('**/api/assistant/diagnostics*', route => route.request().url().includes('summary=account-usage') ? diagnosticReply(route) : route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
+  await page.route('**/api/assistant/diagnostics*', async route => (await diagnosticGate, route.request().url().includes('summary=account-usage')) ? diagnosticReply(route) : route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
     error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
     account: setupMode === 'login' ? null : { type: 'chatgpt' } } }));
   await page.route('**/api/assistant/conversations*', async route => {
@@ -222,8 +240,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); pastedData.push(body.data); await uploadGates.get(pasted); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } }); }
       if (body.action === 'resume') {
         if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
+        // A loaded Copilot conversation resumes from Host memory on the same connection.
         selected = conversations.get(body.id);
-        selected.turns = selected.turns.filter(turn => !turn.unrecordedPrompt);
       }
       if (body.action === 'send') {
         if (receipts.get(body.submissionId)?.submission.status === 'accepted' || lostResult?.submission.id === body.submissionId) {
@@ -255,7 +273,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
           { id: 'tool-' + sent.length, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: assistantFixture.document, revision: 'fixture-created-revision' }) }] } },
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
         else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: body.message ? 'Direction updated: focus on the unsaved paragraph.' : 'File reference received.' });
-        if (body.message === 'Prompt lost before provider record' && promptReject) turn.unrecordedPrompt = true;
         selected.tokenUsage = selected.provider === "copilot" ? { used: 15000, limit: 200000 } : { used: 810, limit: 1000 };
       }
       if (body.action === 'answer') { submittedAnswers.push(body); await answerGate; delete selected.userInput; }
@@ -301,8 +318,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.locator('.assistant-welcome')).toContainText('With edit access, documents are edited directly.');
   const message = panel.getByRole('textbox', { name: 'Message assistant' });
   await expect(message).toBeDisabled();
+  diagnosticGate = new Promise(resolve => { releaseDiagnostics = resolve; });
+  modelGate = diagnosticGate;
   releaseSettings(); settingsGate = undefined;
-  await expect(message).toBeEnabled();
+  try { await expect(message).toBeEnabled(); }
+  finally { releaseDiagnostics(); diagnosticGate = undefined; modelGate = undefined; }
   expect(await message.evaluate(element => document.activeElement === element), 'First open focuses the enabled assistant input').toBe(true);
   await page.keyboard.type('Assistant keyboard input');
   expect(await message.inputValue(), 'Typing after opening goes to the assistant').toBe('Assistant keyboard input');
@@ -960,16 +980,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   await expect(panel.getByText('Sign in to Codex to start a conversation.', { exact: true })).toBeVisible();
   const setupSnapshots = snapshots;
-  await page.waitForTimeout(1300);
-  expect(snapshots, 'Setup failure stops snapshot requests').toBe(setupSnapshots);
+  await expect.poll(() => snapshots, 'A historical provider warning does not stop observing a restored conversation').toBeGreaterThan(setupSnapshots);
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   setupMode = 'ready';
   settingsGate = new Promise(resolve => { releaseSettings = resolve; });
   await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   await expect(message).toBeDisabled();
   await resize.focus();
+  diagnosticGate = new Promise(resolve => { releaseDiagnostics = resolve; });
   releaseSettings(); settingsGate = undefined;
-  await expect(message).toBeEnabled();
+  try { await expect(message).toBeEnabled(); }
+  finally { releaseDiagnostics(); diagnosticGate = undefined; }
   expect(await resize.evaluate(element => document.activeElement === element), 'Setup completion preserves a later focus move').toBe(true);
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   settingsGate = new Promise(resolve => { releaseSettings = resolve; });
@@ -1181,7 +1202,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   setupMode = 'login'; await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
   await expect(panel.getByText('대화를 시작하려면 Codex에 로그인하세요.', { exact: true })).toBeVisible();
-  await expect(panel.getByRole('textbox')).toBeDisabled();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/setup-640-dark-ko.png' });
   await panel.getByRole('button', { name: '비서 설정 열기' }).click();
   await expect(page.getByRole('heading', { name: '비서', exact: true }).last()).toBeVisible();
@@ -1484,6 +1505,37 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(selected.id).not.toBe(previousConversation);
   await expect(panel.getByText('Accepted before observation', { exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  const replacement = { ...copilotModels[0], id: 'replacement', model: 'replacement', displayName: 'Replacement model' };
+  let releaseProviderRecheck;
+  const providerRecheckGate = new Promise(resolve => { releaseProviderRecheck = resolve; });
+  await page.route('**/api/assistant/models?provider=copilot&cache=revalidate', async route => {
+    await providerRecheckGate;
+    await route.fulfill({ json: { provider: 'copilot', copilot: copilotOptions, models: [replacement], updatedAt: 1793590000001 } });
+  });
+  await page.route('**/api/assistant/diagnostics?provider=codex&cache=revalidate', async route => {
+    await providerRecheckGate;
+    await route.fulfill({ json: { provider: 'codex', connected: true, account: null, checkedAt: 1793590000001 } });
+  });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
+  const codexRow = page.getByRole('button', { name: 'Codex models', exact: true }).locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " shared-row ")]');
+  await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).first().click();
+  const defaultModel = page.getByLabel('Model', { exact: true });
+  try {
+    await expect(codexRow).toContainText('Available');
+    await expect(defaultModel).toHaveValue(settings.model);
+    await expect(message).toBeEnabled();
+    await page.getByLabel('AI default language', { exact: true }).selectOption('ko');
+  } finally { releaseProviderRecheck(); }
+  await expect(codexRow).toContainText('Login required');
+  await expect(panel.getByText('Choose a model and reasoning effort from the available list.', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('AI default language', { exact: true })).toHaveValue('ko');
+  await expect(defaultModel).toHaveValue(settings.model);
+  await expect(defaultModel.locator('option[value="replacement"]')).toHaveCount(1);
+  await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Replacement model', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toHaveText('Replacement model');
   // Restore preferences for the other stable scenarios.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation.v2'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };

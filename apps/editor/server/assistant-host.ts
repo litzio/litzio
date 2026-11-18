@@ -6,7 +6,52 @@ import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { ASSISTANT, type AiProvider } from "../shared/assistant.ts";
 import { createAssistantSettings, checkedAssistantSettings } from "./assistant-settings.ts";
 import { ProviderConnections } from "./provider-connections.ts";
-import { AssistantConversations, conversationForDisplay } from "./assistant-conversations.ts";
+import { AssistantConversations, AssistantModelUnavailable, conversationForDisplay } from "./assistant-conversations.ts";
+
+const PROVIDER_RECHECK_INTERVAL_MS = 3_000;
+function providerReads<T>(read: (provider: AiProvider) => Promise<T>) {
+  const latest = new Map<AiProvider, { value: T; completedAt: number }>();
+  const pending = new Map<AiProvider, Promise<T>>();
+  const invalidating = new Set<AiProvider>();
+  const refresh = (provider: AiProvider): Promise<T> => {
+    const active = pending.get(provider);
+    if (active) return active;
+    const next = read(provider).then(value => {
+      if (pending.get(provider) === next) latest.set(provider, { value, completedAt: Date.now() });
+      return value;
+    }).finally(() => { if (pending.get(provider) === next) pending.delete(provider); });
+    pending.set(provider, next);
+    return next;
+  };
+  return {
+    read(provider: AiProvider, cache?: string): Promise<T> {
+      const previous = latest.get(provider);
+      const fresh = previous && Date.now() - previous.completedAt < PROVIDER_RECHECK_INTERVAL_MS;
+      if (cache === "prefer" && previous) {
+        if (!fresh) void refresh(provider).catch(() => {});
+        return Promise.resolve(previous.value);
+      }
+      if (cache === "revalidate" && fresh) return pending.get(provider) ?? Promise.resolve(previous.value);
+      return refresh(provider);
+    },
+    invalidate(provider: AiProvider) {
+      if (invalidating.has(provider)) return;
+      latest.delete(provider);
+      const active = pending.get(provider);
+      invalidating.add(provider);
+      let replacement: Promise<T>;
+      if (active) {
+        // Complete the current probe before replacing it. Later readers join the replacement.
+        replacement = active.catch(() => {}).then(() => {
+          pending.delete(provider);
+          return refresh(provider);
+        });
+        pending.set(provider, replacement);
+      } else replacement = refresh(provider);
+      void replacement.catch(() => {}).finally(() => invalidating.delete(provider));
+    },
+  };
+}
 
 /** Official daemon feature. Connections and turns live until daemon shutdown. */
 export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun; plugins?: PluginService; paths?: ReturnType<typeof hostPaths>; origin?(): string | undefined }) {
@@ -16,6 +61,19 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   let closed = false, closing: Promise<void> | undefined;
   let agent = options?.agent;
   const providerConnection = () => agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run, options?.origin);
+  const readModels = providerReads(async selected => {
+    if (closed) throw new Error("The Assistant Host is closing.");
+    return providerConnection().models(selected, "fresh");
+  });
+  const readDiagnostics = providerReads(async selected => {
+    if (closed) throw new Error("The Assistant Host is closing.");
+    return providerConnection().diagnostics(selected);
+  });
+  const recheckProvider = (selected: AiProvider) => {
+    if (closed) return;
+    readModels.invalidate(selected);
+    readDiagnostics.invalidate(selected);
+  };
   let conversations: AssistantConversations | undefined;
   const history = () => conversations ??= new AssistantConversations(providerConnection(), access, plugins?.host);
   const provider = (args?: { provider?: AiProvider }): AiProvider => {
@@ -33,11 +91,11 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         return displayName ? { ...skill, displayName } : skill;
       }) };
     },
-    assistantModels: (args?: { provider?: AiProvider }) => providerConnection().models(provider(args)),
-    assistantDiagnostics: async (args?: { provider?: AiProvider; summary?: string }) => {
+    assistantModels: (args?: { provider?: AiProvider; cache?: string }) => readModels.read(provider(args), args?.cache),
+    assistantDiagnostics: async (args?: { provider?: AiProvider; summary?: string; cache?: string }) => {
       const selected = provider(args);
       const connection = providerConnection();
-      if (args?.summary !== "account-usage") return connection.diagnostics(selected);
+      if (args?.summary !== "account-usage") return readDiagnostics.read(selected, args?.cache);
       if (selected !== "codex") return { provider: selected, checkedAt: Date.now() };
       const value = await connection.accountUsage();
       return { ...value, accountError: value.accountError ? "Unavailable" : undefined, rateLimitsError: value.rateLimitsError ? "Unavailable" : undefined };
@@ -71,14 +129,20 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.action === "resume") return history().resume(args.id, currentSettings);
       if (args.action === "send") {
         const existing = args.id ? history().current(args.id) : undefined;
+        const selected = provider({ provider: existing?.provider ?? args.provider ?? currentSettings.provider });
         // Steering and cancellation retain their admitted turn and connection.
         if (!existing?.turns.some(turn => turn.status === "inProgress")) {
-          const selected = provider({ provider: existing?.provider ?? args.provider ?? currentSettings.provider });
-          const status = await providerConnection().diagnostics(selected);
-          if (!status.connected || selected === "codex" && !status.account) throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
+          const status = await readDiagnostics.read(selected).catch(error => { recheckProvider(selected); throw error; });
+          if (!status.connected || selected === "codex" && !status.account) {
+            recheckProvider(selected);
+            throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
+          }
           if (closed) throw new Error("The Assistant Host is closing.");
         }
-        return history().send(args, currentSettings);
+        return history().send(args, currentSettings).catch(error => {
+          if (error instanceof AssistantModelUnavailable) recheckProvider(selected);
+          throw error;
+        });
       }
       if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
       if (args.action === "interrupt") return history().interrupt(args.id);

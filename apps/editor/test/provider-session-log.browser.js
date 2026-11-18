@@ -4,7 +4,7 @@ async (page, { expect, screenshots, brand }) => {
   const id = '00000000-0000-4000-8000-000000000001';
   let conversation;
   await page.route('**/api/assistant/settings*', r => r.fulfill({ json: settings }));
-  await page.route('**/api/assistant/models*', r => r.fulfill({ json: { models: [{ id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
+  await page.route('**/api/assistant/models*', r => r.fulfill({ json: { provider: 'codex', models: [{ id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
   await page.route('**/api/assistant/diagnostics*', r => r.fulfill({ json: { connected: true, provider: 'codex', account: { type: 'chatgpt' } } }));
   await page.route('**/api/assistant/conversations*', r => {
     if (r.request().method() === 'POST') {

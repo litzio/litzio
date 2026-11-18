@@ -26,7 +26,7 @@ import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copi
 
 import { questionTool } from "./assistant-question-tool.ts";
 
-
+export class AssistantModelUnavailable extends Error {}
 
 /** Providers own message content. Litzio's index also owns correlated question interactions. */
 export class AssistantConversations {
@@ -329,7 +329,9 @@ export class AssistantConversations {
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
       if (!active) {
         const models = await this.connection.models();
-        if (!models.models.some(model => model.model === input.model && model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === input.reasoningEffort))) throw new Error("Invalid AI model or reasoning effort.");
+        const model = models.models.find(model => model.model === input.model);
+        if (!model) throw new AssistantModelUnavailable("Invalid AI model or reasoning effort.");
+        if (!model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === input.reasoningEffort)) throw new Error("Invalid AI model or reasoning effort.");
       }
       const selected = input.skills ?? [];
       if (!Array.isArray(selected) || selected.some(skill => !skill || typeof skill.name !== "string" || typeof skill.path !== "string")) throw new Error("Invalid skills.");
@@ -400,6 +402,7 @@ export class AssistantConversations {
       return conversation;
     } catch (error) {
       if (conversation && !conversation.turns.some(turn => turn.status === "inProgress")) this.scopes.delete(conversation.id);
+      if (error instanceof AssistantModelUnavailable) throw error;
       throw new Error(permissionError((error as Error).message));
     } finally { this.pending.delete(key); }
   }
@@ -487,8 +490,8 @@ export class AssistantConversations {
   private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
     const acp = this.connection.copilot;
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
-    const catalog = await this.connection.models("copilot");
-    if (!catalog.models.some(model => model.model === input.model)) throw new Error("Invalid Copilot model.");
+    const catalog = await this.connection.models("copilot", "recent");
+    if (!catalog.models.some(model => model.model === input.model)) throw new AssistantModelUnavailable("Invalid Copilot model.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
     const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
     if (source === "cli") {

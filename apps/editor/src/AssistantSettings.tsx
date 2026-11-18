@@ -3,6 +3,7 @@ import { Status } from "./components/ui/status.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { AssistantAccount, AssistantRateLimits } from "./AssistantAccountUsage.tsx";
 import { useHostClient } from "./host-context.tsx";
+import { observeAssistantProvider } from "./assistant-api.ts";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ASSISTANT, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
 import "./assistant-settings.css";
@@ -28,21 +29,23 @@ function createRequest(client: ReturnType<typeof useHostClient>) { return async 
  const value = await response.json(); if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`); return value;
 }; }
 
-export function AssistantSettings({ onSaved }: { onSaved(): void }) {
+export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved(): void; providerReadRevision: number }) {
     const request = createRequest(useHostClient());
     const [settings, setSettings] = useState<AssistantSettings>();
     const [storedSettings, setStoredSettings] = useState<AssistantSettings>();
     const [inspecting, setInspecting] = useState<AiProvider>("codex");
     const [catalogs, setCatalogs] = useState<Partial<Record<AiProvider, AiModels>>>({});
     const models = catalogs[inspecting];
-    const setModels = (value: AiModels | undefined) => { if (value) setCatalogs(current => ({ ...current, [value.provider]: value })); };
-    const [diagnostics, setDiagnostics] = useState<AssistantDiagnostics>();
+    const setModels = (value: AiModels) => setCatalogs(current => (current[value.provider]?.updatedAt ?? 0) > value.updatedAt
+      ? current : { ...current, [value.provider]: value });
     const [environment, setEnvironment] = useState<AssistantEnvironment>();
     const [view, setView] = useState<"settings" | "diagnostics">("settings");
     const [dialog, setDialog] = useState(false), [search, setSearch] = useState("");
     const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false);
+    const [selectingProvider, setSelectingProvider] = useState(false);
     const latest = useRef<AssistantSettings | undefined>(undefined), queue = useRef(Promise.resolve()), revision = useRef(0);
     const [connections, setConnections] = useState<Partial<Record<AiProvider, AssistantDiagnostics>>>({});
+    const diagnostics = connections[inspecting];
     const [problem, setProblem] = useState("");
     const focus = useRef<HTMLElement | null>(null), alive = useRef(true);
     const t = (key: string) => i18n.t(key as MessageKey);
@@ -59,41 +62,54 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
         finally { if (alive.current && version === revision.current) setBusy(false); }
       });
     };
-    const refresh = async (provider: AiProvider = inspecting) => {
+    const loadModels = (provider: AiProvider, preferCached = true) => {
+      const update = (value: AiModels) => { if (alive.current) setModels(value); };
+      return preferCached ? observeAssistantProvider(request<AiModels>, ASSISTANT.modelsRoute, provider, update)
+        : get<AiModels>(ASSISTANT.modelsRoute, provider).then(update);
+    };
+    const loadDiagnostics = (provider: AiProvider, preferCached = true) => {
+      const update = (value: AssistantDiagnostics) => {
+        if (alive.current) setConnections(current => (current[provider]?.checkedAt ?? 0) > value.checkedAt
+          ? current : { ...current, [provider]: value });
+      };
+      return preferCached ? observeAssistantProvider(request<AssistantDiagnostics>, ASSISTANT.diagnosticsRoute, provider, update)
+        : get<AssistantDiagnostics>(ASSISTANT.diagnosticsRoute, provider).then(update);
+    };
+    const report = (error: Error) => { if (alive.current) setProblem(error.message); };
+    const refresh = async () => {
       setLoading(true); setProblem("");
-      const results = await Promise.allSettled([get<AiModels>(ASSISTANT.modelsRoute, provider), get<AssistantDiagnostics>(ASSISTANT.diagnosticsRoute, provider)]);
-      if (!alive.current) return;
-      if (results[0].status === "fulfilled") setModels(results[0].value);
-      else { setModels(undefined); setProblem(String(results[0].reason.message)); }
-      if (results[1].status === "fulfilled") {
-        const value = results[1].value; setDiagnostics(value); setConnections(current => ({ ...current, [provider]: value }));
-      } else { setDiagnostics(undefined); setProblem(String(results[1].reason.message)); }
-      setLoading(false);
+      await Promise.allSettled([loadModels(inspecting, false).catch(report), loadDiagnostics(inspecting, false).catch(report)]);
+      if (alive.current) setLoading(false);
     };
     const selectProvider = async (provider: AiProvider) => {
       const current = latest.current!;
       if (provider === current.provider) { save({ ...current }); return; }
-      setLoading(true); setProblem("");
+      setSelectingProvider(true); setProblem("");
       try {
         const catalog = await get<AiModels>(ASSISTANT.modelsRoute, provider), first = catalog.models[0];
         if (!first) throw new Error();
         if (!alive.current) return;
         save({ ...latest.current!, provider, model: first.model, reasoningEffort: first.defaultReasoningEffort });
-        setModels(catalog); setInspecting(provider); void refresh(provider);
+        setModels(catalog); setInspecting(provider);
       } catch { if (alive.current) setProblem(t("Could not save Assistant settings.")); }
-      finally { if (alive.current) setLoading(false); }
+      finally { if (alive.current) setSelectingProvider(false); }
     };
     useEffect(() => {
       alive.current = true;
-      void Promise.all([get<AssistantSettings>(ASSISTANT.settingsRoute), get<AssistantEnvironment>(ASSISTANT.environmentRoute)]).then(([next, env]) => {
+      void get<AssistantEnvironment>(ASSISTANT.environmentRoute).then(env => { if (alive.current) setEnvironment(env); }).catch(report);
+      void get<AssistantSettings>(ASSISTANT.settingsRoute).then(next => {
         if (!alive.current) return;
         next = { ...next, responseLanguage: next.responseLanguage ?? (navigator.language.startsWith("ko") ? "ko" : navigator.language.startsWith("ja") ? "ja" : "en") };
-        latest.current = next; setSettings(next); setStoredSettings(next); setEnvironment(env); setInspecting(next.provider); void refresh(next.provider);
-        const other = next.provider === "codex" ? "copilot" : "codex";
-        void get<AssistantDiagnostics>(ASSISTANT.diagnosticsRoute, other).then(value => { if (alive.current) setConnections(current => ({ ...current, [other]: value })); }).catch(() => {});
-      }).catch(error => { if (alive.current) setProblem(error.message); });
+        latest.current = next; setSettings(next); setStoredSettings(next); setInspecting(next.provider);
+      }).catch(report);
       return () => { alive.current = false; };
     }, []);
+    const savedProvider = storedSettings?.provider;
+    useEffect(() => {
+      if (!savedProvider) return;
+      void loadModels(savedProvider).catch(report);
+      for (const provider of ["codex", "copilot"] as const) void loadDiagnostics(provider).catch(report);
+    }, [savedProvider, providerReadRevision]);
     const copilot = inspecting === "copilot", providerName = copilot ? "GitHub Copilot" : "Codex";
     const defaultModels = settings ? catalogs[settings.provider] : undefined;
     const model = defaultModels?.models.find(item => item.model === settings?.model);
@@ -127,19 +143,21 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
 
       </> : <>
         <Section title={t("Providers")}>
-        {(["codex", "copilot"] as const).map(provider => <Row key={provider} label={<Button variant="ghost" className="agent-provider-open justify-start" disabled={loading} onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void refresh(provider); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
+        {(["codex", "copilot"] as const).map(provider => <Row key={provider} label={<Button variant="ghost" className="agent-provider-open justify-start" onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void loadModels(provider).catch(report); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
             <span aria-hidden="true">›</span><span className="type-item-name">{provider === "copilot" ? "GitHub Copilot" : "Codex"}</span>
           </Button>}>
-          <Status variant="plain" tone={status(provider) === t("Checking…") ? "progress" : status(provider) === t("Available") ? "ok" : status(provider) === t("Unavailable") ? "error" : "warning"} label={status(provider)} />
-          <Button variant="ghost" onClick={() => { setInspecting(provider); void refresh(provider); setView("diagnostics"); }}>{t("Diagnostics")}</Button>
+          <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>
+            <Status variant="plain" tone={status(provider) === t("Checking…") ? "progress" : status(provider) === t("Available") ? "ok" : status(provider) === t("Unavailable") ? "error" : "warning"} label={status(provider)} />
+          </TooltipTrigger><TooltipContent>{t("Last checked")}: {date(connections[provider]?.checkedAt)}</TooltipContent></Tooltip>
+          <Button variant="ghost" onClick={() => { setInspecting(provider); void loadDiagnostics(provider).catch(report); setView("diagnostics"); }}>{t("Diagnostics")}</Button>
         </Row>)}
         </Section>
         <Section title={t("Defaults")} description={t("Changes apply to the next task.")}>
-        <SettingsSelect label={t("Default provider")} value={settings?.provider ?? "codex"} disabled={!settings || loading}
+        <SettingsSelect label={t("Default provider")} value={settings?.provider ?? "codex"} disabled={!settings || selectingProvider}
           options={(["codex", "copilot"] as const).map(value => ({ value, label: value === "codex" ? "Codex" : "GitHub Copilot" }))} onChange={value => void selectProvider(value as AiProvider)} />
-        <SettingsSelect label={t("Model")} value={settings?.model ?? ""} disabled={loading || !defaultModels || !settings} onChange={selectModel}
+        <SettingsSelect label={t("Model")} value={settings?.model ?? ""} disabled={!defaultModels || !settings || selectingProvider} onChange={selectModel}
           options={[...(!model ? [{ value: settings?.model ?? "", label: settings?.model ?? t("Checking…") }] : []), ...(defaultModels?.models.map(item => ({ value: item.model, label: item.displayName })) ?? [])]} />
-        <div title={settings?.provider === "copilot" && defaultModels?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={loading || !model || !settings}
+        <div title={settings?.provider === "copilot" && defaultModels?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={!model || !settings || selectingProvider}
           onChange={value => { save({ ...latest.current!, reasoningEffort: value }); }}
           options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /></div>
         <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
@@ -151,7 +169,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
           onChange={value => { save({ ...latest.current!, responseLanguage: value as AssistantSettings["responseLanguage"] }); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
 
-        {models && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
+        {defaultModels && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
 
         </Section>
         <Section title={t("Common working environment")}>

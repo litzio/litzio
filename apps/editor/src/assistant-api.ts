@@ -1,5 +1,15 @@
 import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import type { HostClient } from "./host-client.ts";
+import type { AiProvider } from "../shared/assistant.ts";
+
+export async function observeAssistantProvider<T>(
+  request: (url: string) => Promise<T>, route: string, provider: AiProvider, update: (value: T) => void,
+) {
+  const url = `${route}?provider=${provider}`;
+  update(await request(`${url}&cache=prefer`));
+  update(await request(`${url}&cache=revalidate`));
+}
+
 /** A conversation owns this transport for its entire lifetime. */
 export function createAssistantRequest(client: HostClient) {
   return async function request<T>(url: string, body?: unknown, signal?: AbortSignal): Promise<T> {

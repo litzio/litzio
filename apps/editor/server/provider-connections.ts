@@ -78,10 +78,11 @@ export class ProviderConnections {
     if (!entry) throw new Error("Codex returned no skills for the assistant directory.");
     return { skills: entry.skills.filter((skill: any) => skill.enabled).map(({ name, path, description }: any) => ({ name, path, description })), errors: entry.errors };
   }
-  async models(provider: AiProvider = "codex"): Promise<AiModels> {
+  async models(provider: AiProvider = "codex", inspectCopilot?: "fresh" | "recent"): Promise<AiModels> {
     if (provider === "copilot") {
       this.environment();
-      const session = await this.copilot.catalog();
+      const session = inspectCopilot === "fresh" ? (await this.copilot.inspect()).session
+        : (inspectCopilot === "recent" ? this.copilot.recentlyInspectedSession() : undefined) ?? await this.copilot.catalog();
       const reasoning = copilotReasoning(session);
       const supportedReasoningEfforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
         : COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" }));

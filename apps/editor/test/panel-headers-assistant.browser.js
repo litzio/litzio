@@ -3,7 +3,7 @@ async (page, { expect, openPath, assistantFixture, screenshots, brand }) => {
   const statuses = ['completed', 'success', 'failed', 'declined', 'interrupted', 'pending', 'inProgress', 'running', 'future-state'];
   let conversation;
   await page.route('**/api/assistant/settings*', r => r.fulfill({ json: settings }));
-  await page.route('**/api/assistant/models*', r => r.fulfill({ json: { models: [{ id: 'luna', model: settings.model, displayName: 'GPT Luna', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
+  await page.route('**/api/assistant/models*', r => r.fulfill({ json: { provider: 'codex', models: [{ id: 'luna', model: settings.model, displayName: 'GPT Luna', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }] } }));
   await page.route('**/api/assistant/diagnostics*', r => r.fulfill({ json: { connected: true, account: { type: 'chatgpt' } } }));
   await page.route('**/api/assistant/conversations*', r => {
     if (r.request().method() === 'POST' && r.request().postDataJSON().action === 'send') {
