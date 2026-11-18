@@ -92,12 +92,13 @@ const sourceKey = (url: string) => { const { owner, repo, tree } = parseGitHubSo
  * The applied tree stays known only while the folder holds that same content.
  */
 function localOrigin(sourceDirectory: string, manifest: PluginManifest, kept: InstalledPlugin | undefined, sourceDigest: string): Pick<InstalledPlugin, "sourceDirectory" | "github"> {
-  if (!manifest.repository) return { sourceDirectory };
   const pinned = kept?.github;
-  if (!pinned) { const { owner, repo } = parseGitHubSource(manifest.repository)!; return { sourceDirectory, github: { url: manifest.repository, owner, repo } }; }
+  // A trusted remote source stays recorded until the plugin is added again, even while the folder names none.
+  if (!manifest.repository && !pinned) return { sourceDirectory };
+  if (!pinned) { const url = manifest.repository!, { owner, repo } = parseGitHubSource(url)!; return { sourceDirectory, github: { url, owner, repo } }; }
   const { moved: _moved, commit, tree, ...source } = pinned;
   return { sourceDirectory, github: { ...source, ...(commit && tree && kept.sourceDigest === sourceDigest ? { commit, tree } : {}),
-    ...(sourceKey(manifest.repository) !== sourceKey(pinned.url) ? { moved: manifest.repository } : {}) } };
+    ...(manifest.repository ? sourceKey(manifest.repository) !== sourceKey(pinned.url) ? { moved: manifest.repository } : {} : pinned.moved ? { moved: pinned.moved } : {}) } };
 }
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
 export class PluginHost {
@@ -594,7 +595,7 @@ export class PluginHost {
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));
-    if (action === "source-plugins") return this.github.locate(args.source!).then(location => this.github.plugins(location)).then(found => ({ ...found,
+    if (action === "source-plugins") return this.github.find(args.source!).then(found => ({ ...found,
       receipt: { requestId: randomUUID(), operation: "plugins.source-plugins", version: 1, scope: "host", outcome: "success" } }));
     const run = this.serial.then(async () => {
       let id = args.id!;

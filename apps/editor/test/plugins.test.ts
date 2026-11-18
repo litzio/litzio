@@ -365,7 +365,11 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     await installed({ source: "https://github.com/acme/tools/tree/main/plugins/alpha" });
     const parent = await host.invoke("install", { source: "https://github.com/acme/tools" }) as any;
     assert.equal(parent.receipt.outcome, "failure"); assert.match(parent.errors[0].message, /exact plugin folder address/);
+    // [Find] checks an exact folder in each track's tree, like install, and reports the tracks that can install it.
+    const find = async (source: string) => ((await host.invoke("source-plugins", { source })) as any).plugins.map((p: any) => [p.id, p.release, p.branch]);
+    assert.deepEqual(await find("https://github.com/acme/tools/tree/main/plugins/alpha"), [["acme.alpha", false, true]]);
     github.truncated = false;
+    assert.deepEqual(await find("https://github.com/acme/tools/tree/main/plugins/old"), [["acme.old", true, false]]);
 
     // Listed addresses encode the ref and folder, so each one registers the folder it named.
     repo.push("topic/work", plugin("plugins/with space #", "acme.spaced", "spaced"));
@@ -408,6 +412,14 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     writeFileSync(manifestFile, JSON.stringify({ ...manifest, repository: "https://github.com/Acme/Shared" }));
     await host.invoke("reload", { id: "acme.gamma" });
     assert.equal((await check("acme.gamma")).available, true);
+    // A folder that stops naming a repository keeps the trusted remote record; a new source is still refused.
+    writeFileSync(manifestFile, JSON.stringify(manifest));
+    await host.invoke("reload", { id: "acme.gamma" });
+    assert.equal(await read("acme.gamma"), "local");
+    assert.equal((await check("acme.gamma")).available, true);
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, repository: "https://github.com/acme/tools/tree/main/plugins/alpha" }));
+    await host.invoke("reload", { id: "acme.gamma" });
+    assert.match((await check("acme.gamma")).error, /names another GitHub source/);
 
     const twice = github.repository("acme", "twice");
     twice.push("main", { ...plugin("a", "acme.twice", "a"), ...plugin("b", "acme.twice", "b") });
@@ -416,6 +428,15 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     writeFileSync(path.join(other, "litzio-plugin.json"), JSON.stringify({ ...JSON.parse(readFileSync(path.join(other, "litzio-plugin.json"), "utf8")), repository: "https://github.com/acme/twice" }));
     await installed({ directory: other });
     assert.match((await check("acme.twice")).error, /Several folders .* exact folder address/);
+
+    // Beyond the listing limit the only matching ID cannot be proven; ask for the exact folder.
+    const catalog = github.repository("acme", "catalog");
+    catalog.push("main", Object.assign({}, ...Array.from({ length: 51 }, (_, i) => plugin(`p${String(i).padStart(2, "0")}`, `acme.c${i}`, `c${i}`))));
+    const last = path.join(root, "last"); mkdirSync(last);
+    for (const [file, content] of Object.entries(plugin("", "acme.c50", "local"))) writeFileSync(path.join(last, file.slice(1)), content);
+    writeFileSync(path.join(last, "litzio-plugin.json"), JSON.stringify({ ...JSON.parse(readFileSync(path.join(last, "litzio-plugin.json"), "utf8")), repository: "https://github.com/acme/catalog" }));
+    await installed({ directory: last });
+    assert.match((await check("acme.c50")).error, /too many plugins .* exact plugin folder address/);
   } finally { await host.close(); await github.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

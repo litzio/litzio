@@ -58,9 +58,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const remote = page.getByRole("region", { name: "Beta fixture", exact: true });
   await expect(remote.getByText("Version 0.2.0 · GitHub litzio-fixtures/plugins/plugins/beta · Branch", { exact: true })).toBeVisible();
   await expect(remote.getByRole("switch", { name: "Enable Beta fixture", exact: true })).not.toBeChecked();
+  // The list check, the row and the plugin dialog all show the Host's one result.
+  const checkAll = page.getByRole("button", { name: "Check for updates", exact: true });
+  await checkAll.click();
+  await expect(remote.getByRole("status").filter({ hasText: "Update available" })).toBeVisible();
   // One plugin's settings check only that plugin and can apply its update in place.
   await remote.getByRole("button", { name: "Beta fixture settings", exact: true }).click();
   const betaSettings = page.getByRole("dialog", { name: "Beta fixture", exact: true });
+  await expect(betaSettings.getByRole("status").filter({ hasText: "Update available" })).toBeVisible();
   await betaSettings.getByRole("button", { name: "Check for updates", exact: true }).click();
   await expect(betaSettings.getByRole("status").filter({ hasText: "Update available" })).toBeVisible();
   if (screenshots) {
@@ -77,6 +82,15 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.keyboard.press("Escape");
   await expect(betaSettings).toHaveCount(0);
   await expect(remote.getByText(/^Version 0\.3\.0 · GitHub/)).toBeVisible();
+  const listUpToDate = page.getByRole("status").filter({ hasText: /^Up to date$/ });
+  await checkAll.click();
+  await expect(listUpToDate).toBeVisible();
+  await remote.getByRole("button", { name: "Beta fixture settings", exact: true }).click();
+  await expect(betaSettings.getByRole("status").filter({ hasText: "Up to date" })).toBeVisible();
+  await betaSettings.getByRole("button", { name: "Check for updates", exact: true }).click();
+  await expect(betaSettings.getByRole("status").filter({ hasText: "Up to date" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(listUpToDate).toBeVisible();
   await expect(external.getByRole("button", { name: "Vite fixture", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Open view ·/ })).toHaveCount(0);
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();

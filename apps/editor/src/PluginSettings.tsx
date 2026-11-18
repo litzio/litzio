@@ -21,7 +21,7 @@ import { usePlugins, type Plugin } from "./plugin-state.ts";
 
 export function PluginSettings() {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
-  const [removing, setRemoving] = useState(false), [checked, setChecked] = useState(false), [checking, setChecking] = useState(false), [fromGitHub, setFromGitHub] = useState(false), [checkedOne, setCheckedOne] = useState<string>(), [checkingOne, setCheckingOne] = useState(false);
+  const [removing, setRemoving] = useState(false), [checking, setChecking] = useState<string | true>(), [fromGitHub, setFromGitHub] = useState(false);
   const githubButton = useRef<HTMLButtonElement>(null);
   const removeButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
@@ -37,7 +37,7 @@ export function PluginSettings() {
       setProblem(i18n.t("The selected plugin is no longer available."));
     }
   }, [plugins, selected, trust, busy, error]);
-  const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); setChecked(false); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
+  const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
@@ -45,13 +45,14 @@ export function PluginSettings() {
     <div className="settings-actions">
       <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
       <Button ref={githubButton} size="sm" variant="outline" disabled={busy} onClick={() => setFromGitHub(true)}>{i18n.t("Add from GitHub…")}</Button>
-      <Button size="sm" variant="outline" disabled={busy || !plugins.length} onClick={async () => { setChecking(true); await run("check-updates", {}); setChecked(true); setChecking(false); }}>{i18n.t(checking ? "Checking…" : "Check for updates")}</Button>
-      {checked && !checking && plugins.length && plugins.every(plugin => plugin.update && !plugin.update.available && !plugin.update.error) ? <PluginState tone="ok" label={i18n.t("Up to date")} /> : null}
+      <Button size="sm" variant="outline" disabled={busy || !plugins.length} onClick={async () => { setChecking(true); await run("check-updates", {}); setChecking(undefined); }}>{i18n.t(checking === true ? "Checking…" : "Check for updates")}</Button>
+      {/* Every status here and in the plugin dialog comes from the Host's last check (plugin.update). */}
+      {!checking && plugins.length && plugins.every(plugin => plugin.update && !plugin.update.available && !plugin.update.error) ? <PluginState tone="ok" label={i18n.t("Up to date")} /> : null}
     </div>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} initialPath="" recent={[]}
       browse={browse} places={places}
-      onClose={() => setChoosing(false)} onOpen={async directory => { try { setChecked(false); await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
-    <GitHubPluginDialog open={fromGitHub} returnFocus={githubButton} onClose={() => setFromGitHub(false)} add={async (source, track) => { setChecked(false); await change("register", { source, track }); }} />
+      onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
+    <GitHubPluginDialog open={fromGitHub} returnFocus={githubButton} onClose={() => setFromGitHub(false)} add={async (source, track) => { await change("register", { source, track }); }} />
     {error || problem && !current && !trust ? <Notice tone="error">{error || problem}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
       <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={<>{[plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version"), sourceLabel(plugin), plugin.description].filter(Boolean).join(" · ")}<PluginUpdateState plugin={plugin} /></>}>
@@ -72,9 +73,9 @@ export function PluginSettings() {
         {current && problem ? <Notice tone="error">{problem}</Notice> : null}
         {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
         {current ? <div className="settings-actions">
-          {checkedOne === current.id && !busy ? <PluginUpdateState plugin={current} upToDate /> : null}
+          {checking !== current.id ? <PluginUpdateState plugin={current} upToDate /> : null}
           {current.update?.available ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run("update", { id: current.id })}>{i18n.t("Update")}</Button> : null}
-          <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setCheckedOne(undefined); setCheckingOne(true); await run("check-updates", { id: current.id }); setCheckingOne(false); setCheckedOne(current.id); }}>{i18n.t(checkingOne ? "Checking…" : "Check for updates")}</Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setChecking(current.id); await run("check-updates", { id: current.id }); setChecking(undefined); }}>{i18n.t(checking === current.id ? "Checking…" : "Check for updates")}</Button>
           <Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button>
         </div> : null}
         <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
@@ -111,7 +112,7 @@ function PluginUpdateState({ plugin, upToDate = false }: { plugin: Plugin; upToD
     : i18n.t(github ? "GitHub has new content for this plugin folder." : "The source folder changed after this plugin was applied.");
   return <div><PluginState tone="warning" label={i18n.t(update.sourceVersion && update.sourceVersion !== update.currentVersion ? "Update available" : "New content available")} detail={versions} /></div>;
 }
-type GitHubPlugin = { path: string; source: string; id?: string; name?: string; version?: string | null; release: boolean };
+type GitHubPlugin = { path: string; source: string; id?: string; name?: string; version?: string | null; release: boolean; branch: boolean };
 /** Find plugin folders at a public GitHub address, choose one and its track, then register it like a local folder. */
 function GitHubPluginDialog({ open, returnFocus, onClose, add }: { open: boolean; returnFocus: RefObject<HTMLButtonElement | null>; onClose(): void; add(source: string, track: GitHubTrack): Promise<void> }) {
   const client = useHostClient(), id = useId();
@@ -151,7 +152,7 @@ function GitHubPluginDialog({ open, returnFocus, onClose, add }: { open: boolean
       {chosen ? <div className="plugin-github-track">
         <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{i18n.t("Follow")}</TooltipTrigger><TooltipContent>{i18n.t("Release follows the latest formal GitHub release. Branch follows the newest commit, for testing.")}</TooltipContent></Tooltip>
         <ChoiceGroup<GitHubTrack> aria-label={i18n.t("Follow")} value={track} onValueChange={setTrack} disabled={pending}
-          options={[{ value: "release", label: i18n.t("Release"), disabled: !chosen.release }, { value: "branch", label: i18n.t("Branch") }]} />
+          options={[{ value: "release", label: i18n.t("Release"), disabled: !chosen.release }, { value: "branch", label: i18n.t("Branch"), disabled: !chosen.branch }]} />
       </div> : null}
       <div className="settings-actions">
         <Button disabled={pending || !chosen} onClick={async () => { if (!chosen) return; setPending(true); setProblem(""); try { await add(chosen.source, track); onClose(); } catch (error) { failed(error); } finally { setPending(false); } }}>{i18n.t(pending && found ? "Adding…" : "Add")}</Button>
