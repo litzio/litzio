@@ -1,1 +1,1 @@
-export function artifactDigest(directory: string): string;
+export function artifactDigest(directory: string, include?: (file: string) => boolean): string;

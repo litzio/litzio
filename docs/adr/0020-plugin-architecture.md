@@ -34,7 +34,7 @@
 
 **2026-11-05 개정:** 최초 in-process 결정은 daemon 하위 프로세스의 trusted Node 코드로 대체한다. 아래 reload 계약을 따른다. 설치 목록·상태·일반 설정은 그 Host가 소유하며 임의 폴더 자동 탐색은 하지 않는다. installed/trusted/enabled/available/running을 구분한다. 커뮤니티는 설치 직후 실행 차단하고 **명시적 신뢰와 활성화가 모두 있어야** entry를 import한다. 신뢰 단위는 [#1379 개정](#2026-11-09-신뢰-단위-개정-1379)을 따른다.
 
-활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 일반 operation은 drain한다. 설정·secret·열린 문서는 보존하고 해당 source만 사용 불가로 표시한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon은 재시작하지 않는다. 실패하면 오류를 표시하고 실패 상태로 남긴다. 안전한 폭주 정지는 보장하지 않는다.
+활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 일반 operation은 drain한다. 설정·secret·열린 문서는 보존하고 비활성화한 plugin만 사용 불가로 표시한다. 로컬 출처의 다시 읽기는 아래 하위 프로세스 수명 계약을 따른다. 안전한 폭주 정지는 보장하지 않는다.
 
 요청·결과·receipt는 시작한 client에 고정한다. 연결·버전은 [HTTP 계약](../design/http-host-v1.md)을 따른다.
 
@@ -73,7 +73,7 @@
 
 ### 하위 프로세스 reload와 제작 키트
 
-플러그인은 daemon의 하위 프로세스에서 실행한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon을 재시작하지 않는다. reload 실패는 실패 상태와 오류로 남기고 성공으로 숨기지 않는다. 진행 작업의 drain·uncertain/no-replay, 설정·secret·문서 보존은 유지한다.
+플러그인은 daemon의 하위 프로세스에서 Host가 관리하는 설치본으로 실행한다. 다시 읽기는 로컬 출처를 새 후보 디렉터리에 복사하고 검증·기동·기여 준비를 마친 뒤 전환한다. 준비에 실패하면 작업 실패를 알리고 기존 설치본을 유지한다. 전환 후 이전 인스턴스가 받은 작업을 drain하고 종료한다. 진행 작업의 uncertain/no-replay, 설정·secret·문서 보존은 [실행 계약](../design/plugin-stage1-v1.md#수명과-공용-작업)을 따른다.
 
 제작 키트는 **비서용 플러그인 제작 스킬과 `plugins scaffold/validate/reload` 공용 작업**이다. 스킬은 공개 SDK·manifest·기여·검증·기본 UI·오류 확인 절차를 안내하고 세 작업은 ADR-0015의 입력·결과·범위·receipt 및 CLI를 함께 제공한다. validate는 실행 전 선언·패키지·schema 경계를 확인하며 코드 안전성을 증명하지 않는다.
 

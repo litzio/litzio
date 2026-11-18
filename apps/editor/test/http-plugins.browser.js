@@ -56,7 +56,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await route.fulfill({ response, json: value });
   });
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
-  await expect(page.locator('section[aria-label="Drive fixture"] .settings-description').first()).toHaveText("Refreshed during plugin draft");
+  await expect(page.locator('section[aria-label="Drive fixture"] .settings-description').first()).toHaveText("Version 1.2.3 · Refreshed during plugin draft");
   await expect(page.getByTestId("folder-path")).toHaveValue(pluginFixture.directory);
   await expect(page.getByTestId("folder-path")).toBeFocused();
   await page.unrouteAll({ behavior: "wait" });
@@ -139,15 +139,29 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(confirmation).not.toBeVisible();
   await expect(toggle).toBeChecked();
   await expect(page.getByRole("region", {name:"Drive fixture",exact:true}).getByRole("status")).toHaveText("Running");
-  expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(true);
+  const installed = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
+  expect(installed.running).toBe(true);
+  expect(installed.version).toBe("1.2.3");
   await returnToObserver();
   await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toBeVisible();
   await observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
   await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
+  const readSnapshot = async value => {
+    const screen = observer.getByTestId("view-workspace").filter({ visible: true });
+    await screen.getByRole("button", { name: "Read installed value" }).click();
+    await expect(screen.locator("output")).toHaveText(value);
+  };
+  pluginFixture.editSource();
+  await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
+  await readSnapshot("Original value");
   await page.bringToFront();
   const reloaded = pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
   expect(reloaded.receipt.operation).toBe("plugins.reload");
   expect(reloaded.plugins.find(p => p.id === "fixture.drive").running).toBe(true);
+  await returnToObserver();
+  await expect(observer.getByText('Updated runtime fixture', { exact: true })).toBeVisible();
+  await readSnapshot("Updated value");
+  await page.bringToFront();
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.locator('[data-testid="settings-dialog"]').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -209,7 +223,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   release(); await (await delivered).finished();
   await page.unrouteAll({ behavior: "wait" });
   // The existing open-screen revision observer unmounts disabled code.
-  await expect(observer.getByText('Runtime fixture', { exact: true })).not.toBeVisible();
+  await expect(observer.getByText('Updated runtime fixture', { exact: true })).not.toBeVisible();
   await returnToObserver();
   await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
   await page.bringToFront();
@@ -233,10 +247,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   pluginFixture.cli(["plugins", "enable", "fixture.drive"]);
   await returnToObserver();
   await observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
-  await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
+  await expect(observer.getByText('Updated runtime fixture', { exact: true })).toBeVisible();
   await page.bringToFront();
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
-  await expect(observer.getByText('Runtime fixture', { exact: true })).not.toBeVisible();
+  await expect(observer.getByText('Updated runtime fixture', { exact: true })).not.toBeVisible();
   await returnToObserver();
   await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
   await page.bringToFront();

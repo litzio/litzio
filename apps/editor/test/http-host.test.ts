@@ -55,7 +55,7 @@ test("owning HTTP listener pins assistant CLI operations across Hosts, turns and
     const directory = path.join(host.a, "plugin"), marker = path.join(host.a, "written.txt"), input = path.join(host.a, "input.json");
     fs.mkdirSync(directory);
     fs.writeFileSync(path.join(directory, "screen.jsx"), "export default function Screen(){return null}");
-    fs.writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ id: "fixture.target", name: "Target", entry: "host.mjs", screen: "screen.jsx", operations: [
+    fs.writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ id: "fixture.target", name: "Target", version: "release candidate", entry: "host.mjs", screen: "screen.jsx", operations: [
       { id: "read", assistant: true, outputSchema: { type: "string" } },
       { id: "write", effect: "write", outputSchema: { type: "string" } },
     ] }));
@@ -68,6 +68,9 @@ test("owning HTTP listener pins assistant CLI operations across Hosts, turns and
       return JSON.parse(result.stdout);
     };
     assert.equal((await cli(["plugins", "install", directory, "--json"])).receipt.outcome, "success");
+    assert.equal((await cli(["plugins", "list", "--json"])).plugins.find((plugin: { id: string }) => plugin.id === "fixture.target").version, "release candidate");
+    // Real CLI install must keep serving after even a broken source edit.
+    fs.writeFileSync(path.join(directory, "host.mjs"), "invalid plugin source ;");
     hosts.push({ ...host, client, cli, marker, input, label });
   }
   assert.notEqual(hosts[0].url, hosts[1].url);

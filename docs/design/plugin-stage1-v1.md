@@ -15,10 +15,12 @@ SDK 0.10.0은 Core의 `updateDocumentStatus`, `DocumentStatus`, `DOCUMENT_STATUS
 최소 artifact는 `litzio-plugin.json`, `host.mjs`, `screen.jsx`다.
 
 ```json
-{"id":"local.example","name":"Example","icon":"ChartColumn","entry":"host.mjs","screen":"screen.jsx"}
+{"id":"local.example","name":"Example","version":"0.1.0","icon":"ChartColumn","entry":"host.mjs","screen":"screen.jsx"}
 ```
 
-선택 선언은 `description`, `operations`, `settingsSchema`, `secrets`, `skills`, `healthCheck`다. 공개 작업은 id·version·effect(read/write)·scope·assistant·inputSchema·outputSchema를 선언한다. 생략 기본값은 version 1, read, host, assistant false, 빈 schema다. 화면 전용 handler는 공개 작업 선언 없이 자기 화면의 invoke로 호출한다. 비서는 assistant:true 읽기와 healthCheck만 호출한다. 외부 CLI의 공개 invoke와 같은 입력·출력 검증 및 receipt를 사용한다.
+`version`은 공백만으로 이루어지지 않은 한 줄 문자열이며 SDK가 검증한다. 버전 형식과 순서는 작성자가 정한다. 기존 artifact는 필드를 생략할 수 있으며 설정 목록에 ‘버전 없음’, `plugins list`에 `version: null`로 표시한다. scaffold의 기본값은 `0.1.0`이다.
+
+선택 선언에는 `description`, `operations`, `settingsSchema`, `secrets`, `skills`, `healthCheck`도 있다. 공개 작업은 id·version·effect(read/write)·scope·assistant·inputSchema·outputSchema를 선언한다. 생략 기본값은 version 1, read, host, assistant false, 빈 schema다. 화면 전용 handler는 공개 작업 선언 없이 자기 화면의 invoke로 호출한다. 비서는 assistant:true 읽기와 healthCheck만 호출한다. 외부 CLI의 공개 invoke와 같은 입력·출력 검증 및 receipt를 사용한다.
 
 아이콘은 제공된 이름 또는 artifact 내부 SVG/PNG다(확장자 대소문자 무관, 최대 64 KiB·가로/세로 1–256px). WebP 등 다른 형식은 거부한다. SDK의 공통 형식 정의를 manifest 검증과 Host 로더가 함께 사용한다. host/screen/icon의 절대 경로·URL·상위 탈출을 거부하며 파일은 artifact 안에서 해석한다. 화면 소스와 SDK handler 검증은 설치 시 실행 전에 수행한다. 스키마의 외부 참조·중복 작업/secret/skill ID를 거부한다. SDK는 Editor/React 엔진에 의존하지 않는다.
 
@@ -112,9 +114,15 @@ export function activate(context) {
 
 ## 수명과 공용 작업
 
-등록은 실행하지 않는다. 처음 신뢰할 때 목록의 registrationId를 확인하고 등록 단위를 신뢰한다. 등록 교체·제거 후 재추가에는 다시 확인한다. 설치는 검증·등록·신뢰·활성·reload를 같은 Host 작업으로 수행한다. 비서 관리도 같은 작업을 사용하며 활동에는 metadata만 남긴다.
+설정의 [플러그인 추가…]와 `plugins register <폴더>`는 Host 전용 복사본을 검증하고 비활성 상태로 등록한다. 처음 켤 때 목록의 registrationId를 확인하고 등록 단위를 신뢰한다. 등록 교체·제거 후 재추가에는 다시 확인한다. `plugins install <폴더 또는 제작 ID>`는 복사본의 검증·등록·신뢰·활성을 하나의 Host 작업으로 수행한다. 비서 관리도 같은 작업을 사용하며 활동에는 metadata만 남긴다.
 
-Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한다. 새 요청을 차단한 뒤 이미 접수한 호출과 status 관찰을 drain하고 dispose한다. reload는 새 artifact와 설정·secret을 읽는다. 종료는 모든 child를 닫으며 하나의 실패로 다른 child 정리를 건너뛰지 않는다. 화면/daemon/문서의 수명을 섞지 않는다.
+Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 digest와 번들 후 실행본 digest를 등록 기록에 둔다. 실행·화면·아이콘·스킬은 설치본을 사용한다. 원본을 수정하거나 삭제해도 기존 판을 사용하며 실행본 digest가 달라지면 다시 읽기를 요구한다. 설정과 비밀값 변경은 설치본으로 인스턴스를 다시 시작한다.
+
+`plugins reload <id>`는 등록된 로컬 출처를 다시 복사한다. 후보의 검증·기동·status 확인·스킬 준비가 끝나고 등록이 아직 같을 때 전환한다. 준비나 등록 저장에 실패하면 오류를 보고하고 기존 판의 등록·작업·화면·스킬을 유지한다. 성공하면 등록·신뢰·설정·비밀값을 보존하고 새 호출을 새 판에 연결한다. 이전 판이 받은 호출과 status 관찰은 drain한 뒤 dispose하고 이전 복사본을 정리한다.
+
+Node child의 crash·RPC timeout·dispose 실패는 해당 plugin에 한정한다. 비활성화는 새 요청을 차단한 뒤 이미 접수한 호출과 status 관찰을 drain하고 dispose한다. 종료는 모든 child를 닫으며 하나의 실패로 다른 child 정리를 건너뛰지 않는다. 실패한 후보와 제거한 등록의 복사본은 정리한다. Host는 시작 시 정상적으로 읽고 형식을 검증한 등록 파일을 기준으로 전용 저장소의 미등록 복사본을 정리한다. 등록이 가리키는 설치본과 원본은 실제 경로로 비교하며, 그 경로와 상위·하위 경로를 보존한다. 등록 파일이 없으면 시작 시 복사본을 보존한다. 등록 파일을 읽을 수 없거나 형식이 잘못되면 등록 파일 복원을 안내하고 시작을 중단한다. 사용자 출처 폴더는 유지한다. 화면/daemon/문서의 수명을 섞지 않는다.
+
+Host 설치본이 없는 구형 등록은 꺼진 상태와 원본 폴더에서 다시 추가하라는 오류로 표시한다. 원본 폴더를 다시 추가하고 처음 켤 때 새 등록의 신뢰를 확인한다.
 
 일반 호출 RPC는 10초 한계다. 장기 작업 상태·진행 조회는 플러그인이 소유한다.
 
@@ -151,7 +159,7 @@ loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정
 
 제작 폴더 안의 artifact는 설정된 경로와 scaffold가 반환한 canonical 경로 모두로 validate/install/dependencies/bundle할 수 있다. 경로가 허용된 제작 폴더 아래인지 확인한 뒤 Windows 8.3 이름·부모 alias를 canonical 경로로 해석하고, 고정 root 및 요청 쓰기 범위를 다시 검사한다. alias가 범위 밖을 가리키거나 root가 바뀌면 거부한다. validate/install의 디렉터리 단계 거부는 `file:"artifact directory"`, `path:"directory"`와 접근 범위·존재·권한·root/link 조건을 설명하는 안전한 진단을 반환하며 OS 오류의 절대 경로를 노출하지 않는다.
 
-npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 제작 시 외부 라이브러리를 bundle하고 실행 시 네트워크 설치를 하지 않는다. 레지스트리·프록시는 기존 npm 설정을 사용한다.
+npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 출처 복사에서 `.git`은 제외하고 실제 파일로 준비된 `node_modules`는 로컬 번들과 Node 런타임 import를 위해 포함한다. 링크는 거부한다. 의존성이 준비되어 있으면 설치본에서 번들하며, 의존성 폴더 없이 배포한 패키지는 동봉한 번들을 사용한다. 설치·다시 읽기는 네트워크에서 패키지를 내려받지 않는다. 레지스트리·프록시는 제작 중 의존성 설치에서 기존 npm 설정을 사용한다.
 
 ## 검증 경계
 

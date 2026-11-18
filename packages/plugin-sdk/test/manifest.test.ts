@@ -5,8 +5,11 @@ const card={id:'fixture.code',name:'Code',entry:'host.mjs',screen:'screen.jsx'};
 test('code identity declares settings, connection secrets, skills and public operations',()=>{
  const m=validateManifest({...card,settingsSchema:{type:'object',properties:{url:{type:'string'}},additionalProperties:false},secrets:[{id:'token',title:'Token',scope:'connection'}],skills:[{id:'guide',directory:'skills/guide'}],operations:[{id:'read',assistant:true,inputSchema:{type:'object'},outputSchema:{type:'string'}}]});
  assert.equal(m.settingsSchema.properties!==undefined,true);assert.equal(m.secrets[0]?.id,'token');assert.equal(m.contributes.skills[0]?.id,'guide');assert.equal(m.contributes.operations[0]?.assistant,true);assert.equal(m.contributes.screens[0]?.entry,'screen.jsx');
+ assert.equal(validateManifest(card).version,undefined);
+ assert.equal(validateManifest({...card,version:'November preview'}).version,'November preview');
 });
 test('manifest rejects obsolete syntax, escapes, duplicate declarations and invalid schemas before execution',()=>{
+ for(const version of ['', '  ', '1\n2', '1\r2', '1\u20282', 1])assert.throws(()=>validateManifest({...card,version}));
  for(const icon of ['icon.svg','icon.SVG','icons/icon.png','icons/icon.PNG'])assert.equal(validateManifest({...card,icon}).icon,icon);
  for(const icon of ['icon.webp','icon.WEBP','icon.jpg','icon.gif','icon'])assert.throws(()=>validateManifest({...card,icon}),/Invalid icon path/);
  for(const bad of [{...card,tier:'official'},{...card,contributes:{}},{...card,entry:'../host.mjs'},{...card,screen:'/screen.jsx'},{...card,icon:'../icon.svg'},{...card,secrets:[{id:'token',title:'Token',scope:'connection'},{id:'token',title:'Again',scope:'connection'}]},{...card,skills:[{id:'guide',directory:'../guide'}]},{...card,settingsSchema:{type:'object',required:['url']}},{...card,operations:[{id:'read',inputSchema:{$ref:'https://example.com/schema'}}]}])assert.throws(()=>validateManifest(bad));

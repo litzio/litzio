@@ -1,11 +1,22 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { isMap, parseDocument } from "yaml";
 import type { PluginManifest } from "@litzio/plugin-sdk";
+import { canonicalFilePath } from "../file-access.ts";
 
 const prefix = "litzio-plugin-";
+const stagingPrefix = ".litzio-plugin-skills-";
 // Manifest plugin IDs have no consecutive separators; dots become double hyphens.
 const namespace = (plugin: string) => `${prefix}${plugin.replaceAll(".", "--")}---`;
+
+function removeOwned(parent: string, name: string) {
+  if (path.basename(name) !== name || name === "." || name === ".." ||
+      path.relative(parent, canonicalFilePath(parent)) !== "") throw new Error("Invalid plugin skill cleanup path");
+  const target = path.join(parent, name);
+  const entry = lstatSync(target, { throwIfNoEntry: false });
+  if (entry?.isSymbolicLink()) throw new Error("Invalid plugin skill cleanup path");
+  rmSync(target, { recursive: true, force: true });
+}
 
 export class AssistantSkillValidationError extends Error {
   constructor(readonly file: string, readonly field: string, message: string) {
@@ -54,22 +65,58 @@ export class PluginAssistantSkills {
   constructor(assistantDirectory: string) { this.directory = path.join(assistantDirectory, ".agents", "skills"); }
   clear(plugin?: string) {
     for (const [file, value] of this.labels) if (!plugin || value.plugin === plugin) this.labels.delete(file);
-    if (!existsSync(this.directory)) return;
-    for (const name of readdirSync(this.directory)) if ((process.platform === "win32" ? name.toLowerCase() : name).startsWith(plugin ? namespace(plugin) : prefix)) {
-      rmSync(path.join(this.directory, name), { recursive: true, force: true });
+    for (const name of this.names(plugin)) {
+      removeOwned(canonicalFilePath(this.directory), name);
+    }
+    const parent = path.dirname(this.directory);
+    if (!plugin && existsSync(parent)) for (const name of readdirSync(parent)) {
+      if (name.startsWith(stagingPrefix)) removeOwned(canonicalFilePath(parent), name);
     }
   }
-  install(directory: string, manifest: PluginManifest) {
-    this.clear(manifest.id);
+  private names(plugin?: string) {
+    const wanted = plugin ? namespace(plugin) : prefix;
+    return existsSync(this.directory) ? readdirSync(this.directory).filter(name => (process.platform === "win32" ? name.toLowerCase() : name).startsWith(wanted)) : [];
+  }
+  install(directory: string, manifest: PluginManifest, commit: () => void = () => {}) {
+    const previous = this.names(manifest.id);
+    if (!previous.length && !manifest.contributes.skills.length) { commit(); return; }
+    mkdirSync(this.directory, { recursive: true });
+    // Stage outside the skill search path, on the same volume as the published directories.
+    const parent = canonicalFilePath(path.dirname(this.directory));
+    const stage = mkdtempSync(path.join(parent, stagingPrefix));
+    const backup = path.join(stage, "previous");
+    const published: string[] = [], saved: string[] = [];
+    let cleanup = true;
     try {
-      for (const skill of manifest.contributes.skills) {
-        const entry = skillEntry(directory, manifest, skill);
-        mkdirSync(this.directory, { recursive: true });
-        const target = path.join(this.directory, entry.name);
+      const entries = manifest.contributes.skills.map(skill => skillEntry(directory, manifest, skill));
+      for (const entry of entries) {
+        const target = path.join(stage, entry.name);
         cpSync(entry.source, target, { recursive: true });
         writeFileSync(path.join(target, "SKILL.md"), entry.text);
-        this.labels.set(path.resolve(target, "SKILL.md"), { plugin: manifest.id, displayName: entry.displayName });
       }
-    } catch (error) { this.clear(manifest.id); throw error; }
+      mkdirSync(backup);
+      for (const name of previous) {
+        renameSync(path.join(this.directory, name), path.join(backup, name));
+        saved.push(name);
+      }
+      for (const { name } of entries) {
+        renameSync(path.join(stage, name), path.join(this.directory, name));
+        published.push(name);
+      }
+      commit();
+      for (const name of previous) this.labels.delete(path.resolve(this.directory, name, "SKILL.md"));
+      for (const { name, displayName } of entries) {
+        this.labels.set(path.resolve(this.directory, name, "SKILL.md"), { plugin: manifest.id, displayName });
+      }
+    } catch (error) {
+      cleanup = false;
+      for (const name of published.reverse()) renameSync(path.join(this.directory, name), path.join(stage, name));
+      for (const name of saved) renameSync(path.join(backup, name), path.join(this.directory, name));
+      cleanup = true;
+      throw error;
+    } finally {
+      try { if (cleanup) removeOwned(parent, path.basename(stage)); }
+      catch { console.warn("Unable to clean up staged plugin skills"); }
+    }
   }
 }

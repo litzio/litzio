@@ -4,6 +4,7 @@ import { brand } from "../../../../brand.ts";
 import { listenForFetch } from "../../../../test/helpers/fetch-server.ts";
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -45,7 +46,10 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
     await listenForFetch(portServer);
     const address = portServer.address(); assert.ok(address && typeof address !== "string");
     await new Promise<void>(resolve => portServer.close(() => resolve()));
-    writeFileSync(path.join(folder, "plugins.json"), JSON.stringify({ "fixture.isolated": { directory: path.join(folder, "absent-plugin"), enabled: false, settings: {}, operationNames: [] } }));
+    writeFileSync(path.join(folder, "plugins.json"), JSON.stringify({ "fixture.isolated": {
+      registrationId: randomUUID(), directory: path.join(folder, "absent-plugin"), digest: "0".repeat(64),
+      enabled: false, settings: {}, operationNames: [],
+    } }));
     const child = spawn(process.env.ComSpec ?? "cmd.exe", windowsCommand(integration.shim,
       ["daemon", "run", "--channel", "development", "--root", folder, "--port", String(address.port)]), {
         env: { ...process.env, LITZIO_DATA_DIR: path.join(folder, "data"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(folder, "plugins.json"), LITZIO_DAEMON_DIR: path.join(folder, "daemon"),
