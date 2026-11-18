@@ -2,6 +2,7 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { verifyExternalPlugin } from "../../../test/helpers/external-plugin.ts";
 import assert from "node:assert/strict";
 import { execSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -40,7 +41,10 @@ describe("the packed CLI outside the checkout using Node alone", { concurrency: 
   const a = path.join(scratch, "문서 A"), b = path.join(scratch, "documents B");
   for (const folder of [install, cwd, a, b]) mkdirSync(folder);
   const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DATA_DIR: path.join(scratch, "data"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(scratch, "plugins.json"), LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_ASSISTANT_CWD: path.join(scratch, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(scratch, "assistant.json"), LITZIO_RESET_DIR: path.join(scratch, "reset-guard") };
-  writeFileSync(path.join(scratch, "plugins.json"), JSON.stringify({ "fixture.isolated": { directory: path.join(scratch, "absent-plugin"), enabled: false, settings: {}, operationNames: [] } }));
+  writeFileSync(path.join(scratch, "plugins.json"), JSON.stringify({ "fixture.isolated": {
+    registrationId: randomUUID(), directory: path.join(scratch, "absent-plugin"), digest: "0".repeat(64),
+    enabled: false, settings: {}, operationNames: [],
+  } }));
   delete env.NODE_PATH; delete env.NODE_OPTIONS;
   env.npm_config_logs_dir = path.join(scratch, "npm-logs");
   const entry = path.join(install, "node_modules/@litzio/cli/cli.mjs");
