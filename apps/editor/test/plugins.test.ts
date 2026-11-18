@@ -233,29 +233,97 @@ test("local source update check compares applied source content and update keeps
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-test("update check skips source node_modules so public operations keep responding", async () => {
+test("large dependency trees do not stall public operations, list, update checks or Host start", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-large-source-"));
-  const id = "fixture.large";
+  const id = "fixture.large", state = path.join(root, "state.json");
   const directory = lifecycleFixture(root, id, `export function activate() { return { operations: { read: () => "ready" }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`);
   const manifestFile = path.join(directory, "litzio-plugin.json");
   writeFileSync(manifestFile, JSON.stringify({ ...JSON.parse(readFileSync(manifestFile, "utf8")), operations: [{ id: "read" }] }));
-  const host = new PluginHost(path.join(root, "state.json"));
+  const modules = path.join(directory, "node_modules", "large");
+  for (let group = 0; group < 10; group++) {
+    mkdirSync(path.join(modules, String(group)), { recursive: true });
+    for (let file = 0; file < 500; file++) writeFileSync(path.join(modules, String(group), `${file}.js`), "x");
+  }
+  // Any synchronous walk of the installed node_modules shows up as a gap between probe ticks.
+  let last = performance.now(), stall = 0;
+  const probe = setInterval(() => { const now = performance.now(); stall = Math.max(stall, now - last); last = now; }, 10);
+  let host = new PluginHost(state);
   try {
     await host.start();
     await host.invoke("install", { directory });
-    const modules = path.join(directory, "node_modules", "large");
-    for (let group = 0; group < 10; group++) {
-      mkdirSync(path.join(modules, String(group)), { recursive: true });
-      for (let file = 0; file < 500; file++) writeFileSync(path.join(modules, String(group), `${file}.js`), "x");
-    }
+    writeFileSync(path.join(modules, "0", "added.js"), "x");
     const checking = host.invoke("check-updates", { id });
     const started = performance.now();
     const reply = await host.invokeOperation(`${id}.read`, {});
+    const [listed] = await host.list();
     const elapsed = performance.now() - started;
     assert.equal((reply as { result?: unknown }).result, "ready");
+    assert.equal(listed!.running, true);
     assert.equal(((await checking) as any).updates[0].available, false, "dependency folders are not source content");
-    assert.ok(elapsed < 1500, `public operation waited ${Math.round(elapsed)} ms behind the update check`);
-  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+    assert.ok(elapsed < 1500, `public operation and list took ${Math.round(elapsed)} ms with a large installed copy`);
+
+    // Loading still compares the whole installed copy with the registration.
+    writeFileSync(path.join(registeredCopy(state, id), "node_modules", "large", "0", "0.js"), "changed");
+    await host.close();
+    host = new PluginHost(state);
+    await host.start();
+    assert.equal((await host.list())[0]!.error, "Artifact changed; reload the plugin");
+    await assert.rejects(host.invokeOperation(`${id}.read`, {}), /unavailable or plugin disabled/);
+    assert.ok(stall < 1500, `Host stopped serving other work for ${Math.round(stall)} ms`);
+  } finally { clearInterval(probe); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("authoring and management actions refuse installed copies", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-installed-target-"));
+  const state = path.join(root, "state.json"), id = "fixture.installed-target";
+  const host = new PluginHost(state);
+  const alias = path.join(root, "alias");
+  try {
+    await host.start();
+    await host.invoke("install", { directory: lifecycleFixture(root, id) });
+    const copy = registeredCopy(state, id), [before] = await host.list();
+    symlinkSync(copy, alias, "junction");
+    const targets = [copy, alias, ...(process.platform === "win32" ? [copy.toUpperCase()] : [])];
+    for (const directory of targets) {
+      for (const action of ["bundle", "dependencies"] as const) {
+        await assert.rejects(host.invoke(action, { directory }), /belong to the Host/, `${action} ${directory}`);
+      }
+      await assert.rejects(host.invoke("scaffold", { directory: path.join(directory, "new"), id: "local.inside" }), /belong to the Host/);
+      for (const action of ["validate", "install"] as const) {
+        const reply = await host.invoke(action, { directory }) as any;
+        assert.equal(reply.errors[0].code, "installed_copy", `${action} ${directory}`);
+      }
+      await assert.rejects(host.invoke("register", { directory }), /belong to the Host/);
+    }
+    // A target outside storage must not write into a copy through manifest paths or dependency links.
+    writeFileSync(path.join(root, "litzio-plugin.json"), JSON.stringify({ screen: path.relative(root, path.join(copy, "screen.jsx")) }));
+    await assert.rejects(host.invoke("bundle", { directory: root }), /belong to the Host/);
+    const linkedDependencies = path.join(root, "linked-dependencies"); mkdirSync(linkedDependencies);
+    writeFileSync(path.join(linkedDependencies, "package.json"), JSON.stringify({ dependencies: {} }));
+    symlinkSync(copy, path.join(linkedDependencies, "node_modules"), "junction");
+    await assert.rejects(host.invoke("dependencies", { directory: linkedDependencies }), /belong to the Host/);
+    rmSync(path.join(linkedDependencies, "node_modules"));
+    // A project npmrc cache cannot redirect npm's cache and logs into a copy; this project needs no network.
+    const contents = () => fs.readdirSync(copy, { recursive: true }).map(String).sort();
+    const copied = contents();
+    writeFileSync(path.join(linkedDependencies, ".npmrc"), `cache=${path.join(copy, "npm-cache").replaceAll("\\", "/")}\n`);
+    // npm/pnpm launchers export cache settings that would mask the project npmrc.
+    const launcherEnv = Object.entries(process.env).filter(([name]) => /^npm_config_(cache|logs_dir)$/i.test(name));
+    for (const [name] of launcherEnv) delete process.env[name];
+    try { await host.invoke("dependencies", { directory: linkedDependencies }); }
+    finally { for (const [name, value] of launcherEnv) process.env[name] = value; }
+    assert.deepEqual(contents(), copied);
+    // A relative Host data folder still keeps npm logs in the Host folder, not the project.
+    const working = process.cwd(); process.chdir(root);
+    const relativeHost = new PluginHost("relative-state.json");
+    try { await relativeHost.invoke("dependencies", { directory: linkedDependencies }); }
+    finally { await relativeHost.close(); process.chdir(working); }
+    assert.equal(existsSync(path.join(linkedDependencies, "plugin-npm")), false);
+    assert.ok(existsSync(path.join(root, "plugin-npm", "logs")));
+    assert.equal(existsSync(path.join(copy, "screen.bundle.js")), false);
+    const [after] = await host.list();
+    assert.deepEqual([after!.digest, after!.running, after!.error], [before!.digest, true, undefined]);
+  } finally { await host.close(); rmSync(alias, { force: true }); rmSync(root, { recursive: true, force: true }); }
 });
 
 // Host lifecycle and public-operation tests stay in-process.
@@ -1456,7 +1524,8 @@ test("health check publication enforces the SDK result even with a permissive pl
 });
 
 test("registered icons enforce image bounds, artifact links and digest trust", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-icons-")), host = new PluginHost(path.join(root, "state.json"));
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-icons-"));
+  let host = new PluginHost(path.join(root, "state.json"));
   try {
     const directory = lifecycleFixture(root, "fixture.icon");
     const manifestFile = path.join(directory, "litzio-plugin.json"), icon = path.join(directory, "icon.svg");
@@ -1469,14 +1538,17 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
     writeFileSync(icon, svg);
     await host.invoke("register", { directory });
     const digest = (await host.list())[0]!.digest!;
-    assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
+    await assert.rejects(host.icon(manifest.id, digest), /unavailable/);
     await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId, digest });
-    assert.equal(host.icon(manifest.id, digest).mime, "image/svg+xml");
-    assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
+    assert.equal((await host.icon(manifest.id, digest)).mime, "image/svg+xml");
+    assert.equal((await host.icon(manifest.id, digest)).bytes.toString(), svg);
     writeFileSync(icon, svg.replace('blue', 'red'));
-    assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
+    assert.equal((await host.icon(manifest.id, digest)).bytes.toString(), svg);
+    // The installed copy is checked when a Host loads it; requests serve the bytes checked then.
     writeFileSync(path.join(registeredCopy(path.join(root, "state.json"), manifest.id), "icon.svg"), svg.replace('blue', 'red'));
-    assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
+    assert.equal((await host.icon(manifest.id, digest)).bytes.toString(), svg);
+    await host.close(); host = new PluginHost(path.join(root, "state.json")); await host.start();
+    await assert.rejects(host.icon(manifest.id, digest), /unavailable/);
     assert.equal((await host.list())[0]!.iconDigest, undefined);
     rmSync(icon); const linked = path.join(directory, "linked");
     symlinkSync(directory, linked, "junction");
@@ -1664,7 +1736,7 @@ test("install uses the authoring ID, preserves the active copy on failure and re
     assert.equal(saved.sourceDigest, artifactDigest(directory, file => path.basename(file) !== ".git"));
     assert.equal(saved.digest, artifactDigest(originalCopy));
     assert.notEqual(saved.digest, saved.sourceDigest);
-    assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/png");
+    assert.equal((await host.icon(id,(await host.list())[0]!.digest!)).mime,"image/png");
     const first = host.viewScreens()[0]!.codeRevision;
     await assert.rejects(host.invokeOperation(`${id}.measurements`,{}), /unavailable/);
     await assert.rejects(host.invokeAssistantOperation(`${id}.measurements`,{}));
@@ -1684,7 +1756,7 @@ test("install uses the authoring ID, preserves the active copy on failure and re
     assert.equal((await host.invoke("reload",{id}) as any).receipt.outcome,"success");
     assert.deepEqual(await read(), [20, 30]);
     assert.equal(existsSync(originalCopy), false);
-    assert.equal(host.icon(id,(await host.list())[0]!.digest!).mime,"image/svg+xml");
+    assert.equal((await host.icon(id,(await host.list())[0]!.digest!)).mime,"image/svg+xml");
     assert.notEqual(host.viewScreens()[0]!.codeRevision,first);
     assert.deepEqual((await host.invoke("screen-invoke",{plugin:id,operation:`${id}.measurements`,input:{}}) as any).result,[20,30]);
     await host.invoke("scaffold",{id:"local.other",template:"screen"});

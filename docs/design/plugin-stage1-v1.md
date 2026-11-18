@@ -116,7 +116,7 @@ export function activate(context) {
 
 설정의 [플러그인 추가…]와 `plugins register <폴더>`는 Host 전용 복사본을 검증하고 비활성 상태로 등록한다. 처음 켤 때 목록의 registrationId를 확인하고 등록 단위를 신뢰한다. 등록 교체·제거 후 재추가에는 다시 확인한다. `plugins install <폴더 또는 제작 ID>`는 복사본의 검증·등록·신뢰·활성을 하나의 Host 작업으로 수행한다. 비서 관리도 같은 작업을 사용하며 활동에는 metadata만 남긴다.
 
-Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 digest(`.git`·`node_modules` 제외; 의존성 변화는 `package.json`·lockfile로 드러난다)와 번들 후 실행본 digest를 등록 기록에 둔다. 원본 복사는 비동기 파일 작업이다. 실행·화면·아이콘·스킬은 설치본을 사용한다. 원본을 수정하거나 삭제해도 기존 판을 사용하며 실행본 digest가 달라지면 다시 읽기를 요구한다. 설정과 비밀값 변경은 설치본으로 인스턴스를 다시 시작한다.
+Host는 원본 폴더의 실제 경로, 설치 식별자, 번들 전 출처 digest(`.git`·`node_modules` 제외; 의존성 변화는 `package.json`·lockfile로 드러난다)와 번들 후 실행본 digest를 등록 기록에 둔다. 원본 복사는 비동기 파일 작업이다. 실행·화면·아이콘·스킬은 설치본을 사용한다. 원본을 수정하거나 삭제해도 기존 판을 사용한다. 설치본은 Host 전용 경로이며 리치오 작업은 그곳에 쓰지 않는다. 폴더를 받는 제작·관리 작업(`install`·`register`·`validate`·`bundle`·`dependencies`·`scaffold`)은 실제 경로 기준으로 설치본 저장소 안쪽을 대상으로 받으면 거부한다. 리치오가 정하는 쓰기 위치(화면 번들 입력·출력, 의존성 폴더·lockfile, npm 캐시·로그)도 설치본 밖인지 Host가 쓰기 전에 확인한다. 대상 폴더의 도구 설정이 그 밖의 쓰기 위치를 바꾸는 것은 대상 폴더 작성자 책임이며, 그렇게 바뀐 설치본은 다음 불러오기의 실행본 digest 확인에서 거부된다. 실행본 digest(`node_modules` 포함)는 Host가 설치본을 불러올 때(Host 시작, 켜기, 설치·다시 읽기·업데이트 적용, 꺼진 등록을 처음 표시할 때) 비동기 파일 작업으로 확인하고, 공개 작업 호출·`list`·아이콘 등은 그 결과를 쓴다. 아이콘은 불러올 때 확인한 바이트를 제공한다. 불러올 때 등록 값과 다르면 다시 읽기를 요구한다. 리치오 밖에서 설치본 파일을 직접 고치는 것은 지원 범위 밖이다. 고친 내용은 다음 불러오기 때 감지되어 다시 읽기를 요구하고, 그 전에는 실행 중 프로세스가 지연 로딩하는 모듈이 바뀐 파일을 읽을 수 있다. 로컬 파일 쓰기 권한이 있는 쪽은 리치오 자체도 고칠 수 있으므로 이 단계의 보호 대상이 아니다. 설정과 비밀값 변경은 설치본으로 인스턴스를 다시 시작한다.
 
 `plugins reload <id>`는 등록된 로컬 출처를 다시 복사한다. 후보의 검증·기동·status 확인·스킬 준비가 끝나고 등록이 아직 같을 때 전환한다. 준비나 등록 저장에 실패하면 오류를 보고하고 기존 판의 등록·작업·화면·스킬을 유지한다. 성공하면 등록·신뢰·설정·비밀값을 보존하고 새 호출을 새 판에 연결한다. 이전 판이 받은 호출과 status 관찰은 drain한 뒤 dispose하고 이전 복사본을 정리한다.
 
@@ -151,7 +151,7 @@ HTTP·CLI JSON·비서 도구는 기존 `{errorKind,error,receipt}`를 유지하
 
 ADR-0020의 secret 절은 argv·로그·비서 결과·뷰에 PAT를 남기지 않고 외부 API 오류 응답을 Host에서 정리하도록 한다. 변경 전 child catch는 자격 증명 유출을 막기 위해 예외 문구·스택을 버리고 허용된 kind만 IPC로 보냈다. Host publicOperationError가 kind를 고정 문구로 바꿨고 HTTP는 결과를 그대로 전달했다. CLI는 두 모드 모두 JSON, 화면 invoke는 error 문자열만 가진 Error, 비서 도구는 공통 실패 결과를 받았다. 입력 schema 거부는 상세 없이 `Invalid operation input` 예외였고 HTTP 400으로 전달됐다. 비서는 이 예외를 다시 일반 실패로 가렸다.
 
-이제 명시적 공개 오류만 위 예외 경로를 추가한다. 표식 없는 예외와 출력 schema 불일치는 계속 `Plugin operation failed. Check plugin settings and the target.`다. 프로세스 종료도 같은 일반 실패이며 RPC timeout은 `Operation timed out. Check the service connection.`다. write는 기존처럼 `Check the target before retrying a write.` 안내가 붙는다. 기존 PluginOperationError(kind)의 auth/forbidden/not_found/unavailable 등 Host 고정 문구는 유지한다. 비활성·미등록은 `Operation unavailable or plugin disabled`, artifact 변경·미신뢰는 `Artifact changed; reload the plugin`으로 거부하며 전용 비서 도구의 admission 거부는 기존 unavailable/forbidden 안내를 유지한다. timeout·crash·출력 실패의 receipt와 종료 코드는 바꾸지 않는다. 비서의 최종 publication adapter는 기존대로 failed를 unavailable, refused outcome을 failure로 정규화하고 code/message/inputIssues는 보존한다.
+이제 명시적 공개 오류만 위 예외 경로를 추가한다. 표식 없는 예외와 출력 schema 불일치는 계속 `Plugin operation failed. Check plugin settings and the target.`다. 프로세스 종료도 같은 일반 실패이며 RPC timeout은 `Operation timed out. Check the service connection.`다. write는 기존처럼 `Check the target before retrying a write.` 안내가 붙는다. 기존 PluginOperationError(kind)의 auth/forbidden/not_found/unavailable 등 Host 고정 문구는 유지한다. 비활성·미등록은 `Operation unavailable or plugin disabled`, 불러올 때 확인한 artifact 변경·미신뢰는 `Artifact changed; reload the plugin`으로 거부하며 전용 비서 도구의 admission 거부는 기존 unavailable/forbidden 안내를 유지한다. timeout·crash·출력 실패의 receipt와 종료 코드는 바꾸지 않는다. 비서의 최종 publication adapter는 기존대로 failed를 unavailable, refused outcome을 failure로 정규화하고 code/message/inputIssues는 보존한다.
 
 ## 제작과 설치
 
@@ -163,7 +163,7 @@ loopback(127.* 또는 ::1) HTTP Host는 listen 완료 후 해당 listener의 정
 
 제작 폴더 안의 artifact는 설정된 경로와 scaffold가 반환한 canonical 경로 모두로 validate/install/dependencies/bundle할 수 있다. 경로가 허용된 제작 폴더 아래인지 확인한 뒤 Windows 8.3 이름·부모 alias를 canonical 경로로 해석하고, 고정 root 및 요청 쓰기 범위를 다시 검사한다. alias가 범위 밖을 가리키거나 root가 바뀌면 거부한다. validate/install의 디렉터리 단계 거부는 `file:"artifact directory"`, `path:"directory"`와 접근 범위·존재·권한·root/link 조건을 설명하는 안전한 진단을 반환하며 OS 오류의 절대 경로를 노출하지 않는다.
 
-npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 출처 복사에서 `.git`은 제외하고 실제 파일로 준비된 `node_modules`는 로컬 번들과 Node 런타임 import를 위해 포함한다. 링크는 거부한다. 의존성이 준비되어 있으면 설치본에서 번들하며, 의존성 폴더 없이 배포한 패키지는 동봉한 번들을 사용한다. 설치·다시 읽기는 네트워크에서 패키지를 내려받지 않는다. 레지스트리·프록시는 제작 중 의존성 설치에서 기존 npm 설정을 사용한다.
+npm은 앱에 실은 압축 파일에서 필요할 때 준비한다. 의존성 설치는 lifecycle scripts/native build를 실행하지 않는다. esbuild와 공개 SDK를 배포물에 싣고 artifact 밖 Host runtime에서 SDK를 제공한다. 외부 plugin이 checkout/private 모듈을 import하지 못하게 한다. 출처 복사에서 `.git`은 제외하고 실제 파일로 준비된 `node_modules`는 로컬 번들과 Node 런타임 import를 위해 포함한다. 링크는 거부한다. 의존성이 준비되어 있으면 설치본에서 번들하며, 의존성 폴더 없이 배포한 패키지는 동봉한 번들을 사용한다. 설치·다시 읽기는 네트워크에서 패키지를 내려받지 않는다. 레지스트리·프록시는 제작 중 의존성 설치에서 기존 npm 설정을 사용한다. npm 캐시·로그는 명령줄 인자로 Host 데이터 폴더의 `plugin-npm` 아래에 두어 프로젝트·사용자 npmrc보다 우선한다.
 
 ## 검증 경계
 
