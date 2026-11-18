@@ -11,10 +11,41 @@ async (page, { expect, screenshots }) => {
   const bands = page.getByTestId('linked-document-band');
   const band = id => bands.and(page.locator(`[data-id="${id}"]`));
   const fused = page.locator('.linked-document-fused-fill');
+  const bandEnds = scale => band(2).evaluate((path, scale) => {
+    const host = path.closest('.linked-document-panes');
+    const origin = host.getBoundingClientRect();
+    const pane = host.querySelector('.linked-document-source');
+    const preview = host.querySelector('.screen-document-view-scroll');
+    const source = pane.querySelector('[data-linked-item="2"]').getBoundingClientRect();
+    const block = preview.querySelectorAll('.tiptap > p')[1].getBoundingClientRect();
+    const pad = host.querySelector('.linked-document-outline-measure').getBoundingClientRect();
+    const left = pane.getBoundingClientRect(), right = preview.getBoundingClientRect();
+    const sourceEdge = left.left + pane.clientLeft + pane.clientWidth;
+    const documentEdge = right.left + preview.clientLeft;
+    const sourceJoin = source.right + pad.width*scale, documentJoin = block.left - pad.width;
+    const sourceTop = source.top - pad.height*scale, sourceBottom = source.bottom + pad.height*scale;
+    const documentTop = block.top - pad.height, documentBottom = block.bottom + pad.height;
+    const geometry = path.getAttribute('d');
+    const commands = geometry.match(/[MCHVZ]/g).join('');
+    if (commands !== 'MHCHVHCHZ') return false;
+    const coordinates = geometry.match(/-?(?:\d*\.)?\d+/g).map(Number);
+    const x = value => value-origin.left;
+    const y = value => value-origin.top;
+    const middle = x((left.right + right.left)/2);
+    const expected = [
+      x(sourceJoin), y(sourceTop), x(left.right),
+      middle, y(sourceTop), middle, y(documentTop), x(right.left), y(documentTop),
+      x(documentJoin), y(documentBottom), x(right.left),
+      middle, y(documentBottom), middle, y(sourceBottom), x(left.right), y(sourceBottom), x(sourceJoin),
+    ];
+    return Math.abs(left.width-right.width) < 1 && sourceEdge-sourceJoin > 20 && documentEdge < documentJoin &&
+      coordinates.length === expected.length && coordinates.every((value, index) => Math.abs(value-expected[index]) < 1);
+  }, scale);
   const alignedEdges = () => fused.evaluate(path => {
     const host = path.closest('.linked-document-panes');
     const origin = host.getBoundingClientRect();
     const pane = host.querySelector('.linked-document-source');
+    const preview = host.querySelector('.screen-document-view-scroll');
     const source = pane.querySelector('[data-linked-item="2"]');
     const box = source.getBoundingClientRect();
     const block = host.querySelectorAll('.tiptap > p')[1].getBoundingClientRect();
@@ -23,8 +54,13 @@ async (page, { expect, screenshots }) => {
     const contains = (x,y) => path.isPointInFill(new DOMPoint(x-origin.left,y-origin.top));
     const aligned = (x,top,bottom) => contains(x,top+1) && contains(x,bottom-1) &&
       !contains(x,top-1) && !contains(x,bottom+1);
-    return aligned(box.right+pad.width*scale-2,box.top-pad.height*scale,box.bottom+pad.height*scale) &&
-      aligned(block.left-pad.width+2,block.top-pad.height,block.bottom+pad.height);
+    const sourceJoin = box.right+pad.width*scale, documentJoin = block.left-pad.width;
+    const sourceEdge = pane.getBoundingClientRect().left+pane.clientLeft+pane.clientWidth;
+    const documentEdge = preview.getBoundingClientRect().left+preview.clientLeft;
+    return [sourceJoin-2, (sourceJoin+sourceEdge)/2, sourceEdge-1].every(x =>
+      aligned(x,box.top-pad.height*scale,box.bottom+pad.height*scale)) &&
+      [documentJoin+2, (documentJoin+documentEdge)/2, documentEdge+1].every(x =>
+        aligned(x,block.top-pad.height,block.bottom+pad.height));
   });
   const clipping = () => fused.evaluate(path => {
     const host = path.closest('.linked-document-panes');
@@ -60,12 +96,14 @@ async (page, { expect, screenshots }) => {
   await expect(band(2)).toHaveCSS('stroke','none');
   const quietOpacity = await band(2).evaluate(path => Number(getComputedStyle(path).getPropertyValue('--opacity-linked-band-quiet')));
   await expect(band(2)).toHaveCSS('fill-opacity', String(quietOpacity));
+  await expect.poll(() => bandEnds(1)).toBe(true);
   await expect(band(16)).toHaveCount(0);
 
   await linkedItem(2).hover();
   await expect(band(2)).toHaveAttribute('data-emphasis','hover');
   await expect(band(2)).toHaveCSS('stroke','none');
   await expect(fused).toHaveCount(0);
+  await expect.poll(() => bandEnds(1)).toBe(true);
   await sourcePane.focus();
   await page.keyboard.press('Tab');
   await expect(linkedItem(1)).toBeFocused();
@@ -87,9 +125,9 @@ async (page, { expect, screenshots }) => {
     await page.screenshot({path:'tmp/linked-document-view/after-1440-light-hover.png'});
   }
   const gutterPoint = await band(2).evaluate(path => {
-    const box = path.closest('.linked-document-panes').getBoundingClientRect();
+    const origin = path.ownerSVGElement.getBoundingClientRect();
     const d = path.getAttribute('d').match(/-?(?:\d*\.)?\d+/g).map(Number);
-    return { x: box.left+(d[0]+d[6])/2, y:box.top+(d[1]+d[7]+d[9]+d[15])/4 };
+    return { x: origin.left+(d[2]+d[7])/2, y:origin.top+(d[1]+d[8]+d[10]+d[17])/4 };
   });
   await page.mouse.move(gutterPoint.x,gutterPoint.y);
   await expect(band(2)).toHaveAttribute('data-emphasis','hover');
@@ -99,22 +137,7 @@ async (page, { expect, screenshots }) => {
   await expect(fused).toBeVisible();
 
   await page.getByRole('button',{name:'Source scale 1',exact:true}).click();
-  await expect.poll(() => band(2).evaluate(path => {
-    const host = path.closest('.linked-document-panes');
-    const origin = host.getBoundingClientRect();
-    const source = host.querySelector('.linked-document-source [data-linked-item="2"]').getBoundingClientRect();
-    const block = host.querySelectorAll('.tiptap > p')[1].getBoundingClientRect();
-    const pad = host.querySelector('.linked-document-outline-measure').getBoundingClientRect();
-    const d = path.getAttribute('d').match(/-?(?:\d*\.)?\d+/g).map(Number);
-    return Math.max(...[
-      origin.left+d[0]-(source.right+pad.width*.75),
-      origin.top+d[1]-(source.top-pad.height*.75),
-      origin.top+d[15]-(source.bottom+pad.height*.75),
-      origin.left+d[6]-(block.left-pad.width),
-      origin.top+d[7]-(block.top-pad.height),
-      origin.top+d[9]-(block.bottom+pad.height),
-    ].map(Math.abs));
-  })).toBeLessThan(1);
+  await expect.poll(() => bandEnds(.75)).toBe(true);
   await expect.poll(alignedEdges).toBe(true);
   await expect.poll(clipping).toBe(true);
   if (screenshots) {
@@ -141,7 +164,7 @@ async (page, { expect, screenshots }) => {
     const branches = [...host.querySelectorAll('[data-testid="linked-document-band"]')].filter(band =>
       ['2','2-detail'].includes(band.dataset.id));
     const first = branches[0].getAttribute('d').match(/-?(?:\d*\.)?\d+/g).map(Number);
-    const overlap = new DOMPoint(first[6]-2,(first[7]+first[9])/2);
+    const overlap = new DOMPoint(first[7]-2,(first[8]+first[10])/2);
     const border = path.nextElementSibling;
     const inner = document.getElementById(border.getAttribute('mask').slice(5,-1)).lastElementChild;
     return branches.length === 3 && branches.every(band => band.isPointInFill(overlap) &&

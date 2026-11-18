@@ -223,7 +223,7 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
           const from = { ...rect, left: sourceOrigin.left + rect.left, top: sourceOrigin.top + rect.top };
           const fromOutline = expand(from, inline * sourceScale, block * sourceScale);
           const band = gutter.width ? linkedBand(item, boxIndex, fromOutline, toOutline,
-            sourceViewport, documentViewport, emphasis, key === selectedPath) : undefined;
+            sourceViewport, documentViewport, gutter, emphasis, key === selectedPath) : undefined;
           if (band) bands.push(band);
           if (band?.fused) {
             fusedSources.push(fromOutline);
@@ -237,7 +237,7 @@ function LinkedBands({ host, source, geometry, index, sourceScale, selectedId, o
       if (fusedTarget) {
         const style = getComputedStyle(tokens);
         const radius = parseFloat(style.borderTopLeftRadius), stroke = parseFloat(style.outlineWidth);
-        fused = fusedLinkPaths(fusedSources, fusedTarget, sourceViewport, documentViewport,
+        fused = fusedLinkPaths(fusedSources, fusedTarget, sourceViewport, documentViewport, gutter,
           { radius: radius * sourceScale, stroke: stroke * sourceScale },
           { radius: radius * scale, stroke: stroke * scale });
       }

@@ -105,10 +105,11 @@ export function LinkedDocumentViewExample() {
     return { document, samplePath, client };
   }, [large, korean]);
   const pitch = 64 * scale, inset = 16 * scale, height = 48 * scale;
+  const inlineInset = Math.max(inset, width / 6);
   const branchPitch = 96 * scale;
   const items = useMemo<ScreenLinkedDocumentItem[]>(() => sample.document.blocks.flatMap((block, index) => {
     const top = inset + pitch * index + (branches && index > 1 ? 2 * branchPitch : 0);
-    const box = { left: inset, top, width: width - 2 * inset, height };
+    const box = { left: inlineInset, top, width: width - 2 * inlineInset, height };
     const item: ScreenLinkedDocumentItem = {
       id: String(index + 1),
       label: korean ? `원본 구역 ${index + 1}` : `Source section ${index + 1}`,
@@ -119,7 +120,7 @@ export function LinkedDocumentViewExample() {
     if (!branches || index !== 1) return [item];
     return [item, { ...item, id: "2-detail", label: korean ? "원본 구역 2 상세" : "Source section 2 detail",
       boxes: [{ ...box, top: top + 2 * branchPitch }] }];
-  }), [sample, korean, inset, pitch, width, height, branches, branchPitch]);
+  }), [sample, korean, inset, inlineInset, pitch, width, height, branches, branchPitch]);
   return <DocumentViewScope.Provider value={{ client: sample.client, roots: ["/example"] }}>
     <div className="task-surface gallery-document-view"><ScreenFrame title={korean ? "문서 블록 대조" : "Linked document view"}>
     <ui.ScreenLayout fillHeight={fillHeight} actions={<ui.Button aria-pressed={fillHeight} onClick={() => setFillHeight(value => !value)}>
