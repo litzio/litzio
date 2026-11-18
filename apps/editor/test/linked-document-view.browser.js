@@ -367,6 +367,12 @@ async (page, { expect, screenshots }) => {
   await linkedItem(10).click();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   expect((await documentScroll()).top).toBe(settled);
+  // After the user scrolls the document, choosing the same box again realigns it.
+  await linkedPreview.hover();
+  await page.mouse.wheel(0,200);
+  await expect.poll(() => levelGap(10)).toBeGreaterThan(8);
+  await linkedItem(10).click();
+  await expect.poll(() => levelGap(10)).toBeLessThan(1);
   // The document end limits the movement; the source is extended so its last box can reach the top.
   const sourceContent = await sourcePane.evaluate(pane => {
     const content = pane.firstElementChild, height = content.style.height;

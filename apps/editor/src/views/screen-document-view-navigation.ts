@@ -3,9 +3,11 @@ import type { ReadingPosition } from "../document-reading.ts";
 
 /** The preview owns scrolling; the renderer only reports snapshot geometry. */
 export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | null>, request: object, identity: string,
-  selected: false | ReadingPosition["blocks"][number] | ReadingPosition["cells"][number] | undefined, alignStart = false, onProgrammaticScroll?: () => void, scale = 1, positions?: ReadingPosition, alignTop?: number) {
+  selected: false | ReadingPosition["blocks"][number] | ReadingPosition["cells"][number] | undefined, alignStart = false, onProgrammaticScroll?: () => void, scale = 1, positions?: ReadingPosition, alignTop?: number, alignRequest?: object) {
   const manual = useRef(false);
   useLayoutEffect(() => { manual.current = false; }, [request, identity]);
+  // A new target object with top is a fresh request, even with equal values after the user scrolled.
+  useLayoutEffect(() => { if (alignRequest) manual.current = false; }, [alignRequest]);
   const scrollTop = useRef(0);
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -63,7 +65,7 @@ export function useDocumentViewNavigation(viewport: RefObject<HTMLDivElement | n
         scroller.scrollBy({ left: (selected.left - selected.clip.left - 16) / scale });
       }
     }
-  }, [viewport, request, identity, selected, alignStart, onProgrammaticScroll, scale, alignTop]);
+  }, [viewport, request, identity, selected, alignStart, onProgrammaticScroll, scale, alignTop, alignRequest]);
   const pause = () => { manual.current = true; anchor.current = undefined; };
   return {
     onWheelCapture: pause,
