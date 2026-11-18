@@ -240,8 +240,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); pastedData.push(body.data); await uploadGates.get(pasted); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } }); }
       if (body.action === 'resume') {
         if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
+        // A loaded Copilot conversation resumes from Host memory on the same connection.
         selected = conversations.get(body.id);
-        selected.turns = selected.turns.filter(turn => !turn.unrecordedPrompt);
       }
       if (body.action === 'send') {
         if (receipts.get(body.submissionId)?.submission.status === 'accepted' || lostResult?.submission.id === body.submissionId) {
@@ -273,7 +273,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
           { id: 'tool-' + sent.length, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: assistantFixture.document, revision: 'fixture-created-revision' }) }] } },
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
         else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: body.message ? 'Direction updated: focus on the unsaved paragraph.' : 'File reference received.' });
-        if (body.message === 'Prompt lost before provider record' && promptReject) turn.unrecordedPrompt = true;
         selected.tokenUsage = selected.provider === "copilot" ? { used: 15000, limit: 200000 } : { used: 810, limit: 1000 };
       }
       if (body.action === 'answer') { submittedAnswers.push(body); await answerGate; delete selected.userInput; }
