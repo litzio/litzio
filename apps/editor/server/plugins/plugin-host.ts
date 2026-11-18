@@ -199,7 +199,8 @@ export class PluginHost {
     try { this.assistantSkills.clear(); } catch { skillCleanupFailed = true; }
     if (registrations) {
       const retained = new Set(Object.values(registrations).flatMap(record => "installationId" in record ? [record.installationId] : []));
-      try { this.copies.cleanOrphans(retained); }
+      const sources = Object.values(registrations).map(record => "sourceDirectory" in record ? record.sourceDirectory : record.directory);
+      try { this.copies.cleanOrphans(retained, sources); }
       catch { console.warn("Unable to inspect Host plugin artifact storage for cleanup"); }
     }
     for (const [id, record] of Object.entries(this.installed)) if ("installationId" in record && record.enabled && !this.errors.has(id)) {

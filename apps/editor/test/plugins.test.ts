@@ -83,6 +83,41 @@ test("startup preserves installed copies until it can read a valid registration 
   } finally { await host?.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("startup cleanup preserves registered paths inside artifact storage", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-protected-source-"));
+  const state = path.join(root, "plugins.json"), storage = `${state}.artifacts`;
+  mkdirSync(storage);
+  const legacyDirectory = path.join(storage, randomUUID());
+  fs.renameSync(lifecycleFixture(root, "fixture.legacy"), legacyDirectory);
+  const nestedOwner = path.join(storage, randomUUID());
+  mkdirSync(nestedOwner);
+  const nestedSource = lifecycleFixture(nestedOwner, "fixture.nested");
+  const alias = path.join(root, "source-alias");
+  symlinkSync(nestedSource, alias, process.platform === "win32" ? "junction" : "dir");
+  const installationId = randomUUID(), installedCopy = path.join(storage, installationId);
+  mkdirSync(installedCopy);
+  const orphan = path.join(storage, randomUUID());
+  mkdirSync(orphan);
+  const fields = { enabled: false, settings: {}, operationNames: [] };
+  const legacy = { ...fields, registrationId: randomUUID(), directory: legacyDirectory, digest: artifactDigest(legacyDirectory) };
+  const current = { ...fields, registrationId: randomUUID(), installationId, digest: artifactDigest(installedCopy), sourceDirectory: alias, sourceDigest: artifactDigest(nestedSource) };
+  const save = (directory: string) => writeFileSync(state, JSON.stringify({ "fixture.legacy": { ...legacy, directory }, "fixture.current": current }));
+  save(legacyDirectory);
+  const host = new PluginHost(state);
+  try {
+    await host.start();
+    assert.equal(artifactDigest(legacyDirectory), legacy.digest);
+    assert.equal(artifactDigest(nestedSource), current.sourceDigest, "a registered alias protects the containing copy");
+    assert.equal(existsSync(installedCopy), true);
+    assert.equal(existsSync(orphan), false);
+
+    mkdirSync(orphan);
+    save(storage);
+    await host.start();
+    assert.equal(existsSync(orphan), true, "a registered ancestor protects its descendants");
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("legacy registrations show a recovery error and can be added again from the source", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-legacy-"));
   const state = path.join(root, "state.json"), id = "fixture.legacy";

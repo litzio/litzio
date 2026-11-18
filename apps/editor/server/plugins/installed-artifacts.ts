@@ -7,7 +7,18 @@ import { artifactDigest } from "./artifact-digest.mjs";
 export const installationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const includeSourceFile = (file: string) => path.basename(file).toLowerCase() !== ".git";
 
-/** Private to the Host that owns the registration file. Source paths never enter cleanup. */
+/** Resolve aliases in the existing prefix even when a registered source has gone missing. */
+function canonicalRecordedPath(directory: string): string {
+  try { return canonicalFilePath(directory); }
+  catch (error) {
+    const parent = path.dirname(directory);
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT" || parent === directory ||
+        lstatSync(directory, { throwIfNoEntry: false })) throw error;
+    return path.join(canonicalRecordedPath(parent), path.basename(directory));
+  }
+}
+
+/** Private to the Host that owns the registration file. */
 export class InstalledArtifacts {
   private readonly location: string;
   private pinnedRoot?: string;
@@ -65,11 +76,15 @@ export class InstalledArtifacts {
     catch { console.warn("Unable to clean up a Host plugin artifact"); }
   }
 
-  cleanOrphans(retained: ReadonlySet<string>) {
+  cleanOrphans(retained: ReadonlySet<string>, sources: readonly string[]) {
     const root = this.root();
     if (!lstatSync(root, { throwIfNoEntry: false })) return;
+    const registered = [...Array.from(retained, id => path.join(root, id)), ...sources];
+    const protectedPaths = registered.flatMap(directory => [directory, canonicalRecordedPath(directory)]);
     for (const name of readdirSync(root)) {
-      if (installationIdPattern.test(name) && !retained.has(name)) this.remove(name);
+      const candidate = path.join(root, name);
+      if (installationIdPattern.test(name) &&
+          !protectedPaths.some(directory => inside(candidate, directory) || inside(directory, candidate))) this.remove(name);
     }
   }
 }
