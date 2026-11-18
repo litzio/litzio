@@ -34,7 +34,6 @@ function ribbon(left: Endpoint, right: Endpoint, gutter: Rect, start = left.x, e
   const curveStart = gutter.left;
   const curveEnd = curveStart + gutter.width;
   const middle = (curveStart + curveEnd) / 2;
-  // The paint clip removes scrollbar areas from the horizontal runs.
   return `M${start},${left.top} H${curveStart} C${middle},${left.top} ${middle},${right.top} ${curveEnd},${right.top}` +
     ` H${end} V${right.bottom} H${curveEnd} C${middle},${right.bottom} ${middle},${left.bottom} ${curveStart},${left.bottom} H${start} Z`;
 }

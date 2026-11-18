@@ -54,9 +54,9 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
       ...(channel ? { channel } : {}),
       headless: true,
       reducedMotion: workerInfo.project.use.reducedMotion,
-      // Manual visual review must include the product's real scrollbar affordance.
+      // Visual review and the linked ribbon's native scrollbar drag need visible scrollbars.
       // Playwright otherwise adds --hide-scrollbars in headless Chromium.
-      ...(screenshots ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}),
+      ...(screenshots || scenarios.includes("linked-document-view") ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}),
       locale: "en-US",
       viewport: { width: 1280, height: 720 },
       // Chromium reuses connections; only Node request calls close them (#658, #1361).

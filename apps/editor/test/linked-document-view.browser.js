@@ -62,7 +62,7 @@ async (page, { expect, screenshots }) => {
       [documentJoin+2, (documentJoin+documentEdge)/2, documentEdge+1].every(x =>
         aligned(x,block.top-pad.height,block.bottom+pad.height));
   });
-  const clipping = () => fused.evaluate(path => {
+  const clipping = (requireHorizontal = false) => fused.evaluate((path, requireHorizontal) => {
     const host = path.closest('.linked-document-panes');
     const source = host.querySelector('.linked-document-source');
     const preview = host.querySelector('.screen-document-view-scroll');
@@ -80,18 +80,18 @@ async (page, { expect, screenshots }) => {
     const outline = new Path2D(paint.getAttribute('d'));
     const context = document.createElement('canvas').getContext('2d');
     const contains = (x,y) => context.isPointInPath(outline,x,y,'evenodd');
-    const excludesScrollbars = (pane, rect) => {
+    const clipsScrollbars = (pane, rect, needsHorizontal = false) => {
       const {x,y,width,height} = rect.getBBox();
       const vertical = pane.offsetWidth - 2*pane.clientTop - pane.clientWidth;
       const left = pane.clientLeft - pane.clientTop;
       const horizontal = pane.offsetHeight - 2*pane.clientTop - pane.clientHeight;
-      return (!left || !contains(x-left/2,y+height/2)) &&
-        (vertical === left || !contains(x+width+(vertical-left)/2,y+height/2)) &&
-        (!horizontal || !contains(x+width/2,y+height+horizontal/2));
+      return (!left || contains(x-left/2,y+height/2)) &&
+        (vertical === left || contains(x+width+(vertical-left)/2,y+height/2)) &&
+        (horizontal > 0 ? !contains(x+width/2,y+height+horizontal/2) : !needsHorizontal);
     };
     return paint.getAttribute('clip-rule') === 'evenodd' && matchesViewport(sourceClip,source) &&
-      matchesViewport(documentClip,preview) && excludesScrollbars(source,sourceClip) && excludesScrollbars(preview,documentClip);
-  });
+      matchesViewport(documentClip,preview) && clipsScrollbars(source,sourceClip,requireHorizontal) && clipsScrollbars(preview,documentClip);
+  }, requireHorizontal);
   await expect(band(2)).toHaveAttribute('data-emphasis','quiet');
   await expect(band(2)).toHaveCSS('stroke','none');
   const quietOpacity = await band(2).evaluate(path => Number(getComputedStyle(path).getPropertyValue('--opacity-linked-band-quiet')));
@@ -131,15 +131,55 @@ async (page, { expect, screenshots }) => {
   });
   await page.mouse.move(gutterPoint.x,gutterPoint.y);
   await expect(band(2)).toHaveAttribute('data-emphasis','hover');
-  await page.mouse.click(gutterPoint.x,gutterPoint.y);
+  const sourceLead = await linkedItem(2).evaluate(button => {
+    const pane = button.closest('.linked-document-source');
+    const box = button.getBoundingClientRect();
+    const edge = pane.getBoundingClientRect().left + pane.clientLeft + pane.clientWidth;
+    return { x: (box.right + edge) / 2, y: (box.top + box.bottom) / 2 };
+  });
+  await page.mouse.move(sourceLead.x,sourceLead.y);
+  await expect(band(2)).toHaveAttribute('data-emphasis','hover');
+  await page.mouse.click(sourceLead.x,sourceLead.y);
   await expect(linkedItem(2)).toHaveAttribute('aria-pressed','true');
   await expect(band(2)).toHaveAttribute('data-emphasis','selected');
   await expect(fused).toBeVisible();
+  await sourcePane.getByText('Source section 1', { exact: true }).click();
+  await expect(linkedItem(1)).toHaveAttribute('aria-pressed','true');
+  await page.mouse.click(gutterPoint.x,gutterPoint.y);
+  await expect(linkedItem(2)).toHaveAttribute('aria-pressed','true');
+
+  const scrollbar = await sourcePane.evaluate((pane, y) => {
+    const box = pane.getBoundingClientRect();
+    const track = box.left + pane.clientLeft + pane.clientWidth;
+    const width = box.right - pane.clientTop - track;
+    return { x: track + width / 2, y, width };
+  }, sourceLead.y);
+  expect(scrollbar.width).toBeGreaterThan(0);
+  await expect.poll(() => fused.evaluate((path, point) => {
+    const origin = path.ownerSVGElement.getBoundingClientRect();
+    const local = new DOMPoint(point.x-origin.left, point.y-origin.top);
+    const clip = group => document.getElementById(group.getAttribute('clip-path').slice(5,-1));
+    const paint = clip(path.parentElement.parentElement).firstElementChild;
+    const context = document.createElement('canvas').getContext('2d');
+    return path.isPointInFill(local) &&
+      [...clip(path.parentElement).children].some(rect => rect.isPointInFill(local)) &&
+      context.isPointInPath(new Path2D(paint.getAttribute('d')),local.x,local.y,'evenodd');
+  }, scrollbar)).toBe(true);
+  await page.mouse.move(scrollbar.x,scrollbar.y);
+  await page.mouse.down();
+  await page.mouse.move(scrollbar.x,scrollbar.y+60,{steps: 4});
+  await page.mouse.up();
+  await expect.poll(() => sourcePane.evaluate(pane => pane.scrollTop)).toBeGreaterThan(0);
+  await sourcePane.evaluate(pane => pane.scrollTo(0,0));
 
   await page.getByRole('button',{name:'Source scale 1',exact:true}).click();
   await expect.poll(() => bandEnds(.75)).toBe(true);
   await expect.poll(alignedEdges).toBe(true);
   await expect.poll(clipping).toBe(true);
+  await sourcePane.evaluate(pane => { pane.firstElementChild.style.minWidth = `${pane.clientWidth + 64}px`; });
+  await expect.poll(() => clipping(true)).toBe(true);
+  await sourcePane.evaluate(pane => pane.firstElementChild.style.removeProperty('min-width'));
+  await expect.poll(() => sourcePane.evaluate(pane => pane.scrollWidth === pane.clientWidth)).toBe(true);
   if (screenshots) {
     await page.getByRole('button',{name:'Light',exact:true}).click();
     await expect(band(2)).toHaveAttribute('data-emphasis','selected');
@@ -179,9 +219,8 @@ async (page, { expect, screenshots }) => {
   };
   if (screenshots) await captureThemes('branches');
   await branchToggle.click();
-  await sourcePane.hover();
-  const scrollIntoBox = await linkedItem(2).evaluate(node => node.offsetTop+12);
-  await page.mouse.wheel(0,scrollIntoBox);
+  // Set the partially clipped position exactly, regardless of native wheel granularity.
+  await linkedItem(2).evaluate(node => node.closest('.linked-document-source').scrollTo(0,node.offsetTop+12));
   await expect.poll(() => band(2).evaluate(path => {
     const host = path.closest('.linked-document-panes');
     const pane = host.querySelector('.linked-document-source');
@@ -196,8 +235,7 @@ async (page, { expect, screenshots }) => {
   })).toBe(true);
   await expect.poll(clipping).toBe(true);
   if (screenshots) await captureThemes('clipped');
-  await sourcePane.hover();
-  await page.mouse.wheel(0,-scrollIntoBox);
+  await sourcePane.evaluate(pane => pane.scrollTo(0,0));
 
   await linkedPreview.locator('.tiptap > p').first().click();
   await expect(linkedItem(1)).toHaveAttribute('aria-pressed','true');
