@@ -8,7 +8,7 @@ import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-erro
 import { completeFootnotes, endnotePlacement, footnoteWriteIssue } from "./footnote.ts";
 import { isFigure, figureContentKind } from "./figure.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
-import { encodeEmphasisBoundaries } from "./emphasis-boundary.ts";
+import { encodeEmphasisBoundaries, hasMixedAdjacentMarks } from "./emphasis-boundary.ts";
 import { parse } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
 import { isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode } from "./table.ts";
@@ -73,6 +73,16 @@ export function repeatRoundTrip(result: RoundTrip): RoundTrip {
 
 /** Return the same parsed snapshot that passed canonical semantic comparison. */
 export function roundTrip(document: MystDocument, previous?: RoundTrip): RoundTrip {
+  try { return writeRoundTrip(document, previous, false); }
+  catch (error) {
+    if (!(error instanceof SemanticLossError) || error.location.code !== "round-trip-mismatch" || !hasMixedAdjacentMarks(document)) throw error;
+    // Output the `*` form keeps never changes; see hasMixedAdjacentMarks.
+    try { return writeRoundTrip(document, previous, true); }
+    catch { throw error; }
+  }
+}
+
+function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined, alternateMarkers: boolean): RoundTrip {
   assertUnicode(document);
   // The fingerprint would also catch these, but not name the footnote.
   const footnotes = footnoteWriteIssue(document);
@@ -119,7 +129,7 @@ export function roundTrip(document: MystDocument, previous?: RoundTrip): RoundTr
       }, { cause: error });
     }
   });
-  const frontMatter = prepareWriter(tree, blockPaths);
+  const frontMatter = prepareWriter(tree, blockPaths, alternateMarkers);
   const file = new VFile();
   try {
     writeMd(file, tree as never);
@@ -154,7 +164,7 @@ function render(value: MystNode): string {
 
 /** Adapt the MyST representation to the existing mdast writer, on the write-only clone.
  * The original fingerprint and the whole reparsed output still have to match. */
-function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
+function prepareWriter(tree: MystDocument, blockPaths: number[][], alternateMarkers: boolean): string {
   let prefix = "";
   function visit(node: MystNode, index: number, parent?: MystNode, path: number[] = [], inLink = false): void {
     try { prepare(node, index, parent, path, inLink || node.type === "link"); }
@@ -195,7 +205,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
     // Before escaping: text after an encoded boundary character starts its own context,
     // so a following `@` or `$` is judged where MyST will read it.
     if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
-      node.children = encodeEmphasisBoundaries(node.children);
+      node.children = encodeEmphasisBoundaries(node.children, alternateMarkers);
     }
     // myst-to-md does not protect literal dollars or citation-triggering @ text.
     // The writer emits these escaped `html` values verbatim.

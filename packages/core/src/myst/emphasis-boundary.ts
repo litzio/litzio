@@ -15,15 +15,11 @@ const decodes = new Map<number, boolean>();
  * as is. Runs on the write-only clone, before `$`/`@` escaping, so text after the reference
  * is escaped in its own context; the full fingerprint round trip still decides.
  *
- * Adjacent marks share one `*` run (`**정확도(A)***를*`). It closes the first mark and opens
- * the second only when the characters on both sides are alike (both letters or both
- * punctuation). Otherwise the second mark is written with `_` (`**정확도(A)**_를_`), as
- * mdast-util-to-markdown 2.x does. `_` cannot close inside a word, so a letter or digit
- * after it is written as a reference too.
+ * `alternateMarkers` is the writer's second attempt (#1831), see `hasMixedAdjacentMarks`.
  */
-export function encodeEmphasisBoundaries(children: MystNode[]): MystNode[] {
+export function encodeEmphasisBoundaries(children: MystNode[], alternateMarkers = false): MystNode[] {
   const underscored = new Set<MystNode>();
-  children.forEach((child, index) => {
+  if (alternateMarkers) children.forEach((child, index) => {
     const before = children[index - 1];
     if (isMark(child) && isMark(before) && !underscored.has(before) && mixed(edge(before, "last"), edge(child, "first"))) {
       underscored.add(child);
@@ -35,7 +31,7 @@ export function encodeEmphasisBoundaries(children: MystNode[]): MystNode[] {
       // The pinned writer has one emphasis marker per document: write this mark's markers as
       // raw output around its children, which the caller then prepares and writes in place.
       const marker = child.type === "strong" ? "__" : "_";
-      result.push({ type: "html", value: marker }, ...encodeEmphasisBoundaries(child.children ?? []), { type: "html", value: marker });
+      result.push({ type: "html", value: marker }, ...encodeEmphasisBoundaries(child.children ?? [], true), { type: "html", value: marker });
       return;
     }
     if (child.type !== "text") { result.push(child); return; }
@@ -67,7 +63,25 @@ export function encodeEmphasisBoundaries(children: MystNode[]): MystNode[] {
   return result;
 }
 
-/** One edge is punctuation and the other a letter or digit: the shared run cannot do both. */
+/**
+ * Adjacent marks share one `*` run (`**정확도(A)***를*`). Whether that run closes the first
+ * mark and opens the second depends on the reader's character classes and on the other runs
+ * around it, so the writer first writes `*` everywhere and lets the pinned reader decide.
+ * Only when that is refused and some adjacent marks meet with punctuation on one side and a
+ * letter or digit on the other does it write again with `alternateMarkers`: the second mark
+ * of each such pair uses `_` (`**정확도(A)**_를_`), as mdast-util-to-markdown 2.x does. `_`
+ * cannot close inside a word, so a letter or digit after it is written as a reference too.
+ * If that is refused as well, the first refusal stands.
+ */
+export function hasMixedAdjacentMarks(node: MystNode): boolean {
+  const children = node.children ?? [];
+  return children.some((child, index) => {
+    const before = children[index - 1];
+    return (isMark(child) && isMark(before) && mixed(edge(before, "last"), edge(child, "first"))) || hasMixedAdjacentMarks(child);
+  });
+}
+
+/** One edge is punctuation and the other a letter or digit: the shared run may not do both. */
 function mixed(left: string | undefined, right: string | undefined): boolean {
   if (left === undefined || right === undefined) return false;
   return (isPunctuation(left) && isWordChar(right)) || (isWordChar(left) && isPunctuation(right));

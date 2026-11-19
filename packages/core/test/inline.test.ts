@@ -284,7 +284,10 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
   for (const [content, expected] of [
     [[strong(text("정확도(A)")), emphasis(text("를")), text(" 본다")], "**정확도(A)**_를_ 본다\n"],
     [[text("값"), strong(text("정확도(A)")), emphasis(text("를")), text("본다")], "값**정확도(A)**_를_&#xBCF8;다\n"],
-    // Adjacent marks with alike edges keep their single `*` run.
+    // Output the pinned reader already keeps is never rewritten with `_`, whatever follows.
+    [[strong(text("→")), emphasis(text("b"))], "**→***b*\n"],
+    [[strong(text("→")), emphasis(text("b")), text("�")], "**→***b*�\n"],
+    [[strong(text("→")), emphasis(text("b")), text("\u0085")], "**→***b*\u0085\n"],
     [[strong(text("굵게")), emphasis(text("기울임"))], "**굵게***기울임*\n"],
     [[emphasis(text("기울임")), strong(text("굵게"))], "*기울임***굵게**\n"],
     [[strong(text("(A)")), emphasis(text("(B)"))], "**(A)***(B)*\n"],
@@ -301,6 +304,8 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     ["**X→**\u0085\n", "**X→**\u0085\n"],
     ["**X→**b@name\n", "**X→**&#x62;\\@name\n"],
     ["**정확도(A)**_를_ 본다\n", "**정확도(A)**_를_ 본다\n"],
+    ["**c*****a**b***→**\n", "**c*****a**b***→**\n"],
+    ["**c***→*****a**b**\n", "**c***→*****a**b**\n"],
   ]) assert.equal(serializeNative(parseNative(front + body)), front + expected);
 });
 
