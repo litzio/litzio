@@ -344,10 +344,11 @@ the same executor in its own process, rather than contacting the running daemon.
 
 ## Node runtime security baseline (2026-11-11)
 
-Node.js `>=24.22.1 <25` is required: 24.22.1 is the first 24.x release fixing
-[CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
-CI uses 24.22.2; Desktop pins [Electron 45.3.0](https://releases.electronjs.org/release/v45.3.0)
-with Node 24.22.2. Updating Desktop does not update a separately installed system Node
+Node.js `>=24.22.3 <25` is required: 24.22.1 is the first 24.x release fixing
+[CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases), and
+[24.22.3](https://nodejs.org/en/blog/release/v24.22.3) adds the November 2026 security fixes.
+CI uses 24.22.3; Desktop pins [Electron 45.3.4](https://releases.electronjs.org/release/v45.3.4)
+with Node 24.22.3. Updating Desktop does not update a separately installed system Node
 or an already running shared daemon. Operators must update system Node and restart those daemons.
 
 Node `fetch()` decodes Brotli HTTP responses through `node:zlib` (see
@@ -375,6 +376,13 @@ The direct `undici` dependency stays at 7.30.1, matching the
 [Node 24.22.1 security release](https://nodejs.org/en/blog/release/v24.22.1).
 A package-only update cannot replace Node's native Brotli decoder. Electron release notes
 44.8.0–44.11.1 and the [45.0 breaking changes](https://www.electronjs.org/docs/latest/breaking-changes#breaking-api-changes-450) were reviewed. The owner selected stable 45.3.0; application migration was not required for the paths below.
+45.3.4 is a patch release on the same 45.3 line that bundles Node 24.22.3.
+
+Of the Node 24.22.3 fixes, the Host can reach `tls,http` nested parser execution
+(CVE-2026-123864) and the llhttp 9.4.4 update through its HTTP/1 server, and the TLS client
+SNI/resumption fixes (CVE-2026-123872) through outgoing HTTPS such as plugin GitHub downloads and
+AI provider requests. The http2 and TLS server fixes do not apply: the Host serves plain HTTP/1
+without TLS.
 
 The existing packaged CLI verification (`apps/desktop/test/packaged/cli-check.ts`) reads
 `process.versions.node` from the actual packaged executable using `ELECTRON_RUN_AS_NODE`
