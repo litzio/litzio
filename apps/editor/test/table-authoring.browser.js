@@ -857,6 +857,19 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.keyboard.press('ArrowUp');
   const above = await cellAt();
   if (below !== 'tableCell 2,0 P' || above !== 'tableCell 1,0 U') throw new Error(`Vertical arrows must keep the table column: ${JSON.stringify({below, above, grid: await grid(tables.last())})}`);
+  // First-row ArrowUp leaves the table for the textblock before it (here the preceding table's caption)
+  // instead of reaching the left header cell.
+  await tables.last().locator('th', {hasText:/^Value$/}).click();
+  await caretIn('Value');
+  await page.keyboard.press('ArrowUp');
+  const exit = await page.evaluate(() => {
+    const {state} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
+    let table = -1;
+    state.doc.forEach((node, _, index) => { if (node.type.name === 'table') table = index; });
+    const {$from} = state.selection;
+    return `${$from.index(0) - table} ${$from.parent.type.name}`;
+  });
+  if (exit !== '-1 tableCaption') throw new Error(`First-row ArrowUp must leave the table upward: ${exit}`);
   await tables.last().locator('td', {hasText:/^P$/}).click();
   await caretIn('P');
   await page.keyboard.press('ArrowDown');
