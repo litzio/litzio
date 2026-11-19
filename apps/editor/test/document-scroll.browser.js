@@ -101,6 +101,35 @@ async (page, { openPath, expect, screenshots, waitForExplorerLayout }) => {
     await page.keyboard.press('Escape');
   } finally { await page.mouse.up(); }
 
+  // Typing reuses the gutter geometry while no block moves (#1801). After a keystroke and a wrap
+  // above it, a block scrolled in from off screen still gets its handle beside it.
+  await viewport.evaluate(node => node.scrollTop = 0);
+  const engine = viewport.locator('.document-editor');
+  const originalText = await engine.evaluate(node => node.editor.state.doc.textContent);
+  await viewport.locator('.document-editor > p').first().click({position:{x:8,y:12}});
+  await page.keyboard.press('Home');
+  await page.keyboard.type('x');
+  await page.keyboard.insertText(' Wrapping moves every later block.'.repeat(6));
+  const lastParagraph = viewport.locator('.document-editor > p').last();
+  const lastIndex = await engine.evaluate(node => {
+    let index = -1;
+    node.editor.state.doc.forEach((child, _offset, childIndex) => { if (child.type.name === 'paragraph') index = childIndex; });
+    return index;
+  });
+  await lastParagraph.scrollIntoViewIfNeeded();
+  await lastParagraph.hover({position:{x:8,y:4}});
+  const lastHandle = viewport.getByRole('button', {name:`Move paragraph block ${lastIndex + 1}`, exact:true});
+  await expect(lastHandle).toBeVisible();
+  const lastBox = await lastParagraph.boundingBox();
+  const lastHandleBox = await lastHandle.boundingBox();
+  const handleCentre = lastHandleBox.y + lastHandleBox.height / 2;
+  expect(handleCentre, 'Handle must sit beside its scrolled-in block').toBeGreaterThanOrEqual(lastBox.y);
+  expect(handleCentre, 'Handle must sit beside its scrolled-in block').toBeLessThanOrEqual(lastBox.y + lastBox.height);
+  for (let undo = 0; undo < 4 && await engine.evaluate(node => node.editor.state.doc.textContent) !== originalText; undo++) {
+    await page.keyboard.press('ControlOrMeta+z');
+  }
+  expect(await engine.evaluate(node => node.editor.state.doc.textContent)).toBe(originalText);
+
   // Source uses the same owning viewport and native keys, without involving the editor engine.
   await page.getByTestId('view-source').click();
   const source = viewport.getByTestId('source-view');

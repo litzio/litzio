@@ -413,7 +413,7 @@ Wide document belongs to the tab-row actions, folding into ⋯ at narrow widths 
 The title strip stays 40px at all supported widths; search retains #556's reduction order
 before becoming icon-only.
 
-The gutter geometry observes the document-settings block as well as paper/editor sizes; Outline reschedules its reading reporter when that block resizes. Inline text menus dismiss on outside interaction; property popovers retain their DOM anchors.
+The gutter geometry observes the document-settings block as well as paper/editor sizes. After an editor transaction it re-measures only the changed and selected blocks, the block after each and the last block, and measures every block again when any of them moved (#1801). Outline reschedules its reading reporter when that block resizes. Inline text menus dismiss on outside interaction; property popovers retain their DOM anchors.
 
 Current document settings examples:
 [expanded English/light](assets/document-settings-1721/after-draft-en-light-1440-expanded.png),
