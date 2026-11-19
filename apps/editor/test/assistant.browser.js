@@ -1164,6 +1164,13 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.getByRole('menu', {name: /^(Model settings|모델 설정)$/})).toBeVisible();
   await assertChoiceContrast();
   await page.keyboard.press('Escape');
+  // Without Desktop the log actions are disabled; their reason stays reachable from one named keyboard stop each.
+  await panel.getByRole('button', { name: '대화 기록', exact: true }).focus();
+  for (const name of ['공급자 로그를 메모장에서 열기', '공급자 로그 파일 위치 표시']) {
+    await page.keyboard.press('Tab');
+    await expect(panel.locator('span[tabindex="0"]').and(panel.getByLabel(name, { exact: true }))).toBeFocused();
+    await expect(page.locator('[data-slot="tooltip-content"][data-open]').filter({ hasText: '공급자 로그 열기는 Windows Desktop에서 지원합니다.' })).toBeVisible();
+  }
   // The modal overlay keeps a visible, named keyboard position in both directions until it wraps.
   for (const key of ['Tab', 'Shift+Tab']) {
     await panel.getByRole('textbox').focus();

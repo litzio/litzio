@@ -462,15 +462,19 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AssistantConversationInfo[]>(`${ASSISTANT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
-      {(["open", "reveal"] as const).map(action => <Tooltip key={action}><TooltipTrigger render={<span />}>
-        <Button variant="ghost" size="icon-sm" aria-label={i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location")} disabled={!conversation || pending || !window.litzioDesktop?.providerSessionLog} onClick={() => void run(async () => {
+      {(["open", "reveal"] as const).map(action => {
+        const label = i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location"), unavailable = !conversation || pending || !window.litzioDesktop?.providerSessionLog;
+        // Only a disabled button needs its wrapper as the named keyboard stop for the reason.
+        return <Tooltip key={action}><TooltipTrigger render={unavailable ? <span tabIndex={0} aria-label={label} /> : <span />}>
+        <Button variant="ghost" size="icon-sm" aria-label={label} disabled={unavailable} onClick={() => void run(async () => {
           try {
             const result = await window.litzioDesktop!.providerSessionLog(conversation!.id, conversation!.provider ?? "codex", action);
             if (result) setProblem(i18n.t(result.reason === "missing" ? "Provider log is absent or has been removed." : result.reason === "denied" ? "Provider log access was denied." : result.reason === "launch" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified."));
           }
           catch { setProblem(i18n.t(action === "open" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified.")); }
         })}>{action === "open" ? <ExternalLink /> : <FolderOpen />}</Button>
-      </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>)}
+      </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>;
+      })}
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </>} />
     <div className="assistant-context type-helper" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
