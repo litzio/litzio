@@ -199,6 +199,24 @@ test("history rename, archive and unarchive keep order over HTTP and explicit-Ho
   const after = (await listed()).find(entry => entry.id === older.id);
   assert.equal(after.archivedAt, undefined, "sending to an archived conversation unarchives it");
   assert.equal(after.title, "Report");
+
+  // A slow reopen that started before a rename must not restore the old title.
+  const request = agent.client.request.bind(agent.client);
+  let held = false, entered!: () => void, release!: () => void;
+  const entering = new Promise<void>(resolve => { entered = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
+  t.mock.method(agent.client, "request", async (method: string, params: any) => {
+    if (method === "thread/turns/list" && !held) { held = true; entered(); await released; }
+    return request(method, params);
+  });
+  const slow = post({ action: "resume", id: running.id });
+  await entering;
+  assert.equal((await post({ action: "resume", id: running.id })).status, 200);
+  assert.equal((await post({ action: "rename", id: running.id, title: "Renamed while reopening" })).status, 200);
+  release();
+  assert.equal((await slow).status, 200);
+  assert.equal((await fetch(`${origin}/api/assistant/conversations?id=${running.id}`).then(response => response.json()) as any).title, "Renamed while reopening");
+  assert.equal((await post({ action: "send", id: running.id, submissionId: "after-overlapping-resume", message: "Next", ...send })).body.submission.status, "accepted");
+  assert.equal((await listed()).find(entry => entry.id === running.id).title, "Renamed while reopening", "the next send keeps the rename");
 });
 
 test("unavailable provider rejects new work with a reason; settings do not close admitted conversations", async t => {

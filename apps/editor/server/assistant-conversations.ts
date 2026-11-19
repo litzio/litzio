@@ -190,6 +190,13 @@ export class AssistantConversations {
     if (archived && this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Assistant response before archiving the conversation.");
     return this.updateInfo(id, entry => { if (!archived) delete entry.archivedAt; else entry.archivedAt ??= Date.now(); });
   }
+  /** A rename or archive during the provider wait changed only the Map entry of that time; read them back. */
+  private latestInfo(conversation: AssistantConversation) {
+    const latest = this.list().find(entry => entry.id === conversation.id);
+    if (!latest) return;
+    conversation.title = latest.title;
+    if (latest.archivedAt) conversation.archivedAt = latest.archivedAt; else delete conversation.archivedAt;
+  }
   private updateInfo(id: string, change: (entry: AssistantConversationInfo) => void) {
     if (typeof id !== "string") throw new Error("Invalid conversation selection.");
     const { attachments: _attachments, ...info } = this.index.update(id, change);
@@ -291,6 +298,7 @@ export class AssistantConversations {
         // Only a completed loadSession replay proves the CLI owns these user messages.
         for (const turn of conversation.turns) for (const item of turn.items) if (item.kind === "user") item.userMessageSource = "provider-history";
         this.loaded.add(id);
+        this.latestInfo(conversation);
         this.restoreQuestions(conversation, info.questions);
         return conversation;
       } catch (error) { this.mcp.revokeConversation(id); throw error; }
@@ -305,6 +313,7 @@ export class AssistantConversations {
     } while (cursor);
     conversation.turns = turns.map(turn => turnFrom(turn, "provider-history")); conversation.model = result.model ?? settings.model;
     conversation.reasoningEffort = result.reasoningEffort ?? settings.reasoningEffort;
+    this.latestInfo(conversation);
     this.restoreQuestions(conversation, info.questions);
     this.conversations.set(id, conversation);
     this.loaded.add(id);
