@@ -20,6 +20,8 @@
 .assistant-notice > p { margin: 0 0 var(--space-2); }
 /* The action is not destructive; keep its label out of the error tone. */
 .assistant-notice > button { color: var(--id-color-text); }
+.assistant-history-search { margin-block: var(--space-2) var(--space-3); }
+.assistant-history > .assistant-notice { margin-bottom: var(--space-3); }
 .assistant-history > button { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3); gap: var(--space-1); border-radius: 0; }
 .assistant-history > button + button { border-top: var(--border-width) solid var(--id-color-border-subtle); }
 .assistant-history strong { overflow-wrap: anywhere; }

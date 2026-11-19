@@ -103,7 +103,12 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     assistantEnvironment: () => providerConnection().environment(),
     assistantConversations: (args: any) => {
       if (args.submissionId) return history().submission(args.submissionId);
-      if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args)).map(({ attachments: _attachments, ...info }) => info);
+      if (!args.id) {
+        const selected = args.provider === undefined ? undefined : provider(args);
+        return history().list()
+          .filter(info => !selected || (info.provider ?? "codex") === selected)
+          .map(({ attachments: _attachments, ...info }) => info);
+      }
       const conversation = history().current(args.id);
       return conversation;
     },
