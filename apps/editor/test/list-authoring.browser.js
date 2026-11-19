@@ -1,6 +1,7 @@
 // Run with pnpm browser:test list-authoring.
 // Edits list items with the keyboard (Enter, Tab, Enter on an empty item), inserts a numbered
-// list from the slash menu, saves a scratch Markdown file, and reloads it.
+// list from the slash menu, joins the line after a list into its last item with Backspace
+// (#1821), saves a scratch Markdown file, and reloads it.
 async (page, { openDocument, withBlockHover }) => {
   await page.unrouteAll();
   await page.reload();
@@ -36,6 +37,15 @@ async (page, { openDocument, withBlockHover }) => {
     editor.commands.setTextSelection(position);
     editor.view.focus();
   }, text);
+  // Top-level blocks as nested text, plus the caret's text block and offset.
+  const shape = async () => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(element => {
+    const { state } = element.editor;
+    const show = node => node.isTextblock ? JSON.stringify(node.textContent)
+      : `${node.type.name}[${node.content.content.map(show).join(',')}]`;
+    const { $from } = state.selection;
+    return { doc: state.doc.content.content.map(show).join(' '), caret: `${JSON.stringify($from.parent.textContent)}@${$from.parentOffset}` };
+  });
+  const sameShape = (actual, doc, caret) => actual.doc === doc && actual.caret === caret;
 
   await openScratch();
   const editor = page.locator('[data-document-tab][data-active=true]').getByTestId('document-editor');
@@ -72,7 +82,16 @@ async (page, { openDocument, withBlockHover }) => {
   });
 
   // Enter twice after "Power": the empty item leaves the list as a paragraph.
+  // Backspace on that empty line removes it and returns to the end of "Power" without
+  // adding an item (#1821); Enter twice leaves the list again.
   await caretAtEnd('Power');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  const emptyLine = await shape();
+  await page.keyboard.press('Backspace');
+  const backspacedEmptyLine = await shape();
+  const emptyLineRemoved = emptyLine.doc.includes('"Power"]] "" "Done."') &&
+    sameShape(backspacedEmptyLine, emptyLine.doc.replace('"Power"]] "" "Done."', '"Power"]] "Done."'), '"Power"@5');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter');
   await page.keyboard.type('After list');
@@ -90,6 +109,28 @@ async (page, { openDocument, withBlockHover }) => {
   await numbered.waitFor({state:'visible'});
   await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent?.trim() === 'Unsaved changes');
 
+  // Below a numbered list whose last item has a nested list, Backspace at the start of a
+  // written line appends its text to the visually last item, as one Undo step (#1821).
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Inner');
+  await page.keyboard.press('Tab');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Enter');
+  await page.keyboard.type('Tail');
+  // A person pauses before the next edit; history groups edits made within 500 ms.
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Home');
+  const writtenLine = await shape();
+  await page.keyboard.press('Backspace');
+  const joined = await shape();
+  const joinedDoc = writtenLine.doc.replace('"Inner"]]]] "Tail" bulletList', '"InnerTail"]]]] bulletList');
+  const joinedLastItem = writtenLine.doc.includes('orderedList[listItem["First",orderedList[listItem["Inner"]]]] "Tail" bulletList') &&
+    sameShape(joined, joinedDoc, '"InnerTail"@5');
+  await page.keyboard.press('Control+z');
+  const undone = await shape();
+  await page.keyboard.press('Control+Shift+z');
+  const redone = await shape();
+  const joinUndoRedo = undone.doc === writtenLine.doc && redone.doc === joinedDoc;
+
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor({state:'attached'});
   if (await page.getByTestId('status').getAttribute('data-operation') !== 'saved') {
@@ -103,6 +144,8 @@ async (page, { openDocument, withBlockHover }) => {
     'Intro paragraph.',
     '',
     '1.  First',
+    '',
+    '    1.  InnerTail',
     '',
     '*   Wire',
     '',
@@ -120,15 +163,19 @@ async (page, { openDocument, withBlockHover }) => {
   await openScratch();
   const reloaded = page.locator('[data-document-tab][data-active=true]').getByTestId('document-editor');
   await reloaded.locator('ul[data-block="list"]').first().waitFor({state:'visible'});
+  const reopened = await shape();
   const result = {
     openedEditable,
     tabNested,
+    emptyLineRemoved,
     exitedList,
+    joinedLastItem,
+    joinUndoRedo,
     savedAsCanonicalMarkdown: saved === expected,
-    reloadedNumbered: await reloaded.locator('ol[data-block="list"] > li').innerText() === 'First',
+    reopenedSameLists: reopened.doc === redone.doc,
     reloadedNested: await reloaded.locator('ul[data-block="list"] ul[data-block="list"] > li').innerText() === 'Check',
   };
   const failed = Object.entries(result).filter(([, value]) => value !== true);
-  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved})}`);
+  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, emptyLine, backspacedEmptyLine, writtenLine, joined, undone, redone, reopened})}`);
   return result;
 }

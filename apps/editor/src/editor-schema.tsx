@@ -11,7 +11,7 @@ import { Subscript } from "@tiptap/extension-subscript";
 import { Superscript } from "@tiptap/extension-superscript";
 import { codeHighlightingPlugin, lowlight } from "./code-highlight.ts";
 import { type Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { NodeSelection, Plugin, PluginKey, type EditorState, type Transaction } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { documentInteraction } from "./document-interaction.ts";
 import { imageAssets } from "./image-assets.ts";
@@ -145,6 +145,7 @@ const SourcedParagraph = Node.create({
 
 // List v1: a top-level list carries its snapshot locator; each item holds one paragraph,
 // optionally followed by one nested list. Enter, Tab/Shift-Tab and Backspace edit items.
+// Backspace at the start of a paragraph after a list joins it into the last item (ParagraphMerge).
 // List input shortcuts (`- `, `1. `) are MarkdownInputRules, not Tiptap's list rules.
 const listHTML = { class: "list", "data-block": "list" };
 
@@ -620,6 +621,19 @@ const ParagraphMerge = Extension.create({
         if (selection.$from.depth !== 1 || selection.$from.parent.type.name !== "paragraph") return false;
         const pos = selection.$from.before();
         const previous = state.doc.resolve(pos).nodeBefore;
+        if (previous && ["bulletList", "orderedList"].includes(previous.type.name)) {
+          // List v1 items hold one paragraph, so the paragraph's text continues the visually
+          // last item instead of becoming a new item (#1821). An empty paragraph is removed.
+          let end = 0;
+          previous.descendants((node, offset) => {
+            if (node.isTextblock) end = pos - previous.nodeSize + 1 + offset + 1 + node.content.size;
+            return !node.isTextblock;
+          });
+          const paragraph = selection.$from.parent;
+          const tr = state.tr.delete(pos, pos + paragraph.nodeSize).insert(end, paragraph.content);
+          this.editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, end)).scrollIntoView());
+          return true;
+        }
         if (previous?.type.name !== "paragraph") return false;
         // Snapshot provenance only: merge adjacent source groups, including any
         // unsaved split siblings. Nothing is persisted as an identity.

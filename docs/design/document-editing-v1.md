@@ -182,6 +182,13 @@ A changed document recomputes numbering; source semantics and canonical output a
   Backspace at the first block keep their existing behavior. Selection uses the
   engine's `selectNodeBackward`/`selectNodeForward` before its join commands; no Core
   operation or CLI command is added for this keyboard interaction.
+- Backspace at the start of a top-level paragraph directly after a bullet or numbered
+  list joins it into the visually last item (the deepest last item when the last item
+  has a nested list): an empty paragraph is removed and the caret moves to the end of
+  that item's text; a written paragraph's text is appended there, with the caret at the
+  join point. No new item is created, and the change is one Undo step. Save writes it
+  through the existing list content and block deletion edits. Backspace inside a list
+  keeps the engine's list lifting: an empty item or an item start lifts it one level.
 - With a caret in an editable top-level heading, Tab changes H1 to H2 (one level
   deeper), and Shift+Tab changes H2 to H1 (one level higher). Each change is one
   Undo step and keeps content and caret. Tab at H6 and Shift+Tab at H1 keep the
