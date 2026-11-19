@@ -129,7 +129,7 @@ const COMMANDS: CommandSpec[] = [
 
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
-    usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant delete <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry."] },
+    usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant delete <id> --host <origin> | assistant rename <id> --title <text> --host <origin> | assistant archive <id> --host <origin> | assistant unarchive <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "rename, archive and unarchive change only the history entry; archive keeps everything and hides the conversation from the default history, and sending a message unarchives it. conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -1334,13 +1334,15 @@ export async function runCliAsync(args: string[]): Promise<number> {
       process.stdout.write(JSON.stringify(result) + "\n");
       return "error" in result ? 1 : 0;
     }
-    if (operation === "conversation" || operation === "answer" || operation === "delete") {
-      const read = operation !== "answer";
-      if (read ? args.length !== 5 || args[3] !== "--host" : args.length !== 7 || args[3] !== "--file" || args[5] !== "--host") throw new Error(commandHelp("assistant"));
-      const origin = new URL(args[read ? 4 : 6]);
+    if (["conversation", "answer", "delete", "rename", "archive", "unarchive"].includes(operation)) {
+      const option = operation === "answer" ? "--file" : operation === "rename" ? "--title" : undefined;
+      if (option ? args.length !== 7 || args[3] !== option || args[5] !== "--host" : args.length !== 5 || args[3] !== "--host") throw new Error(commandHelp("assistant"));
+      const origin = new URL(args[option ? 6 : 4]);
       if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("Expected a Host origin.");
-      const input = read ? undefined : JSON.parse(readFileSync(args[4], "utf8"));
-      const response = await fetch(`${origin.origin}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json", "X-Litzio-Protocol": "4", Connection: "close" }, body: JSON.stringify(read ? { action: operation === "delete" ? "delete" : "resume", id: args[2] } : { ...input, action: "answer", id: args[2] }), signal: AbortSignal.timeout(30000) });
+      const body = operation === "answer" ? { ...JSON.parse(readFileSync(args[4], "utf8")), action: "answer", id: args[2] }
+        : operation === "rename" ? { action: "rename", id: args[2], title: args[4] }
+        : { action: operation === "conversation" ? "resume" : operation, id: args[2] };
+      const response = await fetch(`${origin.origin}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json", "X-Litzio-Protocol": "4", Connection: "close" }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Assistant conversation request failed.");
       process.stdout.write(JSON.stringify(result) + "\n"); return 0;

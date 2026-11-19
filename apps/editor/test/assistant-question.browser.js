@@ -85,7 +85,7 @@ async (page, { expect, brand, screenshots }) => {
   await expect(pending.getByRole('radio', { name: '음식 탐방', exact: true })).toBeEnabled();
   await expect(panel.getByRole('button', { name: 'Conversation history' })).toBeEnabled();
   await panel.getByRole('button', { name: 'Conversation history' }).click();
-  await panel.getByRole('button', { name: /Travel planning/ }).click();
+  await panel.getByRole('button', { name: /^Travel planning/ }).click();
   await expect.poll(() => resumes).toBeGreaterThan(0);
   await expect(panel.locator('[data-question-status="answered"]').last()).toContainText('아이와 쉬는 시간을 넣어 주세요.');
   await expect(panel.getByText('Litzio question answers (JSON):', { exact: false })).toHaveCount(0);
