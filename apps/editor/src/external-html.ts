@@ -5,6 +5,8 @@
  * attributes, layout styles) is dropped silently; lost visible formatting is reported in a
  * notice; structure that cannot be represented rejects the whole paste.
  */
+import { linkUrlsInText, type AutoLink } from "./pasted-url.ts";
+
 export type ExternalHTML = { html: string; notice?: string; error?: string };
 
 const BLOCKS = "address,article,aside,blockquote,dd,details,div,dl,dt,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,ul";
@@ -35,7 +37,8 @@ const KEEP: Record<string, string[]> = {
 
 class Rejected extends Error {}
 
-export function normalizeExternalHTML(html: string): ExternalHTML {
+/** With `autoLink`, URLs written as plain text become links, as a pasted URL does; existing links keep their target. */
+export function normalizeExternalHTML(html: string, autoLink?: AutoLink): ExternalHTML {
   const document = new DOMParser().parseFromString(html, "text/html");
   const body = document.body;
   const notices = new Set<Notice>();
@@ -75,6 +78,7 @@ export function normalizeExternalHTML(html: string): ExternalHTML {
       divider.setAttribute("data-divider", "");
       rule.replaceWith(divider);
     }
+    if (autoLink) linkUrlsInText(body, autoLink);
     for (const link of body.querySelectorAll("a")) {
       const href = link.getAttribute("href")?.trim() ?? "";
       // Only ordinary links: a relative or fragment target is kept as written, never as a cross-reference.

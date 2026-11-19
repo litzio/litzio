@@ -12,6 +12,7 @@ import { ASSET_FORMATS } from "../shared/asset-policy.ts";
 import { addTableRowBelow, changeHeadingLevel, TABLE_DELETE_META } from "./block-commands.ts";
 import { normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
 import { markdownPaste } from "./markdown-paste.ts";
+import { pastedUrl, type AutoLink } from "./pasted-url.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
@@ -438,6 +439,11 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
     },
     addProseMirrorPlugins() {
       const schema = this.editor.schema;
+      // Pasted URLs link as the Link extension judges typed ones; its own paste rules are off.
+      const autoLink: AutoLink = value => {
+        const shouldAutoLink = this.editor.extensionManager.extensions.find(extension => extension.name === "link")?.options.shouldAutoLink;
+        return typeof shouldAutoLink === "function" ? Boolean(shouldAutoLink(value)) : true;
+      };
       const serializers = DOMSerializer.nodesFromSchema(schema);
       for (const [type, serialize] of Object.entries(serializers)) {
         if (type === "text") continue;
@@ -651,7 +657,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           textPaste = false;
           pastedFootnotes = [];
           external = !isInternalClipboard(html);
-          pasted = external ? normalizeExternalHTML(html) : { html, error: internalPasteError(html, schema) };
+          pasted = external ? normalizeExternalHTML(html, autoLink) : { html, error: internalPasteError(html, schema) };
           if (!external) {
             try {
               const value = new DOMParser().parseFromString(html, "text/html").querySelector(`[${FOOTNOTES_ATTR}]`)?.getAttribute(FOOTNOTES_ATTR);
@@ -665,13 +671,20 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           }
           return pasted.html;
         },
-        // Clipboard text with Markdown formatting is read by Core as when opening a document.
-        // Ctrl+Shift+V (plain), code and inline code keep the engine's literal text paste.
+        // Clipboard text that is one URL becomes a link, also with Ctrl+Shift+V; clipboard text with
+        // Markdown formatting is read by Core as when opening a document. Code, inline code and
+        // Ctrl+Shift+V (plain) otherwise keep the engine's literal text paste.
         clipboardTextParser: (text, $context, plain) => {
           const paste = textPaste;
           textPaste = false;
           pastedFootnotes = [];
           const literalPlace = $context.parent.type.spec.code || $context.marks().some(mark => mark.type.spec.code);
+          const href = paste && !literalPlace ? pastedUrl(text, autoLink) : undefined;
+          if (href) {
+            const marks = [...$context.marks().filter(mark => mark.type !== schema.marks.link), schema.marks.link.create({ href })];
+            // An open paragraph, not a lone text node: a plain paste would replace a lone node's marks.
+            return new Slice(Fragment.from(schema.nodes.paragraph.create(null, schema.text(text.trim(), marks))), 1, 1);
+          }
           const markdown = paste && !plain && !literalPlace ? markdownPaste(schema, text) : undefined;
           if (!markdown) return null as unknown as Slice;
           // The engine reopens a parsed text slice as it does parsed HTML; close its edges alike.

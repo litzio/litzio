@@ -271,10 +271,10 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       content: restored?.editorDocument ?? projection,
       // Only Litzio's Markdown shortcuts; they never drop typed text where a result is not allowed.
       enableInputRules: [MARKDOWN_INPUT_RULES],
-      // Core reads pasted Markdown (markdown-paste.ts). The engine's mark paste rules (`**`, `*`, `~~`)
-      // would read it a second time, also in Ctrl+Shift+V text and in text Core kept literal. Only the
-      // link rule stays: a pasted URL becomes a link, as before.
-      enablePasteRules: ["link"],
+      // Core reads pasted Markdown (markdown-paste.ts) and the paste plugin links a pasted URL
+      // (pasted-url.ts). The engine's paste rules would re-read the document text after a paste,
+      // also inside code, literal text and links that already carry their own target.
+      enablePasteRules: false,
       onTransaction({ editor, transaction }) {
         // The final state includes appended transactions even when the root changed no content.
         if (tableDeletionDocument.current && tableDeletionDocument.current !== editor.state.doc) {

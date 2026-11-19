@@ -576,8 +576,9 @@ keep their existing precedence.
   definitions the parser consumed and endnote definitions only refused text references stay with
   that text in source order. When the kept blocks fail whole-document admission (bracket citation
   shorthand, an endnote definition nothing references), every non-blank line is pasted that way.
-  Nothing is dropped, and a line that starts with `:::` saves as literal text (Core escapes the
-  colon fence). The notice uses the paste notice channel
+  Nothing is dropped. A lifted directive owns its lines up to its closing fence, so a definition
+  after it stays with the refused text. A line that starts with `:::` saves as literal text
+  ([Core escapes it](document-support-v1.md#interfaces-and-errors)). The notice uses the paste notice channel
   ([1440 capture](assets/markdown-paste-1843/notice-1440-light.png); Korean: "지원하지 않는
   마크다운은 글자 그대로 붙여 넣었습니다.").
 - Literal places: Ctrl+Shift+V uses the engine's plain-text paste. Code blocks and a caret
@@ -595,15 +596,21 @@ keep their existing precedence.
   endnote. Nothing was pasted; the clipboard and selection are kept.").
 - History: every paste (Markdown, external HTML or plain text) closes the history group first,
   so one Undo removes the paste and keeps typing done just before it.
-- Paste rules: the engine's mark paste rules (`**`, `*`, `~~`) are off, so Core is the only
-  reader of pasted Markdown and Ctrl+Shift+V text and text Core kept literal stay as typed. The
-  link paste rule stays: a pasted URL becomes a link, with Ctrl+V, in external HTML and with
-  Ctrl+Shift+V, as before.
+- URLs: the engine's paste rules are all off; they re-read document text after a paste, so they
+  rewrote links that already had a target, linked text in inline code and pulled text after the
+  caret into a link. The paste path links URLs explicitly instead, found as the Link extension
+  finds them (linkify, its `shouldAutoLink`) and only with targets external HTML keeps:
+  - clipboard text that is one URL without spaces becomes a link with Ctrl+V and Ctrl+Shift+V,
+    outside code blocks and inline code; over a selection it replaces the selection, as before;
+  - in external HTML a URL written as text (outside `<a>`, `<code>` and `<pre>`) becomes a link,
+    and an `<a>` keeps its own target and title;
+  - Markdown links keep the target and title Core read; other text, including a URL inside
+    longer text and source Core kept literal, is not linked. Dropped text is not linked.
 - Limits: a leading YAML block in the pasted text is not frontmatter here and reads as a divider
   and text; Chromium's context-menu "Paste as plain text" cannot be told from Ctrl+V and is read
-  as Markdown. Directive blocks without their own source position (MyST lifts them) that sit
-  next to each other share their source lines, so when one of them is refused all of them are
-  pasted literally.
+  as Markdown. A lifted directive whose closing fence is not found shares the lines up to the
+  next block with the lifted directive after it, so when one of them is refused both are pasted
+  literally.
 
 ## Verification
 

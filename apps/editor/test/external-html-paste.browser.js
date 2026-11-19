@@ -358,15 +358,36 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await refusedAt('NoteText', 4, () => textPaste('Other[^a].\n\n[^a]: Definition'), 'An endnote cannot contain another endnote.');
   result.markdownOneLinePlaces = true;
 
-  // A pasted URL still becomes a link: as text, inside external HTML and with Ctrl+Shift+V.
-  for (const [name, paste] of [['text', () => textPaste('https://example.com/path')], ['html', () => syntheticPaste('<p>see https://example.com/path</p>')],
-    ['plain', async () => { await writeText('https://example.com/path'); await page.keyboard.press('Control+Shift+v'); }]]) {
-    await select('Omega.');
+  // URLs: clipboard text that is one URL becomes a link (also with Ctrl+Shift+V and over a
+  // selection), a URL in external HTML text too; a link already read keeps its target and title;
+  // code and Markdown Core kept literal stay text, and nothing outside the paste joins a link.
+  const linksIn = marker => editor.evaluate((el, marker) => {
+    let found;
+    el.editor.state.doc.descendants(node => { if (!found && node.isTextblock && node.textContent.includes(marker)) found = node; });
+    const runs = [];
+    found?.forEach(child => runs.push([child.text, child.marks.map(mark => mark.type.name === 'link' ? `link ${mark.attrs.href} ${mark.attrs.title ?? ''}`.trim() : mark.type.name).join()]));
+    return JSON.stringify(runs);
+  }, marker);
+  const url = 'https://example.com/path';
+  for (const [name, place, paste, marker, expected] of [
+    ['text', () => select('Omega.'), () => textPaste(url), 'example.com', [[url, `link ${url}`], ['Omega.', '']]],
+    ['plain key', () => select('Omega.'), async () => { await writeText(url); await page.keyboard.press('Control+Shift+v'); }, 'example.com', [[url, `link ${url}`], ['Omega.', '']]],
+    ['selection', () => caretIn('Omega.', 0).then(() => editor.evaluate(el => el.editor.commands.setTextSelection({from: el.editor.state.selection.from, to: el.editor.state.selection.from + 5}))),
+      () => textPaste(url), 'example.com', [[url, `link ${url}`], ['.', '']]],
+    ['html text', () => select('Omega.'), () => syntheticPaste(`<p>see ${url}</p>`), 'see', [['see ', ''], [url, `link ${url}`], ['Omega.', '']]],
+    ['html link', () => select('Omega.'), () => syntheticPaste(`<a href="https://example.org/target" title="Keep">${url}</a>`), 'example.com',
+      [[url, 'link https://example.org/target Keep'], ['Omega.', '']]],
+    ['markdown link', () => select('Omega.'), () => textPaste(`[${url}](https://example.org/target "Keep")`), 'example.com',
+      [[url, 'link https://example.org/target Keep'], ['Omega.', '']]],
+    ['inline code', () => caretIn('Inline mono text.', 'Inline m'.length), () => textPaste(url), 'Inline', [['Inline ', ''], [`m${url}ono`, 'code'], [' text.', '']]],
+    ['literal line', () => caretIn('LeftRIGHT', 'Left'.length), () => textPaste(`[url]: ${url}`), 'Left', [[`Left[url]: ${url}RIGHT`, '']]],
+  ]) {
+    await place();
     const before = await state();
     await paste();
     await changedFrom(before);
-    const doc = (await state()).doc;
-    assert(doc.includes('"href":"https://example.com/path"'), `${name}: a pasted URL becomes a link: ${doc}`);
+    const runs = await linksIn(marker);
+    assert(runs === JSON.stringify(expected), `${name}: ${runs}`);
     await editor.evaluate(el => el.editor.commands.undo());
     assert((await state()).doc === before.doc, `${name}: one Undo restores the URL paste`);
   }
