@@ -266,11 +266,30 @@ test("a Markdown fragment counts as formatted only from visible Markdown syntax"
   }
 });
 
-test("Markdown that native admission refuses is kept as literal source lines, never dropped", () => {
+test("Markdown that native admission refuses is kept as literal source lines in place, never dropped", () => {
+  const lines = (text: string) => core.readMarkdownFragment(text).blocks.map(block => [block.block, "text" in block ? block.text : ""]);
   const mixed = core.readMarkdownFragment("# Kept\n\n- [ ] task\n  more\n\n<div>raw</div>\n\n**kept**");
-  assert.deepEqual(mixed.blocks.map(block => [block.block, "text" in block ? block.text : ""]),
+  assert.deepEqual(lines("# Kept\n\n- [ ] task\n  more\n\n<div>raw</div>\n\n**kept**"),
     [["heading", "Kept"], ["paragraph", "- [ ] task"], ["paragraph", "  more"], ["paragraph", "<div>raw</div>"], ["paragraph", "kept"]]);
-  assert.equal(mixed.literal, 2);
+  assert.equal(mixed.literal, 3);
+  // Refused source alone still counts, so a caller can tell the user it stayed literal.
+  assert.deepEqual([core.readMarkdownFragment("- [ ] Task").formatted, core.readMarkdownFragment("- [ ] Task").literal], [false, 1]);
+  // A lifted directive has no source position of its own; its lines are those between its neighbours.
+  const table = core.readMarkdownFragment("**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::\n\nAfter");
+  assert.deepEqual(table.blocks.map(block => block.block === "paragraph" ? block.content : block.block), [[{ kind: "strong", children: [{ kind: "text", text: "Rich" }] }],
+    [{ kind: "text", text: ":::{table}" }], [{ kind: "text", text: ":widths: 1 2" }], [{ kind: "text", text: "| A | B |" }], [{ kind: "text", text: "| - | - |" }],
+    [{ kind: "text", text: ":::" }], [{ kind: "text", text: "After" }]]);
+  // Refused text keeps the link definitions the parse consumed and endnote definitions in source order.
+  assert.deepEqual(lines("**Rich**\n\n- [ ] [task][url]\n\n[url]: https://example.com/path"),
+    [["paragraph", "Rich"], ["paragraph", "- [ ] [task][url]"], ["paragraph", "[url]: https://example.com/path"]]);
+  assert.deepEqual(lines("**Rich**\n\n- [ ] A[^a]\n\n[^a]: Definition\n\nEnd text"),
+    [["paragraph", "Rich"], ["paragraph", "- [ ] A[^a]"], ["paragraph", "[^a]: Definition"], ["paragraph", "End text"]]);
+  // Without refused text, a kept link already carries its definition's URL.
+  assert.deepEqual(core.readMarkdownFragment("**a** [x][r]\n\n[r]: https://example.com").literal, 0);
+  // Literal colon fences are writable text.
+  const colon = native("\\:::{note}\n");
+  assert.equal(serialize(parse(colon)), colon);
+  assert.deepEqual(getEditableDocument(parse(colon)).blocks.map(block => "text" in block ? block.text : ""), [":::{note}"]);
   // Whole-document refusals (citation shorthand, an unreferenced endnote the parse omits) keep every line.
   for (const text of ["**a** [@key]", "**a**\n\n[^x]: orphan"]) {
     const fragment = core.readMarkdownFragment(text);

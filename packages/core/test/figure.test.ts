@@ -187,8 +187,12 @@ test("Figure validity rules reject values that canonical MyST cannot persist", (
   const dollars = insertFigure(parse("Intro"), 1, { ...valid, caption: "cost $5 and $x$" });
   assert.match(serialize(dollars), /\ncost \\\$5 and \\\$x\\\$\n/);
   assert.equal(serialize(parse(serialize(dollars))), serialize(dollars));
+  // A line-leading colon fence is escaped and stays caption text, inside the Figure's own fence.
+  const fence = insertFigure(parse("Intro"), 1, { ...valid, caption: ":::" });
+  assert.match(serialize(fence), /\n\\:::\n:::\n/);
+  assert.equal(serialize(parse(serialize(fence))), serialize(fence));
   // Captions that MyST would reinterpret fail the Core round-trip.
-  for (const caption of ["% comment", "+++", ":::"]) {
+  for (const caption of ["% comment", "+++"]) {
     assert.throws(() => insertFigure(parse("Intro"), 1, { ...valid, caption }), /canonical round-trip|not canonical/);
     assert.throws(() => updateFigure(parse(source), FIGURE_PATH, { caption }), /canonical round-trip|not canonical/);
   }

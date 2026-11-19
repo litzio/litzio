@@ -207,10 +207,10 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
       node.children = encodeEmphasisBoundaries(node.children, alternate);
     }
-    // myst-to-md does not protect literal dollars or citation-triggering @ text.
-    // The writer emits these escaped `html` values verbatim.
-    if (node.children?.some(child => child.type === "text" && /[$@]/.test(String(child.value)))) {
-      node.children = node.children.flatMap(child => child.type === "text" ? escapeText(child, inLink) : [child]);
+    // myst-to-md does not protect literal dollars, citation-triggering @ text or a line that
+    // starts with a MyST colon fence. The writer emits these escaped `html` values verbatim.
+    if (node.children?.some(child => child.type === "text" && /[$@]|(?:^|\n):::/.test(String(child.value)))) {
+      node.children = node.children.flatMap((child, index) => child.type === "text" ? escapeText(child, inLink, index === 0) : [child]);
     }
     // myst-to-md writes inline math as the `{math}` role; write MyST's usual `$...$`.
     if (node.children?.some(child => child.type === "inlineMath")) {
@@ -319,18 +319,20 @@ function isDollarMath(node: MystNode, previous: MystNode | undefined): boolean {
     previous?.type !== "break" && !(previous?.type === "text" && /[\r\n]$/.test(String(previous.value)));
 }
 
-function escapeText(text: MystNode, inLink: boolean): MystNode[] {
+function escapeText(text: MystNode, inLink: boolean, lineStart: boolean): MystNode[] {
   const value = String(text.value);
   const state = new citationTokenizer.inline.State(value, citationTokenizer, {}, []);
   const result: MystNode[] = [];
   let start = 0;
   for (let index = 0; index < value.length; index++) {
-    if (value[index] !== "$" && value[index] !== "@") continue;
+    // A colon fence opens only at the start of a line; one escaped colon keeps the line text.
+    const fence = value.startsWith(":::", index) && (index === 0 ? lineStart : value[index - 1] === "\n");
+    if (value[index] !== "$" && value[index] !== "@" && !fence) continue;
     state.pos = index;
     if (value[index] === "@" && (inLink || !citationRule(state, true))) continue;
     // mdast collapses a text node's trailing newline before raw inline output.
-    // Keep that newline with the escaped @ so a soft line break stays text.
-    const boundary = value[index] === "@" && index > start && value[index - 1] === "\n" ? index - 1 : index;
+    // Keep that newline with the escaped character so a soft line break stays text.
+    const boundary = value[index] !== "$" && index > start && value[index - 1] === "\n" ? index - 1 : index;
     if (boundary > start) result.push({ ...text, value: value.slice(start, boundary) });
     result.push({ type: "html", value: `${value.slice(boundary, index)}\\${value[index]}` });
     start = index + 1;
