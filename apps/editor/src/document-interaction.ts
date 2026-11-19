@@ -206,6 +206,41 @@ function tableTab(state: EditorState, backward: boolean, editable: boolean): Tra
   return selection ? state.tr.setSelection(selection).scrollIntoView() : paragraphBeside(state, !backward);
 }
 
+/** ArrowUp/ArrowDown from a grid cell's first/last visual line, or from a selected cell node, reaches the
+ * same column of the adjacent row; the native caret and ProseMirror would follow document order to the
+ * side cell instead. The caret keeps its horizontal position when the target cell has a line there,
+ * otherwise it lands at the start (down) or end (up). The final row continues into the caption; ArrowUp
+ * in the first row keeps the default behavior. Moves within a multi-line cell stay native. */
+function tableVertical(view: EditorView, down: boolean): Transaction | null {
+  const { state } = view, { selection } = state;
+  if (view.composing) return null;
+  const $side = down ? selection.$to : selection.$from;
+  let $cell, x: number | undefined;
+  if (selection instanceof NodeSelection && selection.node.type.name === "tableCell") $cell = selection.$from;
+  else if (selection instanceof TextSelection && $side.parent.type.name === "tableCell" &&
+      selection.$from.sameParent(selection.$to) && view.endOfTextblock(down ? "down" : "up")) {
+    $cell = state.doc.resolve($side.before());
+    x = view.coordsAtPos($side.pos).left;
+  } else return null;
+  const table = $cell.node(-1), target = $cell.index(-1) + (down ? 1 : -1);
+  const row = target >= 0 ? table.maybeChild(target) : null;
+  if (row?.type.name === "tableCaption") return state.tr.setSelection(TextSelection.create(state.doc, $cell.after() + 1)).scrollIntoView();
+  if (row?.type.name !== "tableRow") return null;
+  let pos = $cell.start(-1);
+  for (let index = 0; index < target; index++) pos += table.child(index).nodeSize;
+  const column = Math.min($cell.index(), row.childCount - 1);
+  pos += 1;
+  for (let index = 0; index < column; index++) pos += row.child(index).nodeSize;
+  const from = pos + 1, to = from + row.child(column).content.size;
+  let caret = down ? from : to;
+  if (x !== undefined && from < to) {
+    const line = view.coordsAtPos(caret);
+    const hit = view.posAtCoords({ left: x, top: (line.top + line.bottom) / 2 });
+    if (hit && hit.pos >= from && hit.pos <= to) caret = hit.pos;
+  }
+  return state.tr.setSelection(TextSelection.create(state.doc, caret)).scrollIntoView();
+}
+
 /** A heading cannot hold line breaks. Joining prose that has them therefore uses
  * the paragraph type and ProseMirror's normal join transform. */
 export function joinRichProse(state: EditorState, backward: boolean): Transaction | null {
@@ -306,6 +341,8 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           const { view, state } = this.editor;
           const { selection } = state;
           const { $from } = selection;
+          const cellMove = tableVertical(view, false);
+          if (cellMove) { view.dispatch(cellMove); return true; }
           if (!selection.empty || $from.parent.type.name !== "tableCaption" || !view.endOfTextblock("up")) return false;
           const cell = TextSelection.findFrom(state.doc.resolve($from.before()), -1, true);
           if (!cell) return false;
@@ -313,14 +350,9 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         },
         ArrowDown: () => {
           const { view } = this.editor;
+          const cellMove = tableVertical(view, true);
+          if (cellMove) { view.dispatch(cellMove); return true; }
           const { selection, doc } = view.state;
-          const { $from } = selection;
-          if (selection.empty && $from.parent.type.name === "tableCell" &&
-              $from.node(1).lastChild?.type.name === "tableCaption" &&
-              $from.index(1) === $from.node(1).childCount - 2 && view.endOfTextblock("down")) {
-            const caption = $from.after(2) + 1;
-            view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, caption)).scrollIntoView()); return true;
-          }
           const finalBlock = selection.to === doc.content.size &&
             (selection instanceof GapCursor || selection instanceof NodeSelection && selection.node.isBlock);
           if (!finalBlock && !atNestedDocumentEnd(view)) return false;
