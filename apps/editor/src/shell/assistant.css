@@ -16,7 +16,10 @@
 .assistant-steps { margin-block: var(--space-3); }
 .assistant-steps summary { cursor: pointer; padding-block: var(--space-2); }
 .assistant-steps p, .assistant-steps pre { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: var(--space-1); }
-.assistant-notice { padding: var(--space-3); background: var(--id-color-surface-subtle); border-radius: var(--id-radius-md); }
+.assistant-notice { overflow-wrap: anywhere; }
+.assistant-notice > p { margin: 0 0 var(--space-2); }
+/* The action is not destructive; keep its label out of the error tone. */
+.assistant-notice > button { color: var(--id-color-text); }
 .assistant-history > button { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3); gap: var(--space-1); border-radius: 0; }
 .assistant-history > button + button { border-top: var(--border-width) solid var(--id-color-border-subtle); }
 .assistant-history strong { overflow-wrap: anywhere; }

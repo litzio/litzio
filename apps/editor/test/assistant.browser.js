@@ -1164,6 +1164,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.getByRole('menu', {name: /^(Model settings|모델 설정)$/})).toBeVisible();
   await assertChoiceContrast();
   await page.keyboard.press('Escape');
+  // The modal overlay keeps a visible, named keyboard position in both directions until it wraps.
+  for (const key of ['Tab', 'Shift+Tab']) {
+    await panel.getByRole('textbox').focus();
+    const stops = [];
+    for (let step = 0; step < 40; step++) {
+      await page.keyboard.press(key);
+      const stop = await page.evaluate(() => {
+        const element = document.activeElement;
+        return { inside: !!element?.closest('[data-testid="assistant-panel"]'), visible: !!element?.matches(':focus-visible'),
+          name: (element?.getAttribute('aria-label') || element?.textContent?.trim() || '').slice(0, 40), tag: element?.tagName, composer: element?.tagName === 'TEXTAREA' };
+      });
+      stops.push(stop);
+      if (stop.composer) break;
+    }
+    expect(stops.at(-1)?.composer, `${key} wraps back to the composer inside the overlay`).toBe(true);
+    expect(stops.filter(stop => !stop.inside || !stop.visible || !stop.name), `${key} stops stay inside the overlay with a visible focus and a name`).toEqual([]);
+  }
 
   if (screenshots) {
   await panel.getByRole('textbox').click(); await page.keyboard.type('/lit', { delay: 60 });
@@ -1209,9 +1226,18 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(panel).toBeHidden();
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);
+  const unavailableModels = route => route.fulfill({ status: 503, json: { error: 'Codex CLI is unavailable on the Host.' } });
+  await page.route('**/api/assistant/models*', unavailableModels);
   setupMode = 'missing'; await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
-  await expect(panel.getByText('이 컴퓨터에서 Codex CLI를 찾을 수 없습니다. 설치 후 설정에서 진단을 실행하세요.', { exact: true })).toBeVisible();
+  // The Host also rejects the model list with the same reason; the panel reports it once as an error.
+  const unavailableText = '이 컴퓨터에서 Codex CLI를 찾을 수 없습니다. 설치 후 설정에서 진단을 실행하세요.';
+  const unavailable = panel.getByText(unavailableText, { exact: true });
+  await expect(unavailable).toBeVisible();
+  await expect(unavailable).toHaveCount(1);
+  await expect(panel.getByRole('alert')).toHaveCount(1);
+  await expect(panel.locator('.ui-notice--error').filter({ hasText: unavailableText }).getByRole('button', { name: '비서 설정 열기' })).toBeVisible();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
+  await page.unroute('**/api/assistant/models*', unavailableModels);
   setupMode = 'ready';
   const historyEntries = [
     { ...selected, id: 'history-older', title: '문서 구조와 검토 계획 정리', folders: ['C:\\Projects\\reports\\연구 보고서', '/home/example/work/검토 자료'], updatedAt: 1793590000000 },

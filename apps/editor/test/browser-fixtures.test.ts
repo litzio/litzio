@@ -66,7 +66,8 @@ test("fault injection permits only its expected network failures", () => {
   const lostResponse = missingThread.replace("404 (Not Found)", "503 (Service Unavailable)");
   const failedSettings = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/assistant/settings";
   const failedUsage = failedSettings.replace("/settings", "/diagnostics");
-  const expected = [missingThread, missingSkills, failedSettings, lostResponse, failedUsage];
+  const unavailableModels = failedSettings.replace("/settings", "/models");
+  const expected = [missingThread, missingSkills, failedSettings, lostResponse, failedUsage, unavailableModels];
   assert.deepEqual(classifyConsoleErrors("assistant", expected).unexpected, []);
   assert.deepEqual(classifyConsoleErrors("assistant", expected).missing, []);
   assert.equal(classifyConsoleErrors("assistant", []).missing.length, expected.length);
