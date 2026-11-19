@@ -349,10 +349,12 @@ A changed document recomputes numbering; source semantics and canonical output a
   movement. The pinned `prosemirror-view` patch owns this ordering; remove this addition when
   upstream passes both real-click and held-check `citation-authoring` cases without it.
 - A post-focus selection check must also preserve a later pointer or touch destination (#489).
-  It must not move a paragraph click back into an empty title before the native
-  `selectionchange` is read. `prosemirror-view` 1.42.9 provides this without the patch: its
-  delayed check restores the old caret only while the DOM caret is still where focus left it.
-  `document-title` checks this under the forced callback order.
+  A body click made from another field (such as the metadata title) must keep its caret and
+  typing even when the check runs before the native `selectionchange` is read.
+  `prosemirror-view` 1.42.9 provides this without the patch: its delayed check restores the old
+  caret only while the DOM caret is still where focus left it. `document-title` forces that
+  order for a pointer click (unpatched 1.42.4 fails it; 1.42.9 passes with and without the
+  patch). Touch is not exercised separately.
 
 Core `insertParagraph` accepts InlineContent directly (CLI `insert-block --content`)
 so rich content is never staged as flattened text. Core `insertTable` accepts optional

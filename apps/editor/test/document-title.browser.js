@@ -132,10 +132,45 @@ async (page, { openPath, reloadDocument, expect, screenshots, waitForEditorFocus
   await expect(title).toHaveValue('');
   // A real body edit uses the existing shared editor Save/Reload path.
   const body = editor.locator('p').filter({hasText:'Body.'}).first();
-  await body.click();
-  await page.keyboard.press('End');
+  // #489: from the title field, a pointer click at the end of a body paragraph focuses the editor
+  // while its retained caret is elsewhere. Hold any post-focus check the engine schedules for that
+  // focus and run it at the click's mouseup, before selectionchange is read (an order a busy
+  // renderer can deliver). With none scheduled, focus must leave the native and engine selections
+  // agreeing. Either way the caret and typing stay where the user clicked.
+  await editor.evaluate(node => {
+    let see; node.editor.state.doc.forEach((block, pos) => { if (block.textContent.startsWith('See ')) see = pos + 1; });
+    node.editor.commands.setTextSelection(see);
+  });
+  await title.focus();
+  await editor.evaluate(node => {
+    const view = node.editor.view, probe = window.pointerFocusProbe = {};
+    const schedule = window.setTimeout;
+    window.setTimeout = (callback, ms, ...rest) => {
+      if (ms === 20 && String(callback).includes('selectionToDOM')) { probe.check = callback; return 0; }
+      return schedule(callback, ms, ...rest);
+    };
+    // ProseMirror's focus listener was registered first; this one reads the state it leaves.
+    view.dom.addEventListener('focus', () => {
+      const native = getSelection(), {selection} = view.state;
+      probe.agreed = selection.empty && native.isCollapsed && view.dom.contains(native.anchorNode) &&
+        view.posAtDOM(native.anchorNode, native.anchorOffset) === selection.from;
+    }, {once:true});
+    document.addEventListener('mouseup', () => {
+      window.setTimeout = schedule;
+      probe.held = typeof probe.check === 'function';
+      probe.check?.();
+    }, {once:true, capture:true});
+  });
+  const bodyBox = await body.boundingBox();
+  await page.mouse.click(bodyBox.x + bodyBox.width - 4, bodyBox.y + bodyBox.height / 2);
+  const pointerFocus = await editor.evaluate(node => {
+    const {selection} = node.editor.state, probe = window.pointerFocusProbe;
+    return {held: probe.held, agreed: probe.agreed, parent: selection.$from.parent.textContent,
+      atEnd: selection.empty && selection.$from.parentOffset === selection.$from.parent.content.size};
+  });
+  expect(pointerFocus.held || pointerFocus.agreed, `Focus left the native and engine selections apart without a check: ${JSON.stringify(pointerFocus)}`).toBe(true);
   await page.keyboard.type(' Status retained.');
-  await expect(body).toContainText('Status retained.');
+  await expect(body).toHaveText('Body. Status retained.');
   await save();
   expect((await read('chapter.md')).document.status).toBe('draft');
   await reloadDocument(page);
