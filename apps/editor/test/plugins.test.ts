@@ -71,7 +71,7 @@ test("startup preserves installed copies until it can read a valid registration 
     writeFileSync(state, valid);
     host = new PluginHost(state);
     const read = fs.readFileSync;
-    const unreadable = t.mock.method(fs, "readFileSync", ((file, options) => {
+    const unreadable = t.mock.method(fs, "readFileSync", ((file: fs.PathOrFileDescriptor, options: Parameters<typeof read>[1]) => {
       if (file === state) throw Object.assign(new Error("Fixture cannot read registrations"), { code: "EACCES" });
       return read(file, options);
     }) as typeof fs.readFileSync);
