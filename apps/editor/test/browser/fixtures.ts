@@ -320,7 +320,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       ["note", "tip", "important", "warning", "danger", "hint", "seealso", "attention", "caution", "error"]
         .map(kind => `:::{${kind}}\nExample content.\n:::`).join("\n\n") + "\n\nTry inserting here.\n"),
   }], scenarios: ["admonition-authoring"] },
-  "list-authoring": { files: [fixture("lists.md")], scenarios: ["list-authoring"] },
+  "list-authoring": { files: [fixture("lists.md"), fixture("list-inline.md")], scenarios: ["list-authoring"] },
   "list-format": { files: [fixture("list-format.md")], scenarios: ["list-format"] },
   "structural-block-authoring": { files: [fixture("structural-block-authoring.md")], scenarios: ["structural-block-authoring"] },
   "markdown-input": { files: [fixture("markdown-input.md")], scenarios: ["markdown-input"] },

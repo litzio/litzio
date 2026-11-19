@@ -250,6 +250,25 @@ function tableVertical(view: EditorView, down: boolean): Transaction | null {
   return caretIn(pos + 1, pos + 1 + row.child(column).content.size);
 }
 
+/** A caret key (Home, End, arrows) moves the native caret, and its selectionchange may still be
+ * queued when the next key arrives. Read that caret first, so Backspace/Delete decide on it
+ * instead of the stale engine selection; otherwise the browser's own deletion merges the
+ * blocks and the engine re-reads them without their inline atoms (#1821). Only an engine text
+ * selection and a native selection inside text blocks of this editor are read. */
+function readQueuedCaret(view: EditorView): void {
+  const native = view.dom.ownerDocument.getSelection();
+  if (view.composing || !view.hasFocus() || !(view.state.selection instanceof TextSelection) ||
+      !native?.anchorNode || !native.focusNode || !view.dom.contains(native.anchorNode) || !view.dom.contains(native.focusNode)) return;
+  let $anchor, $head;
+  try {
+    $anchor = view.state.doc.resolve(view.posAtDOM(native.anchorNode, native.anchorOffset));
+    $head = view.state.doc.resolve(view.posAtDOM(native.focusNode, native.focusOffset));
+  } catch { return; }
+  if (!$anchor.parent.isTextblock || !$head.parent.isTextblock) return;
+  const selection = view.someProp("createSelectionBetween", create => create(view, $anchor, $head)) ?? TextSelection.between($anchor, $head);
+  if (!selection.eq(view.state.selection)) view.dispatch(view.state.tr.setSelection(selection));
+}
+
 /** A heading cannot hold line breaks. Joining prose that has them therefore uses
  * the paragraph type and ProseMirror's normal join transform. */
 export function joinRichProse(state: EditorState, backward: boolean): Transaction | null {
@@ -292,6 +311,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         return true;
       };
       const join = (backward: boolean) => {
+        readQueuedCaret(this.editor.view);
         const { state, commands } = this.editor;
         const selection = state.selection;
         if (this.editor.isEditable && !this.editor.view.composing && backward && selection instanceof TextSelection &&
