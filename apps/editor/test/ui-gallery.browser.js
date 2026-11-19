@@ -369,23 +369,30 @@ async (page, { expect, screenshots, withBlockHover }) => {
   expect(boxes[0]).toEqual(boxes[1]);
   for (const width of [1440,640]) {
   await page.setViewportSize({width,height:1000});
-  const ticks = page.getByRole('figure',{name:'Long time labels',exact:true}).locator('text').filter({hasText:'2026-11-13T00:'});
-  await expect(ticks.first()).toContainText('2026-11-13T00:00:00Z');
-  await expect(ticks.last()).toContainText('2026-11-13T00:59:00Z');
-  for (const tick of await ticks.all()) expect(await tick.locator('tspan').count()).toBeLessThanOrEqual(1);
-  // Responsive chart rendering can replace ticks between browser round trips.
-  // Measure the frame and current ticks in one DOM snapshot within the existing poll.
+  const longFigure = page.getByRole('figure',{name:'Long time labels',exact:true});
+  // Read ticks only after the chart surface has been re-laid out at this viewport width,
+  // so the previous width's ticks cannot satisfy the endpoint assertions.
   let geometry;
   await expect.poll(async () => {
-    geometry = await ticks.evaluateAll(nodes => ({
-      bounds: nodes.map(n => n.getBoundingClientRect().toJSON()),
-      frame: nodes[0]?.closest('figure')?.getBoundingClientRect().toJSON(),
-    }));
-    const { bounds, frame } = geometry;
-    return !!frame && frame.width > 0 && bounds.length > 0 && bounds.every(b => b.width > 0) &&
-      bounds.at(-1).right <= frame.right;
+    geometry = await longFigure.evaluate(figure => {
+      const surface = figure.querySelector('svg.recharts-surface');
+      const container = figure.querySelector('.recharts-responsive-container')?.getBoundingClientRect().width;
+      const nodes = [...figure.querySelectorAll('text')].filter(n => n.textContent.includes('2026-11-13T00:'));
+      return {
+        laidOut: !!surface && container > 0 && Math.abs(container - Number(surface.getAttribute('width'))) < 1,
+        labels: nodes.map(n => n.textContent),
+        lines: nodes.map(n => n.querySelectorAll('tspan').length),
+        bounds: nodes.map(n => n.getBoundingClientRect().toJSON()),
+        frame: figure.getBoundingClientRect().toJSON(),
+      };
+    });
+    return geometry.laidOut;
   }).toBe(true);
-  const { bounds, frame } = geometry;
+  const { labels, lines, bounds, frame } = geometry;
+  expect(labels[0]).toBe('2026-11-13T00:00:00Z');
+  expect(labels.at(-1)).toBe('2026-11-13T00:59:00Z');
+  for (const count of lines) expect(count).toBeLessThanOrEqual(1);
+  expect(bounds.every(b => b.width > 0)).toBe(true);
   for(let i=1;i<bounds.length;i++) expect(bounds[i].left).toBeGreaterThanOrEqual(bounds[i-1].right);
   expect(bounds[0].left).toBeGreaterThanOrEqual(frame.x);
   expect(bounds.at(-1).right).toBeLessThanOrEqual(frame.x + frame.width);
