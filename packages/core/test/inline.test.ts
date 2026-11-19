@@ -236,7 +236,7 @@ test("equivalent mark nesting and adjacent text fragments remain supported", () 
 });
 
 
-test("marks with punctuation at the edge write a touching outer character as a character reference", () => {
+test("marks with punctuation at the edge stay marks beside letters, digits and adjacent marks", () => {
   const text = (value: string): InlineContent => ({ kind: "text", text: value });
   const strong = (...children: InlineContent[]): InlineContent => ({ kind: "strong", children });
   const emphasis = (...children: InlineContent[]): InlineContent => ({ kind: "emphasis", children });
@@ -253,6 +253,17 @@ test("marks with punctuation at the edge write a touching outer character as a c
     [text("line\nz"), strong(text("(X)"))],
     [strong(text("(X)")), text("b@name")],
     [strong(text("X→")), text("b@name")],
+    // Adjacent marks whose shared `*` run cannot close one and open the other: the later mark uses `_` (#1831).
+    [strong(text("정확도(A)")), emphasis(text("를")), text(" 본다")],
+    [emphasis(text("값.")), strong(text("를")), text(" 본다")],
+    [strong(text("값")), emphasis(text("(를)")), text(" 본다")],
+    [emphasis(text("값")), strong(text("(를)")), text(" 본다")],
+    [text("값"), strong(text("정확도(A)")), emphasis(text("를")), text("본다")],
+    [strong(text("a.")), emphasis(text("b")), strong(text("c"))],
+    [strong(text("(A)")), emphasis(text("b\n다"))],
+    [strong(text("(A)")), emphasis(text("b"), { kind: "break" }, text("다"))],
+    [strong(text("(A)")), emphasis(text("b")), text("c@name")],
+    [strong(text("(A)")), emphasis(strong(text("b")), text("c"))],
     // Not representable with a reference: left unencoded, so a symbol edge still saves.
     [strong(text("X→")), text("\u0085")],
     [text("line \nz"), strong(text("→X"))],
@@ -270,7 +281,16 @@ test("marks with punctuation at the edge write a touching outer character as a c
   }
   assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], cases[0])), "이 **정확도(Accuracy)**&#xB97C; 본다\n");
   assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], cases.at(-1)!)), "**값.**&#x20000;자\n");
-  for (const content of [[strong(text("(X)")), text("\u0085")], [text("a"), { kind: "break" }, text("z"), strong(text("(X)"))]] as InlineContent[][]) {
+  for (const [content, expected] of [
+    [[strong(text("정확도(A)")), emphasis(text("를")), text(" 본다")], "**정확도(A)**_를_ 본다\n"],
+    [[text("값"), strong(text("정확도(A)")), emphasis(text("를")), text("본다")], "값**정확도(A)**_를_&#xBCF8;다\n"],
+    // Adjacent marks with alike edges keep their single `*` run.
+    [[strong(text("굵게")), emphasis(text("기울임"))], "**굵게***기울임*\n"],
+    [[emphasis(text("기울임")), strong(text("굵게"))], "*기울임***굵게**\n"],
+    [[strong(text("(A)")), emphasis(text("(B)"))], "**(A)***(B)*\n"],
+  ] as [InlineContent[], string][]) assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], content)), expected);
+  for (const content of [[strong(text("(X)")), text("\u0085")], [text("a"), { kind: "break" }, text("z"), strong(text("(X)"))],
+    [strong(text("(A)")), emphasis(text("b")), text("\u0085")]] as InlineContent[][]) {
     assert.throws(() => updateParagraphInlineContent(parse("Original."), [0], content), /round-trip/);
   }
   // Native files: a written reference is admitted and keeps its bytes; symbol edges keep saving.
@@ -280,6 +300,7 @@ test("marks with punctuation at the edge write a touching outer character as a c
     ["line\nz**→X**\n", "line\n&#x7A;**→X**\n"],
     ["**X→**\u0085\n", "**X→**\u0085\n"],
     ["**X→**b@name\n", "**X→**&#x62;\\@name\n"],
+    ["**정확도(A)**_를_ 본다\n", "**정확도(A)**_를_ 본다\n"],
   ]) assert.equal(serializeNative(parseNative(front + body)), front + expected);
 });
 

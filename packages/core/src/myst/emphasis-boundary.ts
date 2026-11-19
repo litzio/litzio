@@ -14,16 +14,38 @@ const decodes = new Map<number, boolean>();
  * A character whose reference does not read back as itself (control characters) is left
  * as is. Runs on the write-only clone, before `$`/`@` escaping, so text after the reference
  * is escaped in its own context; the full fingerprint round trip still decides.
+ *
+ * Adjacent marks share one `*` run (`**정확도(A)***를*`). It closes the first mark and opens
+ * the second only when the characters on both sides are alike (both letters or both
+ * punctuation). Otherwise the second mark is written with `_` (`**정확도(A)**_를_`), as
+ * mdast-util-to-markdown 2.x does. `_` cannot close inside a word, so a letter or digit
+ * after it is written as a reference too.
  */
 export function encodeEmphasisBoundaries(children: MystNode[]): MystNode[] {
+  const underscored = new Set<MystNode>();
+  children.forEach((child, index) => {
+    const before = children[index - 1];
+    if (isMark(child) && isMark(before) && !underscored.has(before) && mixed(edge(before, "last"), edge(child, "first"))) {
+      underscored.add(child);
+    }
+  });
   const result: MystNode[] = [];
   children.forEach((child, index) => {
+    if (underscored.has(child)) {
+      // The pinned writer has one emphasis marker per document: write this mark's markers as
+      // raw output around its children, which the caller then prepares and writes in place.
+      const marker = child.type === "strong" ? "__" : "_";
+      result.push({ type: "html", value: marker }, ...encodeEmphasisBoundaries(child.children ?? []), { type: "html", value: marker });
+      return;
+    }
     if (child.type !== "text") { result.push(child); return; }
     const before = children[index - 1], after = children[index + 1];
     let value = String(child.value ?? "");
     let head: MystNode | undefined, tail: MystNode | undefined;
     const first = firstChar(value);
-    if (first && isMark(before) && isPunctuation(edge(before, "last")) && isWordChar(first) && encodable(first)) {
+    const beforeEdge = isMark(before) ? edge(before, "last") : undefined;
+    const closesBefore = isPunctuation(beforeEdge) || (beforeEdge !== undefined && isWordChar(beforeEdge) && underscored.has(before!));
+    if (first && closesBefore && isWordChar(first) && encodable(first)) {
       head = { type: "html", value: reference(first) };
       value = value.slice(first.length);
     }
@@ -43,6 +65,12 @@ export function encodeEmphasisBoundaries(children: MystNode[]): MystNode[] {
     if (tail) result.push(tail);
   });
   return result;
+}
+
+/** One edge is punctuation and the other a letter or digit: the shared run cannot do both. */
+function mixed(left: string | undefined, right: string | undefined): boolean {
+  if (left === undefined || right === undefined) return false;
+  return (isPunctuation(left) && isWordChar(right)) || (isWordChar(left) && isPunctuation(right));
 }
 
 function isMark(node: MystNode | undefined): node is MystNode {
