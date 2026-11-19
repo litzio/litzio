@@ -6,6 +6,23 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await expect(secretInput).toHaveAccessibleDescription(status);
     await expect(page.locator('.plugin-secret-form').filter({ has: secretInput }).getByRole('status')).toHaveText(status);
   };
+  // Deleting a stored secret is destructive: Cancel keeps it and returns focus, Delete removes it.
+  const deleteSecret = async ({ cancelFirst = false } = {}) => {
+    const trigger = page.getByRole("button", { name: "Delete secret", exact: true });
+    const before = cancelFirst ? await secretInput.getAttribute("aria-describedby").then(id => page.locator(`[id="${id}"]`).innerText()) : undefined;
+    await trigger.click();
+    const confirm = page.getByRole("dialog", { name: "Delete Access token?", exact: true });
+    await expect(confirm.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    if (cancelFirst) {
+      await page.keyboard.press("Escape");
+      await expect(confirm).toBeHidden();
+      await expect(trigger).toBeFocused();
+      await expect(page.locator('.plugin-secret-form').filter({ has: secretInput }).getByRole('status')).toHaveText(before);
+      await trigger.click();
+    }
+    await confirm.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(confirm).toBeHidden();
+  };
   const saveSecret = async () => {
     const start = Date.now();
     const saved = page.waitForResponse(response => response.url().endsWith("/api/plugins/secrets") && response.request().method() === "POST");
@@ -71,6 +88,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await secretInput.fill("browser-isolated-secret");
     await saveSecret();
     await expectSecretState("Configured");
+    await expect(page.locator(".settings-row").filter({ has: secretInput }).getByRole("status")).toHaveText("Configured");
     const status = pluginFixture.cli(["plugins", "secret-status", "fixture.drive"]);
     expect(status.secrets.declarations[0].configured).toBe(true);
     expect(JSON.stringify(status)).not.toContain("browser-isolated-secret");
@@ -91,12 +109,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await expectSecretState("Unavailable or damaged");
     await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
-    await page.getByRole("button", { name: "Delete secret", exact: true }).click();
+    await deleteSecret();
     await expectSecretState("Not configured");
     await secretInput.fill("browser-repaired-secret");
     await saveSecret();
     await expectSecretState("Configured");
-    await page.getByRole("button", { name: "Delete secret", exact: true }).click();
+    await deleteSecret({ cancelFirst: true });
     await expectSecretState("Not configured");
   } else {
     await expect(page.getByText("Plugin secrets require a Windows Host", { exact: true })).toBeVisible();
