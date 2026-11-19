@@ -657,6 +657,24 @@ test("destroyed Editor rolls back delayed upload; internal rich and text-only in
   assert.match(errors.join(" "), /closed|cancel|insert/i);
 });
 
+test("plugin views recreated for a changed plugin set keep a delayed upload", async t => {
+  const { doc } = fixture(t);
+  let resolve!: () => void;
+  const ready = new Promise<void>(done => { resolve = done; });
+  const errors: string[] = [];
+  const e = imageEditor(doc, reason => errors.push(reason), {
+    create: async file => { await ready; return createImageAsset(doc, file.type, Buffer.from(await file.arrayBuffer()), key); },
+    rollback: async () => { throw new Error("Accepted insertion must not roll back"); },
+  });
+  e.paste();
+  // EditorView.updatePluginViews: destroy every plugin view, then create one per plugin again.
+  e.destroy(); const recreated = e.plugin.spec.view!(e.view);
+  resolve(); await e.finished();
+  assert.deepEqual(errors, []);
+  assert.equal(e.view.state.doc.child(1).type.name, "figure");
+  recreated.destroy?.();
+});
+
 for (const field of ["dev", "ino"] as const) {
   test(`asset rollback distinguishes large ${field} identities`, t => {
     const { root, doc } = fixture(t);
