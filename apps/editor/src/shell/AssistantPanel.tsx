@@ -12,7 +12,6 @@ import { useTranslation } from "react-i18next";
 import { Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle } from "lucide-react";
 import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
-import { Input } from "@/components/ui/input.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
 import { EmptyState } from "@/components/ui/screen-parts.tsx";
 import { Status } from "@/components/ui/status.tsx";
@@ -24,11 +23,10 @@ import { brand } from "../../../../brand.ts";
 import "./assistant.css";
 import { CopyButton } from "../components/CopyButton.tsx";
 import { AssistantAnswer } from "./AssistantAnswer.tsx";
+import { AssistantHistory, pathName, providerLabel } from "./AssistantHistory.tsx";
 
 function lastConversation(conversationKey: string) { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
 function rememberConversation(conversationKey: string, id?: string) { try { if (id) localStorage.setItem(conversationKey, id); else localStorage.removeItem(conversationKey); } catch { /* In-page state remains usable. */ } }
-const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) || path;
-const providerLabel = (provider: AiProvider | undefined) => provider === "copilot" ? "GitHub Copilot" : "Codex";
 const errorText = (error: unknown) => i18n.t((error as Error).message, { defaultValue: (error as Error).message });
 function providerIssue(status: AssistantDiagnostics) {
   if (!status.connected) return status.error ?? (status.provider === "copilot" ? "GitHub Copilot is unavailable on the Host." : "Codex CLI is unavailable on the Host.");
@@ -63,7 +61,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [catalog, setModels] = useState<AiModels>();
   const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
-  const [historyQuery, setHistoryQuery] = useState("");
   const [provider, setProvider] = useState<AiProvider>("codex");
   const models = catalog?.provider === provider ? catalog : undefined;
   const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("full-access");
@@ -383,9 +380,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const currentEffortHelp = copilot?.reasoningEffortSource === "config" && copilot.reasoningEfforts?.length && conversation?.model === model
     ? i18n.t("Current model reasoning effort: {{value}}.", { value: i18n.t(conversation.reasoningEffort as MessageKey) }) : "";
   const catalogModel = models?.models.find(value => value.model === model);
-  const query = historyQuery.trim().toLocaleLowerCase();
-  const historyMatches = history?.filter(entry => !query || entry.title.toLocaleLowerCase().includes(query) ||
-    entry.folders.some(folder => pathName(folder).toLocaleLowerCase().includes(query)));
   const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
     const result = createdDocument(item); return result ? [result.path] : [];
   })) ?? [])];
@@ -514,7 +508,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       }); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending} onClick={() => void run(async isCurrent => {
         const next = history ? null : await request<AssistantConversationInfo[]>(ASSISTANT.conversationsRoute);
-        if (isCurrent()) { setHistoryQuery(""); setHistory(next); }
+        if (isCurrent()) setHistory(next);
       })}><History /></Button>
       {(["open", "reveal"] as const).map(action => {
         const label = i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location"), unavailable = !conversation || pending || !window.litzioDesktop?.providerSessionLog;
@@ -547,14 +541,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
       onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
     <div ref={transcriptContent}>
-      {historyMatches ? <div className="assistant-history">
-        <h3 className="type-item-name">{i18n.t("Conversation history")}</h3>
-        <Input aria-label={i18n.t("Search conversation history")} className="assistant-history-search" placeholder={i18n.t("Title or folder name")} value={historyQuery} disabled={pending} onChange={event => setHistoryQuery(event.target.value)} />
-        {notices}
-        {!historyMatches.length ? <p>{i18n.t(query && history?.length ? "No matching conversations" : "No conversations yet.")}</p> : historyMatches.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void resumeHistory(entry)}>
-          <strong className="type-item-name">{entry.title}</strong>
-          <span className="type-helper"><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>{" · "}{providerLabel(entry.provider)}</span>
-          {entry.folders.length ? <small className="type-helper" title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
+      {history ? <AssistantHistory entries={history} pending={pending} notices={notices} onResume={entry => void resumeHistory(entry)} />
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips previews={imagePreviews} references={item.references ?? []} /></p>
