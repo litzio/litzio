@@ -3,7 +3,8 @@
 // block menu, types into the new cells, saves, then adds another row after that save and saves
 // again. The file must hold exactly what was typed, and reopening shows it. The reopened table's
 // rows and columns are then moved, realigned and removed from the block menu, and saved again. Finally, the caret
-// leaves the document's final table by ArrowDown and by a click below the document. Scratch files live
+// moves between rows by ArrowDown/ArrowUp in the same column, then leaves the document's final table by ArrowDown
+// and by a click below the document. Scratch files live
 // under the repository's ignored tmp/ directory; the scenario writes tables.md only.
 async (page, { showNotifications, openPath, reloadDocument, expect, screenshots }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -844,6 +845,31 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   const caretIn = text => page.waitForFunction(text =>
     document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.textContent === text, text);
   const status = await page.getByTestId('status').innerText();
+  // Vertical arrows keep the column between rows; Chromium's native caret reached the side cell (#1813).
+  const cellAt = () => page.evaluate(() => {
+    const {$from} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
+    return `${$from.parent.type.name} ${$from.index(1)},${$from.index(2)} ${$from.parent.textContent}`;
+  });
+  await tables.last().locator('td', {hasText:/^U$/}).click();
+  await caretIn('U');
+  await page.keyboard.press('ArrowDown');
+  const below = await cellAt();
+  await page.keyboard.press('ArrowUp');
+  const above = await cellAt();
+  if (below !== 'tableCell 2,0 P' || above !== 'tableCell 1,0 U') throw new Error(`Vertical arrows must keep the table column: ${JSON.stringify({below, above, grid: await grid(tables.last())})}`);
+  // First-row ArrowUp leaves the table for the textblock before it (here the preceding table's caption)
+  // instead of reaching the left header cell.
+  await tables.last().locator('th', {hasText:/^Value$/}).click();
+  await caretIn('Value');
+  await page.keyboard.press('ArrowUp');
+  const exit = await page.evaluate(() => {
+    const {state} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
+    let table = -1;
+    state.doc.forEach((node, _, index) => { if (node.type.name === 'table') table = index; });
+    const {$from} = state.selection;
+    return `${$from.index(0) - table} ${$from.parent.type.name}`;
+  });
+  if (exit !== '-1 tableCaption') throw new Error(`First-row ArrowUp must leave the table upward: ${exit}`);
   await tables.last().locator('td', {hasText:/^P$/}).click();
   await caretIn('P');
   await page.keyboard.press('ArrowDown');
