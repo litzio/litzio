@@ -568,11 +568,12 @@ button {
 .document-outline-item:not([aria-current="location"]) .document-outline-number {
   color: var(--id-color-document-heading-number);
 }
-/* Same-level heading titles start on one line (#1839); the existing space after the number
- * remains the gap, so row text and accessible names are unchanged. */
+/* Same-level heading titles start on one line (#1839). The number keeps its following space
+ * inside the column, so row text and accessible names are unchanged. */
 .document-outline-list[data-number-columns] .document-outline-number {
   display: inline-block;
   min-width: var(--outline-number-column);
+  white-space: pre;
 }
 
 .document-outline-item {

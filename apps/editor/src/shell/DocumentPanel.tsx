@@ -100,13 +100,14 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
     revealTrackedRef.current();
   }, [active, outline.current, outline.items]);
   // Heading rows fit each level's number column to the document, as the page headings do.
-  // Measured with the current row's semibold weight so the current title never shifts.
+  // The column holds the number and its following space, measured at the current row's
+  // semibold weight, so every title (current or not) starts exactly at the column edge.
   const columns = useRef<{ element: HTMLElement; key: string }>(undefined);
   const headings = kind === "outline" ? outline.items : undefined;
   useClientLayoutEffect(() => {
     const element = list.current;
     if (!element || !headings) return;
-    const numbered: NumberedHeading[] = headings.flatMap(item => item.number ? [{ level: item.level, number: item.number }] : []);
+    const numbered: NumberedHeading[] = headings.flatMap(item => item.number ? [{ level: item.level, number: `${item.number} ` }] : []);
     const fit = () => applyNumberColumns(element, "--outline-number-column-h", numbered, level => {
       const index = headings.findIndex(item => item.number && item.level === level);
       const number = element.children[index]?.querySelector(".document-outline-number");
@@ -172,7 +173,8 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
                 }}
               >
                 <span className="document-outline-copy">
-                  {item.number ? <><span className="document-outline-number">{item.number}</span>{item.text.slice(item.number.length)}</>
+                  {item.number && kind === "outline" ? <><span className="document-outline-number">{`${item.number} `}</span>{item.text.slice(item.number.length + 1)}</>
+                    : item.number ? <><span className="document-outline-number">{item.number}</span>{item.text.slice(item.number.length)}</>
                     : item.text || <span className="document-outline-untitled">{i18n.t("Untitled heading")}</span>}
                 </span>
               </button>

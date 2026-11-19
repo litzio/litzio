@@ -357,7 +357,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
     const rows = [...document.querySelectorAll('[data-testid="outline"] .document-outline-item')].map(row => {
       const number = row.querySelector('.document-outline-number');
       const text = number?.nextSibling;
-      return { level: row.style.getPropertyValue('--outline-depth'), number: number?.textContent ?? null, x: text ? firstGlyph(text, 1) : null };
+      return { level: row.style.getPropertyValue('--outline-depth'), number: number?.textContent.trim() ?? null, x: text ? firstGlyph(text) : null };
     });
     return { headings, rows };
   });
@@ -377,7 +377,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
   const long = 'Aligned long heading whose words wrap onto a second line in the page so the hanging indent is visible';
   await setHeadings([[2, 'Aligned 6'], [2, 'Aligned 7'], [2, long], [2, 'Aligned 9'],
     ...Array.from({ length: 10 }, (_, index) => [3, `Aligned 9.${index + 1}`]), [2, 'Aligned 10']]);
-  await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="outline"] .document-outline-number')].some(number => number.textContent === '1.10'));
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="outline"] .document-outline-number')].some(number => number.textContent.trim() === '1.10'));
   const withTen = await textStarts();
   const numbers = withTen.headings.map(heading => heading.number);
   expect(numbers).toEqual(expect.arrayContaining(['1.1', '1.9', '1.10', '1.9.1', '1.9.10']));
@@ -389,7 +389,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
   expect(new Set(wrapped.lines).size).toBe(1);
   // Removing the tenth headings narrows each column again; text still shares its line.
   await setHeadings([[2, 'Aligned 6'], [3, 'Aligned 6.1']]);
-  await page.waitForFunction(() => ![...document.querySelectorAll('[data-testid="outline"] .document-outline-number')].some(number => number.textContent === '1.10'));
+  await page.waitForFunction(() => ![...document.querySelectorAll('[data-testid="outline"] .document-outline-number')].some(number => number.textContent.trim() === '1.10'));
   const withoutTen = await textStarts();
   expect(aligned(withoutTen.headings)).toBe(true);
   expect(aligned(withoutTen.rows)).toBe(true);
