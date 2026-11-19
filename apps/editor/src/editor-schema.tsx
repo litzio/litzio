@@ -21,6 +21,7 @@ import { MarkdownInputRules } from "./markdown-input-rules.ts";
 import StarterKit from "@tiptap/starter-kit";
 import { headingNumbers, type HeadingNumbering } from "@litzio/core/numbering";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { applyNumberColumns, numberColumnsKey, numberFont, onFontsLoaded, type NumberedHeading } from "./heading-number-columns.ts";
 import { CrossReference } from "./cross-reference.tsx";
 import { Endnotes } from "./endnotes.ts";
 import { FootnoteReference } from "./footnote.tsx";
@@ -824,13 +825,51 @@ const DocumentNumbering = Extension.create({
   name: "documentNumbering",
   addGlobalAttributes() { return [{ types: ["doc"], attributes: { status: { default: null, rendered: false }, title: { default: null, rendered: false }, headingNumbering: { default: null, rendered: false }, referenceTemplates: { default: null, rendered: false }, bibliography: { default: null, rendered: false } } }]; },
   addProseMirrorPlugins() {
-    return [new Plugin({ props: { decorations(state) {
-      const blocks: { block: string; level?: number }[] = [];
-      state.doc.forEach(node => blocks.push({ block: node.type.name, level: Number(node.attrs.level) }));
-      const numbers = headingNumbers(blocks, state.doc.attrs.headingNumbering as HeadingNumbering | null);
-      const decorations: Decoration[] = [];
-      state.doc.forEach((node, pos, index) => { if (numbers[index]) decorations.push(Decoration.node(pos, pos + node.nodeSize, { "data-heading-number": numbers[index]! })); });
-      return DecorationSet.create(state.doc, decorations);
-    } } })];
+    const numbering = new PluginKey<HeadingNumberDecorations>("headingNumbers");
+    return [new Plugin<HeadingNumberDecorations>({
+      key: numbering,
+      state: {
+        init: (_config, state) => headingNumberDecorations(state.doc),
+        apply: (tr, value) => tr.docChanged ? headingNumberDecorations(tr.doc) : value,
+      },
+      props: { decorations: state => numbering.getState(state)!.decorations },
+      // Number columns follow the numbers, not typing: measure only when a number appears,
+      // disappears or changes, and again once web fonts replace fallback glyphs.
+      view(view) {
+        let key: string | undefined;
+        const fit = () => {
+          const { headings } = numbering.getState(view.state)!;
+          key = numberColumnsKey(headings);
+          applyNumberColumns(view.dom, "--heading-number-column-h", headings, level => {
+            const heading = headings.find(item => item.level === level);
+            const dom = heading && view.nodeDOM(heading.pos);
+            return dom instanceof HTMLElement ? numberFont(getComputedStyle(dom, "::before")) : undefined;
+          });
+        };
+        fit();
+        const stopFonts = onFontsLoaded(fit);
+        return {
+          update(view) { if (numberColumnsKey(numbering.getState(view.state)!.headings) !== key) fit(); },
+          destroy: stopFonts,
+        };
+      },
+    })];
   },
 });
+
+type HeadingNumberDecorations = { headings: (NumberedHeading & { pos: number })[]; decorations: DecorationSet };
+
+function headingNumberDecorations(doc: ProseMirrorNode): HeadingNumberDecorations {
+  const blocks: { block: string; level?: number }[] = [];
+  doc.forEach(node => blocks.push({ block: node.type.name, level: Number(node.attrs.level) }));
+  const numbers = headingNumbers(blocks, doc.attrs.headingNumbering as HeadingNumbering | null);
+  const headings: HeadingNumberDecorations["headings"] = [];
+  const decorations: Decoration[] = [];
+  doc.forEach((node, pos, index) => {
+    const number = numbers[index];
+    if (!number) return;
+    headings.push({ level: Number(node.attrs.level) || 1, number, pos });
+    decorations.push(Decoration.node(pos, pos + node.nodeSize, { "data-heading-number": number }));
+  });
+  return { headings, decorations: DecorationSet.create(doc, decorations) };
+}

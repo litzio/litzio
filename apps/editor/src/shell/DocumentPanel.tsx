@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from "react";
 import { createOutlineStore, type NavigationList, type OutlineItem, type OutlineStore } from "../outline.ts";
+import { applyNumberColumns, numberColumnsKey, numberFont, onFontsLoaded, type NumberedHeading } from "../heading-number-columns.ts";
 import { Button } from "@/components/ui/button.tsx";
 
 type DocumentPanelProps = {
@@ -98,6 +99,26 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
   useClientLayoutEffect(() => {
     revealTrackedRef.current();
   }, [active, outline.current, outline.items]);
+  // Heading rows fit each level's number column to the document, as the page headings do.
+  // Measured with the current row's semibold weight so the current title never shifts.
+  const columns = useRef<{ element: HTMLElement; key: string }>(undefined);
+  const headings = kind === "outline" ? outline.items : undefined;
+  useClientLayoutEffect(() => {
+    const element = list.current;
+    if (!element || !headings) return;
+    const numbered: NumberedHeading[] = headings.flatMap(item => item.number ? [{ level: item.level, number: item.number }] : []);
+    const fit = () => applyNumberColumns(element, "--outline-number-column-h", numbered, level => {
+      const index = headings.findIndex(item => item.number && item.level === level);
+      const number = element.children[index]?.querySelector(".document-outline-number");
+      if (!number) return undefined;
+      const style = getComputedStyle(number);
+      return numberFont(style, { "font-weight": style.getPropertyValue("--font-weight-semibold").trim() });
+    });
+    const key = numberColumnsKey(numbered);
+    if (columns.current?.element !== element || columns.current.key !== key) fit();
+    columns.current = { element, key };
+    return onFontsLoaded(fit);
+  }, [active, headings]);
   useEffect(() => {
     const element = list.current;
     if (!element) return;
@@ -131,14 +152,14 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
   return (
     <section className="document-outline" role="tabpanel" hidden={!active} id={`document-panel-list-${kind}`} aria-labelledby={`document-panel-tab-${kind}`} data-testid={kind}>
       {!active ? null : outline.items.length === 0 ? <p className="document-outline-empty">{i18n.t(kind === "tables" ? "No tables" : kind === "figures" ? "No figures" : "No headings")}</p> : (
-        <ol ref={list} className="document-outline-list" onKeyDown={move}>
+        <ol ref={list} className="document-outline-list" data-number-columns={kind === "outline" ? "" : undefined} onKeyDown={move}>
           {outline.items.map((item, index) => (
             <li key={item.index}>
               <button
                 type="button"
                 className="document-outline-item"
                 data-outline-label={item.text || i18n.t("Untitled heading")}
-                style={{ "--outline-depth": item.level - 1 } as CSSProperties}
+                style={{ "--outline-depth": item.level - 1, "--outline-number-column": `var(--outline-number-column-h${item.level})` } as CSSProperties}
                 aria-current={index === outline.current ? "location" : undefined}
                 title={item.text || undefined}
                 onClick={() => onSelect(item)}

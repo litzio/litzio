@@ -568,6 +568,12 @@ button {
 .document-outline-item:not([aria-current="location"]) .document-outline-number {
   color: var(--id-color-document-heading-number);
 }
+/* Same-level heading titles start on one line (#1839); the existing space after the number
+ * remains the gap, so row text and accessible names are unchanged. */
+.document-outline-list[data-number-columns] .document-outline-number {
+  display: inline-block;
+  min-width: var(--outline-number-column);
+}
 
 .document-outline-item {
   position: relative;
@@ -2915,8 +2921,26 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .table-block .caption .inline-math-rendered:hover { background: none; box-shadow: none; }
 .table-block .caption .cross-reference[data-resolved="true"] .cross-reference-chip:hover { text-decoration: none; }
 
+/* Same-level heading text starts on one line (#1839): the number fills its level's column
+ * (heading-number-columns.ts), and wrapped lines hang at the text start. */
+h1.heading[data-heading-number] { --heading-number-column: var(--heading-number-column-h1); }
+h2.heading[data-heading-number] { --heading-number-column: var(--heading-number-column-h2); }
+h3.heading[data-heading-number] { --heading-number-column: var(--heading-number-column-h3); }
+h4.heading[data-heading-number] { --heading-number-column: var(--heading-number-column-h4); }
+h5.heading[data-heading-number] { --heading-number-column: var(--heading-number-column-h5); }
+h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-column-h6); }
+[data-block="heading"][data-heading-number] {
+  padding-left: calc(var(--heading-number-column) + var(--space-heading-number-gap));
+  text-indent: calc(-1 * (var(--heading-number-column) + var(--space-heading-number-gap)));
+}
+
 [data-block="heading"][data-heading-number]::before {
-  content: attr(data-heading-number) " ";
+  content: attr(data-heading-number);
+  display: inline-block;
+  min-width: var(--heading-number-column);
+  margin-right: var(--space-heading-number-gap);
+  text-indent: 0;
+  white-space: nowrap;
   color: var(--id-color-document-heading-number);
 }
 

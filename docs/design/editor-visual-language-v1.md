@@ -213,7 +213,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | --- | --- |
 | Palette/theme/page | Product roles/preset scopes above; `--id-color-paper`, `--id-color-canvas`, `--id-color-paper-border`, `--size-paper-border`, `--id-radius-paper`, `--shadow-paper` |
 | Body/word boundaries | `--font-family-document`, `--font-size-document`, `--line-height-document`, `--word-break-document` |
-| Headings/title | `--font-size-document-h1` through `-h6`, `--font-weight-document-heading`, `--line-height-document-heading`, `--space-document-heading-before/after`; `--id-color-document-heading-number` aliases interaction, with the existing single-space number gap |
+| Headings/title | `--font-size-document-h1` through `-h6`, `--font-weight-document-heading`, `--line-height-document-heading`, `--space-document-heading-before/after`; `--id-color-document-heading-number` aliases interaction; `--space-heading-number-gap` and the fixed `--heading-number-column-h1…h6`/`--outline-number-column-h1…h6` fallbacks for [same-level number columns](heading-numbering-v1.md#same-level-number-columns-1839) |
 | Block/quote/list | `--space-document-block`, `--space-document-list-indent`, `--space-document-quote-indent`, `--size-document-side-rule` |
 | Captions/table | `--font-size-document-caption`, `--line-height-document-caption`, `--space-document-caption`, `--font-size-document-table`, `--line-height-document-table`, `--space-document-table-cell-block/inline` |
 | Code/math | `--font-size-document-code`, `--line-height-document-code`, `--font-size-document-inline-code`, `--math-inline-size`, `--layout-equation-input-min-height`, `--layout-inline-math-input-min-height`, `--layout-inline-math-popover-width` |
