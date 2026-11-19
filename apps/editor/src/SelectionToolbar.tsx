@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
-import { canEditEndnoteAt, endnoteAt, endnoteEditorToken } from "./endnotes.ts";
-import { Bold, Bookmark, Code, Italic, Link2, Sigma, Strikethrough, Subscript, Superscript } from "lucide-react";
+import { canEditEndnoteAt, endnoteAt, endnoteEditorToken, insertEndnote } from "./endnotes.ts";
+import { freshBlockPath } from "./tiptap-document.ts";
+import { Asterisk, Bold, Bookmark, Code, Italic, Link2, Sigma, Strikethrough, Subscript, Superscript } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useEditorAuthoring } from "./editor-visibility.ts";
 import type { DraftListener } from "./node-views/shared.ts";
@@ -122,6 +123,13 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
       >
         <Bookmark aria-hidden="true" size={16} />
       </Button>
+      <Button variant="ghost" size="icon-sm"
+        aria-label={i18n.t("Endnote")} title={tip(i18n.t("Endnote"))}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => (endnoteAfterSelection(editor) ? undefined : onReject())}
+      >
+        <Asterisk aria-hidden="true" size={16} />
+      </Button>
     </div>
   );
 }
@@ -139,6 +147,12 @@ function makeInlineMath(editor: Editor): boolean {
   const marks = $from.marksAcross($to) ?? [];
   return editor.chain().focus().insertContentAt({ from, to },
     { type: "inlineMath", attrs: { value: source }, marks: marks.map((mark) => mark.toJSON()) }).run();
+}
+
+/** Insert an endnote right after the selection through the `/` Endnote path, keeping the selected text. */
+function endnoteAfterSelection(editor: Editor): boolean {
+  const { to } = editor.state.selection;
+  return editableInlineContext(editor) && insertEndnote(editor, { from: to, to }, freshBlockPath());
 }
 
 function toggleMark(editor: Editor, mark: "bold" | "italic" | "strike" | "subscript" | "superscript" | "code", onReject: () => void): void {

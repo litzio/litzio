@@ -400,7 +400,8 @@ function reveal(editor: Editor, selection: Selection, pos: number, point?: Retur
 }
 
 /**
- * Replace a slash query in supported inline content, and the space before it, with a new endnote: a reference
+ * Replace a slash query in supported inline content, and the space before it, with a new endnote (or, for an
+ * empty range, insert one there): a reference
  * keeping the bold/italic marks there, and an empty definition that takes the caret in the
  * endnotes region. The label is Core's next unused number. Save writes both through Core.
  */
@@ -412,7 +413,8 @@ export function insertEndnote(editor: Editor, range: { from: number; to: number 
   const label = nextFootnoteLabel(footnoteLabels(state.doc));
   const marks = (state.storedMarks ?? $from.marks()).filter((mark) => mark.type.name === "bold" || mark.type.name === "italic");
   // `/` opens after a space; the reference follows the word, as footnotes are written.
-  const from = range.from > $from.start() && state.doc.textBetween(range.from - 1, range.from) === " " ? range.from - 1 : range.from;
+  // An empty range (after a selection) removes nothing.
+  const from = range.from < range.to && range.from > $from.start() && state.doc.textBetween(range.from - 1, range.from) === " " ? range.from - 1 : range.from;
   const tr = closeHistory(state.tr).replaceWith(from, range.to, state.schema.nodes.footnoteReference.create({ label }, null, marks));
   // Appended with the endnotes; placement then moves it, and the caret, to its reference's place.
   const end = tr.doc.content.size;

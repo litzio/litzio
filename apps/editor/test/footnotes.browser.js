@@ -324,19 +324,48 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
   await page.keyboard.press('Control+z');
   assert(JSON.stringify(await texts(chips)) === '["1","2"]' && await created.count() === 0, 'Undo left part of the footnote');
   await page.keyboard.press('Control+Shift+z');
+  assert(await created.count() === 1, 'Redo did not restore the footnote');
+  await page.keyboard.press('Control+z');
+  assert(await created.count() === 0, 'Undo after Redo left the footnote');
+  // Selection toolbar Endnote (#1829): the selected word stays, the reference follows it and the
+  // empty definition opens for editing through the same path; one Undo removes both.
+  const middle = editor.locator('p.paragraph', {hasText:'Middle paragraph.'});
+  const middleContent = () => editor.evaluate(element => {
+    let found = '';
+    element.editor.state.doc.forEach(block => {
+      if (!block.textContent.startsWith('Middle')) return;
+      block.forEach(node => { found += node.isText ? node.text : node.type.name === 'footnoteReference' ? `[^${node.attrs.label}]` : '?'; });
+    });
+    return found;
+  });
+  await middle.click();
+  // Undo kept the typed query; remove it to start from the original paragraph.
+  await page.keyboard.press('End');
+  for (let step = 0; step < ' /footnote'.length; step++) await page.keyboard.press('Backspace', {delay: 40});
+  assert(await middleContent() === 'Middle paragraph.', `Query left: ${await middleContent()}`);
+  await page.keyboard.press('Home');
+  for (let step = 0; step < 'Middle'.length; step++) await page.keyboard.press('Shift+ArrowRight', {delay: 40});
+  await page.getByTestId('selection-toolbar').getByRole('button', {name:'Endnote', exact:true}).click();
+  await caretIn('1');
+  assert(await middleContent() === 'Middle[^1] paragraph.', `Toolbar Endnote placement: ${await middleContent()}`);
+  assert(await created.getAttribute('aria-readonly') !== 'true', 'Toolbar Endnote must open its definition for editing');
+  await page.keyboard.press('Control+z');
+  assert(await middleContent() === 'Middle paragraph.' && await created.count() === 0, 'One Undo must remove the toolbar reference and definition');
+  await page.keyboard.press('Control+Shift+z');
   await created.getByTestId('endnote-edit').click();
   await caretIn('1');
-  await page.keyboard.type('New note.');
+  await page.keyboard.type('New note.', {delay: 40});
   assert(JSON.stringify(await texts(chips)) === '["1","2","3"]', `Chips after insertion: ${await texts(chips)}`);
   assert((await created.getByTestId('footnote-number').innerText()).trim() === '3', 'New definition number');
   await created.getByTestId('footnote-number').click();
   const back = await page.evaluate(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.node?.attrs.label);
   assert(back === '1', `Number went back to ${back}`);
   result.slashInsertsFootnote = true;
+  result.toolbarInsertsFootnote = true;
   await save.click();
   await saved();
   const inserted = await read();
-  const expected = edited.replace('[^b]: Defined first.', '[^b]: Defined first. More.').replace('Middle paragraph.', 'Middle paragraph.[^1]') + '\n[^1]: New note.\n';
+  const expected = edited.replace('[^b]: Defined first.', '[^b]: Defined first. More.').replace('Middle paragraph.', 'Middle[^1] paragraph.') + '\n[^1]: New note.\n';
   assert(inserted === expected, 'Saved Markdown differs: ' + JSON.stringify({expected, inserted}));
   await page.getByRole('button', {name:'File actions', exact:true}).click();
   await page.getByRole('menuitem', {name:'Reload', exact:true}).click();
