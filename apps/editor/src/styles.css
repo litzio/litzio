@@ -1006,7 +1006,10 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 .settings-label p { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
 .settings-label p.settings-status { font-size: var(--font-size-sm); color: var(--id-color-text); }
 .settings-group-heading { margin: var(--space-6) 0 0; padding-bottom: var(--space-3); }
-.settings-recovery-details { display: grid; gap: var(--space-2); margin: 0; padding-left: var(--space-5); list-style: disc; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
+/* The info trigger sits beside the row name without growing the row; paragraphs stack in the tooltip. */
+.settings-details-tip { margin-block: calc(var(--space-1) * -1); margin-inline-start: var(--space-1); vertical-align: middle; }
+.settings-details-tip-content { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.settings-details-tip-content p { margin: 0; }
 
 @container (width < 48rem) {
   .settings-body { grid-template-columns: minmax(0, 1fr); align-content: start; }

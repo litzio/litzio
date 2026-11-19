@@ -703,7 +703,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
         }
         if(category === 'recovery' && width === 1440) {
           check(await dialog.locator('.shared-section > .shared-row').first().evaluate(row=>{
-            const label=row.querySelector('.settings-label').getBoundingClientRect(), control=row.querySelector('button').getBoundingClientRect();
+            const label=row.querySelector('.settings-label').getBoundingClientRect(), control=row.querySelector('.settings-row-control button').getBoundingClientRect();
             return label.right<=control.left && label.top<control.bottom;
           }), 'Row containers changed the neighboring recovery layout');
         }

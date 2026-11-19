@@ -440,6 +440,13 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('button',{name:'Saving & recovery',exact:true}).click();
   await capture('settings');
+  // #1789: explanations are not standing text; keyboard focus on the row's details reveals them.
+  const keptDetail = page.getByText(/Records expire 10 days after the last recording/);
+  check(await keptDetail.count() === 0, 'Recovery retention explanation is standing text');
+  await page.getByRole('button',{name:'Clear all recovery records…',exact:true}).focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button',{name:'What is kept details',exact:true})).toBeFocused();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Unapplied property drafts, Undo history');
   let writesFromSettings = 0;
   const settingsWrite = request => { if (request.method() === 'POST' && request.url().split('?')[0].endsWith('/api/document')) writesFromSettings++; };
   page.on('request', settingsWrite);

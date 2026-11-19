@@ -392,7 +392,9 @@ the dialog is open; external engine diagnostics remain literal technical details
 The separately stored plaintext remains available in a selectable text area and **Copy text**;
 **Delete record** remains available. There is no migration framework or canonical repair. Clipboard
 failure leaves the selectable text intact. The shared Sidebar **Settings → Local recovery** explains
-location, retention, deletion, exclusions and guarantee limits, and confirms **Clear all**. Desktop
+location, retention, deletion, exclusions and guarantee limits in hover and keyboard-focus details beside
+the row names, and confirms **Clear all**
+([1440 light](assets/folder-settings-text-1789/after-settings-1440-light-ko.png), [focused details](assets/folder-settings-text-1789/after-settings-tooltip-1440-light-en.png)). Desktop
 About/update controls remain Desktop-only.
 
 Newly recorded plaintext copies contain readable text, LaTeX, table cells/captions, Figure captions,
