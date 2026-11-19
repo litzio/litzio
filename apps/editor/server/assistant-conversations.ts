@@ -15,7 +15,8 @@ import { templateTools, executeTemplateOperation, templateOperations } from "./d
 import { statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
+import { ASSISTANT } from "../shared/assistant.ts";
+import type { AssistantConversationInfo, AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
 
@@ -177,6 +178,24 @@ export class AssistantConversations {
     this.index.remove(id);
     this.mcp.revokeConversation(id);
     this.fileChanges.delete(id); this.conversations.delete(id); this.loaded.delete(id); this.scopes.delete(id);
+  }
+  /** Rename, archive and unarchive keep the history position and updatedAt. */
+  rename(id: string, title: unknown) {
+    const name = typeof title === "string" ? title.trim() : "";
+    if (!name) throw new Error("Enter a conversation name.");
+    if (name.length > ASSISTANT.conversationTitleLimit) throw new Error(`Conversation names are limited to ${ASSISTANT.conversationTitleLimit} characters.`);
+    return this.updateInfo(id, entry => { entry.title = name; });
+  }
+  archive(id: string, archived: boolean) {
+    if (archived && this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Assistant response before archiving the conversation.");
+    return this.updateInfo(id, entry => { if (!archived) delete entry.archivedAt; else entry.archivedAt ??= Date.now(); });
+  }
+  private updateInfo(id: string, change: (entry: AssistantConversationInfo) => void) {
+    if (typeof id !== "string") throw new Error("Invalid conversation selection.");
+    const { attachments: _attachments, ...info } = this.index.update(id, change);
+    const live = this.conversations.get(id);
+    if (live) change(live);
+    return info;
   }
   current(id: string) {
     const conversation = this.conversations.get(id);
@@ -343,7 +362,7 @@ export class AssistantConversations {
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: settings.permissionMode === "full-access" ? "never" : "on-request", sandbox: "read-only", ephemeral: false, dynamicTools: this.tools });
-        conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
+        conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
         this.loaded.add(conversation.id);
@@ -397,7 +416,7 @@ export class AssistantConversations {
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
       }
-      conversation.folders = folders; conversation.updatedAt = Date.now();
+      conversation.folders = folders; conversation.updatedAt = Date.now(); delete conversation.archivedAt;
       this.save(conversation);
       return conversation;
     } catch (error) {
@@ -516,7 +535,7 @@ export class AssistantConversations {
     try {
       if (!conversation) {
         const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: lease.servers }), true));
-        conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
+        conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit),
           folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
         this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
       }
@@ -568,7 +587,7 @@ export class AssistantConversations {
       }
       this.dispatch(input, conversation);
       conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? input.reasoningEffort;
-      conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
+      conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode; delete conversation.archivedAt;
       lease.turnId = turn.id;
       this.scopes.set(id, { folders: documentFolders(folders, settings.permissionMode, this.access), access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
       this.save(conversation);

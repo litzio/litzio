@@ -16,22 +16,30 @@ export class AssistantConversationIndex {
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
   save(conversation: AssistantConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback } = conversation;
+    const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback, archivedAt } = conversation;
     const questions = conversation.turns.flatMap(turn => turn.items.filter(item => item.question).map(item => ({ itemId: item.id, text: item.text, question: item.question! })));
     const previous = this.list();
     const attachments = this.attachments.owned(id);
     const entries = previous.filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}),
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}), ...(archivedAt ? { archivedAt } : {}),
         ...(attachments?.length ? { attachments } : {}),
         ...(questions.length ? { questions } : {}),
         ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }
-  remove(id: string) {
-    const entries = this.list().filter(entry => entry.id !== id);
+  /** Changes one entry in place; history order and updatedAt stay unchanged. */
+  update(id: string, change: (entry: ConversationIndexEntry) => void) {
+    const entries = this.list(), entry = entries.find(entry => entry.id === id);
+    if (!entry) throw new Error("Conversation was not found.");
+    change(entry);
+    this.write(entries);
+    return entry;
+  }
+  remove(id: string) { this.write(this.list().filter(entry => entry.id !== id)); }
+  private write(entries: ConversationIndexEntry[]) {
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try { writeFileSync(temporary, JSON.stringify(entries), { flag: "wx" }); renameSync(temporary, this.file); }
     finally { if (existsSync(temporary)) unlinkSync(temporary); }

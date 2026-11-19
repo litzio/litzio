@@ -121,6 +121,8 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         history().remove(args.id);
         return { id: args.id, outcome: "deleted" };
       }
+      if (args.action === "rename") return history().rename(args.id, args.title);
+      if (args.action === "archive" || args.action === "unarchive") return history().archive(args.id, args.action === "archive");
       if (args.action === "provider-log" && Object.keys(args).every(key => ["action", "id", "provider"].includes(key))) return history().providerLog(args.id, args.provider);
       if (args.action === "send" && args.submissionId !== undefined) return history().submit(args, () => sendConversation(args));
       return sendConversation(args);
