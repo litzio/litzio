@@ -65,12 +65,13 @@ function measure(headings: readonly NumberedHeading[], fontOf: Parameters<typeof
     }
   }
   document.body.append(probe);
+  // Where glyphs snap to whole pixels (Linux), the same number drawn at another x can be up to
+  // 1px wider than measured here. Allow that pixel and round up, so the widest number stays
+  // inside the column and its text starts on the same line as the rest of its level.
   const widest = new Map<number, number>();
-  for (const { level, size, span } of spans) widest.set(level, Math.max(widest.get(level) ?? 0, span.getBoundingClientRect().width / size));
+  for (const { level, size, span } of spans) widest.set(level, Math.max(widest.get(level) ?? 0, (span.getBoundingClientRect().width + 1) / size));
   probe.remove();
-  // Round up with a margin above layout-unit precision (1/64px), so the widest number stays
-  // inside the column and its text snaps to the same pixel as the rest of its level.
-  return new Map([...widest].map(([level, em]) => [level, `${Math.ceil((em + 0.002) * 100) / 100}em`]));
+  return new Map([...widest].map(([level, em]) => [level, `${Math.ceil(em * 100) / 100}em`]));
 }
 
 /** Re-measures after web fonts finish loading, since fallback glyph widths differ. */

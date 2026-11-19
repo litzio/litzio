@@ -361,10 +361,9 @@ async (page, { openDocument, reloadDocument, expect }) => {
     });
     return { headings, rows };
   });
-  const aligned = items => {
-    const byLevel = Map.groupBy(items.filter(item => item.number), item => item.level);
-    return [...byLevel.values()].every(group => group.every(item => Math.abs(item.x - group[0].x) < 0.5));
-  };
+  // Numbers whose text does not start where the first number of the same level does.
+  const misaligned = items => [...Map.groupBy(items.filter(item => item.number), item => item.level).values()]
+    .flatMap(group => group.filter(item => Math.abs(item.x - group[0].x) >= 0.5).map(item => ({ number: item.number, x: item.x, expected: group[0].x })));
   const setHeadings = texts => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate((element, texts) => {
     const { state, view } = element.editor;
     const added = [];
@@ -381,9 +380,9 @@ async (page, { openDocument, reloadDocument, expect }) => {
   const withTen = await textStarts();
   const numbers = withTen.headings.map(heading => heading.number);
   expect(numbers).toEqual(expect.arrayContaining(['1.1', '1.9', '1.10', '1.9.1', '1.9.10']));
-  expect(aligned(withTen.headings)).toBe(true);
+  expect(misaligned(withTen.headings)).toEqual([]);
   expect(withTen.rows.map(row => row.number)).toEqual(numbers);
-  expect(aligned(withTen.rows)).toBe(true);
+  expect(misaligned(withTen.rows)).toEqual([]);
   const wrapped = withTen.headings.find(heading => heading.number === '1.8');
   expect(wrapped.lines.length).toBeGreaterThan(1);
   expect(new Set(wrapped.lines).size).toBe(1);
@@ -391,8 +390,8 @@ async (page, { openDocument, reloadDocument, expect }) => {
   await setHeadings([[2, 'Aligned 6'], [3, 'Aligned 6.1']]);
   await page.waitForFunction(() => ![...document.querySelectorAll('[data-testid="outline"] .document-outline-number')].some(number => number.textContent.trim() === '1.10'));
   const withoutTen = await textStarts();
-  expect(aligned(withoutTen.headings)).toBe(true);
-  expect(aligned(withoutTen.rows)).toBe(true);
+  expect(misaligned(withoutTen.headings)).toEqual([]);
+  expect(misaligned(withoutTen.rows)).toEqual([]);
   const h2 = starts => starts.headings.find(heading => heading.number === '1.1').x;
   const row2 = starts => starts.rows.find(row => row.number === '1.1').x;
   expect(h2(withoutTen)).toBeLessThan(h2(withTen) - 1);
