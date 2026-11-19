@@ -21,7 +21,7 @@
   "devDependencies": {
     "@litzio/file-commit": "workspace:*",
     "@playwright/test": "1.64.0-alpha-1789764292000",
-    "@types/node": "^24.5.2",
+    "@types/node": "^24.19.2",
     "@types/semver": "^7.7.1",
     "builder-util-runtime": "9.7.0",
     "electron": "45.3.4",
