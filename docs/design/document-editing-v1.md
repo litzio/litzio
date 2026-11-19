@@ -4,6 +4,7 @@
 - Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and path-only assistant-send browser regressions).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
+- Engine upgrade: 2026-11-20 (#1827: Tiptap 3.34.0 and the `prosemirror-view@1.42.9` patch; `focus-caret`, `citation-authoring` and `document-title` with and without the patch on Windows Chrome).
 - Native focus selection: 2026-10-26 (#542: restore the retained selection before the observer can accept Chromium's native focus caret; real-click Command center and held-check browser regressions. #502 remains separate).
 - Selection-race scope: 2026-10-26 (#489: citation-form focus, closing Reload focus and empty-title pointer selection. The separate table selection investigation is #502. Per-scenario evidence and the #421/#416 boundary are recorded in the [test guide](../reviews/verification-history-2026-11.md#focus-and-selection-race-investigation-489)).
 - Scope: Supported continuous editing and Core-backed persistence; [ADR-0001](../adr/0001-single-document-editor-architecture.md).
@@ -336,8 +337,11 @@ A changed document recomputes numbering; source semantics and canonical output a
 - A caret key pressed right after the editor regains focus moves the caret as at any
   other time; Control+End reaches the document end and Control+Home its start. The engine
   still restores its own caret when focus arrives without a key (Tab, or a DOM `focus()`
-  after which the browser resets the caret), also when only a modifier is pressed. A pinned
-  `prosemirror-view` patch provides this ([cause and removal condition](../reviews/prosemirror-focus-caret-2026-10-09.md)).
+  after which the browser resets the caret), also when only a modifier is pressed. Since
+  `prosemirror-view` 1.42.9 the engine's delayed post-focus check keeps a DOM caret that moved
+  after focus. Its start-of-document heuristic still takes a key's caret for a browser reset;
+  a pinned patch skips it after a key ([cause](../reviews/prosemirror-focus-caret-2026-10-09.md),
+  [current patch and removal condition](../contributing/dependency-patches.md)).
 - Native DOM focus (including Tab and shell dialog/menu focus return) synchronizes the
   retained engine selection before the DOM observer can read Chromium's document-start caret
   (#542). A recent click before opening a dialog must not disable this restoration. It adds
@@ -345,11 +349,10 @@ A changed document recomputes numbering; source semantics and canonical output a
   movement. The pinned `prosemirror-view` patch owns this ordering; remove this addition when
   upstream passes both real-click and held-check `citation-authoring` cases without it.
 - A post-focus selection check must also preserve a later pointer or touch destination (#489).
-  The same pinned engine patch snapshots pointer/touch activity when focus arrives; its delayed
-  check only restores the old caret if neither has changed. It must not move a paragraph click
-  back into an empty title before the native `selectionchange` is read.
-  Remove this addition when the pinned upstream post-focus check respects later pointer/touch
-  destinations under the forced callback order in `document-title`.
+  It must not move a paragraph click back into an empty title before the native
+  `selectionchange` is read. `prosemirror-view` 1.42.9 provides this without the patch: its
+  delayed check restores the old caret only while the DOM caret is still where focus left it.
+  `document-title` checks this under the forced callback order.
 
 Core `insertParagraph` accepts InlineContent directly (CLI `insert-block --content`)
 so rich content is never staged as flattened text. Core `insertTable` accepts optional
@@ -651,9 +654,9 @@ at `compositionstart` or routing through gapcursor's `beforeinput` produced
 `ㅎ한글`: Chromium restarted its composing range after the first update. These
 approaches were discarded. The #314 adapter prepared the caret at the initial
 IME keydown, before that range existed; #714's input-ignore policy now supersedes
-that placement. In pinned `prosemirror-view` 1.42.4, `input.ts` invokes custom DOM
+that placement. In pinned `prosemirror-view` 1.42.9, `input.ts` invokes custom DOM
 handlers before its own keydown handler skips key code 229, while `domchange.ts`
-can invoke `handleTextInput` during composition. Tiptap remains pinned at 3.31.3.
+can invoke `handleTextInput` during composition. Tiptap is pinned at 3.34.0.
 
 Review follow-up baseline (`9198093`): after typing `QR`, selecting `eq-power`
 and calling `view.pasteHTML('<!-- data-litzio-type="paragraph" -->')` removed
