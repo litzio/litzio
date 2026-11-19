@@ -211,21 +211,23 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
       node.children = encodeEmphasisBoundaries(node.children, alternate);
     }
-    // myst-to-md does not protect literal dollars, citation-triggering @ text or text that
-    // starts an output line with a MyST colon fence. The writer emits these escaped `html` values verbatim.
-    if (node.children?.some(child => child.type === "text" && /[$@]|(?:^|\n):::/.test(String(child.value)))) {
+    // myst-to-md does not protect literal dollars, citation-triggering @ text or text that starts
+    // an output line with MyST block syntax (`lineSyntax`). The writer emits these escaped `html`
+    // values verbatim.
+    if (node.children?.some(child => child.type === "text" && /[$@]|(?:^|\n)(?::::|\+\+\+|%|\()/.test(String(child.value)))) {
       // An output line starts at a paragraph's first text and after a hard break; a heading's
       // `#`, a cell's `|`, a mark's `**` or a role's name come first everywhere else.
       const paragraph = node.type === "paragraph" && !fenceArguments.has(node);
+      const endsLine = (index: number, siblings: MystNode[]) => index === siblings.length - 1 || siblings[index + 1]!.type === "break";
       // The writer turns a line ending before raw output into a space, so a hard break before
-      // a fence is written raw together with the escaped colon.
-      const fenceAfterBreak = (index: number, siblings: MystNode[]) => paragraph && siblings[index]?.type === "text" &&
-        siblings[index - 1]?.type === "break" && String(siblings[index]!.value).startsWith(":::");
+      // block syntax is written raw together with the escaped first character.
+      const syntaxAfterBreak = (index: number, siblings: MystNode[]) => paragraph && siblings[index]?.type === "text" &&
+        siblings[index - 1]?.type === "break" && lineSyntax(String(siblings[index]!.value), 0, endsLine(index, siblings));
       node.children = node.children.flatMap((child, index, siblings) => {
-        if (fenceAfterBreak(index + 1, siblings)) return [{ type: "html", value: "\\\n\\:" }];
+        if (syntaxAfterBreak(index + 1, siblings)) return [{ type: "html", value: `\\\n\\${String(siblings[index + 1]!.value)[0]}` }];
         if (child.type !== "text") return [child];
-        if (fenceAfterBreak(index, siblings)) return escapeText({ ...child, value: String(child.value).slice(1) }, inLink, false);
-        return escapeText(child, inLink, paragraph && index === 0);
+        if (syntaxAfterBreak(index, siblings)) return escapeText({ ...child, value: String(child.value).slice(1) }, inLink, false, endsLine(index, siblings));
+        return escapeText(child, inLink, paragraph && index === 0, endsLine(index, siblings));
       });
     }
     // myst-to-md writes inline math as the `{math}` role; write MyST's usual `$...$`.
@@ -335,20 +337,31 @@ function isDollarMath(node: MystNode, previous: MystNode | undefined): boolean {
     previous?.type !== "break" && !(previous?.type === "text" && /[\r\n]$/.test(String(previous.value)));
 }
 
-function escapeText(text: MystNode, inLink: boolean, lineStart: boolean): MystNode[] {
+/**
+ * Whether the text at `index`, written at the start of an output line, is MyST block syntax
+ * that the writer would not protect: a colon fence (`:::`), a block break (`+++`), a comment
+ * (`%`) or a whole-line target (`(label)=`). `endsLine` says the text's end is its line's end.
+ */
+function lineSyntax(value: string, index: number, endsLine: boolean): boolean {
+  const rest = value.slice(index), end = rest.indexOf("\n");
+  const line = end < 0 ? rest : rest.slice(0, end);
+  return /^(?::::|\+\+\+|%)/.test(line) || /^\([^\s()]+\)=$/.test(line) && (end >= 0 || endsLine);
+}
+
+function escapeText(text: MystNode, inLink: boolean, lineStart: boolean, endsLine: boolean): MystNode[] {
   const value = String(text.value);
   const state = new citationTokenizer.inline.State(value, citationTokenizer, {}, []);
   const result: MystNode[] = [];
   let start = 0;
   for (let index = 0; index < value.length; index++) {
-    // A colon fence opens only at the start of a line; one escaped colon keeps the line text.
-    const fence = value.startsWith(":::", index) && (index === 0 ? lineStart : value[index - 1] === "\n");
-    if (value[index] !== "$" && value[index] !== "@" && !fence) continue;
+    // Block syntax opens only at the start of a line; one escaped character keeps the line text.
+    const syntax = (index === 0 ? lineStart : value[index - 1] === "\n") && lineSyntax(value, index, endsLine);
+    if (value[index] !== "$" && value[index] !== "@" && !syntax) continue;
     state.pos = index;
     if (value[index] === "@" && (inLink || !citationRule(state, true))) continue;
     // mdast collapses a text node's trailing newline before raw inline output.
     // Keep that newline with the escaped character so a soft line break stays text.
-    const boundary = value[index] !== "$" && index > start && value[index - 1] === "\n" ? index - 1 : index;
+    const boundary = index > start && value[index - 1] === "\n" ? index - 1 : index;
     if (boundary > start) result.push({ ...text, value: value.slice(start, boundary) });
     result.push({ type: "html", value: `${value.slice(boundary, index)}\\${value[index]}` });
     start = index + 1;

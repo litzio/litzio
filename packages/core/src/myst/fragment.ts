@@ -2,7 +2,8 @@ import { getEditableDocument, type EditableBlock } from "../editable.ts";
 import { projectInlineContent, type InlineContent } from "../inline.ts";
 import type { FootnoteDefinition } from "../operations.ts";
 import { admitNativeDocument, supportedNativeBlock } from "./native.ts";
-import { parse } from "./parse.ts";
+import { createTokenizer } from "myst-parser";
+import { OPTIONS, parse } from "./parse.ts";
 import type { MystNode } from "./tree.ts";
 
 /** A Markdown fragment read as the body of a native document. */
@@ -31,10 +32,10 @@ type Range = { start: number; end: number; known: boolean };
 
 /**
  * Read Markdown (for example pasted text) with the parser and native admission that open a
- * document. Refused source is kept as literal text in its place rather than dropped, together
- * with the link reference definitions the parse consumed (kept links already carry their URL).
- * When the kept blocks still fail whole-document admission (labels, citations, canonical
- * write), every non-blank source line is kept as a literal paragraph.
+ * document. Refused source is kept as literal text in its place rather than dropped. Source the
+ * parse consumes without editor content (`consumesSource`), a line no kept block or literal line
+ * explains (`everyLineExplained`), or kept blocks that fail whole-document admission (labels,
+ * citations, canonical write) make every non-blank source line a literal paragraph.
  */
 export function readMarkdownFragment(markdown: string): MarkdownFragment {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
@@ -61,8 +62,8 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
     if (formatting(node, ranges[index]!, lines)) formatted = true;
     items.push({ line: ranges[index]!.start, node, literal: false });
   });
-  // Lines no block owns are link definitions the parse consumed. They stay with refused text,
-  // and stay when nothing else is kept, since then no kept link carries their URL.
+  // Lines no block owns stay as literal text with refused text, or when nothing else is kept;
+  // otherwise the guard below sends the whole text to literal lines.
   const keepUnowned = refused || !items.length;
   lines.forEach((text, line) => {
     if (!text.trim() || owner[line] === "kept" || owner[line] === undefined && !keepUnowned) return;
@@ -71,7 +72,8 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
   });
   items.sort((left, right) => left.line - right.line);
   const definitions = body.filter((node, index) => kept[index] && node.type === "footnoteDefinition");
-  const accounted = everyLineExplained(lines, body, ranges, kept, new Set(items.flatMap(item => item.literal ? [item.line] : [])));
+  const accounted = !consumesSource(lines.join("\n"), body) &&
+    everyLineExplained(lines, body, ranges, kept, new Set(items.flatMap(item => item.literal ? [item.line] : [])));
   document.children = [frontMatter!, ...items.map(item => item.node), ...definitions];
   let literalBlocks = items.flatMap((item, index) => item.literal ? [index] : []);
   try {
@@ -92,13 +94,29 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
   };
 }
 
-const DEFINITION = /^ {0,3}\[(?!\^)[^\]]+\]:[ \t]*<?([^\s>]+)>?/;
+/**
+ * Source the parse consumes without leaving editor content, found in the parser's own output:
+ * link reference definitions (markdown-it records every one in `env.references`, also inside
+ * quotes, lists and directive bodies), MyST comments (`% …` lines become `comment` nodes) and
+ * block breaks (`+++`, with optional metadata, become `block` nodes). None of it can be kept in
+ * place as editable text, so a fragment holding any of it is pasted as literal lines.
+ */
+const CONSUMING_NODES = new Set(["comment", "block"]);
+const tokenizer = createTokenizer(OPTIONS);
+
+function consumesSource(text: string, nodes: MystNode[]): boolean {
+  const env: { references?: Record<string, unknown> } = {};
+  tokenizer.parse(text, env);
+  if (Object.keys(env.references ?? {}).length) return true;
+  const visit = (node: MystNode): boolean => CONSUMING_NODES.has(node.type) || (node.children ?? []).some(visit);
+  return nodes.some(visit);
+}
 
 /**
  * The last guard against losing pasted text: every non-blank source line must be inside a kept
- * block the parser located, a literal line, or a link definition whose destination a kept link
- * carries. A lifted directive's lines are a guess, so they count only when they read back as
- * that same block. Anything else sends the caller to the whole-literal fallback.
+ * block the parser located or a literal line. A lifted directive's lines are a guess, so they
+ * count only as one fenced block that reads back as the same block. Anything else sends the
+ * caller to the whole-literal fallback.
  */
 function everyLineExplained(lines: string[], body: MystNode[], ranges: Range[], kept: boolean[], literalLines: Set<number>): boolean {
   const explained = lines.map((text, line) => !text.trim() || literalLines.has(line));
@@ -108,18 +126,7 @@ function everyLineExplained(lines: string[], body: MystNode[], ranges: Range[], 
     if (!range.known && !(fencedRange(lines, range) && readsBackAs(node, lines.slice(range.start, range.end + 1)))) return false;
     for (let line = range.start; line <= range.end; line++) explained[line] = true;
   }
-  const urls = new Set<string>();
-  body.forEach((node, index) => { if (kept[index]) linkUrls(node, urls); });
-  let definition = false;
-  for (const [line, text] of lines.entries()) {
-    if (explained[line]) { definition = false; continue; }
-    const destination = DEFINITION.exec(text)?.[1];
-    if (destination !== undefined) definition = carried(destination, urls);
-    // A line that is not a definition continues the one before it (a multi-line title).
-    else if (!definition || !lines[line - 1]?.trim()) return false;
-    if (!definition) return false;
-  }
-  return true;
+  return explained.every(Boolean);
 }
 
 /** A guessed range is exactly one fenced block: an opening fence line to its closing fence. */
@@ -138,16 +145,6 @@ function readsBackAs(node: MystNode, source: string[]): boolean {
     const reread = parse(NATIVE_PREFIX + source.join("\n")).children.slice(1);
     return reread.length === 1 && blocks(reread) === blocks([node]);
   } catch { return false; }
-}
-
-function linkUrls(node: MystNode, urls: Set<string>): void {
-  if (node.type === "link" && typeof node.url === "string") urls.add(node.url);
-  node.children?.forEach(child => linkUrls(child, urls));
-}
-
-function carried(destination: string, urls: Set<string>): boolean {
-  if (urls.has(destination)) return true;
-  try { return urls.has(encodeURI(destination)) || [...urls].some(url => decodeURI(url) === destination); } catch { return false; }
 }
 
 /** Zero-based source lines of each body block. Lifted directives carry no position: one

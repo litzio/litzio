@@ -1300,7 +1300,7 @@ test("CLI insert-figure persists a Core Figure", () => {
     // Invalid under the pending Figure contract too: alt text without an image.
     for (const args of [
       ["insert-figure", file, "--at", "1", "--image", " ./a.svg"],
-      ["insert-figure", file, "--at", "1", "--image", "./a.svg", "--caption", "% comment"],
+      ["insert-figure", file, "--at", "1", "--image", "./a.svg", "--caption", "a\n\nb"],
       ["insert-figure", file, "--at", "10", "--image", "./a.svg"],
       ["insert-figure", file, "--at", "1", "--alt", "missing image"],
     ]) {
@@ -1601,7 +1601,7 @@ test("CLI update-figure changes Figure properties through Core and preserves the
       ["update-figure", file, "--path", figurePath],
       ["update-figure", file, "--path", figurePath, "--image", ""],
       ["update-figure", file, "--path", figurePath, "--alt", "line\nbreak"],
-      ["update-figure", file, "--path", figurePath, "--caption", "% comment"],
+      ["update-figure", file, "--path", figurePath, "--caption", "a\n\nb"],
       ["update-figure", file, "--path", figurePath, "--caption", "text", "--caption-content", "[]"],
       ["update-figure", file, "--path", figurePath, "--caption-content", "{}"],
       ["update-figure", file, "--path", figurePath, "--caption-content", "[{\"kind\":\"unknown\"}]"],

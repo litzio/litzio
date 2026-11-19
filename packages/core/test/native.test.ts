@@ -279,42 +279,37 @@ test("Markdown that native admission refuses is kept as literal source lines in 
   assert.deepEqual(table.blocks.map(block => block.block === "paragraph" ? block.content : block.block), [[{ kind: "strong", children: [{ kind: "text", text: "Rich" }] }],
     [{ kind: "text", text: ":::{table}" }], [{ kind: "text", text: ":widths: 1 2" }], [{ kind: "text", text: "| A | B |" }], [{ kind: "text", text: "| - | - |" }],
     [{ kind: "text", text: ":::" }], [{ kind: "text", text: "After" }]]);
-  // Refused text keeps the link definitions the parse consumed and endnote definitions in source order.
-  assert.deepEqual(lines("**Rich**\n\n- [ ] [task][url]\n\n[url]: https://example.com/path"),
-    [["paragraph", "Rich"], ["paragraph", "- [ ] [task][url]"], ["paragraph", "[url]: https://example.com/path"]]);
+  // Endnote definitions referenced only by refused text stay in source order.
   assert.deepEqual(lines("**Rich**\n\n- [ ] A[^a]\n\n[^a]: Definition\n\nEnd text"),
     [["paragraph", "Rich"], ["paragraph", "- [ ] A[^a]"], ["paragraph", "[^a]: Definition"], ["paragraph", "End text"]]);
-  // A kept directive owns its lines from its opening to its closing fence; definitions before,
-  // between and after directives stay in source order.
-  assert.deepEqual(lines("**Rich**\n\n:::{note}\nKept\n:::\n\n[url]: https://example.com/path\n\n- [ ] [task][url]"),
-    [["paragraph", "Rich"], ["admonition", "Kept"], ["paragraph", "[url]: https://example.com/path"], ["paragraph", "- [ ] [task][url]"]]);
-  assert.deepEqual(lines("**Rich**\n\n[url]: https://example.com/path\n\n:::{note}\nKept\n:::\n\n- [ ] [task][url]"),
-    [["paragraph", "Rich"], ["paragraph", "[url]: https://example.com/path"], ["admonition", "Kept"], ["paragraph", "- [ ] [task][url]"]]);
-  assert.deepEqual(lines("[a]: https://a.example\n\n:::{note}\nOne\n:::\n\n[b]: https://b.example\n\n:::{tip}\nTwo\n:::\n\n[c]: https://c.example\n\n- [ ] [x][a] [y][b] [z][c]"),
-    [["paragraph", "[a]: https://a.example"], ["admonition", "One"], ["paragraph", "[b]: https://b.example"], ["admonition", "Two"],
-      ["paragraph", "[c]: https://c.example"], ["paragraph", "- [ ] [x][a] [y][b] [z][c]"]]);
-  // A fence inside a definition's multi-line title is not a block opener: every line stays.
-  assert.deepEqual(lines("**Rich**\n\n[url]: https://example.com/path \"first\n``` title with `\nlast\"\n\n:::{note}\nKept\n:::\n\n" +
-    "```{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n| x | y |\n```\n\n:::{tip}\nLast\n:::\n\n- [ ] [task][url]"),
-    [["paragraph", "Rich"], ["paragraph", "[url]: https://example.com/path \"first"], ["paragraph", "``` title with `"], ["paragraph", "last\""],
-      ["admonition", "Kept"], ["paragraph", "```{table}"], ["paragraph", ":widths: 1 2"], ["paragraph", "| A | B |"], ["paragraph", "| - | - |"],
-      ["paragraph", "| x | y |"], ["paragraph", "```"], ["admonition", "Last"], ["paragraph", "- [ ] [task][url]"]]);
-  // The last guard: a line no kept block, literal line or used definition explains sends the
-  // whole text to literal lines, as an unused definition or a guessed directive range that took
-  // a definition would otherwise be dropped. Located blocks and used definitions do not trip it.
-  for (const text of ["**a**\n\n[unused]: https://example.com", "[url]: https://x.example\n:::{note}\nKept\n:::\n\n**b**"]) {
+  // A fence inside a multi-line block is not a directive opener; a kept directive owns its lines
+  // from its opening to its closing fence.
+  assert.deepEqual(lines("**Rich**\n\n:::{note}\nKept\n:::\n\n```{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n| x | y |\n```\n\n:::{tip}\nLast\n:::\n\n- [ ] task"),
+    [["paragraph", "Rich"], ["admonition", "Kept"], ["paragraph", "```{table}"], ["paragraph", ":widths: 1 2"], ["paragraph", "| A | B |"],
+      ["paragraph", "| - | - |"], ["paragraph", "| x | y |"], ["paragraph", "```"], ["admonition", "Last"], ["paragraph", "- [ ] task"]]);
+  // The allow-list gate: source the parse consumes without editor content (link reference
+  // definitions, used or not and at any depth, MyST comments, block breaks) sends the whole text
+  // to literal lines. So does the last guard, when a line is explained by no located block or
+  // literal line (a guessed directive range that would take another line).
+  for (const text of [
+    "**[open][used]**\n\n[used]: https://example.com \"Used\"\n[unused]: https://example.com \"Unrelated title\"",
+    "> Quote\n>\n> [unused]: https://example.com \"Keep\"",
+    ":::{note}\nText\n\n[unused]: https://example.com \"Keep\"\n:::",
+    "**Rich**\n\n[unused]: /path\n\n```md\n+++\n```",
+    "**Rich**\n\n[url]: https://example.com/path \"first\n``` title with `\nlast\"\n\n:::{note}\nKept\n:::\n\n- [ ] [task][url]",
+    "**a** [x][r]\n\n[r]: https://example.com",
+    "**a**\n\n% hidden\n\nb", "> a\n>\n> % hidden", "**a**\n\n+++ {\"m\": 1}\n\nb",
+    "**b**\n\n:::{note}\nKept",
+  ]) {
     const fragment = core.readMarkdownFragment(text);
-    assert.deepEqual(fragment.blocks.map(block => "text" in block ? block.text : block.block), text.split("\n").filter(line => line), text);
+    assert.deepEqual(fragment.blocks.map(block => "text" in block ? block.text : block.block), text.split("\n").filter(line => line.trim()), text);
     assert.deepEqual(fragment.literalBlocks, fragment.blocks.map((_block, index) => index), text);
+    assert.ok(fragment.literal > 0, text);
   }
-  for (const text of [":::{note}\nhi\n:::\n\n**b**", "**Rich**\n\n[url]: https://example.com/path\n\n:::{note}\nKept\n:::\n\n**[go][url]**"]) {
+  // Ordinary Markdown does not trip the gate or the guard.
+  for (const text of [":::{note}\nhi\n:::\n\n**b**", "[x](https://example.com) and T[^1]\n\n[^1]: Note.", "# 측정\n\n1. **a:** b\n2. **c:** d\n\n오늘은 **x**입니다."]) {
     assert.equal(core.readMarkdownFragment(text).literal, 0, text);
   }
-  // Without refused text, a kept link already carries its definition's URL; with nothing kept,
-  // the definition is literal text.
-  assert.deepEqual(core.readMarkdownFragment("**a** [x][r]\n\n[r]: https://example.com").literal, 0);
-  const definition = core.readMarkdownFragment("[url]: https://example.com/path");
-  assert.deepEqual([definition.blocks.map(block => "text" in block ? block.text : ""), definition.literalBlocks], [["[url]: https://example.com/path"], [0]]);
   // Callers can tell literal source lines from kept blocks.
   assert.deepEqual(mixed.literalBlocks, [1, 2, 3]);
   // Literal colon fences are writable text.
@@ -330,7 +325,7 @@ test("Markdown that native admission refuses is kept as literal source lines in 
   }
 });
 
-test("canonical write escapes a colon fence only where it starts an output line", () => {
+test("canonical write escapes MyST block syntax only where it starts an output line", () => {
   // Where a heading's #, a cell's |, a mark, a role or a link comes first, the bytes are the
   // ones written before the escape existed.
   for (const body of ["# ::: heading\n", ":::{table}\n\n| A   |\n| --- |\n| ::: |\n:::\n", ":::{note}\n**::: body**\n:::\n",
@@ -345,6 +340,18 @@ test("canonical write escapes a colon fence only where it starts an output line"
   for (const body of ["\\:::x\n", "a\n\\:::b\n", "*   a\n    \\:::b\n", "> \\:::x\n", "**a\n\\:::b**\n", "A\\\n\\:::colon\n",
     // A Figure caption is a body line of its directive.
     ":::{figure} ./a.png\n:alt: A\n\n\\::: cap\n:::\n"]) {
+    assert.equal(serialize(parse(native(body))), native(body), body);
+  }
+  // Text that starts an output line with MyST block syntax (a colon fence, a block break, a
+  // comment, a whole-line target) at a paragraph's start or after a soft or hard break is written
+  // with one escaped character and reopens as the same text.
+  for (const body of ["\\+++x\n", "\\% comment\n", "\\(lab)=\n", "a\n\\+++b\n", "a\n\\%b\n", "a\n\\(lab)=\n", "a\n\\$5\n",
+    "A\\\n\\+++b\n", "A\\\n\\%b\n", "A\\\n\\(lab)=\n", "*   \\%x\n", "> \\+++x\n", ":::{figure} ./a.png\n:alt: A\n\n\\% cap\n:::\n"]) {
+    assert.equal(serialize(parse(native(body))), native(body), body);
+  }
+  // Elsewhere the bytes are the ones written before: these forms are not block syntax there.
+  for (const body of ["# +++ heading\n", "# % heading\n", ":::{table}\n\n| A |\n| - |\n| % |\n:::\n", "**+++** x\n", "**% x**\n", "H{sub}`% x`\n",
+    "[%x](https://e.com)\n", "a % b +++ c (l)=\n", "(lab)= x\n", "(a b)=\n", ":::{table} % Cap\n\n| A |\n| - |\n| x |\n:::\n", "cost \\$5 here\n", "```md\n+++\n```\n"]) {
     assert.equal(serialize(parse(native(body))), native(body), body);
   }
   // A hard break added by a Core operation keeps its line and its break.

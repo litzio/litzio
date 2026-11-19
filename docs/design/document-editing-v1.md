@@ -567,21 +567,23 @@ keep their existing precedence.
   paragraph per line). Arithmetic such as `2*3*4` is CommonMark emphasis and does count;
   Ctrl+Shift+V keeps it literal.
 - Kept: everything native admission accepts, read exactly as Open reads it (a soft line break
-  stays in its paragraph, `&amp;` is `&`, a reference-style link takes its definition's URL).
-  Endnote definitions referenced by kept text are inserted as for Litzio's own clipboard.
+  stays in its paragraph, `&amp;` is `&`). Endnote definitions referenced by kept text are
+  inserted as for Litzio's own clipboard.
 - Literal with a notice ("Unsupported Markdown was pasted as plain text."): the source lines of
   a block native admission refuses (task lists, multi-paragraph list items or quotes, raw HTML,
   images, directives with unsupported options such as a table's `:widths:`) are pasted in their
-  place, one paragraph per non-blank line, among the formatted blocks. Link reference
-  definitions the parser consumed and endnote definitions only refused text references stay with
-  that text in source order. When the kept blocks fail whole-document admission (bracket citation
-  shorthand, an endnote definition nothing references), every non-blank line is pasted that way.
-  Nothing is dropped. A lifted directive owns only its lines from its opening to its closing
-  fence, so a definition before, between or after directives stays with the refused text, in
-  source order. Guarantee: if any non-blank input line is not explained by a block the parser
-  located, a literal line, a fenced directive that reads back as the same block, or a link
-  definition a kept link uses, the whole text is pasted as literal lines with the notice (for
-  example an unused link definition, or an unclosed directive). A line that starts with `:::` saves as literal text
+  place, one paragraph per non-blank line, among the formatted blocks. Endnote definitions only
+  refused text references stay with that text in source order. When the kept blocks fail
+  whole-document admission (bracket citation shorthand, an endnote definition nothing
+  references), every non-blank line is pasted that way. Nothing is dropped. A lifted directive
+  owns only its lines from its opening to its closing fence.
+  Whole text literal: Markdown holding source the parser consumes without editor content is
+  pasted entirely as literal lines with the notice: link reference definitions (used or not,
+  at any depth; a Litzio document does not keep reference links in their written form), MyST
+  comments (`%`) and block breaks (`+++`). So is any text with a non-blank line not explained by a
+  block the parser located, a literal line, or a fenced directive that reads back as the same
+  block (for example an unclosed directive). Lines that start with MyST block syntax save as
+  literal text
   ([Core escapes it](document-support-v1.md#interfaces-and-errors)). The notice uses the paste notice channel
   ([1440 capture](assets/markdown-paste-1843/notice-1440-light.png); Korean: "지원하지 않는
   마크다운은 글자 그대로 붙여 넣었습니다.").
@@ -615,8 +617,7 @@ keep their existing precedence.
     title), text with a code mark or in a code block, and source lines Core kept literal are not
     linked: linking literal source would change what it saves as;
   - Litzio's own clipboard and block moves are pasted as they are.
-  A line that is only a link definition (`[url]: https://…`) has nothing kept to carry its URL,
-  so Core keeps it as literal text with the notice.
+  A link definition line (`[url]: https://…`) is literal source, so its URL is not linked.
 - Limits: a leading YAML block in the pasted text is not frontmatter here and reads as a divider
   and text; Chromium's context-menu "Paste as plain text" cannot be told from Ctrl+V and is read
   as Markdown. A lifted directive whose closing fence is not found shares the lines up to the

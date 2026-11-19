@@ -452,7 +452,9 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   result.markdownComposition = true;
 
   // Refused Markdown alone is literal with a notice; a table with options keeps the bold before it and saves.
-  for (const [anchor, whole, text] of [['LeftRIGHT', true, '- [ ] Task'], ['Omega.', false, '**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::']]) {
+  // A link definition sends the whole text to literal lines, and a `+++` line among them saves.
+  for (const [anchor, whole, text] of [['LeftRIGHT', true, '- [ ] Task'], ['Inline mono text.', true, '**Rich**\n\n[unused]: /path\n\n```md\n+++\n```'],
+    ['Omega.', false, '**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::']]) {
     await notice.waitFor({state:'detached', timeout:10000});
     await select(anchor, whole);
     await textPaste(text);
@@ -462,11 +464,19 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   const refusedSource = await outline();
   assert(['paragraph|- [ ] Task|', 'paragraph|Rich|bold', 'paragraph|:::{table}|', 'paragraph|:widths: 1 2|', 'paragraph|:::Omega.|'].every(block => refusedSource.includes(block)),
     `Refused Markdown keeps its source and the formatting around it: ${JSON.stringify(refusedSource)}`);
+  const wholeLiteral = ['paragraph|**Rich**|', 'paragraph|[unused]: /path|', 'paragraph|```md|', 'paragraph|+++|', 'paragraph|```|'];
+  assert(JSON.stringify(refusedSource.slice(refusedSource.indexOf(wholeLiteral[0]), refusedSource.indexOf(wholeLiteral[0]) + 5)) === JSON.stringify(wholeLiteral),
+    `A link definition keeps every line literal: ${JSON.stringify(refusedSource)}`);
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
   assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Literal colon fences save: ${await page.locator('body').innerText()}`);
   const placesDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(placesFile)}`, { headers: { Connection: "close" } })).json()).source.replaceAll('\r\n', '\n');
-  assert(placesDisk.includes('**Rich**\n\n\\:::{table}\n\n:widths: 1 2\n\n') && placesDisk.includes('\\:::Omega.\n'), `Saved literal source: ${JSON.stringify(placesDisk)}`);
+  assert(placesDisk.includes('**Rich**\n\n\\:::{table}\n\n:widths: 1 2\n\n') && placesDisk.includes('\\:::Omega.\n') && placesDisk.includes('\n\\+++\n'),
+    `Saved literal source: ${JSON.stringify(placesDisk)}`);
+  await reloadDocument(page);
+  await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  const reopened = await outline();
+  assert(wholeLiteral.every(block => reopened.includes(block)) && reopened.includes('paragraph|:::Omega.|'), `Reload keeps the literal lines: ${JSON.stringify(reopened)}`);
   result.markdownRefusedSource = true;
   return result;
 }
