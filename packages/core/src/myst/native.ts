@@ -138,6 +138,18 @@ function assertInlineContent(node: MystNode, path: number[]): void {
   node.children?.forEach((child, index) => assertInlineContent(child, [...path, index]));
 }
 
+/** Whether one top-level block is native content, judged as admission judges it inside a document. */
+export function supportedNativeBlock(node: MystNode, path: number[]): boolean {
+  if (!supportedBlock(node)) return false;
+  try { assertInlineContent(node, path); return true; } catch { return false; }
+}
+
+/** Admission of a whole parsed tree, as opening a document applies it (parseNativeDocument). */
+export function admitNativeDocument(document: MystDocument): void {
+  assertNativeDocument(document);
+  serializeTree(document);
+}
+
 function assertNativeDocument(document: MystDocument): void {
   validateStructure(document);
   metadata(document);
@@ -158,8 +170,7 @@ function assertNativeDocument(document: MystDocument): void {
 
 export function parseNativeDocument(source: string): MystDocument {
   const document = parseTree(source);
-  assertNativeDocument(document);
-  serializeTree(document);
+  admitNativeDocument(document);
   return document;
 }
 
