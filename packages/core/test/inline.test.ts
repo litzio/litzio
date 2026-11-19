@@ -236,6 +236,42 @@ test("equivalent mark nesting and adjacent text fragments remain supported", () 
 });
 
 
+test("marks with punctuation at the edge write a touching outer character as a character reference", () => {
+  const text = (value: string): InlineContent => ({ kind: "text", text: value });
+  const strong = (...children: InlineContent[]): InlineContent => ({ kind: "strong", children });
+  const emphasis = (...children: InlineContent[]): InlineContent => ({ kind: "emphasis", children });
+  const cases: InlineContent[][] = [
+    [text("이 "), strong(text("정확도(Accuracy)")), text("를 본다")],
+    [strong(text("50%")), text("1개")],
+    [strong(text("Accuracy(A)")), text("test")],
+    [text("값을"), strong(text("(정확도)")), text(" 본다")],
+    [text("값"), emphasis(text("「정확도」")), text("를")],
+    [strong(text("정확도("), emphasis(text("Accuracy")), text(")")), text("를")],
+    [strong(text("정확도 "), emphasis(text("(A)"))), text("를")],
+    [strong(text("값→")), text("를")],
+    [strong(text("값.")), text("𠀀자")],
+  ];
+  for (const content of cases) {
+    const markdown = serialize(updateParagraphInlineContent(parse("Original."), [0], content));
+    const reparsed = getEditableDocument(parse(markdown)).blocks[0];
+    assert.equal(reparsed?.block === "paragraph" && reparsed.editable, true, markdown);
+    if (reparsed?.block !== "paragraph") continue;
+    assert.equal(reparsed.text, content.map(plainText).join(""), markdown);
+    assert.deepEqual(reparsed.content.filter(item => item.kind !== "text"), content.filter(item => item.kind !== "text"), markdown);
+    assert.equal(serialize(parse(markdown)), markdown);
+  }
+  assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], cases[0])), "이 **정확도(Accuracy)**&#xB97C; 본다\n");
+  assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], cases.at(-1)!)), "**값.**&#x20000;자\n");
+  // A native file written with the reference is admitted and keeps its bytes.
+  const native = "---\nlitzio: 1\n---\n\n값&#xC744;**(정확도)** 본다\n";
+  assert.equal(serializeNative(parseNative(native)), native);
+});
+
+function plainText(item: InlineContent): string {
+  if (item.kind === "text") return item.text;
+  return "children" in item ? item.children.map(plainText).join("") : "";
+}
+
 test("adjacent equal marks around a break retain their semantic coverage", () => {
   for (const kind of ["strong", "emphasis"] as const) {
     const content: InlineContent[] = [

@@ -8,6 +8,7 @@ import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-erro
 import { completeFootnotes, endnotePlacement, footnoteWriteIssue } from "./footnote.ts";
 import { isFigure, figureContentKind } from "./figure.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
+import { encodeEmphasisBoundaries } from "./emphasis-boundary.ts";
 import { parse } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
 import { isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode } from "./table.ts";
@@ -200,6 +201,9 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
     if (node.children?.some(child => child.type === "inlineMath")) {
       node.children = node.children.map((child, index, siblings) => isDollarMath(child, siblings[index - 1])
         ? { type: "html", value: `$${child.value}$` } : child);
+    }
+    if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
+      node.children = encodeEmphasisBoundaries(node.children);
     }
     node.children?.forEach((child, childIndex) => visit(child, childIndex, node,
       node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink));
