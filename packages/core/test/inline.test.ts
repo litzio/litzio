@@ -264,6 +264,12 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     [strong(text("(A)")), emphasis(text("b"), { kind: "break" }, text("다"))],
     [strong(text("(A)")), emphasis(text("b")), text("c@name")],
     [strong(text("(A)")), emphasis(strong(text("b")), text("c"))],
+    // The pinned markdown-it 13 does not count symbols or supplementary characters as punctuation.
+    [strong(text("(a)")), text("😀")],
+    [strong(text("(a)")), text("𐄀")],
+    [strong(text("(a)")), text("→")],
+    [text("😀"), strong(text("(a)"))],
+    [strong(text("(a)")), emphasis(text("😀"))],
     // Not representable with a reference: left unencoded, so a symbol edge still saves.
     [strong(text("X→")), text("\u0085")],
     [text("line \nz"), strong(text("→X"))],
@@ -287,6 +293,11 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     // Output the pinned reader already keeps is never rewritten with `_`, whatever follows.
     [[strong(text("→")), emphasis(text("b"))], "**→***b*\n"],
     [[strong(text("→")), emphasis(text("b")), text("�")], "**→***b*�\n"],
+    [[strong(text("(a)")), text("😀")], "**(a)**&#x1F600;\n"],
+    [[strong(text("(a)")), text("𐄀")], "**(a)**&#x10100;\n"],
+    [[strong(text("(a)")), text("→")], "**(a)**&#x2192;\n"],
+    // Both readers close this one: its bytes stay.
+    [[strong(text("값→")), text("😀")], "**값→**😀\n"],
     [[strong(text("→")), emphasis(text("b")), text("\u0085")], "**→***b*\u0085\n"],
     [[strong(text("굵게")), emphasis(text("기울임"))], "**굵게***기울임*\n"],
     [[emphasis(text("기울임")), strong(text("굵게"))], "*기울임***굵게**\n"],
@@ -306,6 +317,8 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     ["**정확도(A)**_를_ 본다\n", "**정확도(A)**_를_ 본다\n"],
     ["**c*****a**b***→**\n", "**c*****a**b***→**\n"],
     ["**c***→*****a**b**\n", "**c***→*****a**b**\n"],
+    ["**값→**😀\n", "**값→**😀\n"],
+    ["**(a)**&#x1F600;\n", "**(a)**&#x1F600;\n"],
   ]) assert.equal(serializeNative(parseNative(front + body)), front + expected);
 });
 

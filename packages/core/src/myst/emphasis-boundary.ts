@@ -2,6 +2,7 @@ import { createTokenizer } from "myst-parser";
 import type { MystNode } from "./tree.ts";
 
 const reader = createTokenizer({ extensions: { smartquotes: false } });
+const { isMdAsciiPunct, isPunctChar, isWhiteSpace } = reader.utils;
 const decodes = new Map<number, boolean>();
 
 /**
@@ -10,16 +11,19 @@ const decodes = new Map<number, boolean>();
  * `**정확도(A)**를` stays literal text. Write that one outer character as a hexadecimal
  * character reference instead: it reads back as the same text and `&` is punctuation.
  * This follows mdast-util-to-markdown 2.x `encodeInfo`. Unicode symbols count as
- * punctuation so markdown-it 13 and CommonMark 0.31 readers agree.
+ * punctuation so markdown-it 13 and CommonMark 0.31 readers agree. The pinned markdown-it 13
+ * counts only ASCII and Unicode P punctuation, one UTF-16 unit at a time, so it also fails
+ * where a symbol or a supplementary character touches the mark (`**(a)**😀`); the second
+ * attempt encodes those too.
  * A character whose reference does not read back as itself (control characters) is left
  * as is. Runs on the write-only clone, before `$`/`@` escaping, so text after the reference
  * is escaped in its own context; the full fingerprint round trip still decides.
  *
- * `alternateMarkers` is the writer's second attempt (#1831), see `hasMixedAdjacentMarks`.
+ * `alternate` is the writer's second attempt, see `hasAlternateBoundaries`.
  */
-export function encodeEmphasisBoundaries(children: MystNode[], alternateMarkers = false): MystNode[] {
+export function encodeEmphasisBoundaries(children: MystNode[], alternate = false): MystNode[] {
   const underscored = new Set<MystNode>();
-  if (alternateMarkers) children.forEach((child, index) => {
+  if (alternate) children.forEach((child, index) => {
     const before = children[index - 1];
     if (isMark(child) && isMark(before) && !underscored.has(before) && mixed(edge(before, "last"), edge(child, "first"))) {
       underscored.add(child);
@@ -40,8 +44,8 @@ export function encodeEmphasisBoundaries(children: MystNode[], alternateMarkers 
     let head: MystNode | undefined, tail: MystNode | undefined;
     const first = firstChar(value);
     const beforeEdge = isMark(before) ? edge(before, "last") : undefined;
-    const closesBefore = isPunctuation(beforeEdge) || (beforeEdge !== undefined && isWordChar(beforeEdge) && underscored.has(before!));
-    if (first && closesBefore && isWordChar(first) && encodable(first)) {
+    const intraword = beforeEdge !== undefined && isWordChar(beforeEdge) && underscored.has(before!);
+    if (first && (breaks(beforeEdge, first, "after", alternate) || (intraword && isWordChar(first))) && encodable(first)) {
       head = { type: "html", value: reference(first) };
       value = value.slice(first.length);
     }
@@ -51,7 +55,7 @@ export function encodeEmphasisBoundaries(children: MystNode[], alternateMarkers 
     // reference carries a bare line ending. Spaces before that line ending, or a hard break,
     // would not survive: leave those as they are.
     const representable = !/[ \t]\n$/.test(rest) && !(rest === "" && before?.type === "break");
-    if (last && isMark(after) && isPunctuation(edge(after, "first")) && isWordChar(last) && representable && encodable(last)) {
+    if (last && isMark(after) && breaks(edge(after, "first"), last, "before", alternate) && representable && encodable(last)) {
       const lineEnding = rest.endsWith("\n") ? "\n" : "";
       value = rest.slice(0, rest.length - lineEnding.length);
       tail = { type: "html", value: `${lineEnding}${reference(last)}` };
@@ -64,27 +68,59 @@ export function encodeEmphasisBoundaries(children: MystNode[], alternateMarkers 
 }
 
 /**
- * Adjacent marks share one `*` run (`**정확도(A)***를*`). Whether that run closes the first
- * mark and opens the second depends on the reader's character classes and on the other runs
- * around it, so the writer first writes `*` everywhere and lets the pinned reader decide.
- * Only when that is refused and some adjacent marks meet with punctuation on one side and a
- * letter or digit on the other does it write again with `alternateMarkers`: the second mark
- * of each such pair uses `_` (`**정확도(A)**_를_`), as mdast-util-to-markdown 2.x does. `_`
- * cannot close inside a word, so a letter or digit after it is written as a reference too.
- * If that is refused as well, the first refusal stands.
+ * Whether the writer may try `alternate` after the plain output is refused. The plain output
+ * (`*` markers, references by CommonMark 0.31 classes) is written first and kept whenever the
+ * pinned reader reads it back unchanged; a second attempt changes only refused documents, and
+ * if it is refused as well the first refusal stands. It does two things:
+ * - Adjacent marks share one `*` run (`**정확도(A)***를*`), which may not close the first mark
+ *   and open the second when punctuation meets a letter or digit. The second mark of each such
+ *   pair uses `_` (`**정확도(A)**_를_`), as mdast-util-to-markdown 2.x does. `_` cannot close
+ *   inside a word, so a letter or digit after it is written as a reference too.
+ * - An outer character is also encoded where only markdown-it 13 fails (`**(a)**&#x1F600;`).
  */
-export function hasMixedAdjacentMarks(node: MystNode): boolean {
+export function hasAlternateBoundaries(node: MystNode): boolean {
   const children = node.children ?? [];
   return children.some((child, index) => {
-    const before = children[index - 1];
-    return (isMark(child) && isMark(before) && mixed(edge(before, "last"), edge(child, "first"))) || hasMixedAdjacentMarks(child);
+    const before = children[index - 1], after = children[index + 1];
+    if (isMark(child) && isMark(before) && mixed(edge(before, "last"), edge(child, "first"))) return true;
+    if (child.type === "text") {
+      const value = String(child.value ?? ""), first = firstChar(value), last = lastChar(value);
+      if (first && isMark(before) && breaks(edge(before, "last"), first, "after", true)) return true;
+      if (last && isMark(after) && breaks(edge(after, "first"), last, "before", true)) return true;
+    }
+    return hasAlternateBoundaries(child);
   });
 }
 
-/** One edge is punctuation and the other a letter or digit: the shared run may not do both. */
+/**
+ * Whether the delimiter between a mark's inner edge and the touching outer character cannot
+ * close (`side` "after": outer text follows the mark) or open ("before"). CommonMark 0.31 and
+ * markdown-it 14 judge code points with Unicode symbols as punctuation. With `alternate`, the
+ * judgement of the pinned markdown-it 13 on the UTF-16 unit beside the delimiter counts too.
+ */
+function breaks(inner: string | undefined, outer: string, side: "before" | "after", alternate: boolean): boolean {
+  if (inner === undefined) return false;
+  if (isPunctuation(inner) && isWordChar(outer)) return true;
+  if (!alternate) return false;
+  const innerUnit = side === "after" ? inner.charCodeAt(inner.length - 1) : inner.charCodeAt(0);
+  const outerUnit = side === "after" ? outer.charCodeAt(0) : outer.charCodeAt(outer.length - 1);
+  return punctuation13(innerUnit) && word13(outerUnit);
+}
+
+/** One edge is punctuation and the other is not, for either reader: the shared run may not do both. */
 function mixed(left: string | undefined, right: string | undefined): boolean {
   if (left === undefined || right === undefined) return false;
-  return (isPunctuation(left) && isWordChar(right)) || (isWordChar(left) && isPunctuation(right));
+  if ((isPunctuation(left) && isWordChar(right)) || (isWordChar(left) && isPunctuation(right))) return true;
+  const leftUnit = left.charCodeAt(left.length - 1), rightUnit = right.charCodeAt(0);
+  return (punctuation13(leftUnit) && word13(rightUnit)) || (word13(leftUnit) && punctuation13(rightUnit));
+}
+
+function punctuation13(unit: number): boolean {
+  return isMdAsciiPunct(unit) || isPunctChar(String.fromCharCode(unit));
+}
+
+function word13(unit: number): boolean {
+  return !isWhiteSpace(unit) && !punctuation13(unit);
 }
 
 function isMark(node: MystNode | undefined): node is MystNode {
