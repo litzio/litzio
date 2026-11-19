@@ -1022,6 +1022,11 @@ function warnLiteralSyntax(references: ReturnType<typeof unresolvedReferences>):
 function referenceWarning(reference: ReturnType<typeof unresolvedReferences>[number], written = false): string {
   const { path, line } = reference;
   const at = line === undefined ? `block ${path[0]}` : `block ${path[0]}, line ${line}`;
+  if ("syntax" in reference && reference.syntax === "emphasis") {
+    return `emphasis ${quote(reference.source)} (${at}) has punctuation inside and a letter outside a delimiter; ` +
+      `${written ? "written" : "parsed"} as literal text (write that outside letter as a &#x...; character reference, ` +
+      "or use --content InlineContent)";
+  }
   if ("syntax" in reference) {
     const kind = reference.syntax === "inline-code" ? "inline code"
       : reference.syntax === "reference-image" ? "reference image" : "reference link";

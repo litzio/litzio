@@ -7,13 +7,13 @@ const sources = new WeakMap<MystDocument, { text: string; options: object; defin
 
 /** Parsed source evidence is shared by all literal-syntax diagnostics. */
 export function rememberLiteralSource(document: MystDocument, text: string, options: object, defined: Set<string>): void {
-  if (/[\[`]/.test(text)) sources.set(document, { text, options, defined });
+  if (/[\[`*_]/.test(text)) sources.set(document, { text, options, defined });
 }
 
 export type LiteralSyntax =
   | { footnote: true; label: string }
   | { syntax: "reference-link" | "reference-image"; label: string; source: string }
-  | { syntax: "inline-code"; source: string; label?: never };
+  | { syntax: "inline-code" | "emphasis"; source: string; label?: never };
 
 /** Source syntax silently parsed as literal text. MyST's inline positions are container-level,
  * so the tokenizer, not a search of decoded AST text, distinguishes escapes and syntax.
@@ -34,13 +34,7 @@ function sourceSyntaxDiagnostics(document: MystDocument): ((LiteralSyntax | Cita
   const source = sources.get(document);
   if (!source) return [];
   const tokenizer = createTokenizer(source.options);
-  // Capture the installed backtick rule through the public ruler API (without
-  // depending on its function name or copying its delimiter/cache algorithm).
-  const rules = tokenizer.inline.ruler.getRules("");
-  tokenizer.inline.ruler.disable("backticks");
-  const otherRules = new Set(tokenizer.inline.ruler.getRules(""));
-  const backticks = rules.find(rule => !otherRules.has(rule))!;
-  tokenizer.inline.ruler.enable("backticks");
+  const backticks = installed(tokenizer.inline.ruler, "backticks");
   // MyST leaves bare URLs as text (linkify is off). Reuse markdown-it's URL
   // recognizer solely to suppress diagnostics there; do not change parsing options.
   // Public native admission and unresolvedReferences both reach this recognizer;
@@ -76,6 +70,7 @@ function sourceSyntaxDiagnostics(document: MystDocument): ((LiteralSyntax | Cita
     }
     return matched;
   });
+  observeEmphasis(tokenizer, inUrl);
   tokenizer.inline.ruler.push("literal_syntax", (state, silent) => {
     if (state.src[state.pos] !== "[" && state.src[state.pos] !== "!") return false;
     if (inUrl(state)) return false;
@@ -164,5 +159,100 @@ function sourceSyntaxDiagnostics(document: MystDocument): ((LiteralSyntax | Cita
     const { line } = diagnostic;
     const index = lineBlocks.get(line);
     return index === undefined ? [] : [{ ...diagnostic, path: [index] }];
+  });
+}
+
+/** An installed rule, captured through the public ruler API (without depending on
+ * its function name or copying its algorithm). */
+function installed<Rule>(ruler: { getRules(chain: string): Rule[]; disable(name: string): unknown; enable(name: string): unknown },
+  name: string): Rule {
+  const rules = ruler.getRules("");
+  ruler.disable(name);
+  const otherRules = new Set(ruler.getRules(""));
+  ruler.enable(name);
+  return rules.find(rule => !otherRules.has(rule))!;
+}
+
+type Tokenizer = ReturnType<typeof createTokenizer>;
+type InlineState = Parameters<Parameters<Tokenizer["inline"]["ruler"]["push"]>[1]>[0];
+type Delimiter = InlineState["delimiters"][number];
+type EmphasisRun = { start: number; length: number; open: boolean; close: boolean };
+
+/** Emphasis runs MyST read as literal text only because of CommonMark's punctuation
+ * flanking rule, as in `**정확도(Accuracy)**를`. The parser's own scanDelims and pairing
+ * rule decide; the only change is the documented repair: the adjacent outside character
+ * written as a character reference (punctuation `&`) when the inside character is punctuation.
+ * A pair that pairs only after that repair, and not in the actual parse, warns. */
+function observeEmphasis(tokenizer: Tokenizer, inUrl: (state: InlineState, position: number) => boolean): void {
+  const emphasis = installed(tokenizer.inline.ruler, "emphasis");
+  const balancePairs = installed(tokenizer.inline.ruler2, "balance_pairs");
+  const runs = new WeakMap<Delimiter, EmphasisRun>();
+  const flags = new WeakMap<Delimiter, { open: boolean; close: boolean }>();
+  const { isWhiteSpace, isPunctChar, isMdAsciiPunct } = tokenizer.utils;
+  const punctuation = (code: number) => isMdAsciiPunct(code) || isPunctChar(String.fromCharCode(code));
+  const word = (code: number) => !isWhiteSpace(code) && !punctuation(code);
+  tokenizer.inline.ruler.at("emphasis", (state, silent) => {
+    const start = state.pos;
+    const before = state.delimiters.length;
+    if (!emphasis(state, silent)) return false;
+    const marker = state.src.charCodeAt(start);
+    const length = state.pos - start;
+    const end = start + length;
+    // Rescan with one outside character replaced, as a character reference would.
+    const rescan = (outside: number) => {
+      const replaced = new state.md.inline.State(
+        state.src.slice(0, outside) + "&" + state.src.slice(outside + 1), state.md, state.env, []);
+      replaced.posMax = state.posMax;
+      return replaced.scanDelims(start, marker === 0x2A);
+    };
+    const { can_open: open, can_close: close } = state.scanDelims(start, marker === 0x2A);
+    // A run beside a backslash-escaped marker (`\**`) is partly literal by intent.
+    const escaped = state.src.charCodeAt(start - 1) === marker;
+    const run = {
+      start, length,
+      open: open || (!escaped && start > 0 && end < state.posMax && word(state.src.charCodeAt(start - 1)) &&
+        punctuation(state.src.charCodeAt(end)) && rescan(start - 1).can_open),
+      close: close || (!escaped && end < state.posMax && start > 0 && word(state.src.charCodeAt(end)) &&
+        punctuation(state.src.charCodeAt(start - 1)) && rescan(end).can_close),
+    };
+    for (const delimiter of state.delimiters.slice(before)) runs.set(delimiter, run);
+    return true;
+  });
+  const lists = (state: InlineState) =>
+    [state.delimiters, ...state.tokens_meta.map(meta => meta?.delimiters ?? [])];
+  // Pairing mutates open/close; keep the scanned flags for the repaired pairing below.
+  tokenizer.inline.ruler2.before("balance_pairs", "literal_emphasis_flags", state => {
+    for (const list of lists(state)) for (const delimiter of list) flags.set(delimiter, { open: delimiter.open, close: delimiter.close });
+    return false;
+  });
+  tokenizer.inline.ruler2.after("balance_pairs", "literal_emphasis", state => {
+    const found = new Map<string, LiteralSyntax>();
+    for (const list of lists(state)) {
+      const matched = new Set(list.flatMap((delimiter, index) => delimiter.end < 0 ? [] : [index, delimiter.end]));
+      const repaired = list.map(delimiter => {
+        const run = runs.get(delimiter);
+        return { ...delimiter, end: -1, ...(run ? { open: run.open, close: run.close } : flags.get(delimiter)) };
+      });
+      // The pairing rule reads only these two fields.
+      balancePairs({ delimiters: repaired, tokens_meta: [] } as unknown as InlineState);
+      repaired.forEach((opener, index) => {
+        if (opener.end < 0 || matched.has(index) || matched.has(opener.end)) return;
+        const first = runs.get(list[index]);
+        const last = runs.get(list[opener.end]);
+        if (!first || !last) return;
+        // Only pairs blocked by the flanking rule; ordinary literal runs never pair here.
+        const strictOpen = flags.get(list[index])!.open;
+        const strictClose = flags.get(list[opener.end])!.close;
+        if (strictOpen && strictClose) return;
+        // Both sides needed the repair: single-star `5*(3+4)*2` is arithmetic, not emphasis.
+        if (!strictOpen && !strictClose && (first.length < 2 || last.length < 2)) return;
+        if (inUrl(state, first.start) || inUrl(state, last.start)) return;
+        found.set(`${first.start}:${last.start}`, {
+          syntax: "emphasis", source: state.src.slice(first.start, last.start + last.length),
+        });
+      });
+    }
+    for (const meta of found.values()) state.push("literal_syntax", "", 0).meta = meta;
+    return false;
   });
 }

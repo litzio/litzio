@@ -52,6 +52,34 @@ test("literal syntax diagnostics exclude prose, escapes, resolved syntax and non
   ]) assert.deepEqual(unresolvedReferences(parse(source)), [], source);
 });
 
+test("emphasis runs left literal by the punctuation flanking rule warn; literal runs do not", () => {
+  for (const [source, span] of [
+    ["**정확도(Accuracy)**를 본다", "**정확도(Accuracy)**"],
+    ["값을**(정확도)** 본다", "**(정확도)**"],
+    ["값을**(정확도)**를 본다", "**(정확도)**"],
+    ["*(주의)*를 본다", "*(주의)*"],
+    ["__(a)__를 본다", "__(a)__"],
+    ["**결과:**3건", "**결과:**"],
+    ["앞 줄\n**정확도(Accuracy)**를 본다", "**정확도(Accuracy)**"],
+    ["[**(a)**를](https://example.com) and **b**", "**(a)**"],
+  ]) {
+    const document = parse(`${source}\n`);
+    const canonical = serialize(document);
+    assert.deepEqual(unresolvedReferences(document), [{ syntax: "emphasis", source: span, path: [0], line: 1 }], source);
+    assert.equal(canonicalWriteError(document), undefined);
+    assert.deepEqual(unresolvedReferences(parse(canonical)), [], canonical);
+  }
+  for (const source of [
+    // Escapes, real emphasis, the documented character-reference repair and the writer's output.
+    String.raw`\*\*(a)\*\*를`, String.raw`\**(a)**를`, String.raw`\**(a)\**를`,
+    "**(a)** 를", "**정확도**를", "**정확도(Accuracy)**&#xB97C; 본다", "값&#xC744;**(정확도)** 본다",
+    // Code, math, URLs, list markers, thematic breaks and ordinary literal stars.
+    "`**(a)**를` and $**(a)**를$", "```\n**(a)**를\n```", "[x](https://example.com/**(a)**b)",
+    "https://example.com/**(a)**b", "* item\n* **(a)** item", "***", "2 * 3 and a*b", "**(note",
+    "foo__bar__baz and __init__", "5*(3+4)*2", "a***(b)",
+  ]) assert.deepEqual(unresolvedReferences(parse(`${source}\n`)), [], source);
+});
+
 test("URL exclusions preserve surrounding diagnostics across link-label lookahead", () => {
   const document = parse("[before][missing] https://example.org/[a][b] [between][missing] " +
     "https://example.net/[^hidden] [after][missing]");
