@@ -576,8 +576,9 @@ keep their existing precedence.
   definitions the parser consumed and endnote definitions only refused text references stay with
   that text in source order. When the kept blocks fail whole-document admission (bracket citation
   shorthand, an endnote definition nothing references), every non-blank line is pasted that way.
-  Nothing is dropped. A lifted directive owns its lines up to its closing fence, so a definition
-  after it stays with the refused text. A line that starts with `:::` saves as literal text
+  Nothing is dropped. A lifted directive owns only its lines from its opening to its closing
+  fence, so a definition before, between or after directives stays with the refused text, in
+  source order. A line that starts with `:::` saves as literal text
   ([Core escapes it](document-support-v1.md#interfaces-and-errors)). The notice uses the paste notice channel
   ([1440 capture](assets/markdown-paste-1843/notice-1440-light.png); Korean: "지원하지 않는
   마크다운은 글자 그대로 붙여 넣었습니다.").
@@ -604,6 +605,9 @@ keep their existing precedence.
   - only the pasted content's own text is read, so text around the paste (the `RIGHT` after a
     caret) never joins a link; with Ctrl+V and Ctrl+Shift+V, also over a selection (which it
     replaces, as before) and for dropped text, a URL alone or inside a sentence becomes a link;
+  - adjacent text in one textblock is read together, so a URL that formatting splits
+    (`<strong>https://</strong>example.com/path`, `https://example.com/*path*`) links whole to
+    one target and keeps its formatting;
   - text that already has a link (an HTML `<a>`, a Markdown link, which keep their target and
     title), text with a code mark or in a code block, and source lines Core kept literal are not
     linked: linking literal source would change what it saves as;

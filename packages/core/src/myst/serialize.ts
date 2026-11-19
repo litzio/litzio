@@ -166,6 +166,9 @@ function render(value: MystNode): string {
  * The original fingerprint and the whole reparsed output still have to match. */
 function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: boolean): string {
   let prefix = "";
+  // Paragraphs written after a directive's name on its fence line (a Table caption): their
+  // text does not start an output line.
+  const fenceArguments = new Set<MystNode>();
   function visit(node: MystNode, index: number, parent?: MystNode, path: number[] = [], inLink = false): void {
     try { prepare(node, index, parent, path, inLink || node.type === "link"); }
     catch (error) {
@@ -184,6 +187,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     const mermaidFigure = figureKind === "mermaid";
     // Lifted roles can lack positions; diagnostics still identify their containing block.
     node.position ??= parent?.position;
+    if (isTableDirective(node)) { const caption = tableCaptionParagraph(node); if (caption) fenceArguments.add(caption); }
     if (node[FRONT_MATTER_FIELD] !== undefined) {
       if (parent !== tree || index !== 0 || node[FRONT_MATTER_FIELD] !== true) {
         throw new SemanticLossError(`Block ${index + 1}: front matter must be closed and remain at the start of the document`, {
@@ -212,7 +216,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     if (node.children?.some(child => child.type === "text" && /[$@]|(?:^|\n):::/.test(String(child.value)))) {
       // An output line starts at a paragraph's first text and after a hard break; a heading's
       // `#`, a cell's `|`, a mark's `**` or a role's name come first everywhere else.
-      const paragraph = node.type === "paragraph";
+      const paragraph = node.type === "paragraph" && !fenceArguments.has(node);
       // The writer turns a line ending before raw output into a space, so a hard break before
       // a fence is written raw together with the escaped colon.
       const fenceAfterBreak = (index: number, siblings: MystNode[]) => paragraph && siblings[index]?.type === "text" &&

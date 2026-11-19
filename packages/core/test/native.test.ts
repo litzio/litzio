@@ -284,9 +284,15 @@ test("Markdown that native admission refuses is kept as literal source lines in 
     [["paragraph", "Rich"], ["paragraph", "- [ ] [task][url]"], ["paragraph", "[url]: https://example.com/path"]]);
   assert.deepEqual(lines("**Rich**\n\n- [ ] A[^a]\n\n[^a]: Definition\n\nEnd text"),
     [["paragraph", "Rich"], ["paragraph", "- [ ] A[^a]"], ["paragraph", "[^a]: Definition"], ["paragraph", "End text"]]);
-  // A kept directive owns its lines up to its closing fence, not the definition after it.
+  // A kept directive owns its lines from its opening to its closing fence; definitions before,
+  // between and after directives stay in source order.
   assert.deepEqual(lines("**Rich**\n\n:::{note}\nKept\n:::\n\n[url]: https://example.com/path\n\n- [ ] [task][url]"),
     [["paragraph", "Rich"], ["admonition", "Kept"], ["paragraph", "[url]: https://example.com/path"], ["paragraph", "- [ ] [task][url]"]]);
+  assert.deepEqual(lines("**Rich**\n\n[url]: https://example.com/path\n\n:::{note}\nKept\n:::\n\n- [ ] [task][url]"),
+    [["paragraph", "Rich"], ["paragraph", "[url]: https://example.com/path"], ["admonition", "Kept"], ["paragraph", "- [ ] [task][url]"]]);
+  assert.deepEqual(lines("[a]: https://a.example\n\n:::{note}\nOne\n:::\n\n[b]: https://b.example\n\n:::{tip}\nTwo\n:::\n\n[c]: https://c.example\n\n- [ ] [x][a] [y][b] [z][c]"),
+    [["paragraph", "[a]: https://a.example"], ["admonition", "One"], ["paragraph", "[b]: https://b.example"], ["admonition", "Two"],
+      ["paragraph", "[c]: https://c.example"], ["paragraph", "- [ ] [x][a] [y][b] [z][c]"]]);
   // Without refused text, a kept link already carries its definition's URL; with nothing kept,
   // the definition is literal text.
   assert.deepEqual(core.readMarkdownFragment("**a** [x][r]\n\n[r]: https://example.com").literal, 0);
@@ -311,12 +317,17 @@ test("canonical write escapes a colon fence only where it starts an output line"
   // Where a heading's #, a cell's |, a mark, a role or a link comes first, the bytes are the
   // ones written before the escape existed.
   for (const body of ["# ::: heading\n", ":::{table}\n\n| A   |\n| --- |\n| ::: |\n:::\n", ":::{note}\n**::: body**\n:::\n",
-    "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n"]) {
+    "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n",
+    // A Table caption is written after the directive name on the fence line, not at a line start.
+    ":::{table} ::: Caption\n\n| A |\n| - |\n| x |\n:::\n", ":::{table} :::\n:name: tbl\n\n| A |\n| - |\n| x |\n:::\n",
+    ":::{figure} ./a.png\n:alt: A\n\ncap :::\n:::\n"]) {
     assert.equal(serialize(parse(native(body))), native(body), body);
   }
   // Text that starts an output line (a paragraph's start, after a soft or hard break) is written
   // escaped and reopens as the same text.
-  for (const body of ["\\:::x\n", "a\n\\:::b\n", "*   a\n    \\:::b\n", "> \\:::x\n", "**a\n\\:::b**\n", "A\\\n\\:::colon\n"]) {
+  for (const body of ["\\:::x\n", "a\n\\:::b\n", "*   a\n    \\:::b\n", "> \\:::x\n", "**a\n\\:::b**\n", "A\\\n\\:::colon\n",
+    // A Figure caption is a body line of its directive.
+    ":::{figure} ./a.png\n:alt: A\n\n\\::: cap\n:::\n"]) {
     assert.equal(serialize(parse(native(body))), native(body), body);
   }
   // A hard break added by a Core operation keeps its line and its break.

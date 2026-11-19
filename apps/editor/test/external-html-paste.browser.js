@@ -384,6 +384,13 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     // A URL inside pasted text links only itself: "RIGHT" right after it stays document text.
     ['sentence', () => caretIn('LeftRIGHT', 'Left'.length), () => textPaste(`see ${url}`), 'Left', [['Leftsee ', ''], [url, `link ${url}`], ['RIGHT', '']]],
     ['markdown sentence', () => select('Omega.'), () => textPaste(`**b** see ${url}`), 'see', [['b', 'bold'], [' see ', ''], [url, `link ${url}`], ['Omega.', '']]],
+    // Formatting inside a URL keeps the formatting and the whole URL's one target.
+    ['html split bold', () => select('Omega.'), () => syntheticPaste('<p><strong>https://</strong>example.com/path</p>'), 'example.com',
+      [['https://', `link ${url},bold`], ['example.com/path', `link ${url}`], ['Omega.', '']]],
+    ['html split italic', () => select('Omega.'), () => syntheticPaste('<p>https://example.com/<em>path</em></p>'), 'example.com',
+      [['https://example.com/', `link ${url}`], ['path', `link ${url},italic`], ['Omega.', '']]],
+    ['markdown split italic', () => select('Omega.'), () => textPaste('https://example.com/*path*'), 'example.com',
+      [['https://example.com/', `link ${url}`], ['path', `link ${url},italic`], ['Omega.', '']]],
     ['drop', () => select('Omega.'), async () => {
       const box = await editor.locator('p').filter({hasText:'Omega.'}).boundingBox();
       await editor.evaluate((el, args) => {

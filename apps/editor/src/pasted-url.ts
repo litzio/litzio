@@ -17,27 +17,48 @@ export function urlsIn(text: string, autoLink: AutoLink): FoundUrl[] {
 }
 
 /**
- * Link the URLs in pasted content's own text nodes: never the document around the paste, never
- * text that already has a link or code mark, and never text in a code block. Every paste path
- * finds URLs with `urlsIn`, so plain text, Markdown and external HTML link alike.
+ * Link the URLs in pasted content's own text: never the document around the paste, never text
+ * that already has a link or code mark, and never text in a code block. Within one textblock
+ * the adjacent text nodes are read together, so a URL that formatting splits
+ * (`<strong>https://</strong>example.com`) links whole, keeping its formatting. Every paste
+ * path finds URLs with `urlsIn`, so plain text, Markdown and external HTML link alike.
  */
 export function linkUrlsInNodes(nodes: readonly PMNode[], link: MarkType, autoLink: AutoLink, linkable = true): readonly PMNode[] {
-  return Fragment.fromArray(nodes.flatMap(node => {
-    if (node.isText) return linkable ? linkedText(node, link, autoLink) : [node];
-    if (node.isLeaf || node.type.spec.code) return [node];
-    return [node.copy(Fragment.fromArray(linkUrlsInNodes(node.content.content, link, autoLink, node.type.allowsMarkType(link))))];
-  })).content;
+  const result: PMNode[] = [];
+  let run: PMNode[] = [];
+  const flush = () => { result.push(...linkedRun(run, link, autoLink)); run = []; };
+  for (const node of nodes) {
+    if (node.isText && linkable && !node.marks.some(mark => mark.type === link || mark.type.spec.code)) { run.push(node); continue; }
+    flush();
+    result.push(node.isText || node.isLeaf || node.type.spec.code ? node
+      : node.copy(Fragment.fromArray(linkUrlsInNodes(node.content.content, link, autoLink, node.type.allowsMarkType(link)))));
+  }
+  flush();
+  return Fragment.fromArray(result).content;
 }
 
-function linkedText(node: PMNode, link: MarkType, autoLink: AutoLink): PMNode[] {
-  if (node.marks.some(mark => mark.type === link || mark.type.spec.code)) return [node];
-  const text = node.text!, parts: PMNode[] = [];
-  let at = 0;
-  for (const url of urlsIn(text, autoLink)) {
-    if (url.start > at) parts.push(node.cut(at, url.start));
-    parts.push(node.cut(url.start, url.end).mark(link.create({ href: url.href }).addToSet(node.marks)));
-    at = url.end;
+/** Adjacent linkable text nodes, cut where a URL found in their joined text starts or ends. */
+function linkedRun(run: readonly PMNode[], link: MarkType, autoLink: AutoLink): PMNode[] {
+  if (!run.length) return [];
+  const urls = urlsIn(run.map(node => node.text!).join(""), autoLink);
+  if (!urls.length) return [...run];
+  const parts: PMNode[] = [];
+  let offset = 0;
+  for (const node of run) {
+    const end = offset + node.text!.length;
+    const cuts = new Set([offset, end]);
+    for (const url of urls) {
+      if (url.start > offset && url.start < end) cuts.add(url.start);
+      if (url.end > offset && url.end < end) cuts.add(url.end);
+    }
+    const points = [...cuts].sort((left, right) => left - right);
+    for (let index = 0; index < points.length - 1; index++) {
+      const from = points[index]!, to = points[index + 1]!;
+      const piece = node.cut(from - offset, to - offset);
+      const url = urls.find(found => found.start <= from && found.end >= to);
+      parts.push(url ? piece.mark(link.create({ href: url.href }).addToSet(piece.marks)) : piece);
+    }
+    offset = end;
   }
-  if (at < text.length) parts.push(at ? node.cut(at) : node);
   return parts;
 }

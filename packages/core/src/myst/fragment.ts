@@ -25,6 +25,7 @@ export type MarkdownFragment = {
 const NATIVE_PREFIX = "---\nlitzio: 1\n---\n\n";
 const PREFIX_LINES = 4;
 const FENCE = /^ {0,3}(?:`{3,}|~{3,})/;
+const FENCE_OPEN = /^ {0,3}(:{3,}|`{3,}|~{3,})/;
 
 type Range = { start: number; end: number; known: boolean };
 
@@ -109,7 +110,10 @@ function sourceRanges(body: MystNode[], lines: string[]): Range[] {
     while (first < next && !lines[first]!.trim()) first++;
     // No lines left: the previous lifted block's range was a guess that took them; share it.
     if (first >= next && previousUnknown) return { ...previousUnknown };
-    const opener = /^ {0,3}(:{3,}|`{3,}|~{3,})/.exec(lines[first] ?? "")?.[1];
+    // Lines before the opening fence (a consumed link definition) belong to no block.
+    const fenced = lines.findIndex((text, at) => at >= first && at < next && FENCE_OPEN.test(text));
+    if (fenced >= 0) first = fenced;
+    const opener = FENCE_OPEN.exec(lines[first] ?? "")?.[1];
     let close = next - 1;
     if (opener) {
       const closer = new RegExp(`^ {0,3}${opener[0] === ":" ? ":" : `\\${opener[0]}`}{${opener.length},}[ \\t]*$`);
