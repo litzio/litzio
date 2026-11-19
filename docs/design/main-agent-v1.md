@@ -125,7 +125,7 @@ Codex 조직 정책이 전체 접근을 명시적으로 거부하면 실행 전 
 [대화 구현](../../apps/editor/server/assistant-conversations.ts), [중립 타입](../../apps/editor/shared/assistant.ts)이 근거다.
 여기서는 다른 화면·문서가 의존하는 동작만 남긴다.
 
-대화 구현의 메모리 상태(conversations·submissions·pending·scopes·loaded와 질문 응답·검증·취소·파일 변경 Map)는 AssistantConversations가 소유한다. 상태를 바꾸는 공급자 이벤트 처리·전송·재개·질문·중단도 같은 소유자에 둔다. [공급자 항목 변환](../../apps/editor/server/assistant-provider-items.ts)은 상태 없는 값 해석, [표시 투영](../../apps/editor/server/assistant-conversation-display.ts)은 화면에 보낼 결과의 축약, [참조 검증](../../apps/editor/server/assistant-references.ts)은 첨부 소유권·열린 폴더·Host Roots 검사, [metadata index](../../apps/editor/server/assistant-conversation-index.ts)는 기존 conversations.json의 동기 읽기·저장·삭제를 소유한다. index는 live Map을 보관하지 않으며 첨부 metadata만 기존 소유자에게 조회한다. 저장 형식·I/O 순서·이벤트 순서와 공개 진입점은 그대로다.
+대화 구현의 메모리 상태(conversations·submissions·pending·scopes·loaded와 질문 응답·검증·취소·파일 변경 Map)는 AssistantConversations가 소유한다. 상태를 바꾸는 공급자 이벤트 처리·전송·재개·질문·중단도 같은 소유자에 둔다. [공급자 항목 변환](../../apps/editor/server/assistant-provider-items.ts)은 상태 없는 값 해석, [표시 투영](../../apps/editor/server/assistant-conversation-display.ts)은 화면에 보낼 결과의 축약, [참조 검증](../../apps/editor/server/assistant-references.ts)은 첨부 소유권·열린 폴더·Host Roots 검사, [metadata index](../../apps/editor/server/assistant-conversation-index.ts)는 기존 conversations.json의 동기 읽기·저장·항목 제자리 변경·삭제를 소유한다. index는 live Map을 보관하지 않으며 첨부 metadata만 기존 소유자에게 조회한다. 저장 형식은 기존 항목에 선택 필드 `archivedAt`만 더하고, 공개 진입점은 기존 대화 작업에 `rename`·`archive`·`unarchive` action을 더한다. 재개는 공급자 응답을 기다리는 동안 바뀐 제목·보관 값을 index에서 다시 읽어 반영한다.
 
 ### 연결과 설정
 
@@ -154,6 +154,9 @@ Host는 마지막 모델 목록·진단 결과를 공급자별로 daemon 메모�
 [공급자 사용 불가 표시](assets/assistant-panel-a11y-1787/after-unavailable-1440-dark-ko.png) · [접수 상태](assets/assistant-panel-a11y-1787/after-submission-1440-light-en.png)
 
 기록 버튼은 모든 공급자의 대화를 최근 순으로 한 목록에 표시한다. 행에는 제목과 시각·공급자 이름·폴더 이름을 표시한다. 공급자가 없는 기존 기록은 Codex로 표시한다. 목록 상단의 Input은 이미 받은 목록에서 제목과 폴더 이름을 대소문자 없이 부분 일치로 찾는다. 빈 기록은 ‘아직 대화가 없습니다.’로, 기록은 있으나 검색 결과가 비면 ‘일치하는 대화가 없습니다’로 안내한다.
+기록 행의 ⋯ 버튼과 우클릭 메뉴는 같은 항목으로 ‘이름 변경…’과 ‘보관’(보관 목록에서는 ‘되살리기’)을 제공한다. 이름 변경은 탐색기 파일 이름 변경과 같은 Dialog로 하며, Host가 앞뒤 공백을 지우고 빈 이름과 80자 초과를 거절한다. 보관은 아무것도 지우지 않으므로 확인 없이 기존 conversations.json 항목에 보관 시각(`archivedAt`)을 남기고, 되살리기는 그 값을 지운다. 이름 변경·보관·되살리기는 기록 순서와 마지막 활동 시각을 바꾸지 않는다. 대화 제목은 처음 만들 때 정해지고 그 뒤에는 이름 변경만 바꾸며, 여러 창이 같은 대화를 동시에 다룰 때 그 밖의 표시 순서는 보장하지 않는다. 응답 중인 대화는 보관할 수 없고 메뉴 항목은 이유와 함께 비활성이다. 이름 변경은 응답 중에도 된다.
+기본 목록은 보관한 대화를 숨긴다. 목록 머리의 ‘보관됨’ 전환을 켜면 보관한 대화만 보이며 검색도 그 안에서 한다. 보관한 대화가 없으면 ‘보관된 대화가 없습니다’로 안내한다. 보관한 대화도 열어 읽을 수 있고, 화면에서든 Host 전송 작업을 직접 호출해서든 메시지가 턴으로 접수되면 Host가 보관을 해제한다. 지금 열린 대화를 보관하면 보관 직후 그 대화의 선택과 마지막 대화 기억을 먼저 해제해 새 빈 대화로 넘어가며, 이어지는 기본 공급자 모델 목록 조회가 실패해도 보관한 대화로 보내지 않는다. 입력 중인 글과 첨부는 유지한다. 화면에서는 대화를 영구 삭제하지 않는다.
+CLI는 같은 Host 작업을 `assistant rename <id> --title <text> --host <origin>`, `assistant archive <id> --host <origin>`, `assistant unarchive <id> --host <origin>`으로 호출한다. 영구 삭제는 `assistant delete <id> --host <origin>`이며 대화의 첨부와 변경 되돌리기 기록도 함께 지운다.
 기록에서 행을 열면 해당 대화의 공급자·모델·추론 강도·권한과 그 공급자의 모델 목록을 표시한다. 재개 실패 시 목록과 검색어를 유지하고 기존 오류 Notice를 표시한다. 공급자 사용 불가 시 Notice에서 비서 설정을 열 수 있다.
 패널을 열 때 이 브라우저의 단일 연결 키에 기억한 마지막 대화를 복원한다. 이전 Host별 포인터를 합치지 않으며 대화 본문은 지우지 않는다. 자동 복원 실패 시 마지막 선택을 해제하고 빈 대화와 함께 오류 Notice에 복원 실패와 이유를 한 번 표시한다.
 새 대화를 시작하거나 기록에서 다른 대화를 열면 입력 중인 글과 첨부를 유지한다. 공급자 전환으로 지원되지 않는 첨부는 제외한다.

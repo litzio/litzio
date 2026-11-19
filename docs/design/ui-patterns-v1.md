@@ -212,7 +212,7 @@ ContextMenu 항목 실행 뒤 닫힐 때 focus가 메뉴 안이나 body에 남�
 
 좁은 창 비서의 Tab·Escape·이전 편집 focus 복귀와 넓은 창 비모달 패널은 [비서 계약](main-agent-v1.md#대화와-표시)을 따른다. 질문은 과정 밖의 기존 AssistantQuestion fieldset/radio·Input/Button을 사용하며 답변 뒤 같은 카드에 읽기 전용 기록을 남긴다. 끝난 차단 RPC는 입력을 닫고 콜백을 복원하지 않는다. 렌더 확인은 카드가 mount된 창에서만 보내고 숨김 패널·기록 목록에서는 보내지 않는다([질문 계약](main-agent-v1.md#질문과-사용량)).
 
-비서 기록은 PanelHeader의 기존 기록 버튼으로 열며 ‘대화 기록’ 제목 아래에 접근성 이름 ‘대화 기록 검색’을 가진 Input을 둔다. 기존 ghost Button 행의 제목과 보조 정보 역할을 사용하고, 재개 실패는 같은 패널의 오류 Notice에 표시한다. [비서 기록과 복원 계약](main-agent-v1.md#대화와-표시), [한국어 1440px 밝음](assets/assistant-history-1808/after-1440-light.png), [어두움](assets/assistant-history-1808/after-1440-dark.png), [검색 결과](assets/assistant-history-1808/search-1440-light.png).
+비서 기록은 PanelHeader의 기존 기록 버튼으로 열며 ‘대화 기록’ 제목 아래에 접근성 이름 ‘대화 기록 검색’을 가진 Input을 둔다. 제목 줄 오른쪽의 ‘보관됨’은 top-bar-toggle과 같은 pressed 면을 쓰는 독립 토글이다. 기존 ghost Button 행의 제목과 보조 정보 역할을 사용하고, 행 오른쪽 위의 ⋯ DropdownMenu와 행의 ContextMenu는 탐색기 폴더 행처럼 같은 action 목록(이름 변경·보관/되살리기, 비활성 이유는 Tooltip)을 쓴다. 이름 변경은 탐색기 파일 이름 변경의 Dialog·Input·취소/이름 변경 버튼 구성을 따른다. 보관·되살리기로 행이 목록에서 빠지면 focus는 다음 행, 없으면 이전 행, 그것도 없으면 검색 Input으로 옮긴다. 재개 실패는 같은 패널의 오류 Notice에 표시한다. [비서 기록과 복원 계약](main-agent-v1.md#대화와-표시), [한국어 1440px 밝음](assets/assistant-history-1810/list-1440-light.png), [어두움](assets/assistant-history-1810/list-1440-dark.png), [검색 결과](assets/assistant-history-1810/search-1440-light.png), [행 메뉴](assets/assistant-history-1810/row-menu-1440-light.png), [이름 변경](assets/assistant-history-1810/renaming-1440-light.png), [보관 목록 밝음](assets/assistant-history-1810/archived-1440-light.png) / [어두움](assets/assistant-history-1810/archived-1440-dark.png).
 
 ### 비서 패널 시각 확인 (#1686)
 

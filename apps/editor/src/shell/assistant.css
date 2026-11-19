@@ -22,8 +22,13 @@
 .assistant-notice > button { color: var(--id-color-text); }
 .assistant-history-search { margin-block: var(--space-2) var(--space-3); }
 .assistant-history > .assistant-notice { margin-bottom: var(--space-3); }
-.assistant-history > button { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3); gap: var(--space-1); border-radius: 0; }
-.assistant-history > button + button { border-top: var(--border-width) solid var(--id-color-border-subtle); }
+.assistant-history-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.assistant-history-header > h3 { margin: 0; }
+/* The row menu trigger sits in the row's top-right corner; the open button reserves its width. */
+.assistant-history-row { position: relative; }
+.assistant-history-open { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3) calc(var(--space-3) + var(--size-control-compact)) var(--space-3) var(--space-3); gap: var(--space-1); border-radius: 0; }
+.assistant-history-menu { position: absolute; top: var(--space-2); right: var(--space-1); }
+.assistant-history-row + .assistant-history-row { border-top: var(--border-width) solid var(--id-color-border-subtle); }
 .assistant-history strong { overflow-wrap: anywhere; }
 .assistant-history small { overflow-wrap: anywhere; }
 .assistant-composer { padding: var(--space-3); border-top: var(--border-width) solid var(--id-color-border-subtle); }

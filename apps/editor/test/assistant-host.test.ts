@@ -148,6 +148,94 @@ test("question metadata and answers use the same HTTP and explicit-Host CLI conv
   assert.equal(continued.submission.status,"accepted");assert.equal(continued.conversation.id,c.id);
 });
 
+test("history rename, archive and unarchive keep order over HTTP and explicit-Host CLI; sending unarchives", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-history-archive-"));
+  const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  const host = createAssistantHost(null, path.join(root, "assistant.json"), { agent });
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
+  await listenForFetch(server);
+  const origin = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const post = async (body: unknown) => {
+    const response = await fetch(`${origin}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json", Connection: "close" }, body: JSON.stringify(body) });
+    return { status: response.status, body: await response.json() as any };
+  };
+  const listed = async () => (await fetch(`${origin}/api/assistant/conversations`, { headers: { Connection: "close" } })).json() as Promise<any[]>;
+  const send = { folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const older = (await post({ action: "send", message: "Draft the report", ...send })).body;
+  await agent.client.request("fixture/finish", { threadId: older.id });
+  const running = (await post({ action: "send", message: "Outline", ...send })).body;
+  const before = await listed();
+  assert.deepEqual(before.map(entry => entry.id), [running.id, older.id]);
+
+  const busy = await post({ action: "archive", id: running.id });
+  assert.equal(busy.status, 400); assert.match(busy.body.error, /Stop the Assistant response before archiving/);
+  assert.equal((await post({ action: "rename", id: running.id, title: "  Weekly outline  " })).body.title, "Weekly outline", "renaming is allowed while responding");
+  assert.equal((await fetch(`${origin}/api/assistant/conversations?id=${running.id}`).then(response => response.json()) as any).title, "Weekly outline");
+  for (const title of ["   ", "x".repeat(81), 3]) assert.equal((await post({ action: "rename", id: older.id, title })).status, 400);
+  assert.equal((await post({ action: "rename", id: older.id, title: "x".repeat(80) })).status, 200);
+  assert.match((await post({ action: "archive", id: "missing" })).body.error, /not found/);
+
+  const output: string[] = [];
+  const stdout = t.mock.method(process.stdout, "write", ((value: string) => { output.push(value); return true; }) as typeof process.stdout.write);
+  const stderr = t.mock.method(process.stderr, "write", (() => true) as typeof process.stderr.write);
+  try {
+    assert.equal(await runCliAsync(["assistant", "rename", older.id, "--title", "Report", "--host", origin]), 0);
+    assert.equal(JSON.parse(output.pop()!).title, "Report");
+    assert.notEqual(await runCliAsync(["assistant", "rename", older.id, "--title", " ", "--host", origin]), 0);
+    assert.equal(await runCliAsync(["assistant", "archive", older.id, "--host", origin]), 0);
+    assert.equal(typeof JSON.parse(output.pop()!).archivedAt, "number");
+  } finally { stdout.mock.restore(); stderr.mock.restore(); }
+  const archived = await listed();
+  assert.deepEqual(archived.map(entry => [entry.id, entry.updatedAt]), before.map(entry => [entry.id, entry.updatedAt]), "rename and archive keep order and updatedAt");
+  assert.equal(archived[1].title, "Report"); assert.equal(typeof archived[1].archivedAt, "number"); assert.equal(archived[0].archivedAt, undefined);
+
+  assert.equal((await post({ action: "unarchive", id: older.id })).body.archivedAt, undefined);
+  assert.equal((await post({ action: "archive", id: older.id })).status, 200);
+  await agent.client.request("fixture/finish", { threadId: running.id });
+  await post({ action: "resume", id: older.id });
+  const continued = await post({ action: "send", id: older.id, submissionId: "archived-continue", message: "Continue", ...send });
+  assert.equal(continued.body.submission.status, "accepted");
+  const after = (await listed()).find(entry => entry.id === older.id);
+  assert.equal(after.archivedAt, undefined, "sending to an archived conversation unarchives it");
+  assert.equal(after.title, "Report");
+
+  // A slow reopen that started before a rename must not restore the old title.
+  const request = agent.client.request.bind(agent.client);
+  let held = false, entered!: () => void, release!: () => void;
+  const entering = new Promise<void>(resolve => { entered = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
+  const holdTurns = t.mock.method(agent.client, "request", async (method: string, params: any) => {
+    if (method === "thread/turns/list" && !held) { held = true; entered(); await released; }
+    return request(method, params);
+  });
+  const slow = post({ action: "resume", id: running.id });
+  await entering;
+  assert.equal((await post({ action: "resume", id: running.id })).status, 200);
+  assert.equal((await post({ action: "rename", id: running.id, title: "Renamed while reopening" })).status, 200);
+  release();
+  assert.equal((await slow).status, 200);
+  assert.equal((await fetch(`${origin}/api/assistant/conversations?id=${running.id}`).then(response => response.json()) as any).title, "Renamed while reopening");
+  assert.equal((await post({ action: "send", id: running.id, submissionId: "after-overlapping-resume", message: "Next", ...send })).body.submission.status, "accepted");
+  assert.equal((await listed()).find(entry => entry.id === running.id).title, "Renamed while reopening", "the next send keeps the rename");
+  holdTurns.mock.restore();
+
+  // A send still waiting for the provider saves its own object later; only rename changes a stored title.
+  await agent.client.request("fixture/finish", { threadId: running.id });
+  let startHeld = false, startEntered!: () => void, startRelease!: () => void;
+  const startEntering = new Promise<void>(resolve => { startEntered = resolve; }), startReleased = new Promise<void>(resolve => { startRelease = resolve; });
+  t.mock.method(agent.client, "request", async (method: string, params: any) => {
+    if (method === "turn/start" && !startHeld) { startHeld = true; startEntered(); await startReleased; }
+    return request(method, params);
+  });
+  const waiting = post({ action: "send", id: running.id, message: "Later", ...send });
+  await startEntering;
+  assert.equal((await post({ action: "resume", id: running.id })).status, 200);
+  assert.equal((await post({ action: "rename", id: running.id, title: "Renamed during send" })).status, 200);
+  startRelease();
+  assert.equal((await waiting).status, 200);
+  assert.equal((await listed()).find(entry => entry.id === running.id).title, "Renamed during send", "a send admitted after a rename keeps the rename");
+});
+
 test("unavailable provider rejects new work with a reason; settings do not close admitted conversations", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-ai-lifetime-"));
   const log = path.join(root, "provider.jsonl");
