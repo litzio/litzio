@@ -92,6 +92,25 @@ export function moveBlock(document: MystDocument, fromIndex: number, toIndex: nu
 }
 
 /**
+ * Put the top-level blocks in `order` (each current index once): the result of the `moveBlock`s
+ * that place each position in turn, with the canonical block-boundary check made once on the
+ * reordered document. Document metadata stays first.
+ */
+export function reorderBlocks(document: MystDocument, order: readonly number[]): MystDocument {
+  const count = document.children.length;
+  if (!Array.isArray(order) || order.length !== count || new Set(order).size !== count ||
+      order.some(index => !Number.isInteger(index) || index < 0 || index >= count)) {
+    throw new DocumentDiagnosticError("invalid-operation", "reorderBlocks requires each top-level block index exactly once");
+  }
+  if (order.every((index, position) => index === position)) return document;
+  if (order[0] !== 0) assertBodyIndex(document, 0);
+  const next = cloneDocument(document);
+  next.children = order.map(index => next.children[index]);
+  assertCanonicalBlockBoundaries(next);
+  return next;
+}
+
+/**
  * Move the section a top-level heading opens, with its label targets and deeper sections, to `to`:
  * the start of another section or the end of the body. Heading levels are kept. Endnote
  * definitions are in no section and stay with the endnotes.

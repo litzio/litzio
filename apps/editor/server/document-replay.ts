@@ -32,6 +32,7 @@ import {
   splitParagraph,
   mergeParagraphWithPrevious,
   moveBlock,
+  reorderBlocks,
   updateHeadingLevel,
   updateHeadingInlineContent,
   updateEquationLatex,
@@ -525,10 +526,11 @@ export function saveEdits(
       assertPath(item.path, "order");
       if (item.path.length !== 1 || !Number.isInteger(item.part) || !expected.delete(locatorKey(item))) throw new Error("invalid block order");
     }
-    for (const [to, item] of order.entries()) {
-      const from = locators.findIndex(locator => locatorKey(locator) === locatorKey(item));
-      if (from !== to) move(from, to);
-    }
+    // One Core reorder: its block-boundary check runs once on the final order, not per block.
+    const positions = new Map(locators.map((locator, index) => [locatorKey(locator), index]));
+    const permutation = order.map(item => positions.get(locatorKey(item))!);
+    document = reorderBlocks(document, permutation);
+    locators.splice(0, locators.length, ...permutation.map(index => locators[index]));
   }
   if (edits.title !== undefined) document = updateDocumentTitle(document, edits.title);
   if (edits.headingNumbering !== undefined) document = updateHeadingNumbering(document, edits.headingNumbering);
