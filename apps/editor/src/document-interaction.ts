@@ -12,7 +12,7 @@ import { ASSET_FORMATS } from "../shared/asset-policy.ts";
 import { addTableRowBelow, changeHeadingLevel, TABLE_DELETE_META } from "./block-commands.ts";
 import { normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
 import { markdownPaste } from "./markdown-paste.ts";
-import { pastedUrl, type AutoLink } from "./pasted-url.ts";
+import { linkUrlsInNodes, type AutoLink } from "./pasted-url.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
@@ -473,6 +473,8 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
       // Only a paste reads clipboard text as Markdown; dropped text stays plain.
       let textPaste = false;
       let markdownNotice: UiMessage | undefined;
+      // Set by the text parse of a paste or drop; transformPasted of the same event consumes it.
+      let linkPastedText = false;
       const fail = (message: UiMessage) => { reject(message); return true; };
       const copyWithFootnotes = (view: EditorView, event: ClipboardEvent, cut: boolean): boolean => {
         const slice = view.state.selection.content();
@@ -657,7 +659,9 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           textPaste = false;
           pastedFootnotes = [];
           external = !isInternalClipboard(html);
-          pasted = external ? normalizeExternalHTML(html, autoLink) : { html, error: internalPasteError(html, schema) };
+          // External HTML text links its URLs like pasted text; Litzio's own clipboard is not changed.
+          linkPastedText = external;
+          pasted = external ? normalizeExternalHTML(html) : { html, error: internalPasteError(html, schema) };
           if (!external) {
             try {
               const value = new DOMParser().parseFromString(html, "text/html").querySelector(`[${FOOTNOTES_ATTR}]`)?.getAttribute(FOOTNOTES_ATTR);
@@ -671,21 +675,16 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           }
           return pasted.html;
         },
-        // Clipboard text that is one URL becomes a link, also with Ctrl+Shift+V; clipboard text with
-        // Markdown formatting is read by Core as when opening a document. Code, inline code and
-        // Ctrl+Shift+V (plain) otherwise keep the engine's literal text paste.
+        // Clipboard text with Markdown formatting is read by Core as when opening a document.
+        // Code, inline code, Ctrl+Shift+V (plain) and dropped text keep the engine's text paste.
         clipboardTextParser: (text, $context, plain) => {
           const paste = textPaste;
           textPaste = false;
           pastedFootnotes = [];
           const literalPlace = $context.parent.type.spec.code || $context.marks().some(mark => mark.type.spec.code);
-          const href = paste && !literalPlace ? pastedUrl(text, autoLink) : undefined;
-          if (href) {
-            const marks = [...$context.marks().filter(mark => mark.type !== schema.marks.link), schema.marks.link.create({ href })];
-            // An open paragraph, not a lone text node: a plain paste would replace a lone node's marks.
-            return new Slice(Fragment.from(schema.nodes.paragraph.create(null, schema.text(text.trim(), marks))), 1, 1);
-          }
-          const markdown = paste && !plain && !literalPlace ? markdownPaste(schema, text) : undefined;
+          const markdown = paste && !plain && !literalPlace ? markdownPaste(schema, text, autoLink) : undefined;
+          // The engine's own text slice links its URLs in transformPasted; Markdown linked them already.
+          linkPastedText = !markdown;
           if (!markdown) return null as unknown as Slice;
           // The engine reopens a parsed text slice as it does parsed HTML; close its edges alike.
           external = true;
@@ -693,7 +692,13 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           if (markdown.literal) markdownNotice = { key: "Unsupported Markdown was pasted as plain text." };
           return markdown.slice;
         },
-        transformPasted: slice => freshSlice(external ? closeExternalSlice(slice) : slice),
+        // Content parsed from clipboard or dropped text and external HTML links its URLs here, with
+        // one function; Litzio's own clipboard and block moves are pasted as they are.
+        transformPasted: slice => {
+          const linked = linkPastedText ? new Slice(Fragment.fromArray(linkUrlsInNodes(slice.content.content, schema.marks.link!, autoLink)), slice.openStart, slice.openEnd) : slice;
+          linkPastedText = false;
+          return freshSlice(external ? closeExternalSlice(linked) : linked);
+        },
         handleDrop: (_view, _event, _slice, moved) => {
           textPaste = false;
           pastedFootnotes = [];

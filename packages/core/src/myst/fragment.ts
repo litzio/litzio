@@ -18,6 +18,8 @@ export type MarkdownFragment = {
   formatted: boolean;
   /** Source lines kept as literal paragraphs because native admission refuses their blocks. */
   literal: number;
+  /** Indexes of `blocks` that are such literal source lines; a caller adds no meaning to them. */
+  literalBlocks: number[];
 };
 
 const NATIVE_PREFIX = "---\nlitzio: 1\n---\n\n";
@@ -51,26 +53,31 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
   ranges.forEach((range, index) => {
     for (let line = range.start; line <= range.end; line++) if (owner[line] !== "kept") owner[line] = kept[index] ? "kept" : "refused";
   });
-  const items: { line: number; node: MystNode }[] = [];
+  const items: { line: number; node: MystNode; literal: boolean }[] = [];
   let formatted = false, literal = 0;
   body.forEach((node, index) => {
     if (!kept[index] || node.type === "footnoteDefinition") return;
     if (formatting(node, ranges[index]!, lines)) formatted = true;
-    items.push({ line: ranges[index]!.start, node });
+    items.push({ line: ranges[index]!.start, node, literal: false });
   });
+  // Lines no block owns are link definitions the parse consumed. They stay with refused text,
+  // and stay when nothing else is kept, since then no kept link carries their URL.
+  const keepUnowned = refused || !items.length;
   lines.forEach((text, line) => {
-    if (!text.trim() || owner[line] === "kept" || owner[line] === undefined && !refused) return;
+    if (!text.trim() || owner[line] === "kept" || owner[line] === undefined && !keepUnowned) return;
     literal += 1;
-    items.push({ line, node: literalParagraph(text) });
+    items.push({ line, node: literalParagraph(text), literal: true });
   });
   items.sort((left, right) => left.line - right.line);
   const definitions = body.filter((node, index) => kept[index] && node.type === "footnoteDefinition");
   document.children = [frontMatter!, ...items.map(item => item.node), ...definitions];
+  let literalBlocks = items.flatMap((item, index) => item.literal ? [index] : []);
   try {
     admitNativeDocument(document);
   } catch {
     document.children = [frontMatter!, ...lines.filter(line => line.trim()).map(literalParagraph)];
     literal = document.children.length - 1;
+    literalBlocks = document.children.slice(1).map((_node, index) => index);
   }
   const blocks = getEditableDocument(document).blocks;
   return {
@@ -78,6 +85,7 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
     footnotes: blocks.flatMap(block => block.block === "footnote" ? [{ label: block.label, content: block.content }] : []),
     formatted,
     literal,
+    literalBlocks,
   };
 }
 

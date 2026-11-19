@@ -598,14 +598,18 @@ keep their existing precedence.
   so one Undo removes the paste and keeps typing done just before it.
 - URLs: the engine's paste rules are all off; they re-read document text after a paste, so they
   rewrote links that already had a target, linked text in inline code and pulled text after the
-  caret into a link. The paste path links URLs explicitly instead, found as the Link extension
-  finds them (linkify, its `shouldAutoLink`) and only with targets external HTML keeps:
-  - clipboard text that is one URL without spaces becomes a link with Ctrl+V and Ctrl+Shift+V,
-    outside code blocks and inline code; over a selection it replaces the selection, as before;
-  - in external HTML a URL written as text (outside `<a>`, `<code>` and `<pre>`) becomes a link,
-    and an `<a>` keeps its own target and title;
-  - Markdown links keep the target and title Core read; other text, including a URL inside
-    longer text and source Core kept literal, is not linked. Dropped text is not linked.
+  caret into a link. The paste path links URLs explicitly instead, with one function for pasted
+  and dropped text, Markdown and external HTML (`pasted-url.ts`). URLs are found as the Link
+  extension finds them (linkify, its `shouldAutoLink`) and only with targets external HTML keeps:
+  - only the pasted content's own text is read, so text around the paste (the `RIGHT` after a
+    caret) never joins a link; with Ctrl+V and Ctrl+Shift+V, also over a selection (which it
+    replaces, as before) and for dropped text, a URL alone or inside a sentence becomes a link;
+  - text that already has a link (an HTML `<a>`, a Markdown link, which keep their target and
+    title), text with a code mark or in a code block, and source lines Core kept literal are not
+    linked: linking literal source would change what it saves as;
+  - Litzio's own clipboard and block moves are pasted as they are.
+  A line that is only a link definition (`[url]: https://…`) has nothing kept to carry its URL,
+  so Core keeps it as literal text with the notice.
 - Limits: a leading YAML block in the pasted text is not frontmatter here and reads as a divider
   and text; Chromium's context-menu "Paste as plain text" cannot be told from Ctrl+V and is read
   as Markdown. A lifted directive whose closing fence is not found shares the lines up to the

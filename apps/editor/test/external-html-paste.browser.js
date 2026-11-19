@@ -381,6 +381,17 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
       [[url, 'link https://example.org/target Keep'], ['Omega.', '']]],
     ['inline code', () => caretIn('Inline mono text.', 'Inline m'.length), () => textPaste(url), 'Inline', [['Inline ', ''], [`m${url}ono`, 'code'], [' text.', '']]],
     ['literal line', () => caretIn('LeftRIGHT', 'Left'.length), () => textPaste(`[url]: ${url}`), 'Left', [[`Left[url]: ${url}RIGHT`, '']]],
+    // A URL inside pasted text links only itself: "RIGHT" right after it stays document text.
+    ['sentence', () => caretIn('LeftRIGHT', 'Left'.length), () => textPaste(`see ${url}`), 'Left', [['Leftsee ', ''], [url, `link ${url}`], ['RIGHT', '']]],
+    ['markdown sentence', () => select('Omega.'), () => textPaste(`**b** see ${url}`), 'see', [['b', 'bold'], [' see ', ''], [url, `link ${url}`], ['Omega.', '']]],
+    ['drop', () => select('Omega.'), async () => {
+      const box = await editor.locator('p').filter({hasText:'Omega.'}).boundingBox();
+      await editor.evaluate((el, args) => {
+        const data = new DataTransfer();
+        data.setData('text/plain', `see ${args.url}`);
+        el.dispatchEvent(new DragEvent('drop', {dataTransfer:data, clientX:args.x, clientY:args.y, bubbles:true, cancelable:true}));
+      }, {url, x:box.x + 1, y:box.y + box.height / 2});
+    }, 'see', [['see ', ''], [url, `link ${url}`], ['Omega.', '']]],
   ]) {
     await place();
     const before = await state();

@@ -287,8 +287,13 @@ test("Markdown that native admission refuses is kept as literal source lines in 
   // A kept directive owns its lines up to its closing fence, not the definition after it.
   assert.deepEqual(lines("**Rich**\n\n:::{note}\nKept\n:::\n\n[url]: https://example.com/path\n\n- [ ] [task][url]"),
     [["paragraph", "Rich"], ["admonition", "Kept"], ["paragraph", "[url]: https://example.com/path"], ["paragraph", "- [ ] [task][url]"]]);
-  // Without refused text, a kept link already carries its definition's URL.
+  // Without refused text, a kept link already carries its definition's URL; with nothing kept,
+  // the definition is literal text.
   assert.deepEqual(core.readMarkdownFragment("**a** [x][r]\n\n[r]: https://example.com").literal, 0);
+  const definition = core.readMarkdownFragment("[url]: https://example.com/path");
+  assert.deepEqual([definition.blocks.map(block => "text" in block ? block.text : ""), definition.literalBlocks], [["[url]: https://example.com/path"], [0]]);
+  // Callers can tell literal source lines from kept blocks.
+  assert.deepEqual(mixed.literalBlocks, [1, 2, 3]);
   // Literal colon fences are writable text.
   const colon = native("\\:::{note}\n");
   assert.equal(serialize(parse(colon)), colon);

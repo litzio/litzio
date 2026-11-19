@@ -1,3 +1,4 @@
+import { Fragment, type MarkType, type Node as PMNode } from "@tiptap/pm/model";
 import { find } from "linkifyjs";
 
 /** The Link extension's own judgement of a found URL (`shouldAutoLink`), so pasted URLs link as typed ones would. */
@@ -15,36 +16,28 @@ export function urlsIn(text: string, autoLink: AutoLink): FoundUrl[] {
     .map(item => ({ start: item.start, end: item.end, href: item.href }));
 }
 
-/** The link target when the whole pasted text is one URL without spaces. */
-export function pastedUrl(text: string, autoLink: AutoLink): string | undefined {
-  const value = text.trim();
-  if (!value || /\s/.test(value)) return undefined;
-  const [url] = urlsIn(value, autoLink);
-  return url && url.start === 0 && url.end === value.length ? url.href : undefined;
+/**
+ * Link the URLs in pasted content's own text nodes: never the document around the paste, never
+ * text that already has a link or code mark, and never text in a code block. Every paste path
+ * finds URLs with `urlsIn`, so plain text, Markdown and external HTML link alike.
+ */
+export function linkUrlsInNodes(nodes: readonly PMNode[], link: MarkType, autoLink: AutoLink, linkable = true): readonly PMNode[] {
+  return Fragment.fromArray(nodes.flatMap(node => {
+    if (node.isText) return linkable ? linkedText(node, link, autoLink) : [node];
+    if (node.isLeaf || node.type.spec.code) return [node];
+    return [node.copy(Fragment.fromArray(linkUrlsInNodes(node.content.content, link, autoLink, node.type.allowsMarkType(link))))];
+  })).content;
 }
 
-/** Link the URLs in an HTML body's text, outside existing links and code; existing links stay as written. */
-export function linkUrlsInText(body: HTMLElement, autoLink: AutoLink): void {
-  const walker = body.ownerDocument.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-  const texts: Text[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (!node.parentElement?.closest("a,code,pre")) texts.push(node as Text);
+function linkedText(node: PMNode, link: MarkType, autoLink: AutoLink): PMNode[] {
+  if (node.marks.some(mark => mark.type === link || mark.type.spec.code)) return [node];
+  const text = node.text!, parts: PMNode[] = [];
+  let at = 0;
+  for (const url of urlsIn(text, autoLink)) {
+    if (url.start > at) parts.push(node.cut(at, url.start));
+    parts.push(node.cut(url.start, url.end).mark(link.create({ href: url.href }).addToSet(node.marks)));
+    at = url.end;
   }
-  for (const text of texts) {
-    const value = text.data;
-    const urls = urlsIn(value, autoLink);
-    if (!urls.length) continue;
-    const parts: Node[] = [];
-    let at = 0;
-    for (const url of urls) {
-      if (url.start > at) parts.push(body.ownerDocument.createTextNode(value.slice(at, url.start)));
-      const link = body.ownerDocument.createElement("a");
-      link.setAttribute("href", url.href);
-      link.textContent = value.slice(url.start, url.end);
-      parts.push(link);
-      at = url.end;
-    }
-    if (at < value.length) parts.push(body.ownerDocument.createTextNode(value.slice(at)));
-    text.replaceWith(...parts);
-  }
+  if (at < text.length) parts.push(at ? node.cut(at) : node);
+  return parts;
 }
