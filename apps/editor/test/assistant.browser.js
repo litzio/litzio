@@ -481,6 +481,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(draftChips).toHaveCount(1);
   await draftChips.getByRole('button').click();
   await expect(draftChips).toHaveCount(0);
+  // #1811: the composer picker lists the opened folders only and attaches the explorer's chip.
+  await panel.getByRole('button', { name: 'Add file', exact: true }).click();
+  const filePicker = page.getByRole('dialog', { name: 'Add file', exact: true });
+  await expect(filePicker.locator('.folder-picker-place')).toHaveCount(1);
+  await filePicker.getByRole('option', { name: 'document.md', exact: true }).click();
+  await filePicker.getByTestId('folder-open').click();
+  await expect(filePicker).toHaveCount(0);
+  await expect(draftChips).toHaveText(['document.md']);
+  await expect(message).toBeFocused();
+  await draftChips.getByRole('button').click();
+  await expect(draftChips).toHaveCount(0);
   await referenceRow.click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Send message', exact: true })).toBeEnabled();
@@ -663,7 +674,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent[0].skills).toEqual([]);
   expect(sent[0].message).toBe('What changed in the current document?');
   expect(sent[0].document).toEqual({ path: assistantFixture.document });
-  await expect(panel.getByRole('status').filter({ hasText: 'Using saved version' })).toBeVisible();
+  // #1811: the file name stays visible beside the saved-version state; its reason is a focus tooltip.
+  await expect(panel.locator('.assistant-context-file > span').first()).toHaveText('document.md');
+  const savedVersion = panel.locator('.assistant-context').getByRole('status').filter({ hasText: 'Saved version' });
+  await savedVersion.focus();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Unsaved changes are not included.');
   await expect(panel).not.toContainText('paragraph edit cannot round-trip');
   // Undo the trailing-break input before later Save checks; native End/Backspace differs by browser.
   await editor.focus(); await page.keyboard.press('ControlOrMeta+z');
@@ -731,7 +746,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await skillOptions.getByRole('option').click();
   await expect(draftChips).toHaveCount(1);
   await message.press('End'); await page.keyboard.type('Focus on the unsaved paragraph.', { delay: 30 });
-  await expect(panel.locator('.assistant-footer button')).toHaveCount(1);
+  await expect(panel.locator('.assistant-footer > button')).toHaveCount(1);
   await expect(panel.getByRole('button', { name: 'Stop response', exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Steer conversation' }).click();
   await expect(message).toHaveValue('');
@@ -940,7 +955,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   selected.turns[0].status = 'inProgress';
   await expect(panel.getByRole('button', { name: 'Stop response' })).toBeEnabled();
 
-  const actionButton = panel.locator('.assistant-footer button');
+  const actionButton = panel.locator('.assistant-footer > button');
   const buttonNode = await actionButton.elementHandle();
   await message.fill('Draft direction');
   await expect(actionButton).toHaveAccessibleName('Steer conversation');
@@ -1032,6 +1047,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.locator('.assistant-user').first().locator('.assistant-reference')).toHaveText(['document.md', 'Image 1', 'Image 2', 'Image 3']);
   // #1270: the history surface renders the API's original utterance and chips only.
   await expect(panel.locator('.assistant-user').first()).toContainText('What changed in the current document');
+  // #1811: a locked choice is a named keyboard stop whose tooltip gives the reason.
+  await message.focus(); await page.keyboard.press('Tab');
+  await expect(panel.locator('span[tabindex="0"]').and(panel.getByLabel('AI provider settings', { exact: true }))).toBeFocused();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('AI provider is fixed after a conversation starts.');
+  // #1811: reusing a sent message fills an empty composer, appends on a new line otherwise, and never re-attaches files.
+  const sentMessage = panel.locator('.assistant-user-message').first();
+  const sentText = await sentMessage.locator('.assistant-user > span').first().textContent();
+  const reuse = sentMessage.getByRole('button', { name: 'Reuse message', exact: true });
+  await message.fill('');
+  await sentMessage.hover(); await reuse.click();
+  await expect(message).toHaveValue(sentText);
+  await expect(message).toBeFocused();
+  await message.fill('Draft');
+  await sentMessage.hover(); await reuse.click();
+  await expect(message).toHaveValue(`Draft\n${sentText}`);
+  await expect(draftChips).toHaveCount(0);
+  await message.fill('');
   await expect(panel).not.toContainText('# Litzio plugin authoring skill');
   await expect(panel).not.toContainText('Litzio read-only context (JSON):');
   const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$, \\(x^2\\)를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n\\[\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n\\]\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
@@ -1051,6 +1083,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(answer.locator('.math.block .katex-display')).toHaveCount(1);
   // Windows clipboard normalizes LF to CRLF; compare logical text after OS readback.
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await sentMessage.hover(); await sentMessage.getByRole('button', { name: 'Copy message', exact: true }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(sentText);
   await panel.getByRole('button', { name: 'Copy answer', exact: true }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe(markdownSource);
   await expect(panel.locator('.assistant-turn-actions [role=status]')).toHaveText('Copied');
@@ -1180,13 +1214,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.getByRole('menu', {name: /^(Model settings|모델 설정)$/})).toBeVisible();
   await assertChoiceContrast();
   await page.keyboard.press('Escape');
-  // Without Desktop the log actions are disabled; their reason stays reachable from one named keyboard stop each.
+  // Without Desktop the log menu is disabled; its reason stays reachable from one named keyboard stop.
   await panel.getByRole('button', { name: '대화 기록', exact: true }).focus();
-  for (const name of ['공급자 로그를 메모장에서 열기', '공급자 로그 파일 위치 표시']) {
-    await page.keyboard.press('Tab');
-    await expect(panel.locator('span[tabindex="0"]').and(panel.getByLabel(name, { exact: true }))).toBeFocused();
-    await expect(page.locator('[data-slot="tooltip-content"][data-open]').filter({ hasText: '공급자 로그 열기는 Windows Desktop에서 지원합니다.' })).toBeVisible();
-  }
+  await page.keyboard.press('Tab');
+  await expect(panel.locator('span[tabindex="0"]').and(panel.getByLabel('공급자 로그', { exact: true }))).toBeFocused();
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]').filter({ hasText: '공급자 로그 열기는 Windows Desktop에서 지원합니다.' })).toBeVisible();
   // The modal overlay keeps a visible, named keyboard position in both directions until it wraps.
   for (const key of ['Tab', 'Shift+Tab']) {
     await panel.getByRole('textbox').focus();
@@ -1451,7 +1483,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent.at(-1).id).toBeUndefined();
   expect(sent.at(-1).skills).toEqual([]);
   await message.fill('Wait until completion');
-  await expect(panel.locator('.assistant-footer button')).toHaveAccessibleName('Stop response');
+  await expect(panel.locator('.assistant-footer > button')).toHaveAccessibleName('Stop response');
   const copilotSendCount = sent.length;
   await message.press('Enter');
   expect(sent.length).toBe(copilotSendCount);
