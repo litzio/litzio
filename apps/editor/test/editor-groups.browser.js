@@ -60,7 +60,7 @@ async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect
     const r = n.getBoundingClientRect(); return {x:r.x,right:r.right,width:r.width,top:r.top,bottom:r.bottom};
   }));
   const sorted = [...geometry].sort((a,b)=>a.x-b.x);
-  check(sorted.every(r=>r.width>=440 && r.bottom===900) && Math.abs(sorted[1].x-sorted[0].right-1)<1,
+  check(sorted.every(r=>r.width>=432 && r.bottom===900) && Math.abs(sorted[1].x-sorted[0].right-1)<1,
     `Group viewports are not bounded independent columns: ${JSON.stringify(geometry)}`);
   const left = await rowOf(bid), right = await rowOf(aid);
   // Review #718: a real selection at the first paragraph's right edge must expose

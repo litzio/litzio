@@ -150,11 +150,11 @@ Opening an already open document in another group moves that same tab. No second
 session, editor, undo history, property draft or recovery record is created. Moving
 the last tab out of a group, closing it or deleting its file removes the empty group.
 
-Each group needs **440px**, derived from the supported 640px desktop viewport minus
-the existing 200px narrow expanded Explorer. Split documents use the existing narrow
+Each group needs **432px**, so the default 1440px window (72px Activity bar, 240px Explorer and
+256px docked Outline, leaving 872px) can still show two groups. Split documents use the existing narrow
 paper trailing inset (16px), preserving the 80px starting gutter. The available
-document area must be at least **881px** (2 × 440px + 1px boundary), after the current
-Explorer and docked Outline reservations. Split commands are disabled below this
+document area must be at least **865px** (2 × 432px + 1px boundary), after the Activity bar,
+current Explorer and docked Outline reservations. Split commands are disabled below this
 width. Resizing the window or opening a side panel below this limit merges both tab
 lists in left-to-right order and retains the focused active tab. Tabs stay mounted;
 unsaved content, drafts, history and each document's scroll position survive. Widening

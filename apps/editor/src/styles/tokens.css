@@ -97,8 +97,11 @@
   --layout-document-panel-min-width: 240px;
   --layout-document-panel-max-width: 280px;
   --layout-sidebar-width-narrow: 12.5rem;
-  /* Inline document settings: aligned field labels and separation from the title. */
+  /* Inline document settings: aligned field labels and separation from the title. In a narrow
+   * document column the label column gives way, down to the narrow width, so a select keeps its
+   * preferred width and its longest choice. */
   --layout-document-settings-label-width: 9rem;
+  --layout-document-settings-label-width-narrow: 7.5rem;
   --space-document-settings-after: var(--space-5);
   /* Dedicated Settings: bounded reading column and aligned controls. */
   --layout-settings-content-width: 42.5rem;

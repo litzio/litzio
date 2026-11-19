@@ -87,8 +87,9 @@ const PANEL_OVERLAY_LAYOUT = "(width < 89rem)";
 // CSS custom properties cannot be used in media queries. Both navigation surfaces consume
 // this adjustable token through matchMedia and expose their layout as shell classes.
 const navigationOverlayLayout = () => `(width < ${getComputedStyle(globalThis.document.documentElement).getPropertyValue("--layout-navigation-overlay-breakpoint").trim()})`;
-// 640px supported viewport - 200px narrow Explorer; two groups plus their boundary.
-const SPLIT_MIN_WIDTH = 440 * 2 + 1;
+// Two groups plus their boundary. 432px per group keeps the split in the default 1440px window
+// (1440 - 72px Activity bar - 240px Explorer - 256px docked Outline = 872px of document area).
+const SPLIT_MIN_WIDTH = 432 * 2 + 1;
 
 
 /** The Desktop app's bridge; the browser Editor has none and shows no Desktop UI. */

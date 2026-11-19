@@ -264,7 +264,7 @@ button {
 .document-settings-values::before { content: "·"; margin-right: var(--space-2); }
 .document-settings-summary > span:has(.screen-status) { flex-shrink: 0; }
 .document-settings .shared-row.settings-row {
-  grid-template-columns: var(--layout-document-settings-label-width) minmax(0, 1fr);
+  grid-template-columns: clamp(var(--layout-document-settings-label-width-narrow), calc(100% - var(--layout-reading-preview-width) - var(--space-3)), var(--layout-document-settings-label-width)) minmax(0, 1fr);
   padding-block: var(--space-2);
   align-items: center;
   min-height: calc(var(--size-control) + var(--space-4));

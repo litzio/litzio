@@ -197,8 +197,10 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   await page.mouse.up({button:'right'});
   expect(await blockMenu.evaluate(menu => menu.contains(document.activeElement))).toBe(true);
   await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
-  // An outside dismissal also returns to the retained editor selection.
-  await contextParagraph.click({button:'right'}); await expect(blockMenu).toBeVisible();
+  // An outside dismissal also returns to the retained editor selection. Right-click the opening
+  // prose ("Read this"), not the paragraph center, whose inline atom depends on the column width.
+  const paragraphBox = await contextParagraph.boundingBox();
+  await contextParagraph.click({button:'right', position:{x:8, y:paragraphBox.height / 2}}); await expect(blockMenu).toBeVisible();
   const outsideSelection = (await state()).selection;
   expect(outsideSelection.type).toBe('text'); expect(outsideSelection.anchor).toBe(outsideSelection.head);
   await page.getByTestId('status').click(); await expect(blockMenu).toHaveCount(0);

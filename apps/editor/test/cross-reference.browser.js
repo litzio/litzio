@@ -128,6 +128,9 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
       await page.keyboard.press('Control+Quote');
       await inspectOverlay(page.getByTestId('link-form'),'link',width,outline);
       await page.keyboard.press('Escape');
+      // Collapse the link's selection like a user moving on, so its formatting toolbar no longer covers nearby text.
+      await page.keyboard.press('ArrowRight');
+      await page.getByTestId('selection-toolbar').waitFor({state:'detached'});
       const math = await rightmost('[data-testid="inline-math"]');
       await math.locator('.katex-html').dblclick();
       await inspectOverlay(page.getByTestId('inline-math-properties'),'inline-math',width,outline);
