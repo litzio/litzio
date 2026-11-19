@@ -72,7 +72,7 @@ export function PluginSettings() {
           <DialogDescription>{current?.description}</DialogDescription>
         </DialogHeader>
         {current && problem ? <Notice tone="error"><GitHubError message={problem} /></Notice> : null}
-        {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
+        {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} /> : null}
         {current ? <div className="settings-actions">
           {checking !== current.id ? <PluginUpdateState plugin={current} upToDate /> : null}
           {current.update?.available ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run("update", { id: current.id })}>{i18n.t("Update")}</Button> : null}
@@ -187,7 +187,7 @@ function PluginState({ tone, label, detail }: { tone: "ok" | "error" | "warning"
   return <span role="status"><Status variant="plain" tone={tone} label={label} />{detail ? <PluginDetail>{detail}</PluginDetail> : null}</span>;
 }
 /** Dialog-owned drafts; Host remains the owner of saved settings. */
-function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; change: (action: string, args: Record<string, unknown>) => Promise<void>; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {
+function ConnectionSettings({ plugin, change, busy }: { plugin: Plugin; change: (action: string, args: Record<string, unknown>) => Promise<void>; busy: boolean }) {
   const prefix = useId();
   const [draft, setDraft] = useState(plugin.settings ?? {});
   const [states, setStates] = useState<Record<string, { status?: "Saving…" | "Saved"; error?: string }>>({});
@@ -246,46 +246,63 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
     {Object.entries(plugin.settingsSchema?.properties ?? {}).map(([key, field]) => {
       const id = `${prefix}-${key}`, state = states[key];
       const common = { id, "aria-invalid": !!state?.error, "aria-describedby": state?.error ? `${id}-error` : state?.status ? `${id}-status` : undefined };
+      // Save feedback stays in the field's own Row, like the plugin list's update state.
+      const feedback = state?.error ? <FieldError id={`${id}-error`}>{i18n.t("Save failed")}: {state.error}</FieldError> : state?.status ? <span id={`${id}-status`} role="status">{i18n.t(state.status)}</span> : undefined;
       return <div key={key}>
-        {field.type === "boolean" ? <SettingsSwitch label={<SettingLabel title={field.title ?? key} description={field.description} />} disabled={busy} checked={draft[key] === true}
-          invalid={!!state?.error} describedBy={common["aria-describedby"]} onChange={value => { dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); save(key, value); }} /> :
-          ["string", "number", "integer"].includes(field.type ?? "") ? <Row label={<label htmlFor={id}><SettingLabel title={field.title ?? key} description={field.description} /></label>}>
+        {field.type === "boolean" ? <SettingsSwitch label={<SettingLabel title={field.title ?? key} description={field.description} />} description={feedback} disabled={busy} checked={draft[key] === true}
+          invalid={!!state?.error} onChange={value => { dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); save(key, value); }} /> :
+          ["string", "number", "integer"].includes(field.type ?? "") ? <Row label={<label htmlFor={id}><SettingLabel title={field.title ?? key} description={field.description} /></label>} description={feedback}>
             <Input {...common} disabled={busy} type={field.type === "string" ? "text" : "number"} value={String(draft[key] ?? "")} onChange={event => { const value = event.target.value; dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); setStates(s => ({ ...s, [key]: {} })); }} onBlur={event => {
               const value = field.type === "string" ? event.target.value : Number(event.target.value);
               if (saved.current[key] !== value || errors.current[key]) save(key, value);
               else dirty.current.delete(key);
             }} /></Row> : null}
-        {state?.error ? <FieldError id={`${id}-error`}>{i18n.t("Save failed")}: {state.error}</FieldError> : state?.status ? <p id={`${id}-status`} className="settings-status" role="status">{i18n.t(state.status)}</p> : null}
       </div>;
     })}
-    <PluginSecrets plugin={plugin} busy={busy} run={run} />
+    <PluginSecrets plugin={plugin} busy={busy} change={change} />
     <PluginHealthCheck plugin={plugin} busy={busy} ready={ready} />
   </>;
 }
 
-function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {
+function PluginSecrets({ plugin, busy, change }: { plugin?: Plugin; busy: boolean; change: (action: string, args: Record<string, unknown>) => Promise<void> }) {
   const client = useHostClient();
   const prefix = useId();
-  const [values, setValues] = useState<Record<string, string>>({}), [problem, setProblem] = useState(""), [saving, setSaving] = useState(false);
-  useEffect(() => { setValues({}); setProblem(""); }, [client, plugin?.id]);
+  const [values, setValues] = useState<Record<string, string>>({}), [problems, setProblems] = useState<Record<string, string>>({}), [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<{ id: string; title: string }>(), [deletePending, setDeletePending] = useState(false), [deleteProblem, setDeleteProblem] = useState("");
+  const deleteButton = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { setValues({}); setProblems({}); setDeleting(undefined); }, [client, plugin?.id]);
   if (!plugin?.secrets?.declarations.length) return null;
   const supported = plugin.secrets.supported;
   return <section className="settings-section settings-section--stacked" aria-label={i18n.t("Plugin secrets")}>
     {!supported ? <Notice tone="warning">{i18n.t("Plugin secrets require a Windows Host")}</Notice> : null}
-    {problem ? <Notice tone="error">{problem}</Notice> : null}
-    {plugin.secrets.declarations.map(secret => <form key={secret.id} className="plugin-secret-form" onSubmit={async event => {
-      event.preventDefault(); setSaving(true); setProblem(""); const value = values[secret.id]; setValues(v => ({ ...v, [secret.id]: "" }));
-      try {
-        const response = await client.request("/api/plugins/secrets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plugin.id, name: secret.id, value }) });
-        if (!response.ok) { const result = await response.json(); throw new Error(result.error ?? i18n.t("Unable to store plugin secret")); }
-      } catch (error) { setProblem(error instanceof Error ? error.message : i18n.t("Unable to store plugin secret")); } finally { window.dispatchEvent(new Event("plugins-changed")); setSaving(false); }
-    }}>
-      <Row label={<label htmlFor={`${prefix}-${secret.id}`}><SettingLabel title={secret.title} description={secret.description} /></label>}><Input id={`${prefix}-${secret.id}`} type="password" aria-describedby={`${prefix}-${secret.id}-status`} autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></Row>
-      <p id={`${prefix}-${secret.id}-status`} className="settings-description" role="status"><Status variant="plain" tone={secret.error ? "error" : secret.configured ? "ok" : "neutral"} label={i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")} /></p>
-      {secret.error ? <Notice tone="error">{i18n.t("Unable to read this secret. Delete or replace it.")}</Notice> : null}
-      <div className="settings-actions"><Button type="submit" size="sm" variant="outline" disabled={!supported || busy || saving || !values[secret.id]}>{i18n.t("Save secret")}</Button>
-      <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || !secret.configured && !secret.error} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>
-    </form>)}
+    {plugin.secrets.declarations.map(secret => {
+      const id = `${prefix}-${secret.id}`, problem = problems[secret.id];
+      return <form key={secret.id} className="plugin-secret-form" onSubmit={async event => {
+        event.preventDefault(); setSaving(true); setProblems(p => ({ ...p, [secret.id]: "" })); const value = values[secret.id]; setValues(v => ({ ...v, [secret.id]: "" }));
+        try {
+          const response = await client.request("/api/plugins/secrets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plugin.id, name: secret.id, value }) });
+          if (!response.ok) { const result = await response.json(); throw new Error(result.error ?? i18n.t("Unable to store plugin secret")); }
+        } catch (error) { setProblems(p => ({ ...p, [secret.id]: error instanceof Error ? error.message : i18n.t("Unable to store plugin secret") })); } finally { window.dispatchEvent(new Event("plugins-changed")); setSaving(false); }
+      }}>
+        <Row label={<label htmlFor={id}><SettingLabel title={secret.title} description={secret.description} /></label>} description={<>
+          <span id={`${id}-status`} role="status"><Status variant="plain" tone={secret.error ? "error" : secret.configured ? "ok" : "neutral"} label={i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")} /></span>
+          <FieldError id={`${id}-error`}>{problem}</FieldError>
+        </>}><Input id={id} type="password" aria-invalid={!!problem} aria-describedby={problem ? `${id}-status ${id}-error` : `${id}-status`} autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></Row>
+        {secret.error ? <Notice tone="error">{i18n.t("Unable to read this secret. Delete or replace it.")}</Notice> : null}
+        <div className="settings-actions"><Button type="submit" size="sm" variant="outline" disabled={!supported || busy || saving || !values[secret.id]}>{i18n.t("Save secret")}</Button>
+        <Button type="button" size="sm" variant="destructive" disabled={!supported || busy || saving || !secret.configured && !secret.error} onClick={event => { deleteButton.current = event.currentTarget; setDeleteProblem(""); setDeleting({ id: secret.id, title: secret.title }); }}>{i18n.t("Delete secret")}</Button></div>
+      </form>;
+    })}
+    {deleting ? <DangerConfirmation
+      title={i18n.t("Delete {{name}}?", { name: deleting.title })}
+      description={i18n.t("The saved secret will be deleted from this Host. Enter it again to use it.")}
+      action={i18n.t("Delete")} pending={deletePending} error={deleteProblem} returnFocus={deleteButton}
+      onClose={() => setDeleting(undefined)} onConfirm={async () => {
+        setDeletePending(true); setDeleteProblem("");
+        try { await change("secret-delete", { id: plugin.id, name: deleting.id }); setDeleting(undefined); }
+        catch (e) { setDeleteProblem(e instanceof Error ? e.message : String(e)); }
+        finally { setDeletePending(false); }
+      }} /> : null}
   </section>;
 }
 

@@ -194,7 +194,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await serviceUrl.focus();
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("switch", { name: "Simulate failure", exact: true })).toHaveAttribute("aria-invalid", "true");
-  await expect(dialog.getByText("Save failed: Enter a value of the expected type.", { exact: true })).toBeVisible();
+  await expect(dialog.locator(".settings-row").filter({ has: page.getByRole("switch", { name: "Simulate failure", exact: true }) }).getByRole("alert")).toHaveText("Save failed: Enter a value of the expected type.");
   await page.unroute("**/api/plugins");
   let release;
   const gate = new Promise(resolve => { release = resolve; });
@@ -215,6 +215,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
   await expect(serviceUrl).toHaveValue("");
   await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("This value is too short. Enter a longer value.");
+  // The error belongs to the Service URL Row, not to the row below it.
+  await expect(dialog.locator(".settings-row").filter({ has: page.getByRole("textbox", { name: "Service URL", exact: true }) }).getByRole("alert")).toHaveText("Save failed: This value is too short. Enter a longer value.");
   if (screenshots) await page.screenshot({ path: "tmp/plugin-settings-1407/error-1440.png", mask: [page.locator(".sidebar-host-account")] });
   await serviceUrl.fill("https://fixture.example.test/service");
   await serviceUrl.press("Tab");

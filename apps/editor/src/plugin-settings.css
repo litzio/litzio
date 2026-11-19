@@ -1,6 +1,7 @@
 .plugin-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 
 .plugin-secret-form { display: grid; gap: var(--space-2); }
+.plugin-settings-dialog .settings-label .form-error { color: var(--id-color-danger); }
 
 .plugin-settings-dialog[data-slot="dialog-content"] { max-width: min(var(--layout-settings-content-width), calc(100vw - 2rem)); }
 
