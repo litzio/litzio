@@ -1,4 +1,4 @@
-// Match the pinned electron-builder 26.15.3 NSIS key, rather than a display-name prefix.
+// Match the pinned electron-builder 26.18.1 NSIS key, rather than a display-name prefix.
 import { UUID } from "builder-util-runtime";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
