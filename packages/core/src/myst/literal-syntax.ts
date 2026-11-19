@@ -199,11 +199,13 @@ function observeEmphasis(tokenizer: Tokenizer, inUrl: (state: InlineState, posit
     const length = state.pos - start;
     const end = start + length;
     // Rescan with one outside character replaced, as a character reference would.
+    // scanDelims reads only the run and one character on each side, so the copy
+    // holds just those: a candidate costs the same however long its paragraph is.
     const rescan = (outside: number) => {
-      const replaced = new state.md.inline.State(
-        state.src.slice(0, outside) + "&" + state.src.slice(outside + 1), state.md, state.env, []);
-      replaced.posMax = state.posMax;
-      return replaced.scanDelims(start, marker === 0x2A);
+      const window = state.src.slice(start - 1, end + 1);
+      const at = outside - (start - 1);
+      const replaced = new state.md.inline.State(window.slice(0, at) + "&" + window.slice(at + 1), state.md, state.env, []);
+      return replaced.scanDelims(1, marker === 0x2A);
     };
     const { can_open: open, can_close: close } = state.scanDelims(start, marker === 0x2A);
     // A run beside a backslash-escaped marker (`\**`) is partly literal by intent.
@@ -229,6 +231,8 @@ function observeEmphasis(tokenizer: Tokenizer, inUrl: (state: InlineState, posit
     const found = new Map<string, LiteralSyntax>();
     for (const list of lists(state)) {
       const matched = new Set(list.flatMap((delimiter, index) => delimiter.end < 0 ? [] : [index, delimiter.end]));
+      // A run that already serves real emphasis, as in `**(a)***x**`, is not literal.
+      const used = new Set([...matched].map(index => runs.get(list[index])));
       const repaired = list.map(delimiter => {
         const run = runs.get(delimiter);
         return { ...delimiter, end: -1, ...(run ? { open: run.open, close: run.close } : flags.get(delimiter)) };
@@ -239,13 +243,17 @@ function observeEmphasis(tokenizer: Tokenizer, inUrl: (state: InlineState, posit
         if (opener.end < 0 || matched.has(index) || matched.has(opener.end)) return;
         const first = runs.get(list[index]);
         const last = runs.get(list[opener.end]);
-        if (!first || !last) return;
+        if (!first || !last || used.has(first) || used.has(last)) return;
         // Only pairs blocked by the flanking rule; ordinary literal runs never pair here.
         const strictOpen = flags.get(list[index])!.open;
         const strictClose = flags.get(list[opener.end])!.close;
         if (strictOpen && strictClose) return;
-        // Both sides needed the repair: single-star `5*(3+4)*2` is arithmetic, not emphasis.
-        if (!strictOpen && !strictClose && (first.length < 2 || last.length < 2)) return;
+        // Single `*`/`_` beside an ASCII letter or digit is usually arithmetic or code
+        // (`2*(3+4)* 5`, `x*(a+b)* y`). The writing this diagnostic targets attaches
+        // non-ASCII text such as a Korean particle (`*(주의)*를`), so a single run warns
+        // only when every repaired outside character is non-ASCII.
+        const outside = [...(strictOpen ? [] : [first.start - 1]), ...(strictClose ? [] : [last.start + last.length])];
+        if ((first.length < 2 || last.length < 2) && outside.some(position => state.src.charCodeAt(position) < 0x80)) return;
         if (inUrl(state, first.start) || inUrl(state, last.start)) return;
         found.set(`${first.start}:${last.start}`, {
           syntax: "emphasis", source: state.src.slice(first.start, last.start + last.length),
