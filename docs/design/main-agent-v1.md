@@ -170,6 +170,9 @@ Host는 마지막 모델 목록·진단 결과를 공급자별로 daemon 메모�
 
 사용자 메시지는 오른쪽 말풍선, 비서 답변은 왼쪽 본문으로 표시하고 턴 끝에서 전체 답변을 복사한다.
 글이 있는 사용자 메시지 아래에는 hover·keyboard focus 때 ‘메시지 복사’와 ‘다시 사용’ 아이콘이 보인다. ‘다시 사용’은 그 메시지의 글만 입력창에 넣는다. 입력창이 비어 있으면 채우고, 내용이 있으면 끝에 줄을 바꿔 덧붙인 뒤 입력창에 focus한다. 첨부는 다시 붙이지 않으며 보낸 메시지를 고치거나 대화를 되감지 않는다.
+
+입력창·머리 밝음 [전](assets/assistant-composer-1811/before-composer-1440-light-ko.png) / [후](assets/assistant-composer-1811/after-composer-1440-light-ko.png), 어두움 [전](assets/assistant-composer-1811/before-composer-1440-dark-ko.png) / [후](assets/assistant-composer-1811/after-composer-1440-dark-ko.png) · 저장본 밝음 [전](assets/assistant-composer-1811/before-saved-1440-light-ko.png) / [후](assets/assistant-composer-1811/after-saved-1440-light-ko.png), 어두움 [전](assets/assistant-composer-1811/before-saved-1440-dark-ko.png) / [후](assets/assistant-composer-1811/after-saved-1440-dark-ko.png) · 보낸 메시지 hover 밝음 [전](assets/assistant-composer-1811/before-message-1440-light-ko.png) / [후](assets/assistant-composer-1811/after-message-1440-light-ko.png), 어두움 [전](assets/assistant-composer-1811/before-message-1440-dark-ko.png) / [후](assets/assistant-composer-1811/after-message-1440-dark-ko.png)
+
 작업 과정은 기본 접힘이며 질문·확인은 과정 밖에 둔다. 위로 읽을 때 위치를 유지하고 새 내용과 하단 이동을 안내한다.
 닫힌 비서 버튼은 작업 중·읽지 않은 완료·답변 필요를 구분한다. 열린 동안 상태 표시는 숨긴다.
 전송 직후 메시지를 표시하고 공급자 관측과 접수 상태를 별도로 추적한다.
