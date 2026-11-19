@@ -334,8 +334,17 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await page.unroute('**/api/folder-browse?*',nextListing);
   await dialog.getByRole('button', {name:'Back', exact:true}).click();
   await option('guides').waitFor();
+  // #1789: a folder holding only documents is not empty in folder mode; a truly empty listing still is.
+  const emptyListing = async route => {
+    const response = await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+    const value = await response.json();
+    if(value.path === [folder,'guides'].join(sep)) value.entries = [];
+    await route.fulfill({response,json:value});
+  };
+  await page.route('**/api/folder-browse?*',emptyListing);
   await dialog.getByRole('button', {name:'Forward', exact:true}).click();
   await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
+  await page.unroute('**/api/folder-browse?*',emptyListing);
   await dialog.getByRole('button', {name:'Up', exact:true}).click();
   await option('guides').waitFor();
   const names = await dialog.getByRole('option').evaluateAll(rows => rows.map(row => row.getAttribute('aria-label')));
@@ -364,7 +373,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await expect(dialog.locator('.folder-picker-target')).toHaveText('');
   assert(await dialog.getByRole('option').count() === 1, 'Partial path must filter the folders');
   await field.press('Tab');
-  await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
+  await page.getByTestId('folder-picker-meta').getByText(/No subfolders/).waitFor();
   assert(await field.inputValue() === [folder, 'guides', ''].join(sep), 'Tab completes into the folder');
   await field.press('Backspace');
   await editPath();
@@ -462,7 +471,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   const roots = () => section.evaluateAll(sections => sections.map(element => element.dataset.root));
   await openFolderPicker(page);
   await enterFolder(guides);
-  await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
+  await page.getByTestId('folder-picker-meta').getByText(/No subfolders/).waitFor();
   await open.click();
   await dialog.waitFor({state:'detached'});
   await section.nth(1).waitFor();
@@ -512,7 +521,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await field.fill([folder, '자'].join(sep));
   await option('자료').waitFor();
   await field.press('ArrowRight');
-  await page.getByTestId('folder-picker-meta').getByText(/This folder is empty/).waitFor();
+  await page.getByTestId('folder-picker-meta').getByText(/No subfolders/).waitFor();
   assert(await field.inputValue() === [folder, '자료', ''].join(sep), 'Right completes a Korean folder path');
   await field.press('Backspace');
   await editPath();

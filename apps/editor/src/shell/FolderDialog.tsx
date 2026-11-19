@@ -234,7 +234,7 @@ export function FolderDialog({ open, title, description, choose = "folder", exte
   };
 
   const target = folderName(targetPath);
-  const meta = listing.directory === directory && listing.error ? listing.error : directory && !result ? i18n.t("Reading…") : result && options.length === 0 ? i18n.t("This folder is empty.") : "";
+  const meta = listing.directory === directory && listing.error ? listing.error : directory && !result ? i18n.t("Reading…") : result && options.length === 0 ? i18n.t(!image && !partial && result.entries.length ? "No subfolders." : "This folder is empty.") : "";
   const pathLabel = choose === "image" ? i18n.t("Image path") : image ? i18n.t("File path") : i18n.t("Folder path");
   const fileTypes = choose === "pdf" ? "PDF (*.pdf)" : document ? "Markdown (*.md)" : choose === "image" ? "PNG, JPEG, GIF, WebP, SVG" : extensions?.map(extension => `*${extension}`).join(", ") ?? i18n.t("All files");
   const listKeys = (event: KeyboardEvent<HTMLUListElement>) => {

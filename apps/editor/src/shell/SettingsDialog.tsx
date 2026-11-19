@@ -10,15 +10,21 @@ import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
 import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FileText, Info, Palette, History, Server } from "lucide-react";
 import { SettingsRow, SettingsSelect, SettingsProgress } from "@/components/ui/settings.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 import type { CliIntegrationState, DesktopBridge, DesktopInfo, OfferedUpdate, ReleaseChannel, UpdateState } from "../../shared/desktop-bridge.ts";
 import { RecoveryDeleteDialog } from "./Recovery.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import { PAGE_BACKGROUNDS, readPageBackground, writePageBackground, type PageBackground, ACCENT_COLORS, readAccentColor, writeAccentColor, writeUiLanguage, THEME_LABELS, THEMES, type UiLanguage, type ThemePreference } from "../preferences.ts";
 import { applyPageBackground } from "../theme.ts";
+
+/** Explanations stay reachable by hover and keyboard focus beside the row name. */
+function DetailsTip({ label, children }: { label: string; children: ReactNode }) {
+  return <Tooltip><TooltipTrigger render={<Button type="button" size="icon-sm" variant="ghost" className="settings-details-tip" aria-label={label} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent className="settings-details-tip-content">{children}</TooltipContent></Tooltip>;
+}
 
 const ACCENT_LABELS = { blue: "Blue", violet: "Violet", plum: "Plum", teal: "Teal", green: "Green", graphite: "Graphite" } as const;
 const PAGE_LABELS = { paper: "Paper", flat: "Flat" } as const;
@@ -235,14 +241,14 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
 
               </> : null}
               {category === "recovery" ? <Section title={i18n.t("Local recovery")}>
-                <Row label={i18n.t("Recovery records")} description={i18n.t("Applied edits are recorded on this device in this browser or app profile. Records are separate from your original files and are not shared with other devices or browsers.")}>
+                <Row label={<>{i18n.t("Recovery records")}<DetailsTip label={i18n.t("Recovery records details")}>{i18n.t("Applied edits are recorded on this device in this browser or app profile. Records are separate from your original files and are not shared with other devices or browsers.")}</DetailsTip></>}>
                   <span className="type-body">{storageProblem || i18n.t("recoveryCount", { count: recoveryCount })}</span>
                   <Button ref={clearButton} size="sm" variant="outline" onClick={() => setClearConfirm(true)}>{i18n.t("Clear all recovery records…")}</Button>
                 </Row>
-                <Row kind="fact" label={i18n.t("What is kept")}><ul className="settings-recovery-details">
-                    <li>{i18n.t("Records expire 10 days after the last recording, at the next startup or cleanup. Closing a window keeps them. A clean Save, a tab's Don't save, a successful Reload, or Delete record removes that session's record.")}</li>
-                    <li>{i18n.t("Unapplied property drafts, Undo history, selection, pending requests and image files are not backed up. Recording may fail; changes after the last record may be lost. Saving the original and recording recovery are separate operations.")}</li>
-                  </ul></Row>
+                <Row kind="fact" label={<>{i18n.t("What is kept")}<DetailsTip label={i18n.t("What is kept details")}>
+                    <p>{i18n.t("Records expire 10 days after the last recording, at the next startup or cleanup. Closing a window keeps them. A clean Save, a tab's Don't save, a successful Reload, or Delete record removes that session's record.")}</p>
+                    <p>{i18n.t("Unapplied property drafts, Undo history, selection, pending requests and image files are not backed up. Recording may fail; changes after the last record may be lost. Saving the original and recording recovery are separate operations.")}</p>
+                  </DetailsTip></>} />
                 <RecoveryDeleteDialog open={clearConfirm} pending={clearing} finalFocus={clearButton}
                   onCancel={() => setClearConfirm(false)} onDelete={() => {
                     setClearing(true); setRecoveryProblem("");
