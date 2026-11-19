@@ -149,6 +149,22 @@ function closeExternalSlice(slice: Slice): Slice {
   return new Slice(slice.content, open(slice.content.firstChild, slice.openStart), open(slice.content.lastChild, slice.openEnd));
 }
 
+/** Textblocks that hold one line of a larger structure: their content is never split into blocks. */
+const ONE_LINE_PLACES = new Set(["tableCell", "tableCaption", "figure", "footnoteDefinition"]);
+
+/** The slice as the inline content of one textblock, or undefined when it holds blocks. Open
+ * wrappers (a copied cell's table and row) are descended; a closed block is a block. */
+function inlineContentOf(slice: Slice): Fragment | undefined {
+  let content = slice.content;
+  for (let open = Math.min(slice.openStart, slice.openEnd); ; open--) {
+    if (content.content.every(node => node.isInline)) return content;
+    const node = content.firstChild;
+    if (content.childCount !== 1 || open < 1 || !node) return undefined;
+    if (node.isTextblock) return node.content;
+    content = node.content;
+  }
+}
+
 function paragraphBeside(state: EditorState, after: boolean): Transaction {
   const { $from } = state.selection;
   let pos = state.selection instanceof NodeSelection
@@ -616,10 +632,14 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           copy: (view, event) => {
             return copyWithFootnotes(view, event, false);
           },
-          // Runs before the engine's own paste handler for the same event.
-          paste: () => {
+          // Runs before the engine's own paste handler, which reads the text in this same event.
+          // The state ends with the event: a paste skipped during composition must not leak into
+          // a later drop.
+          paste: view => {
+            if (view.composing) return false;
             textPaste = true;
             markdownNotice = undefined;
+            queueMicrotask(() => { textPaste = false; markdownNotice = undefined; });
             return false;
           },
           cut: (view, event) => {
@@ -691,8 +711,16 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           const target = view.state.selection.$from.parent.type.name;
           if (target === "heading" || target === "tableCell" || target === "tableCaption") {
             let lineBreak = false;
-            slice.content.descendants(node => { if (node.type.name === "hardBreak") lineBreak = true; });
+            // A soft line break read from Markdown is a newline inside text.
+            slice.content.descendants(node => { if (node.type.name === "hardBreak" || node.isText && node.text!.includes("\n")) lineBreak = true; });
             if (lineBreak) return fail(`A ${target === "heading" ? "heading" : target === "tableCaption" ? "table caption" : "table cell"} cannot contain line breaks. Paste into a paragraph to keep them. The clipboard and selection are kept.`);
+          }
+          // One-line places take inline content only. The engine would otherwise split the place
+          // and carry the text after the caret into the body.
+          if (ONE_LINE_PLACES.has(target)) {
+            const inline = inlineContentOf(slice);
+            if (!inline) return fail({ key: "Only one line of text can be pasted here. Paste blocks into a paragraph. Nothing was pasted; the clipboard and selection are kept." });
+            if (target === "footnoteDefinition" && referenceLabels(inline).length) return fail({ key: "An endnote cannot contain another endnote. Nothing was pasted; the clipboard and selection are kept." });
           }
           const { selection } = view.state;
           const besideEquation = selection instanceof NodeSelection && selection.node.type.name === "equation";
@@ -711,11 +739,15 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
             labels.add(label);
           });
           if (duplicate) return fail({ key: "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept." });
-          pastedNotice = notice;
           if (besideEquation || notes.length || referenceLabels(slice.content).length) {
+            pastedNotice = notice;
             view.dispatch(tr.scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste"));
             return true;
           }
+          // The engine's own paste transaction follows. Close history first so it is its own
+          // Undo step, never merged with typing just before it.
+          view.dispatch(closeHistory(view.state.tr));
+          pastedNotice = notice;
           return false;
         },
       } })];

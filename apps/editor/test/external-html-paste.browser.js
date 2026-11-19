@@ -330,5 +330,104 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await editor.evaluate(el => el.editor.commands.undo());
   assert((await state()).doc === beforeUnsupported.doc, 'One Undo restores a partly literal Markdown paste');
   result.markdownUnsupported = true;
+
+  // E. Review regressions (#1844): one-line places, endnotes, URLs, history, composition, refused source.
+  const placesFile = [root, 'tmp', 'external-html-paste', 'places.md'].join(separator);
+  await openPath(page, placesFile);
+  await editor.locator('[data-block="table"]').waitFor();
+  const refusedAt = async (text, offset, paste, message) => {
+    await notice.waitFor({state:'detached', timeout:10000});
+    await caretIn(text, offset);
+    const before = await state();
+    await paste();
+    // Read before opening the notification list: leaving the editor ends endnote editing.
+    const after = await state();
+    assert(after.doc === before.doc && after.selection.join() === before.selection.join(), `${text}: a refused paste keeps the document and selection`);
+    await showNotifications(page);
+    await notice.filter({hasText:message}).waitFor({state:'visible'});
+  };
+  const lineBreaks = place => `A ${place} cannot contain line breaks. Paste into a paragraph to keep them.`;
+  const oneLine = 'Only one line of text can be pasted here. Paste blocks into a paragraph.';
+  // A soft line break and blocks are refused in a cell and a caption, from Markdown and from HTML alike.
+  await refusedAt('CellText', 4, () => textPaste('**bold**\nMore'), lineBreaks('table cell'));
+  await refusedAt('CaptionText', 4, () => textPaste('**bold**\nMore'), lineBreaks('table caption'));
+  await refusedAt('CaptionText', 4, () => textPaste('# Pasted\n\nAfter'), oneLine);
+  await refusedAt('CaptionText', 4, () => syntheticPaste('<h1>Pasted</h1><p>After</p>'), oneLine);
+  // A definition being edited does not take another endnote.
+  await editor.locator('[data-testid="footnote-definition"]').getByTestId('endnote-edit').click();
+  await refusedAt('NoteText', 4, () => textPaste('Other[^a].\n\n[^a]: Definition'), 'An endnote cannot contain another endnote.');
+  result.markdownOneLinePlaces = true;
+
+  // A pasted URL still becomes a link: as text, inside external HTML and with Ctrl+Shift+V.
+  for (const [name, paste] of [['text', () => textPaste('https://example.com/path')], ['html', () => syntheticPaste('<p>see https://example.com/path</p>')],
+    ['plain', async () => { await writeText('https://example.com/path'); await page.keyboard.press('Control+Shift+v'); }]]) {
+    await select('Omega.');
+    const before = await state();
+    await paste();
+    await changedFrom(before);
+    const doc = (await state()).doc;
+    assert(doc.includes('"href":"https://example.com/path"'), `${name}: a pasted URL becomes a link: ${doc}`);
+    await editor.evaluate(el => el.editor.commands.undo());
+    assert((await state()).doc === before.doc, `${name}: one Undo restores the URL paste`);
+  }
+  result.markdownUrl = true;
+
+  // A paste is its own Undo step, apart from typing just before it.
+  for (const [typed, paste] of [['!', () => textPaste('**bold**')], ['?', () => syntheticPaste('<p><b>bold</b></p>')]]) {
+    await caretIn('LeftRIGHT', 'Left'.length);
+    await page.keyboard.type(typed);
+    await paste();
+    const pastedText = await outline();
+    assert(pastedText.includes(`paragraph|Left${typed}boldRIGHT|bold`), `The paste follows the typed text: ${JSON.stringify(pastedText)}`);
+    await page.keyboard.press('Control+z');
+    const once = await outline();
+    assert(once.includes(`paragraph|Left${typed}RIGHT|`), `One Undo removes only the paste: ${JSON.stringify(once)}`);
+    await page.keyboard.press('Control+z');
+    assert((await outline()).includes('paragraph|LeftRIGHT|'), 'A second Undo removes the typing');
+  }
+  result.markdownHistory = true;
+
+  // A paste skipped during composition leaves no state behind: a later text drop stays literal.
+  await select('Omega.');
+  const beforeDrop2 = await state();
+  await editor.evaluate(el => {
+    const dom = el.editor.view.dom, data = new DataTransfer();
+    data.setData('text/plain', '**skipped**');
+    dom.dispatchEvent(new CompositionEvent('compositionstart', {bubbles:true, data:''}));
+    dom.dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
+    dom.dispatchEvent(new CompositionEvent('compositionend', {bubbles:true, data:''}));
+  });
+  await page.waitForFunction(() => !document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.view.composing);
+  const omega = await editor.locator('p').filter({hasText:'Omega.'}).boundingBox();
+  await editor.evaluate((el, args) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', '## DragHeading');
+    el.dispatchEvent(new DragEvent('drop', {dataTransfer:data, clientX:args.x, clientY:args.y, bubbles:true, cancelable:true}));
+  }, {x:omega.x + 5, y:omega.y + omega.height / 2});
+  await changedFrom(beforeDrop2);
+  const dropped = await outline();
+  assert(dropped.some(block => block.startsWith('paragraph|') && block.includes('## DragHeading')) && !dropped.some(block => block.startsWith('heading2|')),
+    `Dropped text stays literal after a skipped paste: ${JSON.stringify(dropped)}`);
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeDrop2.doc, 'One Undo restores the drop');
+  result.markdownComposition = true;
+
+  // Refused Markdown alone is literal with a notice; a table with options keeps the bold before it and saves.
+  for (const [anchor, whole, text] of [['LeftRIGHT', true, '- [ ] Task'], ['Omega.', false, '**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::']]) {
+    await notice.waitFor({state:'detached', timeout:10000});
+    await select(anchor, whole);
+    await textPaste(text);
+    await showNotifications(page);
+    await notice.filter({hasText:'Unsupported Markdown was pasted as plain text.'}).waitFor({state:'visible'});
+  }
+  const refusedSource = await outline();
+  assert(['paragraph|- [ ] Task|', 'paragraph|Rich|bold', 'paragraph|:::{table}|', 'paragraph|:widths: 1 2|', 'paragraph|:::Omega.|'].every(block => refusedSource.includes(block)),
+    `Refused Markdown keeps its source and the formatting around it: ${JSON.stringify(refusedSource)}`);
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
+  assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Literal colon fences save: ${await page.locator('body').innerText()}`);
+  const placesDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(placesFile)}`, { headers: { Connection: "close" } })).json()).source.replaceAll('\r\n', '\n');
+  assert(placesDisk.includes('**Rich**\n\n\\:::{table}\n\n:widths: 1 2\n\n') && placesDisk.includes('\\:::Omega.\n'), `Saved literal source: ${JSON.stringify(placesDisk)}`);
+  result.markdownRefusedSource = true;
   return result;
 }
