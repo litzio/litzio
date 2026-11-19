@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
 import { EmptyState } from "@/components/ui/screen-parts.tsx";
 import { Status } from "@/components/ui/status.tsx";
+import { Notice } from "../ui/primitives.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 import { i18n, type MessageKey } from "../i18n.ts";
@@ -381,6 +382,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     }
     return candidate;
   };
+  // A provider failure reaches both the diagnostic and the model list; report that reason once.
+  const providerNotice = setup || providerProblem;
   const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
   const submitAnswer = (question: AssistantUserInput, answers: import("../../shared/assistant.ts").AssistantUserInputAnswers) => run(async isCurrent => {
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers });
@@ -416,7 +419,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     const status = value.receipt.status;
     if (status === "accepted") return null;
     return <div className="assistant-submission-status type-helper">
-      <span role={status === "rejected" ? "alert" : "status"}>{i18n.t(status === "pending" ? "Sending…" : status === "rejected" ? "Failed" : "Needs confirmation")}</span>
+      <span role={status === "rejected" ? "alert" : "status"}><Status variant="plain" tone={status === "pending" ? "progress" : status === "rejected" ? "error" : "warning"} label={i18n.t(status === "pending" ? "Sending…" : status === "rejected" ? "Failed" : "Needs confirmation")} /></span>
       {value.receipt.error ? <span>{i18n.t(value.receipt.error, { defaultValue: value.receipt.error })}</span> : null}
       {status !== "pending" ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void retrySubmission(value)}>{i18n.t("Retry")}</Button> : null}
       {status === "unknown" && value.receipt.error === "Unable to confirm acceptance" ? <Tooltip><TooltipTrigger
@@ -442,7 +445,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         else onClose();
       }
       if (event.key === "Tab" && overlay) {
-        const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
+        const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => !element.matches(":disabled") && element.getClientRects().length);
         const first = controls[0], last = controls.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -459,15 +462,19 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AssistantConversationInfo[]>(`${ASSISTANT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
-      {(["open", "reveal"] as const).map(action => <Tooltip key={action}><TooltipTrigger render={<span tabIndex={0} />}>
-        <Button variant="ghost" size="icon-sm" aria-label={i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location")} disabled={!conversation || pending || !window.litzioDesktop?.providerSessionLog} onClick={() => void run(async () => {
+      {(["open", "reveal"] as const).map(action => {
+        const label = i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location"), unavailable = !conversation || pending || !window.litzioDesktop?.providerSessionLog;
+        // Only a disabled button needs its wrapper as the named keyboard stop for the reason.
+        return <Tooltip key={action}><TooltipTrigger render={unavailable ? <span tabIndex={0} aria-label={label} /> : <span />}>
+        <Button variant="ghost" size="icon-sm" aria-label={label} disabled={unavailable} onClick={() => void run(async () => {
           try {
             const result = await window.litzioDesktop!.providerSessionLog(conversation!.id, conversation!.provider ?? "codex", action);
             if (result) setProblem(i18n.t(result.reason === "missing" ? "Provider log is absent or has been removed." : result.reason === "denied" ? "Provider log access was denied." : result.reason === "launch" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified."));
           }
           catch { setProblem(i18n.t(action === "open" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified.")); }
         })}>{action === "open" ? <ExternalLink /> : <FolderOpen />}</Button>
-      </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>)}
+      </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>;
+      })}
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </>} />
     <div className="assistant-context type-helper" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
@@ -547,9 +554,9 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
           {submissionActions(value)}
         </div>)}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><EmptyState title={i18n.t("Ask about your document")} description={i18n.t("With edit access, documents are edited directly.")} /></div> : null}
-      {setup || providerProblem ? <div className="assistant-notice" role="status"><p>{i18n.t((setup || providerProblem) as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
+      {providerNotice ? <Notice tone="error" className="assistant-notice"><p>{i18n.t(providerNotice as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></Notice> : null}
       {conversation?.permissionFallback ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>{i18n.t("Opened folders")}</TooltipTrigger><TooltipContent>{i18n.t("Full access is not allowed in this environment. Continuing with Opened folders.")}</TooltipContent></Tooltip> : null}
-      {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
+      {problem && problem !== providerNotice ? <Notice tone="error" className="assistant-notice">{problem}</Notice> : null}
     </div>
     </div>
     {!history && away ? <Button className="assistant-jump" variant="outline" size="sm" onClick={jumpToBottom}><ArrowDown />{i18n.t(unread ? "New content · Jump to bottom" : "Jump to bottom")}</Button> : null}
