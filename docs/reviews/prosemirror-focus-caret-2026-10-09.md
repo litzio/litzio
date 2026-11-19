@@ -3,7 +3,7 @@
 - Status: Historical
 - Last verified: 2026-10-09 (Windows Chrome and Linux Chrome 155 in the Playwright `v1.63.0-noble` image; before/after runs of the same scenarios).
 - Scope: the pinned `prosemirror-view@1.42.4` patch and its evidence ([issue #144](https://github.com/litzio/litzio/issues/144)). No Core, CLI or Markdown change.
-- Current authority: [Continuous document editing](../design/document-editing-v1.md) for the caret contract; the applied version and removal condition below remain applicable while the patch exists.
+- Current authority: [Continuous document editing](../design/document-editing-v1.md) for the caret contract. [#1827](https://github.com/litzio/litzio/issues/1827) re-ported a reduced patch to `prosemirror-view@1.42.9`; its scope and removal condition are in the [dependency patch register](../contributing/dependency-patches.md). The version, patch and removal condition below describe 1.42.4.
 
 ## Symptom
 

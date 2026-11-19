@@ -401,8 +401,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const dom = view.dom;
     let selectedAtPointer: Selection | null = null;
     let nativeKeyboardMenu = false;
-    const nativeTarget = (target: EventTarget | null) => target instanceof Element &&
-      !!target.closest('input, textarea, select, button, [role="textbox"], pre');
+    // Tiptap gives the editor root itself role="textbox"; only fields inside it are native.
+    const nativeTarget = (target: EventTarget | null) => {
+      const field = target instanceof Element ? target.closest('input, textarea, select, button, [role="textbox"], pre') : null;
+      return !!field && field !== dom;
+    };
     const blockAt = (target: EventTarget | null) => {
       let block: { index: number; pos: number } | undefined;
       editor.state.doc.forEach((_node, pos, index) => {

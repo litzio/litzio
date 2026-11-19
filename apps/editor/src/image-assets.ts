@@ -58,7 +58,10 @@ export function imageAssetsPlugin(options: Options): Plugin {
   type Pending = { anchor: number | null; selectionMoved: boolean; emptyFigure?: ProseMirrorNode } | null;
   const key = new PluginKey<Pending>("imageAsset");
   const host = options.host ?? createAssetHost(getHostClient());
-  let uploading = false, destroyed = false;
+  let uploading = false;
+  // ProseMirror destroys and recreates every plugin view when the plugin set changes
+  // (e.g. a later registerPlugin), so only the current view instance marks a live Editor.
+  let liveView: EditorView | null = null;
   const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
   const upload = async (view: EditorView, file: File, position: number, source: "paste" | "drop") => {
@@ -74,7 +77,7 @@ export function imageAssetsPlugin(options: Options): Plugin {
       view.dispatch(view.state.tr.setMeta(key, { anchor, selectionMoved: false, emptyFigure }));
       created = await host.create(file, documentPath, source);
       const pending = key.getState(view.state);
-      if (destroyed || !view.editable || pending?.anchor == null) throw new Error("Image insertion was cancelled because its Editor or target block changed.");
+      if (liveView !== view || !view.editable || pending?.anchor == null) throw new Error("Image insertion was cancelled because its Editor or target block changed.");
       // Drafts are outside engine state, so the unchanged-node check cannot detect them.
       // Query live at completion, including drafts opened while the Host upload was pending.
       if (pending.emptyFigure && options.hasActiveDraft?.(String(pending.emptyFigure.attrs.sourcePath))) {
@@ -109,7 +112,7 @@ export function imageAssetsPlugin(options: Options): Plugin {
       options.reject(message);
     } finally {
       if (created) options.changed?.(created.path);
-      if (!destroyed) view.dispatch(view.state.tr.setMeta(key, null));
+      if (liveView === view) view.dispatch(view.state.tr.setMeta(key, null));
       uploading = false;
       options.pending?.(false);
     }
@@ -143,7 +146,10 @@ export function imageAssetsPlugin(options: Options): Plugin {
         return { ...pending, anchor, selectionMoved: pending.selectionMoved || tr.selectionSet || tr.docChanged };
       },
     },
-    view: () => ({ destroy() { destroyed = true; } }),
+    view: view => {
+      liveView = view;
+      return { destroy() { if (liveView === view) liveView = null; } };
+    },
     props: {
       handleDOMEvents: {
         paste: (view, event) => {

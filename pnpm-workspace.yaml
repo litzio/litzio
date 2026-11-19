@@ -26,5 +26,5 @@ patchedDependencies:
   myst-parser@1.7.4: patches/myst-parser@1.7.4.patch
   # #730, #734; docs/contributing/dependency-patches.md
   myst-to-md@1.0.17: patches/myst-to-md@1.0.17.patch
-  # #542, #144, #489; docs/contributing/dependency-patches.md
-  prosemirror-view@1.42.4: patches/prosemirror-view@1.42.4.patch
+  # #542, #144, #1827; docs/contributing/dependency-patches.md
+  prosemirror-view@1.42.9: patches/prosemirror-view@1.42.9.patch

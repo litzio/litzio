@@ -1,0 +1,109 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 3182a2c995b6ee655dfff2dd77446d37c6c0b396..8f5594b736ebe1b75ee4dc5a2e31bc8e427abf90 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -2976,6 +2976,8 @@ var InputState = _createClass(function InputState() {
+   this.lastIOSEnter = 0;
+   this.lastIOSEnterFallbackTimeout = -1;
+   this.lastFocus = 0;
++  this.selectionKeys = 0;
++  this.selectionKeysAtFocus = 0;
+   this.lastTouch = 0;
+   this.lastChromeDelete = 0;
+   this.composing = false;
+@@ -3055,6 +3057,7 @@ editHandlers.keydown = function (view, _event) {
+   if (inOrNearComposition(view)) return;
+   view.input.lastKeyCode = event.keyCode;
+   view.input.lastKeyCodeTime = Date.now();
++  if (!modifierKeyCodes.includes(event.keyCode)) view.input.selectionKeys++;
+   view.input.lastKeyDispatched = false;
+   if (android && chrome && event.keyCode == 13) return;
+   if (event.keyCode != 229) view.domObserver.forceFlush();
+@@ -3408,6 +3411,12 @@ handlers.touchmove = function (view) {
+ handlers.contextmenu = function (view) {
+   return forceDOMFlush(view);
+ };
++// Litzio patch: keys other than a modifier alone, counted so that the start-of-document check
++// in DOMObserver.flush does not take a key made after focus for a browser reset (Ctrl+Home).
++var modifierKeyCodes = [16, 17, 18, 20, 91, 92, 93, 224, 225];
++function keyedSinceFocus(view) {
++  return view.input.selectionKeys != view.input.selectionKeysAtFocus;
++}
+ function inOrNearComposition(view, event) {
+   if (view.composing) return true;
+   if (safari && Math.abs(Date.now() - view.input.compositionEndedAt) < 500) {
+@@ -3697,7 +3706,10 @@ function handleDrop(view, event, dragging) {
+ }
+ handlers.focus = function (view) {
+   view.input.lastFocus = Date.now();
++  view.input.selectionKeysAtFocus = view.input.selectionKeys;
+   if (!view.focused) {
++    // Litzio patch: restore before selectionchange flushes Chromium's focus caret into EditorState.
++    selectionToDOM(view);
+     view.domObserver.stop();
+     view.dom.classList.add("ProseMirror-focused");
+     view.domObserver.start();
+@@ -4631,7 +4643,7 @@ var DOMObserver = function () {
+         }
+       }
+       var readSel = null;
+-      if (from < 0 && newSel && view.input.lastFocus > Date.now() - 200 && Math.max(view.input.lastTouch, view.input.lastClick.time) < Date.now() - 300 && selectionCollapsed(selRange) && (readSel = selectionFromDOM(view)) && readSel.eq(prosemirrorState.Selection.near(view.state.doc.resolve(0), 1))) {
++      if (from < 0 && newSel && view.input.lastFocus > Date.now() - 200 && !keyedSinceFocus(view) && Math.max(view.input.lastTouch, view.input.lastClick.time) < Date.now() - 300 && selectionCollapsed(selRange) && (readSel = selectionFromDOM(view)) && readSel.eq(prosemirrorState.Selection.near(view.state.doc.resolve(0), 1))) {
+         view.input.lastFocus = 0;
+         selectionToDOM(view);
+         this.currentSelection.set(selRange);
+diff --git a/dist/index.js b/dist/index.js
+index e7afadb77457943de14e5108aaee7c60f0c590d2..f7f0054abea0f682e30ebaae81acfa0eea9ff86a 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -3144,6 +3144,8 @@ class InputState {
+         this.lastIOSEnter = 0;
+         this.lastIOSEnterFallbackTimeout = -1;
+         this.lastFocus = 0;
++        this.selectionKeys = 0;
++        this.selectionKeysAtFocus = 0;
+         this.lastTouch = 0;
+         this.lastChromeDelete = 0;
+         this.composing = false;
+@@ -3234,6 +3236,8 @@ editHandlers.keydown = (view, _event) => {
+         return;
+     view.input.lastKeyCode = event.keyCode;
+     view.input.lastKeyCodeTime = Date.now();
++    if (!modifierKeyCodes.includes(event.keyCode))
++        view.input.selectionKeys++;
+     view.input.lastKeyDispatched = false;
+     // Suppress enter key events on Chrome Android, because those tend
+     // to be part of a confused sequence of composition events fired,
+@@ -3585,6 +3589,12 @@ handlers.touchmove = view => {
+     setSelectionOrigin(view, "pointer");
+ };
+ handlers.contextmenu = view => forceDOMFlush(view);
++// Litzio patch: keys other than a modifier alone, counted so that the start-of-document check
++// in DOMObserver.flush does not take a key made after focus for a browser reset (Ctrl+Home).
++const modifierKeyCodes = [16, 17, 18, 20, 91, 92, 93, 224, 225];
++function keyedSinceFocus(view) {
++    return view.input.selectionKeys != view.input.selectionKeysAtFocus;
++}
+ function inOrNearComposition(view, event) {
+     if (view.composing)
+         return true;
+@@ -3944,7 +3954,10 @@ function handleDrop(view, event, dragging) {
+ }
+ handlers.focus = view => {
+     view.input.lastFocus = Date.now();
++    view.input.selectionKeysAtFocus = view.input.selectionKeys;
+     if (!view.focused) {
++        // Litzio patch: restore before selectionchange flushes Chromium's focus caret into EditorState.
++        selectionToDOM(view);
+         view.domObserver.stop();
+         view.dom.classList.add("ProseMirror-focused");
+         view.domObserver.start();
+@@ -4932,7 +4945,7 @@ class DOMObserver {
+         // If it looks like the browser has reset the selection to the
+         // start of the document after focus, restore the selection from
+         // the state
+-        if (from < 0 && newSel && view.input.lastFocus > Date.now() - 200 &&
++        if (from < 0 && newSel && view.input.lastFocus > Date.now() - 200 && !keyedSinceFocus(view) &&
+             Math.max(view.input.lastTouch, view.input.lastClick.time) < Date.now() - 300 &&
+             selectionCollapsed(selRange) && (readSel = selectionFromDOM(view)) &&
+             readSel.eq(Selection.near(view.state.doc.resolve(0), 1))) {
