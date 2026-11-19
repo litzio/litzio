@@ -191,6 +191,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
         for (let index = 0; index < doc.childCount; index++) {
           if (doc.child(index) === before.child(index)) continue;
           changed.add(index);
+          // Typing and block moves touch a few blocks; a larger change (paste, reload) is measured in full.
           if (changed.size > 32) return false;
         }
       }
