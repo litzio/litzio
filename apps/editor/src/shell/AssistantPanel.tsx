@@ -7,7 +7,7 @@ import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle } from "lucide-react";
 import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
@@ -64,7 +64,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
   const [historyQuery, setHistoryQuery] = useState("");
-  const historySearchId = useId();
   const [provider, setProvider] = useState<AiProvider>("codex");
   const models = catalog?.provider === provider ? catalog : undefined;
   const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("full-access");
@@ -549,10 +548,10 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
     <div ref={transcriptContent}>
       {historyMatches ? <div className="assistant-history">
-        <h3 className="type-item-name"><label htmlFor={historySearchId}>{i18n.t("Search conversation history")}</label></h3>
-        <Input id={historySearchId} className="assistant-history-search" placeholder={i18n.t("Title or folder name")} value={historyQuery} disabled={pending} onChange={event => setHistoryQuery(event.target.value)} />
+        <h3 className="type-item-name">{i18n.t("Conversation history")}</h3>
+        <Input aria-label={i18n.t("Search conversation history")} className="assistant-history-search" placeholder={i18n.t("Title or folder name")} value={historyQuery} disabled={pending} onChange={event => setHistoryQuery(event.target.value)} />
         {notices}
-        {!historyMatches.length ? <p>{i18n.t("No conversations yet.")}</p> : historyMatches.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void resumeHistory(entry)}>
+        {!historyMatches.length ? <p>{i18n.t(query && history?.length ? "No matching conversations" : "No conversations yet.")}</p> : historyMatches.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void resumeHistory(entry)}>
           <strong className="type-item-name">{entry.title}</strong>
           <span className="type-helper"><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>{" · "}{providerLabel(entry.provider)}</span>
           {entry.folders.length ? <small className="type-helper" title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>

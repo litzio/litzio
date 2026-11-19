@@ -1302,7 +1302,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(older).toBeVisible();
   await search.fill('찾을 수 없는 기록');
   await expect(history.getByRole('button')).toHaveCount(0);
-  await expect(history.getByText('아직 대화가 없습니다.')).toBeVisible();
+  await expect(history.getByText('일치하는 대화가 없습니다', { exact: true })).toBeVisible();
   await search.clear();
   await expect(older.locator('small')).toHaveText('연구 보고서 · 검토 자료');
   await expect(older.locator('small')).toHaveAttribute('title', historyEntries[0].folders.join('\n'));
