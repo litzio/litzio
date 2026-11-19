@@ -209,11 +209,10 @@ function tableTab(state: EditorState, backward: boolean, editable: boolean): Tra
 /** ArrowUp/ArrowDown from a grid cell's first/last visual line, or from a selected cell node, reaches the
  * same column of the adjacent row; the native caret and ProseMirror would follow document order to the
  * side cell instead. The final row continues into the caption. The first row's ArrowUp leaves the table
- * for the nearest selectable position before it (as from prose), and stays put when nothing precedes the
- * table. A text caret keeps its horizontal position where the target textblock has a line there,
- * otherwise it lands at the start (down) or end (up). Moves within a multi-line cell stay native.
- * `true` consumes the key without moving. */
-function tableVertical(view: EditorView, down: boolean): Transaction | true | null {
+ * for the nearest selectable position before it (as from prose), or the native gap before a table that
+ * starts the document. A text caret keeps its horizontal position where the target textblock has a line
+ * there, otherwise it lands at the start (down) or end (up). Moves within a multi-line cell stay native. */
+function tableVertical(view: EditorView, down: boolean): Transaction | null {
   const { state } = view, { selection, doc } = state;
   if (view.composing) return null;
   const $side = down ? selection.$to : selection.$from;
@@ -236,8 +235,8 @@ function tableVertical(view: EditorView, down: boolean): Transaction | true | nu
   };
   const table = $cell.node(-1), target = $cell.index(-1) + (down ? 1 : -1);
   if (target < 0) {
-    const before = Selection.findFrom(doc.resolve($cell.before(-1)), -1);
-    if (!before) return true;
+    const $table = doc.resolve($cell.before(-1)), before = Selection.findFrom($table, -1);
+    if (!before) return state.tr.setSelection(new GapCursor($table)).scrollIntoView();
     if (!(before instanceof TextSelection)) return state.tr.setSelection(before).scrollIntoView();
     return caretIn(before.$head.start(), before.$head.end());
   }
@@ -352,7 +351,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           const { selection } = state;
           const { $from } = selection;
           const cellMove = tableVertical(view, false);
-          if (cellMove) { if (cellMove !== true) view.dispatch(cellMove); return true; }
+          if (cellMove) { view.dispatch(cellMove); return true; }
           if (!selection.empty || $from.parent.type.name !== "tableCaption" || !view.endOfTextblock("up")) return false;
           const cell = TextSelection.findFrom(state.doc.resolve($from.before()), -1, true);
           if (!cell) return false;
@@ -361,7 +360,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         ArrowDown: () => {
           const { view } = this.editor;
           const cellMove = tableVertical(view, true);
-          if (cellMove) { if (cellMove !== true) view.dispatch(cellMove); return true; }
+          if (cellMove) { view.dispatch(cellMove); return true; }
           const { selection, doc } = view.state;
           const finalBlock = selection.to === doc.content.size &&
             (selection instanceof GapCursor || selection instanceof NodeSelection && selection.node.isBlock);
