@@ -9,14 +9,6 @@ allowBuilds:
   electron-winstaller@5.4.0: false
   esbuild@0.28.2: true
 
-# Already locked on master before the pnpm 12 migration (2026-09-23).
-# Keep the built-in release-age policy; exempt only these existing versions.
-minimumReleaseAgeExclude:
-  - cn@0.4.0
-  - fs-extra@11.4.1
-  # Explicit owner-requested security update; do not wait for the release-age window.
-  - electron@45.3.4
-
 packageExtensions:
   # #1147; pair the patched userland import with its runtime dependency.
   markdown-it@13.0.2:
