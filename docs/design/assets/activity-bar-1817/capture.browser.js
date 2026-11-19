@@ -49,7 +49,8 @@ async (page, {expect, openPath, assistantFixture, waitForExplorerLayout}) => {
   const shot = async name => {
     await page.mouse.move(720, 600);
     await page.evaluate(() => { document.activeElement?.blur(); document.querySelector('.document-scroll[data-active="true"]')?.scrollTo(0, 0); });
-    await page.screenshot({path:out(name), mask:[page.locator('.sidebar-host-account .sidebar-tree-name')]});
+    await page.screenshot({path:out(name), mask:[page.locator('.sidebar-host-account .sidebar-tree-name')],
+      maskColor:await page.locator('.sidebar').evaluate(node => getComputedStyle(node).backgroundColor)});
   };
   const bar = page.getByTestId('activity-bar');
   if (!await bar.count()) { await go(); await shot('before-1440-light'); return; }
