@@ -7,7 +7,8 @@
 - Document settings verification: 2026-11-17 — shared property controls, caption-mode conversion/Undo/Save/Reload, per-tab expansion and notation previews; [settings contract and captures](editor-ux-shell-v1.md#document-settings-placement-554). Core/CLI numbering semantics were not changed or reverified.
 - Accent verification: 2026-10-27 (#559: generated heading/Outline numbers share the local accent; all presets checked by the token contrast and existing Outline browser tests).
 - Body-heading authoring verification: 2026-10-26 (#472 Editor unit/browser checks; Core/CLI and numbering behavior unchanged). [Verification details](document-editing-v1.md).
-- Last verified: 2026-11-16 — #1658: 번호 경고 위치·표 번호 숨김을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Number column verification: 2026-11-20 — #1839: same-level heading text alignment in the page, Outline, reading view and print media; `pnpm browser:test outline` plus the related document-title, layout-rules, numbering-mode, panel-lists and document-scroll scenarios. Core/CLI unchanged.
+- Previous verification: 2026-11-16 — #1658: 번호 경고 위치·표 번호 숨김을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-26 (#462 caption-template Core/CLI/Editor tests and cross-reference browser Undo/Redo, Source and Save → Reload).
 - Reference-template verification: 2026-10-25 (#445 Core/CLI/Editor tests and cross-reference browser Save → Reload).
 - Previous verification: 2026-10-14 (#232 native metadata contract).
@@ -187,12 +188,47 @@ See [accent palette and contrast requirements](editor-visual-language-v1.md#toke
 
 The heading's existing `::before` supplies the number; Outline wraps only the
 Core-computed number in an inline span, retaining its full text/accessibility label.
-No punctuation, number/title spacing, font size/weight, editor selection/copy behavior,
-file content or section-reference display (`2절` / `Section 2`) changes. No gap styling
-is introduced: both surfaces retain their existing single U+0020 space. This is an
+No punctuation, font size/weight, editor selection/copy behavior, file content or
+section-reference display (`2절` / `Section 2`) changes. Number/title spacing follows
+[same-level number columns](#same-level-number-columns-1839). This is an
 Litzio display rule, like other Editor presentation rules: MyST renderers show the
 numbers without this color. Core and CLI are unchanged; no semantic operation or CLI
 command is needed.
+
+## Same-level number columns (#1839)
+
+With Number headings on, same-level heading text starts on one vertical line, whatever
+its number's width (`5.1` / `5.10`, `5.2.1` / `5.2.10`); different levels may start at
+different lines. Each level's number sits in a column as wide as that level's widest
+number in the open document, followed by `--space-heading-number-gap` (0.25em, near the
+former space). A wrapped heading continues at its text start (hanging indent). The page
+paragraph position, `H1`/`H2` depth labels, `+`/drag handles, document width, hover
+outline and number color are unchanged; reading view and print use the same DOM.
+
+The Outline keeps its per-level indentation (`--outline-depth`, `--space-outline-indent`)
+and aligns same-level titles the same way. The existing U+0020 after the number stays
+inside the number column and remains the Outline gap, so row text and accessible names
+(`5.1 관리도…`) are unchanged; the column is measured as number plus space at both the
+regular and the current row's semibold weight, so no title shifts when a row becomes
+current (a semibold space is narrower) or when platform glyph rounding differs.
+Table and Figure lists are unchanged.
+
+`apps/editor/src/heading-number-columns.ts` owns the width decision: it measures the
+distinct numbers per level once the numbers change (not on typing) and after web fonts
+load, and writes em values to `--heading-number-column-h1…h6` on the editor root and
+`--outline-number-column-h1…h6` on the Outline list. To switch to fixed columns, set its
+`fitToDocument` to `false`; the fixed widths in `styles/tokens.css` Adjustable values,
+which fit `10`, `5.10`, `5.10.10` and so on, then apply.
+
+Verification: the `outline` browser scenario adds H2 `1.10` and H3 `1.9.10` headings and
+a wrapping title, asserts by DOM Range that same-level text starts at one x in the page
+and the Outline, that the wrapped line starts there too, that removing the tenth headings
+narrows both columns and keeps alignment, and that turning numbering off restores text to
+the heading edge. These assertions failed against the previous single-space layout.
+Captures (Korean, numbered sample, not pixel assertions):
+[light 1440](assets/heading-number-align-1839/body-outline-ko-light-1440.png),
+[dark 1440](assets/heading-number-align-1839/body-outline-ko-dark-1440.png),
+[light 640](assets/heading-number-align-1839/body-ko-light-640.png) (no horizontal overflow).
 
 ### Original #511 verification (Historical)
 

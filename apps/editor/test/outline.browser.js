@@ -337,8 +337,73 @@ async (page, { openDocument, reloadDocument, expect }) => {
   await expect(items.nth(1)).toHaveAccessibleName((await texts())[1]);
   await expect(outline).toHaveAccessibleName('Outline');
   result.headingNumberColors = true;
+
+  // Same-level heading text starts on one line in the page and the Outline, whatever the number
+  // width (1.9 and 1.10, 1.10.9 and 1.10.10), and follows added or removed headings (#1839).
+  const textStarts = () => page.evaluate(() => {
+    const firstGlyph = (node, offset = 0) => {
+      const range = document.createRange();
+      range.setStart(node, offset);
+      range.setEnd(node, offset + 1);
+      return range.getBoundingClientRect().left;
+    };
+    const headings = [...document.querySelectorAll('[data-document-tab][data-active=true] .document-editor .heading')].map(heading => {
+      const text = document.createTreeWalker(heading, NodeFilter.SHOW_TEXT).nextNode();
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const lines = [...range.getClientRects()].map(rect => Math.round(rect.left * 10) / 10);
+      return { level: heading.tagName, number: heading.getAttribute('data-heading-number'), x: firstGlyph(text), left: heading.getBoundingClientRect().left, lines };
+    });
+    const rows = [...document.querySelectorAll('[data-testid="outline"] .document-outline-item')].map(row => {
+      const number = row.querySelector('.document-outline-number');
+      const text = number?.nextSibling;
+      return { level: row.style.getPropertyValue('--outline-depth'), number: number?.textContent.trim() ?? null, x: text ? firstGlyph(text) : null };
+    });
+    return { headings, rows };
+  });
+  // Numbers whose text does not start where the first number of the same level does.
+  const misaligned = items => [...Map.groupBy(items.filter(item => item.number), item => item.level).values()]
+    .flatMap(group => group.filter(item => Math.abs(item.x - group[0].x) >= 0.5).map(item => ({ number: item.number, x: item.x, expected: group[0].x })));
+  const setHeadings = texts => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate((element, texts) => {
+    const { state, view } = element.editor;
+    const added = [];
+    state.doc.forEach((node, pos) => { if (node.type.name === 'heading' && node.textContent.startsWith('Aligned ')) added.push({ from: pos, to: pos + node.nodeSize }); });
+    const tr = state.tr;
+    for (const { from, to } of added.reverse()) tr.delete(from, to);
+    tr.insert(tr.doc.content.size, texts.map(([level, text]) => state.schema.nodes.heading.create({ level }, state.schema.text(text))));
+    view.dispatch(tr.setMeta('addToHistory', false));
+  }, texts);
+  const long = 'Aligned long heading whose words wrap onto a second line in the page so the hanging indent is visible';
+  await setHeadings([[2, 'Aligned 6'], [2, 'Aligned 7'], [2, long], [2, 'Aligned 9'],
+    ...Array.from({ length: 10 }, (_, index) => [3, `Aligned 9.${index + 1}`]), [2, 'Aligned 10']]);
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="outline"] .document-outline-number')].some(number => number.textContent.trim() === '1.10'));
+  const withTen = await textStarts();
+  const numbers = withTen.headings.map(heading => heading.number);
+  expect(numbers).toEqual(expect.arrayContaining(['1.1', '1.9', '1.10', '1.9.1', '1.9.10']));
+  expect(misaligned(withTen.headings)).toEqual([]);
+  expect(withTen.rows.map(row => row.number)).toEqual(numbers);
+  expect(misaligned(withTen.rows)).toEqual([]);
+  const wrapped = withTen.headings.find(heading => heading.number === '1.8');
+  expect(wrapped.lines.length).toBeGreaterThan(1);
+  expect(new Set(wrapped.lines).size).toBe(1);
+  // Removing the tenth headings narrows each column again; text still shares its line.
+  await setHeadings([[2, 'Aligned 6'], [3, 'Aligned 6.1']]);
+  await page.waitForFunction(() => ![...document.querySelectorAll('[data-testid="outline"] .document-outline-number')].some(number => number.textContent.trim() === '1.10'));
+  const withoutTen = await textStarts();
+  expect(misaligned(withoutTen.headings)).toEqual([]);
+  expect(misaligned(withoutTen.rows)).toEqual([]);
+  const h2 = starts => starts.headings.find(heading => heading.number === '1.1').x;
+  const row2 = starts => starts.rows.find(row => row.number === '1.1').x;
+  expect(h2(withoutTen)).toBeLessThan(h2(withTen) - 1);
+  expect(row2(withoutTen)).toBeLessThan(row2(withTen) - 1);
+  await setHeadings([]);
+  await page.waitForFunction(() => !document.querySelector('[data-testid="outline"] [data-outline-label^="1.6 "]'));
+  result.headingNumberAlignment = true;
   await page.keyboard.press('Control+z');
   result.headingNumberingUndo = await editor.locator('h2').first().getAttribute('data-heading-number') === null;
+  // Without numbers, heading text starts at the heading's own edge again.
+  const unnumbered = await textStarts();
+  expect(unnumbered.headings.every(heading => Math.abs(heading.x - heading.left) < 0.5)).toBe(true);
   await page.keyboard.press('Control+Shift+z');
   result.headingNumberingRedo = await editor.locator('h2').first().getAttribute('data-heading-number') === '1.1';
   const acknowledgement = page.waitForResponse(response => response.request().method() === 'POST' && /\/api\/document(?:\?|$)/.test(response.url()));

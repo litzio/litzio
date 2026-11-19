@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from "react";
 import { createOutlineStore, type NavigationList, type OutlineItem, type OutlineStore } from "../outline.ts";
+import { applyNumberColumns, numberColumnsKey, numberFont, onFontsLoaded, type NumberedHeading } from "../heading-number-columns.ts";
 import { Button } from "@/components/ui/button.tsx";
 
 type DocumentPanelProps = {
@@ -98,6 +99,27 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
   useClientLayoutEffect(() => {
     revealTrackedRef.current();
   }, [active, outline.current, outline.items]);
+  // Heading rows fit each level's number column to the document, as the page headings do.
+  // The column holds the number and its following space, measured at both the regular and
+  // the current row's semibold weight, so every title starts exactly at the column edge.
+  const columns = useRef<{ element: HTMLElement; key: string }>(undefined);
+  const headings = kind === "outline" ? outline.items : undefined;
+  useClientLayoutEffect(() => {
+    const element = list.current;
+    if (!element || !headings) return;
+    const numbered: NumberedHeading[] = headings.flatMap(item => item.number ? [{ level: item.level, number: `${item.number} ` }] : []);
+    const fit = () => applyNumberColumns(element, "--outline-number-column-h", numbered, level => {
+      const index = headings.findIndex(item => item.number && item.level === level);
+      const number = element.children[index]?.querySelector(".document-outline-number");
+      if (!number) return undefined;
+      const style = getComputedStyle(number);
+      return [numberFont(style), numberFont(style, { "font-weight": style.getPropertyValue("--font-weight-semibold").trim() })];
+    });
+    const key = numberColumnsKey(numbered);
+    if (columns.current?.element !== element || columns.current.key !== key) fit();
+    columns.current = { element, key };
+    return onFontsLoaded(fit);
+  }, [active, headings]);
   useEffect(() => {
     const element = list.current;
     if (!element) return;
@@ -131,14 +153,14 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
   return (
     <section className="document-outline" role="tabpanel" hidden={!active} id={`document-panel-list-${kind}`} aria-labelledby={`document-panel-tab-${kind}`} data-testid={kind}>
       {!active ? null : outline.items.length === 0 ? <p className="document-outline-empty">{i18n.t(kind === "tables" ? "No tables" : kind === "figures" ? "No figures" : "No headings")}</p> : (
-        <ol ref={list} className="document-outline-list" onKeyDown={move}>
+        <ol ref={list} className="document-outline-list" data-number-columns={kind === "outline" ? "" : undefined} onKeyDown={move}>
           {outline.items.map((item, index) => (
             <li key={item.index}>
               <button
                 type="button"
                 className="document-outline-item"
                 data-outline-label={item.text || i18n.t("Untitled heading")}
-                style={{ "--outline-depth": item.level - 1 } as CSSProperties}
+                style={{ "--outline-depth": item.level - 1, "--outline-number-column": `var(--outline-number-column-h${item.level})` } as CSSProperties}
                 aria-current={index === outline.current ? "location" : undefined}
                 title={item.text || undefined}
                 onClick={() => onSelect(item)}
@@ -151,7 +173,8 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
                 }}
               >
                 <span className="document-outline-copy">
-                  {item.number ? <><span className="document-outline-number">{item.number}</span>{item.text.slice(item.number.length)}</>
+                  {item.number && kind === "outline" ? <><span className="document-outline-number">{`${item.number} `}</span>{item.text.slice(item.number.length + 1)}</>
+                    : item.number ? <><span className="document-outline-number">{item.number}</span>{item.text.slice(item.number.length)}</>
                     : item.text || <span className="document-outline-untitled">{i18n.t("Untitled heading")}</span>}
                 </span>
               </button>

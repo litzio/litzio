@@ -164,6 +164,24 @@
   --line-height-document-heading: 1.35;
   /* Generated heading and non-current Outline numbers; heading text keeps its own color. */
   --id-color-document-heading-number: var(--id-color-interaction);
+  /* Gap between a heading number and its text, near the former single space. */
+  --space-heading-number-gap: 0.25em;
+  /* Fixed number columns per level, in em of each level's number: they fit 10, 5.10, 5.10.10, ...
+   * The Editor replaces them with each document's widest number while heading-number-columns.ts
+   * `fitToDocument` is true; set it to false to use these widths. Outline values use its own
+   * semibold font and include the space that follows the number. */
+  --heading-number-column-h1: 1.13em;
+  --heading-number-column-h2: 1.928em;
+  --heading-number-column-h3: 3.222em;
+  --heading-number-column-h4: 4.516em;
+  --heading-number-column-h5: 5.81em;
+  --heading-number-column-h6: 7.104em;
+  --outline-number-column-h1: 1.336em;
+  --outline-number-column-h2: 2.115em;
+  --outline-number-column-h3: 3.371em;
+  --outline-number-column-h4: 4.627em;
+  --outline-number-column-h5: 5.882em;
+  --outline-number-column-h6: 7.138em;
   /* Space above document headings, except the first block. */
   --space-document-heading-before: var(--space-8);
   /* Space below document headings and the title slot. */
