@@ -188,8 +188,9 @@ A changed document recomputes numbering; source semantics and canonical output a
   that item's text; a written paragraph's text is appended there, with the caret at the
   join point. One engine replacement removes only the boundary between the two text
   blocks, so marks and inline atoms (math, endnote references, citations, cross-references)
-  move unchanged. No new item is created, and the join is its own Undo step even right
-  after typing. Save writes it through the existing list content and block deletion edits.
+  move unchanged. No new item is created, and the join is its own Undo step, separate from
+  typing just before or just after it. Save writes it through the existing list content and
+  block deletion edits.
   Backspace inside a list keeps the engine's list lifting: an empty item or an item start
   lifts it one level.
 - Backspace/Delete first read the native caret when a caret key (Home, End, arrows) has

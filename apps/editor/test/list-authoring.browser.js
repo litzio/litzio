@@ -117,7 +117,8 @@ async (page, { openDocument, withBlockHover }) => {
   // Below a numbered list whose last item has a nested list, Backspace at the start of a
   // written line appends its text to the visually last item (#1821). Typed at a person's
   // speed, Home and Backspace fall inside history's 500 ms grouping window, yet the join is
-  // its own Undo step: one Undo restores the separate line with its typed text.
+  // its own Undo step: a letter typed right after it is undone first, then one more Undo
+  // restores the separate line with its typed text.
   await page.keyboard.press('Enter');
   await page.keyboard.type('Inner');
   await page.keyboard.press('Tab');
@@ -132,11 +133,17 @@ async (page, { openDocument, withBlockHover }) => {
   const joinedDoc = writtenLine.doc.replace('"Inner"]]]] "Tail" bulletList', '"InnerTail"]]]] bulletList');
   const joinedLastItem = writtenLine.doc.includes('orderedList[listItem["First",orderedList[listItem["Inner"]]]] "Tail" bulletList') &&
     sameShape(joined, joinedDoc, '"InnerTail"@5');
+  await page.waitForTimeout(110);
+  await page.keyboard.type('X');
+  const typedAfterJoin = await shape();
+  await page.keyboard.press('Control+z');
+  const undoneTyping = await shape();
   await page.keyboard.press('Control+z');
   const undone = await shape();
   await page.keyboard.press('Control+Shift+z');
   const redone = await shape();
-  const joinUndoRedo = undone.doc === writtenLine.doc && redone.doc === joinedDoc;
+  const joinUndoRedo = typedAfterJoin.doc === joinedDoc.replace('"InnerTail"', '"InnerXTail"') &&
+    undoneTyping.doc === joinedDoc && undone.doc === writtenLine.doc && redone.doc === joinedDoc;
 
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor({state:'attached'});
@@ -215,6 +222,6 @@ async (page, { openDocument, withBlockHover }) => {
     inlineReopenedSame: inlineReopened.doc === inlineJoined.doc,
   };
   const failed = Object.entries(result).filter(([, value]) => value !== true);
-  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, emptyLine, backspacedEmptyLine, writtenLine, joined, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
+  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, emptyLine, backspacedEmptyLine, writtenLine, joined, typedAfterJoin, undoneTyping, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
   return result;
 }

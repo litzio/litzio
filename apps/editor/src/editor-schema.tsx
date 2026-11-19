@@ -626,7 +626,8 @@ const ParagraphMerge = Extension.create({
           // List v1 items hold one paragraph, so the paragraph's text continues the visually
           // last item instead of becoming a new item (#1821). One replacement removes only the
           // boundary between the two text blocks, so the inline content and its atoms move as
-          // they are (an empty paragraph just disappears). The join is its own Undo step.
+          // they are (an empty paragraph just disappears). The join is its own Undo step:
+          // history is closed before it and, by a step-less transaction, after it.
           let end = 0;
           previous.descendants((node, offset) => {
             if (node.isTextblock) end = pos - previous.nodeSize + 1 + offset + 1 + node.content.size;
@@ -634,6 +635,7 @@ const ParagraphMerge = Extension.create({
           });
           const tr = closeHistory(state.tr).delete(end, pos + 1);
           this.editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, end)).scrollIntoView());
+          this.editor.view.dispatch(closeHistory(this.editor.state.tr));
           return true;
         }
         if (previous?.type.name !== "paragraph") return false;
