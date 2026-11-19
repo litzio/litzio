@@ -3317,9 +3317,9 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 }
 
 /* SPIKE #1812 — Activity Bar drafts (not for merge). */
-.app-shell--activity { --shell-sidebar: calc(var(--layout-sidebar-rail-width) + var(--sidebar-effective-width)); }
+.app-shell--activity { --shell-sidebar: calc(var(--activity-bar-width) + var(--sidebar-effective-width)); }
 .app-shell--activity.app-shell--collapsed,
-.app-shell--activity.app-shell--navigation-overlay { --shell-sidebar: var(--layout-sidebar-rail-width); }
+.app-shell--activity.app-shell--navigation-overlay { --shell-sidebar: var(--activity-bar-width); }
 .activity-shell {
   z-index: 1;
   grid-column: 1;
@@ -3332,13 +3332,13 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 }
 .activity-shell > .sidebar { position: relative; top: auto; height: 100%; flex: 1; min-width: 0; }
 .activity-shell > .sidebar--collapsed { display: none; }
-.app-shell .activity-shell > .sidebar--overlay { position: fixed; left: var(--layout-sidebar-rail-width); top: var(--app-titlebar-height, var(--layout-header-row)); height: calc(100vh - var(--app-titlebar-height, var(--layout-header-row))); }
+.app-shell .activity-shell > .sidebar--overlay { position: fixed; left: var(--activity-bar-width); top: var(--app-titlebar-height, var(--layout-header-row)); height: calc(100vh - var(--app-titlebar-height, var(--layout-header-row))); }
 .activity-bar {
   display: flex;
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  width: var(--layout-sidebar-rail-width);
+  width: var(--activity-bar-width);
   height: 100%;
   /* The first icon sits in the same band as PanelHeader and the tab row. */
   padding-block: calc((var(--layout-document-tab-height) + var(--border-width) - var(--size-control-compact)) / 2) var(--space-3);
@@ -3356,7 +3356,7 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .activity-bar-button[data-selected]::before {
   content: "";
   position: absolute;
-  left: calc(-1 * (var(--layout-sidebar-rail-width) - var(--size-control-compact)) / 2);
+  left: calc(-1 * (var(--activity-bar-width) - var(--activity-button-width, var(--size-control-compact))) / 2);
   top: var(--space-1);
   bottom: var(--space-1);
   width: 2px;
@@ -3387,3 +3387,55 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .work-screen-popup { width: 16rem; gap: var(--space-2); padding: var(--space-2); }
 /* The overlay leaves the shell's stacking context so it covers the tab row. */
 .app-shell--activity.app-shell--navigation-overlay .activity-shell:has(> .sidebar--overlay) { z-index: 4; }
+
+/* SPIKE #1812 follow-up — 1L labels under icons, 1T plugin icons and letter tiles (not for merge). */
+.app-shell--activity { --activity-bar-width: var(--layout-sidebar-rail-width); }
+/* 72px: rail (48px) + one compact gap each side, room for a 4–5 character Korean name. */
+.app-shell--activity-labels { --activity-bar-width: calc(var(--space-16) + var(--space-2)); --activity-button-width: calc(var(--activity-bar-width) - var(--space-2)); }
+.plugin-letter-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-5);
+  height: var(--space-5);
+  border-radius: var(--space-1);
+  background: var(--id-color-accent);
+  color: var(--id-color-text-on-accent);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+.work-screen-row .plugin-letter-tile { width: var(--size-icon-slot); height: var(--size-icon-slot); font-size: 0.625rem; }
+.work-screen-row .plugin-icon { width: var(--size-icon-slot); height: var(--size-icon-slot); }
+/* Plugin artwork and tiles share one 20px slot in the bar. */
+.activity-bar--tiles .activity-bar-group--screens .plugin-icon { width: var(--space-5); height: var(--space-5); }
+.activity-bar--labels {
+  /* The icon (not the whole item) sits centred in the PanelHeader / tab row band; the name hangs below. */
+  padding-top: calc((var(--layout-document-tab-height) + var(--border-width) - var(--space-5)) / 2 - var(--space-1));
+}
+.activity-bar--labels .activity-bar-group:not(.activity-bar-group--bottom) { gap: var(--space-1); }
+.activity-bar-button--labeled {
+  flex-direction: column;
+  gap: 2px;
+  width: var(--activity-button-width);
+  height: auto;
+  padding: var(--space-1) 2px;
+}
+.activity-bar-button--labeled .settings-entry-icon { height: var(--space-5); align-items: center; justify-content: center; }
+.activity-bar-button--labeled .settings-entry-icon > svg { width: var(--space-5); height: var(--space-5); }
+.activity-bar-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-meta);
+  font-weight: var(--font-weight-normal);
+  color: var(--id-color-text-muted);
+}
+.activity-bar-button--labeled:is([data-selected], [data-active]) .activity-bar-label { color: inherit; font-weight: var(--font-weight-medium); }
+/* With labels the active screen wraps icon and name like the open panel, without the left edge mark. */
+.activity-bar--labels .activity-bar-button[data-active] { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); }
+.activity-bar--labels .activity-bar-button[data-active]::after { display: none; }
+.activity-bar--labels .activity-bar-separator { width: calc(var(--activity-button-width) - var(--space-4)); }

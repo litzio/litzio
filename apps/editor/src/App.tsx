@@ -3,7 +3,7 @@ import { requestFolder, browseHostFolder, requestCreateFolder, folderPlaces } fr
 import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
-import { viewScreenIcon } from "./views/view-screen-icon.ts";
+import { hasViewScreenIcon, viewScreenIcon } from "./views/view-screen-icon.ts";
 import { ViewWorkspace } from "./views/ViewWorkspace.tsx";
 import type { ViewScreen } from "./views/view-api.ts";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
@@ -53,7 +53,7 @@ import { UnsavedChangesDialog } from "./shell/UnsavedChangesDialog.tsx";
 import type { FileActionHandler } from "./shell/FileActionDialog.tsx";
 import type { ImageRenamer } from "./image-rename.ts";
 import { Sidebar } from "./shell/Sidebar.tsx";
-import { ActivityBar, activityBarVariant, PlaceholderPanel, WorkScreensLauncher, WorkScreensPanel, type ActivityPanel, type WorkScreen } from "./shell/ActivityBarSpike.tsx";
+import { ActivityBar, activityBarFlavor, activityBarVariant, LetterTile, PlaceholderPanel, WorkScreensLauncher, WorkScreensPanel, type ActivityPanel, type WorkScreen } from "./shell/ActivityBarSpike.tsx";
 import { folderChain, knownFolders, useFolderTrees } from "./shell/folder-tree.ts";
 import { childPath, documentLocation, splitDocumentPath, unquotePath } from "./shell/document-path.ts";
 import { DocumentActions } from "./shell/DocumentActions.tsx";
@@ -234,6 +234,7 @@ function EditorApp() {
   const screens = useViewScreens();
   // SPIKE #1812: development-only draft switch.
   const [activityVariant] = useState(activityBarVariant);
+  const [activityFlavor] = useState(activityBarFlavor);
   const barDraft = activityVariant === 1 || activityVariant === 2;
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>("explorer");
   useEffect(() => {
@@ -1266,7 +1267,8 @@ function EditorApp() {
   const workScreens: WorkScreen[] = [{ id: "templates", label: i18n.t("Template gallery"), icon: <LayoutTemplate aria-hidden="true" />, active: activeId === "templates", run: openTemplateGallery },
     ...primaryScreens.map((screen, index) => { const Icon = viewScreenIcon(screen.icon); return { id: `screen-${screen.plugin}`, label: screen.title, badge: activityVariant !== 0 && index === 1,
       active: activeId === `screen-${screen.plugin}-${screen.id}`,
-      icon: <PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />, run: () => openScreen(screen) }; })];
+      icon: activityFlavor !== "plain" && !screen.iconDigest && !hasViewScreenIcon(screen.icon) ? <LetterTile name={screen.title} />
+        : <PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />, run: () => openScreen(screen) }; })];
   const choosePanel = (panel: ActivityPanel) => {
     if (sidebarOpen && activityPanel === panel) chooseSidebarOpen(false);
     else { setActivityPanel(panel); chooseSidebarOpen(true); }
@@ -1274,12 +1276,12 @@ function EditorApp() {
   const activity = barDraft ? { variant: activityVariant as 1 | 2, panel: activityPanel === "explorer" ? undefined : activityPanel === "screens" ? <WorkScreensPanel screens={workScreens} /> : <PlaceholderPanel panel={activityPanel} /> }
     : activityVariant === 3 ? { variant: 3 as const, launcher: (iconOnly: boolean) => <WorkScreensLauncher screens={workScreens} iconOnly={iconOnly} /> } : undefined;
   const wrapSidebar = (sidebar: React.ReactNode) => barDraft ? <div className="activity-shell">
-    <ActivityBar variant={activityVariant as 1 | 2} panel={activityPanel} open={sidebarOpen} onPanel={choosePanel} screens={workScreens} theme={theme} onThemeChange={changeTheme} updateVersion={unseenUpdate}
+    <ActivityBar variant={activityVariant as 1 | 2} flavor={activityFlavor} panel={activityPanel} open={sidebarOpen} onPanel={choosePanel} screens={workScreens} theme={theme} onThemeChange={changeTheme} updateVersion={unseenUpdate}
       onSettings={returnFocus => { settingsReturnFocus.current = returnFocus; setSettingsCategory(unseenUpdate ? "about" : "appearance"); setHighlightUpdate(!!unseenUpdate); openSettingsTab(); void refreshRecovery(); }} />
     {sidebar}</div> : sidebar;
 
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${barDraft ? " app-shell--activity" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${barDraft ? " app-shell--activity" : ""}${activityFlavor === "labels" ? " app-shell--activity-labels" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       {wrapSidebar(<Sidebar onCopyPath={path => void copyPath(path)} activity={activity}
         onAddToChat={assistantAvailable ? addToChat : undefined}
         theme={theme} onThemeChange={changeTheme}
