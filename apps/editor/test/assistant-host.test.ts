@@ -26,6 +26,23 @@ test("Codex skill discovery waits for plugin startup; Copilot retains tool-only 
   } finally { release(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("assistant history lists both providers in index order and retains explicit filtering", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-assistant-history-"));
+  const agent = new ProviderConnections(path.join(root, "assistant"));
+  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent });
+  t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
+  agent.environment();
+  const entries = [
+    { id: "current", title: "Experiment", provider: "copilot", folders: [], createdAt: 1, updatedAt: 3 },
+    { id: "older", title: "Report", provider: "codex", folders: [], createdAt: 1, updatedAt: 2 },
+    { id: "legacy", title: "Outline", folders: [], createdAt: 1, updatedAt: 1 },
+  ];
+  writeFileSync(path.join(agent.cwd, "conversations.json"), JSON.stringify(entries));
+  assert.deepEqual(await host.invoke("assistantConversations", {}), entries);
+  assert.deepEqual(await host.invoke("assistantConversations", { provider: "codex" }), entries.slice(1));
+  assert.deepEqual(await host.invoke("assistantConversations", { provider: "copilot" }), entries.slice(0, 1));
+});
+
 test("official settings HTTP and CLI share validation and the stored snapshot without registration", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-assistant-host-"));
   const file = path.join(root, "ai.json");

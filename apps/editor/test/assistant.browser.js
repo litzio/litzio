@@ -225,21 +225,35 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const pastedPaths = [], pastedData = [];
   const uploadGates = new Map();
   const sent = [], conversations = new Map(), receipts = new Map();
-  let resumeFailure = false, promptReject = true;
+  let resumeFailure = false, copilotUnavailable = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
   let forgottenSubmissions = false, allowNewSend = false;
   let revealLost = false, receiptGate, releaseReceipt, receiptReads = 0;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, snapshotGateEntered = 0, answerGate;
   await page.unroute('**/api/assistant/diagnostics*');
-  await page.route('**/api/assistant/diagnostics*', async route => (await diagnosticGate, route.request().url().includes('summary=account-usage')) ? diagnosticReply(route) : route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
-    error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
-    account: setupMode === 'login' ? null : { type: 'chatgpt' } } }));
+  await page.route('**/api/assistant/diagnostics*', async route => {
+    await diagnosticGate;
+    const url = route.request().url();
+    if (url.includes('summary=account-usage')) return diagnosticReply(route);
+    if (url.includes('provider=copilot')) return route.fulfill({ json: { provider: 'copilot', connected: !copilotUnavailable, error: copilotUnavailable ? 'Fixture Copilot is unavailable.' : undefined } });
+    return route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
+      error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
+      account: setupMode === 'login' ? null : { type: 'chatgpt' } } });
+  });
   await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
-      if (body.action === 'upload-image') { expect(body.mime).toBe('image/png'); expect(body.data.length).toBeGreaterThan(0); const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`; pastedPaths.push(path); pastedData.push(body.data); await uploadGates.get(pasted); return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } }); }
+      if (body.action === 'upload-image') {
+        expect(body.id, 'The Host must not bind an unsent clipboard image to the current conversation').toBeUndefined();
+        expect(body.mime).toBe('image/png');
+        expect(body.data.length).toBeGreaterThan(0);
+        const path = `C:/assistant/attachments/clipboard-00000000-0000-4000-8000-${String(++pasted).padStart(12, "0")}.png`;
+        pastedPaths.push(path); pastedData.push(body.data); await uploadGates.get(pasted);
+        return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } });
+      }
       if (body.action === 'resume') {
         if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
+        if (copilotUnavailable && conversations.get(body.id).provider === 'copilot') return route.fulfill({ status: 503, json: { error: 'Fixture Copilot is unavailable.' } });
         // A loaded Copilot conversation resumes from Host memory on the same connection.
         selected = conversations.get(body.id);
       }
@@ -301,7 +315,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     }
     const id = decodeURIComponent((route.request().url().split('?id=')[1] ?? '').split('&')[0]);
     if (id) { snapshots++; if (snapshotGate) { snapshotGateEntered++; await snapshotGate; } }
-    return route.fulfill({ json: id ? conversations.get(id) : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
+    const provider = /[?&]provider=([^&]+)/.exec(route.request().url())?.[1];
+    const history = [...conversations.values()].reverse().filter(entry => !provider || (entry.provider ?? 'codex') === provider);
+    return route.fulfill({ json: id ? conversations.get(id) : history.map(({ turns, tokenUsage, ...info }) => info) });
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
   await editor.locator('p').first().click(); await page.keyboard.press('End');
@@ -496,7 +512,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await message.click(); await message.press('ControlOrMeta+A'); await message.press('Backspace');
   await page.keyboard.type('What changed in the current document?', { delay: 30 });
   await expect(draftChips).toHaveCount(1);
-  const pasteImages = async (count = 1, start = 0) => message.evaluate((element, { count, start }) => {
+  const pasteImages = async (count = 1, start = 0, composer = message) => composer.evaluate((element, { count, start }) => {
     const data = new DataTransfer();
     data.setData('text/plain', 'screenshot companion text');
     for (let n = 0; n < count; n++) {
@@ -1247,21 +1263,47 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.unroute('**/api/assistant/models*', unavailableModels);
   setupMode = 'ready';
   const historyEntries = [
-    { ...selected, id: 'history-older', title: '문서 구조와 검토 계획 정리', folders: ['C:\\Projects\\reports\\연구 보고서', '/home/example/work/검토 자료'], updatedAt: 1793590000000 },
-    { ...selected, id: 'history-newer', title: '실험 결과 표와 다음 작업 확인', folders: ['C:\\Projects\\reports\\실험 결과'], updatedAt: 1793593600000 },
+    { ...selected, id: 'history-older', provider: 'codex', title: '문서 구조와 검토 계획 정리', folders: ['/fixture/연구 보고서', '/fixture/검토 자료'], updatedAt: 1793590000000 },
+    { ...selected, id: 'history-newer', provider: 'copilot', title: '실험 결과 표와 다음 작업 확인', folders: ['/fixture/Experiment'], updatedAt: 1793593600000,
+      model: 'copilot-model', reasoningEffort: 'high', permissionMode: 'read-only', copilot: copilotOptions, turns: [] },
   ];
   for (const entry of historyEntries) conversations.set(entry.id, entry);
   await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
   await panel.getByRole('button', { name: '대화 기록' }).click();
   await expect(panel.getByRole('button', { name: /문서 구조와 검토 계획 정리/ })).toBeEnabled();
+  const history = panel.locator('.assistant-history');
+  const search = history.getByRole('textbox', { name: '대화 기록 검색' });
   if (screenshots) {
-    for (const width of [1440, 640]) {
-      await page.setViewportSize({ width, height: 1000 });
-      await page.screenshot({ path: `tmp/974-evidence/history-${width}.png` });
-    }
+    const viewport = page.viewportSize(), themeBeforeCapture = await page.locator('html').getAttribute('data-theme');
+    const capture = async (theme, state) => {
+      await page.locator('html').evaluate((html, value) => { html.dataset.theme = value; }, theme);
+      await panel.screenshot({ path: `tmp/1808-history/${state}-1440-${theme}.png` });
+    };
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await capture('light', 'after');
+    await capture('dark', 'after');
+    await search.fill('experiment');
+    await capture('light', 'search');
+    await search.clear();
+    await page.locator('html').evaluate((html, value) => { html.dataset.theme = value; }, themeBeforeCapture);
+    await page.setViewportSize(viewport);
   }
   const older = panel.getByRole('button', { name: /문서 구조와 검토 계획 정리/ });
+  const newer = panel.getByRole('button', { name: /실험 결과 표와 다음 작업 확인/ });
+  await expect(history.getByRole('button').first()).toContainText('실험 결과 표와 다음 작업 확인');
+  await expect(newer).toContainText('GitHub Copilot');
+  await expect(older).toContainText('Codex');
+  await search.fill('EXPERiment');
+  await expect(history.getByRole('button')).toHaveCount(1);
+  await expect(newer).toBeVisible();
+  await search.fill('검토 계획');
+  await expect(history.getByRole('button')).toHaveCount(1);
+  await expect(older).toBeVisible();
+  await search.fill('찾을 수 없는 기록');
+  await expect(history.getByRole('button')).toHaveCount(0);
+  await expect(history.getByText('일치하는 대화가 없습니다', { exact: true })).toBeVisible();
+  await search.clear();
   await expect(older.locator('small')).toHaveText('연구 보고서 · 검토 자료');
   await expect(older.locator('small')).toHaveAttribute('title', historyEntries[0].folders.join('\n'));
   await expect(older.locator('time')).toHaveAttribute('datetime', new Date(historyEntries[0].updatedAt).toISOString());
@@ -1281,13 +1323,14 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(selected.id).toBe('history-older');
   await expect(panel.getByText('What changed in the current document?', { exact: true })).toBeVisible();
   await expect(panel.locator('.assistant-user .assistant-reference').first()).toHaveText('document.md');
-  // A stored thread that cannot resume falls back quietly, with usable defaults.
+  // A stored thread that cannot resume shows the reason once and leaves usable defaults.
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   resumeFailure = true;
   await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.locator('.assistant-turn').count()).toBe(0);
-  expect(await panel.getByRole('alert').count()).toBe(0);
+  await expect(panel.getByRole('alert')).toHaveCount(1);
+  await expect(panel.getByRole('alert')).toContainText('이전 대화를 다시 열지 못했습니다. 대화를 찾을 수 없습니다.');
   expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation.v2'), brand.storagePrefix)).toBe(null);
   resumeFailure = false;
   // Old local/remote pointers do not select a conversation in the new namespace.
@@ -1301,7 +1344,46 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(await panel.locator('.assistant-turn').count()).toBe(0);
   expect(await page.evaluate(prefix => [localStorage.getItem(prefix + '.assistantConversation.v2'), localStorage.getItem(prefix + '.assistantConversation:local'), localStorage.getItem(prefix + '.assistantConversation:remote')], brand.storagePrefix)).toEqual([null, 'history-older', 'history-newer']);
   await panel.getByRole('button', { name: '대화 기록' }).click();
-  await panel.getByRole('button', { name: /실험 결과 표와 다음 작업 확인/ }).click();
+  await older.click();
+  const koreanComposer = panel.getByRole('textbox', { name: '비서에게 메시지' });
+  await koreanComposer.fill('Draft with an image');
+  expect(await pasteImages(1, 0, koreanComposer)).toBe(true);
+  const draftImage = panel.getByRole('button', { name: '이미지 1 빼기' });
+  await expect(draftImage).toBeVisible();
+  await panel.getByRole('button', { name: '새 대화' }).click();
+  await expect(koreanComposer).toHaveValue('Draft with an image');
+  await expect(draftImage).toBeVisible();
+  await expect(panel.locator('.assistant-turn')).toHaveCount(0);
+  const draftImagePath = pastedPaths.at(-1);
+  await koreanComposer.press('Enter');
+  await expect(panel.locator('.assistant-user')).toContainText('Draft with an image');
+  expect(sent.at(-1).id).toBeUndefined();
+  expect(sent.at(-1)).toMatchObject({ provider: 'codex', references: [draftImagePath] });
+  selected.turns.at(-1).status = 'completed';
+  await koreanComposer.fill('Draft for the next conversation');
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  copilotUnavailable = true;
+  await search.fill('experiment');
+  await newer.click();
+  const unavailableCopilot = panel.getByRole('alert').filter({ hasText: 'Fixture Copilot is unavailable.' });
+  await expect(unavailableCopilot.getByRole('button', { name: '비서 설정 열기' })).toBeVisible();
+  await expect(search).toHaveValue('experiment');
+  const koreanProvider = panel.getByRole('button', { name: 'AI 공급자 설정' });
+  await expect(koreanProvider).toHaveText('Codex');
+  copilotUnavailable = false;
+  await newer.click();
+  await expect(history).toBeHidden();
+  await expect(koreanComposer).toBeFocused();
+  await expect(koreanComposer).toHaveValue('Draft for the next conversation');
+  await expect(koreanProvider).toHaveText('GitHub Copilot');
+  await expect(koreanProvider).toBeDisabled();
+  await expect(panel.getByRole('button', { name: '추론 강도 설정' })).toHaveText('높음');
+  await expect(panel.getByRole('button', { name: '권한 모드 설정' })).toHaveText('읽기 전용');
+  const koreanModel = panel.getByRole('button', { name: '모델 설정' });
+  await expect(koreanModel).toHaveText('Copilot fixture model');
+  await koreanModel.click();
+  await expect(page.getByRole('menuitem', { name: 'Auto', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
   await panel.getByRole('button', { name: '새 대화' }).click();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   await page.reload();
