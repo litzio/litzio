@@ -60,7 +60,7 @@ ui.Select는 label/value/onValueChange/options({value,label}[])와 선택적인 
 
 ui.DataTable의 rowKey는 행 식별 field다. onSelectRow(row)가 있을 때만 행을 클릭하거나 focus 후 Enter/Space로 선택한다. selectedKey(string|number)는 호출자가 소유하며 정렬·필터·페이지가 바꾸지 않는다. 선택 행은 aria-selected와 기존 선택 표면 토큰, hover는 hover 표면 토큰으로 표시한다. 셀 링크는 행 선택을 일으키지 않는다.
 
-ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임하고 표시 간격을 확보한다. 전체 값은 기존 hover·키보드 tooltip으로 확인한다. 날짜 문자열의 형식은 바꾸지 않는다. tooltip은 그래프 컨테이너 안에 가두므로 숨겨진 tooltip의 이전 좌표가 창 축소 후 작업 화면의 가로 스크롤을 만들지 않는다.
+ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임하고 표시 간격을 확보한다. 640px 같은 좁은 폭에서도 첫 이름과 마지막 이름은 항상 표시하고, 남는 폭에 따라 가운데 이름만 줄인다([640 전](assets/chart-ticks-1790/before-chart-640-light.png) / [후](assets/chart-ticks-1790/after-chart-640-light.png), [1440 전](assets/chart-ticks-1790/before-chart-1440-light.png) / [후](assets/chart-ticks-1790/after-chart-1440-light.png)). 전체 값은 기존 hover·키보드 tooltip으로 확인한다. 날짜 문자열의 형식은 바꾸지 않는다. tooltip은 그래프 컨테이너 안에 가두므로 숨겨진 tooltip의 이전 좌표가 창 축소 후 작업 화면의 가로 스크롤을 만들지 않는다.
 
 `confirm({title:string,message?:string,confirmLabel:string}) -> Promise<boolean>`은 기존 DangerConfirmation을 연다. 취소에 초기 focus를 두며 취소·Esc는 false, 위험 확인 버튼은 true다. 화면 reload/unmount 시 대기 요청은 pickPath처럼 AbortError로 거절한다. 중복 확인 요청은 Error로 거절한다. 일반 확인 변형은 없다.
 
