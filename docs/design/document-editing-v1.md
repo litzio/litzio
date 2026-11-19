@@ -464,7 +464,7 @@ MyST compatibility observations and numbering boundary are recorded in
 ## Sections
 
 Block-menu Move up/down (#516) reuse the drag reorder transaction and Core
-`moveBlock` Save replay (CLI `move-block`). Each swaps one adjacent body block in
+`moveBlock` semantics in Save replay (`reorderBlocks`; CLI `move-block`). Each swaps one adjacent body block in
 one Undo step; a heading moves alone, independently of the existing section commands
 below. Endnote, boundary and active-draft restrictions match drag.
 See [unified menu behavior](editor-ux-shell-v1.md#unified-action-menus-516).

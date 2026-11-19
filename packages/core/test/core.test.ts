@@ -8,6 +8,7 @@ import {
   insertEquation,
   getEditableDocument,
   moveBlock,
+  reorderBlocks,
   parse,
   removeBlock,
   replaceText,
@@ -130,6 +131,31 @@ test("Core preserves separate lists when reordering makes them adjacent", () => 
   ]);
   assert.equal(serialize(parse(markdown)), markdown);
   assert.deepEqual(document, before);
+});
+
+test("reorderBlocks equals the moveBlock sequence and checks boundaries on the final order", () => {
+  const document = parse("---\nlitzio: 1\n---\n\n- A\n\nP\n\n| T | U |\n| --- | --- |\n| 1 | 2 |\n\n```text\ncode\n```\n\n1. One\n\n| V | W |\n| --- | --- |\n| 3 | 4 |\n\n- B\n");
+  const before = structuredClone(document);
+  // Lists, tables and code become adjacent in intermediate and final orders.
+  const order = [0, 7, 1, 5, 4, 3, 6, 2];
+  let moved = document;
+  const positions = document.children.map((_, index) => index);
+  for (const [to, index] of order.entries()) {
+    const from = positions.indexOf(index);
+    if (from === to) continue;
+    moved = moveBlock(moved, from, to);
+    positions.splice(to, 0, positions.splice(from, 1)[0]);
+  }
+  const reordered = reorderBlocks(document, order);
+  assert.deepEqual(reordered, moved);
+  assert.equal(serialize(reordered), serialize(moved));
+  assert.deepEqual(document, before);
+
+  const unwritable = parse("---\nlitzio: 1\n---\n\nP\n\n- [ ] Task\n\nQ\n");
+  assert.throws(() => moveBlock(unwritable, 3, 1), /this order cannot be saved \(Block 4:/);
+  assert.throws(() => reorderBlocks(unwritable, [0, 3, 1, 2]), /this order cannot be saved \(Block 4:/);
+  assert.throws(() => reorderBlocks(document, [1, 0, 2, 3, 4, 5, 6, 7]), /block 0 is the document metadata/);
+  assert.throws(() => reorderBlocks(document, [0, 1, 1, 3, 4, 5, 6, 7]), /each top-level block index exactly once/);
 });
 
 test("Core preserves canonical semantics when reordering paragraph, heading, figure, and equation blocks", () => {

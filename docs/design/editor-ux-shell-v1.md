@@ -1209,8 +1209,8 @@ for endnotes, and while that block
 has an active properties draft, using the drag restriction reasons. Nothing moves
 into endnotes. The leading H1 has no special movement restriction. A heading moves as one block; the existing separately
 named Move section up/down and Delete section retain their section meaning. Save
-uses the existing Core `moveBlock` replay (CLI `move-block`); no new Core operation
-or CLI command is needed. Delete paths, reference warnings and the table deletion
+uses the existing Core block-order replay (`moveBlock` semantics, `reorderBlocks`; CLI `move-block`);
+Move up/down needs no Core operation or CLI command of its own. Delete paths, reference warnings and the table deletion
 notice/Undo stay unchanged.
 
 Gutter/table menus focus their first enabled row; Escape restores their opener.

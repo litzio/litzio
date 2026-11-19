@@ -101,6 +101,7 @@ export const splitParagraph = fence(operations.splitParagraph);
 export const mergeParagraphWithPrevious = fence(operations.mergeParagraphWithPrevious);
 export const replaceText = fence(operations.replaceText);
 export const moveBlock = fence(operations.moveBlock);
+export const reorderBlocks = fence(operations.reorderBlocks);
 export const moveSection = fence(operations.moveSection);
 export const removeSection = fence(operations.removeSection);
 export const reconcileEndnotes = fence(operations.reconcileEndnotes);
