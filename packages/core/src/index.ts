@@ -26,6 +26,8 @@ export type { Document, NodePath, BlockSummary } from "./document.ts";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DOCUMENT_AUTHORING_CONTRACT, DocumentAuthoringError } from "./document-authoring.ts";
 export type { DocumentAuthoringInput, AuthoredDocument } from "./document-authoring.ts";
 export { hasNativeMarker, NativeDocumentError } from "./myst/native.ts";
+/** Markdown text (for example pasted) read as native body blocks, with the open-document parser and admission. */
+export { readMarkdownFragment, type MarkdownFragment } from "./myst/fragment.ts";
 export type { NativeDocumentErrorCode } from "./myst/native.ts";
 export { writeIssueOf, DocumentDiagnosticError } from "./write-error.ts";
 export type { WriteIssue, WriteIssueCode } from "./write-error.ts";

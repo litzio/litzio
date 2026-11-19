@@ -11,6 +11,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import { ASSET_FORMATS } from "../shared/asset-policy.ts";
 import { addTableRowBelow, changeHeadingLevel, TABLE_DELETE_META } from "./block-commands.ts";
 import { normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
+import { markdownPaste } from "./markdown-paste.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
@@ -445,8 +446,11 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
       let pasted: (Omit<ExternalHTML, "error"> & { error?: UiMessage }) | undefined;
       let external = false;
       // Shown once the engine's paste transaction is applied; the structure guard may still refuse it.
-      let pastedNotice: string | undefined;
+      let pastedNotice: UiMessage | undefined;
       let pastedFootnotes: FootnoteDefinition[] = [];
+      // Only a paste reads clipboard text as Markdown; dropped text stays plain.
+      let textPaste = false;
+      let markdownNotice: UiMessage | undefined;
       const fail = (message: UiMessage) => { reject(message); return true; };
       const copyWithFootnotes = (view: EditorView, event: ClipboardEvent, cut: boolean): boolean => {
         const slice = view.state.selection.content();
@@ -612,12 +616,19 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           copy: (view, event) => {
             return copyWithFootnotes(view, event, false);
           },
+          // Runs before the engine's own paste handler for the same event.
+          paste: () => {
+            textPaste = true;
+            markdownNotice = undefined;
+            return false;
+          },
           cut: (view, event) => {
             return copyWithFootnotes(view, event, true);
           },
         },
         // Litzio's typed clipboard is pasted as is; other HTML is normalized to supported structure first.
         transformPastedHTML: html => {
+          textPaste = false;
           pastedFootnotes = [];
           external = !isInternalClipboard(html);
           pasted = external ? normalizeExternalHTML(html) : { html, error: internalPasteError(html, schema) };
@@ -634,8 +645,24 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           }
           return pasted.html;
         },
+        // Clipboard text with Markdown formatting is read by Core as when opening a document.
+        // Ctrl+Shift+V (plain), code and inline code keep the engine's literal text paste.
+        clipboardTextParser: (text, $context, plain) => {
+          const paste = textPaste;
+          textPaste = false;
+          pastedFootnotes = [];
+          const literalPlace = $context.parent.type.spec.code || $context.marks().some(mark => mark.type.spec.code);
+          const markdown = paste && !plain && !literalPlace ? markdownPaste(schema, text) : undefined;
+          if (!markdown) return null as unknown as Slice;
+          // The engine reopens a parsed text slice as it does parsed HTML; close its edges alike.
+          external = true;
+          pastedFootnotes = markdown.footnotes;
+          if (markdown.literal) markdownNotice = { key: "Unsupported Markdown was pasted as plain text." };
+          return markdown.slice;
+        },
         transformPasted: slice => freshSlice(external ? closeExternalSlice(slice) : slice),
         handleDrop: (_view, _event, _slice, moved) => {
+          textPaste = false;
           pastedFootnotes = [];
           const { error, notice } = moved ? {} : pasted ?? {};
           pasted = undefined;
@@ -652,8 +679,11 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         handlePaste: (view, event, slice) => {
           const notes = pastedFootnotes;
           pastedFootnotes = [];
-          const { error, notice } = event.clipboardData?.getData("text/html") ? pasted ?? {} : {};
+          const html = Boolean(event.clipboardData?.getData("text/html"));
+          const { error, notice } = html ? pasted ?? {} : { notice: markdownNotice };
           pasted = undefined;
+          textPaste = false;
+          markdownNotice = undefined;
           external = false;
           if (error) return fail(error);
           if (event.clipboardData?.files.length && !isInternalClipboard(event.clipboardData.getData("text/html"))) return fail(`Add one ${ASSET_FORMATS} image at a time. Your selection and clipboard are kept.`);

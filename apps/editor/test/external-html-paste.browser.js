@@ -1,5 +1,6 @@
 // External (web, Notion, Word) HTML clipboard normalized to supported blocks: the OS clipboard
 // with notice, one Undo/Redo, Save/Reload and canonical Markdown; representative sources; refusals.
+// Plain-text Markdown read by Core: structure, Undo, Save/Reload, Ctrl+Shift+V and literal places.
 async (page, { showNotifications, openPath }) => {
   await page.unrouteAll();
   await page.reload();
@@ -164,5 +165,170 @@ async (page, { showNotifications, openPath }) => {
   await notice.filter({hasText:'Nothing was pasted: merged table cells are not supported.'}).waitFor({state:'visible'});
   assert((await state()).doc === beforeDrop.doc, 'A refused drop must keep the document');
   result.refused = true;
+
+  // D. Clipboard text without HTML is read as Markdown by Core, as when opening a document (#1843).
+  const markdownFile = [root, 'tmp', 'external-html-paste', 'markdown.md'].join(separator);
+  await openPath(page, markdownFile);
+  await editor.locator('[data-block="table"]').waitFor();
+  const outline = () => editor.evaluate(el => {
+    const blocks = [];
+    el.editor.state.doc.forEach(node => {
+      const marks = new Set();
+      node.descendants(child => child.marks.forEach(mark => marks.add(mark.type.name)));
+      blocks.push([node.type.name + (node.attrs.level ?? ''), node.textContent, [...marks].join()].join('|'));
+    });
+    return blocks;
+  });
+  const caretIn = (text, offset = 0) => editor.evaluate((el, args) => {
+    let from;
+    el.editor.state.doc.descendants((node, pos) => { if (from === undefined && node.isTextblock && node.textContent === args.text) from = pos + 1; });
+    if (from === undefined) throw new Error(`Missing ${args.text}`);
+    el.editor.commands.setTextSelection(from + args.offset); el.editor.view.focus();
+  }, {text, offset});
+  const textPaste = text => editor.evaluate((el, text) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', text);
+    el.dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
+  }, text);
+  const writeText = text => page.evaluate(text => navigator.clipboard.writeText(text), text);
+  const changedFrom = before => page.waitForFunction(doc => JSON.stringify(document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.getJSON(),
+    (key, value) => ['sourcePath', 'original', 'sourceCell'].includes(key) ? undefined : value) !== doc, before.doc);
+  const owner = '# 측정시스템 분석 구술평가\n\n## 발표 흐름\n\n**MSA 목적 → 변동 요인 → 판정 기준**\n\n' +
+    '1. **MSA 목적:** 측정값을 믿을 수 있는지 확인한다.\n2. **반복성:** 같은 사람이 같은 부품을 여러 번 잰다.\n' +
+    '3. **재현성:** 다른 사람이 같은 부품을 잰다.\n4. **편의:** 기준값과 평균의 차이를 본다.\n' +
+    '5. **선형성:** 범위 전체에서 편의가 변하는지 본다.\n6. **판정:** %GRR이 10% 이하이면 적합하다.\n\n' +
+    '## 구술 대본\n\n오늘은 **측정시스템 분석**의 목적부터 말씀드리겠습니다.\n\n측정값의 변동에는 **부품 변동**과 **측정 변동**이 섞여 있습니다.\n';
+  await notice.waitFor({state:'detached', timeout:10000});
+  await select('Alpha.', true);
+  const beforeMarkdown = await state();
+  await writeText(owner);
+  await page.keyboard.press('Control+v');
+  await changedFrom(beforeMarkdown);
+  const markdownPasted = await state();
+  const pastedOutline = await outline();
+  const list = pastedOutline[4] ?? '';
+  assert(JSON.stringify([...pastedOutline.slice(0, 4), ...pastedOutline.slice(5, 8)]) === JSON.stringify(['heading1|Markdown|', 'heading1|측정시스템 분석 구술평가|',
+    'heading2|발표 흐름|', 'paragraph|MSA 목적 → 변동 요인 → 판정 기준|bold', 'heading2|구술 대본|',
+    'paragraph|오늘은 측정시스템 분석의 목적부터 말씀드리겠습니다.|bold', 'paragraph|측정값의 변동에는 부품 변동과 측정 변동이 섞여 있습니다.|bold']) &&
+    list.startsWith('orderedList|MSA 목적: 측정값을') && list.endsWith('|bold') && await editor.locator('ol > li').count() === 6,
+    `Markdown text must paste as headings, a numbered list and bold text: ${JSON.stringify(pastedOutline)}`);
+  assert(await notice.count() === 0, 'Supported Markdown pastes without a notice');
+  await page.keyboard.press('Control+z');
+  const markdownUndone = await state();
+  assert(markdownUndone.doc === beforeMarkdown.doc && markdownUndone.selection.join() === beforeMarkdown.selection.join(),
+    `One Undo must restore the Markdown paste: ${JSON.stringify({beforeMarkdown, markdownUndone})}`);
+  await page.keyboard.press('Control+Shift+z');
+  assert((await state()).doc === markdownPasted.doc, 'Redo must restore the whole Markdown paste');
+  const markdownPreview = await source('구술 대본');
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
+  assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Markdown paste Save failed: ${await page.locator('body').innerText()}`);
+  const markdownDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(markdownFile)}`, { headers: { Connection: "close" } })).json()).source.replaceAll('\r\n', '\n');
+  // Core's canonical write of the same Markdown in place of "Alpha.".
+  const markdownSaved = '---\nlitzio: 1\n---\n\n# Markdown\n\n# 측정시스템 분석 구술평가\n\n## 발표 흐름\n\n**MSA 목적 → 변동 요인 → 판정 기준**\n\n' +
+    '1.  **MSA 목적:** 측정값을 믿을 수 있는지 확인한다.\n2.  **반복성:** 같은 사람이 같은 부품을 여러 번 잰다.\n' +
+    '3.  **재현성:** 다른 사람이 같은 부품을 잰다.\n4.  **편의:** 기준값과 평균의 차이를 본다.\n' +
+    '5.  **선형성:** 범위 전체에서 편의가 변하는지 본다.\n6.  **판정:** %GRR이 10% 이하이면 적합하다.\n\n' +
+    '## 구술 대본\n\n오늘은 **측정시스템 분석**의 목적부터 말씀드리겠습니다.\n\n측정값의 변동에는 **부품 변동**과 **측정 변동**이 섞여 있습니다.\n\n' +
+    'Inline `mono` text.\n\n```\ncode\n```\n\n:::{table}\n\n| A | B |\n| - | - |\n| c | d |\n:::\n\nOmega.\n';
+  assert(markdownDisk === markdownPreview && markdownDisk === markdownSaved, `Markdown paste must save Core's canonical Markdown: ${JSON.stringify(markdownDisk)}`);
+  await page.getByRole('button', {name:'File actions', exact:true}).click();
+  await page.getByRole('menuitem', {name:'Reload', exact:true}).click();
+  await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  assert((await state()).doc === markdownPasted.doc, 'Reload must retain the pasted Markdown structure');
+  result.markdownSaveReload = true;
+
+  // Ctrl+Shift+V keeps the characters; text without Markdown syntax pastes exactly as before.
+  const pasteBoth = async text => {
+    await select('Omega.');
+    const before = await state();
+    await writeText(text);
+    const paste = async key => {
+      await page.keyboard.press(key);
+      await changedFrom(before);
+      const pasted = await outline();
+      await page.keyboard.press('Control+z');
+      assert((await state()).doc === before.doc, `One Undo restores the ${key} paste`);
+      return pasted;
+    };
+    return {plain: await paste('Control+Shift+v'), auto: await paste('Control+v')};
+  };
+  const literal = await pasteBoth('# 제목 **굵게**\n1. 항목');
+  assert(JSON.stringify(literal.plain.slice(-2)) === JSON.stringify(['paragraph|# 제목 **굵게**|', 'paragraph|1. 항목Omega.|']) &&
+    JSON.stringify(literal.auto.slice(-3)) === JSON.stringify(['heading1|제목 굵게|bold', 'orderedList|항목|', 'paragraph|Omega.|']),
+    `Ctrl+Shift+V must paste Markdown characters as they are: ${JSON.stringify(literal)}`);
+  const prose = await pasteBoth('첫 줄입니다.\n둘째 줄 (5 * 3) - 1입니다.\n\n셋째 문단.');
+  assert(JSON.stringify(prose.auto) === JSON.stringify(prose.plain) && prose.auto.includes('paragraph|둘째 줄 (5 * 3) - 1입니다.|'),
+    `Text without Markdown syntax must paste as plain text did: ${JSON.stringify(prose)}`);
+  result.markdownPlainPaste = true;
+
+  // Code blocks and inline code keep pasted Markdown as characters.
+  for (const [text, at, expected] of [['# 제목\n**굵게**', () => caretIn('code'), 'codeBlock|# 제목\n**굵게**code|'],
+    ['# 제목 **굵게**', () => caretIn('Inline mono text.', 'Inline m'.length), 'paragraph|Inline m# 제목 **굵게**ono text.|code']]) {
+    await at();
+    const before = await state();
+    await textPaste(text);
+    const after = await outline();
+    assert(after.includes(expected), `Code places keep pasted Markdown literal: ${JSON.stringify(after)}`);
+    await editor.evaluate(el => el.editor.commands.undo());
+    assert((await state()).doc === before.doc, 'One Undo restores a literal code paste');
+  }
+  result.markdownCode = true;
+
+  // A table cell takes inline Markdown, and refuses blocks as it refuses the same structure from external HTML.
+  await caretIn('c');
+  const beforeCell = await state();
+  await textPaste('**굵게** 글');
+  const cellInline = (await state()).doc;
+  assert(cellInline.includes('{"type":"text","marks":[{"type":"bold"}],"text":"굵게"},{"type":"text","text":" 글c"}'), `A table cell keeps inline Markdown: ${cellInline}`);
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeCell.doc, 'One Undo restores the table cell paste');
+  const refusedInCell = async paste => {
+    await notice.waitFor({state:'detached', timeout:10000});
+    await caretIn('c');
+    const before = await state();
+    await paste();
+    await showNotifications(page);
+    const message = await messageBody.innerText();
+    const after = await state();
+    assert(after.doc === before.doc && after.selection.join() === before.selection.join(), `Blocks in a table cell are refused: ${message}`);
+    return message;
+  };
+  const cellMarkdown = await refusedInCell(() => textPaste('# 제목\n\n문단'));
+  const cellHTML = await refusedInCell(() => syntheticPaste('<h1>제목</h1><p>문단</p>'));
+  assert(cellMarkdown && cellMarkdown === cellHTML, `Blocks in a table cell follow the external HTML rule: ${JSON.stringify({cellMarkdown, cellHTML})}`);
+  result.markdownTableCell = true;
+
+  // Endnotes take the existing clipboard label plan: a second paste of label 1 with other content is renamed.
+  await select('Omega.');
+  const beforeNotes = await state();
+  await textPaste('첫 문장[^1].\n\n[^1]: 첫 주석.');
+  // The caret stays after the first paste, before "Omega.".
+  await textPaste('둘째 문장[^1].\n\n[^1]: 둘째 주석.');
+  const notes = await editor.evaluate(el => {
+    const found = [];
+    el.editor.state.doc.descendants(node => {
+      if (['footnoteReference', 'footnoteDefinition'].includes(node.type.name)) found.push(`${node.type.name}:${node.attrs.label}:${node.textContent}`);
+    });
+    return found;
+  });
+  assert(JSON.stringify(notes) === JSON.stringify(['footnoteReference:1:', 'footnoteReference:2:', 'footnoteDefinition:1:첫 주석.', 'footnoteDefinition:2:둘째 주석.']),
+    `Pasted Markdown endnotes keep their definitions under distinct labels: ${JSON.stringify(notes)}`);
+  await editor.evaluate(el => { el.editor.commands.undo(); el.editor.commands.undo(); });
+  assert((await state()).doc === beforeNotes.doc, 'Two Undo steps restore two endnote pastes');
+  result.markdownEndnotes = true;
+
+  // Markdown that native admission refuses stays as its text, with a notice.
+  await select('Omega.');
+  const beforeUnsupported = await state();
+  await textPaste('**지원** 문단\n\n- [ ] 할 일');
+  await showNotifications(page);
+  await notice.filter({hasText:'Unsupported Markdown was pasted as plain text.'}).waitFor({state:'visible'});
+  const unsupported = await outline();
+  assert(unsupported.includes('paragraph|지원 문단|bold') && unsupported.includes('paragraph|- [ ] 할 일Omega.|'),
+    `Unsupported Markdown must stay as its text: ${JSON.stringify(unsupported)}`);
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeUnsupported.doc, 'One Undo restores a partly literal Markdown paste');
+  result.markdownUnsupported = true;
   return result;
 }

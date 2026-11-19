@@ -247,6 +247,39 @@ test("native admission rejects unsupported structure instead of projecting parti
   }
 });
 
+test("a Markdown fragment reads as the body of an opened document, with endnotes apart", () => {
+  const body = "# 측정시스템 분석\n\n## 발표 흐름\n\n1. **MSA 목적:** 측정값 신뢰\n2. **반복성:** 같은 사람\n\n| A | B |\n|---|:-:|\n| `x` | [y](https://example.com) |\n\n오늘은 **측정**을 설명합니다[^n].\n\n[^n]: 주석.\n";
+  const fragment = core.readMarkdownFragment(body.replace(/\n/g, "\r\n"));
+  const opened = getEditableDocument(parse(native(body))).blocks;
+  assert.deepEqual(fragment.blocks, opened.filter(block => block.block !== "footnote"));
+  assert.deepEqual(fragment.footnotes, [{ label: "n", content: [{ kind: "text", text: "주석." }] }]);
+  assert.equal(fragment.formatted, true);
+  assert.equal(fragment.literal, 0);
+});
+
+test("a Markdown fragment counts as formatted only from visible Markdown syntax", () => {
+  for (const text of ["First line\nsecond line\n\nThird & last", "Intro\n\n    four-space indented text", "Trailing spaces  \nbreak the line"]) {
+    assert.equal(core.readMarkdownFragment(text).formatted, false, text);
+  }
+  for (const text of ["# Title", "- item", "2. item", "> quote", "```\ncode\n```", "---", "a **b**", "a *b*", "a `b`", "[a](https://example.com)"]) {
+    assert.equal(core.readMarkdownFragment(text).formatted, true, text);
+  }
+});
+
+test("Markdown that native admission refuses is kept as literal source lines, never dropped", () => {
+  const mixed = core.readMarkdownFragment("# Kept\n\n- [ ] task\n  more\n\n<div>raw</div>\n\n**kept**");
+  assert.deepEqual(mixed.blocks.map(block => [block.block, "text" in block ? block.text : ""]),
+    [["heading", "Kept"], ["paragraph", "- [ ] task"], ["paragraph", "  more"], ["paragraph", "<div>raw</div>"], ["paragraph", "kept"]]);
+  assert.equal(mixed.literal, 2);
+  // Whole-document refusals (citation shorthand, an unreferenced endnote the parse omits) keep every line.
+  for (const text of ["**a** [@key]", "**a**\n\n[^x]: orphan"]) {
+    const fragment = core.readMarkdownFragment(text);
+    assert.deepEqual(fragment.blocks.map(block => "text" in block ? block.text : block.block), text.split("\n").filter(line => line), text);
+    assert.equal(fragment.formatted, true);
+    assert.ok(fragment.literal > 0);
+  }
+});
+
 test("native table directives reject source options before the parser can discard them", async (t) => {
   for (const caption of ["", " Values"]) {
     for (const options of [":align: left", ":widths: 1 2", ":unknown: value", "---\nalign: left\n---",

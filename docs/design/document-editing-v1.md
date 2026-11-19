@@ -2,6 +2,7 @@
 
 - Status: Implemented
 - Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Plain-text Markdown paste: 2026-11-20 (#1843; Core fragment reading tests and the `external-html-paste` browser scenario: structure, one Undo/Redo, Save → Reload, Ctrl+Shift+V, code and table-cell places).
 - Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and path-only assistant-send browser regressions).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
 - Engine upgrade: 2026-11-20 (#1827: Tiptap 3.34.0 and the `prosemirror-view@1.42.9` patch; `focus-caret`, `citation-authoring` and `document-title` with and without the patch on Windows Chrome).
@@ -545,6 +546,46 @@ a clipboard image file (PNG, JPEG, GIF or WebP) still takes the #59 asset path f
 
 The result uses existing blocks and InlineContent only, so no Core operation or CLI
 command is added; pasting is an editor input interaction.
+
+### Plain-text Markdown paste (#1843)
+
+Clipboard text without `text/html` (Notepad, `.md` files, AI chat source) is read as Markdown
+when Core finds Markdown formatting in it. Core `readMarkdownFragment` reads the text as the body
+of a native document, with the parser and native admission that open a document, and the Editor
+projects the blocks with the Core → editor projection that opening uses. No Markdown is read in
+the Editor. The slice then takes the External clipboard path above: fresh session locators, the
+same edge rule (only a paragraph edge joins the surrounding text), the heading/table cell/caption
+checks, the structure guard, endnote label planning, label duplicate refusal, one paste
+transaction (one Undo) and Core validation on Save. `text/html`, Litzio's typed clipboard and
+image files keep their existing precedence.
+
+- Formatting evidence: any kept block other than a paragraph, or inline content other than text
+  and line breaks (bold, italic, inline code, links, math, references). Indented code and
+  trailing-space line breaks do not count, because plain text indented by four spaces or with
+  trailing spaces is not evidence that its author wrote Markdown. Text without that evidence
+  takes the engine's plain-text paste unchanged (one paragraph per line). Arithmetic such as
+  `2*3*4` is CommonMark emphasis and does count; Ctrl+Shift+V keeps it literal.
+- Kept: everything native admission accepts, read exactly as Open reads it (a soft line break
+  stays in its paragraph, `&amp;` is `&`, a reference-style link takes its definition's URL).
+  Endnote definitions referenced by the pasted text are inserted as for Litzio's own clipboard.
+- Literal with a notice ("Unsupported Markdown was pasted as plain text."): a block native
+  admission refuses (task lists, multi-paragraph list items or quotes, raw HTML, images) is
+  pasted as its non-blank source lines, one paragraph each, among the formatted blocks. When the
+  kept blocks fail whole-document admission (bracket citation shorthand, an endnote definition
+  nothing references), every non-blank line is pasted that way. Nothing is dropped.
+  The notice uses the paste notice channel
+  ([1440 capture](assets/markdown-paste-1843/notice-1440-light.png); Korean: "지원하지 않는
+  마크다운은 글자 그대로 붙여 넣었습니다.").
+- Literal places: Ctrl+Shift+V uses the engine's plain-text paste. Code blocks and a caret
+  inside inline code keep the characters, as before. Title, math, source and property fields
+  are native text fields whose paste the engine does not handle. Dropped text stays plain text.
+- One-line places follow the External clipboard rule: a table cell or caption accepts inline
+  Markdown, and blocks there are refused with the same notice external HTML blocks get.
+- Engine mark paste rules (the editor library's `**`/`*`/`~~` rules) are off: Core is the only
+  reader of pasted Markdown, so Ctrl+Shift+V text and text Core kept literal stay as typed.
+- Limits: a leading YAML block in the pasted text is not frontmatter here and reads as a divider
+  and text; Chromium's context-menu "Paste as plain text" cannot be told from Ctrl+V and is read
+  as Markdown.
 
 ## Verification
 
