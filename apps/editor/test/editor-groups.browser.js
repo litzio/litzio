@@ -95,13 +95,15 @@ async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect
   await toolbar.waitFor();
   if (screenshots) await page.screenshot({path:'tmp/visual-refinement/groups-toolbar-1440.png'});
   const toolbarGeometry = await overlayBounds(toolbar,'Group toolbar',true);
-  // Tab reaches every formatting action; Enter on the trailing action opens a usable form.
+  // Tab reaches every formatting action; Enter on Cross-reference, before the trailing Endnote, opens a usable form.
   const toolbarButtons=toolbar.getByRole('button');
   await page.keyboard.press('Tab');
   for (let index=0;index<await toolbarButtons.count();index++) {
     await expect(toolbarButtons.nth(index)).toBeFocused();
     if (index+1<await toolbarButtons.count()) await page.keyboard.press('Tab');
   }
+  await page.keyboard.press('Shift+Tab');
+  await expect(toolbar.getByRole('button',{name:'Cross-reference',exact:true})).toBeFocused();
   await page.keyboard.press('Enter');
   await overlayBounds(surface(bid).getByTestId('reference-form'),'Keyboard reference form',true);
   await page.keyboard.press('Escape');
