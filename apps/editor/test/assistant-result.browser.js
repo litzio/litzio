@@ -115,7 +115,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await page.getByRole('button', { name: /^Assistant(?: — |$)/ }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
   await panel.getByRole('button', { name: 'Conversation history' }).click();
-  await panel.getByRole('button', { name: /Create a document/ }).click();
+  await panel.getByRole('button', { name: /^Create a document/ }).click();
   await expect(cards).toHaveCount(3);
   const retained = (await recoveryRecords(page)).filter(record => record.path === paths[1]);
   expect(retained.length).toBeGreaterThan(0);
