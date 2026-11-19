@@ -429,7 +429,10 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     const info = await request<AssistantConversationInfo>(ASSISTANT.conversationsRoute, { action: archived ? "archive" : "unarchive", id: entry.id });
     if (!isCurrent()) return;
     historyEntry(info);
-    if (archived && current.current?.id === info.id) await startConversation(isCurrent);
+    if (!archived || current.current?.id !== info.id) return;
+    // Leave the archived conversation before reading the default catalog, which may fail.
+    setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey);
+    await startConversation(isCurrent);
   });
   const resumeHistory = (entry: AssistantConversationInfo) => run(async isCurrent => {
     let next: AssistantConversation;

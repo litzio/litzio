@@ -39,7 +39,8 @@ export function AssistantHistory({ entries, pending, notices, archiveUnavailable
     pendingFocus.current = undefined;
     // A failed request keeps the row; otherwise its menu trigger is gone, so keep keyboard users in the list.
     if (matches.some(entry => entry.id === focus.moved)) return;
-    (focus.next ? rows.current.get(focus.next) : undefined)?.focus() ?? searchInput.current?.focus();
+    const target = (focus.next ? rows.current.get(focus.next) : undefined) ?? searchInput.current;
+    target?.focus();
   });
   const empty = query && listed.length ? "No matching conversations" : archived ? "No archived conversations" : "No conversations yet.";
   return <div className="assistant-history">

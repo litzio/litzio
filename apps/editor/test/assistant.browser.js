@@ -1399,7 +1399,26 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.locator('.assistant-turn')).toHaveCount(0);
   await expect(weeklyComposer).toHaveValue('남겨 둘 초안');
   await weeklyComposer.fill('');
+  // When the default provider's model list fails, the archived conversation still stops being the send target.
   await panel.getByRole('button', { name: '대화 기록' }).click();
+  await newer.click();
+  await expect(panel.getByRole('button', { name: 'AI 공급자 설정' })).toBeDisabled();
+  const failCodexModels = route => route.fulfill({ status: 503, json: { error: 'Fixture models unavailable.' } });
+  await page.route('**/api/assistant/models?provider=codex*', failCodexModels);
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await rowMenu('실험 결과 표와 다음 작업 확인').click();
+  await page.getByRole('menuitem', { name: '보관', exact: true }).click();
+  await expect(newer).toBeHidden();
+  await expect(panel.getByRole('alert').filter({ hasText: 'Fixture models unavailable.' })).toBeVisible();
+  await page.unroute('**/api/assistant/models?provider=codex*', failCodexModels);
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await expect(panel.getByRole('button', { name: 'AI 공급자 설정' })).toBeEnabled();
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation.v2'), brand.storagePrefix)).toBe(null);
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await archivedToggle.click();
+  await rowMenu('실험 결과 표와 다음 작업 확인').click();
+  await page.getByRole('menuitem', { name: '되살리기' }).click();
+  await archivedToggle.click();
   await older.click();
   await expect(older).toBeHidden();
   await expect(panel.getByRole('textbox')).toBeEnabled();
