@@ -71,9 +71,11 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
   });
   items.sort((left, right) => left.line - right.line);
   const definitions = body.filter((node, index) => kept[index] && node.type === "footnoteDefinition");
+  const accounted = everyLineExplained(lines, body, ranges, kept, new Set(items.flatMap(item => item.literal ? [item.line] : [])));
   document.children = [frontMatter!, ...items.map(item => item.node), ...definitions];
   let literalBlocks = items.flatMap((item, index) => item.literal ? [index] : []);
   try {
+    if (!accounted) throw new Error("A source line is not explained by the kept blocks.");
     admitNativeDocument(document);
   } catch {
     document.children = [frontMatter!, ...lines.filter(line => line.trim()).map(literalParagraph)];
@@ -88,6 +90,64 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
     literal,
     literalBlocks,
   };
+}
+
+const DEFINITION = /^ {0,3}\[(?!\^)[^\]]+\]:[ \t]*<?([^\s>]+)>?/;
+
+/**
+ * The last guard against losing pasted text: every non-blank source line must be inside a kept
+ * block the parser located, a literal line, or a link definition whose destination a kept link
+ * carries. A lifted directive's lines are a guess, so they count only when they read back as
+ * that same block. Anything else sends the caller to the whole-literal fallback.
+ */
+function everyLineExplained(lines: string[], body: MystNode[], ranges: Range[], kept: boolean[], literalLines: Set<number>): boolean {
+  const explained = lines.map((text, line) => !text.trim() || literalLines.has(line));
+  for (const [index, node] of body.entries()) {
+    if (!kept[index]) continue;
+    const range = ranges[index]!;
+    if (!range.known && !(fencedRange(lines, range) && readsBackAs(node, lines.slice(range.start, range.end + 1)))) return false;
+    for (let line = range.start; line <= range.end; line++) explained[line] = true;
+  }
+  const urls = new Set<string>();
+  body.forEach((node, index) => { if (kept[index]) linkUrls(node, urls); });
+  let definition = false;
+  for (const [line, text] of lines.entries()) {
+    if (explained[line]) { definition = false; continue; }
+    const destination = DEFINITION.exec(text)?.[1];
+    if (destination !== undefined) definition = carried(destination, urls);
+    // A line that is not a definition continues the one before it (a multi-line title).
+    else if (!definition || !lines[line - 1]?.trim()) return false;
+    if (!definition) return false;
+  }
+  return true;
+}
+
+/** A guessed range is exactly one fenced block: an opening fence line to its closing fence. */
+function fencedRange(lines: string[], range: Range): boolean {
+  const opener = FENCE_OPEN.exec(lines[range.start] ?? "")?.[1];
+  return !!opener && range.end > range.start && closingFence(opener).test(lines[range.end] ?? "");
+}
+
+function closingFence(opener: string): RegExp {
+  return new RegExp(`^ {0,3}${opener[0] === ":" ? ":" : `\\${opener[0]}`}{${opener.length},}[ \\t]*$`);
+}
+
+function readsBackAs(node: MystNode, source: string[]): boolean {
+  const blocks = (tree: MystNode[]) => JSON.stringify(getEditableDocument({ type: "root", children: tree } as never).blocks, (key, value) => key === "path" ? undefined : value);
+  try {
+    const reread = parse(NATIVE_PREFIX + source.join("\n")).children.slice(1);
+    return reread.length === 1 && blocks(reread) === blocks([node]);
+  } catch { return false; }
+}
+
+function linkUrls(node: MystNode, urls: Set<string>): void {
+  if (node.type === "link" && typeof node.url === "string") urls.add(node.url);
+  node.children?.forEach(child => linkUrls(child, urls));
+}
+
+function carried(destination: string, urls: Set<string>): boolean {
+  if (urls.has(destination)) return true;
+  try { return urls.has(encodeURI(destination)) || [...urls].some(url => decodeURI(url) === destination); } catch { return false; }
 }
 
 /** Zero-based source lines of each body block. Lifted directives carry no position: one
@@ -110,13 +170,14 @@ function sourceRanges(body: MystNode[], lines: string[]): Range[] {
     while (first < next && !lines[first]!.trim()) first++;
     // No lines left: the previous lifted block's range was a guess that took them; share it.
     if (first >= next && previousUnknown) return { ...previousUnknown };
-    // Lines before the opening fence (a consumed link definition) belong to no block.
-    const fenced = lines.findIndex((text, at) => at >= first && at < next && FENCE_OPEN.test(text));
+    // Lines before the opening fence (a consumed link definition) belong to no block. A fence
+    // opens a block only at a block start, not inside a definition's multi-line title.
+    const fenced = lines.findIndex((text, at) => at >= first && at < next && FENCE_OPEN.test(text) && (at === first || !lines[at - 1]!.trim()));
     if (fenced >= 0) first = fenced;
     const opener = FENCE_OPEN.exec(lines[first] ?? "")?.[1];
     let close = next - 1;
     if (opener) {
-      const closer = new RegExp(`^ {0,3}${opener[0] === ":" ? ":" : `\\${opener[0]}`}{${opener.length},}[ \\t]*$`);
+      const closer = closingFence(opener);
       for (let at = first + 1; at < next; at++) if (closer.test(lines[at]!)) { close = at; break; }
     }
     previousEnd = close;

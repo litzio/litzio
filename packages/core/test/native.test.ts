@@ -293,6 +293,23 @@ test("Markdown that native admission refuses is kept as literal source lines in 
   assert.deepEqual(lines("[a]: https://a.example\n\n:::{note}\nOne\n:::\n\n[b]: https://b.example\n\n:::{tip}\nTwo\n:::\n\n[c]: https://c.example\n\n- [ ] [x][a] [y][b] [z][c]"),
     [["paragraph", "[a]: https://a.example"], ["admonition", "One"], ["paragraph", "[b]: https://b.example"], ["admonition", "Two"],
       ["paragraph", "[c]: https://c.example"], ["paragraph", "- [ ] [x][a] [y][b] [z][c]"]]);
+  // A fence inside a definition's multi-line title is not a block opener: every line stays.
+  assert.deepEqual(lines("**Rich**\n\n[url]: https://example.com/path \"first\n``` title with `\nlast\"\n\n:::{note}\nKept\n:::\n\n" +
+    "```{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n| x | y |\n```\n\n:::{tip}\nLast\n:::\n\n- [ ] [task][url]"),
+    [["paragraph", "Rich"], ["paragraph", "[url]: https://example.com/path \"first"], ["paragraph", "``` title with `"], ["paragraph", "last\""],
+      ["admonition", "Kept"], ["paragraph", "```{table}"], ["paragraph", ":widths: 1 2"], ["paragraph", "| A | B |"], ["paragraph", "| - | - |"],
+      ["paragraph", "| x | y |"], ["paragraph", "```"], ["admonition", "Last"], ["paragraph", "- [ ] [task][url]"]]);
+  // The last guard: a line no kept block, literal line or used definition explains sends the
+  // whole text to literal lines, as an unused definition or a guessed directive range that took
+  // a definition would otherwise be dropped. Located blocks and used definitions do not trip it.
+  for (const text of ["**a**\n\n[unused]: https://example.com", "[url]: https://x.example\n:::{note}\nKept\n:::\n\n**b**"]) {
+    const fragment = core.readMarkdownFragment(text);
+    assert.deepEqual(fragment.blocks.map(block => "text" in block ? block.text : block.block), text.split("\n").filter(line => line), text);
+    assert.deepEqual(fragment.literalBlocks, fragment.blocks.map((_block, index) => index), text);
+  }
+  for (const text of [":::{note}\nhi\n:::\n\n**b**", "**Rich**\n\n[url]: https://example.com/path\n\n:::{note}\nKept\n:::\n\n**[go][url]**"]) {
+    assert.equal(core.readMarkdownFragment(text).literal, 0, text);
+  }
   // Without refused text, a kept link already carries its definition's URL; with nothing kept,
   // the definition is literal text.
   assert.deepEqual(core.readMarkdownFragment("**a** [x][r]\n\n[r]: https://example.com").literal, 0);

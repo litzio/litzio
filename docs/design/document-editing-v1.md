@@ -578,7 +578,10 @@ keep their existing precedence.
   shorthand, an endnote definition nothing references), every non-blank line is pasted that way.
   Nothing is dropped. A lifted directive owns only its lines from its opening to its closing
   fence, so a definition before, between or after directives stays with the refused text, in
-  source order. A line that starts with `:::` saves as literal text
+  source order. Guarantee: if any non-blank input line is not explained by a block the parser
+  located, a literal line, a fenced directive that reads back as the same block, or a link
+  definition a kept link uses, the whole text is pasted as literal lines with the notice (for
+  example an unused link definition, or an unclosed directive). A line that starts with `:::` saves as literal text
   ([Core escapes it](document-support-v1.md#interfaces-and-errors)). The notice uses the paste notice channel
   ([1440 capture](assets/markdown-paste-1843/notice-1440-light.png); Korean: "지원하지 않는
   마크다운은 글자 그대로 붙여 넣었습니다.").
