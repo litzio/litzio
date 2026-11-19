@@ -31,6 +31,8 @@ const HEADINGS = new Set(["heading"]);
 
 // Each immutable engine document shares the same display numbers across its NodeViews.
 const numbersOf = new WeakMap<ProseMirrorNode, readonly Readonly<NumberedTargets>[]>();
+// ...and the same serialized reference targets, so each reference chip does not rescan the document.
+const targetsTextOf = new WeakMap<ProseMirrorNode, string>();
 
 /**
  * The equation, figure and table numbers of each top-level block of the current editor
@@ -130,6 +132,16 @@ export function referenceTargets(doc: ProseMirrorNode): ReferenceTarget[] {
     targets.push({ role, label, ...(template === undefined ? {} : { template }), ...(kind === "table" ? { kind } : {}), ...(number === undefined ? {} : { number }) });
   });
   return targets;
+}
+
+/** `referenceTargets` as JSON, computed once per engine document. */
+function referenceTargetsText(doc: ProseMirrorNode): string {
+  let text = targetsTextOf.get(doc);
+  if (text === undefined) {
+    text = JSON.stringify(referenceTargets(doc));
+    targetsTextOf.set(doc, text);
+  }
+  return text;
 }
 
 /** Headings no section label names yet, which a reference can label as it is inserted. */
@@ -393,7 +405,7 @@ function CrossReferenceView({ node, editor, getPos, updateAttributes, selected }
   // Resolution follows label changes anywhere in the document, including unsaved ones.
   const targets = useEditorState({
     editor,
-    selector: ({ editor: current }) => JSON.stringify(current ? referenceTargets(current.state.doc) : []),
+    selector: ({ editor: current }) => current ? referenceTargetsText(current.state.doc) : "[]",
   });
   const { text, resolved, kindName } = referenceDisplay(JSON.parse(targets ?? "[]") as ReferenceTarget[], role, label);
   const close = () => {
