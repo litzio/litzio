@@ -192,6 +192,11 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
     }
     // Do this before inline math becomes raw dollar output, and only on the write clone.
     if (node.type === "tableCell") escapeTableCodeAndMath(node);
+    // Before escaping: text after an encoded boundary character starts its own context,
+    // so a following `@` or `$` is judged where MyST will read it.
+    if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
+      node.children = encodeEmphasisBoundaries(node.children);
+    }
     // myst-to-md does not protect literal dollars or citation-triggering @ text.
     // The writer emits these escaped `html` values verbatim.
     if (node.children?.some(child => child.type === "text" && /[$@]/.test(String(child.value)))) {
@@ -201,9 +206,6 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
     if (node.children?.some(child => child.type === "inlineMath")) {
       node.children = node.children.map((child, index, siblings) => isDollarMath(child, siblings[index - 1])
         ? { type: "html", value: `$${child.value}$` } : child);
-    }
-    if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
-      node.children = encodeEmphasisBoundaries(node.children);
     }
     node.children?.forEach((child, childIndex) => visit(child, childIndex, node,
       node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink));

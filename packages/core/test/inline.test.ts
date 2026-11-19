@@ -249,6 +249,14 @@ test("marks with punctuation at the edge write a touching outer character as a c
     [strong(text("정확도("), emphasis(text("Accuracy")), text(")")), text("를")],
     [strong(text("정확도 "), emphasis(text("(A)"))), text("를")],
     [strong(text("값→")), text("를")],
+    // A reference after a line ending keeps the line ending; text after it keeps its own escaping.
+    [text("line\nz"), strong(text("(X)"))],
+    [strong(text("(X)")), text("b@name")],
+    [strong(text("X→")), text("b@name")],
+    // Not representable with a reference: left unencoded, so a symbol edge still saves.
+    [strong(text("X→")), text("\u0085")],
+    [text("line \nz"), strong(text("→X"))],
+    [text("a"), { kind: "break" }, text("z"), strong(text("→X"))],
     [strong(text("값.")), text("𠀀자")],
   ];
   for (const content of cases) {
@@ -262,13 +270,22 @@ test("marks with punctuation at the edge write a touching outer character as a c
   }
   assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], cases[0])), "이 **정확도(Accuracy)**&#xB97C; 본다\n");
   assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], cases.at(-1)!)), "**값.**&#x20000;자\n");
-  // A native file written with the reference is admitted and keeps its bytes.
-  const native = "---\nlitzio: 1\n---\n\n값&#xC744;**(정확도)** 본다\n";
-  assert.equal(serializeNative(parseNative(native)), native);
+  for (const content of [[strong(text("(X)")), text("\u0085")], [text("a"), { kind: "break" }, text("z"), strong(text("(X)"))]] as InlineContent[][]) {
+    assert.throws(() => updateParagraphInlineContent(parse("Original."), [0], content), /round-trip/);
+  }
+  // Native files: a written reference is admitted and keeps its bytes; symbol edges keep saving.
+  const front = "---\nlitzio: 1\n---\n\n";
+  for (const [body, expected] of [
+    ["값&#xC744;**(정확도)** 본다\n", "값&#xC744;**(정확도)** 본다\n"],
+    ["line\nz**→X**\n", "line\n&#x7A;**→X**\n"],
+    ["**X→**\u0085\n", "**X→**\u0085\n"],
+    ["**X→**b@name\n", "**X→**&#x62;\\@name\n"],
+  ]) assert.equal(serializeNative(parseNative(front + body)), front + expected);
 });
 
 function plainText(item: InlineContent): string {
   if (item.kind === "text") return item.text;
+  if (item.kind === "break") return "\n";
   return "children" in item ? item.children.map(plainText).join("") : "";
 }
 
