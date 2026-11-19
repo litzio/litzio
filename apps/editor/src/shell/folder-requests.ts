@@ -1,5 +1,7 @@
 import { type HostClient, getHostClient } from "../host-client.ts";
 import type { DocumentErrorResponse, FolderBrowseResponse, FolderCreateRequest, FolderCreateResponse, FolderPlace, FolderPlacesResponse, FolderResponse } from "../../shared/document-protocol.ts";
+import { isScreenPath } from "../views/screen-path.ts";
+import { splitDocumentPath } from "./document-path.ts";
 
 /** Asks the Host for one level of a folder inside the folder the user chose. */
 export async function requestFolder(root: string, path?: string, background = false, client: HostClient = getHostClient(), signal?: AbortSignal): Promise<FolderResponse> {
@@ -8,6 +10,24 @@ export async function requestFolder(root: string, path?: string, background = fa
   const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderResponse;
+}
+
+/** Browses one level inside opened folders only, with crumbs that stop at the containing root. */
+export async function browseInsideRoots(roots: readonly string[], path: string, client: HostClient = getHostClient(), signal?: AbortSignal): Promise<FolderBrowseResponse> {
+  const root = roots.find(root => isScreenPath(path, [root], true));
+  if (!root) throw new Error("Path is outside the allowed folders.");
+  const reply = await requestFolder(root, path, false, client, signal);
+  const crumbs: FolderBrowseResponse["crumbs"] = [];
+  let current = reply.path;
+  while (isScreenPath(current, [root], true)) {
+    const trimmed = current.replace(/(?<=.)[\\/]+$/, "");
+    crumbs.unshift({ name: splitDocumentPath(trimmed).name || current, path: current });
+    if (!isScreenPath(current, [root])) break;
+    const parent = splitDocumentPath(trimmed).directory;
+    if (parent === current) break;
+    current = parent;
+  }
+  return { path: reply.path, crumbs, entries: reply.entries.filter(entry => isScreenPath(entry.path, [root])) };
 }
 
 /** Asks the Host for one level of any folder while choosing which folder to open, or an image. */
