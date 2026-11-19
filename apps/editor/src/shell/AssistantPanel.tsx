@@ -409,6 +409,28 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     {providerNotice ? <Notice tone="error" className="assistant-notice"><p>{i18n.t(providerNotice, { defaultValue: providerNotice })}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></Notice> : null}
     {errorNotice && errorNotice !== providerNotice ? <Notice tone="error" className="assistant-notice">{errorNotice}</Notice> : null}
   </>;
+  /** Leaves the shown conversation for a new empty one; the draft and its attachments stay. */
+  const startConversation = async (isCurrent: () => boolean) => {
+    let catalog = models;
+    if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
+    if (!isCurrent()) return false;
+    setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey); setMention(null);
+    setModels(catalog); if (settings) defaults(settings);
+    setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
+    return true;
+  };
+  const historyEntry = (info: AssistantConversationInfo) => setHistory(previous => previous?.map(entry => entry.id === info.id ? info : entry) ?? null);
+  const renameHistory = async (entry: AssistantConversationInfo, title: string) => {
+    const info = await request<AssistantConversationInfo>(ASSISTANT.conversationsRoute, { action: "rename", id: entry.id, title });
+    historyEntry(info);
+    setConversation(previous => previous?.id === info.id ? { ...previous, title: info.title } : previous);
+  };
+  const archiveHistory = (entry: AssistantConversationInfo, archived: boolean) => run(async isCurrent => {
+    const info = await request<AssistantConversationInfo>(ASSISTANT.conversationsRoute, { action: archived ? "archive" : "unarchive", id: entry.id });
+    if (!isCurrent()) return;
+    historyEntry(info);
+    if (archived && current.current?.id === info.id) await startConversation(isCurrent);
+  });
   const resumeHistory = (entry: AssistantConversationInfo) => run(async isCurrent => {
     let next: AssistantConversation;
     try { next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id }); }
@@ -499,12 +521,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     {!overlay ? <PanelResize label={i18n.t("Assistant width")} onWidth={onWidth} /> : null}
     <PanelHeader title={i18n.t("Assistant")} actions={<>
       <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || !ready} onClick={() => { void run(async isCurrent => {
-        let catalog = models;
-        if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
-        if (!isCurrent()) return;
-        setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey); setHistory(null); setMention(null);
-        setModels(catalog); if (settings) defaults(settings);
-        setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
+        if (!await startConversation(isCurrent)) return;
+        setHistory(null); input.current?.focus();
       }); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending} onClick={() => void run(async isCurrent => {
         const next = history ? null : await request<AssistantConversationInfo[]>(ASSISTANT.conversationsRoute);
@@ -541,7 +559,9 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
       onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
     <div ref={transcriptContent}>
-      {history ? <AssistantHistory entries={history} pending={pending} notices={notices} onResume={entry => void resumeHistory(entry)} />
+      {history ? <AssistantHistory entries={history} pending={pending} notices={notices} onResume={entry => void resumeHistory(entry)}
+        archiveUnavailable={entry => entry.id === conversation?.id && active ? i18n.t("Stop the Assistant response before archiving the conversation.") : undefined}
+        onRename={renameHistory} onArchive={archiveHistory} />
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
             <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips previews={imagePreviews} references={item.references ?? []} /></p>

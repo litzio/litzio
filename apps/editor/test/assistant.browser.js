@@ -251,6 +251,13 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         pastedPaths.push(path); pastedData.push(body.data); await uploadGates.get(pasted);
         return route.fulfill({ json: { path, name: path.split('/').pop(), kind: 'image', pastedImage: true } });
       }
+      if (['rename', 'archive', 'unarchive'].includes(body.action)) {
+        const entry = conversations.get(body.id);
+        if (body.action === 'rename') entry.title = body.title.trim();
+        else if (body.action === 'archive') entry.archivedAt = 1793600000000; else delete entry.archivedAt;
+        const { turns, tokenUsage, ...info } = entry;
+        return route.fulfill({ json: info });
+      }
       if (body.action === 'resume') {
         if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
         if (copilotUnavailable && conversations.get(body.id).provider === 'copilot') return route.fulfill({ status: 503, json: { error: 'Fixture Copilot is unavailable.' } });
@@ -269,7 +276,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         }
         if (!body.id) { selected = { provider: body.provider ?? settings.provider, permissionMode: body.permissionMode ?? settings.permissionMode, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
           updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
-        else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
+        else { selected = conversations.get(body.id); delete selected.archivedAt; if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
         if (body.message === 'After provider switch') { selected.tokenUsage = { used: 15000, limit: 200000 }; selected.copilotUsage = { cost: { amount: 0.25, currency: 'USD' }, prompt: { totalTokens: 14000, inputTokens: 13995, outputTokens: 5 } }; }
         if (body.message === 'After provider switch') selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: [] };
         if (body.message === 'Recover supported model') {
@@ -1024,7 +1031,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: 'New conversation' }).click();
   await panel.getByRole('button', { name: 'Conversation history' }).click();
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/history-1440-light-en.png' });
-  await panel.getByRole('button', { name: /What changed in the current document/ }).click();
+  await panel.getByRole('button', { name: /^What changed in the current document/ }).click();
   await expect(panel.getByRole('button', {name: 'Permission mode settings', exact: true})).toHaveText('Read-only');
   await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
@@ -1068,7 +1075,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const renderedText = await answer.locator('.assistant-markdown').innerText();
   await panel.getByRole('button', { name: 'New conversation' }).click();
   await panel.getByRole('button', { name: 'Conversation history' }).click();
-  await panel.getByRole('button', { name: /What changed in the current document/ }).click();
+  await panel.getByRole('button', { name: /^What changed in the current document/ }).click();
   await expect(answer.getByRole('heading', { name: '답변 요약' })).toBeVisible();
   expect(await answer.locator('.assistant-markdown').innerText()).toBe(renderedText.replace(/Copied/g, 'Copy code'));
   await panel.getByRole('button', { name: 'Copy answer', exact: true }).click();
@@ -1267,46 +1274,132 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     { ...selected, id: 'history-newer', provider: 'copilot', title: '실험 결과 표와 다음 작업 확인', folders: ['/fixture/Experiment'], updatedAt: 1793593600000,
       model: 'copilot-model', reasoningEffort: 'high', permissionMode: 'read-only', copilot: copilotOptions, turns: [] },
   ];
+  // The synthetic Host lists the newest insertion first; this older entry stays last.
+  conversations.set('history-weekly', { ...selected, id: 'history-weekly', provider: 'codex', title: '주간 보고 초안', folders: ['/fixture/주간'], updatedAt: 1793580000000, turns: [] });
   for (const entry of historyEntries) conversations.set(entry.id, entry);
   await page.getByRole('button', { name: /^비서(?: — |$)/ }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
   await panel.getByRole('button', { name: '대화 기록' }).click();
-  await expect(panel.getByRole('button', { name: /문서 구조와 검토 계획 정리/ })).toBeEnabled();
   const history = panel.locator('.assistant-history');
+  const rows = history.locator('.assistant-history-row');
+  // The row menu trigger is named after the title too; the open button also names the provider.
+  const older = rows.filter({ hasText: '문서 구조와 검토 계획 정리' }).getByRole('button', { name: /Codex/ });
+  const newer = rows.filter({ hasText: '실험 결과 표와 다음 작업 확인' }).getByRole('button', { name: /GitHub Copilot/ });
+  await expect(older).toBeEnabled();
   const search = history.getByRole('textbox', { name: '대화 기록 검색' });
   if (screenshots) {
     const viewport = page.viewportSize(), themeBeforeCapture = await page.locator('html').getAttribute('data-theme');
     const capture = async (theme, state) => {
       await page.locator('html').evaluate((html, value) => { html.dataset.theme = value; }, theme);
-      await panel.screenshot({ path: `tmp/1808-history/${state}-1440-${theme}.png` });
+      await panel.screenshot({ path: `tmp/assistant-history/${state}-1440-${theme}.png` });
     };
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await capture('light', 'after');
-    await capture('dark', 'after');
+    await capture('light', 'list');
+    await capture('dark', 'list');
     await search.fill('experiment');
     await capture('light', 'search');
     await search.clear();
     await page.locator('html').evaluate((html, value) => { html.dataset.theme = value; }, themeBeforeCapture);
     await page.setViewportSize(viewport);
   }
-  const older = panel.getByRole('button', { name: /문서 구조와 검토 계획 정리/ });
-  const newer = panel.getByRole('button', { name: /실험 결과 표와 다음 작업 확인/ });
-  await expect(history.getByRole('button').first()).toContainText('실험 결과 표와 다음 작업 확인');
+  await expect(rows.first()).toContainText('실험 결과 표와 다음 작업 확인');
   await expect(newer).toContainText('GitHub Copilot');
   await expect(older).toContainText('Codex');
   await search.fill('EXPERiment');
-  await expect(history.getByRole('button')).toHaveCount(1);
+  await expect(rows).toHaveCount(1);
   await expect(newer).toBeVisible();
   await search.fill('검토 계획');
-  await expect(history.getByRole('button')).toHaveCount(1);
+  await expect(rows).toHaveCount(1);
   await expect(older).toBeVisible();
   await search.fill('찾을 수 없는 기록');
-  await expect(history.getByRole('button')).toHaveCount(0);
+  await expect(rows).toHaveCount(0);
   await expect(history.getByText('일치하는 대화가 없습니다', { exact: true })).toBeVisible();
   await search.clear();
   await expect(older.locator('small')).toHaveText('연구 보고서 · 검토 자료');
   await expect(older.locator('small')).toHaveAttribute('title', historyEntries[0].folders.join('\n'));
   await expect(older.locator('time')).toHaveAttribute('datetime', new Date(historyEntries[0].updatedAt).toISOString());
+  // #1810: the row menu and context menu rename, archive and unarchive; archived rows have their own list.
+  const capture1810 = async (name, theme = 'light') => {
+    if (!screenshots) return;
+    const viewport = page.viewportSize(), themeBefore = await page.locator('html').getAttribute('data-theme');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.locator('html').evaluate((html, value) => { html.dataset.theme = value; }, theme);
+    // Menus and the rename dialog render outside the panel; the sidebar footer names the Host account, so leave it out.
+    const box = await panel.boundingBox(), clip = name === 'renaming' ? { x: 240, y: 0, width: 1200, height: 1000 } : box;
+    await page.screenshot({ path: `tmp/assistant-history/${name}-1440-${theme}.png`, clip });
+    await page.locator('html').evaluate((html, value) => { html.dataset.theme = value; }, themeBefore);
+    await page.setViewportSize(viewport);
+  };
+  const rowMenu = title => rows.filter({ hasText: title }).getByRole('button', { name: `${title} 더 보기` });
+  await rowMenu('주간 보고 초안').click();
+  await expect(page.getByRole('menuitem')).toHaveText(['이름 변경…', '보관']);
+  await capture1810('row-menu');
+  await page.getByRole('menuitem', { name: '이름 변경…' }).click();
+  const renameDialog = page.getByRole('dialog', { name: '대화 이름 변경' });
+  const conversationName = renameDialog.getByRole('textbox', { name: '대화 이름' });
+  await expect(conversationName).toHaveValue('주간 보고 초안');
+  await conversationName.fill('   ');
+  await expect(renameDialog.getByRole('button', { name: '이름 변경', exact: true })).toBeDisabled();
+  await conversationName.fill('  주간 보고 최종  ');
+  await capture1810('renaming');
+  await conversationName.press('Enter');
+  await expect(renameDialog).toBeHidden();
+  const weekly = rows.filter({ hasText: '주간 보고 최종' }).getByRole('button', { name: /Codex/ });
+  await expect(weekly).toBeFocused();
+  expect(conversations.get('history-weekly')).toMatchObject({ title: '주간 보고 최종', updatedAt: 1793580000000 });
+  await weekly.click({ button: 'right' });
+  await expect(page.getByRole('menuitem')).toHaveText(['이름 변경…', '보관']);
+  await page.getByRole('menuitem', { name: '보관', exact: true }).click();
+  await expect(weekly).toBeHidden();
+  await expect(page.getByRole('dialog').and(page.locator(':not([data-testid="assistant-panel"])')), 'Archiving asks no confirmation').toHaveCount(0);
+  await expect(older).toBeVisible();
+  const archivedToggle = history.getByRole('button', { name: '보관됨' });
+  await archivedToggle.click();
+  await expect(archivedToggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows).toHaveCount(1);
+  await expect(weekly).toBeVisible();
+  await capture1810('archived');
+  await capture1810('archived', 'dark');
+  await search.fill('검토 계획');
+  await expect(history.getByText('일치하는 대화가 없습니다', { exact: true })).toBeVisible();
+  await search.clear();
+  await rowMenu('주간 보고 최종').click();
+  await expect(page.getByRole('menuitem')).toHaveText(['이름 변경…', '되살리기']);
+  await page.getByRole('menuitem', { name: '되살리기' }).click();
+  await expect(history.getByText('보관된 대화가 없습니다', { exact: true })).toBeVisible();
+  await expect(search).toBeFocused();
+  await archivedToggle.click();
+  await expect(weekly).toBeVisible();
+  // An archived conversation still opens for reading; sending to it returns it to the default list.
+  await rowMenu('주간 보고 최종').click();
+  await page.getByRole('menuitem', { name: '보관', exact: true }).click();
+  await archivedToggle.click();
+  await weekly.click();
+  await expect(history).toBeHidden();
+  const weeklyComposer = panel.getByRole('textbox', { name: '비서에게 메시지' });
+  await weeklyComposer.fill('주간 보고 이어서');
+  await weeklyComposer.press('Enter');
+  await expect(panel.locator('.assistant-user').last()).toContainText('주간 보고 이어서');
+  expect(conversations.get('history-weekly').archivedAt).toBeUndefined();
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await expect(archivedToggle).toHaveAttribute('aria-pressed', 'false');
+  await rowMenu('주간 보고 최종').click();
+  await expect(page.getByRole('menuitem', { name: '보관', exact: true }), 'A responding conversation cannot be archived').toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.press('Escape');
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  selected.turns.at(-1).status = 'completed';
+  await expect(panel.getByRole('button', { name: '응답 중단' })).toBeHidden();
+  // Archiving the shown conversation leaves a new empty conversation and keeps the draft.
+  await weeklyComposer.fill('남겨 둘 초안');
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await rowMenu('주간 보고 최종').click();
+  await page.getByRole('menuitem', { name: '보관', exact: true }).click();
+  await expect(weekly).toBeHidden();
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await expect(panel.locator('.assistant-turn')).toHaveCount(0);
+  await expect(weeklyComposer).toHaveValue('남겨 둘 초안');
+  await weeklyComposer.fill('');
+  await panel.getByRole('button', { name: '대화 기록' }).click();
   await older.click();
   await expect(older).toBeHidden();
   await expect(panel.getByRole('textbox')).toBeEnabled();
