@@ -59,13 +59,15 @@ type SidebarProps = {
   /** App Settings, separate from document settings. Names the control focus returns to. */
   onSettings?(returnFocus: HTMLElement): void;
   settingsDisabled?: boolean;
+  /** SPIKE #1812: Activity Bar drafts. */
+  activity?: { variant: 1 | 2 | 3; panel?: ReactNode; launcher?(iconOnly: boolean): ReactNode };
 };
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
   onCopyPath, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
-  theme = "light", onThemeChange, contributions = [], onAddToChat,
+  theme = "light", onThemeChange, contributions = [], onAddToChat, activity,
 }: SidebarProps) {
   useTranslation();
   useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
@@ -96,18 +98,20 @@ export function Sidebar({
     onClick={event => { restoreToggleFocus.current = document.activeElement === event.currentTarget; onToggle(); }}>
     {open ? <PanelLeftClose /> : <FilesIcon />}
   </Button>;
+  const barDraft = activity && activity.variant !== 3;
   return (
-    <nav className={`sidebar${open ? "" : " sidebar--collapsed"}${overlay && open ? " sidebar--overlay" : ""}`} aria-label={i18n.t("Application")} data-testid="sidebar"
+    <nav className={`sidebar${barDraft ? " sidebar--activity" : ""}${open ? "" : " sidebar--collapsed"}${overlay && open ? " sidebar--overlay" : ""}`} aria-label={i18n.t("Application")} data-testid="sidebar"
       onKeyDown={event => {
         if (overlay && open && event.key === "Escape" && !event.defaultPrevented && !event.nativeEvent.isComposing && event.currentTarget.contains(event.target as Node)) {
           event.preventDefault(); event.stopPropagation(); onClose?.();
         }
       }}>
       {open && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
-      {open ? <PanelHeader title={i18n.t("Explorer")} actions={toggleButton} />
+      {barDraft && activity.panel ? activity.panel : null}
+      {barDraft ? (activity.panel ? null : <PanelHeader title={i18n.t("Explorer")} />) : open ? <PanelHeader title={i18n.t("Explorer")} actions={toggleButton} />
         : <div className="sidebar-header"><div className="sidebar-header-actions">{toggleButton}</div></div>}
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
-      <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}
+      <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open || !!(barDraft && activity.panel)}
         onContextMenu={event => {
           if (!event.currentTarget.contains(event.target as Node) || (event.target as Element).closest(".sidebar-folder-header, .sidebar-tree-item")) return;
           event.preventDefault(); event.stopPropagation();
@@ -165,9 +169,9 @@ export function Sidebar({
         </section>
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
-      {onSettings || onThemeChange || contributions.length ? (
+      {!barDraft && (onSettings || onThemeChange || contributions.length) ? (
         <div className="sidebar-footer">
-          {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
+          {activity?.launcher ? activity.launcher(!open) : open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
             onClick={event => item.run(event.currentTarget)}>{item.icon ?? <FileText aria-hidden="true" />}{i18n.t(item.label as MessageKey)}</Button>) : null}
           <div className="sidebar-preferences">
             {onSettings ? <SettingsEntry disabled={settingsDisabled} iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}

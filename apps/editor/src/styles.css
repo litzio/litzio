@@ -3315,3 +3315,75 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .ui-portal:has(.command-center-dialog[data-ending-style]) [data-slot="dialog-overlay"][data-ending-style] {
   transition-duration: 0s;
 }
+
+/* SPIKE #1812 — Activity Bar drafts (not for merge). */
+.app-shell--activity { --shell-sidebar: calc(var(--layout-sidebar-rail-width) + var(--sidebar-effective-width)); }
+.app-shell--activity.app-shell--collapsed,
+.app-shell--activity.app-shell--navigation-overlay { --shell-sidebar: var(--layout-sidebar-rail-width); }
+.activity-shell {
+  z-index: 1;
+  grid-column: 1;
+  grid-row: 2;
+  position: sticky;
+  top: var(--app-titlebar-height, var(--layout-header-row));
+  display: flex;
+  height: calc(100vh - var(--app-titlebar-height, var(--layout-header-row)));
+  min-width: 0;
+}
+.activity-shell > .sidebar { position: relative; top: auto; height: 100%; flex: 1; min-width: 0; }
+.activity-shell > .sidebar--collapsed { display: none; }
+.app-shell .activity-shell > .sidebar--overlay { position: fixed; left: var(--layout-sidebar-rail-width); top: var(--app-titlebar-height, var(--layout-header-row)); height: calc(100vh - var(--app-titlebar-height, var(--layout-header-row))); }
+.activity-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: var(--layout-sidebar-rail-width);
+  height: 100%;
+  /* The first icon sits in the same band as PanelHeader and the tab row. */
+  padding-block: calc((var(--layout-document-tab-height) + var(--border-width) - var(--size-control-compact)) / 2) var(--space-3);
+  border-right: var(--border-width) solid var(--id-color-border);
+  background: var(--id-color-surface-subtle);
+  app-region: no-drag;
+}
+.activity-bar-group { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.activity-bar-group--screens { flex: 1; min-height: 0; overflow: hidden; }
+.activity-bar-spacer { flex: 1; }
+.activity-bar-group--bottom { margin-top: var(--space-2); }
+.activity-bar-separator { flex-shrink: 0; width: var(--size-control-compact); height: var(--border-width); margin-block: var(--space-2); background: var(--id-color-border); }
+.activity-bar-button { position: relative; }
+.activity-bar-button[data-selected] { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); }
+.activity-bar-button[data-selected]::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * (var(--layout-sidebar-rail-width) - var(--size-control-compact)) / 2);
+  top: var(--space-1);
+  bottom: var(--space-1);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--id-color-text-selected);
+}
+.activity-bar-button[data-active]::after {
+  content: "";
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  width: var(--space-3);
+  height: 2px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: var(--id-color-text-selected);
+}
+.activity-bar-status { display: flex; align-items: center; justify-content: center; height: var(--size-control-compact); }
+.activity-bar-menu-dot { width: var(--size-update-dot); height: var(--size-update-dot); border-radius: 50%; background: var(--id-color-text-selected); }
+.sidebar > .activity-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; width: calc(100% + var(--space-3) * 2); margin-inline: calc(-1 * var(--space-3)); }
+.activity-panel > .work-screen-list { padding-inline: var(--space-3); padding-top: var(--space-3); }
+.activity-panel-placeholder { margin: 0; padding: var(--space-3) var(--space-6); }
+.work-screen-list { display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; }
+.work-screen-list ul { margin: 0; padding: 0; list-style: none; overflow-y: auto; min-height: 0; }
+.work-screen-row { width: 100%; border: 0; background: none; text-align: left; color: inherit; }
+.work-screen-row .settings-entry-icon svg { width: var(--size-icon-slot); height: var(--size-icon-slot); }
+.work-screen-empty { padding: var(--space-2) var(--space-3); }
+.work-screen-popup { width: 16rem; gap: var(--space-2); padding: var(--space-2); }
+/* The overlay leaves the shell's stacking context so it covers the tab row. */
+.app-shell--activity.app-shell--navigation-overlay .activity-shell:has(> .sidebar--overlay) { z-index: 4; }

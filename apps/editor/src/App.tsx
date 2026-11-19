@@ -53,6 +53,7 @@ import { UnsavedChangesDialog } from "./shell/UnsavedChangesDialog.tsx";
 import type { FileActionHandler } from "./shell/FileActionDialog.tsx";
 import type { ImageRenamer } from "./image-rename.ts";
 import { Sidebar } from "./shell/Sidebar.tsx";
+import { ActivityBar, activityBarVariant, PlaceholderPanel, WorkScreensLauncher, WorkScreensPanel, type ActivityPanel, type WorkScreen } from "./shell/ActivityBarSpike.tsx";
 import { folderChain, knownFolders, useFolderTrees } from "./shell/folder-tree.ts";
 import { childPath, documentLocation, splitDocumentPath, unquotePath } from "./shell/document-path.ts";
 import { DocumentActions } from "./shell/DocumentActions.tsx";
@@ -62,7 +63,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
+import { LayoutTemplate, MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
 import type {
   EditorFileResponse,
   DocumentStartResponse,
@@ -143,7 +144,7 @@ function EditorApp() {
     const outside = (event: PointerEvent) => {
       const target = event.target;
       // Portalled menus/dialogs belong to their own focus boundary, including Explorer actions.
-      if (!(target instanceof Element) || target.closest('.sidebar, .ui-portal, [role="dialog"], [role="menu"]')) return;
+      if (!(target instanceof Element) || target.closest('.sidebar, .activity-bar, .ui-portal, [role="dialog"], [role="menu"]')) return;
       if ([...globalThis.document.querySelectorAll('[role="menu"], [role="dialog"]')].some(element => element.getClientRects().length)) return;
       closeSidebar();
     };
@@ -231,6 +232,10 @@ function EditorApp() {
   const [navigation, navigate] = useReducer(editorGroups, initialEditorGroups);
   const [viewTabs, setViewTabs] = useState<ViewTab[]>([]);
   const screens = useViewScreens();
+  // SPIKE #1812: development-only draft switch.
+  const [activityVariant] = useState(activityBarVariant);
+  const barDraft = activityVariant === 1 || activityVariant === 2;
+  const [activityPanel, setActivityPanel] = useState<ActivityPanel>("explorer");
   useEffect(() => {
     const open = (event: Event) => { const screen = (event as CustomEvent<ViewScreen>).detail; openScreen(screen); };
     window.addEventListener("open-plugin-screen", open); return () => window.removeEventListener("open-plugin-screen", open);
@@ -1257,9 +1262,25 @@ function EditorApp() {
       run: () => { shortcutsReturnFocus.current = commandReturnFocus.current; setShortcutsOpen(true); } },
   ];
 
+  const primaryScreens = screens.filter((screen,index,all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index);
+  const workScreens: WorkScreen[] = [{ id: "templates", label: i18n.t("Template gallery"), icon: <LayoutTemplate aria-hidden="true" />, active: activeId === "templates", run: openTemplateGallery },
+    ...primaryScreens.map((screen, index) => { const Icon = viewScreenIcon(screen.icon); return { id: `screen-${screen.plugin}`, label: screen.title, badge: activityVariant !== 0 && index === 1,
+      active: activeId === `screen-${screen.plugin}-${screen.id}`,
+      icon: <PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />, run: () => openScreen(screen) }; })];
+  const choosePanel = (panel: ActivityPanel) => {
+    if (sidebarOpen && activityPanel === panel) chooseSidebarOpen(false);
+    else { setActivityPanel(panel); chooseSidebarOpen(true); }
+  };
+  const activity = barDraft ? { variant: activityVariant as 1 | 2, panel: activityPanel === "explorer" ? undefined : activityPanel === "screens" ? <WorkScreensPanel screens={workScreens} /> : <PlaceholderPanel panel={activityPanel} /> }
+    : activityVariant === 3 ? { variant: 3 as const, launcher: (iconOnly: boolean) => <WorkScreensLauncher screens={workScreens} iconOnly={iconOnly} /> } : undefined;
+  const wrapSidebar = (sidebar: React.ReactNode) => barDraft ? <div className="activity-shell">
+    <ActivityBar variant={activityVariant as 1 | 2} panel={activityPanel} open={sidebarOpen} onPanel={choosePanel} screens={workScreens} theme={theme} onThemeChange={changeTheme} updateVersion={unseenUpdate}
+      onSettings={returnFocus => { settingsReturnFocus.current = returnFocus; setSettingsCategory(unseenUpdate ? "about" : "appearance"); setHighlightUpdate(!!unseenUpdate); openSettingsTab(); void refreshRecovery(); }} />
+    {sidebar}</div> : sidebar;
+
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
-      <Sidebar onCopyPath={path => void copyPath(path)}
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${barDraft ? " app-shell--activity" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+      {wrapSidebar(<Sidebar onCopyPath={path => void copyPath(path)} activity={activity}
         onAddToChat={assistantAvailable ? addToChat : undefined}
         theme={theme} onThemeChange={changeTheme}
         contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...screens.filter((screen,index,all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {const Icon=viewScreenIcon(screen.icon);return {id:`screen-${screen.plugin}`,label:screen.title,icon:<PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />,run:()=>openScreen(screen)};})]}
@@ -1320,7 +1341,7 @@ function EditorApp() {
           openSettingsTab();
           void refreshRecovery();
         }}
-      />
+      />)}
       <div className="app-titlebar" ref={titlebar}>
         <div className="app-brand">
           <img data-brand-light="" src={appIcon} alt={productName(i18n.language)} /><img data-brand-dark="" src={darkIcon} alt={productName(i18n.language)} />
