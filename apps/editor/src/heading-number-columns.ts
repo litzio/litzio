@@ -18,13 +18,15 @@ export function numberColumnsKey(headings: readonly NumberedHeading[]): string {
   return fitToDocument ? headings.map(heading => `${heading.level}:${heading.number}`).join("|") : "";
 }
 
+type NumberFont = Partial<Record<(typeof fontProperties)[number], string>>;
+
 /**
  * Sets `${prefix}${level}` on `target` to the widest number of that level, in em of that level's
  * number font (so zoom and font size preferences keep it), or removes it to fall back to the token.
- * `fontOf(level)` returns the computed style of a rendered number of that level.
+ * `fontOf(level)` returns the font(s) a number of that level is drawn in; the widest one counts.
  */
 export function applyNumberColumns(target: HTMLElement, prefix: string, headings: readonly NumberedHeading[],
-  fontOf: (level: number) => Partial<Record<(typeof fontProperties)[number], string>> | undefined): void {
+  fontOf: (level: number) => NumberFont | NumberFont[] | undefined): void {
   const widths = fitToDocument ? measure(headings, fontOf) : new Map<number, string>();
   for (let level = 1; level <= 6; level += 1) {
     const width = widths.get(level);
@@ -34,7 +36,7 @@ export function applyNumberColumns(target: HTMLElement, prefix: string, headings
 }
 
 /** Reads the font properties of `style` for `applyNumberColumns`. */
-export function numberFont(style: CSSStyleDeclaration, overrides: Partial<Record<(typeof fontProperties)[number], string>> = {}) {
+export function numberFont(style: CSSStyleDeclaration, overrides: NumberFont = {}) {
   return Object.fromEntries(fontProperties.map(name => [name, overrides[name] ?? style.getPropertyValue(name)])) as Record<(typeof fontProperties)[number], string>;
 }
 
@@ -49,11 +51,11 @@ function measure(headings: readonly NumberedHeading[], fontOf: Parameters<typeof
   probe.setAttribute("aria-hidden", "true");
   probe.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre;contain:layout style";
   const spans: { level: number; size: number; span: HTMLSpanElement }[] = [];
-  for (const [level, numbers] of byLevel) {
-    const font = fontOf(level);
-    const size = Number.parseFloat(font?.["font-size"] ?? "");
-    if (!font || !(size > 0)) continue;
-    for (const number of numbers) {
+  const fonts = [...byLevel.keys()].flatMap(level => [fontOf(level) ?? []].flat().map(font => ({ level, font })));
+  for (const { level, font } of fonts) {
+    const size = Number.parseFloat(font["font-size"] ?? "");
+    if (!(size > 0)) continue;
+    for (const number of byLevel.get(level)!) {
       const span = document.createElement("span");
       for (const name of fontProperties) if (font[name]) span.style.setProperty(name, font[name]!);
       span.style.display = "inline-block";

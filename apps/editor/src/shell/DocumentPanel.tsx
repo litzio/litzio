@@ -100,8 +100,8 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
     revealTrackedRef.current();
   }, [active, outline.current, outline.items]);
   // Heading rows fit each level's number column to the document, as the page headings do.
-  // The column holds the number and its following space, measured at the current row's
-  // semibold weight, so every title (current or not) starts exactly at the column edge.
+  // The column holds the number and its following space, measured at both the regular and
+  // the current row's semibold weight, so every title starts exactly at the column edge.
   const columns = useRef<{ element: HTMLElement; key: string }>(undefined);
   const headings = kind === "outline" ? outline.items : undefined;
   useClientLayoutEffect(() => {
@@ -113,7 +113,7 @@ function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: 
       const number = element.children[index]?.querySelector(".document-outline-number");
       if (!number) return undefined;
       const style = getComputedStyle(number);
-      return numberFont(style, { "font-weight": style.getPropertyValue("--font-weight-semibold").trim() });
+      return [numberFont(style), numberFont(style, { "font-weight": style.getPropertyValue("--font-weight-semibold").trim() })];
     });
     const key = numberColumnsKey(numbered);
     if (columns.current?.element !== element || columns.current.key !== key) fit();

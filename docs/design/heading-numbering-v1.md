@@ -208,8 +208,9 @@ outline and number color are unchanged; reading view and print use the same DOM.
 The Outline keeps its per-level indentation (`--outline-depth`, `--space-outline-indent`)
 and aligns same-level titles the same way. The existing U+0020 after the number stays
 inside the number column and remains the Outline gap, so row text and accessible names
-(`5.1 관리도…`) are unchanged; the column is measured as number plus space at the current
-row's semibold weight, so the current title never shifts (a semibold space is narrower).
+(`5.1 관리도…`) are unchanged; the column is measured as number plus space at both the
+regular and the current row's semibold weight, so no title shifts when a row becomes
+current (a semibold space is narrower) or when platform glyph rounding differs.
 Table and Figure lists are unchanged.
 
 `apps/editor/src/heading-number-columns.ts` owns the width decision: it measures the
