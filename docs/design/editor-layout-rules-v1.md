@@ -275,11 +275,16 @@ NotificationCenter owns one presentation state: closed, automatic or manual. One
 registry, contents tree, announcement, grouping/dismissal state and focus owner are
 shared; the two presentations never render duplicate notification rows.
 
-New errors, warnings and named progress/actions use the master's panel-aware
-bottom-right card appearance and list rectangle. The former bottom bell/gap area
-is left clear; the persistent bell itself exists only in the title strip. Automatic
-cards are named regions, not dialogs, and keep the master's temporary, dismissible
-body overlap without covering the Save/Reload/view toolbar. They do not move focus
+New errors, warnings and named progress/actions expand an automatic card at the
+bell's top-right ([1440 capture](assets/notification-auto-top-1806/after-1440-light.png)).
+It starts 32px (`--space-8`) below the measured title strip and tab row
+(`--app-header-height`), so on document, plugin and Settings tabs it never covers
+title-strip or tab-row actions. Its right edge keeps the panel-aware 32px inset left
+of an open Assistant or Document panel, including the overlaid Document panel below
+1424px. Several causes stack downward in one list that scrolls inside the card above
+a 16px bottom inset; the card enters from above. The persistent bell exists only in
+the title strip. Automatic cards are named regions, not dialogs, and keep a
+temporary, dismissible body overlap. They do not move focus
 or dismiss on document focus changes. If the user is already reading a manual list,
 new causes update it without moving its location or focus. Bell activation collapses
 an expanded presentation; activation while closed opens the manual list.

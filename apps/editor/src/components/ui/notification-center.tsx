@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Bell, ChevronDown, ChevronRight, X } from "lucide-react";
 import { Button } from "./button.tsx";
@@ -37,8 +37,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 }
 
 /** Keep the history boundary outside the shell; only automatic cards use panel geometry. */
-export function ShellNotificationCenter({ panelWidth, sidebarWidth, documentPanelWidth }: { panelWidth: string; sidebarWidth?: number; documentPanelWidth?: number }) {
-  return <div className="shell-notifications" style={{ "--notification-panel-width": panelWidth, "--sidebar-width": sidebarWidth ? `${sidebarWidth}px` : undefined, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
+export function ShellNotificationCenter({ ref, panelWidth, sidebarWidth, documentPanelWidth }: { ref?: Ref<HTMLDivElement>; panelWidth: string; sidebarWidth?: number; documentPanelWidth?: number }) {
+  return <div ref={ref} className="shell-notifications" style={{ "--notification-panel-width": panelWidth, "--sidebar-width": sidebarWidth ? `${sidebarWidth}px` : undefined, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
 }
 
 /** Callbacks read the latest source render, while registry updates follow observable content. */

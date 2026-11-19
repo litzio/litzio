@@ -119,6 +119,25 @@ async (page, { openPath, expect }) => {
     const r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
   });
   expect(saveHit,'Automatic cards must leave the original Save action clickable').toBe(true);
+  // Automatic cards appear at the bell's top-right, starting below the tab strip:
+  // every title-strip and tab-row action keeps its rectangle and pointer hit.
+  await center.locator('.notification-auto').evaluate(el => Promise.allSettled(el.getAnimations({subtree:true}).map(a => a.finished)));
+  const autoPlacement = await center.locator('.notification-auto > ul').evaluate(card => {
+    const c=card.getBoundingClientRect(), header=document.querySelector('.app-header').getBoundingClientRect();
+    const bell=document.querySelector('.notification-center > button').getBoundingClientRect();
+    const actions=[...document.querySelectorAll('.app-titlebar button, .app-header button')].filter(button => button.getClientRects().length).map(button => {
+      const r=button.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
+      const visible=x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&button.contains(document.elementFromPoint(x,y));
+      return {name:button.getAttribute('aria-label')||button.textContent.trim(),covered:Math.min(r.right,c.right)>Math.max(r.x,c.x)&&Math.min(r.bottom,c.bottom)>Math.max(r.y,c.y),visible};
+    });
+    return {card:{top:c.top,bottom:c.bottom,right:c.right},headerBottom:header.bottom,bellRight:bell.right,actions};
+  });
+  expect(autoPlacement.card.top,JSON.stringify(autoPlacement)).toBeGreaterThanOrEqual(autoPlacement.headerBottom);
+  expect(autoPlacement.card.top - autoPlacement.headerBottom,'Automatic cards start just below the tab strip, not at the bottom').toBeLessThanOrEqual(48);
+  expect(autoPlacement.card.bottom).toBeLessThanOrEqual(900);
+  expect(autoPlacement.card.right).toBeLessThanOrEqual(autoPlacement.bellRight);
+  expect(autoPlacement.actions.length).toBeGreaterThan(0);
+  expect(autoPlacement.actions.filter(action => action.covered || !action.visible),JSON.stringify(autoPlacement.actions)).toEqual([]);
   await toggle().click();
   await expect(center).toHaveAttribute('data-presentation','closed');
   await toggle().click();

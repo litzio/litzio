@@ -513,7 +513,8 @@ The shell has three responsibilities: the Sidebar on the left browses opened fol
 | Document tabs | Fixed second row below the title strip, with a flat current accent marker (#581). Filename, dirty dot, close button and full-path tooltip; same-named files show the distinguishing parent folder. Only the tablist scrolls; its active-document actions remain fixed to its right (#695). Accessible tablist/tab/tabpanel relationships, Left/Right/Home/End switching and Delete to close remain. Closing selects the right neighbour, else left; an inactive close keeps the current tab. |
 #1644: the window NotificationCenter button is in the title strip beside Assistant
 on document, plugin and Settings tabs. Its manual popover opens below the bell;
-automatic cards retain the master bottom-right appearance and toolbar access.
+automatic cards appear at the same top-right, below the tab row, without covering
+title-strip or tab-row actions.
 Both are temporary overlays;
 closed-button/document rectangles do not overlap and document viewport/minimum
 heights are unchanged. The notification DOM remains outside the shell history

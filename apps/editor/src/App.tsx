@@ -174,6 +174,7 @@ function EditorApp() {
   const header = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLDivElement>(null);
   const titlebar = useRef<HTMLDivElement>(null);
+  const notifications = useRef<HTMLDivElement>(null);
   const [documentWidth, setDocumentWidth] = useState<DocumentWidth>(readDocumentWidth);
   const [folderDialog, setFolderDialog] = useState(false);
   const [newAfterFolder, setNewAfterFolder] = useState(false);
@@ -772,7 +773,8 @@ function EditorApp() {
     if (!element || !title) return;
     const observer = new ResizeObserver(() => {
       shell.current?.style.setProperty("--app-titlebar-height", `${title.offsetHeight}px`);
-      shell.current?.style.setProperty("--app-header-height", `${title.offsetHeight + element.offsetHeight}px`);
+      // Automatic notification cards start below the same header, outside the shell history boundary.
+      for (const target of [shell.current, notifications.current]) target?.style.setProperty("--app-header-height", `${title.offsetHeight + element.offsetHeight}px`);
     });
     observer.observe(element);
     observer.observe(title);
@@ -1600,7 +1602,7 @@ function EditorApp() {
       <OpenRefusalDialog openRefusal={openRefusal} setOpenRefusal={setOpenRefusal} openRefusalReturnFocus={openRefusalReturnFocus} document={document} />
       <ReloadChangesDialog reloadDialog={reloadDialog} switching={switching} setReloadDialog={setReloadDialog} fileActionsToggle={fileActionsToggle} reloadFromDisk={reloadFromDisk} />
     </div>
-    <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
+    <ShellNotificationCenter ref={notifications} sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
       : documentPanelOpen ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
