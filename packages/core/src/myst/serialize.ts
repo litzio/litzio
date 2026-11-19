@@ -8,6 +8,7 @@ import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-erro
 import { completeFootnotes, endnotePlacement, footnoteWriteIssue } from "./footnote.ts";
 import { isFigure, figureContentKind } from "./figure.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
+import { encodeEmphasisBoundaries } from "./emphasis-boundary.ts";
 import { parse } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
 import { isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode } from "./table.ts";
@@ -191,6 +192,11 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
     }
     // Do this before inline math becomes raw dollar output, and only on the write clone.
     if (node.type === "tableCell") escapeTableCodeAndMath(node);
+    // Before escaping: text after an encoded boundary character starts its own context,
+    // so a following `@` or `$` is judged where MyST will read it.
+    if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
+      node.children = encodeEmphasisBoundaries(node.children);
+    }
     // myst-to-md does not protect literal dollars or citation-triggering @ text.
     // The writer emits these escaped `html` values verbatim.
     if (node.children?.some(child => child.type === "text" && /[$@]/.test(String(child.value)))) {
