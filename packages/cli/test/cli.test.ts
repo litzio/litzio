@@ -2481,7 +2481,7 @@ test("check and edit previews retain original literal-syntax warnings through li
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-check-footnote-"));
   const file = path.join(dir, "document.md");
   const operations = path.join(dir, "operations.json");
-  const source = nativeSource("Loss [^loss] here.\n\nSee [details][missing].\n\n![missing][]\n\nCode `tick without end.\n");
+  const source = nativeSource("Loss [^loss] here.\n\nSee [details][missing].\n\n![missing][]\n\nCode `tick without end.\n\n**정확도(Accuracy)**를 본다.\n");
   writeFileSync(file, source);
   writeFileSync(operations, JSON.stringify([{ command: "format" }, { command: "format" }]));
   try {
@@ -2491,7 +2491,9 @@ test("check and edit previews retain original literal-syntax warnings through li
     assert.equal(text.stderr, "warning: footnote [^loss] (block 1, line 5) has no definition in this document\n" +
       'warning: reference link "[details][missing]" (block 2, line 7) has no definition in this document\n' +
       'warning: reference image "![missing][]" (block 3, line 9) has no definition in this document\n' +
-      'warning: inline code "`" (block 4, line 11) has no closing backtick run; parsed as literal text\n');
+      'warning: inline code "`" (block 4, line 11) has no closing backtick run; parsed as literal text\n' +
+      'warning: emphasis "**정확도(Accuracy)**" (block 5, line 13) has punctuation inside and a letter outside a delimiter; ' +
+      "parsed as literal text (write that outside letter as a &#x...; character reference, or use --content InlineContent)\n");
     const json = run(["check", file, "--format", "json"]);
     assert.equal(json.status, 0, json.stderr);
     assert.equal(json.stderr, "");
@@ -2502,12 +2504,15 @@ test("check and edit previews retain original literal-syntax warnings through li
       { syntax: "reference-link", label: "missing", source: "[details][missing]", path: [2], line: 7 },
       { syntax: "reference-image", label: "missing", source: "![missing][]", path: [3], line: 9 },
       { syntax: "inline-code", source: "`", path: [4], line: 11 },
+      { syntax: "emphasis", source: "**정확도(Accuracy)**", path: [5], line: 13 },
     ]);
     assert.equal(readFileSync(file, "utf8"), source, "check never writes");
     const warning = "warning: footnote [^loss] (block 1, line 5) has no definition; written as literal \\[^loss]\n" +
       'warning: reference link "[details][missing]" (block 2, line 7) has no definition; written as literal text\n' +
       'warning: reference image "![missing][]" (block 3, line 9) has no definition; written as literal text\n' +
-      'warning: inline code "`" (block 4, line 11) has no closing backtick run; written as literal text\n';
+      'warning: inline code "`" (block 4, line 11) has no closing backtick run; written as literal text\n' +
+      'warning: emphasis "**정확도(Accuracy)**" (block 5, line 13) has punctuation inside and a letter outside a delimiter; ' +
+      "written as literal text (write that outside letter as a &#x...; character reference, or use --content InlineContent)\n";
     for (const args of [["format", file], ["insert-block", file, "--at", "1", "--text", "Added."],
       ["apply-batch", file, "--operations", operations]]) {
       writeFileSync(file, source);

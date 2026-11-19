@@ -37,6 +37,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
 - 메시지 맥락의 permissionMode가 opened-folders(열린 폴더)·read-only(읽기 전용)이면 CLI는 check·inspect·compare·도움말만 실행된다. 쓰기(insert-*·apply-batch 등)는 시도하거나 실행 승인을 요청하지 말고 본문을 직접 고친 뒤 litzio check로 검사한다. 공급자 패치 도구가 없으면 UTF-8 파일 편집 셸을 쓴다. 읽기 전용의 편집 제한은 유지하며 full-access(전체 접근)에서는 쓰기 CLI도 쓸 수 있다.
 - 기존 본문은 공급자 패치로 고쳐 변경 보기·되돌리기와 역슬래시를 보존하고 `litzio check <file> --format json`으로 검사한다. 셸은 읽기·검사·변환·일괄 처리 등에 쓴다. 임시 파일은 현재 폴더에 두며 열린 폴더의 지시 파일을 먼저 읽는다.
+- 문장부호로 끝나는(또는 시작하는) 굵게·기울임 바로 바깥에 글자를 붙이면 강조가 풀린다(예: `**정확도(Accuracy)**를`). check의 emphasis 경고를 보면 그 바깥 글자를 `&#x...;` 문자 참조로 바꿔 고친다.
 - 전체 접근의 이미지 자산 CLI: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져올 수 있다. 삽입 방법과 무관하게 litzio check로 그림 경로를 검사한다.
 - 전체 접근의 새 문서 CLI: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
 - 전체 접근의 템플릿 CLI: litzio templates list --json --language <ko|en>, litzio templates read <id> --json --language <ko|en>, litzio create <new-file> --template <id> --language <ko|en>, litzio templates save <name> --from <file> --description <text>를 사용한다.
