@@ -168,7 +168,8 @@ only for the identical immutable engine document, as endnote/citation numbering 
 A changed document recomputes numbering; source semantics and canonical output are unchanged.
 
 - Enter splits prose and headings, exits a heading at its end, and creates space
-  beside an atomic block. Enter on a selected Figure/Table/Equation opens properties,
+  beside an atomic block. Enter at the start of a non-empty heading opens an empty
+  paragraph above it and keeps the caret at the heading start. Enter on a selected Figure/Table/Equation opens properties,
   as described below. Backspace/Delete use engine joins and selections. A
   heading joined with prose that has line breaks becomes a paragraph to retain them
   (headings hold marks and inline atoms but no line breaks, #58).

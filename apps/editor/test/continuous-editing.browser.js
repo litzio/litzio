@@ -453,8 +453,20 @@ async (page, { expect, showNotifications, openDocument }) => {
   await save();
   await page.keyboard.press('Control+z');
   await save();
+  const beforeHeadingEnter = await snapshot();
   await select(['Heading', 0]);
   await page.keyboard.press('Enter');
+  await page.keyboard.press('Control+z');
+  assert(await snapshot() === beforeHeadingEnter, 'One Undo must reverse Enter at a heading start');
+  await select(['Heading', 0]);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('X');
+  const blocks = (await doc()).content;
+  const headingAt = blocks.findIndex(node => node.type === 'heading' && node.content?.[0]?.text === 'XHeading');
+  assert(headingAt > 0 && blocks[headingAt - 1].type === 'paragraph' && !blocks[headingAt - 1].content?.length,
+    'Enter at a heading start must leave an empty paragraph above and the caret at the heading start (#1834)');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('ArrowUp');
   await page.keyboard.type('Before');
   await save();
   await select(['Before', 3], ['Heading', 3]);
