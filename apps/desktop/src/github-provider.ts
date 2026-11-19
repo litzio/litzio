@@ -1,4 +1,4 @@
-// Preserve structured evidence before electron-updater 6.8.9 wraps latest-release HTTP errors.
+// Preserve structured evidence before electron-updater 6.8.12 wraps latest-release HTTP errors.
 // Selection, metadata parsing, downloads and signatures remain the library's implementation.
 import type { OutgoingHttpHeaders } from "node:http";
 import { CancellationToken, HttpError, parseXml, type CustomPublishOptions, type GithubOptions } from "builder-util-runtime";

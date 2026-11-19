@@ -135,7 +135,7 @@ test("started without a document, it opens none; the sample opens with its figur
       main: asar.extractFile(locations.archive, "THIRD_PARTY_LICENSES.txt").toString("utf8"),
       cli: readFileSync(path.join(locations.resources, "cli/THIRD_PARTY_LICENSES.txt"), "utf8"),
     };
-    assert.match(notices.main, /electron-updater@6\.8\.9/);
+    assert.match(notices.main, /electron-updater@6\.8\.12/);
     assert.match(notices.main, /Copyright \(c\) 2015 Loopline Systems/);
     assert.match(notices.cli, /Tiptap GmbH/);
     assert.equal(page.url(), DESKTOP_ENTRY);
