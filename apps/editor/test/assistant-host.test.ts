@@ -204,7 +204,7 @@ test("history rename, archive and unarchive keep order over HTTP and explicit-Ho
   const request = agent.client.request.bind(agent.client);
   let held = false, entered!: () => void, release!: () => void;
   const entering = new Promise<void>(resolve => { entered = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
-  t.mock.method(agent.client, "request", async (method: string, params: any) => {
+  const holdTurns = t.mock.method(agent.client, "request", async (method: string, params: any) => {
     if (method === "thread/turns/list" && !held) { held = true; entered(); await released; }
     return request(method, params);
   });
@@ -217,6 +217,23 @@ test("history rename, archive and unarchive keep order over HTTP and explicit-Ho
   assert.equal((await fetch(`${origin}/api/assistant/conversations?id=${running.id}`).then(response => response.json()) as any).title, "Renamed while reopening");
   assert.equal((await post({ action: "send", id: running.id, submissionId: "after-overlapping-resume", message: "Next", ...send })).body.submission.status, "accepted");
   assert.equal((await listed()).find(entry => entry.id === running.id).title, "Renamed while reopening", "the next send keeps the rename");
+  holdTurns.mock.restore();
+
+  // A send still waiting for the provider saves its own object later; only rename changes a stored title.
+  await agent.client.request("fixture/finish", { threadId: running.id });
+  let startHeld = false, startEntered!: () => void, startRelease!: () => void;
+  const startEntering = new Promise<void>(resolve => { startEntered = resolve; }), startReleased = new Promise<void>(resolve => { startRelease = resolve; });
+  t.mock.method(agent.client, "request", async (method: string, params: any) => {
+    if (method === "turn/start" && !startHeld) { startHeld = true; startEntered(); await startReleased; }
+    return request(method, params);
+  });
+  const waiting = post({ action: "send", id: running.id, message: "Later", ...send });
+  await startEntering;
+  assert.equal((await post({ action: "resume", id: running.id })).status, 200);
+  assert.equal((await post({ action: "rename", id: running.id, title: "Renamed during send" })).status, 200);
+  startRelease();
+  assert.equal((await waiting).status, 200);
+  assert.equal((await listed()).find(entry => entry.id === running.id).title, "Renamed during send", "a send admitted after a rename keeps the rename");
 });
 
 test("unavailable provider rejects new work with a reason; settings do not close admitted conversations", async t => {

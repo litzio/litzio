@@ -16,9 +16,11 @@ export class AssistantConversationIndex {
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
   save(conversation: AssistantConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback, archivedAt } = conversation;
+    const { id, folders, createdAt, updatedAt, provider, permissionMode, permissionFallback, archivedAt } = conversation;
     const questions = conversation.turns.flatMap(turn => turn.items.filter(item => item.question).map(item => ({ itemId: item.id, text: item.text, question: item.question! })));
     const previous = this.list();
+    // A title is set at creation and changed only by rename; a stale conversation object never restores an old one.
+    const title = previous.find(entry => entry.id === id)?.title ?? conversation.title;
     const attachments = this.attachments.owned(id);
     const entries = previous.filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
