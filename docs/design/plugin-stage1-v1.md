@@ -106,7 +106,7 @@ export function activate(context) {
 
 ## 설정·비밀값·비서 지침
 
-설정 대화상자의 boolean은 본체의 SettingsSwitch 행으로 이름을 왼쪽, 스위치를 오른쪽 끝에 놓는다. 이름표가 붙은 입력은 공용 form-field 간격을 쓴다. secret 이름은 입력의 이름표이며 설정 여부는 별도의 보조 색 상태다. 필드의 저장 오류·저장 상태와 secret의 설정 상태·저장 오류는 그 필드 Row의 이름 아래에 두고 aria-describedby로 해당 입력의 접근 가능한 설명에 연결한다. 저장된 secret 삭제는 빨간 테두리 버튼과 DangerConfirmation(취소 초기 focus, 닫으면 삭제 버튼으로 복귀)을 거친다. 설명은 Tooltip으로 제공한다. 일반 설정은 필드별 자동 저장, secret은 명시적 저장과 즉시 입력 비움을 유지한다. 일반 설정·secret·연결 확인·제거 순서로 배치한다.
+설정 대화상자의 boolean은 본체의 SettingsSwitch 행으로 이름을 왼쪽, 스위치를 오른쪽 끝에 놓는다. 이름표가 붙은 입력은 공용 form-field 간격을 쓴다. secret 이름은 입력의 이름표이며 설정 여부는 별도의 보조 색 상태다. 필드의 저장 오류·저장 상태와 secret의 설정 상태·저장 오류는 그 필드 Row의 이름 아래에 두고 aria-describedby로 해당 입력의 접근 가능한 설명에 연결한다. 저장된 secret 삭제는 빨간 테두리 버튼과 DangerConfirmation(취소 초기 focus, 닫으면 삭제 버튼으로 복귀)을 거친다. 기준 캡처(1440px 밝음): [필드 오류](assets/plugin-settings-rows-1788/after-field-error-1440-light-en.png)·[secret 상태](assets/plugin-settings-rows-1788/after-secret-1440-light-en.png)·[삭제 확인](assets/plugin-settings-rows-1788/after-secret-confirm-1440-light-en.png). 설명은 Tooltip으로 제공한다. 일반 설정은 필드별 자동 저장, secret은 명시적 저장과 즉시 입력 비움을 유지한다. 일반 설정·secret·연결 확인·제거 순서로 배치한다.
 
 `settingsSchema`는 일반 설정 JSON Schema다. 초기 값은 {}이며 필드별 저장을 위해 최상위 required는 비워 둔다. 필요한 연결 값은 handler나 healthCheck에서 확인한다. 설정은 Host 소유이고 변경은 활성 인스턴스를 drain·dispose한 후 새 값으로 다시 불러온다.
 
